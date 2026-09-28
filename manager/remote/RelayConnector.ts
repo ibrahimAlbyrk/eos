@@ -15,6 +15,10 @@ import { encodeJsonEnvelope, parseEnvelope, FrameType, type Envelope } from "./e
 
 const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 60_000;
+// The relay leg idles whenever no phone is connected, and an idle socket can die
+// silently (Mac sleep, Wi-Fi change, NAT expiry) — close never fires, so without
+// a ping the daemon would stay "registered" to nothing and never redial.
+const PING_INTERVAL_MS = 25_000;
 
 export interface RelayConnectorDeps {
   url: string; // wss://<relay>/  — from config.remote.relay.url
@@ -22,12 +26,14 @@ export interface RelayConnectorDeps {
   owner: string; // b64u room-owner secret (relay stores only its SHA-256)
   allow: () => string[]; // the room's admission allowlist (hex) — in v3 [ sha256Hex(bearer) ]
   onJoined: (clientId: Buffer) => void; // a device joined → go live for it
+  onLeft?: (clientId: Buffer) => void; // a device's relay socket closed → drop its session now
   onData: (env: Envelope) => void; // incoming c2s data frame for a device session
   onError?: (code: string, message: string) => void;
   onRegistered?: () => void;
   now: () => number;
   log?: (msg: string, extra?: Record<string, unknown>) => void;
   reconnect?: boolean; // default true
+  pingIntervalMs?: number; // default PING_INTERVAL_MS
   // Injectable for tests (a local ws server); defaults to the real ws client.
   WebSocketCtor?: typeof WebSocket;
 }
@@ -40,6 +46,7 @@ export class RelayConnector {
   private state: State = "idle";
   private backoff = BACKOFF_MIN_MS;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: RelayConnectorDeps) { this.deps = deps; }
 
@@ -51,6 +58,7 @@ export class RelayConnector {
   stop(): void {
     this.state = "stopped";
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
+    this.stopPing();
     try { this.ws?.close(); } catch { /* already closing */ }
     this.ws = null;
   }
@@ -82,6 +90,7 @@ export class RelayConnector {
       // a clean register send as registered and reset backoff.
       this.state = "registered";
       this.backoff = BACKOFF_MIN_MS;
+      this.startPing(ws);
       this.deps.onRegistered?.();
     });
 
@@ -90,7 +99,7 @@ export class RelayConnector {
       if (buf) this.onMessage(buf);
     });
 
-    ws.on("close", () => this.scheduleReconnect());
+    ws.on("close", () => { this.stopPing(); this.scheduleReconnect(); });
     ws.on("error", (e: Error) => {
       this.deps.log?.("relay socket error", { error: e.message });
       // 'close' follows 'error' for ws; reconnect is scheduled there.
@@ -108,6 +117,10 @@ export class RelayConnector {
         const j = parseJson(env.payload);
         if (j?.t === "joined" && typeof j.clientId === "string") {
           this.deps.onJoined(Buffer.from(j.clientId, "base64url"));
+        } else if (j?.t === "left" && typeof j.clientId === "string") {
+          this.deps.onLeft?.(Buffer.from(j.clientId, "base64url"));
+        } else if (j?.t === "registered") {
+          this.deps.log?.("relay acked register", { room: this.deps.room });
         }
         return;
       }
@@ -119,6 +132,28 @@ export class RelayConnector {
       default:
         return;
     }
+  }
+
+  // A missed pong since the previous tick ⇒ the socket is dead; terminate so the
+  // close handler redials.
+  private startPing(ws: WebSocket): void {
+    this.stopPing();
+    let ponged = true;
+    ws.on("pong", () => { ponged = true; });
+    this.pingTimer = setInterval(() => {
+      if (!ponged) {
+        this.deps.log?.("relay ping unanswered — reconnecting", {});
+        ws.terminate();
+        return;
+      }
+      ponged = false;
+      ws.ping();
+    }, this.deps.pingIntervalMs ?? PING_INTERVAL_MS);
+    this.pingTimer.unref?.();
+  }
+
+  private stopPing(): void {
+    if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
   }
 
   private scheduleReconnect(): void {

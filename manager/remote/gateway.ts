@@ -18,6 +18,7 @@ import { encodeServerFrame, decodeClientFrame } from "./framer.ts";
 import { ControlDispatcher, type RouteDispatch, type DispatchSession } from "./dispatch.ts";
 import { WsBridge, type RemoteSession, type ServerFrame } from "./WsBridge.ts";
 import type { RemoteAuditLog } from "./audit.ts";
+import type { LiveBlock } from "../../contracts/src/remote.ts";
 
 // Every relay session holds the full capability set — "mutate" gates the local
 // ui-token for ✦ routes. "highrisk" is retained for completeness but is no longer
@@ -33,7 +34,14 @@ export interface GatewayDeps {
   room: string;
   now: () => number;
   log?: (msg: string, extra?: Record<string, unknown>) => void;
+  // In-flight streaming text for the snapshot (LiveText); absent ⇒ none sent.
+  liveText?: { snapshot(): LiveBlock[] };
 }
+
+// A patch pushed while the snapshot's list reads are in flight carries NEWER
+// rows than the reads may return; the device applies the snapshot after it, so
+// re-read until no patch slipped in between (bounded — a busy daemon settles).
+const SNAPSHOT_READ_ATTEMPTS = 3;
 
 // Drives ONE device connection: on join-ack (relay-assigned clientId) go live
 // immediately, then dispatch each incoming `data` frame. `send` writes a raw
@@ -48,9 +56,9 @@ export class GatewayConnection {
   private session: RemoteSession | null = null;
   private ptySubs = new Set<string>(); // PTY sessions whose raw output this device shows (sub frame)
   private readonly joinAck: boolean;
-  // The relay never tells the daemon a device left (its error frames carry no
-  // clientId), so liveness is inferred from inbound traffic: the phone sends a
-  // ka every 20s while its socket is open, and hello/control frames count too.
+  // A current relay announces a departed device (`left`); an older one doesn't,
+  // so liveness is also inferred from inbound traffic: the phone sends a ka
+  // every 20s while its socket is open, and hello/control frames count too.
   // wire.ts sweeps sessions whose lastActivityAt is older than the idle TTL.
   private lastActivity: number;
 
@@ -131,13 +139,26 @@ export class GatewayConnection {
   // authoritative list routes is the recovery. `seq` carries the bridge cursor at
   // snapshot time so the device resumes gap detection from here.
   private async sendSnapshot(): Promise<void> {
-    const [w, p] = await Promise.all([
-      this.deps.routeDispatch({ method: "GET", path: "/workers", body: {} }),
-      this.deps.routeDispatch({ method: "GET", path: "/pending", body: {} }),
-    ]);
-    const rows = (r: typeof w): unknown[] => ("body" in r && Array.isArray(r.body) ? r.body : []);
-    this.session?.send({ t: "snapshot", seq: this.bridge.currentSeq(), workers: rows(w), pending: rows(p) });
-    this.deps.log?.("remote snapshot sent", { workers: rows(w).length, pending: rows(p).length });
+    const rows = (r: Awaited<ReturnType<GatewayDeps["routeDispatch"]>>): unknown[] =>
+      ("body" in r && Array.isArray(r.body) ? r.body : []);
+    let workers: unknown[] = [];
+    let pending: unknown[] = [];
+    for (let attempt = 1; attempt <= SNAPSHOT_READ_ATTEMPTS; attempt++) {
+      const patchSeq = this.bridge.lastPatchSeq();
+      const [w, p] = await Promise.all([
+        this.deps.routeDispatch({ method: "GET", path: "/workers", body: {} }),
+        this.deps.routeDispatch({ method: "GET", path: "/pending", body: {} }),
+      ]);
+      workers = rows(w);
+      pending = rows(p);
+      if (this.bridge.lastPatchSeq() === patchSeq) break;
+    }
+    // Synchronous from here: seq, epoch and live text describe the same instant.
+    this.session?.send({
+      t: "snapshot", seq: this.bridge.currentSeq(), epoch: this.bridge.epoch(),
+      workers, pending, live: this.deps.liveText?.snapshot() ?? [],
+    });
+    this.deps.log?.("remote snapshot sent", { workers: workers.length, pending: pending.length });
   }
 
   private fail(code: string): void {

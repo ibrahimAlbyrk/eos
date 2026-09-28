@@ -93,13 +93,29 @@ export const PatchFrameSchema = z.object({
 });
 export type PatchFrame = z.infer<typeof PatchFrameSchema>;
 
+// A block still streaming as `agent:delta` when the snapshot was taken: its text
+// so far. Deltas are increments with no offset, so a device that missed some
+// (backgrounded, reconnecting) re-seeds its live buffer from here instead of
+// showing a hole.
+export const LiveBlockSchema = z.object({
+  workerId: z.string(),
+  blockId: z.string(),
+  channel: z.enum(["reasoning", "text"]),
+  text: z.string(),
+});
+export type LiveBlock = z.infer<typeof LiveBlockSchema>;
+
 // §5.4.3 — full state re-seed, sent in answer to a client `hello` (resume /
 // seq-gap recovery). Rows are the GET /workers + GET /pending list shapes.
+// `epoch` names the bridge the seq belongs to — seq restarts with a new one, so
+// a changed epoch means "reset your cursor", not "gap".
 export const SnapshotFrameSchema = z.object({
   t: z.literal("snapshot"),
   seq: z.number().int(),
+  epoch: z.string().optional(),
   workers: z.array(z.unknown()),
   pending: z.array(z.unknown()),
+  live: z.array(LiveBlockSchema).optional(),
 });
 export type SnapshotFrame = z.infer<typeof SnapshotFrameSchema>;
 

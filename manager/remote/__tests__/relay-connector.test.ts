@@ -70,4 +70,58 @@ describe("RelayConnector ↔ mock relay", () => {
     conn.stop();
     await new Promise<void>((r) => wss.close(() => r()));
   });
+
+  it("routes relay `left` to onLeft and tolerates the `registered` ack", async () => {
+    const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    const port = await new Promise<number>((r) => wss.on("listening", () => r((wss.address() as AddressInfo).port)));
+    const room = "AAAAAAAAAAAAAAAAAAAAAA";
+    const clientId = Buffer.from("0f0e0d0c0b0a09080706050403020100", "hex");
+    wss.on("connection", (ws) => {
+      ws.send(encodeJsonEnvelope({ type: FrameType.relayctl, room, dir: Dir.s2c, json: { t: "registered", room } }));
+      ws.send(encodeJsonEnvelope({ type: FrameType.relayctl, room, dir: Dir.s2c, clientId, json: { t: "left", clientId: clientId.toString("base64url"), room } }));
+    });
+
+    const left = once<Buffer>();
+    const logs: string[] = [];
+    const conn = new RelayConnector({
+      url: `ws://127.0.0.1:${port}/`, room, owner: "O", allow: () => [],
+      onJoined: () => {}, onLeft: (id) => left.resolve(id), onData: () => {},
+      now: () => 0, reconnect: false, log: (m) => logs.push(m),
+    });
+    conn.start();
+    assert.equal((await left.promise).toString("hex"), clientId.toString("hex"));
+    assert.ok(logs.includes("relay acked register"));
+    assert.ok(conn.isRegistered());
+
+    conn.stop();
+    await new Promise<void>((r) => wss.close(() => r()));
+  });
+
+  it("terminates a relay socket that stops answering pings, keeps a healthy one", async () => {
+    const dead = new WebSocketServer({ host: "127.0.0.1", port: 0, autoPong: false });
+    const healthy = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    const portOf = (w: WebSocketServer) => new Promise<number>((r) => w.on("listening", () => r((w.address() as AddressInfo).port)));
+    const [deadPort, healthyPort] = await Promise.all([portOf(dead), portOf(healthy)]);
+    const deadClosed = once<void>();
+    dead.on("connection", (ws) => ws.on("close", () => deadClosed.resolve()));
+    let healthyClosed = false;
+    healthy.on("connection", (ws) => ws.on("close", () => { healthyClosed = true; }));
+
+    const mk = (port: number) => new RelayConnector({
+      url: `ws://127.0.0.1:${port}/`, room: "AAAAAAAAAAAAAAAAAAAAAA", owner: "O", allow: () => [],
+      onJoined: () => {}, onData: () => {}, now: () => 0, reconnect: false, pingIntervalMs: 20,
+    });
+    const a = mk(deadPort);
+    const b = mk(healthyPort);
+    a.start();
+    b.start();
+
+    await deadClosed.promise; // no pong after one tick ⇒ terminated on the next
+    await new Promise((r) => setTimeout(r, 100)); // ~5 ticks
+    assert.equal(healthyClosed, false, "a ponging relay socket survives the same ticks");
+
+    a.stop();
+    b.stop();
+    await Promise.all([dead, healthy].map((w) => new Promise<void>((r) => w.close(() => r()))));
+  });
 });

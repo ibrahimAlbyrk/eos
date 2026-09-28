@@ -171,6 +171,50 @@ describe("GatewayConnection (relay v3 plaintext session)", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it("snapshot carries epoch + live text, and re-reads when a patch lands mid-read", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eos-gw-"));
+    try {
+      const bus = new FakeBus();
+      const bridge = new WsBridge({ bus, now: () => 0 });
+      bridge.start();
+      const clientId = randomBytes(16);
+      const out: Buffer[] = [];
+      const live = [{ workerId: "w-1", blockId: "b-1", channel: "text" as const, text: "so far" }];
+      let workerReads = 0;
+      const deps: GatewayDeps = {
+        ...mkDeps(dir, bus),
+        liveText: { snapshot: () => live },
+        routeDispatch: async ({ path }) => {
+          if (path !== "/workers") return { status: 200, body: [] };
+          workerReads++;
+          // First read races a patch: its rows are older than what the patch already pushed.
+          if (workerReads === 1) bridge.pushPatch("workers", "upsert", { id: "w-1", state: "IDLE" });
+          return { status: 200, body: [{ id: "w-1", state: workerReads === 1 ? "WORKING" : "IDLE" }] };
+        },
+      };
+      const conn = new GatewayConnection({
+        deps, bridge, clientId, joinAck: false,
+        send: (buf) => out.push(buf), close: () => {},
+      });
+      conn.start();
+
+      conn.onEnvelope(parseEnvelope(c2s({ t: "hello", lastContentId: 0 }, clientId)));
+      await new Promise((r) => setTimeout(r, 10));
+
+      const snap = out.map(parseInner).find((m) => m.json.t === "snapshot");
+      assert.ok(snap, "a snapshot frame was sent");
+      assert.equal(workerReads, 2, "re-read after the mid-read patch");
+      assert.deepEqual(snap!.json.workers, [{ id: "w-1", state: "IDLE" }], "never older than the patch it follows");
+      assert.equal(snap!.json.seq, bridge.currentSeq());
+      assert.equal(snap!.json.epoch, bridge.epoch());
+      assert.match(snap!.json.epoch, /^[0-9a-f]{16}$/);
+      assert.deepEqual(snap!.json.live, live);
+
+      conn.dispose();
+      bridge.stop();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it("ignores a malformed inner frame without dispatching", async () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-gw-"));
     try {

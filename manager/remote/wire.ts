@@ -15,6 +15,7 @@ import { makeRouteDispatch } from "./virtual-dispatch.ts";
 import { GatewayConnection, type GatewayDeps } from "./gateway.ts";
 import { WsBridge } from "./WsBridge.ts";
 import { StatePatcher } from "./patcher.ts";
+import { LiveText } from "./LiveText.ts";
 import { RelayConnector } from "./RelayConnector.ts";
 import type { Router } from "../routes/Router.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
@@ -33,11 +34,11 @@ export interface PairArmOptions {
   ttlMs?: number; // QR display-window; default 120s
 }
 
-// Stale-session pruning. The relay drops a disconnected device from its routing
-// table but never notifies the daemon (and its ROOM_NOT_FOUND error frames carry
-// no clientId, so they can't be attributed) — without a sweep the daemon fans
-// every event out to dead clientIds forever. The phone keepalives every 20s, so
-// 90s idle means at least four missed kas ⇒ the session is gone.
+// Stale-session pruning. A current relay announces a departed device (`left`),
+// but an older one drops it from routing silently (and its ROOM_NOT_FOUND error
+// frames carry no clientId, so they can't be attributed) — this sweep is the
+// backstop so the daemon never fans events out to dead clientIds forever. The
+// phone keepalives every 20s, so 90s idle means at least four missed kas.
 export const SESSION_IDLE_TTL_MS = 90_000;
 const SESSION_SWEEP_INTERVAL_MS = 30_000;
 
@@ -92,10 +93,13 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   const now = (): number => Date.now();
   const room = secrets.room;
 
+  const liveText = new LiveText(c.bus, now);
+  liveText.start();
   const deps: GatewayDeps = {
     audit, uiToken: c.uiToken, routeDispatch: makeRouteDispatch(router),
     bus: c.bus, room, now,
     log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
+    liveText,
   };
 
   const bridge = new WsBridge({ bus: c.bus, now });
@@ -108,6 +112,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   });
   patcher.start();
   const conns = new Map<string, GatewayConnection>();
+  const drop = (hex: string): void => { conns.get(hex)?.dispose(); conns.delete(hex); };
   const connector = new RelayConnector({
     url: relayUrl, room, owner,
     // §4.1: on every (re)connect re-register with the FULL allowlist so the relay's
@@ -119,11 +124,15 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
       const conn = new GatewayConnection({
         deps, bridge, clientId, joinAck: false,
         send: (buf) => connector.sendData(buf),
-        close: () => { conns.get(hex)?.dispose(); conns.delete(hex); },
+        close: () => drop(hex),
       });
       conns.set(hex, conn);
       conn.start();
     },
+    onLeft: (clientId) => drop(clientId.toString("hex")),
+    // A fresh relay socket: the relay closed every device joined through the
+    // previous one, so their sessions here are dead — they re-join and resync.
+    onRegistered: () => { for (const hex of [...conns.keys()]) drop(hex); },
     onData: (env) => conns.get(env.clientId.toString("hex"))?.onEnvelope(env),
     onError: (code, message) => c.log.warn("relay error", { code, message }),
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
@@ -137,7 +146,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   sweeper.unref?.();
   c.log.info("remote gateway armed", { relayUrl, room });
   return {
-    stop: () => { clearInterval(sweeper); connector.stop(); patcher.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
+    stop: () => { clearInterval(sweeper); connector.stop(); patcher.stop(); liveText.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
     // mutation (the bearer hash is already in the room's allow from register).
     armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),

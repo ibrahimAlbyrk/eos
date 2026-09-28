@@ -5,6 +5,8 @@
 // events. A RemoteSession here is the live per-device peer — WsBridge hands it a
 // server frame; the session serializes it into a `data` envelope (framer.ts).
 
+import { randomBytes } from "node:crypto";
+
 import type { EventBus, EventBusMessage } from "../../core/src/ports/EventBus.ts";
 import type { AssetFrame, EventFrame, PatchFrame, RemoteErrorCode, SnapshotFrame } from "../../contracts/src/remote.ts";
 
@@ -41,6 +43,8 @@ export class WsBridge {
   private readonly sessions = new Map<string, RemoteSession>();
   private readonly opts: WsBridgeOptions;
   private seq = 0;
+  private patchSeq = 0;
+  private readonly epochId = randomBytes(8).toString("hex");
   private unsubscribe: (() => void) | null = null;
 
   constructor(opts: WsBridgeOptions) {
@@ -71,11 +75,16 @@ export class WsBridge {
   // security boundary (§5.4.1).
   nextSeq(): number { return ++this.seq; }
   currentSeq(): number { return this.seq; }
+  // seq restarts with every bridge (re-arm, daemon restart); the epoch tells a
+  // device its old cursor is meaningless rather than "far behind".
+  epoch(): string { return this.epochId; }
+  lastPatchSeq(): number { return this.patchSeq; }
 
   // Broadcast one §5.4.2 patch to every live session (StatePatcher's emit hook).
   pushPatch(resource: PatchFrame["resource"], op: PatchFrame["op"], data: unknown): void {
     if (this.sessions.size === 0) return;
-    this.broadcast({ t: "patch", seq: this.nextSeq(), resource, op, data });
+    this.patchSeq = this.nextSeq();
+    this.broadcast({ t: "patch", seq: this.patchSeq, resource, op, data });
   }
 
   private onBusMessage(msg: EventBusMessage): void {
