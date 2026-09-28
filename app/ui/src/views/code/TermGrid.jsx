@@ -166,6 +166,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
               surface="--bg"
               palette={PALETTE}
               shiftEnter={term.kind === KINDS.claude ? SHIFT_ENTER : undefined}
+              cwd={cwd}
               onTitle={(t) => setTitle(leafId, t)}
               onClaudeSession={(id) => setClaudeSession(leafId, id)}
             />

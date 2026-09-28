@@ -18,6 +18,7 @@ import {
 } from "../lib/paneLayout.js";
 import { GROUP_COLORS, nextGroupColor } from "../lib/groupColors.js";
 import { registerSessionTracker } from "./ptyPanelStore.js";
+import { recordClosed, forgetSession } from "./codeHistoryStore.js";
 
 // Shown on the launcher; the daemon builds the actual command line (mirrors
 // CLAUDE_COMMAND in contracts/src/http.ts — the user's `cc` alias). Each pane's
@@ -33,7 +34,7 @@ const STORAGE_KEY = "cm:codeWorkspace";
 const SEED = { cols: 120, rows: 32 };
 
 // groups: [{ id, name, color, tree, focusedId }] in sidebar order
-// terms: leafId -> { sessionId, kind, cwd, title, claudeSessionId } (all groups)
+// terms: leafId -> { sessionId, kind, cwd, title, claudeSessionId, startedAt } (all groups)
 // errors: leafId -> message (a failed launch, shown by that pane's launcher)
 let state = load();
 const launching = new Set(); // leafIds with a create in flight
@@ -163,7 +164,12 @@ async function start(leafId, term, claude) {
     if (!r?.ok || !s?.sessionId) throw new Error(s?.error ?? `could not start terminal (${r?.status ?? "no response"})`);
     // The pane may have been closed while the create was in flight.
     if (!groupOfLeaf(leafId)) { api.killPty(s.sessionId).catch(() => {}); return; }
-    set({ terms: { ...state.terms, [leafId]: { ...term, sessionId: s.sessionId, claudeSessionId: s.claudeSessionId ?? null } } });
+    set({
+      terms: {
+        ...state.terms,
+        [leafId]: { ...term, sessionId: s.sessionId, claudeSessionId: s.claudeSessionId ?? null, startedAt: term.startedAt ?? Date.now() },
+      },
+    });
   } catch (e) {
     set({ errors: { ...state.errors, [leafId]: e instanceof Error ? e.message : String(e) } });
   } finally {
@@ -184,14 +190,34 @@ export function splitPane(leafId, dir, kind = KINDS.claude) {
   return true;
 }
 
-// ⌘T / sidebar "New …": fill the focused pane when it's empty, else split it.
-export function openTerminal(kind = KINDS.claude) {
+// Where a new session goes: the focused pane when it's empty, else a new split
+// beside it (null when the layout is full).
+function paneForNewSession() {
   const id = state.focusedId;
-  if (!state.terms[id]) { launch(id, kind); return true; }
+  if (!state.terms[id]) return id;
   const { tree, newId } = splitLeaf(state.tree, id, "row", "after", null);
-  if (!newId) return false;
+  if (!newId) return null;
   setGroup(state.activeGroupId, { tree, focusedId: newId });
-  launch(newId, kind);
+  return newId;
+}
+
+// ⌘T / sidebar "New …".
+export function openTerminal(kind = KINDS.claude) {
+  const id = paneForNewSession();
+  if (!id) return false;
+  launch(id, kind);
+  return true;
+}
+
+// Reopen a closed session from the history (codeHistoryStore): Claude Code
+// continues its conversation, a shell starts fresh in the same folder. It leaves
+// the history once it runs again; a failed launch keeps it there to retry.
+export async function resumeSession(entry) {
+  const id = paneForNewSession();
+  if (!id) return false;
+  const { kind, cwd, title, claudeSessionId } = entry;
+  await start(id, { kind, cwd, title, claudeSessionId }, kind === KINDS.claude ? { resume: claudeSessionId } : undefined);
+  if (state.terms[id]) forgetSession(entry.id);
   return true;
 }
 
@@ -215,16 +241,27 @@ function dropPane(leafId) {
   setGroup(g.id, { tree, focusedId }, { terms, errors });
 }
 
+// Keep a pane's session in the history before it goes away. A Claude pane with
+// no conversation id has nothing to resume, so it is left out.
+function archive(leafId) {
+  const t = state.terms[leafId];
+  if (!t || (t.kind === KINDS.claude && !t.claudeSessionId)) return;
+  recordClosed(t, groupOfLeaf(leafId)?.color);
+}
+
 export function closePane(leafId) {
   const t = state.terms[leafId];
   if (t) api.killPty(t.sessionId).catch(() => {});
+  archive(leafId);
   dropPane(leafId);
 }
 
 // The shell exited (the user typed `exit`): close its pane, like a terminal tab.
 export function sessionExited(sessionId) {
   const leafId = Object.keys(state.terms).find((id) => state.terms[id].sessionId === sessionId);
-  if (leafId) dropPane(leafId);
+  if (!leafId) return;
+  archive(leafId);
+  dropPane(leafId);
 }
 
 // Latest terminal title (OSC 0/2 — Claude Code sets it to the conversation
@@ -339,6 +376,7 @@ export function deleteGroup(id) {
   let { terms, errors } = state;
   for (const l of leaves(g.tree)) {
     if (terms[l.id]) api.killPty(terms[l.id].sessionId).catch(() => {});
+    archive(l.id);
     terms = without(terms, l.id);
     errors = without(errors, l.id);
   }

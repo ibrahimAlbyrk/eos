@@ -3,7 +3,9 @@ import {
   adoptRemote, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
   sessionExited, setTitle, setClaudeSession, reconcile, dropPaneOn, _resetCodeWorkspace,
   createGroup, switchGroup, switchGroupByIndex, cycleGroup, renameGroup, setGroupColor, deleteGroup,
+  resumeSession,
 } from "./codeWorkspaceStore.js";
+import { getHistory, _resetCodeHistory } from "./codeHistoryStore.js";
 import { reapUntrackedSessions } from "./ptyPanelStore.js";
 import { leaves } from "../lib/paneLayout.js";
 
@@ -40,6 +42,7 @@ const paneIds = () => leaves(getWorkspace().tree).map((l) => l.id);
 let server;
 beforeEach(() => {
   _resetCodeWorkspace();
+  _resetCodeHistory();
   server = mockServer();
   vi.stubGlobal("fetch", server.fetchMock);
   setCwd("/proj");
@@ -224,6 +227,86 @@ describe("codeWorkspaceStore", () => {
   });
 });
 
+describe("codeWorkspaceStore history", () => {
+  const closeClaude = async (title) => {
+    openTerminal(KINDS.claude);
+    await flush();
+    const leafId = getWorkspace().focusedId;
+    if (title) setTitle(leafId, title);
+    const { claudeSessionId } = getWorkspace().terms[leafId];
+    closePane(leafId);
+    return claudeSessionId;
+  };
+
+  it("closing a pane keeps its session, with its folder, title and group color", async () => {
+    const claudeSessionId = await closeClaude("✳ Fix PTY resize");
+    const [e] = getHistory();
+    expect(getHistory()).toHaveLength(1);
+    expect(e).toMatchObject({
+      id: claudeSessionId, kind: "claude", cwd: "/proj", title: "Fix PTY resize",
+      claudeSessionId, color: getWorkspace().groups[0].color,
+    });
+    expect(e.startedAt).toBeLessThanOrEqual(e.closedAt);
+  });
+
+  it("resuming continues the conversation in its own folder and leaves the history", async () => {
+    const claudeSessionId = await closeClaude("Fix PTY resize");
+    setCwd("/elsewhere");
+    await resumeSession(getHistory()[0]);
+    expect(server.creates.at(-1)).toMatchObject({ cwd: "/proj", claude: { resume: claudeSessionId } });
+    const ws = getWorkspace();
+    expect(ws.terms[ws.focusedId]).toMatchObject({ kind: "claude", cwd: "/proj", title: "Fix PTY resize", claudeSessionId });
+    expect(getHistory()).toEqual([]);
+  });
+
+  it("a resume beside a busy pane opens a split", async () => {
+    await closeClaude();
+    openTerminal(KINDS.shell);
+    await flush();
+    await resumeSession(getHistory()[0]);
+    expect(paneIds()).toHaveLength(2);
+    expect(getWorkspace().terms[getWorkspace().focusedId].kind).toBe("claude");
+  });
+
+  it("a failed resume keeps the entry to retry", async () => {
+    await closeClaude();
+    server.fetchMock.mockImplementationOnce(async () => ({ ok: false, status: 500, json: async () => ({ error: "no such folder" }) }));
+    await resumeSession(getHistory()[0]);
+    expect(getHistory()).toHaveLength(1);
+    expect(getWorkspace().errors[getWorkspace().focusedId]).toBe("no such folder");
+  });
+
+  it("shells keep one entry per folder and reopen as a fresh shell there", async () => {
+    for (let i = 0; i < 2; i += 1) {
+      openTerminal(KINDS.shell);
+      await flush();
+      closePane(getWorkspace().focusedId);
+    }
+    expect(getHistory()).toEqual([expect.objectContaining({ id: "shell:/proj", kind: "shell" })]);
+    await resumeSession(getHistory()[0]);
+    expect(server.creates.at(-1)).toEqual({ cols: 120, rows: 32, cwd: "/proj" });
+  });
+
+  it("an exited shell and a deleted group's sessions are kept too", async () => {
+    openTerminal(KINDS.shell);
+    await flush();
+    sessionExited("s1");
+    const id = createGroup();
+    openTerminal(KINDS.claude);
+    await flush();
+    deleteGroup(id);
+    expect(getHistory().map((e) => e.kind)).toEqual(["claude", "shell"]);
+  });
+
+  it("a Claude pane with no conversation id is not kept", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    setClaudeSession(getWorkspace().focusedId, null);
+    closePane(getWorkspace().focusedId);
+    expect(getHistory()).toEqual([]);
+  });
+});
+
 describe("codeWorkspaceStore groups", () => {
   const groupIds = () => getWorkspace().groups.map((g) => g.id);
 
@@ -339,5 +422,21 @@ describe("codeWorkspaceStore persistence", () => {
     expect(ws.groups[0]).toMatchObject({ name: "Group 1", tree, focusedId: tree.id });
     expect(ws.tree).toEqual(tree);
     expect(ws.terms[tree.id].sessionId).toBe("s9");
+  });
+});
+
+describe("codeHistoryStore persistence", () => {
+  afterEach(() => vi.resetModules());
+
+  it("the history survives a reload", async () => {
+    const saved = new Map();
+    vi.stubGlobal("localStorage", { getItem: (k) => saved.get(k) ?? null, setItem: (k, v) => saved.set(k, v) });
+    vi.resetModules();
+    (await import("./codeHistoryStore.js")).recordClosed({ kind: "shell", cwd: "/proj", title: "zsh" }, "teal", 5);
+    vi.resetModules();
+    const { getHistory: reloaded } = await import("./codeHistoryStore.js");
+    expect(reloaded()).toEqual([{
+      id: "shell:/proj", kind: "shell", cwd: "/proj", title: "zsh", claudeSessionId: null, color: "teal", startedAt: null, closedAt: 5,
+    }]);
   });
 });

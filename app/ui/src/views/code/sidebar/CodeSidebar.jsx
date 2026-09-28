@@ -13,6 +13,7 @@ import { folderGroups } from "./folderGroups.js";
 import { paneTitle, TERM_PANE_TYPE } from "../TermGrid.jsx";
 import { groupColorHex } from "../../../lib/groupColors.js";
 import { GroupList } from "./GroupList.jsx";
+import { HistoryList } from "./HistoryList.jsx";
 import { ClaudeGlyph, TerminalGlyph, FolderGlyph, KindGlyph, CloseGlyph, PlusGlyph } from "../icons.jsx";
 
 function CollapseIcon() {
@@ -28,6 +29,7 @@ function CollapseIcon() {
 // it as the workspace folder, double-click or + starts Claude Code there, in the
 // active group) above its open sessions (one per pane, draggable onto a pane to
 // rearrange the split). Recent folders without a session show as empty groups.
+// Below them, the closed sessions (HistoryList), to reopen with a click.
 export function CodeSidebar({ live, variant = "full" }) {
   const ui = useUi();
   const ws = useCodeWorkspace();
@@ -107,6 +109,7 @@ export function CodeSidebar({ live, variant = "full" }) {
             </div>
           </>
         )}
+        <HistoryList />
       </div>
 
       <SettingsFooter live={live} />
