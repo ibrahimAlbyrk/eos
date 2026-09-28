@@ -43,7 +43,7 @@ describe("SdkSummarizer", () => {
   });
 
   it("rejects without a subscription credential, and on timeout", async () => {
-    await assert.rejects(summarizer(async function* () { yield { type: "result", subtype: "success" }; }, "none").s.summarize(input), /no subscription credential/);
+    await assert.rejects(summarizer(async function* () { yield { type: "result", subtype: "success" }; }, "none").s.summarize(input), /no Claude credential/);
     const { s } = summarizer((p) => (async function* () {
       await new Promise((_r, rej) => (p.options.abortController as AbortController).signal.addEventListener("abort", () => rej(new Error("aborted"))));
       yield { type: "result", subtype: "success" }; // never reached — the abort rejects first

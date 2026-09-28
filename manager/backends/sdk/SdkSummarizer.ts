@@ -9,7 +9,7 @@ import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type { ConversationSummarizer, SummarizeInput } from "../../../core/src/ports/ConversationSummarizer.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { SdkQueryFn, SdkQueryHandle } from "./ClaudeSdkBackend.ts";
-import { buildBillingGuardEnv } from "./billing-env.ts";
+import { buildBillingGuardEnv, hasClaudeCredential } from "./billing-env.ts";
 
 export interface SdkSummarizerDeps {
   authResolver: Pick<AuthResolver, "resolve">;
@@ -36,14 +36,15 @@ export function createSdkSummarizer(deps: SdkSummarizerDeps): ConversationSummar
   return {
     async summarize(input: SummarizeInput): Promise<string> {
       const auth = await deps.authResolver.resolve({ kind: "subscription" });
-      if (auth.scheme === "none") throw new Error("no subscription credential for the summarizer");
+      const anthropic = deps.getAnthropicConfig?.() ?? {};
+      if (!hasClaudeCredential(anthropic, auth)) throw new Error("no Claude credential for the summarizer");
       const abort = new AbortController();
       const timer = setTimeout(() => abort.abort(), input.timeoutMs);
       const options = {
         model: input.model ?? deps.defaultModel,
         cwd: deps.cwd,
         env: buildBillingGuardEnv({
-          auth, anthropic: deps.getAnthropicConfig?.() ?? {}, workerId: "compaction-summarizer",
+          auth, anthropic, workerId: "compaction-summarizer",
           daemonUrl: deps.daemonUrl, disableAutoCompact: true,
         }),
         systemPrompt: input.system,

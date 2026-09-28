@@ -5,18 +5,20 @@
 // can't shadow the OAuth token, AND the parent CLAUDECODE / CLAUDE_CODE_* session
 // markers — the SDK passes options.env through to the child verbatim, so leaking
 // those makes it boot as a NESTED session (blank chat), the same failure the PTY
-// lane guards against. Then inject the OAuth token (after the strip, so it wins),
-// force direct tool loading (ENABLE_TOOL_SEARCH=false), and carry the EOS_* triplet.
+// lane guards against. Then inject the ONE credential the Accounts rule picks
+// (after the strip, so it wins), force direct tool loading (ENABLE_TOOL_SEARCH=false), and carry the EOS_* triplet.
 
 import type { ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
 import { buildSubscriptionChildEnv } from "../../../core/src/domain/env-allowlist.ts";
+import { resolveBillingRoute } from "../../../core/src/domain/billing-route.ts";
 
 export interface BillingGuardInput {
   readonly auth: ResolvedAuth;
   readonly workerId: string;
   readonly daemonUrl: string;
-  /** Operator-configured Anthropic credentials (Settings > Anthropic). When set,
-   *  they win over the ambient resolved token — see anthropicCredentialEnv. */
+  /** Operator-configured Anthropic credentials (Settings › Accounts). The token
+   *  wins over the ambient resolved one; the key applies only with no subscription
+   *  at all — see anthropicCredentialEnv. */
   readonly anthropic?: { apiKey?: string; authToken?: string };
   /** Eos compaction is on → switch off the binary's own silent auto-compaction
    *  (DISABLE_AUTO_COMPACT also covers its prompt-too-long retry), so the only
@@ -24,28 +26,40 @@ export interface BillingGuardInput {
   readonly disableAutoCompact?: boolean;
 }
 
-// The ONE credential env var operator-set Anthropic creds contribute to the SDK
-// child. Priority: authToken (the Max/Pro OAuth setup-token → CLAUDE_CODE_OAUTH_TOKEN)
-// WINS over apiKey (the metered key → ANTHROPIC_API_KEY); with both set the API key
-// is never emitted, so it can't shadow OAuth onto the metered pool. Blank /
-// whitespace values count as unset. Only when authToken is absent does apiKey apply.
-export function anthropicCredentialEnv(creds: { apiKey?: string; authToken?: string }): Record<string, string> {
-  const authToken = creds.authToken?.trim();
-  if (authToken) return { CLAUDE_CODE_OAUTH_TOKEN: authToken };
+// The ONE credential env var the SDK child gets, per the Accounts rule
+// (core/domain/billing-route): any subscription — the operator's Eos sign-in
+// (config authToken) or the resolved Claude login — wins, and the API key is then
+// never exported, so it can't shadow OAuth onto the metered pool. A resolved oauth
+// with no token is a refreshable login: nothing is exported and the child reads its
+// own store. The key applies only when no subscription exists at all. Blank /
+// whitespace values count as unset.
+export function anthropicCredentialEnv(
+  creds: { apiKey?: string; authToken?: string },
+  auth: ResolvedAuth = { scheme: "none" },
+): Record<string, string> {
+  const configToken = creds.authToken?.trim();
+  const signedIn = Boolean(configToken) || auth.scheme === "oauth";
   const apiKey = creds.apiKey?.trim();
-  if (apiKey) return { ANTHROPIC_API_KEY: apiKey };
-  return {};
+  const route = resolveBillingRoute(signedIn ? "signed_in" : "signed_out", Boolean(apiKey));
+  if (route === "subscription") {
+    const token = configToken || auth.token;
+    return token ? { CLAUDE_CODE_OAUTH_TOKEN: token } : {};
+  }
+  return route === "api_key" && apiKey ? { ANTHROPIC_API_KEY: apiKey } : {};
+}
+
+// Whether a claude session has ANY credential to run on — a resolved login or an
+// operator-set token/key. Callers that must not spawn blind (summarizer, judge)
+// check this instead of the resolver alone, so an Eos-only sign-in counts.
+export function hasClaudeCredential(creds: { apiKey?: string; authToken?: string }, auth: ResolvedAuth): boolean {
+  return auth.scheme !== "none" || Object.keys(anthropicCredentialEnv(creds, auth)).length > 0;
 }
 
 export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, string> {
   return {
     ...buildSubscriptionChildEnv(process.env),
-    ...(input.auth.scheme === "oauth" && input.auth.token ? { CLAUDE_CODE_OAUTH_TOKEN: input.auth.token } : {}),
-    // Operator-configured creds win over the resolved token: a config authToken
-    // overrides CLAUDE_CODE_OAUTH_TOKEN; a config apiKey re-introduces
-    // ANTHROPIC_API_KEY (stripped above) and, being a billing winner, moves the
-    // child onto the metered API. Spread AFTER the strip so the apiKey survives.
-    ...anthropicCredentialEnv(input.anthropic ?? {}),
+    // Spread AFTER the strip so an operator-set apiKey survives it.
+    ...anthropicCredentialEnv(input.anthropic ?? {}, input.auth),
     ENABLE_TOOL_SEARCH: "false",
     ...(input.disableAutoCompact ? { DISABLE_AUTO_COMPACT: "1" } : {}),
     EOS_SPAWNED: "1",

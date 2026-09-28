@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { buildBillingGuardEnv, anthropicCredentialEnv } from "../billing-env.ts";
+import { buildBillingGuardEnv, anthropicCredentialEnv, hasClaudeCredential } from "../billing-env.ts";
 
 describe("buildBillingGuardEnv — SDK child billing guard", () => {
   const saved = process.env.ANTHROPIC_API_KEY;
@@ -80,5 +80,23 @@ describe("anthropicCredentialEnv — OAuth-wins priority", () => {
   it("emits nothing when neither is set (and treats blank/whitespace as unset)", () => {
     assert.deepEqual(anthropicCredentialEnv({}), {});
     assert.deepEqual(anthropicCredentialEnv({ apiKey: "  ", authToken: "\t" }), {});
+  });
+
+  it("a resolved Claude login beats a configured API key (signed in → subscription)", () => {
+    const env = anthropicCredentialEnv({ apiKey: "sk-key" }, { scheme: "oauth", token: "oat01-login" });
+    assert.deepEqual(env, { CLAUDE_CODE_OAUTH_TOKEN: "oat01-login" });
+  });
+
+  it("a refreshable login (oauth, no token) exports nothing — never the API key", () => {
+    assert.deepEqual(anthropicCredentialEnv({ apiKey: "sk-key" }, { scheme: "oauth" }), {});
+  });
+});
+
+describe("hasClaudeCredential", () => {
+  it("counts an Eos-only sign-in or key even when the resolver finds nothing", () => {
+    assert.equal(hasClaudeCredential({ authToken: "oat01" }, { scheme: "none" }), true);
+    assert.equal(hasClaudeCredential({ apiKey: "sk" }, { scheme: "none" }), true);
+    assert.equal(hasClaudeCredential({}, { scheme: "oauth" }), true);
+    assert.equal(hasClaudeCredential({}, { scheme: "none" }), false);
   });
 });
