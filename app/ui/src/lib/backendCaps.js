@@ -112,7 +112,7 @@ export function providerChoices() {
     if (!d.enabled || d.billing !== "subscription" || seen.has(d.kind)) continue;
     seen.add(d.kind);
     const prof = PROFILES.find((p) => p.name === d.kind) ?? null;
-    out.push({ name: d.kind, label: d.label ?? d.kind, kind: d.kind, subscription: true, profile: prof ? prof.name : null, model: prof?.model ?? null });
+    out.push({ name: d.kind, label: d.label ?? d.kind, kind: d.kind, subscription: true, catalog: d.catalog ?? "claude", profile: prof ? prof.name : null, model: prof?.model ?? null });
   }
   for (const p of PROFILES) {
     if (DESCRIPTORS.get(p.kind)?.billing === "subscription" || seen.has(p.name)) continue;
@@ -120,6 +120,14 @@ export function providerChoices() {
     out.push({ name: p.name, label: p.label ?? p.name, kind: p.kind, subscription: false, profile: p.name, model: p.model ?? null });
   }
   return out;
+}
+
+// Whether a choice picks its model from the Claude catalog (the Claude model +
+// effort popovers). A subscription lane with its own catalog (e.g. Codex, whose
+// models come from the signed-in plan) and every API profile list their models
+// through GET /api/backends/:name/models instead.
+export function usesClaudeCatalog(choice) {
+  return Boolean(choice?.subscription) && (choice.catalog ?? "claude") === "claude";
 }
 
 // Display name for a provider CHOICE in the spawn picker — the bare provider

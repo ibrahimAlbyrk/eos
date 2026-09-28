@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerChoices, providerName, providerSwitchTargets, runningProviderChoice } from "../../../lib/backendCaps.js";
-import { modelName } from "../../../lib/models.js";
+import { providerChoices, providerName, providerSwitchTargets, runningProviderChoice, usesClaudeCatalog } from "../../../lib/backendCaps.js";
+import { MODELS, modelName } from "../../../lib/models.js";
+import { api } from "../../../api/client.js";
 import { useProviderModels } from "../../../hooks/useProviderModels.js";
+import { useSettings } from "../../../state/settings.jsx";
+import { useAccounts, isUsable } from "../../../state/accountsStore.js";
+import { openConnectSheet } from "../../../state/connectSheetStore.js";
+import { metaFor, accountMatchesChoice, choiceReady } from "../../../components/accounts/providerMeta.js";
+
+const DEFAULT_CLAUDE_MODEL = "opus";
+const isClaudeModel = (m) => Boolean(m) && (MODELS.some((e) => e.id === m || e.aliases.includes(m)) || /^(claude-|opus|sonnet|haiku|fable)/.test(m));
 
 // Provider switcher. Two distinct modes:
 //   • a selected worker → live provider switch (the daemon stops + resumes the
@@ -75,49 +83,97 @@ function BackendSwitchMenu({ live, ui, selected }) {
 // New-spawn provider picker over providerChoices(). Picking one sets
 // composer.provider (resolved to backendKind/backendProfile at spawn) and defaults
 // the model to a profile's pinned model; the model is then refined from the
-// separate model pill.
+// separate model pill. A subscription provider that can't run yet (not connected,
+// or its sign-in expired) shows Connect instead: it opens the Connect sheet, which
+// selects the provider once it is connected — the typed task stays put.
 function SpawnBackendMenu({ ui }) {
   const paneRef = useRef(null);
+  const { openSettings } = useSettings();
+  const { accounts } = useAccounts();
   const choices = providerChoices();
   const current = ui.composer.provider;
-  const [active, setActive] = useState(() => Math.max(0, choices.findIndex((p) => p.name === current)));
+  const accountFor = (c) => (accounts ?? []).find((a) => accountMatchesChoice(a, c)) ?? null;
+  const items = [];
+  for (const c of choices) {
+    const a = accountFor(c);
+    // Signed in to the plan → the plan's lane replaces the account's API-key
+    // profile (the Accounts rule: signed in → subscription, always).
+    if (!c.subscription && a?.route === "subscription") continue;
+    items.push({ key: c.name, choice: c, connect: a && !choiceReady(c, a) ? a : null });
+  }
+  // Plan providers with no lane in the list at all (e.g. its CLI isn't installed) still offer Connect.
+  for (const a of accounts ?? []) {
+    if (a.subscription && !isUsable(a) && !choices.some((c) => accountMatchesChoice(a, c))) {
+      items.push({ key: `connect:${a.id}`, choice: null, connect: a });
+    }
+  }
+  const [active, setActive] = useState(() => Math.max(0, items.findIndex((it) => it.choice?.name === current)));
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
-  const pick = (p) => {
-    const patch = { provider: p.name };
-    if (p.model) patch.model = p.model; // a profile's pinned model becomes the default
+  // A profile's pinned model becomes the default; a lane with its own catalog
+  // starts on the first (default) model it lists; a Claude lane never keeps a
+  // model carried over from another provider.
+  const select = (c) => {
+    const patch = { provider: c.name };
+    if (c.model) patch.model = c.model;
+    else if (usesClaudeCatalog(c) && !isClaudeModel(ui.composer.model)) patch.model = DEFAULT_CLAUDE_MODEL;
     ui.updateComposer(patch);
+    if (!c.model && !usesClaudeCatalog(c)) {
+      api.listBackendModels(c.name).then((r) => { if (r.models?.[0]) ui.updateComposer({ model: r.models[0] }); });
+    }
+  };
+
+  const pick = (item) => {
     ui.closeAllPops();
+    if (item.connect) {
+      const choice = item.choice;
+      openConnectSheet(item.connect.id, {
+        ready: (account) => (choice ? choiceReady(choice, account) : isUsable(account)),
+        onConnected: (account) => {
+          const ready = providerChoices()
+            .filter((c) => accountMatchesChoice(account, c) && choiceReady(c, account))
+            .sort((a, b) => Number(b.subscription) - Number(a.subscription));
+          if (ready[0]) select(ready[0]);
+        },
+      });
+      return;
+    }
+    select(item.choice);
   };
 
   const onKeyDown = (e) => {
     let handled = true;
-    if (e.key === "ArrowDown") setActive((i) => (i + 1) % choices.length);
-    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + choices.length) % choices.length);
-    else if (e.key === "Enter" && choices[active]) pick(choices[active]);
-    else if (/^[1-9]$/.test(e.key) && choices[Number(e.key) - 1]) pick(choices[Number(e.key) - 1]);
+    if (e.key === "ArrowDown") setActive((i) => (i + 1) % items.length);
+    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + items.length) % items.length);
+    else if (e.key === "Enter" && items[active]) pick(items[active]);
+    else if (/^[1-9]$/.test(e.key) && items[Number(e.key) - 1]) pick(items[Number(e.key) - 1]);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
 
   return (
-    <div className="model-popover open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
+    <div className="model-popover mp-accounts open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
       <div className="mp-scroll">
-        {choices.map((p, i) => (
+        {items.map((it, i) => (
           <button
-            key={p.name}
-            className={"mp-row" + (p.name === current ? " on" : "") + (i === active ? " active" : "")}
+            key={it.key}
+            className={"mp-row" + (it.choice?.name === current && !it.connect ? " on" : "") + (i === active ? " active" : "")}
             onMouseEnter={() => setActive(i)}
-            onClick={() => pick(p)}
+            onClick={() => pick(it)}
           >
-            <span className="mp-name">{providerName(p)}</span>
-            {p.name === current && <CheckIcon />}
+            <span className="mp-name">{it.choice ? providerName(it.choice) : metaFor(it.connect).name}</span>
+            {it.connect && <span className="mp-connect">{it.connect.route === "none" ? "Connect" : "Sign in"}</span>}
+            {!it.connect && it.choice?.name === current && <CheckIcon />}
             <span className="mp-num">{i + 1}</span>
           </button>
         ))}
       </div>
+      <div className="mp-sep" />
+      <button className="mp-row mp-manage" onClick={() => { ui.closeAllPops(); openSettings("accounts"); }}>
+        <span className="mp-name">Manage accounts…</span>
+      </button>
     </div>
   );
 }

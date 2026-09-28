@@ -8,7 +8,7 @@ import { ModelEffortPanel } from "../popovers/ModelEffortPanel.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
+import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget, usesClaudeCatalog } from "../../../lib/backendCaps.js";
 import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 import { SubmitButton } from "./SubmitButton.jsx";
@@ -39,7 +39,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // defaults composer.model to a profile's pinned model, and the model pill then
   // refines it from the provider's own model list.
   const spawnChoice = !selected ? (providerChoices().find((p) => p.name === ui.composer.provider) ?? null) : null;
-  const spawnIsApi = !!spawnChoice && !spawnChoice.subscription;
+  const spawnOwnList = Boolean(spawnChoice) && !usesClaudeCatalog(spawnChoice);
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
@@ -48,17 +48,20 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // the change persists (SetWorkerModel) and applies to the next turn even when the
   // backend can't hot-swap the model live.
   const modelLocked = modelPickerLocked(selected);
-  // The model pill opens the provider's OWN model list for any API/profile lane —
-  // a new-spawn API pick OR a running API worker — since those models aren't the
-  // Claude catalog; a subscription lane uses the Claude model popover.
+  // The model pill opens the provider's OWN model list for any lane that isn't on
+  // the Claude catalog — an API/profile lane, or a subscription lane like Codex —
+  // new-spawn pick or running worker alike; a Claude lane uses the Claude popover.
   const selectedChoice = selected ? runningProviderChoice(selected) : null;
-  const selectedIsApi = !!selectedChoice && !selectedChoice.subscription;
-  const modelPopId = spawnIsApi || selectedIsApi ? "spawnModel" : "model";
+  const selectedOwnList = Boolean(selectedChoice) && !usesClaudeCatalog(selectedChoice);
+  const modelPopId = spawnOwnList || selectedOwnList ? "spawnModel" : "model";
   // Reference shows ONE combined Model·Effort trigger for every lane — fold model
   // + effort into the rail whenever the model exposes effort (API/profile lanes
   // included); a no-effort model falls back to the plain model pill below.
   const hasEffort = effortChoicesFor(model).length > 0;
-  const useRail = hasEffort;
+  // A subscription lane with its own catalog has no Claude effort rail — its
+  // model list is the plan's, not the rail's Claude list.
+  const ownCatalogLane = [spawnChoice, selectedChoice].some((c) => c?.subscription && !usesClaudeCatalog(c));
+  const useRail = hasEffort && !ownCatalogLane;
   const levelLabel = TRIGGER_LEVEL[effort] ?? "High";
   const levelIsMax = effort === "max" || effort === "ultracode";
 

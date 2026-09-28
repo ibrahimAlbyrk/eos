@@ -1,22 +1,23 @@
 import { useEffect, useState } from "react";
 import { MODELS, modelName } from "../lib/models.js";
-import { providerChoices } from "../lib/backendCaps.js";
+import { providerChoices, usesClaudeCatalog } from "../lib/backendCaps.js";
 import { api } from "../api/client.js";
 
 // The model list for a provider NAME — the SINGLE source shared by the composer's
-// profile model popover and the Settings model picker. A subscription provider →
-// the Claude catalog (no fetch). An API profile → GET /api/backends/:name/models,
-// falling back to the profile's pinned model so the list is never a dead end.
+// provider model popovers. A Claude-catalog lane → the Claude catalog (no fetch).
+// Anything else (an API profile, or a subscription lane with its own catalog like
+// Codex) → GET /api/backends/:name/models, falling back to the pinned model so the
+// list is never a dead end.
 // Returns { loading, models, error } with models as [{ id, name }].
 export function useProviderModels(name) {
   const choice = providerChoices().find((p) => p.name === name) ?? null;
-  const subscription = choice?.subscription ?? false;
+  const claudeCatalog = usesClaudeCatalog(choice);
   const pinned = choice?.model ?? null;
   const [state, setState] = useState({ loading: false, models: [], error: null });
 
   useEffect(() => {
     if (!name) { setState({ loading: false, models: [], error: null }); return; }
-    if (subscription) {
+    if (claudeCatalog) {
       setState({ loading: false, models: MODELS.map((m) => ({ id: m.aliases[0] ?? m.id, name: m.name })), error: null });
       return;
     }
@@ -29,7 +30,7 @@ export function useProviderModels(name) {
     });
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name, subscription]);
+  }, [name, claudeCatalog]);
 
   return state;
 }
