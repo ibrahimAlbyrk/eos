@@ -126,6 +126,21 @@ function wireNavigationLockdown(win: BrowserWindow): void {
   // Electron per the macOS AppleActionOnDoubleClick pref — no code needed.
 }
 
+// A dead renderer (e.g. a V8 crash after hours in the background) leaves the
+// window blank until a manual ⌘R — reload it ourselves. A second death within
+// RELOAD_GUARD_MS of our reload is left alone so a crash-on-boot can't spin.
+const RELOAD_GUARD_MS = 10_000;
+function wireRendererRecovery(win: BrowserWindow): void {
+  let lastReload = 0;
+  win.webContents.on("render-process-gone", (_e, { reason, exitCode }) => {
+    console.error(`[eos-electron] renderer gone: ${reason} (exit ${exitCode})`);
+    if (quitting || win.isDestroyed() || reason === "clean-exit") return;
+    if (Date.now() - lastReload < RELOAD_GUARD_MS) return;
+    lastReload = Date.now();
+    win.webContents.reload();
+  });
+}
+
 async function createWindow(token: string): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1280,
@@ -152,6 +167,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
   });
   mainWindow = win;
   wireNavigationLockdown(win);
+  wireRendererRecovery(win);
   registerBridge(win); // inbound webkit.messageHandlers + native DnD (M3)
   // Background-app semantics: closing the window HIDES it (web app + scroll state
   // survive), matching isReleasedWhenClosed=false (doc 10 §b/§e). Real quit goes
