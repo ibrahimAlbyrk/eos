@@ -2,12 +2,13 @@
 // Each judge() spins a throwaway ephemeral session whose ONLY prompt is the
 // rubric (the backend carries no Eos protocol/memory/tools), accumulates the
 // assistant text, and stops the session at turn end. Host is gated by CAPABILITY
-// (in-process + enabled + a resolvable subscription credential), never by kind.
+// (in-process + enabled + a Claude credential), never by kind.
 
 import type { JudgeClient } from "../../core/src/ports/JudgeClient.ts";
 import type { AgentBackend, AgentSession, AgentLaunchSpec } from "../../core/src/ports/AgentBackend.ts";
 import type { AuthResolver } from "../../core/src/ports/AuthResolver.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
+import { hasClaudeCredential } from "../backends/sdk/billing-env.ts";
 
 // A judge turn is a single text completion; cap it so a stuck session can't pin
 // the loop. On timeout we return whatever text accumulated (likely unparseable →
@@ -17,6 +18,9 @@ const JUDGE_TURN_TIMEOUT_MS = 120_000;
 export interface AgentBackendJudgeClientDeps {
   backend: AgentBackend;
   auth: Pick<AuthResolver, "resolve">;
+  /** Operator-set Claude credentials (Settings › Accounts) — an Eos-only sign-in
+   *  counts as a credential even when the resolver finds no login. */
+  getAnthropicConfig?(): { apiKey?: string; authToken?: string };
   newId(): string;
   cwd: string;
   defaultModel: string;
@@ -36,8 +40,8 @@ export class AgentBackendJudgeClient implements JudgeClient {
       throw new Error(`judge backend unavailable: ${d.kind} is not an enabled in-process lane`);
     }
     const resolved = await this.deps.auth.resolve({ kind: "subscription" });
-    if (resolved.scheme === "none") {
-      throw new Error("judge backend unavailable: no subscription credential");
+    if (!hasClaudeCredential(this.deps.getAnthropicConfig?.() ?? {}, resolved)) {
+      throw new Error("judge backend unavailable: no Claude credential");
     }
 
     const spec: AgentLaunchSpec = {

@@ -57,6 +57,7 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
         // from these two facts, mirroring core's canHandoffBackend.
         sessionStore: d.sessionStore,
         wireDialect: d.wireDialect,
+        catalog: d.models.kind,
         capabilities: d.capabilities,
       })),
       // Configured named profiles for the composer's profile-lane picker

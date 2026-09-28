@@ -3,13 +3,14 @@
 // into module-scope globals.
 
 import { DatabaseSync } from "node:sqlite";
-import { join, resolve, sep } from "node:path";
+import { delimiter, dirname, join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
+import { homedir, tmpdir } from "node:os";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
-import { nodeBin } from "./shared/packaging.ts";
+import { nodeBin, nodeRunEnv, tsRuntimeFlags } from "./shared/packaging.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
@@ -32,7 +33,26 @@ import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBacke
 import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
-import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates, readClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { probeClaudeToken } from "../infra/src/auth/claudeTokenProbe.ts";
+import { AccountsService } from "./services/accounts/AccountsService.ts";
+import { SignInService } from "./services/accounts/SignInService.ts";
+import { createClaudeSubscription } from "./services/accounts/claudeSubscription.ts";
+import { createCodexSubscription } from "./services/accounts/codexSubscription.ts";
+import { readCodexLogin } from "../infra/src/auth/codexLogin.ts";
+import { resolveCodexBinary } from "./backends/codex/codexBinary.ts";
+import { openAppServer } from "./backends/codex/AppServerClient.ts";
+import { createCodexBackend } from "./backends/codex/CodexBackend.ts";
+import { createCodexUsageProvider } from "./backends/codex/CodexUsageProvider.ts";
+import { createGeminiSubscription } from "./services/accounts/geminiSubscription.ts";
+import { readGeminiLogin, clearGeminiLogin } from "../infra/src/auth/geminiLogin.ts";
+import { resolveCliBinary } from "./backends/cliBinary.ts";
+import { openAcpAgent } from "./backends/gemini/AcpClient.ts";
+import { createGeminiBackend } from "./backends/gemini/GeminiBackend.ts";
+import { patchAnthropicConfig } from "./shared/anthropic-config.ts";
+import { PROVIDER_PRESETS } from "./shared/provider-presets.ts";
+import { spawnPtyHost } from "../spawner/pty-host.ts";
+import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
@@ -50,7 +70,7 @@ import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
-import { spawnSync } from "node:child_process";
+import { spawnSync, execFile } from "node:child_process";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
@@ -747,6 +767,24 @@ export function buildContainer() {
   // Shared with the claude lane below.
   const authResolver = createSubscriptionAuthResolver();
 
+  // The Codex CLI (the user's own install) backs both Sign in with ChatGPT and the
+  // codex-cli lane. Its app-server never sees an OpenAI API key, so a signed-in
+  // ChatGPT plan is what it bills — the Accounts rule.
+  const codexBinary = resolveCodexBinary();
+  const codexEnv = (): Record<string, string | undefined> => {
+    const { OPENAI_API_KEY: _apiKey, CODEX_API_KEY: _codexKey, ...env } = process.env;
+    return env;
+  };
+  // Likewise the Gemini CLI backs Sign in with Google and the gemini-cli lane,
+  // never seeing a Gemini API key. Its launcher is a `#!/usr/bin/env node` script,
+  // so its own install dir (where npm / Homebrew keep node) leads PATH — the
+  // daemon may run with a launchd-minimal one.
+  const geminiBinary = resolveCliBinary({ name: "gemini", overrideVar: "EOS_GEMINI_BIN" });
+  const geminiEnv = (): Record<string, string | undefined> => {
+    const { GEMINI_API_KEY: _geminiKey, GOOGLE_API_KEY: _googleKey, ...env } = process.env;
+    return geminiBinary ? { ...env, PATH: [dirname(geminiBinary), env.PATH].filter(Boolean).join(delimiter) } : env;
+  };
+
   // Subscription usage (Settings > Usage). Token resolution mirrors the billing
   // chain: an operator-set config.anthropic.authToken override wins, else the
   // ambient subscription token (Keychain → CLAUDE_CODE_OAUTH_TOKEN) via the same
@@ -766,9 +804,60 @@ export function buildContainer() {
             ...readSubscriptionTokenCandidates(),
           ];
         },
+        plan: () => {
+          const plan = readClaudeCodeLogin().plan;
+          return plan ? `${plan[0].toUpperCase()}${plan.slice(1)}` : undefined;
+        },
       }),
+      // ChatGPT plan limits, read through the Codex app-server while signed in.
+      createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin().present, open: openAppServer }),
     ],
     clock: systemClock,
+  });
+
+  // Settings › Accounts. Sign in with Claude runs the official `claude setup-token`
+  // (a one-shot PTY with the billing-stripped env, so no ambient key or nested-
+  // session marker reaches it) and stores its token as config.anthropic.authToken.
+  // Sign in with ChatGPT is the Codex app-server's own login (it writes ~/.codex);
+  // Sign in with Google is the Gemini CLI's (it writes ~/.gemini).
+  const planLogins: Record<string, () => { present: boolean; plan?: string; source: "codex" | "gemini-cli" }> = {
+    openai: () => ({ ...readCodexLogin(), source: "codex" }),
+    gemini: () => ({ ...readGeminiLogin(), source: "gemini-cli" }),
+  };
+  const accounts = new AccountsService({
+    getConfig: () => config,
+    readClaudeLogin: readClaudeCodeLogin,
+    envToken: () => process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() || null,
+    probe: (token) => probeClaudeToken(token),
+    presets: PROVIDER_PRESETS,
+    supportsSignIn: (provider) => signIns.supports(provider),
+    presetLogin: (provider) => planLogins[provider]?.() ?? null,
+  });
+  const signIns = new SignInService({
+    providers: [
+      createClaudeSubscription({
+        spawnPty: spawnPtyHost,
+        cwd: homedir(),
+        env: buildSubscriptionChildEnv(process.env),
+        patchConfig: (patch) => {
+          patchAnthropicConfig(config.daemon.home, patch);
+          config = reloadConfigFromDisk();
+        },
+      }),
+      ...(codexBinary
+        ? [createCodexSubscription({
+            binary: codexBinary,
+            env: codexEnv,
+            open: openAppServer,
+            openBrowser: (url) => { execFile(process.platform === "darwin" ? "open" : "xdg-open", [url], () => {}); },
+          })]
+        : []),
+      ...(geminiBinary
+        ? [createGeminiSubscription({ binary: geminiBinary, env: geminiEnv, open: openAcpAgent, clearLogin: () => clearGeminiLogin() })]
+        : []),
+    ],
+    newId: () => randomBytes(8).toString("hex"),
+    onChange: () => accounts.invalidate(),
   });
 
   const makeToolContext = (spec: AgentLaunchSpec) => ({
@@ -1047,6 +1136,62 @@ export function buildContainer() {
     log,
   });
 
+  // The plan lanes driven through a provider's CLI (Codex, Gemini) reach Eos's
+  // tools through the stdio MCP servers (orchestrator / worker), which call back
+  // into the daemon as this worker. Pre-approved like the claude lane's builtins;
+  // every other action is gated per approval request by sdkPolicy. Each lane
+  // passes the servers in its own config shape.
+  const EOS_MCP_SERVERS = ["orchestrator", "worker"];
+  const eosMcpServersFor = (spec: AgentLaunchSpec): Array<{ name: string; command: string; args: string[]; env: Record<string, string> }> => {
+    const node = (name: string, script: string, extra: Record<string, string> = {}) => ({
+      name,
+      command: nodeBin(),
+      args: [...tsRuntimeFlags(), "--no-warnings", script],
+      env: {
+        EOS_DAEMON_URL: sdkDaemonUrl,
+        EOS_DAEMON_SOCK: config.daemon.socketFile,
+        EOS_WORKER_ID: spec.workerId,
+        ...nodeRunEnv(),
+        ...extra,
+      },
+    });
+    const servers: Array<ReturnType<typeof node>> = [];
+    if (spec.isOrchestrator) servers.push(node("orchestrator", config.paths.orchestratorMcpScript));
+    if (spec.parentId) {
+      servers.push(node("worker", config.paths.workerMcpScript, {
+        EOS_COLLABORATE: backendCollaborate(spec.backendOptions) ? "1" : "",
+        EOS_ROLE: spec.backendOptions?.spec?.role ?? "",
+      }));
+    }
+    return servers;
+  };
+  const codexCliBackend = createCodexBackend({
+    binary: codexBinary,
+    policy: sdkPolicy,
+    env: codexEnv,
+    mcpServersFor: (spec) => Object.fromEntries(eosMcpServersFor(spec).map(({ name, ...server }) => [name, {
+      ...server,
+      // Codex hands an MCP server only the env it is given — plus these.
+      env_vars: ["PATH", "HOME"],
+      default_tools_approval_mode: "approve",
+    }])),
+    assembleInstructions: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "codex-cli"),
+    log,
+  });
+  const geminiCliBackend = createGeminiBackend({
+    binary: geminiBinary,
+    policy: sdkPolicy,
+    env: geminiEnv,
+    mcpServersFor: (spec) => eosMcpServersFor(spec).map((server) => ({
+      ...server,
+      env: Object.entries(server.env).map(([name, value]) => ({ name, value })),
+    })),
+    eosMcpServers: EOS_MCP_SERVERS,
+    policyFile: join(tmpdir(), "eos-gemini-policy.toml"),
+    assembleInstructions: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "gemini-cli"),
+    log,
+  });
+
   // Appendless judge backend — a claude session with NO assembleAppendPrompt
   // and EMPTY tool defs, so the LLM judge sees ONLY the rubric (no Eos DPI
   // protocol, no injected memory, no Eos tools). A DISTINCT instance from
@@ -1070,6 +1215,7 @@ export function buildContainer() {
   const judgeClient = new AgentBackendJudgeClient({
     backend: judgeBackend,
     auth: authResolver,
+    getAnthropicConfig: () => config.anthropic,
     newId: () => randomIdGenerator.newPendingId(),
     cwd: config.paths.repoRoot,
     defaultModel: config.loop.judge.model,
@@ -1115,6 +1261,8 @@ export function buildContainer() {
     ["anthropic-api", anthropicBackend],
     ["openai", openaiBackend],
     ["codex", codexBackend],
+    ["codex-cli", codexCliBackend],
+    ["gemini-cli", geminiCliBackend],
   ]);
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
@@ -1253,6 +1401,8 @@ export function buildContainer() {
     modelPricing,
     updates,
     usage,
+    accounts,
+    signIns,
     cleanupMcpConfig,
     // Kill/purge cascade leak cleanup: drop a session's ~/.eos conversation
     // transcript. Closure keeps core Node-free (DIP — wired at composition root).

@@ -17,6 +17,11 @@ export interface PtyHostOptions {
   cols: number;
   rows: number;
   command?: string;
+  /** End the session when `command` exits instead of dropping into a login shell
+   *  — for one-shot TUIs driven by the daemon (e.g. `claude setup-token`). */
+  exitAfterCommand?: boolean;
+  /** Child env; defaults to the daemon's own env (see ptyEnv). */
+  env?: Record<string, string | undefined>;
 }
 
 export interface PtyHost {
@@ -33,14 +38,16 @@ export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
   const shell = process.env.SHELL || "/bin/bash";
   // With a command: an interactive login shell (so rc files set PATH/aliases)
   // runs it, then execs a plain login shell so the tab outlives the command.
-  const args = opts.command
-    ? ["-l", "-i", "-c", `${opts.command}; exec ${shellQuote(shell)} -l`]
-    : ["-l"];
+  const args = !opts.command
+    ? ["-l"]
+    : opts.exitAfterCommand
+      ? ["-l", "-i", "-c", opts.command]
+      : ["-l", "-i", "-c", `${opts.command}; exec ${shellQuote(shell)} -l`];
   const pty: IPty = ptySpawn(shell, args, {
     cwd: opts.cwd,
     cols: opts.cols,
     rows: opts.rows,
-    env: ptyEnv(process.env),
+    env: ptyEnv(opts.env ?? process.env),
   });
   return {
     onData: (cb) => { pty.onData(cb); },

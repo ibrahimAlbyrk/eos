@@ -60,8 +60,8 @@ describe("AgentBackendJudgeClient", () => {
     await assert.rejects(() => client(b).judge("x"), /not an enabled in-process lane/);
   });
 
-  it("no subscription credential → unavailable (fail closed upstream)", async () => {
+  it("no Claude credential → unavailable (fail closed upstream)", async () => {
     const b = fakeBackend();
-    await assert.rejects(() => client(b, fakeAuth("none")).judge("x"), /no subscription credential/);
+    await assert.rejects(() => client(b, fakeAuth("none")).judge("x"), /no Claude credential/);
   });
 });

@@ -222,10 +222,24 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
   r.get(/^\/api\/backends\/(?<name>[^/]+)\/models$/, async ({ params, res }) => {
     const name = decodeURIComponent(params.name);
     const profile = c.config.backends[name];
-    if (!profile) { writeJson(res, 404, { error: `backend "${name}" not found` }); return; }
     const now = Date.now();
     const hit = modelsCache.get(name);
     if (hit && now - hit.at < MODELS_CACHE_MS) { writeJson(res, 200, hit.result); return; }
+    // A bare subscription kind whose lane lists its own models (the account's plan
+    // decides them — e.g. codex-cli via the app-server's model/list).
+    const lane = !profile && c.backends.has(name) ? c.backends.get(name) : null;
+    if (lane?.listModels) {
+      let result: BackendModelsResponse;
+      try {
+        result = { models: await lane.listModels() };
+      } catch (e) {
+        result = { models: [], error: errMsg(e) };
+      }
+      if (!result.error) modelsCache.set(name, { at: now, result });
+      writeJson(res, 200, result);
+      return;
+    }
+    if (!profile) { writeJson(res, 404, { error: `backend "${name}" not found` }); return; }
     const descriptor = c.backends.has(profile.kind) ? c.backends.get(profile.kind).descriptor : null;
     const result = await fetchBackendModels({
       profile,

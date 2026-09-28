@@ -61,6 +61,7 @@ import { registerPromptRoutes } from "./routes/prompts.ts";
 import { registerWorkerDefinitionRoutes } from "./routes/worker-definitions.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerAnthropicRoutes } from "./routes/anthropic.ts";
+import { registerAccountRoutes } from "./routes/accounts.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerUsageRoutes } from "./routes/usage.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
@@ -106,6 +107,7 @@ registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
 registerSettingsRoutes(router, c);
 registerAnthropicRoutes(router, c);
+registerAccountRoutes(router, c);
 registerUpdateRoutes(router, c);
 registerUsageRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
