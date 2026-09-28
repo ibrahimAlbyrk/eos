@@ -7,6 +7,7 @@ export const RelayError = {
   ROOM_FULL: "ROOM_FULL",
   FRAME_TOO_LARGE: "FRAME_TOO_LARGE",
   RATE_LIMITED: "RATE_LIMITED",
+  BAD_REQUEST: "BAD_REQUEST",
 } as const;
 export type RelayErrorCode = (typeof RelayError)[keyof typeof RelayError];
 

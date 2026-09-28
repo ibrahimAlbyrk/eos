@@ -39,6 +39,7 @@ npm test             # node strip-types test suite
 | `RELAY_PORT` | `3000` | bind port |
 | `RELAY_ROOM_OWNER_HASH` | _(unset)_ | optional operator pre-pin of the room-owner hash; unset = trust-on-first-register (TOFU) |
 | `RELAY_MAX_ROOM_DEVICES` | `32` | per-room device cap (`ROOM_FULL` past it) |
+| `RELAY_HEARTBEAT_MS` | `30000` | WS ping cadence; a socket that misses one pong is terminated (half-open peers dropped within ~2 intervals) |
 
 `GET /health` → `200 {"ok":true,"rooms":N}` for proxy/Docker health checks.
 

@@ -3,9 +3,10 @@ import assert from "node:assert/strict";
 import { RoomRegistry, type RelaySocket } from "../RoomRegistry.ts";
 import { sha256Hex } from "../admission.ts";
 
-function fakeSocket(): RelaySocket & { sent: Buffer[] } {
+function fakeSocket(): RelaySocket & { sent: Buffer[]; closed: boolean } {
   const sent: Buffer[] = [];
-  return { sent, send: (d: Buffer) => sent.push(d) };
+  const sock = { sent, closed: false, send: (d: Buffer) => { sent.push(d); }, close: () => { sock.closed = true; } };
+  return sock;
 }
 
 const ROOM = "AAAAAAAAAAAAAAAAAAAAAA";
@@ -97,4 +98,51 @@ test("dropping a device removes it from routing; dropping Mac keeps the room", (
   assert.equal(reg.roomCount(), 1); // room survives Mac reconnect
   // join now fails because the Mac socket is gone until re-register
   assert.deepEqual(reg.join(ROOM, "dev", fakeSocket()), { ok: false, code: "ROOM_NOT_FOUND" });
+});
+
+test("dropping the current Mac closes its devices; the room and allowlist survive", () => {
+  const reg = new RoomRegistry();
+  const mac = fakeSocket();
+  reg.register(ROOM, "owner", [sha256Hex("dev")], mac);
+  const dev = fakeSocket();
+  reg.join(ROOM, "dev", dev);
+
+  assert.deepEqual(reg.drop(mac), { role: "mac", room: ROOM });
+  assert.equal(dev.closed, true);
+  // the evicted device's own close is a no-op — nobody left to tell
+  assert.equal(reg.drop(dev), null);
+  reg.register(ROOM, "owner", [sha256Hex("dev")], fakeSocket());
+  assert.equal(reg.join(ROOM, "dev", fakeSocket()).ok, true);
+});
+
+test("re-register from a different Mac socket closes the old session's devices", () => {
+  const reg = new RoomRegistry();
+  const mac1 = fakeSocket();
+  reg.register(ROOM, "owner", [sha256Hex("dev")], mac1);
+  const dev = fakeSocket();
+  const joined = reg.join(ROOM, "dev", dev);
+  const clientHex = joined.ok ? joined.clientId.toString("hex") : "";
+
+  reg.register(ROOM, "owner", [sha256Hex("dev")], fakeSocket());
+  assert.equal(dev.closed, true);
+  assert.deepEqual(reg.routeData(ROOM, 0x01, clientHex, Buffer.from("x")), { ok: false, code: "ROOM_NOT_FOUND" });
+  // the stale Mac socket closing later must not orphan the new one
+  assert.equal(reg.drop(mac1), null);
+  assert.equal(reg.join(ROOM, "dev", fakeSocket()).ok, true);
+});
+
+test("dropping a device reports its clientId and the Mac to notify", () => {
+  const reg = new RoomRegistry();
+  const mac = fakeSocket();
+  reg.register(ROOM, "owner", [sha256Hex("dev")], mac);
+  const dev = fakeSocket();
+  const joined = reg.join(ROOM, "dev", dev);
+  assert.ok(joined.ok);
+
+  const dropped = reg.drop(dev);
+  assert.equal(dropped?.role, "device");
+  if (dropped?.role === "device" && joined.ok) {
+    assert.ok(dropped.clientId.equals(joined.clientId));
+    assert.equal(dropped.mac, mac);
+  }
 });

@@ -46,15 +46,12 @@ function sendError(ws: WebSocket, room: string, code: RelayErrorCode, message: s
 // raw bytes, 22 chars) in the JSON body — the load-bearing copy both ends decode — and
 // stamped in the outer-header clientId field so the device can cross-check header==body.
 function notifyJoined(target: RelaySocket, room: string, clientId: Buffer): void {
-  target.send(
-    encodeJsonEnvelope({
-      type: FrameType.relayctl,
-      room,
-      dir: Dir.s2c,
-      clientId,
-      json: { t: "joined", clientId: clientId.toString("base64url"), room },
-    }),
-  );
+  notify(target, room, { t: "joined", clientId: clientId.toString("base64url"), room }, clientId);
+}
+
+// Relay-control notice to one peer (clientId zero unless it names a device).
+function notify(target: RelaySocket, room: string, json: Record<string, unknown>, clientId?: Buffer): void {
+  target.send(encodeJsonEnvelope({ type: FrameType.relayctl, room, dir: Dir.s2c, clientId, json }));
 }
 
 function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void {
@@ -80,9 +77,13 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
       const room = str(j?.room) ?? env.room;
       const owner = str(j?.owner);
       const allow = Array.isArray(j?.allow) ? (j!.allow as unknown[]).filter((x): x is string => typeof x === "string") : [];
-      if (!j || !owner || !room) return;
+      if (!j || !owner || !room) {
+        sendError(ws, room ?? "", RelayError.BAD_REQUEST, "register needs room + owner");
+        return;
+      }
       const res = registry.register(room, owner, allow, ws);
       if (!res.ok) sendError(ws, room, res.code, "register rejected");
+      else notify(ws, room, { t: "registered", room });
       return;
     }
     case FrameType.join: {
@@ -90,7 +91,11 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
       const room = str(j?.room) ?? env.room;
       const bearer = str(j?.bearer);
       const apnsToken = str(j?.apnsToken);
-      if (!j || !bearer || !room) return;
+      // A silent drop here would leave the device waiting on a join-ack forever.
+      if (!j || !bearer || !room) {
+        sendError(ws, room ?? "", RelayError.BAD_REQUEST, "join needs room + bearer");
+        return;
+      }
       const res = registry.join(room, bearer, ws, apnsToken);
       if (!res.ok) {
         sendError(ws, room, res.code, "join rejected");
@@ -141,13 +146,33 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     res.end("Upgrade Required");
   });
   const wss = new WebSocketServer({ server: httpServer, maxPayload: MAX_ENVELOPE_BYTES + 1024 });
+  // Sockets that answered the last ping. TCP alone never notices a half-open peer
+  // (suspended phone, sleeping Mac, expired NAT) — without this the room keeps
+  // routing into the void and the other side looks connected but gets nothing.
+  const alive = new WeakSet<WebSocket>();
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (!alive.has(ws)) { ws.terminate(); continue; }
+      alive.delete(ws);
+      ws.ping();
+    }
+  }, config.heartbeatMs);
+  heartbeat.unref?.();
+  wss.on("close", () => clearInterval(heartbeat));
   wss.on("connection", (ws) => {
     ws.binaryType = "nodebuffer";
+    alive.add(ws);
+    ws.on("pong", () => alive.add(ws));
     ws.on("message", (data) => {
       const buf = asBuffer(data);
       if (buf) handleMessage(ws, buf, registry);
     });
-    ws.on("close", () => registry.drop(ws));
+    ws.on("close", () => {
+      const dropped = registry.drop(ws);
+      if (dropped?.role === "device" && dropped.mac) {
+        notify(dropped.mac, dropped.room, { t: "left", clientId: dropped.clientId.toString("base64url"), room: dropped.room }, dropped.clientId);
+      }
+    });
     ws.on("error", () => {});
   });
   return { httpServer, wss, registry };

@@ -11,6 +11,9 @@ export type RelayConfig = {
   // reveals content — TOFU is acceptable for a self-hosted box (protocol §1).
   ownerHashPin: string | null;
   maxRoomDevices: number;
+  // WS ping cadence. A socket that misses one pong is terminated, so a half-open
+  // peer (suspended phone, sleeping Mac, dead NAT) is dropped within 2 intervals.
+  heartbeatMs: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
@@ -19,5 +22,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
     port: Number(env.RELAY_PORT ?? 3000),
     ownerHashPin: env.RELAY_ROOM_OWNER_HASH ? env.RELAY_ROOM_OWNER_HASH.toLowerCase() : null,
     maxRoomDevices: Number(env.RELAY_MAX_ROOM_DEVICES ?? 32),
+    heartbeatMs: Number(env.RELAY_HEARTBEAT_MS ?? 30_000),
   };
 }

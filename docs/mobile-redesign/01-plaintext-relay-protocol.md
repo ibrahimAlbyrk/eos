@@ -282,6 +282,10 @@ On arm (relay leg), the daemon's `RelayConnector` dials the relay and sends a
   `manager/remote/keyring.ts` is replaced by "the bearer hash" (§7.3).
 - Re-register on every (re)connect with the full allowlist (self-healing cache) —
   same pattern as today, just a 1-element list.
+- The relay acks with a relayctl `{ "t": "registered", "room": "<roomId>" }` (older
+  relays acked by silence; the daemon only logs it). A register that replaces a
+  *different* open daemon socket closes every device in the room — their sessions
+  lived in the old daemon connection — so they re-join and resync.
 
 The relay pins `ownerHash = SHA-256(owner)` and stores `allow` as a hash set
 (`relay/RoomRegistry.ts` `register`). No plaintext, no keys persisted.
@@ -315,8 +319,11 @@ The daemon's `onJoined(clientId)` spins up a per-client session; the phone learn
 If the room is missing/bearer wrong, the relay returns a `error` (type `0x06`):
 
 ```jsonc
-{ "t": "error", "code": "ROOM_NOT_FOUND" | "BEARER_DENIED" | "ROOM_FULL" | "FRAME_TOO_LARGE" | "RATE_LIMITED", "message": "…" }
+{ "t": "error", "code": "ROOM_NOT_FOUND" | "BEARER_DENIED" | "ROOM_FULL" | "FRAME_TOO_LARGE" | "RATE_LIMITED" | "BAD_REQUEST", "message": "…" }
 ```
+
+A malformed `join`/`register` (bad JSON, missing `room`/`bearer`/`owner`) gets
+`BAD_REQUEST` — never silence, which would leave a phone waiting on a join-ack.
 
 ### 4.3 Routing (data)
 
@@ -328,6 +335,24 @@ If the room is missing/bearer wrong, the relay returns a `error` (type `0x06`):
 The payload (now plaintext JSON, §5) is forwarded verbatim; the relay never parses it.
 `routeData` returns `ROOM_NOT_FOUND` if there is no target — the daemon/phone treats a
 routing error as "peer offline".
+
+### 4.3.1 Liveness & departure
+
+TCP alone never notices a half-open peer (suspended phone, sleeping Mac, expired
+NAT), so every hop runs a WebSocket ping heartbeat:
+
+- **Relay → every socket:** ping each `RELAY_HEARTBEAT_MS` (default 30s); a socket
+  that has not ponged since the previous tick is terminated (dropped within ~2
+  intervals).
+- **Daemon → relay:** `RelayConnector` pings every 25s; a missed pong terminates the
+  socket and the normal reconnect/re-register path runs.
+- **Device left:** when a device socket drops, the relay tells the daemon
+  `relayctl { "t": "left", "clientId": "<b64url>", "room": "<roomId>" }` and the
+  daemon disposes that session at once (its 90s idle sweep stays as the backstop
+  for older relays).
+- **Daemon left:** when the room's current daemon socket drops, the relay closes
+  every device socket in the room (room + allowlist are kept). Phones fall into
+  their reconnect loop and get `ROOM_NOT_FOUND` until the daemon re-registers.
 
 ### 4.4 Outer envelope (frozen binary header — kept)
 
@@ -480,6 +505,8 @@ To be unambiguous about which socket a frame is destined for:
 | Register room | `0x02 register` | relay | JSON `{t:"register",…}` |
 | Join room | `0x03 join` | relay | JSON `{t:"join",…}` |
 | Join-ack | `0x04 relayctl` | phone + daemon | JSON `{t:"joined",…}` |
+| Register-ack | `0x04 relayctl` | daemon | JSON `{t:"registered",room}` |
+| Device left | `0x04 relayctl` | daemon | JSON `{t:"left",clientId,room}` |
 | Allowlist mutate | `0x04 relayctl` | relay | JSON `{t:"allow-add"/"allow-remove",…}` |
 | App control/data | `0x01 data` | peer (daemon/phone) | **plaintext inner-frame JSON** (§5.2 / §5.4) |
 | Relay error | `0x06 error` | phone/daemon | JSON `{t:"error",code,…}` |
@@ -521,8 +548,13 @@ the control dispatcher. Drop the `challenge` variant.
 |---|---|---|
 | `t` | `"snapshot"` | Discriminator. |
 | `seq` | int | Cursor at snapshot time. |
+| `epoch` | string? | Id of the bridge `seq` belongs to. `seq` restarts with a new bridge (re-arm, daemon restart) — a changed epoch means "reset the cursor", not "gap". |
 | `workers` | array | Worker rows. |
 | `pending` | array | Pending rows. |
+| `live` | array? | `{workerId, blockId, channel, text}` — text so far of blocks still streaming as `agent:delta` (increments with no offset). A resuming phone re-seeds its live buffers from this instead of showing a hole. |
+
+The daemon re-reads the rows (up to 3×) if a `patch` went out mid-read, so a
+snapshot is never older than a patch sent before it.
 
 #### 5.4.4 `reply` (control response, correlationId-matched)
 
@@ -595,8 +627,8 @@ export const REMOTE_ERROR_CODES = [
 ] as const;
 ```
 
-Relay error codes (`relay/errors.ts`) are unchanged:
-`ROOM_NOT_FOUND | BEARER_DENIED | OWNER_MISMATCH | ROOM_FULL | FRAME_TOO_LARGE | RATE_LIMITED`.
+Relay error codes (`relay/errors.ts`):
+`ROOM_NOT_FOUND | BEARER_DENIED | OWNER_MISMATCH | ROOM_FULL | FRAME_TOO_LARGE | RATE_LIMITED | BAD_REQUEST`.
 
 ---
 
@@ -614,11 +646,16 @@ beyond the relay join.
 3. Send `join` (type `0x03`) with `{room, bearer}`.
 4. Receive join-ack (`{t:"joined", clientId}`) → store the clientId for this session.
 5. Persist `(relayUrl, room, bearer)` to Keychain (§8).
-6. Go live: start the receive loop + keepalive; optionally send `hello`, then GET
-   `/workers` + `/pending` (or await snapshot) to seed the store.
+6. Start the receive loop + heartbeat, send `hello`, and await the daemon's
+   `snapshot` — it seeds workers/pending (and the live text overlays) in one frame.
+7. Live. Only now do controls go out; `/pty`, ui-config and the open transcript's
+   delta are fetched after the snapshot.
 
-No Noise, no msg-1/msg-2, no enrollment token. The phone is live the instant the
-join-ack lands.
+No Noise, no msg-1/msg-2, no enrollment token. The join-ack only proves the relay;
+the snapshot proves the Mac end too, so the phone counts as connected only once it
+lands. The whole attempt (open → join → snapshot) has one deadline (20s) that closes
+the socket — URLSession's `receive()` ignores task cancellation, so closing is the
+only way to unblock a silent relay.
 
 ### 6.2 Resume / reconnect
 
@@ -627,7 +664,15 @@ Keychain and run steps 2–6. Because there is no handshake, "resume" and "conne
 are the same code path (this collapses the v2 `Connector.run()` choreography to: open
 → join → live).
 
-- On a dropped socket while foregrounded → bounded backoff (1s→60s) then reconnect.
+- On a dropped socket while foregrounded → backoff (1s→10s, jittered) then reconnect,
+  forever — never "give up" while the app is on screen. A usable-network change
+  (`NWPathMonitor`) retries at once and re-probes a live socket.
+- Heartbeat: every 15s the phone sends a `ka` (keeps the daemon's idle sweep off)
+  and a WebSocket ping the relay must answer within 10s; a missed pong closes the
+  socket, since iOS reports a socket open long after a network switch killed it.
+- `ConnectionSupervisor` (iOS) owns this state machine. Every attempt carries a
+  generation; anything that completes after its attempt was replaced (late join,
+  late close, stale frame) is ignored.
 - A fresh join always gets a NEW `clientId` from the relay (the old device entry was
   dropped on socket close); the phone must use the new clientId. There is no
   cross-reconnect session state to restore on the wire — the store re-seeds via
@@ -643,12 +688,14 @@ are the same code path (this collapses the v2 `Connector.run()` choreography to:
 
 ### 6.4 Background / foreground
 
-- **Background:** intentionally drop the socket (mark `intentionalStop` so the
-  delegate's `connected=false` doesn't trigger auto-reconnect). Relay drops the
-  device entry on close.
-- **Foreground:** reset backoff, run the resume path (§6.2). "Open app → connected"
-  holds because the creds are readable from the Keychain
-  (`AfterFirstUnlockThisDeviceOnly`, no biometric ACL) even right after a reboot.
+- **Background:** drop the socket and cancel any attempt in flight (its generation
+  is retired, so a join finishing later is discarded); no retries while
+  backgrounded. The relay drops the device entry on close and tells the Mac (`left`).
+- **Foreground:** reset backoff and connect; if the socket survived (app switcher,
+  no background), probe it with a ping first. Scene-phase commands are synchronous so
+  they apply in the order they happen. "Open app → connected" holds because the creds
+  are readable from the Keychain (`AfterFirstUnlockThisDeviceOnly`, no biometric ACL)
+  even right after a reboot.
 
 ### 6.5 Revocation
 

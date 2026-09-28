@@ -7,7 +7,7 @@ import { CLIENT_ID_LEN } from "./envelope.ts";
 // relay forwards opaque application-byte payloads verbatim and is protocol-
 // version-independent (blind to whether they are plaintext or encrypted).
 
-export type RelaySocket = { send(data: Buffer): void };
+export type RelaySocket = { send(data: Buffer): void; close(): void };
 
 type Room = {
   ownerHash: string; // SHA-256(owner bearer), hex — pinned via TOFU or operator env
@@ -20,6 +20,14 @@ type Room = {
 type ConnMeta =
   | { role: "mac"; room: string }
   | { role: "device"; room: string; clientId: string };
+
+// What the server must announce after a socket drop: a device leaving is told to
+// its room's Mac so the daemon disposes that session at once instead of waiting
+// out its idle TTL.
+export type DropResult =
+  | { role: "device"; room: string; clientId: Buffer; mac: RelaySocket | null }
+  | { role: "mac"; room: string }
+  | null;
 
 type Ok<T> = { ok: true } & T;
 type Err = { ok: false; code: RelayErrorCode };
@@ -37,11 +45,14 @@ export class RoomRegistry {
 
   // Mac claims/owns a room (§5.2). First valid registration pins the owner hash
   // (TOFU) unless an operator pre-pin is configured; re-register replaces the Mac
-  // socket (Mac reconnect) and refreshes the allowlist.
+  // socket (Mac reconnect) and refreshes the allowlist. Devices joined through a
+  // different, still-open Mac socket belong to a daemon session that no longer
+  // exists — close them so they re-join (and resync) against the new one.
   register(room: string, ownerBearer: string, allow: string[], socket: RelaySocket): Ok<{ replaced: boolean }> | Err {
     const existing = this.rooms.get(room);
     if (existing) {
       if (!ownerHashMatches(ownerBearer, existing.ownerHash)) return { ok: false, code: RelayError.OWNER_MISMATCH };
+      if (existing.mac && existing.mac !== socket) this.evictDevices(existing);
       existing.mac = socket;
       existing.allow = new Set(allow.map((h) => h.toLowerCase()));
       this.meta.set(socket, { role: "mac", room });
@@ -110,19 +121,35 @@ export class RoomRegistry {
   }
 
   // Connection teardown. A dropped Mac leaves the room (and its allowlist) intact for
-  // reconnect; a dropped device is removed from routing.
-  drop(socket: RelaySocket): void {
+  // reconnect but closes its devices (their daemon session died with it); a dropped
+  // device is removed from routing and reported so the server can tell the Mac.
+  drop(socket: RelaySocket): DropResult {
     const m = this.meta.get(socket);
-    if (!m) return;
+    if (!m) return null;
     this.meta.delete(socket);
     const r = this.rooms.get(m.room);
-    if (!r) return;
+    if (!r) return null;
     if (m.role === "mac") {
-      if (r.mac === socket) r.mac = null;
-    } else {
-      if (r.devices.get(m.clientId) === socket) r.devices.delete(m.clientId);
-      r.deviceTokens.delete(m.clientId);
+      if (r.mac !== socket) return null;
+      r.mac = null;
+      this.evictDevices(r);
+      return { role: "mac", room: m.room };
     }
+    r.deviceTokens.delete(m.clientId);
+    if (r.devices.get(m.clientId) !== socket) return null;
+    r.devices.delete(m.clientId);
+    return { role: "device", room: m.room, clientId: Buffer.from(m.clientId, "hex"), mac: r.mac };
+  }
+
+  // Meta goes first so the resulting close → drop is a no-op: no "left" is sent
+  // for a device the (new) Mac never knew.
+  private evictDevices(r: Room): void {
+    for (const socket of r.devices.values()) {
+      this.meta.delete(socket);
+      try { socket.close(); } catch { /* already closing */ }
+    }
+    r.devices.clear();
+    r.deviceTokens.clear();
   }
 
   roomCount(): number {
