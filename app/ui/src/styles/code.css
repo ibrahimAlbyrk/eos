@@ -406,6 +406,56 @@ html.native .cw-main { --spt-top: 12px; }
 .cw-grp-menu .cw-menu__sep { margin: 2px 0; }
 .cw-grp-menu__delete { color: var(--err); }
 
+/* ── Sidebar: history ────────────────────────────────────────────────────── */
+/* Closed sessions by day (HistoryList). Rows are .cw-row with a second line
+   whose dot is the color of the group the session was closed in. */
+.cw-hist { margin-top: 18px; }
+.cw-seclabel__acts { margin: -3px 0 -3px auto; display: flex; gap: 2px; }
+.cw-seclabel__acts .sb-iconbtn { width: 22px; height: 22px; }
+.cw-seclabel__acts .sb-iconbtn.on { background: var(--row-on); color: var(--fg); }
+.cw-hist .sb-seclabel { padding-right: 12px; }
+.cw-hist-menu { left: auto; right: 12px; transform: none; width: 180px; }
+.cw-hist-search {
+  display: block;
+  width: calc(100% - 16px);
+  height: 30px;
+  margin: 0 8px 6px;
+  padding: 0 10px;
+  border-radius: var(--r-row);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-strong);
+  font-size: var(--text-sm);
+}
+.cw-hist-search:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent); }
+.cw-hist-day { display: flex; flex-direction: column; gap: 1px; }
+.cw-hist-day__head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 10px 4px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim2);
+  font-size: var(--text-xs);
+  text-align: left;
+}
+.cw-hist-day__head:hover { color: var(--fg-mid); }
+.cw-hist-day__head:focus-visible { outline: none; color: var(--fg-mid); box-shadow: inset 0 0 0 1px var(--chip); }
+.cw-hist-day__head .cw-count { margin-left: auto; }
+.cw-hist-day__chev { display: inline-flex; color: var(--fg-faint); transition: transform 150ms ease; }
+.cw-hist-day__head.is-folded .cw-hist-day__chev { transform: rotate(-90deg); }
+.cw-row--hist { align-items: flex-start; }
+.cw-row--hist .cw-row__ic, .cw-row--hist .cw-row__meta { margin-top: 2px; }
+.cw-row__sub {
+  min-width: 0;
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 3px;
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.cw-row__folder { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.cw-row__dot { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--cw-group); }
+.cw-hist-empty { padding: 6px 10px; color: var(--fg-faint); font-size: var(--text-sm); }
+
 @media (prefers-reduced-motion: reduce) {
-  .cw-body, .cw-card, .cw-folder-chip, .cw-grp__cell::after, .cw-swatch { transition: none; }
+  .cw-body, .cw-card, .cw-folder-chip, .cw-grp__cell::after, .cw-swatch, .cw-hist-day__chev { transition: none; }
 }
