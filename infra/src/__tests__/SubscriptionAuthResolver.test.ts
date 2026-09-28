@@ -19,16 +19,30 @@ describe("SubscriptionAuthResolver", () => {
 
   it("subscription -> live store token wins over the env fast-path", async () => {
     setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-env-stale");
-    const readStore = () => "sk-ant-oat01-store-fresh";
-    const r = await createSubscriptionAuthResolver({ readStore }).resolve(undefined);
+    const readLogin = () => ({ present: true, token: "sk-ant-oat01-store-fresh" });
+    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
     assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-store-fresh" });
   });
 
   it("subscription -> falls back to CLAUDE_CODE_OAUTH_TOKEN when the store is empty", async () => {
     setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-deterministic");
-    const readStore = () => null;
-    const r = await createSubscriptionAuthResolver({ readStore }).resolve(undefined);
+    const readLogin = () => ({ present: false, token: null });
+    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
     assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-deterministic" });
+  });
+
+  it("subscription -> a lapsed store login still resolves oauth, without a token", async () => {
+    setEnv("CLAUDE_CODE_OAUTH_TOKEN", undefined);
+    const readLogin = () => ({ present: true, token: null });
+    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
+    assert.deepEqual(r, { scheme: "oauth" });
+  });
+
+  it("subscription -> none with no login and no env token", async () => {
+    setEnv("CLAUDE_CODE_OAUTH_TOKEN", undefined);
+    const readLogin = () => ({ present: false, token: null });
+    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
+    assert.deepEqual(r, { scheme: "none" });
   });
 
   it("env -> apikey from the referenced env var", async () => {

@@ -49,6 +49,8 @@ export interface ClaudeUsageProviderDeps {
   getTokens: () => Promise<UsageTokenCandidate[]> | UsageTokenCandidate[];
   fetchImpl?: FetchFn;
   userAgent?: string;
+  /** The plan's display name ("Max", "Pro") when known — the endpoint doesn't say. */
+  plan?: () => string | undefined;
   /** Injectable clock for the snapshot timestamp (tests pin it). */
   now?: () => Date;
 }
@@ -96,8 +98,10 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
   let preferredSource: string | null = null;
 
   function toSnapshot(data: Record<string, unknown>): ProviderUsage {
+    const plan = deps.plan?.();
     return {
       provider: "claude",
+      ...(plan ? { plan } : {}),
       windows: {
         fiveHour: toWindow(data.five_hour),
         sevenDay: toWindow(data.seven_day),

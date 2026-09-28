@@ -14,12 +14,22 @@ const NONE: ResolvedAuth = { scheme: "none" };
 
 type TokenReader = () => string | null;
 
-// Read the CLI's cached OAuth access token from the live credential store (macOS
-// Keychain "Claude Code-credentials" / ~/.claude/.credentials.json). This is read
-// FIRST on every resolve so a subscription switched after daemon launch is picked
-// up without a restart. Expired store tokens are rejected (return null) so a valid
-// env token can shadow them.
-function readStoreSubscriptionToken(): string | null {
+// The Claude Code login on this machine (macOS Keychain "Claude Code-credentials" /
+// ~/.claude/.credentials.json), read live on every resolve so a login switched after
+// daemon launch is picked up without a restart. `present` is any claude.ai login —
+// even one whose access token lapsed, since the claude binary refreshes that itself.
+// `token` is the access token only while it is still valid, so a valid env token
+// can shadow an expired store token.
+export interface ClaudeCodeLogin {
+  present: boolean;
+  token: string | null;
+  /** The plan the CLI recorded (subscriptionType: "max", "pro", …). */
+  plan?: string;
+}
+
+const NO_LOGIN: ClaudeCodeLogin = { present: false, token: null };
+
+export function readClaudeCodeLogin(): ClaudeCodeLogin {
   try {
     const raw =
       process.platform === "darwin"
@@ -27,24 +37,27 @@ function readStoreSubscriptionToken(): string | null {
         : readFileSync(join(homedir(), ".claude", ".credentials.json"), "utf8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const oauth = (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
-    const token = typeof oauth.accessToken === "string" ? oauth.accessToken : null;
-    if (!token) return null;
-    if (typeof oauth.expiresAt === "number" && oauth.expiresAt <= Date.now()) return null;
-    return token;
+    const access = typeof oauth.accessToken === "string" ? oauth.accessToken : null;
+    const refresh = typeof oauth.refreshToken === "string" ? oauth.refreshToken : null;
+    if (!access && !refresh) return NO_LOGIN;
+    const expired = typeof oauth.expiresAt === "number" && oauth.expiresAt <= Date.now();
+    return {
+      present: true,
+      token: access && !expired ? access : null,
+      ...(typeof oauth.subscriptionType === "string" ? { plan: oauth.subscriptionType } : {}),
+    };
   } catch {
-    return null;
+    return NO_LOGIN;
   }
 }
+
+const readStoreSubscriptionToken: TokenReader = () => readClaudeCodeLogin().token;
 
 // The long-lived setup-token from CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
 // Frozen at daemon launch, so it is the FALLBACK — used only when the live store
 // yields nothing (non-mac / CI with no keychain or credentials file).
 function readEnvSubscriptionToken(): string | null {
   return process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() || null;
-}
-
-function readSubscriptionToken(readStore: TokenReader = readStoreSubscriptionToken): string | null {
-  return readStore() ?? readEnvSubscriptionToken();
 }
 
 // The ambient subscription tokens as an ORDERED, source-labelled candidate list
@@ -93,13 +106,18 @@ export function writeKeychainSecret(service: string, secret: string): void {
   execFileSync("security", ["add-generic-password", "-U", "-s", service, "-a", service, "-w", secret], { encoding: "utf8" });
 }
 
-export function createSubscriptionAuthResolver(deps?: { readStore?: TokenReader }): AuthResolver {
+export function createSubscriptionAuthResolver(deps?: { readLogin?: () => ClaudeCodeLogin }): AuthResolver {
+  const readLogin = deps?.readLogin ?? readClaudeCodeLogin;
   return {
     async resolve(auth: AuthRef | undefined): Promise<ResolvedAuth> {
       const kind = auth?.kind ?? "subscription";
       if (kind === "subscription") {
-        const token = readSubscriptionToken(deps?.readStore);
-        return token ? { scheme: "oauth", token } : NONE;
+        const login = readLogin();
+        const token = login.token ?? readEnvSubscriptionToken();
+        if (token) return { scheme: "oauth", token };
+        // A lapsed login is still a subscription: with no token exported, the
+        // claude binary reads its own store and refreshes it.
+        return login.present ? { scheme: "oauth" } : NONE;
       }
       if (kind === "env") {
         const key = auth?.ref ? process.env[auth.ref]?.trim() : undefined;
