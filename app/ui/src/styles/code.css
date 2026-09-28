@@ -3,11 +3,13 @@
    pane-head / divider rules (shell.css); only the terminal-specific surfaces
    live here. charcoal-aurora: depth is a surface step, fills mark hover/selected. */
 
-/* ── Grid: one pane is full-bleed (like the Agents single pane); splits are cards ── */
-.cw-grid.is-single { margin: 0; }
+/* ── Grid: panes are cut flush, like terminal splits — no card margin, border or
+   radius, a 1px --line divider between them. A split is the single pane cut up,
+   so the top-row headers stay on the traffic lights' line. ── */
+.cw-grid { margin: 0; }
 /* Background pane groups stay mounted (their terminals keep state), just unseen. */
 .cw-grid.is-away { display: none; }
-.cw-grid.is-single .pane {
+.cw-grid .pane {
   inset: 0;
   border: 0;
   border-radius: 0;
@@ -18,6 +20,18 @@
   border-bottom: 1px solid var(--line);
 }
 html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bottom: 12px; }
+.cw-grid:not(.is-single) .pane .pane-head { border-bottom: 1px solid var(--line); }
+/* The resize strip's line doubles as the always-on divider. */
+.cw-grid .pane-divider::after { background: var(--line); }
+.cw-grid .pane-divider--v::after { top: 0; bottom: 0; width: 1px; }
+.cw-grid .pane-divider--h::after { left: 0; right: 0; height: 1px; }
+.cw-grid .pane-divider:hover::after,
+.cw-grid .pane-divider:active::after { background: var(--accent); }
+/* Collapsed sidebar: the top-left title lands where the single pane's does
+   (its header pads 32px on the left, a split's 16px). */
+.app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 28px; }
+html.native .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 102px; }
+html.native.fullscreen .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 22px; }
 
 /* ── Grid + the view's one side panel, docked at the far right ───────────── */
 .cw-main {
@@ -28,13 +42,13 @@ html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bot
   flex-direction: row;
 }
 /* Side-panel toggle spot (shell.css .sp-toggle). Open: over the panel's tab bar.
-   Closed: the top-right pane's header slot — a split card sits 4px grid margin +
-   4px inset + 1px border + 12px header padding in; the full-bleed single pane
-   uses its header padding. A close × pushes it one 24px button + 4px gap in. */
+   Closed: the top-right pane's header slot — its header padding (12px in a
+   split, the single pane's own otherwise). A close × pushes it one 24px
+   button + 4px gap in. */
 .cw-main { --spt-size: 24px; --spt-top: 16px; --spt-right: 20px; }
 html.native .cw-main { --spt-top: 12px; }
-.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away)) { --spt-top: 21px; --spt-right: 21px; }
-.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away) .cw-corner .pane-close) { --spt-right: 49px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away)) { --spt-top: 12px; --spt-right: 12px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away) .cw-corner .pane-close) { --spt-right: 40px; }
 .cw-main:not(.is-panel-open):has(> .cw-grid.is-single:not(.is-away) .pane-close) { --spt-right: 48px; }
 /* Sized like the pane header buttons it lines up with (it renders outside .pane). */
 .cw-main > .sp-toggle { width: var(--spt-size); height: var(--spt-size); border-radius: var(--r-icon); }
@@ -53,9 +67,6 @@ html.native .cw-main { --spt-top: 12px; }
   font-size: 11px;
 }
 /* The focused pane wears its group's color (--cw-group, set on .cw-main). */
-.cw-grid .pane.is-focused {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cw-group, var(--accent)) 40%, transparent);
-}
 .pane.is-focused .cw-num {
   background: color-mix(in srgb, var(--cw-group, var(--accent)) 14%, transparent);
   color: var(--cw-group, var(--accent));
