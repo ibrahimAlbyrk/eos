@@ -12,7 +12,7 @@ import { createReplayGate } from "./replayGate.js";
 import { createOutputQueue } from "./outputQueue.js";
 import { macEditBytes, shellEscapePath } from "./terminalKeys.js";
 import { createWheelAccumulator, sgrWheelReports } from "./mouseWheel.js";
-import { openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
+import { createPathLinkProvider, openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
 import { claimNextDrop } from "../../lib/nativeBridge.js";
 import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessionOsc.js";
 
@@ -41,7 +41,8 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 // `fontSize`, `surface` (the CSS var the body sits on), `palette` (ANSI colors),
 // `onTitle` (OSC title changes), `onClaudeSession` (Claude Code session id
 // reported by its session hook — lib/claudeSessionOsc) and `shiftEnter` (bytes Shift+Enter sends —
-// Claude Code reads ESC+CR as a newline, not submit).
+// Claude Code reads ESC+CR as a newline, not submit) and `cwd` (the folder
+// relative file paths in the output resolve against, for path links).
 //
 // `paused` (the whole view is hidden but kept mounted): output is queued instead
 // of parsed, so a background terminal costs nothing; it's written on resume. A
@@ -51,7 +52,7 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 const PAUSED_QUEUE_CAP = 512 * 1024;
 
 export function TerminalView({
-  sessionId, active, visible = active, paused = false, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter,
+  sessionId, active, visible = active, paused = false, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter, cwd,
 }) {
   const hostRef = useRef(null);
   const ctl = useRef(null); // { scheduleFit, focus, pause, resume } — for the active-tab / pause effects
@@ -61,6 +62,8 @@ export function TerminalView({
   onTitleRef.current = onTitle;
   const onClaudeSessionRef = useRef(onClaudeSession);
   onClaudeSessionRef.current = onClaudeSession;
+  const cwdRef = useRef(cwd);
+  cwdRef.current = cwd;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -87,6 +90,7 @@ export function TerminalView({
     const fit = new FitAddon();
     term.loadAddon(fit);
     term.loadAddon(new WebLinksAddon(openTerminalLink)); // plain-text URLs
+    term.registerLinkProvider(createPathLinkProvider(term, () => cwdRef.current));
 
     // Clipboard shortcuts inside the terminal. On macOS ⌘ is the clipboard
     // modifier (Ctrl+C/V stay control bytes for the shell), so only intercept
