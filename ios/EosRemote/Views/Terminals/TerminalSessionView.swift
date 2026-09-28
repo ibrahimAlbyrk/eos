@@ -35,13 +35,9 @@ private struct TerminalSessionContent: View {
     @StateObject private var keyboard = MirrorKeyboard()
     // Bumped on reconnect: the mirror missed output while offline, so it replays from a clean screen.
     @State private var syncKey = 0
-    @State private var landed = false
-    @State private var disclosureHold = false
-    @State private var disclosureHoldTask: Task<Void, Never>?
+    @StateObject private var tail = TranscriptTailFollow()
     @State private var errorToast: String?
     @State private var viewedFile: ViewedFile?
-
-    private static let tailAnchor = "pty-transcript-tail"
 
     init(app: AppModel, sessionId: String) {
         self.app = app
@@ -169,20 +165,14 @@ private struct TerminalSessionContent: View {
                     ForEach(session.blocks) { MessageView(block: $0).id($0.id) }
                     ProcessingLineView(busy: session.running)
                         .padding(.top, EosSpacing.xxs)
-                    Color.clear.frame(height: 1).id(Self.tailAnchor)
+                    Color.clear.frame(height: 1).id(TranscriptTailFollow.tailID)
                 }
                 .padding(.horizontal, EosSpacing.screenInset)
             }
             .environmentObject(reveal)
-            .defaultScrollAnchor(.bottom, for: .initialOffset)
-            .defaultScrollAnchor(.bottom, for: .alignment)
-            .defaultScrollAnchor(disclosureHold ? .top : .bottom, for: .sizeChanges)
-            .environment(\.onDisclosureToggle) { holdScrollForDisclosure() }
+            .transcriptTailFollow(tail, proxy: proxy)
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-            .onChange(of: session.blocks.count) {
-                if !landed && !session.blocks.isEmpty { landTail(proxy) }
-            }
             .safeAreaInset(edge: .bottom) { chatBottom }
         }
     }
@@ -282,30 +272,6 @@ private struct TerminalSessionContent: View {
     }
 
     // MARK: helpers
-
-    // Initial page lands async and the LazyVStack re-estimates heights in waves — re-pass the
-    // tail scroll a couple of times (WorkerDetailView.landTail).
-    private func landTail(_ proxy: ScrollViewProxy) {
-        landed = true
-        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-        Task { @MainActor in
-            for delayMs in [150, 450] {
-                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
-                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-            }
-        }
-    }
-
-    // Size changes anchor to .top across a disclosure toggle so the tapped row stays put.
-    private func holdScrollForDisclosure() {
-        disclosureHold = true
-        disclosureHoldTask?.cancel()
-        disclosureHoldTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            disclosureHold = false
-        }
-    }
 
     private func showError(_ message: String) {
         withAnimation(.easeOut(duration: 0.15)) { errorToast = message }

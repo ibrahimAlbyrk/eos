@@ -41,6 +41,7 @@ public final class Connector: Sendable {
         ])
         try await connection.sendEnvelopeRaw(Envelope(type: .join, dir: .c2s, epoch: 0, seq: 0,
                                                       room: roomBytes, clientId: Data(count: 16), payload: joinJSON))
+        // Unbounded here — a silent relay is cut off by the caller's attempt deadline closing the socket.
         let ackEnv: Envelope
         do { ackEnv = try await connection.receiveEnvelopeRaw() }
         catch { throw ConnectError.transient("join-ack: \(error)") }

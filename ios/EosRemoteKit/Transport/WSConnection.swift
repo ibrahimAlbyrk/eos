@@ -5,21 +5,16 @@ import OSLog
 private let frameLog = Logger(subsystem: "dev.eos.remote", category: "frames")
 private struct TagPeek: Decodable { let t: String }
 
-// Incoming server frames the connection can't answer itself (control replies are handled inline).
-public protocol WSConnectionDelegate: AnyObject, Sendable {
-    func wsDidReceive(snapshot: SnapshotFrame) async
-    func wsDidReceive(patch: PatchFrame) async
-    func wsDidReceive(event: EventFrame) async
-    func wsDidReceive(error: ErrorFrame) async
-    func wsConnectionStateChanged(connected: Bool) async
-}
-
-// The single WS actor (§5, §6). Two phases share one socket:
+// One relay socket, from open to close (§5, §6). It never reconnects itself: ConnectionSupervisor owns
+// the retry policy and builds a fresh WSConnection per attempt, so nothing from a dead socket can leak
+// into the next one. Two phases share the socket:
 //   1. JOIN — manual, sequential send/receive of RAW envelopes (relay join → joined ack).
-//   2. LIVE — after attach(session:)+beginLiveLoop(): plaintext `data` framing, control req/reply
-//      over a correlationId→continuation map with timeout, keepalive, backoff 1s→60s, event push.
+//   2. LIVE — plaintext `data` framing. Control replies resolve their waiters; every other server frame
+//      is yielded on `frames`, which finishes exactly once, when the socket closes for any reason.
+// A ping heartbeat closes the socket when the relay stops answering — iOS keeps reporting a socket
+// open long after a network switch or a suspension has killed it.
 // Relay TLS is public-CA (no SPKI pinning); the bearer rides the join frame, not an HTTP header.
-public actor WSConnection {
+public actor WSConnection: RemoteLink {
     public enum WSError: Error { case notConnected, timeout, controlFailed(Int), badFrame, closed }
 
     // A control's answer: JSON routes resolve as `reply`; binary asset routes (/fs/image, /fs/raw)
@@ -29,28 +24,42 @@ public actor WSConnection {
         case asset(AssetFrame)
     }
 
+    public nonisolated let frames: AsyncStream<ServerFrame>
+    private let framesContinuation: AsyncStream<ServerFrame>.Continuation
+
     private let url: URL
-    private weak var delegate: WSConnectionDelegate?
+    private let room: String
+    private let bearer: String
     private var session: SessionState?
 
-    private var task: URLSessionWebSocketTask?
     private var urlSession: URLSession?
+    private var task: URLSessionWebSocketTask?
+    private var closed = false
 
     private var pending: [String: CheckedContinuation<ControlResponse, Error>] = [:]
-    private var backoffMs: UInt64 = 1000
-    private let maxBackoffMs: UInt64 = 60_000
-    private let keepaliveMs: UInt64 = 20_000
-    private var liveLoopRunning = false
+    private var pings: [UUID: CheckedContinuation<Bool, Never>] = [:]
+    private var heartbeat: Task<Void, Never>?
+    private let heartbeatMs: UInt64 = 15_000
+    private let pingTimeoutMs: UInt64 = 10_000
 
-    public init(url: URL, delegate: WSConnectionDelegate?) {
-        self.url = url; self.delegate = delegate
+    public init(url: URL, room: String, bearer: String) {
+        self.url = url; self.room = room; self.bearer = bearer
+        (frames, framesContinuation) = AsyncStream.makeStream(of: ServerFrame.self)
+    }
+
+    // Open + relay join + go live. No timeout of its own: URLSession's receive() ignores task
+    // cancellation, so the only thing that unblocks a silent join is close() — the supervisor's
+    // attempt deadline does exactly that.
+    public func join() async throws {
+        _ = try await Connector(connection: self, room: room, bearer: bearer).run()
     }
 
     // MARK: phase 1 — join (manual, sequential)
 
-    // Open the socket for the join. Does NOT start the auto receive-loop; the connector drives
-    // send/receive sequentially during the cold join (join → joined ack).
+    // Open the socket for the join. Does NOT start the receive loop; the connector drives
+    // send/receive sequentially during the join (join → joined ack).
     public func openForJoin() {
+        guard !closed else { return }
         let s = URLSession(configuration: .default)
         urlSession = s
         let t = s.webSocketTask(with: URLRequest(url: url))
@@ -63,113 +72,132 @@ public actor WSConnection {
         try await task.send(.data(env.encode()))
     }
 
-    // Await exactly one inbound binary envelope (used only during the join phase). Bounded by a
-    // timeout so a silent relay (daemon offline / room gone) converts to a throw the caller treats
-    // as transient → bounded backoff → eventual re-pair, never an infinite wait on "connecting".
-    public func receiveEnvelopeRaw(timeoutMs: UInt64 = 15_000) async throws -> Envelope {
+    // Await exactly one inbound binary envelope (used only during the join phase).
+    public func receiveEnvelopeRaw() async throws -> Envelope {
         guard let task else { throw WSError.notConnected }
-        return try await withThrowingTaskGroup(of: Envelope.self) { group in
-            group.addTask {
-                let message = try await task.receive()
-                guard case .data(let data) = message else { throw WSError.badFrame }
-                return try Envelope.decode(data)
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
-                throw WSError.timeout
-            }
-            defer { group.cancelAll() }
-            guard let first = try await group.next() else { throw WSError.timeout }
-            return first
-        }
+        guard case .data(let data) = try await task.receive() else { throw WSError.badFrame }
+        return try Envelope.decode(data)
     }
 
     // MARK: phase 2 — live
 
     public func attach(session: SessionState) { self.session = session }
 
-    // Start the live receive-loop + keepalive once a session is attached. From here on, inbound
-    // `data` envelopes are decoded as plaintext inner frames and dispatched; control replies resolve
-    // their waiters.
+    // Start the live receive loop + heartbeat once a session is attached.
     public func beginLiveLoop() {
-        guard !liveLoopRunning else { return }
-        liveLoopRunning = true
-        Task { await delegate?.wsConnectionStateChanged(connected: true) }
-        receiveLoop()
-        scheduleKeepalive()
-    }
-
-    public func stop() {
-        liveLoopRunning = false
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
-        failAllPending(WSError.closed)
-    }
-
-    private func receiveLoop() {
-        task?.receive { [weak self] result in
-            guard let self else { return }
-            Task { await self.handleReceive(result) }
-        }
-    }
-
-    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>) async {
-        switch result {
-        case .failure:
-            await delegate?.wsConnectionStateChanged(connected: false)
-            task = nil
-            scheduleReconnect()
-        case .success(let message):
-            if case .data(let data) = message { await routeEnvelope(data) }
-            if liveLoopRunning { receiveLoop() }
-        }
-    }
-
-    private func routeEnvelope(_ data: Data) async {
-        guard let env = try? Envelope.decode(data) else { return }
-        switch env.type {
-        case .data:
-            guard let session else { frameLog.error("data frame before session attach — dropped"); return }
-            guard let frame = try? ServerFrame.decode(session.envelopeToJSON(env)) else {
-                // Tag + size only — payloads can embed transcript text.
-                let tag = (try? JSONDecoder().decode(TagPeek.self, from: env.payload))?.t ?? "?"
-                frameLog.error("undecodable inner frame — dropped (t=\(tag, privacy: .public), \(env.payload.count) bytes)")
-                return
+        guard !closed, heartbeat == nil else { return }
+        receiveNext()
+        let interval = heartbeatMs
+        heartbeat = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: interval * 1_000_000)
+                guard let self, !Task.isCancelled else { return }
+                await self.beat()
             }
-            await dispatch(frame)
-        default:
-            break // relay-control frames are consumed by the join coordinator, not here
         }
     }
 
-    private func dispatch(_ frame: ServerFrame) async {
+    // Idempotent. Fails every waiter and finishes `frames`, so the owner learns about the close from
+    // one place no matter who initiated it.
+    public func close() {
+        guard !closed else { return }
+        closed = true
+        heartbeat?.cancel(); heartbeat = nil
+        task?.cancel(with: .goingAway, reason: nil); task = nil
+        urlSession?.invalidateAndCancel(); urlSession = nil
+        for (_, cont) in pending { cont.resume(throwing: WSError.closed) }
+        pending.removeAll()
+        for (_, cont) in pings { cont.resume(returning: false) }
+        pings.removeAll()
+        framesContinuation.finish()
+    }
+
+    // A WebSocket ping the relay must answer (its ws server pongs automatically).
+    public func probe(timeoutMs: UInt64) async -> Bool {
+        guard !closed, let task else { return false }
+        let id = UUID()
+        return await withCheckedContinuation { cont in
+            pings[id] = cont
+            task.sendPing { [weak self] error in
+                Task { await self?.settlePing(id, alive: error == nil) }
+            }
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
+                await self?.settlePing(id, alive: false)
+            }
+        }
+    }
+
+    private func settlePing(_ id: UUID, alive: Bool) {
+        pings.removeValue(forKey: id)?.resume(returning: alive)
+    }
+
+    // The ka keeps the daemon's idle sweep from pruning this session; the ping proves the socket.
+    private func beat() async {
+        sendFrame(KaFrame(t: "ka", ts: 0))
+        if await !probe(timeoutMs: pingTimeoutMs) {
+            frameLog.error("heartbeat: no pong — closing")
+            close()
+        }
+    }
+
+    private func receiveNext() {
+        guard !closed, let task else { return }
+        task.receive { [weak self] result in
+            Task { await self?.handleReceive(result) }
+        }
+    }
+
+    private func handleReceive(_ result: Result<URLSessionWebSocketTask.Message, Error>) {
+        guard !closed else { return }
+        switch result {
+        case .failure(let error):
+            frameLog.info("socket closed: \(error.localizedDescription, privacy: .public)")
+            close()
+        case .success(let message):
+            if case .data(let data) = message { routeEnvelope(data) }
+            receiveNext()
+        }
+    }
+
+    private func routeEnvelope(_ data: Data) {
+        // Relay-control frames only matter during the join, which reads them directly.
+        guard let env = try? Envelope.decode(data), env.type == .data else { return }
+        guard let session else { frameLog.error("data frame before session attach — dropped"); return }
+        guard let frame = try? ServerFrame.decode(session.envelopeToJSON(env)) else {
+            // Tag + size only — payloads can embed transcript text.
+            let tag = (try? JSONDecoder().decode(TagPeek.self, from: env.payload))?.t ?? "?"
+            frameLog.error("undecodable inner frame — dropped (t=\(tag, privacy: .public), \(env.payload.count) bytes)")
+            return
+        }
         switch frame {
         case .reply(let r):
-            if let cont = pending.removeValue(forKey: r.correlationId) {
-                if (200..<300).contains(r.status) { cont.resume(returning: .reply(r)) }
-                else { cont.resume(throwing: WSError.controlFailed(r.status)) }
-            }
+            resolve(r.correlationId, status: r.status, .reply(r))
         case .asset(let a):
-            if let cont = pending.removeValue(forKey: a.correlationId) {
-                if (200..<300).contains(a.status) { cont.resume(returning: .asset(a)) }
-                else { cont.resume(throwing: WSError.controlFailed(a.status)) }
-            }
-        case .snapshot(let s):
-            frameLog.info("rx snapshot seq=\(s.seq) workers=\(s.workers.count)")
-            await delegate?.wsDidReceive(snapshot: s)
-        case .patch(let p):
-            frameLog.info("rx patch seq=\(p.seq) \(p.resource, privacy: .public)/\(p.op, privacy: .public)")
-            await delegate?.wsDidReceive(patch: p)
-        case .event(let e):
-            frameLog.info("rx event seq=\(e.seq) \(e.reason, privacy: .public)")
-            await delegate?.wsDidReceive(event: e)
+            resolve(a.correlationId, status: a.status, .asset(a))
         case .error(let e):
             if let cid = e.correlationId, let cont = pending.removeValue(forKey: cid) {
                 cont.resume(throwing: WSError.controlFailed(0))
             }
-            await delegate?.wsDidReceive(error: e)
-        case .ka: break
+            framesContinuation.yield(frame)
+        case .snapshot(let s):
+            frameLog.info("rx snapshot seq=\(s.seq) workers=\(s.workers.count)")
+            framesContinuation.yield(frame)
+        case .patch(let p):
+            frameLog.info("rx patch seq=\(p.seq) \(p.resource, privacy: .public)/\(p.op, privacy: .public)")
+            framesContinuation.yield(frame)
+        case .event(let e):
+            frameLog.info("rx event seq=\(e.seq) \(e.reason, privacy: .public)")
+            framesContinuation.yield(frame)
+        case .ka:
+            break
         }
+    }
+
+    private func resolve(_ correlationId: String, status: Int, _ response: ControlResponse) {
+        guard let cont = pending.removeValue(forKey: correlationId) else { return }
+        if (200..<300).contains(status) { cont.resume(returning: response) }
+        else { cont.resume(throwing: WSError.controlFailed(status)) }
     }
 
     // Tunneled REST. `bodyData` is the body serialized EXACTLY ONCE (§5.2.3); it is carried verbatim
@@ -185,7 +213,7 @@ public actor WSConnection {
     // Variant for routes that may answer with a binary `asset` frame (/fs/image).
     public func sendControlRaw(method: String, path: String, bodyData: Data,
                                timeoutMs: UInt64 = 30_000) async throws -> ControlResponse {
-        guard let session, let task else { throw WSError.notConnected }
+        guard !closed, let session, let task else { throw WSError.notConnected }
         let correlationId = UUID().uuidString
         let bodyStr = String(decoding: bodyData, as: UTF8.self)
         let frame = ControlFrame(correlationId: correlationId, method: method, path: path, body: bodyStr)
@@ -193,7 +221,7 @@ public actor WSConnection {
 
         let timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
-            await self?.timeout(correlationId)
+            await self?.fail(correlationId, WSError.timeout)
         }
         defer { timeoutTask.cancel() }
 
@@ -206,59 +234,26 @@ public actor WSConnection {
         }
     }
 
-    private func timeout(_ correlationId: String) {
-        if let cont = pending.removeValue(forKey: correlationId) { cont.resume(throwing: WSError.timeout) }
-    }
     private func fail(_ correlationId: String, _ error: Error) {
-        if let cont = pending.removeValue(forKey: correlationId) { cont.resume(throwing: error) }
-    }
-    private func failAllPending(_ error: Error) {
-        for (_, cont) in pending { cont.resume(throwing: error) }
-        pending.removeAll()
-    }
-
-    private func scheduleReconnect() {
-        guard liveLoopRunning else { return }
-        let delay = backoffMs
-        backoffMs = min(backoffMs * 2, maxBackoffMs)
-        Task {
-            try? await Task.sleep(nanoseconds: delay * 1_000_000)
-            // Reconnect re-runs the join/resume from the owner; here we just surface the drop.
-        }
-    }
-
-    private func scheduleKeepalive() {
-        Task { [weak self] in
-            guard let self else { return }
-            while await self.liveLoopRunning {
-                try? await Task.sleep(nanoseconds: self.keepaliveMs * 1_000_000)
-                await self.sendKeepalive()
-            }
-        }
-    }
-
-    private func sendKeepalive() async {
-        guard let session, let task else { return }
-        let ka = KaFrame(t: "ka", ts: 0)
-        guard let json = try? JSONEncoder().encode(ka) else { return }
-        task.send(.data(session.frameToEnvelope(json))) { _ in }
+        pending.removeValue(forKey: correlationId)?.resume(throwing: error)
     }
 
     // §5.2.2 resume hint / §5.4.3 snapshot request. Fire-and-forget: the daemon
     // answers with a `snapshot` frame on the normal push path (no correlation).
     public func sendHello(lastContentId: Int) {
-        guard let session, let task else { return }
         var hello = HelloFrame()
         hello.lastContentId = lastContentId
-        guard let json = try? JSONEncoder().encode(hello) else { return }
-        task.send(.data(session.frameToEnvelope(json))) { _ in }
+        sendFrame(hello)
     }
 
     // Replace the set of PTY sessions whose pty:data this device receives. Fire-and-forget; the
     // daemon forgets it with the socket, so the owner re-sends it after every reconnect.
     public func sendSubscription(pty ids: [String]) {
-        guard let session, let task else { return }
-        guard let json = try? JSONEncoder().encode(SubFrame(pty: ids)) else { return }
+        sendFrame(SubFrame(pty: ids))
+    }
+
+    private func sendFrame<F: Encodable>(_ frame: F) {
+        guard !closed, let session, let task, let json = try? JSONEncoder().encode(frame) else { return }
         task.send(.data(session.frameToEnvelope(json))) { _ in }
     }
 }

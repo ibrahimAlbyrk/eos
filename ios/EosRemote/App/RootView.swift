@@ -102,11 +102,11 @@ struct RootView: View {
         .onChange(of: sidebar.section) { _, s in
             model.saveUIState { $0.section = s.rawValue }
         }
-        .task { await model.resumeIfPossible() }
+        .task { model.enterForeground() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: Task { await model.enterForeground() }
-            case .background: Task { await model.enterBackground() }
+            case .active: model.enterForeground()
+            case .background: model.enterBackground()
             default: break
             }
         }

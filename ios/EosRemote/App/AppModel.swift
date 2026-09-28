@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import OSLog
+import Network
 import EosRemoteKit
 
 // Surfaced in Console.app / `log stream --predicate 'subsystem == "dev.eos.remote"'`.
@@ -54,6 +55,9 @@ final class AppModel: ObservableObject {
     @Published var needsPairing = false
     @Published var lastError: String?
     @Published var transcript: [Block] = []
+    // Worker the transcript belongs to. The mirror holds the previous conversation's rows until the
+    // next open publishes, so a conversation screen renders the transcript only when it owns it.
+    @Published var transcriptOwner: String?
     @Published var loadingOlder = false
 
     // Redesign data surface (§H P2): the active device's ui-config (model sheet source) and
@@ -77,33 +81,23 @@ final class AppModel: ObservableObject {
 
     private let deviceStore: DeviceStore
     private var connections: [String: DeviceConnection] = [:]
+    private let pathMonitor = NWPathMonitor()
 
     private var active: DeviceConnection? { activeDeviceId.flatMap { connections[$0] } }
 
     init(deviceStore: DeviceStore = DeviceStore()) {
         self.deviceStore = deviceStore
+        // Any usable-path update (network back, Wi-Fi ↔ cellular) retries a waiting link at once and
+        // re-checks a live one — the old socket rarely survives an interface switch.
+        pathMonitor.pathUpdateHandler = { [weak self] path in
+            guard path.status == .satisfied else { return }
+            Task { @MainActor in self?.networkAvailable() }
+        }
+        pathMonitor.start(queue: .main)
     }
 
-    // MARK: bootstrap — load the paired list (migrating the legacy single device on first launch)
-
-    // Called once on launch (RootView.task) and every foreground. Loads persisted devices, folds the
-    // legacy single-device creds into a Device the first time, spins up a live connection per device,
-    // and connects them all so switching is immediate.
-    func resumeIfPossible() async {
-        _ = deviceStore.migrateLegacyIfNeeded()
-        reloadDevices()
-        guard !devices.isEmpty else {
-            eosLog.info("connect: no paired devices → show QR")
-            needsPairing = true
-            return
-        }
-        needsPairing = false
-        if activeDeviceId == nil { activeDeviceId = deviceStore.activeId() ?? devices.first?.id }
-        for device in devices { ensureConnection(for: device) }
-        mirrorActive()
-        // Connect every device (idempotent) so all paired Macs are live in the background.
-        for conn in connections.values { await conn.connect() }
-        mirrorActive()
+    private func networkAvailable() {
+        for conn in connections.values { conn.networkAvailable() }
     }
 
     // Rebuild `devices` from the store; prune connections for devices that are gone.
@@ -111,8 +105,7 @@ final class AppModel: ObservableObject {
         devices = deviceStore.load()
         let ids = Set(devices.map(\.id))
         for id in Array(connections.keys) where !ids.contains(id) {
-            let conn = connections.removeValue(forKey: id)
-            Task { await conn?.teardown() }
+            connections.removeValue(forKey: id)?.teardown()
         }
     }
 
@@ -143,7 +136,7 @@ final class AppModel: ObservableObject {
     // active-device change (via onChange). Devices with no active member fall back to empty/needsPairing.
     private func mirrorActive() {
         guard let a = active else {
-            workers = []; pending = []; transcript = []
+            workers = []; pending = []; transcript = []; transcriptOwner = nil
             connected = false; connecting = false; lastError = nil
             workersLoaded = false
             hasOlder = false; loadingOlder = false
@@ -159,6 +152,7 @@ final class AppModel: ObservableObject {
         workersLoaded = a.workersLoaded
         lastError = a.lastError
         transcript = a.transcript
+        transcriptOwner = a.openId
         hasOlder = a.hasOlder
         loadingOlder = a.loadingOlder
         uiConfig = a.uiConfig
@@ -179,12 +173,12 @@ final class AppModel: ObservableObject {
         activeDeviceId = id
         deviceStore.setActiveId(id)
         mirrorActive()
-        // Ensure the target is connecting if it dropped while backgrounded; when it is already
-        // live, refetch ui-config on the switch (C6 — connect()'s bootstrap covers the cold path).
-        if let conn = active, !conn.connected, !conn.connecting {
-            await conn.connect()
-        } else if let conn = active, conn.connected {
+        // When the target is already live, refetch ui-config on the switch (C6 — going live covers
+        // the cold path); otherwise make sure it is on its way.
+        if let conn = active, conn.connected {
             await conn.fetchUiConfig()
+        } else {
+            active?.activate()
         }
     }
 
@@ -201,7 +195,9 @@ final class AppModel: ObservableObject {
         let conn = ensureConnection(for: device)
         needsPairing = false
         mirrorActive()
-        await conn.connect()
+        // The pairing sheet reports the first outcome; a transient failure keeps retrying behind it.
+        conn.activate()
+        await conn.waitUntilSettled()
         deviceStore.touch(device.id)
         mirrorActive()
     }
@@ -209,7 +205,7 @@ final class AppModel: ObservableObject {
     // Remove a device: tear down its connection, wipe its creds, drop it. If it was active, fall back
     // to another device (or needsPairing when none remain).
     func removeDevice(_ id: String) async {
-        if let conn = connections.removeValue(forKey: id) { await conn.teardown() }
+        connections.removeValue(forKey: id)?.teardown()
         let newActive = deviceStore.remove(id)
         reloadDevices()
         if activeDeviceId == id { activeDeviceId = newActive }
@@ -244,20 +240,36 @@ final class AppModel: ObservableObject {
 
     // MARK: scene lifecycle — fan out to every device
 
-    func enterForeground() async {
+    // Launch and every foreground. Synchronous on purpose: scene-phase changes must apply in the order
+    // they happen, and each device's supervisor connects in parallel on its own. Loads persisted
+    // devices, folds the legacy single-device creds into a Device the first time, and keeps every
+    // paired Mac live so switching is immediate.
+    func enterForeground() {
         _ = deviceStore.migrateLegacyIfNeeded()
         reloadDevices()
-        guard !devices.isEmpty else { needsPairing = true; mirrorActive(); return }
+        guard !devices.isEmpty else {
+            eosLog.info("connect: no paired devices → show QR")
+            needsPairing = true
+            mirrorActive()
+            return
+        }
         needsPairing = false
         if activeDeviceId == nil { activeDeviceId = deviceStore.activeId() ?? devices.first?.id }
         for device in devices { ensureConnection(for: device) }
-        for conn in connections.values { await conn.enterForeground() }
+        for conn in connections.values { conn.activate() }
         mirrorActive()
     }
 
-    func enterBackground() async {
-        for conn in connections.values { await conn.enterBackground() }
+    func enterBackground() {
+        for conn in connections.values { conn.deactivate() }
         mirrorActive()
+    }
+
+    // Pull-to-refresh / tap-to-retry on the active device: retry now and wait for the outcome.
+    func reconnect() async {
+        guard let conn = active else { enterForeground(); return }
+        conn.activate()
+        await conn.waitUntilSettled()
     }
 
     // MARK: forwarded control actions (target the active device)

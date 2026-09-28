@@ -4,7 +4,7 @@ import Foundation
 // by `t`. In v3 there is no AEAD and no handshake frame family (no `hs`/`resume`/`challenge`) — the
 // relay join is the only handshake; every server frame below is plaintext.
 
-public enum ServerFrame {
+public enum ServerFrame: Sendable {
     case event(EventFrame)
     case patch(PatchFrame)
     case snapshot(SnapshotFrame)
@@ -56,6 +56,18 @@ public struct SnapshotFrame: Codable, Sendable {
     public let seq: Int
     public let workers: [JSONValue]
     public let pending: [JSONValue]
+    // Identifies the daemon's seq counter; a new epoch means seq restarted from 0.
+    public var epoch: String?
+    // Text streamed so far for blocks still in flight, so a resync can restart the live overlays
+    // without the hole the missed agent:delta frames would leave. Absent from older daemons.
+    public var live: [LiveBlock]?
+}
+
+public struct LiveBlock: Codable, Sendable {
+    public let workerId: String
+    public let blockId: String
+    public let channel: String     // "reasoning" | "text"
+    public let text: String
 }
 
 public struct ReplyFrame: Codable, Sendable {

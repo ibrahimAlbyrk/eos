@@ -96,7 +96,7 @@ struct CodeListView: View {
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .refreshable {
-            if !model.connected { await model.enterForeground() }
+            if !model.connected { await model.reconnect() }
             if filter == .archived { _ = await model.fetchArchived() }
         }
     }

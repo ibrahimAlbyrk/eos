@@ -22,30 +22,8 @@ struct WorkerDetailView: View {
     @State private var showModelSheet = false
     @State private var showModeSheet = false
     @State private var showRename = false
-    // Bug-A guards (round 3): `landed` = the initial page has been explicitly
-    // scrolled to the tail (defaultScrollAnchor alone loses the race when the
-    // first page lands async and re-flows the LazyVStack estimates); until then
-    // transcript changes keep re-landing. `pagingArmed` holds the top loader off
-    // during that settle — before the fix it auto-fired on open and prepended a
-    // 500-row page mid-anchor-settle, which is what left the viewport off-content.
-    @State private var landed = false
-    @State private var pagingArmed = false
-    // Scroll-to-bottom affordance (round 20): true once the viewport drifts more than
-    // ~one screen up from the tail; the floating "↓" button above the composer reads it.
-    // Hidden at/near the tail so it never appears while pinned during live streaming.
-    @State private var awayFromTail = false
-    // Imperative scroll handle for the button tap. An idle ScrollPosition (no initial edge) so it
-    // only reflects position and never pins — its scrollTo(edge:) CANCELS in-flight deceleration,
-    // which proxy.scrollTo(id:) does not (a mid-momentum tap was otherwise ignored until the glide
-    // stopped). Landing/tail-follow still ride the proxy + defaultScrollAnchor below, untouched.
-    @State private var scrollPosition = ScrollPosition()
-    private static let tailAnchor = "transcript-tail"
-    // Round 5, item E: while a disclosure toggle animates, size changes anchor to
-    // .top instead of .bottom so the expansion grows downward and the tapped row
-    // stays where it was. Outside the hold the .bottom anchor keeps tail-follow
-    // and the top-pager's prepend stability (round-3 Bug A) exactly as before.
-    @State private var disclosureHold = false
-    @State private var disclosureHoldTask: Task<Void, Never>?
+    // Landing, tail-follow, the "↓" affordance, pager arming and the disclosure hold.
+    @StateObject private var tail = TranscriptTailFollow()
     // In-flight guard for the gone-from-both-lists check (validatePresence below).
     @State private var checkingPresence = false
     // Optimistic mode-pill state (§C3): set on pick, reverted on PUT failure, cleared when the
@@ -61,6 +39,8 @@ struct WorkerDetailView: View {
     private var isArchived: Bool { worker == nil && archivedWorker != nil }
     private var anyWorker: Worker? { worker ?? archivedWorker }
     private var title: String { anyWorker.map(nameOf) ?? workerId }
+    private var ownsTranscript: Bool { model.transcriptOwner == workerId }
+    private var transcript: [Block] { ownsTranscript ? model.transcript : [] }
 
     private var currentMode: PermissionModeUI {
         if let m = modeOverride { return m }
@@ -97,14 +77,14 @@ struct WorkerDetailView: View {
     private func scrollBody(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: EosSpacing.md) {
-                if model.hasOlder {
+                if ownsTranscript && model.hasOlder {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, EosSpacing.xs)
-                        // Backward paging only after the open has settled; re-keyed on arm so
+                        // Backward paging only once the user scrolls; re-keyed on arm so
                         // onAppear re-fires if the loader is already on screen at that moment.
-                        .id("older-pager-\(pagingArmed)")
-                        .onAppear { if pagingArmed { Task { await model.loadOlder() } } }
+                        .id("older-pager-\(tail.pagingArmed)")
+                        .onAppear { if tail.pagingArmed { Task { await model.loadOlder() } } }
                 }
                 // Top-of-transcript task card (spec 03 §1 MessageTask): "Task from {parent}" + the
                 // boot prompt, shown when this worker was spawned by an orchestrator.
@@ -119,7 +99,7 @@ struct WorkerDetailView: View {
                     LoopStatusCardView(loop: loop, history: model.loopHistory(for: workerId))
                         .padding(.bottom, EosSpacing.xs)
                 }
-                ForEach(model.transcript) { MessageView(block: $0).id($0.id) }
+                ForEach(transcript) { MessageView(block: $0).id($0.id) }
                 // Foot activity anchor: live goal-check line while a looped worker idles under an
                 // active check, else the ProcessingLine spark.
                 if let check = model.activeGoalCheck(for: workerId) {
@@ -131,47 +111,24 @@ struct WorkerDetailView: View {
                                        clock: model.turnClock)
                         .padding(.top, EosSpacing.xxs)
                 }
-                Color.clear.frame(height: 1).id(Self.tailAnchor)
+                Color.clear.frame(height: 1).id(TranscriptTailFollow.tailID)
             }
             .padding(.horizontal, EosSpacing.screenInset)
         }
         .environmentObject(reveal)
         .accessibilityIdentifier("transcript")
-        .scrollPosition($scrollPosition)
-        // Bottom anchor lands the newest message on open and follows the tail at the
-        // bottom — except mid-disclosure, where size changes hold the top instead.
-        .defaultScrollAnchor(.bottom, for: .initialOffset)
-        .defaultScrollAnchor(.bottom, for: .alignment)
-        .defaultScrollAnchor(disclosureHold ? .top : .bottom, for: .sizeChanges)
-        // Round 20: watch how far the viewport sits above the tail. The button appears once
-        // that gap exceeds one screen (tail-follow disengaged) and hides as it closes — reading
-        // geometry, not the anchors, so round-3/round-5 tail-follow is untouched.
-        .onScrollGeometryChange(for: Bool.self) { geo in
-            let gap = geo.contentSize.height + geo.contentInsets.bottom
-                - geo.contentOffset.y - geo.containerSize.height
-            return gap > geo.containerSize.height
-        } action: { _, away in
-            guard away != awayFromTail else { return }
-            if reduceMotion { awayFromTail = away }
-            else { withAnimation(EosSpring.chip) { awayFromTail = away } }
-        }
-        .environment(\.onDisclosureToggle) { holdScrollForDisclosure() }
+        .transcriptTailFollow(tail, proxy: proxy)
         .scrollDismissesKeyboard(.interactively)
         // Tap-outside keyboard dismiss (§E4, master 17) alongside the interactive drag.
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .task(id: workerId) {
-            landed = false; pagingArmed = false
+            tail.reset()
             reveal.bind(sessionId: workerId)
             await model.openWorker(workerId)
             model.markViewed(workerId)          // §D4: viewed on open
-            if !landed && !model.transcript.isEmpty { landTail(proxy) }
             // Let the first page paint, then open the animation window so only later output blurs in.
             try? await Task.sleep(nanoseconds: 350_000_000)
             reveal.markEntrySettled()
-        }
-        // Slow first page: the transcript lands after the open — land the tail then.
-        .onChange(of: model.transcript.count) {
-            if !landed && !model.transcript.isEmpty { landTail(proxy) }
         }
         .onDisappear {
             model.closeWorker(workerId)
@@ -336,62 +293,16 @@ struct WorkerDetailView: View {
     // at the bottom, and interactive dismiss brings the button back the moment a scroll starts.
     @ViewBuilder
     private var scrollToBottomButton: some View {
-        if awayFromTail && !composerFocused {
+        if tail.awayFromTail && !composerFocused {
             CircularIconButton(systemName: "arrow.down", diameter: 44, glass: true,
-                               accessibilityLabel: "Scroll to latest") { scrollToTail() }
+                               accessibilityLabel: "Scroll to latest") { Haptics.tap(); tail.jumpToTail() }
                 .accessibilityIdentifier("scroll-to-bottom")
                 .offset(y: -(44 + EosSpacing.sm))
                 .transition(reduceMotion ? .identity : .opacity)
         }
     }
 
-    // Fast animated jump to the tail; re-engages tail-follow exactly as a manual scroll-to-bottom
-    // does (the .bottom alignment anchor resumes once the viewport lands there). scrollTo(edge:)
-    // cancels any in-flight deceleration, so a tap mid-glide lands immediately. Instant under
-    // reduce-motion.
-    private func scrollToTail() {
-        Haptics.tap()
-        if reduceMotion {
-            scrollPosition.scrollTo(edge: .bottom)
-        } else {
-            withAnimation(EosSpring.chip) { scrollPosition.scrollTo(edge: .bottom) }
-        }
-    }
-
     // MARK: actions
-
-    // Land the viewport on the transcript tail. One scrollTo is not enough: the
-    // LazyVStack materializes cells in waves and each wave re-estimates heights
-    // (same pathology MessageGalleryView documents), so converge with re-passes
-    // before arming the top pager — un-gated, its onAppear fired during the
-    // settle and prepended a whole older page mid-layout (the blank-open bug).
-    private func landTail(_ proxy: ScrollViewProxy) {
-        landed = true
-        let target = workerId
-        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-        Task { @MainActor in
-            for delayMs in [150, 450] {
-                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
-                guard workerId == target else { return }
-                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
-            }
-            try? await Task.sleep(nanoseconds: 150_000_000)
-            if workerId == target { pagingArmed = true }
-        }
-    }
-
-    // Hold the size-change anchor at .top across the 0.15s disclosure animation
-    // (plus settle). Called synchronously from the toggle, so the anchor flips in
-    // the same update as the height change begins.
-    private func holdScrollForDisclosure() {
-        disclosureHold = true
-        disclosureHoldTask?.cancel()
-        disclosureHoldTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            disclosureHold = false
-        }
-    }
 
     private var goneFromBothLists: Bool {
         UIRestore.shouldClose(openId: workerId, connected: model.connected,

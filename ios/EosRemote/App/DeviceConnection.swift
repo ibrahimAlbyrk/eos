@@ -15,6 +15,8 @@ private let pipeLog = Logger(subsystem: "dev.eos.remote", category: "pipeline")
 // AppModel holds one of these per device and MIRRORS the active one's fields into its @Published
 // arrays. DeviceConnection is @MainActor (same thread as the views + Store callbacks) and calls
 // `onChange` after any state mutation so AppModel can re-publish when this is the active device.
+// The link itself (connect, retry, liveness) belongs to ConnectionSupervisor; this class only reacts
+// to its frames and to it going live.
 @MainActor
 final class DeviceConnection: NSObject {
     let device: Device
@@ -23,15 +25,18 @@ final class DeviceConnection: NSObject {
     // Live snapshot the owner mirrors (kept as plain fields; the owner republishes on change).
     private(set) var workers: [Worker] = []
     private(set) var pending: [Pending] = []
-    private(set) var connected = false
-    private(set) var connecting = false
+    var connected: Bool { link.state == .live }
+    // Anything short of live while the app is up: retries never stop in the foreground.
+    var connecting: Bool { [.connecting, .syncing, .waiting].contains(link.state) }
     // Bootstrap phase (round 5, item B): false until the first authoritative workers
     // list lands (bootstrap GET / snapshot / fallback refresh). The Code list keeps
     // its skeleton while this is false — an empty list is unknown, not "no sessions".
     private(set) var workersLoaded = false
-    private(set) var lastError: String?
-    // Per-device authRejected latch: bad creds are a device-level error, NOT global needsPairing.
-    private(set) var authRejected = false
+    // The link's failure while it is down; the last failed control while it is up.
+    var lastError: String? { connected ? controlError : (link.lastError ?? controlError) }
+    private var controlError: String?
+    // Per-device: bad creds are a device-level error, NOT global needsPairing.
+    var authRejected: Bool { link.state == .authRejected }
 
     private(set) var transcript: [Block] = []
     private(set) var loadingOlder = false
@@ -57,14 +62,8 @@ final class DeviceConnection: NSObject {
     // Notify the owner (AppModel) that this device's mirrored state changed.
     var onChange: (() -> Void)?
 
-    // MARK: connect state (per-device; ported verbatim)
-    private var resumeRetries = 0
-    private var lastStep = ""
-    private let maxResumeRetries = 6
-    private var intentionalStop = false
-
     // MARK: transcript pipeline (per-device; ported verbatim from AppModel)
-    private var openId: String?
+    private(set) var openId: String?
     // Durable rows are cached as PARSED `Ev`s keyed by rowId. The JSON-string payload decode in toEv
     // is the buildBlocks hotspot (~51ms of ~51ms for 2000 rows); parsing once at ingest instead of on
     // every recompute is the core Phase-6 win. Rows are append-only, so a cached Ev never goes stale.
@@ -99,16 +98,24 @@ final class DeviceConnection: NSObject {
 
     private let initialPageSize = 120
     private let olderPageSize = 500
+    private let deltaPageSize = 500
 
     private struct LiveBuffer { var blockId: String; var channel: String; var text: String; var ts: Double }
 
     let store = Store()
-    private var connection: WSConnection?
-    private var session: SessionState?
+    private let link: ConnectionSupervisor<WSConnection>
+    private var connection: WSConnection? { link.liveLink }
 
     init(device: Device) {
         self.device = device
+        let room = device.room, bearer = device.bearer ?? ""
+        // activate() refuses to start without a relay URL, so the unwrap only runs when it is set.
+        link = ConnectionSupervisor { WSConnection(url: device.relayURL!, room: room, bearer: bearer) }
         super.init()
+        link.onChange = { [weak self] in self?.onChange?() }
+        link.onFrame = { [weak self] frame in await self?.handle(frame) }
+        link.onLive = { [weak self] in self?.didGoLive() }
+        link.resumeCursor = { [weak self] in await self?.store.lastSeq ?? 0 }
         Task { await store.setOnChange { [weak self] in Task { @MainActor in await self?.refresh() } } }
     }
 
@@ -454,113 +461,44 @@ final class DeviceConnection: NSObject {
         return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
-    // MARK: connect / resume — one path, ported verbatim but per-device
+    // MARK: link lifecycle — commands forwarded to the supervisor
 
-    // Connect this device from its stored creds. Same open → join → live path as before; on success
-    // CONNECTED, on BEARER_DENIED a per-device error (authRejected), on transient a bounded backoff.
-    func connect() async {
-        guard !connected, !connecting else { return }
-        guard let relayURL = device.relayURL else { setError("bad relay url"); return }
-        connecting = true; authRejected = false; intentionalStop = false
-        onChange?()
-        defer { connecting = false; onChange?() }
-        let conn = WSConnection(url: relayURL, delegate: self)
-        do {
-            let result = try await Connector(connection: conn, room: device.room,
-                                             bearer: device.bearer ?? "", log: stepLogger()).run()
-            self.connection = conn
-            self.session = result.session
-            resumeRetries = 0; connected = true; lastError = nil
-            eosLog.info("connect[\(self.deviceId, privacy: .public)]: OK")
-            await bootstrap()
-            // Reconnect with a conversation open: rows that landed during the gap
-            // never re-announce, so pull the transcript delta explicitly.
-            if openId != nil { scheduleDelta() }
-        } catch Connector.ConnectError.authRejected {
-            await conn.stop()
-            eosLog.error("connect[\(self.deviceId, privacy: .public)]: BEARER_DENIED (rotated)")
-            lastError = "This device is no longer paired. Pair it again."
-            authRejected = true
-        } catch {
-            await conn.stop()
-            eosLog.error("connect[\(self.deviceId, privacy: .public)]: transient \(String(describing: error), privacy: .public)")
-            lastError = diag("connect", error); scheduleResumeRetry()
-        }
+    func activate() {
+        guard device.relayURL != nil else { setError("bad relay url"); return }
+        link.activate()
     }
-
-    private func stepLogger() -> @Sendable (String) -> Void {
-        { [weak self] s in Task { @MainActor in self?.lastStep = s } }
-    }
-
-    private func diag(_ phase: String, _ error: Error) -> String {
-        let code: String
-        switch error {
-        case Connector.ConnectError.authRejected: code = "auth rejected"
-        case Connector.ConnectError.transient(let c): code = c
-        case WSConnection.WSError.timeout: code = "timeout (no daemon reply)"
-        default: code = String(describing: error)
-        }
-        return "\(phase) failed at [\(lastStep)]: \(code) — try \(resumeRetries)/\(maxResumeRetries)"
-    }
-
-    // Bounded backoff for transient failures. Unlike the single-device model, exhausting the budget
-    // does NOT force global needsPairing — it lands on a per-device error the Devices UI surfaces.
-    private func scheduleResumeRetry() {
-        guard resumeRetries < maxResumeRetries else {
-            connecting = false
-            if lastError == nil { lastError = "Couldn't reconnect to this device." }
-            onChange?()
-            return
-        }
-        let delay = min(pow(2.0, Double(resumeRetries)), 30.0)
-        resumeRetries += 1
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            if !connected && !intentionalStop { await connect() }
-        }
-    }
-
-    func enterForeground() async { resumeRetries = 0; await connect() }
 
     // Drop the socket on background; foreground reconnects. Keeps caches + creds.
-    func enterBackground() async {
-        intentionalStop = true
-        await connection?.stop()
-        connection = nil
-        connected = false
-        onChange?()
-    }
+    func deactivate() { link.deactivate() }
 
-    // Tear the socket down (device removed / app-level disconnect). Does NOT wipe creds — the caller
-    // (DeviceStore) owns credential lifetime.
-    func teardown() async {
-        intentionalStop = true
-        await connection?.stop()
-        connection = nil; session = nil
-        connected = false; connecting = false
+    func networkAvailable() { link.networkAvailable() }
+
+    func waitUntilSettled() async { await link.waitUntilSettled() }
+
+    // Tear the socket down (device removed). Does NOT wipe creds — the caller (DeviceStore) owns
+    // credential lifetime.
+    func teardown() {
+        link.deactivate()
         openId = nil; transcript = []
         onChange?()
     }
 
-    private func bootstrap() async {
-        guard let connection else { return }
-        async let w = try? connection.sendControl(method: "GET", path: "/workers", bodyData: Data("{}".utf8))
-        async let p = try? connection.sendControl(method: "GET", path: "/pending", bodyData: Data("{}".utf8))
-        async let t = try? connection.sendControl(method: "GET", path: "/pty", bodyData: Data("{}".utf8))
-        let workers = (await w)?.body?.arrayValue
-        let pending = (await p)?.body?.arrayValue ?? []
-        // A failed workers GET must not flip the loaded phase (or clobber a cached
-        // list with []) — skip; the patch/snapshot push or the next connect recovers.
-        if let workers {
-            await store.applyBootstrap(workers: workers, pending: pending)
+    // Once per live link, after the daemon's snapshot re-seeded workers/pending: fetch what the
+    // snapshot doesn't carry. Rows that landed during the gap never re-announce, so the open
+    // transcript is pulled explicitly.
+    private func didGoLive() {
+        controlError = nil
+        eosLog.info("connect[\(self.deviceId, privacy: .public)]: live")
+        Task {
+            if !ptySubscription.isEmpty { await connection?.sendSubscription(pty: ptySubscription) }
+            await fetchPtySessions()
+            // C6: ui-config is fetched once per connect (covers reconnects too) and cached.
+            await fetchUiConfig()
         }
-        if let ptys = (await t)?.body?["sessions"]?.arrayValue { applyPtySessions(ptys) }
-        if !ptySubscription.isEmpty { await connection.sendSubscription(pty: ptySubscription) }
-        // C6: ui-config is fetched once per connect (covers reconnects too) and cached above.
-        await fetchUiConfig()
+        if openId != nil { scheduleDelta() }
     }
 
-    private func setError(_ message: String) { lastError = message; onChange?() }
+    private func setError(_ message: String) { controlError = message; onChange?() }
 
     // MARK: live transcript (ported verbatim, per-device)
 
@@ -580,6 +518,7 @@ final class DeviceConnection: NSObject {
             durableEvs = [:]; durableBlockIds = []
             newestRowId = 0; oldestRowId = 0; hasOlder = false
             transcript = []
+            onChange?()   // publish the switch now, not after the first page's round trip
             await fetchNewest()
         }
     }
@@ -621,8 +560,11 @@ final class DeviceConnection: NSObject {
     private func fetchDelta() async {
         guard let id = openId else { return }
         if newestRowId == 0 { await fetchNewest(); return }
-        guard let rows = await fetchEvents("afterId=\(newestRowId)&limit=500"), openId == id, !rows.isEmpty else { return }
-        ingest(rows, workerId: id)
+        // A long gap can hold more than one page — keep paging until the tail is reached.
+        while let rows = await fetchEvents("afterId=\(newestRowId)&limit=\(deltaPageSize)"), openId == id, !rows.isEmpty {
+            ingest(rows, workerId: id)
+            if rows.count < deltaPageSize { break }
+        }
     }
 
     private func scheduleDelta() {
@@ -686,6 +628,20 @@ final class DeviceConnection: NSObject {
         buf.channel = channel
         buf.text += payload?["text"]?.stringValue ?? ""
         liveBuffers[blockId] = buf
+        scheduleRecompute()
+    }
+
+    // A snapshot is a resync point: deltas and terminal chunks streamed while the link was down are
+    // lost, so the incremental overlays would show text with a hole. Restart them from the daemon's
+    // in-flight text instead (older daemons send none, which just clears them).
+    private func restartLiveOverlays(_ live: [LiveBlock]?) {
+        liveBuffers = [:]
+        liveTerminals = [:]
+        let now = Date().timeIntervalSince1970 * 1000
+        for block in live ?? [] where block.workerId == openId {
+            liveBuffers[block.blockId] = LiveBuffer(blockId: block.blockId, channel: block.channel,
+                                                    text: block.text, ts: now)
+        }
         scheduleRecompute()
     }
 
@@ -869,29 +825,24 @@ final class DeviceConnection: NSObject {
     }
 }
 
-// WSConnection delegate — fold this device's frames into ITS store on the main actor, then notify.
-extension DeviceConnection: WSConnectionDelegate {
-    nonisolated func wsDidReceive(snapshot: SnapshotFrame) async { await store.applySnapshot(snapshot) }
-    nonisolated func wsDidReceive(patch: PatchFrame) async {
-        if await store.applyPatch(patch) == .seqGap { await recoverFromGap() }
-    }
-    nonisolated func wsDidReceive(event: EventFrame) async {
-        if await store.applyEvent(event) == .seqGap { await recoverFromGap() }
-        await handleTranscriptEvent(event)
-        await handleListEvent(event)
-        await handlePtyEvent(event)
-    }
-    nonisolated func wsDidReceive(error: ErrorFrame) async {
-        await MainActor.run { self.setError("\(error.code): \(error.message ?? "")") }
-    }
-    nonisolated func wsConnectionStateChanged(connected: Bool) async {
-        await MainActor.run {
-            self.connected = connected
-            self.onChange?()
-            if !connected && !self.intentionalStop && !self.connecting {
-                self.resumeRetries = 0
-                self.scheduleResumeRetry()
-            }
+// Link frames — fold this device's frames into ITS store, in arrival order.
+extension DeviceConnection {
+    fileprivate func handle(_ frame: ServerFrame) async {
+        switch frame {
+        case .snapshot(let snapshot):
+            await store.applySnapshot(snapshot)
+            restartLiveOverlays(snapshot.live)
+        case .patch(let patch):
+            if await store.applyPatch(patch) == .seqGap { await recoverFromGap() }
+        case .event(let event):
+            if await store.applyEvent(event) == .seqGap { await recoverFromGap() }
+            handleTranscriptEvent(event)
+            await handleListEvent(event)
+            handlePtyEvent(event)
+        case .error(let error):
+            setError("\(error.code): \(error.message ?? "")")
+        case .reply, .asset, .ka:
+            break
         }
     }
 }

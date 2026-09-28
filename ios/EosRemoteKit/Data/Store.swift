@@ -7,12 +7,13 @@ public actor Store {
     public private(set) var workers: [String: Worker] = [:]
     public private(set) var pending: [String: Pending] = [:]
     public private(set) var lastSeq: Int = 0
+    private var epoch: String?
     public private(set) var lastContentId: Int = 0
     // Flips true on the first patch/snapshot — the daemon speaks §5.4.2/3, so the
     // event-driven list refetch fallback (pre-patch daemons) can stand down.
     public private(set) var serverPushesState = false
     // Flips true (sticky) once ANY authoritative workers list has landed —
-    // bootstrap GET, snapshot, or the fallback refresh. Until then an empty
+    // snapshot or the fallback refresh. Until then an empty
     // `workers` means "not loaded yet", not "no sessions": the Code list shows
     // its skeleton, never the empty state (round 5, item B).
     public private(set) var workersLoaded = false
@@ -25,17 +26,8 @@ public actor Store {
 
     public enum ApplyResult: Sendable { case ok, seqGap }
 
-    // Cold-start bootstrap from READ-control GET arrays (also the fallback list
-    // refresh path for daemons that don't push patch/snapshot frames yet).
-    public func applyBootstrap(workers wkrs: [JSONValue], pending pend: [JSONValue]) {
-        workers = Dictionary(uniqueKeysWithValues: wkrs.map { let w = Worker(raw: $0); return (w.id, w) })
-        pending = Dictionary(uniqueKeysWithValues: pend.map { let p = Pending(raw: $0); return (p.id, p) })
-        workersLoaded = true
-        notify()
-    }
-
-    // Fallback list refresh (workers only) — same replace semantics as bootstrap
-    // without touching pending (the two lists refresh on independent triggers).
+    // Fallback list refresh for daemons that don't push patch frames yet (workers
+    // only — the two lists refresh on independent triggers).
     public func applyWorkers(_ rows: [JSONValue]) {
         workers = Dictionary(uniqueKeysWithValues: rows.map { let w = Worker(raw: $0); return (w.id, w) })
         workersLoaded = true
@@ -50,9 +42,15 @@ public actor Store {
     public func applySnapshot(_ snap: SnapshotFrame) {
         workers = Dictionary(uniqueKeysWithValues: snap.workers.map { let w = Worker(raw: $0); return (w.id, w) })
         pending = Dictionary(uniqueKeysWithValues: snap.pending.map { let p = Pending(raw: $0); return (p.id, p) })
-        // max(): an in-flight patch/event can outrun the snapshot being built;
-        // going backwards here would fake a gap on the very next frame.
-        lastSeq = max(lastSeq, snap.seq)
+        // A new epoch means the daemon's seq counter restarted — the old cursor would hide every
+        // gap until seq caught up with it. Same epoch: max(), an in-flight patch/event can outrun
+        // the snapshot being built; going backwards would fake a gap on the very next frame.
+        if snap.epoch != epoch {
+            epoch = snap.epoch
+            lastSeq = snap.seq
+        } else {
+            lastSeq = max(lastSeq, snap.seq)
+        }
         serverPushesState = true
         workersLoaded = true
         notify()

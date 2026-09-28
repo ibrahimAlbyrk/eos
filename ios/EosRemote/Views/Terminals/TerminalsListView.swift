@@ -37,7 +37,7 @@ struct TerminalsListView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .refreshable {
-                    if model.connected { await model.fetchPtySessions() } else { await model.enterForeground() }
+                    if model.connected { await model.fetchPtySessions() } else { await model.reconnect() }
                 }
         }
         .background(EosColor.bg)

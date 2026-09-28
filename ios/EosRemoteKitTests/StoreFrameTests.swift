@@ -15,7 +15,7 @@ final class StoreFrameTests: XCTestCase {
 
     func testWorkersPatchUpsertsAndRemoves() async {
         let store = Store()
-        await store.applyBootstrap(workers: [worker("w-1", state: "IDLE")], pending: [])
+        await store.applyWorkers([worker("w-1", state: "IDLE")])
 
         var result = await store.applyPatch(PatchFrame(t: "patch", seq: 1, resource: "workers",
                                                        op: "upsert", data: worker("w-1", state: "WORKING")))
@@ -60,6 +60,21 @@ final class StoreFrameTests: XCTestCase {
         XCTAssertEqual(pendingIds, ["p-2"])
     }
 
+    // A daemon restart restarts seq from 0; the old cursor would hide every gap until seq caught up.
+    func testSnapshotFromNewEpochResetsTheCursor() async {
+        let store = Store()
+        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 500, workers: [], pending: [], epoch: "a"))
+        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 3, workers: [], pending: [], epoch: "b"))
+        var seq = await store.lastSeq
+        XCTAssertEqual(seq, 3, "a new epoch must reset the cursor to the snapshot's seq")
+        let r = await store.applyEvent(EventFrame(t: "event", seq: 6, reason: "worker:change", ts: 0, payload: nil))
+        XCTAssertEqual(r, .seqGap, "gap detection works again right after the reset")
+
+        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 4, workers: [], pending: [], epoch: "b"))
+        seq = await store.lastSeq
+        XCTAssertEqual(seq, 6, "same epoch never rewinds")
+    }
+
     func testSeqGapIsReportedOncePastTheFirstFrame() async {
         let store = Store()
         var r = await store.applyEvent(EventFrame(t: "event", seq: 100, reason: "worker:change", ts: 0, payload: nil))
@@ -72,8 +87,8 @@ final class StoreFrameTests: XCTestCase {
 
     func testApplyWorkersRefreshesListWithoutTouchingPending() async {
         let store = Store()
-        await store.applyBootstrap(workers: [worker("w-1", state: "IDLE")],
-                                   pending: [pending("p-1", workerId: "w-1")])
+        await store.applyWorkers([worker("w-1", state: "IDLE")])
+        await store.applyPending([pending("p-1", workerId: "w-1")])
         await store.applyWorkers([worker("w-1", state: "WORKING"), worker("w-2", state: "IDLE")])
         let state = await store.workers["w-1"]?.state
         XCTAssertEqual(state, "WORKING")
@@ -98,15 +113,9 @@ final class StoreFrameTests: XCTestCase {
         loaded = await store.workersLoaded
         XCTAssertFalse(loaded, "an event frame is not a workers list")
 
-        await store.applyBootstrap(workers: [], pending: [])
+        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 1, workers: [], pending: []))
         loaded = await store.workersLoaded
-        XCTAssertTrue(loaded, "an EMPTY bootstrap still resolves the phase — truly no sessions")
-
-        // Snapshot and fallback refresh count too, each from a fresh store.
-        store = Store()
-        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 1, workers: [worker("w-1", state: "IDLE")], pending: []))
-        loaded = await store.workersLoaded
-        XCTAssertTrue(loaded, "a snapshot is an authoritative list")
+        XCTAssertTrue(loaded, "an EMPTY snapshot still resolves the phase — truly no sessions")
 
         store = Store()
         await store.applyWorkers([worker("w-1", state: "IDLE")])
