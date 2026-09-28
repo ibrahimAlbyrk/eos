@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planUsageRows, formatResetIn, formatResetAt, WARN_THRESHOLD, friendlyUsageError } from "./usageFormat.js";
+import { planUsageSections, isSignedOutReason, formatResetIn, formatResetInShort, formatResetAt, WARN_THRESHOLD, friendlyUsageError } from "./usageFormat.js";
 
 const win = (utilization, resetsAt = "2099-01-01T08:59:00Z") => ({ utilization, resetsAt });
 
@@ -20,10 +20,10 @@ const fullUsage = {
   errors: [],
 };
 
-describe("planUsageRows", () => {
+describe("planUsageSections", () => {
   it("derives one row per non-null window, in order, with plan + kind", () => {
-    const section = planUsageRows(fullUsage);
-    expect(section.plan).toBe("Max");
+    const [section] = planUsageSections(fullUsage);
+    expect(section).toMatchObject({ provider: "claude", name: "Claude", plan: "Max" });
     expect(section.rows.map((r) => [r.key, r.label, r.kind])).toEqual([
       ["fiveHour", "5-hour limit", "session"],
       ["sevenDay", "Weekly · all models", "weekly"],
@@ -33,23 +33,38 @@ describe("planUsageRows", () => {
     expect(section.rows[2].window.utilization).toBe(85);
   });
 
-  it("skips null windows (only the present ones render)", () => {
-    const section = planUsageRows({
-      providers: [{ provider: "claude", windows: { fiveHour: win(20), sevenDayOpus: win(50) } }],
+  it("one section per signed-in plan — Claude and ChatGPT side by side", () => {
+    const sections = planUsageSections({
+      providers: [
+        fullUsage.providers[0],
+        { provider: "codex", plan: "Pro Lite", windows: { fiveHour: null, sevenDay: win(39) }, fetchedAt: "x" },
+      ],
     });
-    expect(section.rows.map((r) => r.key)).toEqual(["fiveHour", "sevenDayOpus"]);
+    expect(sections.map((s) => [s.name, s.plan, s.rows.map((r) => r.key)])).toEqual([
+      ["Claude", "Max", ["fiveHour", "sevenDay", "sevenDayOpus", "sevenDaySonnet"]],
+      ["ChatGPT", "Pro Lite", ["sevenDay"]],
+    ]);
   });
 
-  it("carries a null plan through when the provider has none", () => {
-    const section = planUsageRows({ providers: [{ provider: "claude", windows: { fiveHour: win(1) } }] });
+  it("skips null windows and carries a null plan through", () => {
+    const [section] = planUsageSections({ providers: [{ provider: "claude", windows: { fiveHour: win(20), sevenDayOpus: win(50) } }] });
+    expect(section.rows.map((r) => r.key)).toEqual(["fiveHour", "sevenDayOpus"]);
     expect(section.plan).toBeNull();
   });
 
-  it("hides (null) on empty, error, or no-window responses", () => {
-    expect(planUsageRows(null)).toBeNull(); // loading / transport fail
-    expect(planUsageRows(undefined)).toBeNull();
-    expect(planUsageRows({ providers: [], errors: [{ reason: "no subscription token" }] })).toBeNull();
-    expect(planUsageRows({ providers: [{ provider: "claude", windows: {} }] })).toBeNull();
+  it("is empty on loading, error, or no-window responses", () => {
+    expect(planUsageSections(null)).toEqual([]);
+    expect(planUsageSections(undefined)).toEqual([]);
+    expect(planUsageSections({ providers: [], errors: [{ reason: "no subscription token" }] })).toEqual([]);
+    expect(planUsageSections({ providers: [{ provider: "claude", windows: {} }] })).toEqual([]);
+  });
+});
+
+describe("isSignedOutReason", () => {
+  it("treats not-signed-in reasons as nothing to show, real failures as errors", () => {
+    expect(isSignedOutReason("No Claude subscription token configured.")).toBe(true);
+    expect(isSignedOutReason("Not signed in to ChatGPT.")).toBe(true);
+    expect(isSignedOutReason("usage fetch failed (HTTP 500)")).toBe(false);
   });
 });
 
@@ -80,6 +95,13 @@ describe("reset formatters", () => {
     const in2h = new Date(Date.now() + (2 * 60 + 3) * 60000).toISOString();
     expect(formatResetIn(in2h)).toBe("2 hr 3 min");
     expect(formatResetIn(new Date(Date.now() - 1000).toISOString())).toBe("now");
+  });
+
+  it("formatResetInShort is the compact h/m form", () => {
+    const at = (min) => new Date(Date.now() + min * 60000).toISOString();
+    expect(formatResetInShort(at(2 * 60 + 15))).toBe("2h 15m");
+    expect(formatResetInShort(at(3 * 60))).toBe("3h");
+    expect(formatResetInShort(at(45))).toBe("45m");
   });
 
   it("formatResetAt is weekday + local time", () => {

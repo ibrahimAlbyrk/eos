@@ -1,16 +1,18 @@
-// Usage panel — the Settings "Usage" tab. Shows the Claude subscription's plan
-// limits (5-hour session + weekly windows) as thin progress bars with reset
-// times, styled to match Claude's own usage screen using the existing settings
-// tokens/classes. Read-only: it fetches GET /api/usage on open (the daemon owns
+// Usage panel — the Settings "Usage" tab. Shows every signed-in plan's limits
+// (Claude, ChatGPT…: 5-hour session + weekly windows) as thin progress bars with
+// reset times, one group per plan, styled to match Claude's own usage screen
+// using the existing settings tokens/classes. Read-only: it fetches GET /api/usage on open (the daemon owns
 // the cache + 180s upstream floor) and offers a manual refresh that just re-hits
 // the same route.
 //
-// Custom Component (no registry `groups`), like AnthropicSettings/RemoteSettings —
+// Custom Component (no registry `groups`), like AccountsSettings/RemoteSettings —
 // it owns no settings.json keys (the data is fetched live, never persisted).
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
-import { WARN_THRESHOLD, formatResetIn, formatResetAt, friendlyUsageError } from "../lib/usageFormat.js";
+import {
+  WARN_THRESHOLD, USAGE_PROVIDER_NAMES, formatResetIn, formatResetAt, friendlyUsageError, isSignedOutReason, planUsageSections,
+} from "../lib/usageFormat.js";
 
 export const USAGE_SETTING_DEFAULTS = {};
 
@@ -78,21 +80,18 @@ export function UsageSettings() {
     load();
   }, []);
 
-  const claude = data?.providers?.find((p) => p.provider === "claude") ?? data?.providers?.[0];
-  const errors = data?.errors ?? [];
-  // A missing token is a quiet hint, not an error — distinguished from a real
-  // upstream/scope failure ("OAuth token …") by the "subscription token" phrase.
-  const noToken = !claude && errors.some((e) => /subscription token/i.test(e.reason));
-  // Map the raw upstream reason (may be a scope error or a JSON body) to a human
-  // one-liner — never surface the raw JSON dump.
-  const errorReason = !claude && !noToken && errors.length ? friendlyUsageError(errors[0]?.reason) : null;
-
-  const windows = claude?.windows ?? {};
-  const weekly = [
-    ["All models", windows.sevenDay],
-    ["Opus", windows.sevenDayOpus],
-    ["Sonnet", windows.sevenDaySonnet],
-  ].filter(([, w]) => w);
+  const sections = planUsageSections(data);
+  const providerOf = (id) => data?.providers?.find((p) => p.provider === id);
+  // A plan you aren't signed in to is simply absent — only real failures (an
+  // upstream/scope error on a plan you ARE signed in to) are shown, mapped to a
+  // human one-liner (never the raw JSON body).
+  const failures = (data?.errors ?? []).filter((e) => !isSignedOutReason(e.reason));
+  const signedOut = data && !sections.length && !failures.length;
+  const lastUpdated = sections
+    .map((sec) => providerOf(sec.provider)?.fetchedAt)
+    .filter(Boolean)
+    .sort()
+    .at(0);
 
   return (
     <>
@@ -111,85 +110,75 @@ export function UsageSettings() {
         </div>
       )}
 
-      {noToken && (
+      {signedOut && (
         <div className="stg-group">
           <div className="stg-row stg-row--stack">
             <div className="stg-row__desc">
-              No Claude subscription token is configured, so plan usage can’t be shown.
-              Add your OAuth token in the <strong>Anthropic</strong> settings to see your limits.
+              You're not signed in to a plan, so usage can’t be shown.
+              Sign in under <strong>Accounts</strong> to see your limits.
             </div>
           </div>
         </div>
       )}
 
-      {errorReason && (
-        <div className="stg-group">
-          <div className="stg-row stg-row--stack">
-            <div className="stg-prov-err">{errorReason}</div>
-          </div>
-          <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
-            {busy ? "Refreshing…" : "Try again"}
-          </button>
-        </div>
-      )}
-
-      {claude && (
-        <>
-          <div className="stg-group">
+      {sections.map((section) => {
+        const provider = providerOf(section.provider);
+        return (
+          <div className="stg-group" key={section.provider}>
             <div className="stg-group__title">
-              Plan usage limits{claude.plan ? ` · ${claude.plan}` : ""}
+              {section.name}{section.plan ? ` · ${section.plan}` : ""}
             </div>
-            {windows.fiveHour ? (
+            {section.rows.map((r) => (
               <UsageRow
-                label="Current session"
-                subtitle={`Resets in ${formatResetIn(windows.fiveHour.resetsAt)}`}
-                pct={windows.fiveHour.utilization}
+                key={r.key}
+                label={r.kind === "session" ? "Current session" : r.label}
+                subtitle={r.kind === "session" ? `Resets in ${formatResetIn(r.window.resetsAt)}` : `Resets ${formatResetAt(r.window.resetsAt)}`}
+                pct={r.window.utilization}
               />
-            ) : (
-              <div className="stg-row__desc">No active session window.</div>
-            )}
-          </div>
-
-          {weekly.length > 0 && (
-            <div className="stg-group">
-              <div className="stg-group__title">Weekly limits</div>
-              {weekly.map(([label, w]) => (
-                <UsageRow
-                  key={label}
-                  label={label}
-                  subtitle={`Resets ${formatResetAt(w.resetsAt)}`}
-                  pct={w.utilization}
-                />
-              ))}
-            </div>
-          )}
-
-          {claude.extraUsage?.isEnabled && (
-            <div className="stg-group">
-              <div className="stg-group__title">Usage credits</div>
+            ))}
+            {provider?.extraUsage?.isEnabled && (
               <div className="stg-row">
                 <div className="stg-row__text">
-                  <div className="stg-row__label">Credits used</div>
+                  <div className="stg-row__label">Usage credits</div>
                   <div className="stg-row__desc">
-                    {claude.extraUsage.monthlyLimit != null
-                      ? `${claude.extraUsage.usedCredits ?? 0} of ${claude.extraUsage.monthlyLimit} monthly limit`
-                      : `${claude.extraUsage.usedCredits ?? 0} used`}
+                    {provider.extraUsage.monthlyLimit != null
+                      ? `${provider.extraUsage.usedCredits ?? 0} of ${provider.extraUsage.monthlyLimit} monthly limit`
+                      : `${provider.extraUsage.usedCredits ?? 0} used`}
                   </div>
                 </div>
               </div>
-            </div>
-          )}
-
-          <div
-            className="stg-row"
-            style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
-          >
-            <span className="stg-row__desc">Last updated: {formatAgo(claude.fetchedAt)}</span>
-            <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
-              {busy ? "Refreshing…" : "Refresh"}
-            </button>
+            )}
           </div>
-        </>
+        );
+      })}
+
+      {failures.length > 0 && (
+        <div className="stg-group">
+          {failures.map((e) => (
+            <div className="stg-row stg-row--stack" key={e.provider}>
+              <div className="stg-prov-err">
+                {USAGE_PROVIDER_NAMES[e.provider] ?? e.provider}: {friendlyUsageError(e.reason)}
+              </div>
+            </div>
+          ))}
+          {!sections.length && (
+            <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
+              {busy ? "Refreshing…" : "Try again"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {sections.length > 0 && (
+        <div
+          className="stg-row"
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
+        >
+          <span className="stg-row__desc">Last updated: {formatAgo(lastUpdated)}</span>
+          <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
+            {busy ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       )}
     </>
   );

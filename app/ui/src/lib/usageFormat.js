@@ -7,14 +7,14 @@
 export const WARN_THRESHOLD = 80; // ≥ this utilization tints the bar with the warn color
 
 // Map a raw provider error reason (GET /api/usage errors[].reason) to a short,
-// human message for the Usage pane. The scope failure is the common one: the token
-// configured in Settings › Anthropic lacks the `user:profile` scope the usage
-// endpoint requires, so usage needs the Claude Code login token (Keychain) — a
-// re-login via `claude /login`. Every other reason collapses to a one-liner; the
+// human message for the Usage pane. The scope failure is the common one: an Eos
+// sign-in (Settings › Accounts — a setup-token) runs agents but lacks the
+// `user:profile` scope the usage endpoint requires, so usage needs the Claude Code
+// login token (Keychain) — a login via `claude /login`. Every other reason collapses to a one-liner; the
 // raw reason can carry a JSON error body, which is never shown to the user.
 export function friendlyUsageError(reason) {
   if (reason && /user:profile|scope requirement|permission_error/i.test(reason)) {
-    return "The Anthropic token in Settings lacks the user:profile scope needed for usage. Sign in with the Claude Code login (run `claude /login`) so the Keychain token is used.";
+    return "Your Claude sign-in runs agents but can't read plan usage (it lacks the user:profile scope). Sign in to Claude Code too (run `claude /login`) to see usage here.";
   }
   return "Couldn’t load usage right now. Please try again in a moment.";
 }
@@ -31,6 +31,11 @@ export function formatResetIn(iso) {
   return min > 0 ? `${hr} hr ${min} min` : `${hr} hr`;
 }
 
+// "2h 41m" — formatResetIn for tight spots (the Account menu's usage rings).
+export function formatResetInShort(iso) {
+  return formatResetIn(iso).replace(" hr", "h").replace(" min", "m");
+}
+
 // "Tue 8:59 AM" — weekday + local time (the weekly subtitle).
 export function formatResetAt(iso) {
   const d = new Date(iso);
@@ -40,21 +45,39 @@ export function formatResetAt(iso) {
   return `${day} ${time}`;
 }
 
-// Derive the compact "Plan usage limits" rows for the context popover from a
-// GET /api/usage response. Returns null when there's nothing to show (no Claude
-// provider, or every window is null) so the caller can omit the section
-// silently — the popover is a glance surface, not an error surface. `kind`
-// picks the reset formatter: "session" → relative, "weekly" → weekday + time.
-export function planUsageRows(usage) {
-  const claude = usage?.providers?.find((p) => p.provider === "claude") ?? usage?.providers?.[0];
-  if (!claude) return null;
-  const w = claude.windows ?? {};
-  const rows = [
-    { key: "fiveHour", label: "5-hour limit", kind: "session", window: w.fiveHour },
-    { key: "sevenDay", label: "Weekly · all models", kind: "weekly", window: w.sevenDay },
-    { key: "sevenDayOpus", label: "Weekly · Opus", kind: "weekly", window: w.sevenDayOpus },
-    { key: "sevenDaySonnet", label: "Weekly · Sonnet", kind: "weekly", window: w.sevenDaySonnet },
-  ].filter((r) => r.window);
-  if (rows.length === 0) return null;
-  return { plan: claude.plan ?? null, rows };
+// The plan behind each usage provider id, as the user knows it.
+export const USAGE_PROVIDER_NAMES = { claude: "Claude", codex: "ChatGPT" };
+
+// The account (GET /api/accounts id) each usage provider id reports on.
+export const USAGE_PROVIDER_ACCOUNTS = { claude: "anthropic", codex: "openai" };
+
+const WINDOW_ROWS = [
+  { key: "fiveHour", label: "5-hour limit", short: "5-hour", kind: "session" },
+  { key: "sevenDay", label: "Weekly · all models", short: "Weekly", kind: "weekly" },
+  { key: "sevenDayOpus", label: "Weekly · Opus", short: "Weekly Opus", kind: "weekly" },
+  { key: "sevenDaySonnet", label: "Weekly · Sonnet", short: "Weekly Sonnet", kind: "weekly" },
+];
+
+// One section per signed-in plan in a GET /api/usage response — its name, plan
+// and limit rows. A plan with no windows to show is left out, so a glance
+// surface can render the list as-is (empty = nothing to show). `kind` picks the
+// reset formatter: "session" → relative, "weekly" → weekday + time.
+export function planUsageSections(usage) {
+  return (usage?.providers ?? [])
+    .map((p) => {
+      const w = p.windows ?? {};
+      return {
+        provider: p.provider,
+        name: USAGE_PROVIDER_NAMES[p.provider] ?? p.provider,
+        plan: p.plan ?? null,
+        rows: WINDOW_ROWS.map((r) => ({ ...r, window: w[r.key] })).filter((r) => r.window),
+      };
+    })
+    .filter((s) => s.rows.length > 0);
+}
+
+// A provider "error" that only means you aren't signed in to that plan — nothing
+// to show, not a failure.
+export function isSignedOutReason(reason) {
+  return /subscription token|not signed in/i.test(reason ?? "");
 }
