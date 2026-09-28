@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { needsAttention as policyNeedsAttention, sigOf } from "../lib/agentAttention.js";
 import { useSettings } from "./settings.jsx";
 
@@ -17,30 +17,38 @@ export function AttentionProvider({ children }) {
   const enabled = settings["notifications.sidebarAttention"] !== false;
 
   const [viewedSigs, setViewedSigs] = useState(() => new Map());
+  // Source of truth for syncWorkers; the state mirrors it for rendering.
+  const viewedRef = useRef(viewedSigs);
 
   // Seed unseen workers, keep the selected one in sync, and prune entries
   // for workers that no longer exist — one pass per workers update.
+  //
+  // Dispatch only on a real change. A no-op functional update is "eagerly
+  // bailed out" by React but still stays queued until this provider re-renders,
+  // which it almost never does — so every workers poll pinned a full workers
+  // array and the renderer ran out of memory after a few hours.
   const syncWorkers = useCallback((workers, selectedId) => {
-    setViewedSigs((prev) => {
-      let next = null;
-      const ids = new Set();
-      for (const w of workers) {
-        if (!w || !w.id) continue;
-        ids.add(w.id);
-        const shouldSync = w.id === selectedId || !prev.has(w.id);
-        if (!shouldSync) continue;
-        const sig = sigOf(w);
-        if (prev.get(w.id) === sig) continue;
-        next ??= new Map(prev);
-        next.set(w.id, sig);
-      }
-      for (const id of prev.keys()) {
-        if (ids.has(id)) continue;
-        next ??= new Map(prev);
-        next.delete(id);
-      }
-      return next ?? prev;
-    });
+    const prev = viewedRef.current;
+    let next = null;
+    const ids = new Set();
+    for (const w of workers) {
+      if (!w || !w.id) continue;
+      ids.add(w.id);
+      const shouldSync = w.id === selectedId || !prev.has(w.id);
+      if (!shouldSync) continue;
+      const sig = sigOf(w);
+      if (prev.get(w.id) === sig) continue;
+      next ??= new Map(prev);
+      next.set(w.id, sig);
+    }
+    for (const id of prev.keys()) {
+      if (ids.has(id)) continue;
+      next ??= new Map(prev);
+      next.delete(id);
+    }
+    if (!next) return;
+    viewedRef.current = next;
+    setViewedSigs(next);
   }, []);
 
   // Un-gated by the sidebar-attention setting: the same "stopped with unseen
