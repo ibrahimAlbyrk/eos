@@ -45,7 +45,13 @@ export type EventBusTopic =
   | "loop:check"
   | "fs:change"
   | "git:change"
-  | "update:available";
+  | "update:available"
+  // Peering, host side: the set of paired devices connected to this Mac changed
+  // (payload { devices: [{ fp, name }] }) — the "… connected" indicator.
+  | "peer:presence"
+  // Peering, device side: a controlled host was added/removed or its link state
+  // changed (payload { id }) — the Machines menu + All machines view refetch.
+  | "hosts:change";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;

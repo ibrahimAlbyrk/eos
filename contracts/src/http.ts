@@ -342,6 +342,10 @@ export const PtyCreateRequestSchema = z.object({
   claude: z.object({ resume: z.string().uuid().optional() }).optional(),
   // Opened from a remote device: the desktop Code workspace adopts it as a pane.
   remote: z.boolean().optional(),
+  // The dashboard instance that opened it. Several dashboards can drive one
+  // daemon (this Mac's own window, another computer controlling it); each only
+  // ever cleans up its own sessions.
+  owner: z.string().min(1).max(64).optional(),
 }).refine((r) => !(r.command && r.claude), { message: "command and claude are mutually exclusive" });
 export type PtyCreateRequest = z.infer<typeof PtyCreateRequestSchema>;
 
@@ -362,6 +366,7 @@ export const PtySessionSchema = z.object({
   // Latest terminal title (OSC 0/2), leading status glyphs stripped.
   title: z.string().nullable(),
   remote: z.boolean(),
+  owner: z.string().nullable(),
 });
 export type PtySession = z.infer<typeof PtySessionSchema>;
 
@@ -2286,6 +2291,31 @@ export const ROUTES = {
   // app-facing WRITE the Settings toggle uses before arming (arm() reads config
   // from disk). Field-merges into the `remote` key, then reloads.
   remoteConfig: "/api/remote/config",
+  // ---- Eos ↔ Eos peering (contracts/src/peer.ts) ----------------------------
+  // Who this daemon is (id = cert fingerprint). Open read: a controlling UI
+  // reaches it through the host facade to learn home/name/apiStamp.
+  hostInfo: "/api/host",
+  // Hosting — loopback + ui-token only. GET status, PUT { enabled, direct, port, name }.
+  peer: "/api/peer",
+  // Mint a single-use invite link for another computer to pair with this one.
+  peerInvite: "/api/peer/invite",
+  // DELETE revokes a paired device (kills its sessions + relay admission).
+  peerDevice: (fp: string): string => `/api/peer/devices/${fp}`,
+  peerDeviceDisconnect: (fp: string): string => `/api/peer/devices/${fp}/disconnect`,
+  // Redeem an invite. Served ONLY on the secure peer channel, never on loopback.
+  peerPair: "/peer/pair",
+  // Controlling other hosts — loopback + ui-token only. GET lists hosts with live
+  // link state; POST { invite, alias? } pairs + saves a new host.
+  hosts: "/api/hosts",
+  // PUT { alias?, addrs? } / DELETE forgets the host.
+  host: (id: string): string => `/api/hosts/${id}`,
+  hostReconnect: (id: string): string => `/api/hosts/${id}/reconnect`,
+  // POST → { token }: a token the app shell hands that host's isolated view; it
+  // is "the human" only under that host's facade prefix, never on this Mac.
+  hostViewToken: (id: string): string => `/api/hosts/${id}/view-token`,
+  // The facade prefix: `/h/<id>/<any daemon path>` is that host's daemon,
+  // proxied over the secure link (API server and raw server alike).
+  hostProxyPrefix: (id: string): string => `/h/${id}`,
   // Anthropic credentials for the claude lane (Settings > Anthropic). GET
   // returns a REDACTED { apiKeySet, authTokenSet } — never the raw secrets; PUT
   // field-merges { apiKey?, authToken? } into ~/.eos/config.json's `anthropic`

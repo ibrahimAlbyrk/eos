@@ -12,6 +12,8 @@ export * from "./browser.ts";
 export * from "./hooks.ts";
 export * from "./ipc.ts";
 export * from "./remote.ts";
+export * from "./peer.ts";
+export * from "./route-planes.ts";
 export * from "./anthropic.ts";
 export * from "./accounts.ts";
 export * from "./usage.ts";
