@@ -5,7 +5,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../../api/client.js";
-import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
+import { onPtyData, onPtyExit, onPtyResync } from "../../state/ptyBus.js";
 import { markExited } from "../../state/ptyPanelStore.js";
 import { registerTerminal } from "./terminalBridge.js";
 import { createReplayGate } from "./replayGate.js";
@@ -221,6 +221,7 @@ export function TerminalView({
     };
     const offData = onPtyData(sessionId, (f) => gate.frame(f));
     attach();
+    const offResync = onPtyResync(() => { term.reset(); attach(); });
     // An overflowed queue re-syncs: clear the screen and replay the server buffer.
     const flushPending = () => {
       if (!opened || pausedRef.current) return;
@@ -298,6 +299,7 @@ export function TerminalView({
       unregisterTerm();
       offData();
       offExit();
+      offResync();
       onDataDisposable?.dispose();
       titleDisposable.dispose();
       sgrOn.dispose();

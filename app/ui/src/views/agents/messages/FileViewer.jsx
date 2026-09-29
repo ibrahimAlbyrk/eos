@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { combo } from "../../../keymap/index.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { api } from "../../../api/client.js";
+import { hasLocalScreen } from "../../../lib/host.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
 import { isMarkdownPath } from "../../../lib/markdownPreview.js";
@@ -239,9 +240,9 @@ function FileViewerInner({ path, tabId, live }) {
                         <span>Open in</span>
                         <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>x</button>
                       </div>
-                      <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{defaultApp?.appName ?? "Default App"}</button>
-                      <div className="fv-ow-sep" />
-                      <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>
+                      <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{hasLocalScreen() ? (defaultApp?.appName ?? "Default App") : "This Mac (copy)"}</button>
+                      {hasLocalScreen() && <div className="fv-ow-sep" />}
+                      {hasLocalScreen() && <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>}
                     </div>
                   )}
                 </button>

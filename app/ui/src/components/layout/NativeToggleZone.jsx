@@ -1,4 +1,6 @@
 import { useUi } from "../../state/ui.jsx";
+import { HostChip } from "../machines/HostChip.jsx";
+import { PresenceChip } from "../machines/PresenceChip.jsx";
 
 // Native macOS chrome: a fixed sidebar toggle near the traffic lights (the
 // sidebar's own .side-top strip is hidden in native, where the OS draws the
@@ -44,6 +46,10 @@ export function NativeToggleZone({ popup, hasAttention }) {
         {collapsed && !hovering ? <HamburgerIcon /> : <PanelIcon />}
         {showDot && <span className="sb-new-dot" aria-label="new output" />}
       </button>
+      {/* Which computer this window drives (a controlled one), or who is
+          driving this Mac right now — next to the traffic lights, always. */}
+      <HostChip />
+      <PresenceChip />
       {hovering && popup}
     </div>
   );

@@ -18,6 +18,7 @@
 // sessionId (a server UUID): unique and never reused.
 
 import { api } from "../api/client.js";
+import { isRemoteView } from "../lib/host.js";
 
 const EMPTY = { tabs: [], activeId: null };
 const panes = new Map(); // paneId -> { tabs, activeId, snapshot, subs }
@@ -121,6 +122,12 @@ export function registerSessionTracker(getIds) {
   return () => trackers.delete(getIds);
 }
 
+// Sessions opened before owners were recorded belong to this Mac's own window.
+function ownedHere(session) {
+  if (session.owner) return session.owner === api.uiInstance;
+  return !isRemoteView();
+}
+
 // Boot clean-slate reap: DELETE server sessions NO pane tracks (e.g. left over
 // from an app quit-while-open). A persisted, still-tracked session is never
 // touched, so reopening a terminal never kills another pane's — or this pane's
@@ -135,8 +142,13 @@ export async function reapUntrackedSessions() {
   const tracked = new Set();
   for (const p of panes.values()) for (const t of p.tabs) tracked.add(t.sessionId);
   for (const getIds of trackers) for (const id of getIds()) tracked.add(id);
-  // A phone-opened session belongs to the Code workspace, which adopts it.
-  const stale = server.filter((s) => !s.remote).map((s) => s.sessionId).filter((id) => !tracked.has(id));
+  // A phone-opened session belongs to the Code workspace, which adopts it; a
+  // session another dashboard opened (this Mac's own window, or a computer
+  // controlling it) is that dashboard's to clean up.
+  const stale = server
+    .filter((s) => !s.remote && ownedHere(s))
+    .map((s) => s.sessionId)
+    .filter((id) => !tracked.has(id));
   await Promise.all(stale.map((id) => api.killPty(id).catch(() => {})));
 }
 

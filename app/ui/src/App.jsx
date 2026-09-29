@@ -16,6 +16,9 @@ import { useSettings } from "./state/settings.jsx";
 import { useAccounts, ensureAccountsLoaded, noAccountConnected } from "./state/accountsStore.js";
 import { WelcomeScreen } from "./components/accounts/WelcomeScreen.jsx";
 import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
+import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.jsx";
+import { LinkBanner } from "./components/machines/LinkBanner.jsx";
+import { RemotePicker } from "./components/machines/RemotePicker.jsx";
 
 function Shell() {
   const ui = useUi();
@@ -89,6 +92,9 @@ function Shell() {
       <SettingsModal />
       <ProjectModalHost />
       <ConnectSheetHost />
+      <ConnectMachineSheet />
+      <LinkBanner />
+      <RemotePicker />
       {welcome === "open" && (
         <WelcomeScreen
           onContinue={() => setWelcome("closed")}

@@ -5,6 +5,8 @@
 // reads the pasteboard for Cmd+V, and the app calls the window globals below
 // when Finder items are dragged over / dropped on the webview.
 
+import { isRemoteView } from "./host.js";
+
 export function hasPasteboardBridge() {
   return !!window.webkit?.messageHandlers?.pasteboardPaths;
 }
@@ -50,4 +52,37 @@ export function onNativeDrop(cb) {
 export function onDragState(cb) {
   dragSubs.add(cb);
   return () => dragSubs.delete(cb);
+}
+
+// A view of another computer gets no local paths (they mean nothing over there;
+// the preload withholds them), so a Finder drop is read here as File objects and
+// the caller uploads the bytes to that computer instead.
+const fileDropSubs = new Set();
+let domDropsWired = false;
+
+function wireDomDrops() {
+  if (domDropsWired || !isRemoteView()) return;
+  domDropsWired = true;
+  const hasFiles = (e) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+  document.addEventListener("dragover", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    for (const cb of dragSubs) cb(true);
+  }, true);
+  document.addEventListener("dragleave", (e) => {
+    if (hasFiles(e) && !e.relatedTarget) for (const cb of dragSubs) cb(false);
+  }, true);
+  document.addEventListener("drop", (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    for (const cb of dragSubs) cb(false);
+    const files = Array.from(e.dataTransfer.files);
+    for (const cb of fileDropSubs) cb(files);
+  }, true);
+}
+
+export function onFileDrop(cb) {
+  wireDomDrops();
+  fileDropSubs.add(cb);
+  return () => fileDropSubs.delete(cb);
 }

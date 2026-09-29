@@ -5,6 +5,7 @@ import { AccountMenu } from "./AccountMenu.jsx";
 import { useAccounts, ensureAccountsLoaded, accountTone, isSignedIn } from "../state/accountsStore.js";
 import { ProviderGlyph } from "./accounts/ProviderGlyph.jsx";
 import { metaFor } from "./accounts/providerMeta.js";
+import { MachineRow } from "./machines/MachineRow.jsx";
 
 // The plans you're signed in to, at a glance: a tile each with its status dot
 // (red once a sign-in expires).
@@ -45,7 +46,8 @@ export function SettingsFooter({ live }) {
   const totalCostUsd = (live?.workers ?? []).reduce((sum, w) => sum + (w.cost_usd ?? 0), 0);
 
   return (
-    <div className="sb-settings" ref={ref}>
+    <div className="sb-settings sb-settings--stack" ref={ref}>
+      <MachineRow live={live} />
       <button
         className={"sb-settings__account" + (open ? " on" : "")}
         onClick={toggle}

@@ -3,6 +3,10 @@
 // to recover cleanly. We watch onerror and explicitly tear down + recreate
 // after a backoff window. It never gives up, and the backoff stays short, so
 // the dashboard is live again within a few seconds of a daemon restart.
+//
+// Every reconnect resumes from the last event id seen: the daemon replays what
+// was missed, or sends `resync` when it can't (restarted, or the gap outgrew its
+// buffer) — then onResync tells the caller to refetch its state.
 
 import { api } from "./client.js";
 
@@ -15,11 +19,14 @@ export function createReconnectingStream(handlers) {
   let reconnectTimer = null;
   let closed = false;
   let backoffMs = INITIAL_BACKOFF_MS;
+  let lastEventId = null;
+
+  const track = (e) => { if (e.lastEventId) lastEventId = e.lastEventId; };
 
   function attach() {
     if (closed) return;
     try {
-      es = api.newEventStream();
+      es = api.newEventStream(lastEventId);
     } catch {
       schedule();
       return;
@@ -28,7 +35,9 @@ export function createReconnectingStream(handlers) {
       backoffMs = INITIAL_BACKOFF_MS;
       handlers.onOpen?.();
     };
-    es.addEventListener("change", (e) => handlers.onChange?.(e));
+    es.addEventListener("hello", track);
+    es.addEventListener("resync", (e) => { track(e); handlers.onResync?.(); });
+    es.addEventListener("change", (e) => { track(e); handlers.onChange?.(e); });
     es.onmessage = (e) => handlers.onMessage?.(e);
     es.onerror = () => {
       handlers.onClose?.();

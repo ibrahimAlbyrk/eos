@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { TABS } from "../views/tabs.js";
+import { visibleTabs } from "../views/tabs.js";
 
 const NavigationContext = createContext(null);
 
@@ -7,7 +7,8 @@ const NavigationContext = createContext(null);
 // back to the first view.
 function initialView() {
   const stored = localStorage.getItem("cm:activeView");
-  return TABS.some((t) => t.id === stored) ? stored : TABS[0].id;
+  const tabs = visibleTabs();
+  return tabs.some((t) => t.id === stored) ? stored : tabs[0].id;
 }
 
 export function NavigationProvider({ children }) {

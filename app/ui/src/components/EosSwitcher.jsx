@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigation, useSearch } from "../state/ui.jsx";
-import { TABS } from "../views/tabs.js";
+import { visibleTabs } from "../views/tabs.js";
 
 // The sidebar's top workspace switcher, shared by the Agents and Code sidebars:
 // the active view's name ("Agents ▾" / "Code ▾") whose click opens the view menu, plus a search icon (⌘K / command palette) at the row's right.
@@ -36,7 +36,8 @@ export function EosSwitcher() {
   }, [open]);
 
   const pick = (id) => { setActiveView(id); setOpen(false); };
-  const active = TABS.find((t) => t.id === activeViewId) ?? TABS[0];
+  const tabs = visibleTabs();
+  const active = tabs.find((t) => t.id === activeViewId) ?? tabs[0];
 
   return (
     <div className="side-eos">
@@ -53,7 +54,7 @@ export function EosSwitcher() {
         <span className="eos-switch__chev"><ChevronDown /></span>
         {open && (
           <div className="eos-menu" role="menu">
-            {TABS.map((t) => (
+            {tabs.map((t) => (
               <div
                 key={t.id}
                 className="eos-menu__item"

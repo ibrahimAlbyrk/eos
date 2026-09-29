@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { attachmentKind } from "../lib/attachmentKind.js";
 import { parseAttachmentMessage, findLabelAt, spliceLabels, labelsDeleted } from "../lib/attachmentTokens.js";
 import { getCursorOffset, readEditor } from "./useContentEditableEditor.js";
-import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState } from "../lib/nativeBridge.js";
+import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState, onFileDrop } from "../lib/nativeBridge.js";
 
 // Native Finder drops arrive on a single global bus (nativeBridge). More than one
 // composing surface can be mounted at once (the message composer plus an open
@@ -15,6 +15,7 @@ function ensureDropDispatch() {
   if (dropWired) return;
   dropWired = true;
   onNativeDrop((entries) => dropStack[dropStack.length - 1]?.handleDrop(entries));
+  onFileDrop((files) => dropStack[dropStack.length - 1]?.handleFiles(files));
   onDragState((active) => dropStack[dropStack.length - 1]?.setDragActive(active));
 }
 
@@ -171,11 +172,14 @@ export function useAttachmentIntake({ attachments, editor }) {
     if (!entries?.length) return;
     addAttachments(entries.map((en) => ({ type: attachmentKind(en.path, en.isDir), path: en.path })));
   };
+  // Files dropped on a view of another computer arrive as bytes — upload them there.
+  dropRef.current.handleFiles = (files) => uploadFiles(snapshotFiles(files), cursorPos);
   dropRef.current.setDragActive = setDropActive;
   useEffect(() => {
     ensureDropDispatch();
     const entry = {
       handleDrop: (es) => dropRef.current.handleDrop(es),
+      handleFiles: (fs) => dropRef.current.handleFiles(fs),
       setDragActive: (a) => dropRef.current.setDragActive(a),
     };
     dropStack.push(entry);

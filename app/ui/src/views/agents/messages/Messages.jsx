@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
+import { hasLocalScreen } from "../../../lib/host.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, applyRewinds, applyClears, applyRecalls, splitAtCompaction, compactionStatus, sortBlocksByTs } from "../../../lib/messageParser.js";
@@ -721,7 +722,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
           <span className="wp-detail">
             {b.branch} · {fileCount > 0 ? `${fileCount} file${fileCount === 1 ? "" : "s"} changed` : "uncommitted changes"} · {b.path}
           </span>
-          <button className="wp-btn" onClick={() => api.revealFile(b.path)}>Reveal</button>
+          {hasLocalScreen() && <button className="wp-btn" onClick={() => api.revealFile(b.path)}>Reveal</button>}
         </div>
       );
     }

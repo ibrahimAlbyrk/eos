@@ -4,6 +4,8 @@ import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { EosSwitcher } from "../../../components/EosSwitcher.jsx";
 import { setArchiveViewing } from "../../../state/archiveStore.js";
 import { setPref } from "../../../state/sidebarPrefsStore.js";
+import { HostChip } from "../../../components/machines/HostChip.jsx";
+import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
 
 // Sidebar top chrome + primary nav, matching the reference IA:
 //   full variant → traffic lights + collapse button (the .side-top strip)
@@ -90,6 +92,8 @@ export function SidebarHead({ live, variant, archiveMode = false }) {
           <button className="side-collapse" title="Collapse panel" onClick={() => ui.collapseSidebar()}>
             <CollapseIcon />
           </button>
+          <HostChip />
+          <PresenceChip />
         </div>
       )}
 

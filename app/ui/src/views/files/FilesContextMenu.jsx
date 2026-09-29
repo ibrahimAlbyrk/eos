@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
+import { hasLocalScreen } from "../../lib/host.js";
 import { notify } from "../../lib/notify.js";
 import { explorer } from "../../state/explorerStore.js";
 import { parentDir } from "../../lib/explorerApi.js";
@@ -53,7 +54,7 @@ export function FilesContextMenu() {
   return createPortal(
     <div className="ctx-menu glass-pop open" data-popover="fx-ctx" style={{ display: "block", left, top }}>
       {single && <Item onClick={open}>Open<span className="kbd">⏎</span></Item>}
-      {single && <Item onClick={reveal}>Reveal in Finder</Item>}
+      {single && hasLocalScreen() && <Item onClick={reveal}>Reveal in Finder</Item>}
       {single && <div className="menu-sep" />}
       {single && <Item onClick={rename} kbd="F2">Rename</Item>}
       {files.length > 0 && <Item onClick={attach}>{files.length > 1 ? `Attach ${files.length} as context` : "Attach as context"}</Item>}

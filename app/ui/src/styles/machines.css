@@ -1,0 +1,327 @@
+/* machines.css — controlling other computers (Eos ↔ Eos): the machine tile, the
+   sidebar footer's machine row + Machines menu, a remote window's identity chip,
+   the "… connected" chip on the controlled Mac, the Connect sheet and the All
+   machines view. charcoal-aurora rules: depth is a surface step, fills mark
+   hover/selection, floating layers get --sh-pop, the only motion is d-breathe. */
+
+/* ── machine tile + link dot ─────────────────────────────────────────────── */
+.mg {
+  position: relative;
+  width: 24px; height: 24px;
+  border-radius: var(--r-icon);
+  background: var(--chip);
+  color: var(--fg-mid);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  --mg-ring: var(--panel);
+}
+.mg--lg { width: 32px; height: 32px; border-radius: var(--r-row); }
+.mg--xl { width: 44px; height: 44px; border-radius: 11px; }
+.mg--off { color: var(--fg-faint); }
+.mg__st {
+  position: absolute; right: -2px; bottom: -2px;
+  width: 8px; height: 8px; border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--mg-ring);
+}
+.mg__st--ok { background: var(--ok); }
+.mg__st--warn { background: var(--warn); animation: d-breathe 2.2s ease-in-out infinite; }
+.mg__st--err { background: var(--err); }
+.mg__st--off { background: var(--fg-mute); }
+@media (prefers-reduced-motion: reduce) { .mg__st--warn { animation: none; } }
+
+/* ── sidebar footer: machine row above the account row ───────────────────── */
+.sb-settings--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 10px 8px 12px;
+}
+.sb-settings--stack .sb-settings__account { margin: 0; flex: none; padding: 6px 8px; }
+.machine-row {
+  display: flex; align-items: center; gap: 10px;
+  height: 38px; padding: 0 8px;
+  border-radius: var(--r-row);
+  color: var(--fg-mid);
+  text-align: left;
+  --mg-ring: var(--panel);
+}
+.machine-row:hover, .machine-row.on { background: var(--row-on); color: var(--fg); --mg-ring: var(--row-on); }
+.machine-row__name { font-size: var(--text-base); color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.machine-row__meta { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); white-space: nowrap; }
+.machine-row__meta.is-warn { color: var(--warn); }
+.machine-row__meta.is-err { color: var(--err); }
+.machine-row__chev { margin-left: auto; display: inline-flex; color: var(--fg-faint); flex-shrink: 0; }
+
+/* ── Machines menu (popover above the footer) ────────────────────────────── */
+.machines-menu {
+  position: fixed;
+  z-index: 400;
+  width: 344px;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--text-sm);
+  --mg-ring: var(--pop);
+}
+.machines-menu__label {
+  display: flex; align-items: center;
+  padding: 6px 10px 2px;
+  font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.mc-card {
+  display: flex; flex-direction: column; gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  text-align: left;
+  color: inherit;
+  --mg-ring: var(--raised);
+}
+button.mc-card:hover { background: var(--row-on); --mg-ring: var(--row-on); }
+.mc-card--quiet { background: transparent; padding: 8px 12px; --mg-ring: var(--pop); }
+button.mc-card--quiet:hover { background: var(--row-on); }
+.mc-card__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.mc-card__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.mc-card__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-card--quiet .mc-card__name { color: var(--fg-dim); }
+.mc-card__sub { font-size: var(--text-xs); color: var(--fg-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-card__sub.is-err { color: var(--err); }
+.mc-card__check { display: inline-flex; color: var(--fg-mid); }
+.mc-card__kbd { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); margin-left: 6px; }
+.mc-stats { display: flex; align-items: center; gap: 14px; font-size: var(--text-xs); color: var(--fg-dim); }
+.mc-stat { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mc-stat.is-warn { color: var(--warn); }
+.mc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+.mc-dot--warn { background: var(--warn); }
+.mc-dot--need { background: var(--warn); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 24%, transparent); }
+.mc-dot--idle { background: var(--fg-faint); }
+.mc-rows { display: flex; flex-direction: column; gap: 1px; margin: 0 -6px; }
+.mc-row {
+  display: flex; align-items: center; gap: 9px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.mc-row__name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mc-row__status { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); flex-shrink: 0; }
+.mc-row__status.is-warn { color: var(--warn); }
+.machines-menu .acct-sep { margin: 0 10px; }
+
+/* ── identity chip (a remote window) + the "… connected" chip (this Mac) ─── */
+.host-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 26px; padding: 0 10px 0 9px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  color: var(--fg-mid);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  --app-region: no-drag;
+}
+.host-chip:hover, .host-chip.on { background: var(--row-on); color: var(--fg); }
+.host-chip__lat { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); }
+.host-chip__lat.is-warn { color: var(--warn); }
+.host-chip__lat.is-err { color: var(--err); }
+.host-chip__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
+.host-chip__dot--ok { box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent); }
+.host-chip__dot--warn { background: var(--warn); animation: d-breathe 2.2s ease-in-out infinite; }
+.host-chip__dot--err { background: var(--err); }
+.host-chip__dot--off { background: var(--fg-mute); }
+.host-chip__dot--presence { background: var(--accent); }
+.side-top .host-chip { margin-left: auto; min-width: 0; max-width: 170px; }
+.side-top .side-dot, .side-top .side-collapse { flex-shrink: 0; }
+.host-chip > span:not(.host-chip__dot) { overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) { .host-chip__dot--warn { animation: none; } }
+
+/* connection card (from the identity chip) + presence card */
+.host-card {
+  position: fixed;
+  z-index: 400;
+  width: 340px;
+  padding: 6px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  display: flex; flex-direction: column; gap: 2px;
+  font-size: var(--text-sm);
+  --mg-ring: var(--pop);
+}
+.host-card__head { display: flex; align-items: center; gap: 12px; padding: 10px 10px 12px; }
+.host-card__rows { display: flex; flex-direction: column; padding: 4px 0; }
+.kv { display: flex; align-items: center; gap: 12px; padding: 7px 10px; }
+.kv__k { width: 92px; flex-shrink: 0; color: var(--fg-faint); }
+.kv__v { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--fg-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv__v .mono { font-size: var(--text-xs); }
+.host-card .acct-action.is-danger, .host-card .acct-action.is-danger svg { color: var(--err); }
+
+/* link lost — a slim banner over a remote window's content */
+.link-banner {
+  position: fixed;
+  left: 50%; top: 70px;
+  transform: translateX(-50%);
+  z-index: 350;
+  display: flex; align-items: center; gap: 12px;
+  max-width: min(640px, calc(100vw - 48px));
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: var(--pop);
+  box-shadow: var(--sh-pop);
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+}
+.link-banner b { color: var(--fg); font-weight: 500; }
+.link-banner__attempt { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); white-space: nowrap; }
+
+/* ── pills + small buttons shared by the machine surfaces ────────────────── */
+.m-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 20px; padding: 0 8px;
+  border-radius: var(--r-pill);
+  background: var(--chip);
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+.m-pill--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.m-pill--warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.m-pill--err { color: var(--err); background: color-mix(in srgb, var(--err) 14%, transparent); }
+.m-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  height: 30px; padding: 0 14px;
+  border-radius: var(--r-row);
+  font-size: var(--text-sm); font-weight: 500;
+  white-space: nowrap;
+  background: var(--chip); color: var(--fg-mid);
+}
+.m-btn:hover:not(:disabled) { color: var(--fg); background: #363636; }
+.m-btn:disabled { color: var(--fg-faint); cursor: default; }
+.m-btn--accent { background: var(--accent); color: var(--accent-fg); }
+.m-btn--accent:hover:not(:disabled) { background: var(--accent-hover); color: var(--accent-fg); }
+.m-btn--quiet { background: none; color: var(--fg-dim); }
+.m-btn--quiet:hover:not(:disabled) { background: var(--chip); }
+.m-btn--danger { background: none; color: var(--err); }
+.m-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
+.m-btn--sm { height: 26px; padding: 0 10px; font-size: var(--text-xs); }
+
+/* ── Settings › Remote access / Machines ─────────────────────────────────── */
+.peer-hero {
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  --mg-ring: var(--raised);
+}
+.peer-hero__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.peer-hero__title { font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
+.peer-hero__desc { font-size: var(--text-sm); color: var(--fg-faint); }
+.peer-field {
+  display: flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 12px;
+  border-radius: var(--r-row);
+  background: rgba(255, 255, 255, .05);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  min-width: 0;
+}
+.peer-field input { flex: 1; min-width: 0; font-size: var(--text-sm); }
+.peer-field .mono, .peer-field input.mono { font-size: var(--text-xs); }
+.peer-field__text { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--fg-mid); }
+.peer-invite-row { display: flex; align-items: center; gap: 8px; }
+.peer-invite-meta { display: flex; align-items: center; gap: 10px; font-size: var(--text-xs); color: var(--fg-faint); }
+.peer-device { display: flex; align-items: center; gap: 12px; min-width: 0; --mg-ring: var(--pop); }
+.peer-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.peer-qr { align-self: flex-start; padding: 12px; background: #fff; border-radius: 12px; }
+
+/* ── Connect a machine (modal) ───────────────────────────────────────────── */
+.connect-sheet {
+  position: relative;
+  width: min(580px, calc(100vw - 48px));
+  display: flex; flex-direction: column; gap: 22px;
+  padding: 26px 28px 22px;
+  border-radius: var(--r-modal);
+  box-shadow: var(--sh-modal);
+  --mg-ring: var(--raised);
+}
+.connect-sheet__intro { display: flex; flex-direction: column; gap: 6px; }
+.connect-sheet__desc { margin: 0; font-size: var(--text-sm); line-height: 1.55; color: var(--fg-faint); }
+.connect-sheet__label { display: block; margin-bottom: 7px; font-size: var(--text-sm); color: var(--fg-mid); }
+.connect-preview {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 16px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+}
+.connect-preview__head { display: flex; align-items: center; gap: 14px; }
+.connect-preview__pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.connect-sheet__foot { display: flex; align-items: center; gap: 8px; }
+.connect-sheet__note { flex: 1; font-size: var(--text-xs); color: var(--fg-faint); }
+.connect-sheet__err { font-size: var(--text-sm); color: var(--err); }
+
+/* ── All machines view ───────────────────────────────────────────────────── */
+.machines-view {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  padding: 26px 32px 32px;
+  display: flex; flex-direction: column; gap: 26px;
+}
+.machines-view__label { padding-left: 2px; font-family: var(--font-mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-faint); }
+.needs-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-radius: 12px;
+  background: var(--raised);
+  font-size: var(--text-sm);
+}
+.needs-card__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.needs-card__title { color: var(--fg); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.needs-card__where { color: var(--fg-faint); font-weight: 400; }
+.needs-card__what { color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.machines-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.machine-col {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--panel);
+  --mg-ring: var(--panel);
+}
+.machine-col .agents-row { width: 100%; }
+.machine-col__rows { display: flex; flex-direction: column; gap: 1px; margin: 0 -4px; }
+.machine-col__empty { padding: 6px 4px; font-size: var(--text-sm); color: var(--fg-faint); }
+.machines-side-row { gap: 11px; text-align: left; --mg-ring: var(--panel); }
+.machines-side-row:hover { --mg-ring: var(--row-on); }
+.machines-side-row .ag-name { color: var(--fg); }
+.machine-offline { display: flex; align-items: center; gap: 11px; padding: 0 2px; font-size: var(--text-sm); color: var(--fg-faint); --mg-ring: var(--bg); }
+.machine-offline b { color: var(--fg-dim); font-weight: 400; }
+
+/* ── in-app picker for a controlled computer's disk ──────────────────────── */
+.rpick { width: min(620px, calc(100vw - 48px)); gap: 16px; }
+.rpick__path { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rpick__path .mono { font-size: var(--text-xs); color: var(--fg-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
+.rpick__list {
+  height: 320px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 4px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+}
+.rpick__row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--r-row);
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  text-align: left;
+}
+.rpick__row:hover:not(:disabled), .rpick__row.on { background: var(--row-on); color: var(--fg); }
+.rpick__row.is-dim { color: var(--fg-faint); cursor: default; }
+.rpick__ic { display: inline-flex; color: var(--fg-dim2); flex-shrink: 0; }
+.rpick__name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rpick__check { display: inline-flex; color: var(--accent); }

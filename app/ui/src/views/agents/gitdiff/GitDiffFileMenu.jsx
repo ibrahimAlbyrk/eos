@@ -1,6 +1,7 @@
 import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
+import { hasLocalScreen } from "../../../lib/host.js";
 import { notify } from "../../../lib/notify.js";
 import { MenuList } from "../popovers/MenuList.jsx";
 
@@ -27,9 +28,11 @@ export function GitDiffFileMenu() {
     if (!r.ok) notify.error(r.body?.error ?? "Open failed");
   };
 
+  // "Open in" drives apps on the daemon's screen — not this one, in a view of
+  // another computer.
   const items = [
     { id: "copy", label: "Copy path", run: copyPath },
-    {
+    hasLocalScreen() && {
       id: "open-in",
       label: "Open in",
       submenu: [
@@ -37,7 +40,7 @@ export function GitDiffFileMenu() {
         { id: "finder", label: "Finder", kbd: "2", run: () => openIn("finder") },
       ],
     },
-  ];
+  ].filter(Boolean);
 
   const left = Math.min(ui.popoverPos.x, window.innerWidth - 220);
   const top = Math.min(ui.popoverPos.y, window.innerHeight - 96);

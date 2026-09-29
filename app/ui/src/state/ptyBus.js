@@ -42,3 +42,16 @@ export function emitPtyExit(frame) {
   if (!set) return;
   for (const cb of set) cb(frame);
 }
+
+// The live stream lost frames it could not replay (daemon restart, a link down
+// longer than its replay buffer): every open terminal re-reads its screen.
+const resyncSubs = new Set();
+
+export function onPtyResync(cb) {
+  resyncSubs.add(cb);
+  return () => resyncSubs.delete(cb);
+}
+
+export function emitPtyResync() {
+  for (const cb of resyncSubs) cb();
+}

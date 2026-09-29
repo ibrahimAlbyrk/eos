@@ -133,6 +133,16 @@ export const ROUTES = {
   remoteConfig: "/api/remote/config",
   remoteArm: "/api/remote/arm",
   remotePair: "/api/remote/pair",
+  // Eos ↔ Eos peering (contracts/src/peer.ts).
+  hostInfo: "/api/host",
+  peer: "/api/peer",
+  peerInvite: "/api/peer/invite",
+  peerDevice: (fp) => `/api/peer/devices/${fp}`,
+  peerDeviceDisconnect: (fp) => `/api/peer/devices/${fp}/disconnect`,
+  hosts: "/api/hosts",
+  host: (id) => `/api/hosts/${id}`,
+  hostReconnect: (id) => `/api/hosts/${id}/reconnect`,
+  hostProxyPrefix: (id) => `/h/${id}`,
   // Claude creds for the claude lane (Settings › Accounts) — loopback +
   // ui-token only. GET returns redacted { apiKeySet, authTokenSet }; PUT persists.
   anthropicConfig: "/api/anthropic/config",

@@ -2,6 +2,8 @@ import { AgentsView } from "./agents/AgentsView.jsx";
 import { AgentsSidebar } from "./agents/sidebar/AgentsSidebar.jsx";
 import { CodeView } from "./code/CodeView.jsx";
 import { CodeSidebar } from "./code/sidebar/CodeSidebar.jsx";
+import { MachinesView } from "./machines/MachinesView.jsx";
+import { MachinesSidebar } from "./machines/MachinesSidebar.jsx";
 
 // Maps a view id to its workspace Component. Adding a tab = add an entry here
 // (plus a descriptor in tabs.js). The Shell is the only importer, so pulling in
@@ -9,6 +11,7 @@ import { CodeSidebar } from "./code/sidebar/CodeSidebar.jsx";
 const COMPONENTS = {
   agents: AgentsView,
   code: CodeView,
+  machines: MachinesView,
 };
 
 // Maps a view id to its sidebar Component. The Shell renders this into the
@@ -17,6 +20,7 @@ const COMPONENTS = {
 const SIDEBARS = {
   agents: AgentsSidebar,
   code: CodeSidebar,
+  machines: MachinesSidebar,
 };
 
 // Views that stay mounted (hidden) after their first visit. Code holds live

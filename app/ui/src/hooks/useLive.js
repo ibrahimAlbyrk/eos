@@ -13,7 +13,7 @@ import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
-import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
+import { emitPtyData, emitPtyExit, emitPtyResync } from "../state/ptyBus.js";
 import { markExited } from "../state/ptyPanelStore.js";
 import { adoptRemote } from "../state/codeWorkspaceStore.js";
 import { applyTabs as applyBrowserTabs, applyStatus as applyBrowserStatus } from "../state/browserPanelStore.js";
@@ -30,6 +30,8 @@ import { emitGitChange } from "../state/gitChangeBus.js";
 import { emitFsChange } from "../state/fsChangeBus.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
 import { startPolling } from "../lib/pollInterval.js";
+import { refreshHosts } from "../state/hostsStore.js";
+import { applyPresence } from "../state/peerStore.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -140,11 +142,22 @@ export function useLive() {
   useEffect(() => {
     const s = createReconnectingStream({
       onOpen: () => { setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
+      // The daemon could not replay what this client missed (it restarted, or
+      // the gap outgrew its buffer): refetch every live view from scratch.
+      onResync: () => {
+        scheduleRefetch();
+        setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null }));
+        emitPtyResync();
+      },
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
           // A newer build appeared — refresh the banner status (not a worker delta).
           if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
+          // Peering: a controlled computer's link changed (Machines menu), or a
+          // computer connected to / left this Mac (the "… connected" chip).
+          if (data.reason === "hosts:change") { if (!window.eosHosts) void refreshHosts(); return; }
+          if (data.reason === "peer:presence") { applyPresence(data.payload); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
           if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }

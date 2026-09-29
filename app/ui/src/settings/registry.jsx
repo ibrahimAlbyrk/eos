@@ -12,7 +12,9 @@
 
 import { AccountsSettings } from "./AccountsSettings.jsx";
 import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
-import { RemoteSettings, REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
+import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
+import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
+import { MachinesSettings } from "./MachinesSettings.jsx";
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -39,6 +41,13 @@ const UsageIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 3v18h18" />
     <path d="M7 15l4-4 3 3 5-6" />
+  </svg>
+);
+
+const MachinesIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="12" rx="2" />
+    <path d="M8 20h8M12 16v4" />
   </svg>
 );
 
@@ -186,12 +195,19 @@ export const SETTINGS_SECTIONS = [
   },
   {
     id: "remote",
-    label: "Remote",
+    label: "Remote access",
     Icon: RemoteIcon,
-    // Custom Component: the iOS remote-access toggle + pairing QR. Drives the
-    // manager remote routes directly (config write → arm → pair); owns no
-    // settings.json keys (config.remote lives in config.json).
-    Component: RemoteSettings,
+    // Custom Component: who may control THIS Mac — paired computers (Eos ↔ Eos
+    // peering, /api/peer) and the iPhone relay section. Owns no settings.json
+    // keys (config.peer / config.remote live in config.json).
+    Component: RemoteAccessSettings,
+  },
+  {
+    id: "machines",
+    label: "Machines",
+    Icon: MachinesIcon,
+    // Custom Component: the computers this Mac controls (/api/hosts).
+    Component: MachinesSettings,
   },
   {
     id: "code",

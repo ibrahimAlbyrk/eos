@@ -9,6 +9,7 @@ import { nameOf } from "../../../lib/agentName.js";
 import { permanentDeleteMessage } from "../../../lib/archive.js";
 import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConfirm.js";
 import { api } from "../../../api/client.js";
+import { hasLocalScreen } from "../../../lib/host.js";
 import { MenuList } from "./MenuList.jsx";
 
 // Breadcrumb chevron dropdown — acts on the pane's agent (passed in by the
@@ -48,16 +49,17 @@ export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
     setConfirming(false);
   };
 
+  // "Open in" drives apps on the daemon's screen — not this one, in a view of
+  // another computer.
   const items = [
-    {
+    ...(hasLocalScreen() ? [{
       id: "open-in",
       label: "Open in",
       submenu: [
         { id: "vscode", label: "VS Code", kbd: "1", run: () => openIn("vscode") },
         { id: "finder", label: "Finder", kbd: "2", run: () => openIn("finder") },
       ],
-    },
-    "sep",
+    }, "sep"] : []),
     { id: "rename", label: "Rename", kbd: "R", run: () => onRename(agent.id) },
     // Same download path as the /export slash command: tree export for orchestrators.
     { id: "export", label: "Export", kbd: "E", run: () => api.exportWorker(agent.id, { tree: !!agent.is_orchestrator }) },

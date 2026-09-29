@@ -5,16 +5,20 @@
 //      endpoint is one edit, not a grep-and-pray sweep.
 
 import { ROUTES } from "./routes.js";
+import { isRemoteView } from "../lib/host.js";
+import { requestRemotePick } from "../state/remotePickerStore.js";
 
 // The native app loads the UI from the eos://app/ origin, so the daemon URL
 // can't be derived from location.origin; the app shell injects
 // window.__EOS_DAEMON_URL. Falls back to the loopback port the shell assumes.
 const DAEMON =
   (typeof window !== "undefined" && window.__EOS_DAEMON_URL) || "http://127.0.0.1:7400";
-// Raw-content origin (daemon.rawPort). Separate origin by design — runnable
+// Raw-content base (daemon.rawPort). Separate origin by design — runnable
 // HTML is sandboxed with allow-same-origin there; see manager/routes/fs-raw.ts.
-// The port mirrors the config default the same way the app shell hardcodes 7400.
+// The app shell injects it (a controlled computer's view gets that host's
+// /h/<id> prefix on the raw port); otherwise it mirrors the default port.
 const RAW_ORIGIN = (() => {
+  if (typeof window !== "undefined" && window.__EOS_RAW_URL) return window.__EOS_RAW_URL;
   try {
     const u = new URL(DAEMON || "http://127.0.0.1:7400");
     u.port = "7401";
@@ -31,6 +35,45 @@ const JSON_HEADERS = { "content-type": "application/json" };
 const CLIENT_ID = (() => {
   try { return crypto.randomUUID(); } catch { return `c-${Math.random().toString(36).slice(2)}-${Date.now()}`; }
 })();
+
+// Stable id of this dashboard instance, kept across reloads and app restarts
+// (localStorage is per window partition, so each controlled machine's view has
+// its own). Several dashboards can drive one daemon — this Mac's window and
+// another computer controlling it — and each cleans up only what it opened.
+const UI_INSTANCE = (() => {
+  const KEY = "eos:uiInstance";
+  try {
+    const existing = localStorage.getItem(KEY);
+    if (existing) return existing;
+    const id = crypto.randomUUID();
+    localStorage.setItem(KEY, id);
+    return id;
+  } catch {
+    return CLIENT_ID;
+  }
+})();
+
+// "Open" in a view of another computer: a link opens in this Mac's browser; a
+// file is copied into this Mac's Downloads and opened here (the app shell's
+// saveFile bridge) — its default app over there would open on a screen nobody
+// is looking at.
+const MAX_OPEN_HERE_BYTES = 64 * 1024 * 1024;
+async function openRemoteFileHere(path) {
+  if (/^https?:\/\//i.test(path)) { window.open(path, "_blank"); return { ok: true, status: 200, body: {} }; }
+  const save = window.webkit?.messageHandlers?.saveFile;
+  if (!save) return { ok: false, status: 501, body: { error: "opening files needs the Eos app" } };
+  // Through the API facade (CORS-enabled); the host's gateway sends /fs/raw on to
+  // its raw origin. The raw origin itself stays CORS-free by design.
+  const r = await fetch(`${DAEMON}${ROUTES.fsRaw}${encodeRawPath(path)}`);
+  if (!r.ok) return { ok: false, status: r.status, body: { error: "couldn't read that file" } };
+  const blob = await r.blob();
+  if (blob.size > MAX_OPEN_HERE_BYTES) return { ok: false, status: 413, body: { error: "file too large to copy over" } };
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  save.postMessage({ filename: path.split("/").pop() || "download", base64: btoa(bin), mimeType: blob.type });
+  return { ok: true, status: 200, body: {} };
+}
 
 // Path-style URL (segments encoded, slashes literal) so relative subresources
 // of served HTML resolve against the file's directory.
@@ -106,6 +149,7 @@ async function putJson(path, body, extraHeaders) {
 
 export const api = {
   daemon: DAEMON,
+  uiInstance: UI_INSTANCE,
   routes: ROUTES,
   clientId: CLIENT_ID,
 
@@ -293,12 +337,16 @@ export const api = {
   },
 
   // FS helpers
+  // In a view of another computer the native pickers would open on THAT
+  // computer's screen — browse its disk in-app instead (same answer shape).
   async pickDirectory() {
+    if (isRemoteView()) return requestRemotePick("directory");
     const r = await getJson(ROUTES.pickDirectory);
     if (!r.ok) throw new Error(`pickDirectory → ${r.status}`);
     return r.body;
   },
   async pickFiles() {
+    if (isRemoteView()) return requestRemotePick("files");
     const r = await getJson(ROUTES.pickFile);
     if (!r.ok) throw new Error(`pickFiles → ${r.status}`);
     return r.body;
@@ -328,10 +376,12 @@ export const api = {
     return { ok: r.ok, status: r.status, body: parsed };
   },
   async getDefaultApp(path) {
+    if (isRemoteView()) return { app: null };
     const r = await fetch(`${DAEMON}${ROUTES.fsDefaultApp}?path=${encodeURIComponent(path)}`);
     return r.ok ? r.json() : { app: null };
   },
   async openFile(path) {
+    if (isRemoteView()) return openRemoteFileHere(path);
     return postJson(ROUTES.fsOpen, { path });
   },
   async listBranches(cwd, { remotes = false } = {}) {
@@ -644,6 +694,60 @@ export const api = {
     return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
 
+  // Eos ↔ Eos peering. hostInfo is an open read (who this daemon is); every
+  // other call is this Mac's own settings — loopback + ui-token.
+  async hostInfo() {
+    const r = await getJson(ROUTES.hostInfo);
+    return r.ok ? r.body : null;
+  },
+  async getPeer() {
+    const r = await getJson(ROUTES.peer, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `getPeer → ${r.status}`);
+    return r.body;
+  },
+  async updatePeer(patch) {
+    return putJson(ROUTES.peer, patch, uiTokenHeader());
+  },
+  async createInvite() {
+    return postJson(ROUTES.peerInvite, {}, uiTokenHeader());
+  },
+  async revokeDevice(fp) {
+    return del(ROUTES.peerDevice(fp), uiTokenHeader());
+  },
+  async disconnectDevice(fp) {
+    return postJson(ROUTES.peerDeviceDisconnect(fp), {}, uiTokenHeader());
+  },
+  async listHosts() {
+    const r = await getJson(ROUTES.hosts, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `listHosts → ${r.status}`);
+    return r.body?.hosts ?? [];
+  },
+  async connectHost(invite, alias) {
+    return postJson(ROUTES.hosts, { invite, ...(alias ? { alias } : {}) }, uiTokenHeader());
+  },
+  async updateHost(id, patch) {
+    return putJson(ROUTES.host(id), patch, uiTokenHeader());
+  },
+  async forgetHost(id) {
+    return del(ROUTES.host(id), uiTokenHeader());
+  },
+  async reconnectHost(id) {
+    return postJson(ROUTES.hostReconnect(id), {}, uiTokenHeader());
+  },
+  // Another computer's daemon, read through this Mac's host facade — the All
+  // machines view and the Machines menu preview its sessions this way.
+  async hostWorkers(id) {
+    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.workers}`);
+    return r.ok && Array.isArray(r.body) ? r.body : null;
+  },
+  async hostPending(id) {
+    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pending}`);
+    return r.ok && Array.isArray(r.body) ? r.body : null;
+  },
+  async hostDecidePending(id, pendingId, decision) {
+    return postJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pendingDecision(pendingId)}`, { decision });
+  },
+
   // Claude credentials for the claude lane — loopback + ui-token gated. Persists
   // { apiKey?, authToken? } to config.json (a blank value clears that field) and
   // returns the REDACTED set-state, never the secrets.
@@ -783,7 +887,7 @@ export const api = {
   // scrollback replay 403.
   // `claude`: start Claude Code instead of a shell ({} fresh, { resume: id }).
   async createPty({ cols, rows, cwd, command, claude } = {}) {
-    return postJson(ROUTES.pty, { cols, rows, cwd, command, claude }, uiTokenHeader());
+    return postJson(ROUTES.pty, { cols, rows, cwd, command, claude, owner: UI_INSTANCE }, uiTokenHeader());
   },
   async listPty() {
     return getJson(ROUTES.pty, { headers: uiTokenHeader() });
@@ -859,8 +963,10 @@ export const api = {
   },
 
   // SSE — returns the EventSource so the caller can attach listeners. The
-  // reconnect logic in store/sse.js wraps this.
-  newEventStream() {
-    return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}`);
+  // reconnect logic in api/sse.js wraps this; `since` (the last event id seen)
+  // makes the daemon replay whatever this client missed while disconnected.
+  newEventStream(since) {
+    const resume = since ? `&since=${encodeURIComponent(since)}` : "";
+    return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}${resume}`);
   },
 };

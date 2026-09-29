@@ -27,7 +27,9 @@ function isValidUrl(u) {
   try { new URL(u); return true; } catch { return false; }
 }
 
-export function RemoteSettings() {
+// `embedded`: rendered inside Settings › Remote access under an "iPhone" group
+// that owns the heading — so no title and no group wrappers of its own.
+export function RemoteSettings({ embedded = false }) {
   const [relayUrl, setRelayUrl] = useState("");
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -104,58 +106,69 @@ export function RemoteSettings() {
     }
   };
 
+  const settingRows = (
+    <>
+      {/* Relay URL — relay-only reach needs a real endpoint, kept editable but
+          secondary (below the toggle in importance). Committed on blur/Enter. */}
+      <div className="stg-row stg-row--stack">
+        <div className="stg-row__text">
+          <div className="stg-row__label">Relay URL</div>
+          <div className="stg-row__desc">
+            The public <code>wss://</code> relay the desktop and phone both dial. Required — remote stays off until it is set.
+          </div>
+        </div>
+        <Text
+          value={relayUrl}
+          onChange={setRelayUrl}
+          placeholder="wss://relay.example.com/"
+        />
+      </div>
+
+      {/* Enable toggle — drives setRemoteConfig → armRemote → pairRemote. */}
+      <div className="stg-row">
+        <div className="stg-row__text">
+          <div className="stg-row__label">{embedded ? "Enable iPhone access" : "Enable remote access"}</div>
+          <div className="stg-row__desc">
+            {armed ? "Armed — scan the QR below to connect." : "Off. Anyone with the QR can drive this desktop, so treat it like a password."}
+          </div>
+        </div>
+        <Toggle value={armed} onChange={(v) => { if (!busy) apply(v); }} />
+      </div>
+
+      {error && <div className="stg-prov-err" style={{ marginTop: 4 }}>{error}</div>}
+    </>
+  );
+
+  // QR + status — only once armed with a minted payload.
+  const qrRow = armed && qr && (
+    <div className="stg-row stg-row--stack" style={{ alignItems: "center", gap: 14 }}>
+      <div style={{ padding: 12, background: "#fff", borderRadius: 12 }}>
+        <QRCodeSVG value={JSON.stringify(qr)} size={188} level="M" marginSize={0} />
+      </div>
+      <div className="stg-row__desc" style={{ textAlign: "center" }}>
+        Scan this in the Eos iOS app to pair your phone. Regenerate if the code expires before you scan it.
+      </div>
+      <button type="button" className="stg-prov-save" disabled={busy} onClick={regenerate}>
+        {busy ? "Working…" : "Regenerate QR"}
+      </button>
+    </div>
+  );
+
+  if (embedded) return <>{settingRows}{qrRow}</>;
+
   return (
     <>
       <h2 className="stg-title">Remote</h2>
 
       <div className="stg-group">
         <div className="stg-group__title">iOS remote access</div>
-
-        {/* Relay URL — relay-only reach needs a real endpoint, kept editable but
-            secondary (below the toggle in importance). Committed on blur/Enter. */}
-        <div className="stg-row stg-row--stack">
-          <div className="stg-row__text">
-            <div className="stg-row__label">Relay URL</div>
-            <div className="stg-row__desc">
-              The public <code>wss://</code> relay the desktop and phone both dial. Required — remote stays off until it is set.
-            </div>
-          </div>
-          <Text
-            value={relayUrl}
-            onChange={setRelayUrl}
-            placeholder="wss://relay.example.com/"
-          />
-        </div>
-
-        {/* Enable toggle — drives setRemoteConfig → armRemote → pairRemote. */}
-        <div className="stg-row">
-          <div className="stg-row__text">
-            <div className="stg-row__label">Enable remote access</div>
-            <div className="stg-row__desc">
-              {armed ? "Armed — scan the QR below to connect." : "Off. Anyone with the QR can drive this desktop, so treat it like a password."}
-            </div>
-          </div>
-          <Toggle value={armed} onChange={(v) => { if (!busy) apply(v); }} />
-        </div>
-
-        {error && <div className="stg-prov-err" style={{ marginTop: 4 }}>{error}</div>}
+        {settingRows}
       </div>
 
-      {/* QR + status — only once armed with a minted payload. */}
-      {armed && qr && (
+      {qrRow && (
         <div className="stg-group">
           <div className="stg-group__title">Pairing QR</div>
-          <div className="stg-row stg-row--stack" style={{ alignItems: "center", gap: 14 }}>
-            <div style={{ padding: 12, background: "#fff", borderRadius: 12 }}>
-              <QRCodeSVG value={JSON.stringify(qr)} size={188} level="M" marginSize={0} />
-            </div>
-            <div className="stg-row__desc" style={{ textAlign: "center" }}>
-              Scan this in the Eos iOS app to pair your phone. Regenerate if the code expires before you scan it.
-            </div>
-            <button type="button" className="stg-prov-save" disabled={busy} onClick={regenerate}>
-              {busy ? "Working…" : "Regenerate QR"}
-            </button>
-          </div>
+          {qrRow}
         </div>
       )}
     </>

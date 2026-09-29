@@ -1,6 +1,8 @@
 import { useUi } from "../../../state/ui.jsx";
 import { EosSwitcher } from "../../../components/EosSwitcher.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
+import { HostChip } from "../../../components/machines/HostChip.jsx";
+import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { leaves } from "../../../lib/paneLayout.js";
 import {
@@ -64,6 +66,8 @@ export function CodeSidebar({ live, variant = "full" }) {
           <button className="side-collapse" title="Collapse panel" onClick={() => ui.collapseSidebar()}>
             <CollapseIcon />
           </button>
+          <HostChip />
+          <PresenceChip />
         </div>
       )}
 

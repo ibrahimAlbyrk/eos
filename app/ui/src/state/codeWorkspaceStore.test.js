@@ -284,7 +284,9 @@ describe("codeWorkspaceStore history", () => {
     }
     expect(getHistory()).toEqual([expect.objectContaining({ id: "shell:/proj", kind: "shell" })]);
     await resumeSession(getHistory()[0]);
-    expect(server.creates.at(-1)).toEqual({ cols: 120, rows: 32, cwd: "/proj" });
+    const { owner, ...body } = server.creates.at(-1);
+    expect(body).toEqual({ cols: 120, rows: 32, cwd: "/proj" });
+    expect(owner).toBeTruthy();
   });
 
   it("an exited shell and a deleted group's sessions are kept too", async () => {
