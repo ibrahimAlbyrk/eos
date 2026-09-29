@@ -75,10 +75,22 @@ export class RelayConnector {
   isRegistered(): boolean { return this.state === "registered"; }
 
   // Send an outgoing s2c data envelope (plaintext inner frame, framed by the session).
-  sendData(envelope: Buffer): boolean {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
-    this.ws.send(envelope);
+  // `onSent` fires once the bytes are handed to the socket — a stream writing
+  // through here uses it as its backpressure signal.
+  sendData(envelope: Buffer, onSent?: (err?: Error) => void): boolean {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) { onSent?.(new Error("relay not connected")); return false; }
+    this.ws.send(envelope, onSent);
     return true;
+  }
+
+  // Re-send the registration on the live socket: the relay replaces the room's
+  // allowlist with the current one (same socket ⇒ no device eviction).
+  refreshAllow(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    this.ws.send(encodeJsonEnvelope({
+      type: FrameType.register, room: this.deps.room,
+      json: { t: "register", room: this.deps.room, owner: this.deps.owner, allow: this.deps.allow() },
+    }));
   }
 
   private dial(): void {

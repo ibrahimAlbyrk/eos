@@ -14,6 +14,7 @@ import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
 import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
+import { PeerConfigSchema, type PeerConfig } from "../../contracts/src/peer.ts";
 import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -182,6 +183,9 @@ export interface DaemonConfig {
   // remote surface. The wire contract is
   // docs/mobile-redesign/01-plaintext-relay-protocol.md.
   remote: RemoteConfig;
+  // Eos ↔ Eos remote access to THIS Mac from other paired computers
+  // (Settings › Remote access). OFF by default — no listener, no relay leg.
+  peer: PeerConfig;
   // Anthropic credentials for the claude lane only (Settings > Anthropic).
   // Empty by default; when set, the SDK child env gets the OAuth token
   // (CLAUDE_CODE_OAUTH_TOKEN, preferred) or the metered key (ANTHROPIC_API_KEY).
@@ -445,6 +449,11 @@ export function defaults(): DaemonConfig {
       inactivityLeaseMs: envNum("EOS_REMOTE_LEASE_MS", 30 * 60 * 1000),
       rateLimit: { perDevicePerMin: 120, globalPerMin: 600, pairingPerMin: 5 },
     },
+    peer: {
+      enabled: envStr("EOS_PEER_ENABLED", "") === "1",
+      direct: true,
+      port: envNum("EOS_PEER_PORT", 7402),
+    },
     // No credentials by default — the claude lane falls back to the resolved
     // subscription token (SubscriptionAuthResolver). Set via Settings > Anthropic.
     anthropic: {},
@@ -664,6 +673,7 @@ export const DaemonConfigOverrideSchema = z.object({
   // restating `enabled`; mergeConfig field-merges over the default. Legacy v2
   // blocks are normalized by migrateRemoteConfig in loadConfig BEFORE this parse.
   remote: RemoteConfigSchema.partial().optional(),
+  peer: PeerConfigSchema.partial().optional(),
   // Both fields already optional; a config.json may set just one. mergeConfig's
   // generic branch field-merges it over the (empty) default.
   anthropic: AnthropicConfigSchema.optional(),

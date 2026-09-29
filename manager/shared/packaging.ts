@@ -52,3 +52,12 @@ export const workerMcpScriptPath = (repoRoot: string): string =>
   entry("worker-mcp.bundle.mjs", repoRoot, "manager", "worker-mcp.ts");
 export const orchestratorMcpScriptPath = (repoRoot: string): string =>
   entry("orchestrator-mcp.bundle.mjs", repoRoot, "manager", "orchestrator-mcp.ts");
+
+// The dashboard bundle this daemon serves to a paired device (GET /ui/*): the
+// app's Resources/dist when packaged (EOS_REPO_ROOT is Resources), the nested UI
+// package's build output in dev. EOS_UI_DIST overrides either, as in the app.
+export function uiDistPath(repoRoot: string): string {
+  const override = process.env.EOS_UI_DIST?.trim();
+  if (override) return override;
+  return isPackaged() ? join(repoRoot, "dist") : join(repoRoot, "app", "ui", "dist");
+}

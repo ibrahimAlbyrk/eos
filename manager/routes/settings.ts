@@ -60,7 +60,7 @@ export function registerSettingsRoutes(r: Router, c: Container): void {
 
 // Field-merges `patch` into the on-disk config.json block `key`, then reloads —
 // the backends route idiom. Writes the 500 itself and returns false on failure.
-function patchConfigBlock(
+export function patchConfigBlock(
   c: Container,
   key: string,
   patch: Record<string, unknown>,

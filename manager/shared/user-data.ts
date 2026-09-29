@@ -24,6 +24,10 @@ export const USER_DATA_ENTRIES = [
   // and Gemini logins plus their session history. Non-regenerable: losing it
   // signs Eos out of every plan.
   "accounts",
+  // Eos ↔ Eos peering (~/.eos/peer/): this device's identity key + cert, the
+  // devices allowed to control it and the hosts it controls. Non-regenerable:
+  // losing it forces every paired computer to pair again.
+  "peer",
   // User projects (~/.eos/projects.json) — names, icons, source folders.
   "projects.json",
   "policy.yaml",

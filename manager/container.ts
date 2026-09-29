@@ -58,6 +58,11 @@ import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
 import { mapSubagentEvent } from "./backends/subagent-events.ts";
+import { loadOrCreateIdentity, createPairedDeviceStore, createKnownHostStore, loadOrCreateRelayRoom } from "../infra/src/peer/stores.ts";
+import { PeerHostService } from "./peer/PeerHostService.ts";
+import { HostLinkService } from "./peer/HostLinkService.ts";
+import { ViewTokens } from "./peer/facade.ts";
+import { uiDistPath } from "./shared/packaging.ts";
 import { createBuiltinToolRegistry } from "../infra/src/tools/builtins/registry.ts";
 import { createNodeToolFileSystem } from "../infra/src/tools/NodeToolFileSystem.ts";
 import { createNodeProcessRunner } from "../infra/src/tools/NodeProcessRunner.ts";
@@ -1355,6 +1360,34 @@ export function buildContainer() {
     );
   };
 
+  // Eos ↔ Eos peering. One identity for both roles: hosting (paired computers
+  // control this Mac — off until Settings › Remote access turns it on) and
+  // controlling (links to the hosts this Mac drives, kept up in the background).
+  const peerDir = join(config.daemon.home, "peer");
+  const peerIdentity = loadOrCreateIdentity(peerDir);
+  const peerHost = new PeerHostService({
+    identity: peerIdentity,
+    devices: createPairedDeviceStore(peerDir),
+    getConfig: () => config.peer,
+    target: { socketPath: config.daemon.socketFile, rawHost: config.daemon.host, rawPort: config.daemon.rawPort, uiToken },
+    servesUi: () => existsSync(join(uiDistPath(config.paths.repoRoot), "index.html")),
+    relayRoom: () => {
+      const url = config.peer.relayUrl ?? config.remote.relay?.url;
+      return url ? { url, ...loadOrCreateRelayRoom(peerDir) } : null;
+    },
+    bus,
+    now: () => Date.now(),
+    log,
+  });
+  const hostLinks = new HostLinkService({
+    creds: peerIdentity,
+    hosts: createKnownHostStore(peerDir),
+    deviceName: () => peerHost.hostInfo().name,
+    bus,
+    now: () => Date.now(),
+    log,
+  });
+
   const container = {
     get config() { return config; },
     log,
@@ -1399,6 +1432,9 @@ export function buildContainer() {
     workingTreeRestore,
     remoteSync,
     uiToken,
+    peerHost,
+    hostLinks,
+    viewTokens: new ViewTokens(),
     recents,
     projects,
     resolveWorktreeDir,

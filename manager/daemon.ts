@@ -72,6 +72,10 @@ import { registerBackendsRoutes } from "./routes/backends.ts";
 import { registerBrowserRoutes } from "./routes/browser.ts";
 import { makeBrowserHostUpgradeHandler } from "./browser-host.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
+import { registerPeerRoutes } from "./routes/peer.ts";
+import { registerUiBundleRoutes } from "./routes/ui-bundle.ts";
+import { registerHostFacade } from "./peer/facade.ts";
+import { uiDistPath } from "./shared/packaging.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
 
@@ -86,7 +90,13 @@ const sourceStamp = computeBackendStamp(
 );
 
 const router = new Router();
+// /h/<hostId>/… is another computer's daemon, proxied over the peer link. First,
+// so no other pattern can shadow it; it matches nothing outside /h/.
+const hostFacade = { link: (id: string) => c.hostLinks.link(id), uiToken: c.uiToken, viewTokens: c.viewTokens };
+registerHostFacade(router, hostFacade);
 registerHealthRoutes(router, { pid: process.pid, startedAt: Date.now(), sourceStamp });
+registerPeerRoutes(router, c);
+registerUiBundleRoutes(router, { root: () => uiDistPath(c.config.paths.repoRoot) });
 registerStreamRoutes(router, c);
 // FS + UI routes registered before /workers etc. Order matters: first match
 // wins.
@@ -131,7 +141,8 @@ registerRemoteRoutes(router, {
   uiToken: c.uiToken,
   getConfig: () => c.config,
   getGateway: () => remoteController?.current() ?? null,
-  arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { enabled: false, armed: false }; },
+  // The phone's relay URL is also this Mac's peering relay unless one is set.
+  arm: () => { c.reloadConfig(); void c.peerHost.reconcile(); return remoteController?.reconcile() ?? { enabled: false, armed: false }; },
   reloadConfig: () => c.reloadConfig(),
 });
 
@@ -526,6 +537,7 @@ remoteController.reconcile();
 // so that content must never share an origin with the uiToken-bearing app/API
 // server above.
 const rawRouter = new Router();
+registerHostFacade(rawRouter, hostFacade);
 registerFsRawRoutes(rawRouter, c);
 const rawServer = createServer(makeHandler(rawRouter));
 applyKeepAlive(rawServer);
@@ -578,6 +590,9 @@ server.listen(c.config.daemon.port, c.config.daemon.host, () => {
   unixServer.listen(c.config.daemon.socketFile, () => {
     try { chmodSync(c.config.daemon.socketFile, 0o600); } catch {}
     c.log.info("socket listening", { path: c.config.daemon.socketFile });
+    // Peering needs the socket: a paired device's requests are replayed on it.
+    void c.peerHost.reconcile();
+    c.hostLinks.start();
   });
 });
 rawServer.listen(c.config.daemon.rawPort, c.config.daemon.host, () => {
@@ -631,6 +646,8 @@ async function shutdown(sig: string): Promise<void> {
     s.closeAllConnections();
   }
   try { remoteController?.disarm(); } catch {}
+  try { c.hostLinks.stop(); } catch {}
+  void c.peerHost.stop().catch(() => {});
   // Suspend resumable in-process sessions BEFORE killing children and closing
   // the DB: their exit callbacks write rows, so this is the last safe moment —
   // and it lands SUSPENDED deterministically instead of letting async exits
