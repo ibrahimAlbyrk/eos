@@ -11,8 +11,10 @@
     "bundle": "node esbuild.mjs",
     "build:ui": "npm --prefix ui run build",
     "ensure:ui": "test -f ui/dist/index.html || npm run build:ui",
+    "build:saver": "node scripts/build-saver.mjs",
+    "ensure:saver": "test -d .forge-build/Eos.saver || npm run build:saver",
     "typecheck": "tsc --noEmit",
-    "start": "npm run ensure:ui && npm run bundle && electron-forge start",
+    "start": "npm run ensure:ui && npm run bundle && npm run ensure:saver && electron-forge start",
     "package": "npm run bundle && electron-forge package",
     "make": "npm run bundle && electron-forge make",
     "clean": "rm -rf .forge-build out"

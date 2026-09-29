@@ -49,6 +49,7 @@ module.exports = {
       // node_modules (incl. the claude binary) and rebuild node-pty for Electron's ABI.
       execFileSync("node", ["scripts/bundle-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
       execFileSync("node", ["scripts/assemble-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
+      execFileSync("node", ["scripts/build-saver.mjs"], { cwd: __dirname, stdio: "inherit" });
     },
     // Ad-hoc identifier fix (the DURABLE Dock-icon fix). Without a Developer ID,
     // Forge does no signing and the app keeps Electron's linker-signed default,
@@ -95,6 +96,7 @@ module.exports = {
       path.resolve(__dirname, ".forge-build", "daemon"),
       path.resolve(__dirname, "..", "manager", "prompts"),
       path.resolve(__dirname, "..", "manager", "workers"),
+      path.resolve(__dirname, ".forge-build", "Eos.saver"),
     ],
     // The packaged app.asar needs only package.json + the bundled entry
     // (.forge-build/{main,preload}.js). Exclude the nested UI package (its
@@ -108,8 +110,8 @@ module.exports = {
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
     // .forge-build/{main,preload}.js stay IN — they are the app entry.
     ignore: (p) =>
-      /^\/(ui|src|verify|out|build|node_modules|scripts)(\/|$)/.test(p) ||
-      /^\/\.forge-build\/daemon(\/|$)/.test(p) ||
+      /^\/(ui|src|verify|out|build|node_modules|scripts|saver)(\/|$)/.test(p) ||
+      /^\/\.forge-build\/(daemon|Eos\.saver)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
     ...(osxSign ? { osxSign } : {}),

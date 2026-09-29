@@ -1,6 +1,7 @@
 import { Tray, Menu, nativeImage, nativeTheme } from "electron";
 import type { WebContents, NativeImage } from "electron";
 import { renderTrayImage } from "./tray-paint";
+import { installScreenSaver, lockScreen } from "./screensaver";
 import type { Completion } from "./fleet";
 
 const ease = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -46,6 +47,9 @@ export class TrayController {
   private popMenu(): void {
     const menu = Menu.buildFromTemplate([
       { label: "Open Eos", click: () => this.hooks.showWindow() },
+      { type: "separator" },
+      { label: "Lock Screen", click: lockScreen },
+      { label: "Install Screen Saver…", click: () => void installScreenSaver() },
       { type: "separator" },
       { label: "Quit Eos", click: () => this.hooks.quit() },
     ]);
