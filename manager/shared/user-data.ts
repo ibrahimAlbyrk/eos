@@ -20,6 +20,10 @@ export const USER_DATA_ENTRIES = [
   // session ("profile" = the global session, <sessionKey> = per-session
   // Chromes). Non-regenerable: losing it logs the user out everywhere.
   "browser",
+  // Eos's own CLI sign-ins (~/.eos/accounts/{claude,codex,gemini}) — the Codex
+  // and Gemini logins plus their session history. Non-regenerable: losing it
+  // signs Eos out of every plan.
+  "accounts",
   // User projects (~/.eos/projects.json) — names, icons, source folders.
   "projects.json",
   "policy.yaml",

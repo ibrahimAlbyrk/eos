@@ -24,7 +24,7 @@ const openai = (over = {}) => ({
 const gemini = (over = {}) => ({
   id: "gemini",
   label: "Gemini",
-  subscription: { supported: true, state: "signed_in", source: "gemini-cli" },
+  subscription: { supported: true, state: "signed_in", source: "eos" },
   apiKey: { set: false },
   route: "subscription",
   ...over,
@@ -62,16 +62,9 @@ describe("AccountCard", () => {
     expect(html).toContain("Sign out");
   });
 
-  it("a Claude Code login can't be signed out from Eos", () => {
-    const html = card(claude({ subscription: { supported: true, state: "signed_in", source: "claude-code" }, route: "subscription" }));
-    expect(html).toContain("Using your Claude Code login");
-    expect(html).toContain("Managed outside Eos");
-    expect(html).not.toContain("Sign out");
-  });
-
-  it("a Gemini CLI login is shared, and Eos can sign it out", () => {
+  it("a Google sign-in is Eos's own, and Eos can sign it out", () => {
     const html = card(gemini());
-    expect(html).toContain("Shared with Gemini CLI on this Mac");
+    expect(html).toContain("Signed in through Eos");
     expect(html).toContain("Sign out");
   });
 

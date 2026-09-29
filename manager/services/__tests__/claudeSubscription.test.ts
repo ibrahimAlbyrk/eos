@@ -1,9 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseSetupTokenOutput, setupTokenFailure, startClaudeSetupToken } from "../accounts/claudeSubscription.ts";
+import { createClaudeSubscription, loginFailure, parseLoginUrl, startClaudeLogin } from "../accounts/claudeSubscription.ts";
 import type { PtyHost, PtyHostOptions } from "../../../spawner/pty-host.ts";
 
-const TOKEN = `sk-ant-oat01-${"a".repeat(90)}`;
 const URL = "https://claude.ai/oauth/authorize?code=true&client_id=x&state=y";
 
 function fakePty() {
@@ -34,50 +33,45 @@ function fakePty() {
 }
 
 const start = (pty: ReturnType<typeof fakePty>, onUrl: (u: string) => void = () => {}) =>
-  startClaudeSetupToken({ spawnPty: pty.spawnPty, cwd: "/home", env: { PATH: "/bin" } }, { onUrl });
+  startClaudeLogin({ spawnPty: pty.spawnPty, cwd: "/home", env: { PATH: "/bin" } }, { onUrl });
 
-describe("parseSetupTokenOutput", () => {
+describe("parseLoginUrl", () => {
   it("finds the sign-in URL through ANSI styling", () => {
-    const raw = `\x1b[1mBrowser didn't open? Use the url below:\x1b[0m\r\n\x1b[36m${URL}\x1b[39m\r\n`;
-    assert.equal(parseSetupTokenOutput(raw).url, URL);
-  });
-
-  it("takes the token only once something follows it (no truncated token mid-chunk)", () => {
-    assert.equal(parseSetupTokenOutput(`Your OAuth token (valid for 1 year):\r\n${TOKEN.slice(0, 60)}`).token, undefined);
-    assert.equal(parseSetupTokenOutput(`Your OAuth token (valid for 1 year):\r\n${TOKEN}\r\n`).token, TOKEN);
-    assert.equal(parseSetupTokenOutput(`${TOKEN}`, { final: true }).token, TOKEN);
+    const raw = `Opening browser to sign in…\r\n\x1b[1mIf the browser didn't open, visit:\x1b[0m \x1b[36m${URL}\x1b[39m\r\n`;
+    assert.equal(parseLoginUrl(raw), URL);
   });
 });
 
-describe("setupTokenFailure", () => {
+describe("loginFailure", () => {
   it("names a missing Claude Code install", () => {
-    assert.match(setupTokenFailure("zsh: command not found: claude\r\n", 127), /isn't installed/);
+    assert.match(loginFailure("zsh: command not found: claude\r\n", 127), /isn't installed/);
   });
 
   it("falls back to the last line the CLI printed", () => {
-    assert.equal(setupTokenFailure("\x1b[31mOAuth error: denied\x1b[0m\r\n", 1), "Sign-in ended: OAuth error: denied");
+    assert.equal(loginFailure("\x1b[31mLogin failed: denied\x1b[0m\r\n", 1), "Sign-in ended: Login failed: denied");
   });
 });
 
-describe("startClaudeSetupToken", () => {
-  it("runs `claude setup-token` one-shot in a wide PTY with the given env", () => {
+describe("startClaudeLogin", () => {
+  it("runs `claude auth login` one-shot in a wide PTY with the given env", () => {
     const pty = fakePty();
     start(pty);
-    assert.equal(pty.opts?.command, "claude setup-token");
+    assert.equal(pty.opts?.command, "claude auth login --claudeai");
     assert.equal(pty.opts?.exitAfterCommand, true);
     assert.ok((pty.opts?.cols ?? 0) >= 500);
     assert.deepEqual(pty.opts?.env, { PATH: "/bin" });
   });
 
-  it("reports the URL once, then resolves with the token and kills the PTY", async () => {
+  it("reports the URL once, then succeeds when the CLI exits 0", async () => {
     const pty = fakePty();
     const urls: string[] = [];
     const flow = start(pty, (u) => urls.push(u));
     pty.emit(`${URL}\r\n`);
     pty.emit("Paste code here if prompted > ");
     pty.emit(`${URL}\r\n`);
-    pty.emit(`\r\nYour OAuth token (valid for 1 year):\r\n\r\n${TOKEN}\r\n`);
-    assert.equal(await flow.result, TOKEN);
+    pty.emit("Login successful.\r\n");
+    pty.exit(0);
+    assert.equal(await flow.result, "");
     assert.deepEqual(urls, [URL]);
     assert.equal(pty.killed, true);
   });
@@ -92,7 +86,7 @@ describe("startClaudeSetupToken", () => {
     flow.cancel();
   });
 
-  it("rejects with the CLI's reason when it exits without a token", async () => {
+  it("rejects with the CLI's reason when it exits non-zero", async () => {
     const pty = fakePty();
     const flow = start(pty);
     pty.emit("zsh: command not found: claude\r\n");
@@ -106,5 +100,20 @@ describe("startClaudeSetupToken", () => {
     flow.cancel();
     await assert.rejects(flow.result, /cancelled/);
     assert.equal(pty.killed, true);
+  });
+});
+
+describe("createClaudeSubscription", () => {
+  it("a sign-in retires the legacy token; a sign-out clears the store and the token", () => {
+    const calls: string[] = [];
+    const sub = createClaudeSubscription({
+      spawnPty: fakePty().spawnPty, cwd: "/home", env: {},
+      clearLegacyToken: () => calls.push("token"),
+      clearLogin: () => calls.push("store"),
+    });
+    sub.saveCredential("");
+    assert.deepEqual(calls, ["token"]);
+    sub.signOut();
+    assert.deepEqual(calls, ["token", "store", "token"]);
   });
 });

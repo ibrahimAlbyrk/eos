@@ -12,7 +12,6 @@ function deps(over: Partial<AccountsServiceDeps> & { anthropic?: { apiKey?: stri
   const d: AccountsServiceDeps = {
     getConfig: () => ({ anthropic: over.anthropic ?? {}, backends: over.backends ?? {} }),
     readClaudeLogin: () => ({ present: false, token: null }),
-    envToken: () => null,
     probe: async () => { probes++; return "valid"; },
     presets: [preset("openai", "OpenAI"), preset("xai", "xAI Grok")],
     supportsSignIn: (p) => p === "anthropic",
@@ -42,15 +41,12 @@ describe("AccountsService — Claude", () => {
     assert.equal(a.subscription?.state, "signed_in");
   });
 
-  it("falls back to the Claude Code login, with its plan", async () => {
-    const a = await claude(deps({ readClaudeLogin: () => ({ present: true, token: null, plan: "max" }) }).d);
-    assert.deepEqual(a.subscription, { supported: true, state: "signed_in", source: "claude-code", plan: "max" });
+  it("an Eos-store login is signed in, with its plan — before a legacy token", async () => {
+    const t = deps({ anthropic: { authToken: "oat" }, readClaudeLogin: () => ({ present: true, token: null, plan: "max" }) });
+    const a = await claude(t.d);
+    assert.deepEqual(a.subscription, { supported: true, state: "signed_in", source: "eos", plan: "max" });
     assert.equal(a.route, "subscription");
-  });
-
-  it("then to the daemon's env token", async () => {
-    const a = await claude(deps({ envToken: () => "oat-env" }).d);
-    assert.equal(a.subscription?.source, "env");
+    assert.equal(t.probes, 0);
   });
 
   it("signed out: the key when set, else nothing", async () => {
@@ -76,10 +72,10 @@ describe("AccountsService — presets", () => {
     const t = deps({
       backends,
       supportsSignIn: () => true,
-      presetLogin: (p) => (p === "openai" ? { present: true, plan: "pro", source: "codex" } : null),
+      presetLogin: (p) => (p === "openai" ? { present: true, plan: "pro", source: "eos" } : null),
     });
     const [, openai] = await new AccountsService(t.d).list();
-    assert.deepEqual(openai.subscription, { supported: true, state: "signed_in", source: "codex", plan: "pro" });
+    assert.deepEqual(openai.subscription, { supported: true, state: "signed_in", source: "eos", plan: "pro" });
     assert.equal(openai.route, "subscription");
     assert.deepEqual(openai.apiKey, { set: true });
   });

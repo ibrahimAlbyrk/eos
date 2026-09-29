@@ -1,6 +1,6 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { createSubscriptionAuthResolver } from "../auth/SubscriptionAuthResolver.ts";
+import { claudeStoreService, createSubscriptionAuthResolver } from "../auth/SubscriptionAuthResolver.ts";
 
 describe("SubscriptionAuthResolver", () => {
   const saved: Record<string, string | undefined> = {};
@@ -17,32 +17,23 @@ describe("SubscriptionAuthResolver", () => {
     for (const k of Object.keys(saved)) delete saved[k];
   });
 
-  it("subscription -> live store token wins over the env fast-path", async () => {
-    setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-env-stale");
+  it("subscription -> an Eos-store login resolves oauth without exporting its token", async () => {
     const readLogin = () => ({ present: true, token: "sk-ant-oat01-store-fresh" });
-    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
-    assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-store-fresh" });
-  });
-
-  it("subscription -> falls back to CLAUDE_CODE_OAUTH_TOKEN when the store is empty", async () => {
-    setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-deterministic");
-    const readLogin = () => ({ present: false, token: null });
-    const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
-    assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-deterministic" });
-  });
-
-  it("subscription -> a lapsed store login still resolves oauth, without a token", async () => {
-    setEnv("CLAUDE_CODE_OAUTH_TOKEN", undefined);
-    const readLogin = () => ({ present: true, token: null });
     const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
     assert.deepEqual(r, { scheme: "oauth" });
   });
 
-  it("subscription -> none with no login and no env token", async () => {
-    setEnv("CLAUDE_CODE_OAUTH_TOKEN", undefined);
+  it("subscription -> none without an Eos login, even with CLAUDE_CODE_OAUTH_TOKEN set", async () => {
+    setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-outside-eos");
     const readLogin = () => ({ present: false, token: null });
     const r = await createSubscriptionAuthResolver({ readLogin }).resolve(undefined);
     assert.deepEqual(r, { scheme: "none" });
+  });
+
+  it("claudeStoreService — the default item, or one suffixed by the store dir's hash", () => {
+    assert.equal(claudeStoreService(), "Claude Code-credentials");
+    assert.match(claudeStoreService("/Users/x/.eos/accounts/claude"), /^Claude Code-credentials-[0-9a-f]{8}$/);
+    assert.notEqual(claudeStoreService("/a"), claudeStoreService("/b"));
   });
 
   it("env -> apikey from the referenced env var", async () => {

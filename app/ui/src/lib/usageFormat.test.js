@@ -73,8 +73,7 @@ describe("friendlyUsageError", () => {
     const raw =
       'usage fetch failed (HTTP 403): {"type":"error","error":{"type":"permission_error","message":"OAuth token does not meet scope requirement user:profile"}}';
     const msg = friendlyUsageError(raw);
-    expect(msg).toMatch(/user:profile/);
-    expect(msg).toMatch(/claude \/login/);
+    expect(msg).toMatch(/sign in again/);
     expect(msg).not.toMatch(/[{}]/); // never leaks the JSON body
   });
 

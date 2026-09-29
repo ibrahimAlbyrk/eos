@@ -17,12 +17,9 @@ export const AccountSubscriptionSchema = z.object({
   // false: the provider sells a plan but Eos has no lane that can run on it yet.
   supported: z.boolean(),
   state: SubscriptionStateSchema,
-  // eos = signed in through Eos; claude-code = the Claude Code login on this
-  // machine; codex = the Codex login on this machine (~/.codex, which Eos's own
-  // ChatGPT sign-in also writes); gemini-cli = the Gemini CLI's Google login
-  // (~/.gemini, which Eos's own Google sign-in also writes); env =
-  // CLAUDE_CODE_OAUTH_TOKEN in the daemon's env.
-  source: z.enum(["eos", "claude-code", "codex", "gemini-cli", "env"]).optional(),
+  // eos = signed in through Eos — the only sign-in Eos counts; a CLI login
+  // elsewhere on this Mac is ignored.
+  source: z.enum(["eos"]).optional(),
   plan: z.string().optional(),
 });
 export type AccountSubscription = z.infer<typeof AccountSubscriptionSchema>;

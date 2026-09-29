@@ -25,14 +25,6 @@ export function planName(plan) {
   return `${PLAN_NAMES[plan] ?? `${plan[0].toUpperCase()}${plan.slice(1)}`} plan`;
 }
 
-// Where a live sign-in came from, in words.
-export function signInSource(sub) {
-  if (sub?.source === "claude-code") return "Using your Claude Code login";
-  if (sub?.source === "codex") return "Shared with Codex on this Mac";
-  if (sub?.source === "gemini-cli") return "Shared with Gemini CLI on this Mac";
-  if (sub?.source === "env") return "From CLAUDE_CODE_OAUTH_TOKEN";
-  return "Signed in through Eos";
-}
 
 export function keyHint(account) {
   return account.apiKey.hint ? `••••${account.apiKey.hint}` : "Key saved";

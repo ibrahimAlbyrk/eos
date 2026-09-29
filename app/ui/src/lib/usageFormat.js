@@ -7,14 +7,14 @@
 export const WARN_THRESHOLD = 80; // ≥ this utilization tints the bar with the warn color
 
 // Map a raw provider error reason (GET /api/usage errors[].reason) to a short,
-// human message for the Usage pane. The scope failure is the common one: an Eos
-// sign-in (Settings › Accounts — a setup-token) runs agents but lacks the
-// `user:profile` scope the usage endpoint requires, so usage needs the Claude Code
-// login token (Keychain) — a login via `claude /login`. Every other reason collapses to a one-liner; the
-// raw reason can carry a JSON error body, which is never shown to the user.
+// human message for the Usage pane. The scope failure means an older Eos sign-in
+// (a setup-token) that runs agents but lacks the `user:profile` scope the usage
+// endpoint requires; signing in again stores a full login. Every other reason
+// collapses to a one-liner; the raw reason can carry a JSON error body, which is
+// never shown to the user.
 export function friendlyUsageError(reason) {
   if (reason && /user:profile|scope requirement|permission_error/i.test(reason)) {
-    return "Your Claude sign-in runs agents but can't read plan usage (it lacks the user:profile scope). Sign in to Claude Code too (run `claude /login`) to see usage here.";
+    return "Your Claude sign-in runs agents but can't read plan usage. Sign out and sign in again in Settings › Accounts to see usage here.";
   }
   return "Couldn’t load usage right now. Please try again in a moment.";
 }

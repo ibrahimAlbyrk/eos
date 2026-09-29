@@ -94,6 +94,8 @@ export interface ClaudeSdkBackendDeps {
    *  authToken (OAuth) wins over apiKey; injected into the child env by
    *  buildBillingGuardEnv. Omitted (tests/spikes) ⇒ no config-provided creds. */
   getAnthropicConfig?: () => { apiKey?: string; authToken?: string };
+  /** Eos's claude credential store (see buildBillingGuardEnv). */
+  claudeStore?: string;
   /** Build the per-spec ToolContext (identity bound from the spec, never
    *  process.env) — supplies the loopback `api` + cwd + git probe. */
   makeToolContext(spec: AgentLaunchSpec): ToolContext;
@@ -395,7 +397,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const anthropic = deps.getAnthropicConfig?.() ?? {};
       const env = buildBillingGuardEnv({
         auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl,
-        disableAutoCompact: deps.disableAutoCompact?.() ?? false,
+        disableAutoCompact: deps.disableAutoCompact?.() ?? false, claudeStore: deps.claudeStore,
       });
       const ctx = deps.makeToolContext(spec);
       // MCP servers are built PER LAUNCH, never shared across queries: the Eos

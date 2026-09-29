@@ -11,6 +11,7 @@
 import type { ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
 import { buildSubscriptionChildEnv } from "../../../core/src/domain/env-allowlist.ts";
 import { resolveBillingRoute } from "../../../core/src/domain/billing-route.ts";
+import { CLAUDE_STORE_ENV } from "../../../infra/src/auth/SubscriptionAuthResolver.ts";
 
 export interface BillingGuardInput {
   readonly auth: ResolvedAuth;
@@ -24,6 +25,9 @@ export interface BillingGuardInput {
    *  (DISABLE_AUTO_COMPACT also covers its prompt-too-long retry), so the only
    *  compaction is the visible one. Manual native /compact stays available. */
   readonly disableAutoCompact?: boolean;
+  /** Eos's claude credential store: the only login the child may read, so a
+   *  Claude Code login elsewhere on the Mac never bills. */
+  readonly claudeStore?: string;
 }
 
 // The ONE credential env var the SDK child gets, per the Accounts rule
@@ -60,6 +64,7 @@ export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, s
     ...buildSubscriptionChildEnv(process.env),
     // Spread AFTER the strip so an operator-set apiKey survives it.
     ...anthropicCredentialEnv(input.anthropic ?? {}, input.auth),
+    ...(input.claudeStore ? { [CLAUDE_STORE_ENV]: input.claudeStore } : {}),
     ENABLE_TOOL_SEARCH: "false",
     ...(input.disableAutoCompact ? { DISABLE_AUTO_COMPACT: "1" } : {}),
     EOS_SPAWNED: "1",

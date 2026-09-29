@@ -10,7 +10,7 @@ import {
 import { ProviderGlyph } from "./ProviderGlyph.jsx";
 import { SignInHelp } from "./SignInHelp.jsx";
 import { ApiKeyField } from "./ApiKeyField.jsx";
-import { metaFor, planName, signInSource, keyHint } from "./providerMeta.js";
+import { metaFor, planName, keyHint } from "./providerMeta.js";
 import { ExternalIcon, Spinner } from "./icons.jsx";
 
 const STATUS_TEXT = { subscription: "Connected", api_key: "Using an API key", blocked: "Sign-in expired", none: "Not connected" };
@@ -109,16 +109,14 @@ export function AccountCard({ account }) {
   } else if (account.route === "subscription") {
     body = (
       <>
-        <Lead title={planName(sub.plan) ?? "Subscription"} sub={signInSource(sub)} />
+        <Lead title={planName(sub.plan) ?? "Subscription"} sub="Signed in through Eos" />
         <BillingRoute account={account} onAddKey={() => setEditingKey(true)} />
       </>
     );
     foot = (
       <div className="acc-card__billing">
         <span className="is-ok">Subscription</span>
-        {sub.source === "eos" || sub.source === "codex" || sub.source === "gemini-cli"
-          ? <button type="button" className="acc-link" onClick={() => run(() => signOut(account.id))} disabled={busy}>Sign out</button>
-          : <span className="acc-muted">Managed outside Eos</span>}
+        <button type="button" className="acc-link" onClick={() => run(() => signOut(account.id))} disabled={busy}>Sign out</button>
       </div>
     );
   } else if (account.route === "blocked") {

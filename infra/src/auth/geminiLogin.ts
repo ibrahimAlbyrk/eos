@@ -1,8 +1,8 @@
-// The Gemini CLI's Google sign-in on this machine: the OAuth credentials it keeps
-// in ~/.gemini/oauth_creds.json, with "Log in with Google" as its selected auth
-// method in ~/.gemini/settings.json. Shared with the Gemini CLI itself, and
-// written by Eos's "Sign in with Google", which drives that same CLI. Read live on
-// every call, never cached, never logged.
+// A Gemini CLI Google sign-in: the OAuth credentials the CLI keeps in
+// <home>/oauth_creds.json, with "Log in with Google" as its selected auth method in
+// <home>/settings.json. Eos runs the CLI with its own GEMINI_CLI_HOME, so it reads
+// only the login its "Sign in with Google" wrote, never the user's ~/.gemini. Read
+// live on every call, never cached, never logged.
 
 import { readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
@@ -21,8 +21,9 @@ const NO_LOGIN: GeminiLogin = { present: false };
 // matched rather than parsed. `selectedAuthType` is the pre-v2 settings key.
 const SELECTED_AUTH_RE = /"(?:selectedType|selectedAuthType)"\s*:\s*"([^"]*)"/;
 
-export function geminiHome(): string {
-  return join(homedir(), ".gemini");
+/** The CLI's dir under `cliHome` — what it gets as GEMINI_CLI_HOME, else the user's home. */
+export function geminiHome(cliHome: string = homedir()): string {
+  return join(cliHome, ".gemini");
 }
 
 // Credentials alone aren't enough: the CLI's sessions run on the SELECTED method,
@@ -39,8 +40,7 @@ export function readGeminiLogin(home: string = geminiHome()): GeminiLogin {
 }
 
 // Signing out removes the cached Google credentials, as the Gemini CLI's own
-// logout does. They're shared, so the CLI is signed out too; its next start
-// offers Google sign-in again.
+// logout does.
 export function clearGeminiLogin(home: string = geminiHome()): void {
   rmSync(join(home, "oauth_creds.json"), { force: true });
 }

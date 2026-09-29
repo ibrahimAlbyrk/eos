@@ -30,6 +30,12 @@ describe("buildBillingGuardEnv — SDK child billing guard", () => {
     assert.equal(buildBillingGuardEnv(base).DISABLE_AUTO_COMPACT, undefined);
   });
 
+  it("points the child at the Eos credential store, signed in or not", () => {
+    const base = { workerId: "w", daemonUrl: "http://x", claudeStore: "/eos/accounts/claude" };
+    assert.equal(buildBillingGuardEnv({ ...base, auth: { scheme: "oauth" } }).CLAUDE_SECURESTORAGE_CONFIG_DIR, "/eos/accounts/claude");
+    assert.equal(buildBillingGuardEnv({ ...base, auth: { scheme: "none" } }).CLAUDE_SECURESTORAGE_CONFIG_DIR, "/eos/accounts/claude");
+  });
+
   it("injects no token when the auth scheme is not oauth", () => {
     const env = buildBillingGuardEnv({ auth: { scheme: "none" }, workerId: "w-2", daemonUrl: "http://x" });
     assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, undefined);

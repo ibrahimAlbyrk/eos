@@ -1,12 +1,13 @@
 // AccountsService — the read side of Settings › Accounts: one redacted
-// AccountStatus per provider. Claude comes first (its subscription resolved from
-// Eos's own sign-in, then the Claude Code login on this Mac, then the daemon's
-// env token), followed by every provider preset, whose API key lives in the
-// Keychain behind a config.backends profile. The route each account bills is the
-// Accounts rule (core/domain/billing-route) — never recomputed here.
+// AccountStatus per provider. Claude comes first, followed by every provider
+// preset, whose API key lives in the Keychain behind a config.backends profile.
+// Only sign-ins made through Eos count — a Claude Code, Codex or Gemini CLI login
+// elsewhere on this Mac is ignored, since Eos neither bills nor reads usage from
+// it. The route each account bills is the Accounts rule (core/domain/billing-route)
+// — never recomputed here.
 //
-// An Eos sign-in is checked against the API (cached) so a revoked or expired
-// token shows as "expired" and blocks, rather than failing inside a session.
+// A legacy Eos setup-token is checked against the API (cached) so a revoked or
+// expired token shows as "expired" and blocks, rather than failing inside a session.
 
 import type { AccountStatus, AccountSubscription } from "../../../contracts/src/accounts.ts";
 import type { BackendProfile } from "../../../contracts/src/backend.ts";
@@ -23,8 +24,8 @@ const PROBE_TTL_MS = 10 * 60_000;
 
 export interface AccountsServiceDeps {
   getConfig(): { anthropic: { apiKey?: string; authToken?: string }; backends: Record<string, BackendProfile> };
+  /** The Claude login in Eos's own credential store. */
   readClaudeLogin(): ClaudeCodeLogin;
-  envToken(): string | null;
   probe(token: string): Promise<TokenProbeResult>;
   presets: readonly ProviderPreset[];
   supportsSignIn(provider: string): boolean;
@@ -58,14 +59,14 @@ export class AccountsService {
     const supported = this.deps.supportsSignIn("anthropic");
 
     let subscription: AccountSubscription;
-    if (token) {
+    const login = this.deps.readClaudeLogin();
+    if (login.present) {
+      subscription = { supported, state: "signed_in", source: "eos", ...(login.plan ? { plan: login.plan } : {}) };
+    } else if (token) {
       const probe = await this.probeCached(token);
       subscription = { supported, state: probe === "rejected" ? "expired" : "signed_in", source: "eos" };
     } else {
-      const login = this.deps.readClaudeLogin();
-      if (login.present) subscription = { supported, state: "signed_in", source: "claude-code", ...(login.plan ? { plan: login.plan } : {}) };
-      else if (this.deps.envToken()) subscription = { supported, state: "signed_in", source: "env" };
-      else subscription = { supported, state: "signed_out" };
+      subscription = { supported, state: "signed_out" };
     }
 
     return {

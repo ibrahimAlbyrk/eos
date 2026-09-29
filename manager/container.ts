@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { delimiter, dirname, join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
-import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
+import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync, mkdirSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
@@ -33,7 +33,7 @@ import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBacke
 import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
-import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates, readClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver, readClaudeCodeLogin, clearClaudeLogin, refreshClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { probeClaudeToken } from "../infra/src/auth/claudeTokenProbe.ts";
 import { AccountsService } from "./services/accounts/AccountsService.ts";
 import { SignInService } from "./services/accounts/SignInService.ts";
@@ -45,7 +45,7 @@ import { openAppServer } from "./backends/codex/AppServerClient.ts";
 import { createCodexBackend } from "./backends/codex/CodexBackend.ts";
 import { createCodexUsageProvider } from "./backends/codex/CodexUsageProvider.ts";
 import { createGeminiSubscription } from "./services/accounts/geminiSubscription.ts";
-import { readGeminiLogin, clearGeminiLogin } from "../infra/src/auth/geminiLogin.ts";
+import { readGeminiLogin, clearGeminiLogin, geminiHome } from "../infra/src/auth/geminiLogin.ts";
 import { resolveCliBinary } from "./backends/cliBinary.ts";
 import { openAcpAgent } from "./backends/gemini/AcpClient.ts";
 import { createGeminiBackend } from "./backends/gemini/GeminiBackend.ts";
@@ -70,7 +70,7 @@ import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
-import { spawnSync, execFile } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
@@ -530,9 +530,32 @@ export function buildContainer() {
   const backgroundActivity = new BackgroundActivityService(systemClock);
   const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock, config.collaborate.awaitTimeoutMs);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
+  // Only sign-ins made through Eos count (Settings › Accounts): each CLI Eos runs
+  // keeps its login under ~/.eos/accounts, never the one a Claude Code / Codex /
+  // Gemini CLI install on this Mac uses. Every claude child Eos runs (agents,
+  // summarizer, Code-view panes, sign-in) gets the Eos store; a plain terminal
+  // pane stays the user's own shell.
+  const accountsDir = join(config.daemon.home, "accounts");
+  const claudeStoreDir = join(accountsDir, "claude");
+  const codexHomeDir = join(accountsDir, "codex");
+  const geminiCliHome = join(accountsDir, "gemini");
+  for (const dir of [claudeStoreDir, codexHomeDir, geminiCliHome]) mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const readEosClaudeLogin = (): ClaudeCodeLogin => readClaudeCodeLogin(claudeStoreDir);
+  const claudeBinary = resolveCliBinary({ name: "claude", overrideVar: "EOS_CLAUDE_BIN" });
+
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
   // daemon project root; a create request may override it.
-  const ptySessions = new PtySessionService({ bus, defaultCwd: config.paths.repoRoot });
+  // A Code-view Claude reads the Eos store; a legacy Eos setup-token (kept in
+  // config) is handed over while that store has no login.
+  const ptySessions = new PtySessionService({
+    bus,
+    defaultCwd: config.paths.repoRoot,
+    claudeEnv: () => {
+      const env = { ...process.env, [CLAUDE_STORE_ENV]: claudeStoreDir };
+      const token = config.anthropic?.authToken?.trim();
+      return token && !readEosClaudeLogin().present ? { ...env, CLAUDE_CODE_OAUTH_TOKEN: token } : env;
+    },
+  });
   const ptyConversations = new PtyConversationService({ bus, sessions: ptySessions });
   // Browser panel subsystem — ONE persistent Chrome PER SESSION (parent-chain
   // root worker) over CDP, opt-in via config.browser.enabled (routes/service
@@ -765,7 +788,7 @@ export function buildContainer() {
   // Credential resolver — defined here (before the in-process backends) because the
   // async in-process env factory resolves provider creds BY REFERENCE at start().
   // Shared with the claude lane below.
-  const authResolver = createSubscriptionAuthResolver();
+  const authResolver = createSubscriptionAuthResolver({ readLogin: readEosClaudeLogin });
 
   // The Codex CLI (the user's own install) backs both Sign in with ChatGPT and the
   // codex-cli lane. Its app-server never sees an OpenAI API key, so a signed-in
@@ -773,7 +796,7 @@ export function buildContainer() {
   const codexBinary = resolveCodexBinary();
   const codexEnv = (): Record<string, string | undefined> => {
     const { OPENAI_API_KEY: _apiKey, CODEX_API_KEY: _codexKey, ...env } = process.env;
-    return env;
+    return { ...env, CODEX_HOME: codexHomeDir };
   };
   // Likewise the Gemini CLI backs Sign in with Google and the gemini-cli lane,
   // never seeing a Gemini API key. Its launcher is a `#!/usr/bin/env node` script,
@@ -781,53 +804,58 @@ export function buildContainer() {
   // daemon may run with a launchd-minimal one.
   const geminiBinary = resolveCliBinary({ name: "gemini", overrideVar: "EOS_GEMINI_BIN" });
   const geminiEnv = (): Record<string, string | undefined> => {
-    const { GEMINI_API_KEY: _geminiKey, GOOGLE_API_KEY: _googleKey, ...env } = process.env;
+    const { GEMINI_API_KEY: _geminiKey, GOOGLE_API_KEY: _googleKey, ...rest } = process.env;
+    const env: Record<string, string | undefined> = { ...rest, GEMINI_CLI_HOME: geminiCliHome };
     return geminiBinary ? { ...env, PATH: [dirname(geminiBinary), env.PATH].filter(Boolean).join(delimiter) } : env;
   };
+  const geminiDir = geminiHome(geminiCliHome);
 
-  // Subscription usage (Settings > Usage). Token resolution mirrors the billing
-  // chain: an operator-set config.anthropic.authToken override wins, else the
-  // ambient subscription token (Keychain → CLAUDE_CODE_OAUTH_TOKEN) via the same
-  // resolver. Read live off `config` so a Settings write is picked up without a
-  // restart. The UsageService owns the cache + 180s upstream floor.
+  // Subscription usage (Settings > Usage), from the Eos sign-ins only. Read live
+  // off `config` so a Settings write is picked up without a restart. The
+  // UsageService owns the cache + 180s upstream floor.
   const usage = new UsageService({
     providers: [
       createClaudeUsageProvider({
-        // Ordered candidates: operator-set config override first, then the ambient
-        // subscription tokens (Keychain → env). The adapter walks them and skips a
-        // source whose token lacks the usage scope (403) for the next — so a
-        // scope-broken config token no longer blocks the working Keychain login.
-        getTokens: () => {
-          const override = config.anthropic?.authToken?.trim();
+        // The Eos login's token — renewed first when it lapsed while no session
+        // ran — then a legacy setup-token, which the endpoint rejects for scope
+        // (the UI turns that into "sign in again").
+        getTokens: async () => {
+          let login = readEosClaudeLogin();
+          if (login.present && !login.token && claudeBinary) {
+            await refreshClaudeLogin(claudeStoreDir, claudeBinary)
+              .catch((e) => log.warn("claude login refresh failed", { error: errMsg(e) }));
+            login = readEosClaudeLogin();
+          }
+          const legacy = config.anthropic?.authToken?.trim();
           return [
-            ...(override ? [{ source: "config", token: override }] : []),
-            ...readSubscriptionTokenCandidates(),
+            ...(login.token ? [{ source: "eos", token: login.token }] : []),
+            ...(legacy ? [{ source: "config", token: legacy }] : []),
           ];
         },
         plan: () => {
-          const plan = readClaudeCodeLogin().plan;
+          const plan = readEosClaudeLogin().plan;
           return plan ? `${plan[0].toUpperCase()}${plan.slice(1)}` : undefined;
         },
       }),
       // ChatGPT plan limits, read through the Codex app-server while signed in.
-      createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin().present, open: openAppServer }),
+      createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin(codexEnv()).present, open: openAppServer }),
     ],
     clock: systemClock,
   });
 
-  // Settings › Accounts. Sign in with Claude runs the official `claude setup-token`
+  // Settings › Accounts. Sign in with Claude runs the official `claude auth login`
   // (a one-shot PTY with the billing-stripped env, so no ambient key or nested-
-  // session marker reaches it) and stores its token as config.anthropic.authToken.
-  // Sign in with ChatGPT is the Codex app-server's own login (it writes ~/.codex);
-  // Sign in with Google is the Gemini CLI's (it writes ~/.gemini).
-  const planLogins: Record<string, () => { present: boolean; plan?: string; source: "codex" | "gemini-cli" }> = {
-    openai: () => ({ ...readCodexLogin(), source: "codex" }),
-    gemini: () => ({ ...readGeminiLogin(), source: "gemini-cli" }),
+  // session marker reaches it) into the Eos store; CLAUDE_CONFIG_DIR keeps its
+  // account bookkeeping out of the user's ~/.claude.json. Sign in with ChatGPT is
+  // the Codex app-server's own login, Sign in with Google the Gemini CLI's — each
+  // under its Eos home (codexEnv / geminiEnv).
+  const planLogins: Record<string, () => { present: boolean; plan?: string; source: "eos" }> = {
+    openai: () => ({ ...readCodexLogin(codexEnv()), source: "eos" }),
+    gemini: () => ({ ...readGeminiLogin(geminiDir), source: "eos" }),
   };
   const accounts = new AccountsService({
     getConfig: () => config,
-    readClaudeLogin: readClaudeCodeLogin,
-    envToken: () => process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() || null,
+    readClaudeLogin: readEosClaudeLogin,
     probe: (token) => probeClaudeToken(token),
     presets: PROVIDER_PRESETS,
     supportsSignIn: (provider) => signIns.supports(provider),
@@ -838,22 +866,22 @@ export function buildContainer() {
       createClaudeSubscription({
         spawnPty: spawnPtyHost,
         cwd: homedir(),
-        env: buildSubscriptionChildEnv(process.env),
-        patchConfig: (patch) => {
-          patchAnthropicConfig(config.daemon.home, patch);
+        env: { ...buildSubscriptionChildEnv(process.env), [CLAUDE_STORE_ENV]: claudeStoreDir, CLAUDE_CONFIG_DIR: claudeStoreDir },
+        clearLegacyToken: () => {
+          patchAnthropicConfig(config.daemon.home, { authToken: "" });
           config = reloadConfigFromDisk();
         },
+        clearLogin: () => clearClaudeLogin(claudeStoreDir),
       }),
       ...(codexBinary
         ? [createCodexSubscription({
             binary: codexBinary,
             env: codexEnv,
             open: openAppServer,
-            openBrowser: (url) => { execFile(process.platform === "darwin" ? "open" : "xdg-open", [url], () => {}); },
           })]
         : []),
       ...(geminiBinary
-        ? [createGeminiSubscription({ binary: geminiBinary, env: geminiEnv, open: openAcpAgent, clearLogin: () => clearGeminiLogin() })]
+        ? [createGeminiSubscription({ binary: geminiBinary, env: geminiEnv, open: openAcpAgent, clearLogin: () => clearGeminiLogin(geminiDir) })]
         : []),
     ],
     newId: () => randomBytes(8).toString("hex"),
@@ -1122,6 +1150,7 @@ export function buildContainer() {
     // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
     // save is picked up on the next spawn without restarting the daemon.
     getAnthropicConfig: () => config.anthropic,
+    claudeStore: claudeStoreDir,
     makeToolContext,
     resolveSdkMcpServers,
     // Looked up per launch, so a project edit reaches the next spawn/resume/clear.
@@ -1202,6 +1231,7 @@ export function buildContainer() {
     toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
+    claudeStore: claudeStoreDir,
     makeToolContext,
     // assembleAppendPrompt OMITTED → boots with only the stock claude_code preset.
     log,
@@ -1281,6 +1311,7 @@ export function buildContainer() {
     authResolver,
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
+    claudeStore: claudeStoreDir,
     defaultModel: "sonnet",
     cwd: config.paths.repoRoot,
   });

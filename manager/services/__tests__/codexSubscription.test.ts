@@ -1,64 +1,83 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { createCodexSubscription, startCodexSignIn, type CodexSubscriptionDeps } from "../accounts/codexSubscription.ts";
 import { fakeAppServer } from "../../backends/codex/__tests__/fakeAppServer.ts";
 
-const tick = () => new Promise((r) => setTimeout(r, 5));
+const URL = "https://auth.openai.com/oauth/authorize?response_type=code&client_id=x&state=y";
+
+function fakeCli() {
+  const child = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
+    exitCode: null as number | null,
+    killed: false,
+    kill() { this.killed = true; return true; },
+  });
+  const spawned: Array<{ cmd: string; args: string[]; env: Record<string, string | undefined> }> = [];
+  return {
+    child,
+    spawned,
+    spawnFn: (cmd: string, args: string[], o: { env: Record<string, string | undefined> }) => {
+      spawned.push({ cmd, args, env: o.env });
+      return child as unknown as ChildProcessWithoutNullStreams;
+    },
+    exit(code: number) { child.exitCode = code; child.emit("exit", code); },
+  };
+}
 
 function setup(over: Partial<CodexSubscriptionDeps> = {}) {
-  const server = fakeAppServer({ "account/login/start": () => ({ type: "chatgpt", loginId: "L1", authUrl: "https://auth.openai.com/x" }) });
-  const opened: string[] = [];
+  const cli = fakeCli();
+  const server = fakeAppServer({});
   const deps: CodexSubscriptionDeps = {
     binary: "/bin/codex",
-    env: () => ({}),
+    env: () => ({ CODEX_HOME: "/eos/accounts/codex" }),
     open: async () => server,
-    openBrowser: (url) => opened.push(url),
+    spawnFn: cli.spawnFn,
     ...over,
   };
-  return { server, opened, deps };
+  return { cli, server, deps };
 }
 
 describe("Sign in with ChatGPT (Codex)", () => {
-  it("opens the sign-in page, reports it, and resolves when Codex says the login completed", async () => {
+  it("runs `codex login` with the Eos env, reports the URL once, and succeeds on exit 0", async () => {
     const t = setup();
     const urls: string[] = [];
     const flow = startCodexSignIn(t.deps, { onUrl: (u) => urls.push(u) });
-    await tick();
-    assert.deepEqual(t.server.requests.map((r) => [r.method, r.params]), [["account/login/start", { type: "chatgpt" }]]);
-    assert.deepEqual(urls, ["https://auth.openai.com/x"]);
-    assert.deepEqual(t.opened, ["https://auth.openai.com/x"]);
-    t.server.emit("account/login/completed", { loginId: "L1", success: true, error: null });
+    assert.deepEqual(t.cli.spawned, [{ cmd: "/bin/codex", args: ["login"], env: { CODEX_HOME: "/eos/accounts/codex" } }]);
+    t.cli.child.stdout.write("Starting local login server on http://localhost:1455.\n");
+    t.cli.child.stdout.write(`${URL}\n\n`);
+    t.cli.child.stderr.write(`${URL}\n`);
+    t.cli.child.stdout.write("Successfully logged in\n");
+    await new Promise((r) => setImmediate(r));
+    t.cli.exit(0);
     assert.equal(await flow.result, "");
-    assert.equal(t.server.closed, true);
+    assert.deepEqual(urls, [URL]);
   });
 
-  it("ignores another login's completion; fails with Codex's error", async () => {
+  it("fails with the CLI's last line when it exits non-zero", async () => {
     const t = setup();
     const flow = startCodexSignIn(t.deps, { onUrl: () => {} });
-    await tick();
-    t.server.emit("account/login/completed", { loginId: "OTHER", success: true });
-    t.server.emit("account/login/completed", { loginId: "L1", success: false, error: "access denied" });
-    await assert.rejects(flow.result, /access denied/);
+    t.cli.child.stderr.write("Error logging in: access denied\n");
+    await new Promise((r) => setImmediate(r));
+    t.cli.exit(1);
+    await assert.rejects(flow.result, /Sign-in ended: Error logging in: access denied/);
   });
 
-  it("cancel cancels the login on the server", async () => {
+  it("cancel kills the CLI (and its callback server)", async () => {
     const t = setup();
     const flow = startCodexSignIn(t.deps, { onUrl: () => {} });
-    await tick();
     flow.cancel();
     await assert.rejects(flow.result, /cancelled/);
-    assert.deepEqual(t.server.requests.at(-1), { method: "account/login/cancel", params: { loginId: "L1" } });
+    assert.equal(t.cli.child.killed, true);
   });
 
-  it("fails clearly when Codex isn't installed, or dies mid-login", async () => {
-    const none = startCodexSignIn(setup({ binary: null }).deps, { onUrl: () => {} });
-    await assert.rejects(none.result, /isn't installed/);
-
-    const t = setup();
+  it("fails clearly when Codex isn't installed", async () => {
+    const t = setup({ binary: null });
     const flow = startCodexSignIn(t.deps, { onUrl: () => {} });
-    await tick();
-    t.server.crash(1);
-    await assert.rejects(flow.result, /stopped/);
+    await assert.rejects(flow.result, /isn't installed/);
+    assert.deepEqual(t.cli.spawned, []);
   });
 
   it("takes no pasted code; signing out logs Codex out", async () => {

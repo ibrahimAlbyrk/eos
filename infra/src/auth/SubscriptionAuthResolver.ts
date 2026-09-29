@@ -1,25 +1,29 @@
-// AuthResolver adapter. subscription -> the Claude Max/Pro OAuth token;
+// AuthResolver adapter. subscription -> the Eos Claude sign-in (Claude Max/Pro);
 // env/keychain -> a provider API key. Lazy at launch, never persisted, never
-// logged. The token is read here (Node: Keychain / filesystem / process.env), so
-// core stays free of those concerns.
+// logged. The login is read here (Node: Keychain / filesystem), so core stays free
+// of those concerns.
 
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { execFile, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { AuthResolver, ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
+import { buildSubscriptionChildEnv } from "../../../core/src/domain/env-allowlist.ts";
 
 const NONE: ResolvedAuth = { scheme: "none" };
 
-type TokenReader = () => string | null;
+// Points the claude binary's credential store (and only that — settings, skills and
+// transcripts stay in ~/.claude) at another dir. Eos sets it to its own dir so
+// every claude it runs sees only the Eos sign-in, never the Mac's Claude Code login.
+export const CLAUDE_STORE_ENV = "CLAUDE_SECURESTORAGE_CONFIG_DIR";
 
-// The Claude Code login on this machine (macOS Keychain "Claude Code-credentials" /
-// ~/.claude/.credentials.json), read live on every resolve so a login switched after
-// daemon launch is picked up without a restart. `present` is any claude.ai login —
-// even one whose access token lapsed, since the claude binary refreshes that itself.
-// `token` is the access token only while it is still valid, so a valid env token
-// can shadow an expired store token.
+// A Claude Code login store (macOS Keychain / <dir>/.credentials.json), read live on
+// every call so a sign-in or refresh is picked up without a restart. `present` is
+// any claude.ai login — even one whose access token lapsed, since the claude binary
+// refreshes that itself. `token` is the access token only while it is still valid.
 export interface ClaudeCodeLogin {
   present: boolean;
   token: string | null;
@@ -29,56 +33,76 @@ export interface ClaudeCodeLogin {
 
 const NO_LOGIN: ClaudeCodeLogin = { present: false, token: null };
 
-export function readClaudeCodeLogin(): ClaudeCodeLogin {
+// The Keychain item the claude binary keeps a store's login in: a store dir set
+// through CLAUDE_STORE_ENV gets its own item, suffixed with a hash of that dir.
+export function claudeStoreService(storeDir?: string): string {
+  if (!storeDir) return "Claude Code-credentials";
+  return `Claude Code-credentials-${createHash("sha256").update(storeDir.normalize("NFC")).digest("hex").slice(0, 8)}`;
+}
+
+function readClaudeStore(storeDir?: string): Record<string, unknown> | null {
   try {
     const raw =
       process.platform === "darwin"
-        ? execFileSync("security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"], { encoding: "utf8" })
-        : readFileSync(join(homedir(), ".claude", ".credentials.json"), "utf8");
+        ? execFileSync("security", ["find-generic-password", "-s", claudeStoreService(storeDir), "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
+        : readFileSync(join(storeDir ?? join(homedir(), ".claude"), ".credentials.json"), "utf8");
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const oauth = (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
-    const access = typeof oauth.accessToken === "string" ? oauth.accessToken : null;
-    const refresh = typeof oauth.refreshToken === "string" ? oauth.refreshToken : null;
-    if (!access && !refresh) return NO_LOGIN;
-    const expired = typeof oauth.expiresAt === "number" && oauth.expiresAt <= Date.now();
-    return {
-      present: true,
-      token: access && !expired ? access : null,
-      ...(typeof oauth.subscriptionType === "string" ? { plan: oauth.subscriptionType } : {}),
-    };
+    return (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
   } catch {
-    return NO_LOGIN;
+    return null;
   }
 }
 
-const readStoreSubscriptionToken: TokenReader = () => readClaudeCodeLogin().token;
-
-// The long-lived setup-token from CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
-// Frozen at daemon launch, so it is the FALLBACK — used only when the live store
-// yields nothing (non-mac / CI with no keychain or credentials file).
-function readEnvSubscriptionToken(): string | null {
-  return process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() || null;
+/** The login in `storeDir` (an Eos store), or the Mac's own Claude Code login when omitted. */
+export function readClaudeCodeLogin(storeDir?: string): ClaudeCodeLogin {
+  const oauth = readClaudeStore(storeDir);
+  if (!oauth) return NO_LOGIN;
+  const access = typeof oauth.accessToken === "string" ? oauth.accessToken : null;
+  const refresh = typeof oauth.refreshToken === "string" ? oauth.refreshToken : null;
+  if (!access && !refresh) return NO_LOGIN;
+  const expired = typeof oauth.expiresAt === "number" && oauth.expiresAt <= Date.now();
+  return {
+    present: true,
+    token: access && !expired ? access : null,
+    ...(typeof oauth.subscriptionType === "string" ? { plan: oauth.subscriptionType } : {}),
+  };
 }
 
-// The ambient subscription tokens as an ORDERED, source-labelled candidate list
-// (Keychain first, env fallback) — present sources only. This is the usage path's
-// fallback surface: unlike readSubscriptionToken (which collapses to one winner for
-// the billing/spawn chain), the usage adapter needs to try each in turn so a
-// scope-broken token can be skipped for the next. The billing chain is untouched.
-export interface SubscriptionTokenCandidate {
-  source: "keychain" | "env";
-  token: string;
+// Signing out removes the store's login, as `claude auth logout` does.
+export function clearClaudeLogin(storeDir: string): void {
+  if (process.platform === "darwin") {
+    try {
+      execFileSync("security", ["delete-generic-password", "-s", claudeStoreService(storeDir)], { stdio: "ignore" });
+    } catch {
+      // No item: already signed out.
+    }
+    return;
+  }
+  rmSync(join(storeDir, ".credentials.json"), { force: true });
 }
 
-export function readSubscriptionTokenCandidates(
-  readStore: TokenReader = readStoreSubscriptionToken,
-): SubscriptionTokenCandidate[] {
-  const out: SubscriptionTokenCandidate[] = [];
-  const store = readStore();
-  if (store) out.push({ source: "keychain", token: store });
-  const env = readEnvSubscriptionToken();
-  if (env) out.push({ source: "env", token: env });
-  return out;
+const execFileAsync = promisify(execFile);
+const REFRESH_TIMEOUT_MS = 30_000;
+
+// A store's access token lapses while no claude session runs to renew it. The
+// binary's own "login from a refresh token" renews it and rewrites the store, so
+// Eos never handles the token exchange. CLAUDE_CONFIG_DIR keeps that login's
+// account bookkeeping out of the user's ~/.claude.json.
+export async function refreshClaudeLogin(storeDir: string, binary: string): Promise<void> {
+  const oauth = readClaudeStore(storeDir);
+  const refreshToken = typeof oauth?.refreshToken === "string" ? oauth.refreshToken : null;
+  const scopes = Array.isArray(oauth?.scopes) ? oauth.scopes.filter((s): s is string => typeof s === "string") : [];
+  if (!refreshToken || !scopes.length) return;
+  await execFileAsync(binary, ["auth", "login"], {
+    env: {
+      ...buildSubscriptionChildEnv(process.env),
+      [CLAUDE_STORE_ENV]: storeDir,
+      CLAUDE_CONFIG_DIR: storeDir,
+      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: refreshToken,
+      CLAUDE_CODE_OAUTH_SCOPES: scopes.join(" "),
+    },
+    timeout: REFRESH_TIMEOUT_MS,
+  });
 }
 
 function readKeychainSecret(service: string): string | null {
@@ -112,12 +136,9 @@ export function createSubscriptionAuthResolver(deps?: { readLogin?: () => Claude
     async resolve(auth: AuthRef | undefined): Promise<ResolvedAuth> {
       const kind = auth?.kind ?? "subscription";
       if (kind === "subscription") {
-        const login = readLogin();
-        const token = login.token ?? readEnvSubscriptionToken();
-        if (token) return { scheme: "oauth", token };
-        // A lapsed login is still a subscription: with no token exported, the
-        // claude binary reads its own store and refreshes it.
-        return login.present ? { scheme: "oauth" } : NONE;
+        // No token is exported: the claude child reads the same store and keeps
+        // it refreshed for as long as the session runs.
+        return readLogin().present ? { scheme: "oauth" } : NONE;
       }
       if (kind === "env") {
         const key = auth?.ref ? process.env[auth.ref]?.trim() : undefined;

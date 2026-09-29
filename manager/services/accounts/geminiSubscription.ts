@@ -1,8 +1,8 @@
 // Sign in with Google — the Gemini CLI's own "Log in with Google", driven over
 // ACP (`authenticate` with the oauth-personal method). The CLI opens the Google
 // sign-in page itself, serves the OAuth callback locally and writes its login
-// (~/.gemini: the credentials + the selected method), so there is no credential
-// for Eos to store. In ACP mode it hands back no sign-in link, so the UI offers
+// (the credentials + the selected method, under Eos's own GEMINI_CLI_HOME — see
+// env()), so there is no credential for Eos to store. In ACP mode it hands back no sign-in link, so the UI offers
 // only Cancel. Credentials that are still valid make the call return at once.
 
 import { errMsg } from "../../../contracts/src/util.ts";

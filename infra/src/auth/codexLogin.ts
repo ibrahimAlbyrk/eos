@@ -1,7 +1,7 @@
-// The Codex login on this machine — the ChatGPT sign-in the Codex CLI keeps in
-// $CODEX_HOME/auth.json (default ~/.codex), shared with the Codex / ChatGPT
-// desktop apps and written by Eos's own "Sign in with ChatGPT". Read live on
-// every call, never cached, never logged. The plan comes from the id token's
+// A Codex login — the ChatGPT sign-in the Codex CLI keeps in
+// $CODEX_HOME/auth.json (default ~/.codex). Eos passes its own CODEX_HOME, so it
+// reads only the login its "Sign in with ChatGPT" wrote, never the Codex / ChatGPT
+// apps' one. Read live on every call, never cached, never logged. The plan comes from the id token's
 // claims (display only — the token is not verified here).
 
 import { readFileSync } from "node:fs";
