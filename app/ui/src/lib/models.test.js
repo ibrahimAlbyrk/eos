@@ -67,6 +67,7 @@ describe("curateCatalog", () => {
 describe("model helpers", () => {
   it("modelName resolves aliases and falls back to id parsing", () => {
     expect(modelName("opus")).toBe("Opus 5.5");
+    expect(modelName("sonnet")).toBe("Sonnet 5.5");
     expect(modelName("claude-sonnet-5")).toBe("Sonnet 5");
   });
 
