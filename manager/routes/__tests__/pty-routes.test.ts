@@ -17,7 +17,7 @@ const TOKEN = "ui-token-abc";
 function containerWith(over: Record<string, unknown> = {}, live = new Set<string>()) {
   const session: PtySession = {
     sessionId: "s1", number: 1, cwd: "/x", cols: 80, rows: 24, alive: true,
-    kind: "shell", claudeSessionId: null, title: null, remote: false,
+    kind: "shell", claudeSessionId: null, title: null, remote: false, owner: null,
   };
   const ptySessions = {
     create: (input: { cols: number; rows: number }): PtySession => ({ ...session, cols: input.cols, rows: input.rows }),

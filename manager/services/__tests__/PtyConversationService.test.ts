@@ -18,7 +18,7 @@ function harness() {
   bus.subscribe("pty:conversation", (m) => events.push(m));
   const session: PtySession = {
     sessionId: "p1", number: 1, cwd: "/proj", cols: 80, rows: 24, alive: true,
-    kind: "claude", claudeSessionId: SID_A, title: null, remote: false,
+    kind: "claude", claudeSessionId: SID_A, title: null, remote: false, owner: null,
   };
   let dialog: (PtyPending & { at: number }) | null = null;
   const watches = new Map<string, () => void>();

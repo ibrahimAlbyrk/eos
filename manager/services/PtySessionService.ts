@@ -33,6 +33,7 @@ interface Session {
   claudeSessionId: string | null;
   title: string | null;
   remote: boolean;
+  owner: string | null;
   // The last dialog tool call Claude reported (PreToolUse hook) and when.
   dialog: (PtyPending & { at: number }) | null;
   scanOsc: ReturnType<typeof createOscScanner>;
@@ -84,7 +85,7 @@ export class PtySessionService {
 
   create(input: {
     cols: number; rows: number; cwd?: string; command?: string;
-    claude?: { resume?: string }; remote?: boolean;
+    claude?: { resume?: string }; remote?: boolean; owner?: string;
   }): PtySession {
     if (this.sessions.size >= MAX_SESSIONS) {
       throw new PtyCapError(`too many terminal sessions (max ${MAX_SESSIONS})`);
@@ -99,7 +100,7 @@ export class PtySessionService {
     const session: Session = {
       id, number, host, cwd, cols: input.cols, rows: input.rows, alive: true,
       kind: claude ? "claude" : "shell", claudeSessionId: claude?.claudeSessionId ?? null,
-      title: null, remote: input.remote === true, dialog: null, scanOsc: createOscScanner(), inputChain: Promise.resolve(),
+      title: null, remote: input.remote === true, owner: input.owner ?? null, dialog: null, scanOsc: createOscScanner(), inputChain: Promise.resolve(),
       screen: createScreenMirror(input.cols, input.rows), seq: 0, pending: "", flushTimer: null,
     };
     this.sessions.set(id, session);
@@ -246,6 +247,6 @@ export class PtySessionService {
 function toPublic(s: Session): PtySession {
   return {
     sessionId: s.id, number: s.number, cwd: s.cwd, cols: s.cols, rows: s.rows, alive: s.alive,
-    kind: s.kind, claudeSessionId: s.claudeSessionId, title: s.title, remote: s.remote,
+    kind: s.kind, claudeSessionId: s.claudeSessionId, title: s.title, remote: s.remote, owner: s.owner,
   };
 }
