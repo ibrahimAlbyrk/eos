@@ -23,6 +23,16 @@ export function resolveDaemonUrl(): string {
   return process.env.EOS_DAEMON_URL?.trim() || DEFAULT_DAEMON_URL;
 }
 
+// The daemon's raw-content origin (fs/raw, pdf.js) — a separate origin by design.
+// EOS_RAW_URL overrides; otherwise the daemon's host on its default raw port.
+export function resolveRawUrl(daemonUrl: string): string {
+  const override = process.env.EOS_RAW_URL?.trim();
+  if (override) return override;
+  const u = new URL(daemonUrl);
+  u.port = "7401";
+  return u.origin;
+}
+
 export function themeBackground(theme: "dark" | "light"): string {
   return theme === "light" ? LIGHT_BG : DARK_BG;
 }

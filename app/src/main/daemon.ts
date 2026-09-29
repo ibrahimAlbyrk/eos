@@ -19,7 +19,7 @@ const HEX_RE = /^[0-9a-f]+$/;
 // ~/.eos/ui-token (doc 10 §e — no Keychain, the daemon owns this file's
 // lifecycle). Validate lowercase hex like the Swift shell does.
 export async function readUiToken(): Promise<string> {
-  const file = path.join(homedir(), ".eos", "ui-token");
+  const file = path.join(eosHome(), "ui-token");
   const raw = (await readFile(file, "utf8")).trim();
   if (!HEX_RE.test(raw)) {
     throw new Error(`~/.eos/ui-token is not lowercase hex (${raw.length} chars)`);
@@ -28,8 +28,10 @@ export async function readUiToken(): Promise<string> {
 }
 
 // ── ~/.eos paths ─────────────────────────────────────────────────────────────
+// EOS_HOME points the app at another daemon's home (as it does the daemon) —
+// e.g. a second daemon started for development.
 export function eosHome(): string {
-  return path.join(homedir(), ".eos");
+  return process.env.EOS_HOME?.trim() || path.join(homedir(), ".eos");
 }
 export function daemonSocketPath(): string {
   return path.join(eosHome(), "daemon.sock");

@@ -8,7 +8,9 @@ import type { WebContents, MenuItemConstructorOptions } from "electron";
 // bridge (__eosTerm.*) when a terminal is focused, else fall back to the
 // WebContents editing commands. NOT the default roles, which would fire
 // Chromium's contentEditable undo and bypass the composer stack.
-export function buildAppMenu(getWC: () => WebContents | null): void {
+// `machines` is the Machines menu (switch between this Mac and the computers it
+// controls); omitted until the host list is known.
+export function buildAppMenu(getWC: () => WebContents | null, machines?: MenuItemConstructorOptions): void {
   const run = (js: string): Promise<unknown> =>
     getWC()?.executeJavaScript(js, true).catch(() => null) ?? Promise.resolve(null);
 
@@ -76,6 +78,7 @@ export function buildAppMenu(getWC: () => WebContents | null): void {
         { role: "toggleDevTools" },
       ],
     },
+    ...(machines ? [machines] : []),
     { role: "windowMenu" },
   ];
 

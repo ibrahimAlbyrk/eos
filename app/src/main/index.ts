@@ -1,7 +1,7 @@
 import { app, BrowserWindow, shell, dialog } from "electron";
 import path from "node:path";
 import { registerEosSchemePrivileges, installEosProtocol } from "./scheme";
-import { resolveUiRoot, resolveDaemonUrl, themeBackground } from "./config";
+import { resolveUiRoot, resolveDaemonUrl, resolveRawUrl, themeBackground } from "./config";
 import {
   readUiToken,
   probeDaemon,
@@ -24,8 +24,11 @@ import { makeNotifier } from "./notifications";
 import { checkUpdateStatus } from "./updater";
 import { initBinaryAutoUpdate } from "./updater-binary";
 import { initBrowserHost } from "./browser";
+import { HostViews } from "./hosts";
+import type { MenuItemConstructorOptions } from "electron";
 
 const DAEMON_URL = resolveDaemonUrl();
+const RAW_URL = resolveRawUrl(DAEMON_URL);
 const UI_ROOT = resolveUiRoot();
 const PRELOAD = path.join(__dirname, "preload.js");
 
@@ -34,21 +37,29 @@ const PRELOAD = path.join(__dirname, "preload.js");
 // defense-in-depth win. 'unsafe-inline'/'wasm-unsafe-eval' are required by the
 // app's own inline theme bootstrap, emotion styles, and pdf.js wasm; tightening
 // script-src to a hash/nonce is deferred. Disable with EOS_ELECTRON_DISABLE_CSP=1.
-const CSP =
-  process.env.EOS_ELECTRON_DISABLE_CSP === "1"
-    ? null
-    : [
-        "default-src 'self' eos:",
-        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' eos:",
-        "style-src 'self' 'unsafe-inline' eos:",
-        "img-src 'self' eos: data: blob: http://127.0.0.1:*",
-        "font-src 'self' eos: data:",
-        "connect-src 'self' eos: http://127.0.0.1:* ws://127.0.0.1:*",
-        "frame-src 'self' eos: http://127.0.0.1:7401",
-        "worker-src 'self' eos: blob:",
-        "media-src 'self' eos: data: blob: http://127.0.0.1:*",
-        "object-src 'none'",
-      ].join("; ");
+function buildCsp(egress: { api: string; raw: string; ws: string }): string | null {
+  if (process.env.EOS_ELECTRON_DISABLE_CSP === "1") return null;
+  return [
+    "default-src 'self' eos:",
+    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' eos:",
+    "style-src 'self' 'unsafe-inline' eos:",
+    `img-src 'self' eos: data: blob: ${egress.api} ${egress.raw}`,
+    "font-src 'self' eos: data:",
+    `connect-src 'self' eos: ${egress.api} ${egress.ws}`.trim(),
+    `frame-src 'self' eos: ${egress.raw}`,
+    "worker-src 'self' eos: blob:",
+    `media-src 'self' eos: data: blob: ${egress.api} ${egress.raw}`,
+    "object-src 'none'",
+  ].join("; ");
+}
+
+const CSP = buildCsp({ api: "http://127.0.0.1:*", raw: "http://127.0.0.1:*", ws: "ws://127.0.0.1:*" });
+
+// A controlled computer's view may run that computer's own dashboard code, so
+// its egress is pinned to its host's facade prefixes — never the rest of this
+// Mac's daemon. (A CSP source ending in "/" matches that path and below.)
+const hostCsp = (apiBase: string, rawBase: string): string | null =>
+  buildCsp({ api: `${apiBase}/`, raw: `${rawBase}/`, ws: "" });
 
 // Traffic-light position. Native (main.swift TrafficLightPositioner) nudges the
 // buttons +3pt up off AppKit's default; the documented target is a button
@@ -60,6 +71,10 @@ function trafficLightPos(): { x: number; y: number } {
     y: Number(process.env.EOS_TL_Y ?? "16"),
   };
 }
+
+// A dev build next to the installed app: its own profile, so it neither shares
+// state with nor hands off (single-instance) to the installed Eos.
+if (process.env.EOS_ELECTRON_USER_DATA?.trim()) app.setPath("userData", process.env.EOS_ELECTRON_USER_DATA.trim());
 
 // Must run before app.ready.
 registerEosSchemePrivileges();
@@ -74,6 +89,7 @@ else app.on("second-instance", () => {
 });
 
 let mainWindow: BrowserWindow | null = null;
+let hostViews: HostViews | null = null;
 let tray: TrayController | null = null;
 let quitting = false;
 // True when THIS app started the daemon (false when we adopted an already-running
@@ -162,7 +178,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
       sandbox: true,
       nodeIntegration: false,
       backgroundThrottling: false, // live SSE dashboard must keep drawing (doc 30 Claim 3.1)
-      additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-ui-token=${token}`],
+      additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`],
     },
   });
   mainWindow = win;
@@ -269,6 +285,45 @@ function stopOwnedDaemon(): void {
   console.log("[eos-electron] stopped our daemon");
 }
 
+function focusedContents() {
+  if (!mainWindow || mainWindow.isDestroyed()) return null;
+  return hostViews ? hostViews.focusedContents() : mainWindow.webContents;
+}
+
+// ⌃1 is always this Mac; the controlled computers follow in the Machines menu's order.
+function machinesMenu(): MenuItemConstructorOptions | undefined {
+  if (!hostViews) return undefined;
+  const active = hostViews.current();
+  const items: MenuItemConstructorOptions[] = [
+    { label: "This Mac", type: "radio", checked: active == null, accelerator: "Ctrl+1", click: () => void hostViews?.switchTo(null) },
+    ...hostViews.list().slice(0, 8).map((h, i): MenuItemConstructorOptions => ({
+      label: h.alias ?? h.name,
+      type: "radio",
+      checked: active === h.id,
+      accelerator: `Ctrl+${i + 2}`,
+      click: () => void hostViews?.switchTo(h.id),
+    })),
+    { type: "separator" },
+    {
+      label: "Connect a Machine…",
+      click: () => {
+        void hostViews?.switchTo(null);
+        mainWindow?.webContents.send("eosHosts:command", { type: "connect" });
+      },
+    },
+  ];
+  return { label: "Machines", submenu: items };
+}
+
+// Link-state ticks (latency) fire often; the menu only changes with the list.
+let menuKey = "";
+function rebuildMenu(): void {
+  const key = hostViews ? `${hostViews.current()}|${hostViews.list().map((h) => `${h.id}:${h.alias ?? h.name}`).join(",")}` : "";
+  if (key === menuKey && key !== "") return;
+  menuKey = key;
+  buildAppMenu(focusedContents, machinesMenu());
+}
+
 // Non-critical, main-process, read-only wiring — deferred past first paint so the
 // window is interactive immediately (§C6), especially on the fast adopt path.
 async function startBackgroundServices(token: string): Promise<void> {
@@ -292,11 +347,26 @@ async function startBackgroundServices(token: string): Promise<void> {
     onAnnounce: (c, rem) => void tray?.announce(c, rem, DWELL_MS),
     onDrained: (r, c) => tray?.drained(r, c),
   });
-  const notifier = makeNotifier(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null), showMainWindow);
+  const notifier = makeNotifier(
+    () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+    showMainWindow,
+    async (hostId) => {
+      await hostViews?.switchTo(hostId);
+      const wc = hostViews?.focusedContents() ?? null;
+      // A freshly built view is still loading its dashboard.
+      if (wc?.isLoading()) await new Promise<void>((resolve) => wc.once("did-finish-load", () => setTimeout(resolve, 600)));
+      return wc;
+    },
+  );
+  let hostsRefresh: ReturnType<typeof setTimeout> | null = null;
   const sse = new SSEClient(`${DAEMON_URL}/stream`, token, {
     onEvent: (reason, payload) => {
       if (reason.startsWith("worker:")) fleet.onWorkerFrame();
       else if (reason === "notification:fire") notifier(payload);
+      else if (reason === "hosts:change" && !hostsRefresh) {
+        // Link state ticks (latency) arrive in bursts — coalesce the refetch.
+        hostsRefresh = setTimeout(() => { hostsRefresh = null; void hostViews?.refresh(); }, 150);
+      }
     },
     onConnectivity: (up) => fleet.setConnected(up),
   });
@@ -335,7 +405,14 @@ app.whenReady().then(async () => {
     if (earlyWin) (await earlyWin).destroy();
     win = await createWindow(token);
   }
-  buildAppMenu(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null));
+  // Other computers this Mac controls live in isolated views inside this window;
+  // the menu's edit commands act on whichever view is showing.
+  hostViews = new HostViews({
+    win, daemonUrl: DAEMON_URL, rawUrl: RAW_URL, uiToken: token, uiRoot: UI_ROOT, preload: PRELOAD,
+    csp: hostCsp, onChange: rebuildMenu,
+  });
+  rebuildMenu();
+  void hostViews.refresh();
 
   // Embedded-browser lane: register this app as the daemon's browser host and own
   // the native WebContentsView views (M1/M2). The renderer positions them via the
