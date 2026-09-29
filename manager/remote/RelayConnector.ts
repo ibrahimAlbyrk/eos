@@ -19,6 +19,11 @@ const BACKOFF_MAX_MS = 60_000;
 // silently (Mac sleep, Wi-Fi change, NAT expiry) — close never fires, so without
 // a ping the daemon would stay "registered" to nothing and never redial.
 const PING_INTERVAL_MS = 25_000;
+// Sleep freezes the process, and on wake the relay socket is almost certainly
+// dead — yet the ping check needs up to two intervals to notice. A wall-clock
+// jump between two cheap ticks is the wake signal: redial at once instead.
+const WAKE_CHECK_MS = 5_000;
+const WAKE_GAP_MS = 20_000;
 
 export interface RelayConnectorDeps {
   url: string; // wss://<relay>/  — from config.remote.relay.url
@@ -34,6 +39,7 @@ export interface RelayConnectorDeps {
   log?: (msg: string, extra?: Record<string, unknown>) => void;
   reconnect?: boolean; // default true
   pingIntervalMs?: number; // default PING_INTERVAL_MS
+  wakeCheckMs?: number; // default WAKE_CHECK_MS; a tick gap over WAKE_GAP_MS on top of it means the Mac slept
   // Injectable for tests (a local ws server); defaults to the real ws client.
   WebSocketCtor?: typeof WebSocket;
 }
@@ -47,11 +53,13 @@ export class RelayConnector {
   private backoff = BACKOFF_MIN_MS;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
+  private wakeTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(deps: RelayConnectorDeps) { this.deps = deps; }
 
   start(): void {
     if (this.state === "stopped") this.state = "idle";
+    this.startWakeWatch();
     this.dial();
   }
 
@@ -59,6 +67,7 @@ export class RelayConnector {
     this.state = "stopped";
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
     this.stopPing();
+    if (this.wakeTimer) { clearInterval(this.wakeTimer); this.wakeTimer = null; }
     try { this.ws?.close(); } catch { /* already closing */ }
     this.ws = null;
   }
@@ -156,6 +165,32 @@ export class RelayConnector {
     if (this.pingTimer) { clearInterval(this.pingTimer); this.pingTimer = null; }
   }
 
+  private startWakeWatch(): void {
+    if (this.wakeTimer) clearInterval(this.wakeTimer);
+    const checkMs = this.deps.wakeCheckMs ?? WAKE_CHECK_MS;
+    let last = this.deps.now();
+    this.wakeTimer = setInterval(() => {
+      const t = this.deps.now();
+      const slept = t - last > checkMs + WAKE_GAP_MS;
+      last = t;
+      if (slept) this.redialAfterWake();
+    }, checkMs);
+    this.wakeTimer.unref?.();
+  }
+
+  private redialAfterWake(): void {
+    if (this.state === "stopped") return;
+    this.deps.log?.("system wake detected — redialing relay", {});
+    this.backoff = BACKOFF_MIN_MS;
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+      this.dial();
+      return;
+    }
+    this.ws?.terminate(); // the close handler redials after BACKOFF_MIN_MS
+  }
+
   private scheduleReconnect(): void {
     this.ws = null;
     if (this.state === "stopped" || this.deps.reconnect === false) return;
@@ -163,7 +198,7 @@ export class RelayConnector {
     const delay = this.backoff;
     this.backoff = Math.min(this.backoff * 2, BACKOFF_MAX_MS);
     this.deps.log?.("relay reconnect scheduled", { delayMs: delay });
-    this.retryTimer = setTimeout(() => this.dial(), delay);
+    this.retryTimer = setTimeout(() => { this.retryTimer = null; this.dial(); }, delay);
     this.retryTimer.unref?.();
   }
 }

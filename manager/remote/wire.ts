@@ -17,6 +17,7 @@ import { WsBridge } from "./WsBridge.ts";
 import { StatePatcher } from "./patcher.ts";
 import { LiveText } from "./LiveText.ts";
 import { RelayConnector } from "./RelayConnector.ts";
+import { startKeepAwake } from "./keepAwake.ts";
 import type { Router } from "../routes/Router.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { RemoteConfig, PairingQr } from "../../contracts/src/remote.ts";
@@ -138,6 +139,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
   });
   connector.start();
+  const releaseKeepAwake = startKeepAwake({ log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}) });
   const sweeper = setInterval(() => {
     for (const hex of pruneStaleSessions(conns, now())) {
       c.log.info("[remote] stale device session pruned (idle)", { clientId: hex });
@@ -146,7 +148,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   sweeper.unref?.();
   c.log.info("remote gateway armed", { relayUrl, room });
   return {
-    stop: () => { clearInterval(sweeper); connector.stop(); patcher.stop(); liveText.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
+    stop: () => { clearInterval(sweeper); releaseKeepAwake(); connector.stop(); patcher.stop(); liveText.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
     // mutation (the bearer hash is already in the room's allow from register).
     armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),

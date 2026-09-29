@@ -124,4 +124,58 @@ describe("RelayConnector ↔ mock relay", () => {
     b.stop();
     await Promise.all([dead, healthy].map((w) => new Promise<void>((r) => w.close(() => r()))));
   });
+
+  it("redials once, promptly, when a wall-clock jump shows the Mac slept", async () => {
+    const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    const port = await new Promise<number>((r) => wss.on("listening", () => r((wss.address() as AddressInfo).port)));
+    const first = once<void>();
+    const second = once<void>();
+    let connections = 0;
+    wss.on("connection", () => { connections++; (connections === 1 ? first : second).resolve(); });
+
+    let clock = 0;
+    const logs: string[] = [];
+    const conn = new RelayConnector({
+      url: `ws://127.0.0.1:${port}/`, room: "AAAAAAAAAAAAAAAAAAAAAA", owner: "O", allow: () => [],
+      onJoined: () => {}, onData: () => {}, now: () => clock, wakeCheckMs: 20, log: (m) => logs.push(m),
+    });
+    conn.start();
+    await first.promise;
+
+    clock += 10 * 60_000; // ten minutes passed between two ticks
+    await second.promise; // well before the ~50s two-ping detection
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(connections, 2, "exactly one redial");
+    assert.ok(logs.includes("system wake detected — redialing relay"));
+
+    conn.stop();
+    await new Promise<void>((r) => wss.close(() => r()));
+  });
+
+  it("skips a pending backoff and dials at once after wake", async () => {
+    const probe = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+    const port = await new Promise<number>((r) => probe.on("listening", () => r((probe.address() as AddressInfo).port)));
+    await new Promise<void>((r) => probe.close(() => r()));
+
+    let clock = 0;
+    const logs: string[] = [];
+    const conn = new RelayConnector({
+      url: `ws://127.0.0.1:${port}/`, room: "AAAAAAAAAAAAAAAAAAAAAA", owner: "O", allow: () => [],
+      onJoined: () => {}, onData: () => {}, now: () => clock, wakeCheckMs: 20, log: (m) => logs.push(m),
+    });
+    conn.start(); // relay down → reconnect scheduled 1s out
+    await new Promise((r) => setTimeout(r, 50));
+    assert.ok(logs.includes("relay reconnect scheduled"));
+
+    const wss = new WebSocketServer({ host: "127.0.0.1", port });
+    const connected = once<void>();
+    wss.on("connection", () => connected.resolve());
+    const startedAt = Date.now();
+    clock += 10 * 60_000;
+    await connected.promise;
+    assert.ok(Date.now() - startedAt < 500, "dialed without waiting out the backoff");
+
+    conn.stop();
+    await new Promise<void>((r) => wss.close(() => r()));
+  });
 });
