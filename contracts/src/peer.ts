@@ -49,8 +49,9 @@ export type HostInfo = z.infer<typeof HostInfoSchema>;
 
 // ---- invites (host side mints, device side redeems) ----------------------
 // Carried out of band as `eos://pair/<base64url(JSON)>`. The secret is single
-// use and short-lived; `fp` lets the device refuse an impostor before it sends
-// the secret anywhere.
+// use and does not expire — it may be redeemed a day later on another network —
+// until used or cancelled on the host; `fp` lets the device refuse an impostor
+// before it sends the secret anywhere.
 export const PEER_INVITE_PREFIX = "eos://pair/";
 
 export const PeerInviteSchema = z.object({
@@ -61,15 +62,24 @@ export const PeerInviteSchema = z.object({
   // Direct candidates, "host:port" (IPv6 bracketed).
   addrs: z.array(z.string().min(3)).max(12),
   relay: z.object({ url: z.string().url(), room: z.string().min(43) }).optional(),
-  exp: z.number().int(), // unix seconds
+  // Unix seconds. Only links from builds that expired invites carry it.
+  exp: z.number().int().optional(),
 });
 export type PeerInvite = z.infer<typeof PeerInviteSchema>;
 
 export const InviteResponseSchema = z.object({
   link: z.string(),
-  exp: z.number().int(),
   deviceId: z.string(),
 });
+
+// An invite still open on the host, persisted (hashes only) so it outlives a
+// restart. `joinHash` admits the redeeming device to the relay room.
+export const OpenInviteSchema = z.object({
+  hash: z.string().regex(/^[0-9a-f]{64}$/),
+  joinHash: z.string().regex(/^[0-9a-f]{64}$/),
+  createdAt: z.number(),
+});
+export type OpenInvite = z.infer<typeof OpenInviteSchema>;
 export type InviteResponse = z.infer<typeof InviteResponseSchema>;
 
 // POST /peer/pair — reachable ONLY over the secure channel by a not-yet-paired
@@ -115,6 +125,8 @@ export const PeerStatusSchema = z.object({
   // Where other devices can reach this Mac directly right now.
   addrs: z.array(z.string()),
   relay: z.object({ url: z.string(), online: z.boolean() }).nullable(),
+  // Invite links made here and not yet used or cancelled.
+  openInvites: z.number().int(),
   devices: z.array(PairedDeviceViewSchema),
 });
 export type PeerStatus = z.infer<typeof PeerStatusSchema>;

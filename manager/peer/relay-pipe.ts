@@ -57,7 +57,7 @@ export class RelayPipe extends Duplex {
 
   override _read(): void { /* pushed as envelopes arrive */ }
 
-  override _write(chunk: Buffer, _enc: BufferEncoding, cb: (err?: Error | null) => void): void {
+  override _write(chunk: Buffer, _enc: string, cb: (err?: Error | null) => void): void {
     this.sendChunk(chunk, (err) => cb(err ?? null));
   }
 

@@ -58,7 +58,7 @@ import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
 import { mapSubagentEvent } from "./backends/subagent-events.ts";
-import { loadOrCreateIdentity, createPairedDeviceStore, createKnownHostStore, loadOrCreateRelayRoom } from "../infra/src/peer/stores.ts";
+import { loadOrCreateIdentity, createPairedDeviceStore, createKnownHostStore, createOpenInviteStore, loadOrCreateRelayRoom } from "../infra/src/peer/stores.ts";
 import { PeerHostService } from "./peer/PeerHostService.ts";
 import { HostLinkService } from "./peer/HostLinkService.ts";
 import { ViewTokens } from "./peer/facade.ts";
@@ -1368,6 +1368,7 @@ export function buildContainer() {
   const peerHost = new PeerHostService({
     identity: peerIdentity,
     devices: createPairedDeviceStore(peerDir),
+    invites: createOpenInviteStore(peerDir),
     getConfig: () => config.peer,
     target: { socketPath: config.daemon.socketFile, rawHost: config.daemon.host, rawPort: config.daemon.rawPort, uiToken },
     servesUi: () => existsSync(join(uiDistPath(config.paths.repoRoot), "index.html")),

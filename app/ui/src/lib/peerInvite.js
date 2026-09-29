@@ -25,7 +25,7 @@ export function formatDeviceId(fingerprintHex) {
   return out.match(/.{1,4}/g)?.join("-") ?? out;
 }
 
-// → { name, deviceId, fp, exp, direct, relay } | { error }
+// → { name, deviceId, fp, direct, relay } | { error }
 export function readInvite(link, now = Date.now()) {
   const text = (link ?? "").trim();
   if (!text) return null;
@@ -39,12 +39,12 @@ export function readInvite(link, now = Date.now()) {
     return { error: "The link is damaged — copy it again." };
   }
   if (invite?.v !== 1 || !/^[0-9a-f]{64}$/.test(invite.fp ?? "")) return { error: "This invite is from an incompatible Eos version." };
-  if (now >= invite.exp * 1000) return { error: "This invite has expired — make a new one on that Mac." };
+  // Only links from builds that expired invites carry `exp`.
+  if (invite.exp != null && now >= invite.exp * 1000) return { error: "This invite has expired — make a new one on that Mac." };
   return {
     name: String(invite.name ?? "Mac"),
     fp: invite.fp,
     deviceId: formatDeviceId(invite.fp),
-    exp: invite.exp,
     direct: Array.isArray(invite.addrs) && invite.addrs.length > 0,
     relay: Boolean(invite.relay),
   };

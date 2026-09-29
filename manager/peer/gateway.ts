@@ -8,6 +8,7 @@
 
 import http from "node:http";
 import http2 from "node:http2";
+import type { Readable } from "node:stream";
 
 import { PEER_DEVICE_HEADER, PEER_HUMAN_HEADER } from "../../contracts/src/peer.ts";
 import { isLocalOnlyRoute } from "../../contracts/src/route-planes.ts";
@@ -35,7 +36,7 @@ function isRawPlane(path: string): boolean {
 // after a quiet spell goes out at once (a keystroke's echo, a turn's first
 // token); whatever follows within the window rides one frame.
 export function coalesceStream(
-  src: NodeJS.ReadableStream,
+  src: Readable,
   dst: { write(chunk: Buffer): boolean; end(): void; once(ev: "drain", cb: () => void): unknown },
   windowMs = 8,
   maxBytes = 16 * 1024,

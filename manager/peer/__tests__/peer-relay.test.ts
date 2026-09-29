@@ -17,7 +17,7 @@ import { HostLinkService } from "../HostLinkService.ts";
 import { registerHostFacade } from "../facade.ts";
 import { Router } from "../../routes/Router.ts";
 import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEventBus.ts";
-import { createKnownHostStore, createPairedDeviceStore, loadOrCreateIdentity, loadOrCreateRelayRoom } from "../../../infra/src/peer/stores.ts";
+import { createKnownHostStore, createOpenInviteStore, createPairedDeviceStore, loadOrCreateIdentity, loadOrCreateRelayRoom } from "../../../infra/src/peer/stores.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
 
@@ -83,6 +83,7 @@ describe("peer link through the relay", () => {
     host = new PeerHostService({
       identity: loadOrCreateIdentity(hostDir),
       devices: createPairedDeviceStore(hostDir),
+      invites: createOpenInviteStore(hostDir),
       getConfig: () => cfg,
       target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: "t".repeat(48) },
       servesUi: () => false,

@@ -110,11 +110,18 @@ export class HostLinkService {
     if (invite.fp === this.deps.creds.fingerprint) throw new PairingError(400, "that invite is from this Mac");
 
     const session = await this.openPairingSession(invite);
+    // With no invite open the host turns the session away (GOAWAY) instead of
+    // answering — the invite was used or cancelled.
+    let refused = false;
+    session.once("goaway", () => { refused = true; });
     let body: string;
     let status: number;
     try {
       const req: PairRequest = { secret: invite.sec, name: this.deps.deviceName(), platform: process.platform };
       ({ status, body } = await postJson(session, ROUTES.peerPair, req));
+    } catch (e) {
+      if (refused) throw new PairingError(403, "that Mac isn't taking this invite — it was already used or cancelled; make a new one there");
+      throw e;
     } finally {
       session.close();
     }

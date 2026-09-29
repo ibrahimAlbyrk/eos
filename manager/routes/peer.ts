@@ -48,6 +48,11 @@ export function registerPeerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, c.peerHost.createInvite());
   });
 
+  r.del("/api/peer/invite", ({ req, res }) => {
+    if (!gate(req, res)) return;
+    writeJson(res, 200, { cancelled: c.peerHost.cancelInvites() });
+  });
+
   r.del(new RegExp(`^/api/peer/devices/${FP}$`), ({ req, res, params }) => {
     if (!gate(req, res)) return;
     if (!c.peerHost.revoke(params.fp)) { writeJson(res, 404, { error: "no such device" }); return; }

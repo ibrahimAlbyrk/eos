@@ -711,6 +711,9 @@ export const api = {
   async createInvite() {
     return postJson(ROUTES.peerInvite, {}, uiTokenHeader());
   },
+  async cancelInvites() {
+    return del(ROUTES.peerInvite, uiTokenHeader());
+  },
   async revokeDevice(fp) {
     return del(ROUTES.peerDevice(fp), uiTokenHeader());
   },

@@ -18,7 +18,7 @@ import {
 import { admitPeer, formatDeviceId } from "../../core/src/domain/peer.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
-import type { PairedDeviceStore } from "../../core/src/ports/PeerStore.ts";
+import type { OpenInviteStore, PairedDeviceStore } from "../../core/src/ports/PeerStore.ts";
 import { createSecurePeerServer, type PeerSessionInfo, type SecurePeerServer } from "../../infra/src/peer/secure-channel.ts";
 import { computerName, directAddresses, parseAddress } from "../../infra/src/peer/machine.ts";
 import type { PeerIdentityMaterial } from "../../infra/src/peer/x509.ts";
@@ -28,7 +28,9 @@ import { encodeInvite } from "./invite-codec.ts";
 import { PeerRelayHost, bearerHash, relayJoinBearer, type RelayPipe } from "./relay-pipe.ts";
 import { startKeepAwake } from "../remote/keepAwake.ts";
 
-const INVITE_TTL_MS = 10 * 60_000;
+// Invites never expire on their own (one may be redeemed a day later, from
+// another network) — so only a few may be open at once, each works once, and
+// wrong guesses burn them all.
 const MAX_OPEN_INVITES = 3;
 // Wrong secrets tolerated before every open invite is burned.
 const MAX_PAIR_FAILURES = 5;
@@ -52,6 +54,8 @@ export interface RelayRoom {
 export interface PeerHostDeps {
   identity: PeerIdentityMaterial;
   devices: PairedDeviceStore;
+  // Open invites survive a restart; only their hashes are kept.
+  invites: OpenInviteStore;
   getConfig: () => PeerConfig;
   target: LocalDaemonTarget;
   servesUi: () => boolean;
@@ -96,9 +100,8 @@ export class PeerHostService {
   private readonly forwarder: ReturnType<typeof createLocalForwarder>;
   private readonly apiStamp = computeApiStamp();
   private readonly machineName = computerName();
-  // sha256(secret) hex → expiry (ms) + the hash of its relay join bearer.
-  // Insertion order = age.
-  private readonly invites = new Map<string, { exp: number; joinHash: string }>();
+  // sha256(secret) hex → the hash of its relay join bearer. Insertion order = age.
+  private readonly invites = new Map<string, string>();
   private relayHost: ReturnType<NonNullable<PeerHostDeps["createRelayHost"]>> | null = null;
   private releaseKeepAwake: (() => void) | null = null;
   private pairFailures = 0;
@@ -110,6 +113,7 @@ export class PeerHostService {
 
   constructor(deps: PeerHostDeps) {
     this.deps = deps;
+    for (const inv of [...deps.invites.list()].sort((a, b) => a.createdAt - b.createdAt)) this.invites.set(inv.hash, inv.joinHash);
     this.forwarder = createLocalForwarder(deps.target);
     this.server = createSecurePeerServer({
       creds: deps.identity,
@@ -147,6 +151,7 @@ export class PeerHostService {
       host: this.hostInfo(),
       addrs: this.currentAddresses(),
       relay: this.relayHost ? { url: this.relayHost.url, online: this.relayHost.online() } : null,
+      openInvites: this.invites.size,
       devices: this.devicesView(),
     };
   }
@@ -163,11 +168,12 @@ export class PeerHostService {
   createInvite(): InviteResponse {
     const cfg = this.deps.getConfig();
     if (!cfg.enabled) throw new Error("remote access is off");
-    this.pruneInvites();
-    while (this.invites.size >= MAX_OPEN_INVITES) this.invites.delete(this.invites.keys().next().value as string);
+    while (this.invites.size >= MAX_OPEN_INVITES) this.dropInvite(this.invites.keys().next().value as string);
     const secret = randomBytes(18).toString("base64url");
-    const expMs = this.deps.now() + INVITE_TTL_MS;
-    this.invites.set(sha256(secret).toString("hex"), { exp: expMs, joinHash: bearerHash(relayJoinBearer(secret)) });
+    const hash = sha256(secret).toString("hex");
+    const joinHash = bearerHash(relayJoinBearer(secret));
+    this.invites.set(hash, joinHash);
+    this.deps.invites.upsert({ hash, joinHash, createdAt: this.deps.now() });
     this.pairFailures = 0;
     this.relayHost?.refreshAllow();
     const relay = this.relayHost;
@@ -179,9 +185,16 @@ export class PeerHostService {
       name: info.name,
       addrs: this.currentAddresses(),
       ...(relay ? { relay: { url: relay.url, room: relay.room } } : {}),
-      exp: Math.floor(expMs / 1000),
     });
-    return { link, exp: Math.floor(expMs / 1000), deviceId: info.deviceId };
+    return { link, deviceId: info.deviceId };
+  }
+
+  // Every open invite stops working — a link that went somewhere it shouldn't.
+  cancelInvites(): number {
+    const n = this.invites.size;
+    for (const hash of [...this.invites.keys()]) this.dropInvite(hash);
+    if (n) this.relayHost?.refreshAllow();
+    return n;
   }
 
   revoke(fp: string): boolean {
@@ -207,10 +220,9 @@ export class PeerHostService {
   // Who the relay may admit into this Mac's room: paired devices by their own
   // bearer, and — only while an invite is open — a device redeeming it.
   relayAllow(): string[] {
-    this.pruneInvites();
     return [
       ...this.deps.devices.list().flatMap((d) => (d.relayBearerHash ? [d.relayBearerHash] : [])),
-      ...[...this.invites.values()].map((i) => i.joinHash),
+      ...this.invites.values(),
     ];
   }
 
@@ -235,7 +247,7 @@ export class PeerHostService {
   private async applyConfig(): Promise<void> {
     const cfg = this.deps.getConfig();
     if (!cfg.enabled) {
-      this.invites.clear();
+      for (const hash of [...this.invites.keys()]) this.dropInvite(hash);
       this.server.disconnectAll();
     }
     this.applyRelay(cfg.enabled ? this.deps.relayRoom() : null);
@@ -293,22 +305,20 @@ export class PeerHostService {
     return new Set(this.deps.devices.list().map((d) => d.fp));
   }
 
-  private pruneInvites(): void {
-    const now = this.deps.now();
-    for (const [hash, inv] of this.invites) if (inv.exp <= now) this.invites.delete(hash);
+  private dropInvite(hash: string): void {
+    this.invites.delete(hash);
+    this.deps.invites.remove(hash);
   }
 
   private pairingOpen(): boolean {
-    this.pruneInvites();
     return this.invites.size > 0;
   }
 
   private redeem(secret: string): boolean {
-    this.pruneInvites();
     const presented = sha256(secret);
     for (const hash of this.invites.keys()) {
       if (timingSafeEqual(presented, Buffer.from(hash, "hex"))) {
-        this.invites.delete(hash);
+        this.dropInvite(hash);
         this.relayHost?.refreshAllow();
         return true;
       }
@@ -337,11 +347,10 @@ export class PeerHostService {
     if (!parsed.success) { respondJson(stream, 400, { error: "invalid pair request" }); return; }
     if (!this.redeem(parsed.data.secret)) {
       if (++this.pairFailures >= MAX_PAIR_FAILURES) {
-        this.invites.clear();
-        this.relayHost?.refreshAllow();
+        this.cancelInvites();
         this.deps.log.warn("[peer] too many failed pairing attempts — open invites burned", {});
       }
-      respondJson(stream, 403, { error: "invite is invalid, used or expired — make a new one on that Mac" });
+      respondJson(stream, 403, { error: "invite is invalid, already used or cancelled — make a new one on that Mac" });
       return;
     }
     const now = this.deps.now();

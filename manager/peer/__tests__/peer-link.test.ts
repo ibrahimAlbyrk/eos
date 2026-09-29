@@ -15,7 +15,7 @@ import { HostLinkService } from "../HostLinkService.ts";
 import { registerHostFacade, ViewTokens } from "../facade.ts";
 import { Router } from "../../routes/Router.ts";
 import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEventBus.ts";
-import { createKnownHostStore, createPairedDeviceStore, loadOrCreateIdentity } from "../../../infra/src/peer/stores.ts";
+import { createKnownHostStore, createOpenInviteStore, createPairedDeviceStore, loadOrCreateIdentity } from "../../../infra/src/peer/stores.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
 
@@ -99,6 +99,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     host = new PeerHostService({
       identity: loadOrCreateIdentity(hostDir),
       devices: createPairedDeviceStore(hostDir),
+      invites: createOpenInviteStore(hostDir),
       getConfig: () => peerConfig,
       target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: HOST_TOKEN },
       servesUi: () => false,
@@ -149,7 +150,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     await waitFor(() => device.get(hostId)?.link.state === "live");
     assert.equal(device.get(hostId)?.link.route, "direct");
     assert.equal(host.devicesView()[0].name, "Test MacBook");
-    await assert.rejects(device.pair(invite.link), /invalid, used or expired/, "the invite works once");
+    await assert.rejects(device.pair(invite.link), /already used or cancelled/, "the invite works once");
   });
 
   it("raises the host's notifications on this Mac, tagged with the host", async () => {

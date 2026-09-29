@@ -43,11 +43,12 @@ export function shortDeviceId(fingerprintHex: string): string {
   return formatDeviceId(fingerprintHex).slice(0, 9);
 }
 
-// An invite is single-use and short-lived; `exp` is unix seconds.
+// An invite is single-use and, from this build on, never expires on its own;
+// links from older builds may still carry `exp` (unix seconds).
 export type InviteState = "valid" | "expired";
 
-export function inviteState(invite: { exp: number }, nowMs: number): InviteState {
-  return nowMs >= invite.exp * 1000 ? "expired" : "valid";
+export function inviteState(invite: { exp?: number }, nowMs: number): InviteState {
+  return invite.exp != null && nowMs >= invite.exp * 1000 ? "expired" : "valid";
 }
 
 // What a connecting peer is allowed to do, decided from its pinned fingerprint:

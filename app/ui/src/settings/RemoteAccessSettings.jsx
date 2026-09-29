@@ -25,25 +25,11 @@ function ago(ts, now) {
   return `${Math.round(s / 86400)}d ago`;
 }
 
-function countdown(expSec, now) {
-  const left = Math.max(0, expSec * 1000 - now);
-  const m = Math.floor(left / 60000);
-  const s = Math.floor((left % 60000) / 1000);
-  return `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function Invite({ deviceId }) {
+function Invite({ deviceId, openInvites }) {
   const [invite, setInvite] = useState(null);
   const [error, setError] = useState(null);
   const [showQr, setShowQr] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [now, setNow] = useState(Date.now());
-
-  useEffect(() => {
-    if (!invite) return;
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [invite]);
 
   const make = async () => {
     setError(null);
@@ -51,22 +37,25 @@ function Invite({ deviceId }) {
     if (!r?.ok) { setError(r?.body?.error ?? "Couldn't make an invite"); return; }
     setInvite(r.body);
     setCopied(false);
-    setNow(Date.now());
+    void refreshPeer();
   };
   const copy = async () => {
     try { await navigator.clipboard.writeText(invite.link); setCopied(true); } catch { setCopied(false); }
   };
-  const expired = invite && now >= invite.exp * 1000;
+  const cancelAll = async () => {
+    await api.cancelInvites().catch(() => {});
+    setInvite(null);
+    void refreshPeer();
+  };
 
   return (
     <div className="stg-row stg-row--stack">
       <div className="stg-row__desc" style={{ marginTop: 0 }}>
-        Paste the link into Eos on the other computer (Machines › Connect a machine). It works once, for ten minutes.
+        Paste the link into Eos on the other computer (Machines › Connect a machine) — now or days later. It works once; treat it like a password until it's used.
       </div>
-      {!invite || expired ? (
+      {!invite ? (
         <div>
-          <button type="button" className="m-btn m-btn--accent" onClick={() => void make()}><LinkIcon />{expired ? "Make a new invite link" : "Make an invite link"}</button>
-          {expired && <span className="peer-invite-meta" style={{ marginLeft: 12, display: "inline-flex" }}>The last link expired.</span>}
+          <button type="button" className="m-btn m-btn--accent" onClick={() => void make()}><LinkIcon />Make an invite link</button>
         </div>
       ) : (
         <>
@@ -79,8 +68,8 @@ function Invite({ deviceId }) {
             <button type="button" className={"m-btn" + (showQr ? " m-btn--quiet" : "")} aria-label="Show QR code" aria-pressed={showQr} onClick={() => setShowQr((v) => !v)}><QrIcon /></button>
           </div>
           <div className="peer-invite-meta">
-            <span className="m-pill"><span className="mono">{countdown(invite.exp, now)}</span> left</span>
-            <span>Works once · the other computer checks this Mac's ID</span>
+            <span className="m-pill">Works once · no expiry</span>
+            <span>The other computer checks this Mac's ID</span>
             <span className="mono" style={{ color: "var(--fg-dim)" }}>{deviceId}</span>
             <button type="button" className="m-btn m-btn--quiet m-btn--sm" style={{ marginLeft: "auto" }} onClick={() => void make()}>New link</button>
           </div>
@@ -88,6 +77,12 @@ function Invite({ deviceId }) {
             <div className="peer-qr"><QRCodeSVG value={invite.link} size={168} level="M" marginSize={0} /></div>
           )}
         </>
+      )}
+      {openInvites > 0 && (
+        <div className="peer-invite-meta">
+          <span>{openInvites === 1 ? "1 invite link is" : `${openInvites} invite links are`} still open — each works until it's used.</span>
+          <button type="button" className="m-btn m-btn--danger m-btn--sm" style={{ marginLeft: "auto" }} onClick={() => void cancelAll()}>Cancel open links</button>
+        </div>
       )}
       {error && <div className="stg-prov-err">{error}</div>}
     </div>
@@ -168,7 +163,7 @@ export function RemoteAccessSettings() {
       {enabled && (
         <div className="stg-group" style={{ marginTop: 26 }}>
           <div className="stg-group__title">Invite a computer</div>
-          <Invite deviceId={host?.deviceId} />
+          <Invite deviceId={host?.deviceId} openInvites={status?.openInvites ?? 0} />
         </div>
       )}
 

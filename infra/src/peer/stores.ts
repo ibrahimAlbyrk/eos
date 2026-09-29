@@ -7,8 +7,8 @@ import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import type { ZodType } from "zod";
 
-import { KnownHostSchema, PairedDeviceSchema, type KnownHost, type PairedDevice } from "../../../contracts/src/peer.ts";
-import type { KnownHostStore, PairedDeviceStore } from "../../../core/src/ports/PeerStore.ts";
+import { KnownHostSchema, OpenInviteSchema, PairedDeviceSchema, type KnownHost, type OpenInvite, type PairedDevice } from "../../../contracts/src/peer.ts";
+import type { KnownHostStore, OpenInviteStore, PairedDeviceStore } from "../../../core/src/ports/PeerStore.ts";
 import { createSelfSignedIdentity, certFingerprint, pemToDer, type PeerIdentityMaterial } from "./x509.ts";
 import { safeStringify } from "../util/json.ts";
 
@@ -95,6 +95,10 @@ class JsonListStore<T> {
 
 export function createPairedDeviceStore(peerDir: string): PairedDeviceStore {
   return new JsonListStore<PairedDevice>(join(peerDir, "devices.json"), PairedDeviceSchema, (d) => d.fp);
+}
+
+export function createOpenInviteStore(peerDir: string): OpenInviteStore {
+  return new JsonListStore<OpenInvite>(join(peerDir, "invites.json"), OpenInviteSchema, (i) => i.hash);
 }
 
 export function createKnownHostStore(peerDir: string): KnownHostStore {

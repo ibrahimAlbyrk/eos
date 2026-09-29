@@ -2297,7 +2297,7 @@ export const ROUTES = {
   hostInfo: "/api/host",
   // Hosting — loopback + ui-token only. GET status, PUT { enabled, direct, port, name }.
   peer: "/api/peer",
-  // Mint a single-use invite link for another computer to pair with this one.
+  // POST mints a single-use invite link (no expiry); DELETE cancels every open one.
   peerInvite: "/api/peer/invite",
   // DELETE revokes a paired device (kills its sessions + relay admission).
   peerDevice: (fp: string): string => `/api/peer/devices/${fp}`,
