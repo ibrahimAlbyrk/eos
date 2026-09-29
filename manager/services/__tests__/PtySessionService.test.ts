@@ -12,7 +12,7 @@ interface FakeHost extends PtyHost {
   killed: boolean;
 }
 
-function harness() {
+function harness(claudeEnv?: () => Record<string, string | undefined>) {
   const published: { topic: EventBusTopic; payload: Record<string, unknown> }[] = [];
   const bus: EventBus = {
     publish(topic: EventBusTopic, payload: unknown): void {
@@ -42,7 +42,7 @@ function harness() {
   };
   const sleeps: number[] = [];
   const sleep = async (ms: number): Promise<void> => { sleeps.push(ms); };
-  const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn, sleep });
+  const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn, sleep, claudeEnv });
   return { svc, bus, published, hosts, spawnOpts, sleeps };
 }
 
@@ -109,7 +109,7 @@ describe("PtySessionService", () => {
     assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "ab" });
 
     // Buffer replays the flushed output through the current seq (unchanged semantics).
-    assert.deepEqual(svc.buffer(s.sessionId), { seq: 2, data: "prompt$ ab" });
+    assert.deepEqual(await svc.buffer(s.sessionId), { seq: 2, data: "prompt$ ab" });
   });
 
   it("input writes raw bytes to the host", () => {
@@ -134,7 +134,7 @@ describe("PtySessionService", () => {
     assert.equal(hosts[0].killed, true);
   });
 
-  it("onExit drains window-buffered output ahead of the exit frame, then drops the session", () => {
+  it("onExit drains window-buffered output ahead of the exit frame, then drops the session", async () => {
     const { svc, published, hosts } = harness();
     const s = svc.create({ cols: 80, rows: 24 });
     hosts[0].emit("x"); // leading edge → published immediately (seq 1)
@@ -148,7 +148,7 @@ describe("PtySessionService", () => {
     assert.deepEqual(frames[2].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
 
     // Session is gone: buffer/list/input all report absence.
-    assert.equal(svc.buffer(s.sessionId), null);
+    assert.equal(await svc.buffer(s.sessionId), null);
     assert.deepEqual(svc.list(), []);
     assert.equal(svc.input(s.sessionId, "x"), false);
   });
@@ -175,11 +175,11 @@ describe("PtySessionService", () => {
     assert.equal(svc.create({ cols: 80, rows: 24 }).number, 1);
   });
 
-  it("unknown session ids return absence, not throws", () => {
+  it("unknown session ids return absence, not throws", async () => {
     const { svc } = harness();
     assert.equal(svc.input("nope", "x"), false);
     assert.equal(svc.resize("nope", 80, 24), false);
-    assert.equal(svc.buffer("nope"), null);
+    assert.equal(await svc.buffer("nope"), null);
     assert.equal(svc.kill("nope"), false);
   });
 
@@ -199,6 +199,14 @@ describe("PtySessionService", () => {
     assert.ok(spawnOpts[0].command?.includes(`--session-id ${s.claudeSessionId}`));
     assert.deepEqual(published.filter((p) => p.topic === "pty:session").map((p) => p.payload), [s]);
     assert.equal(svc.create({ cols: 80, rows: 24 }).kind, "shell");
+  });
+
+  it("starts a claude session with the claude env and a shell with the default one", () => {
+    const { svc, spawnOpts } = harness(() => ({ CLAUDE_CODE_OAUTH_TOKEN: "t" }));
+    svc.create({ cols: 80, rows: 24, claude: {} });
+    svc.create({ cols: 80, rows: 24 });
+    assert.deepEqual(spawnOpts[0].env, { CLAUDE_CODE_OAUTH_TOKEN: "t" });
+    assert.equal(spawnOpts[1].env, undefined);
   });
 
   it("follows the pane's title and Claude conversation from its output", () => {

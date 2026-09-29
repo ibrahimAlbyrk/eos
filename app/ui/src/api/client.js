@@ -788,7 +788,7 @@ export const api = {
   async listPty() {
     return getJson(ROUTES.pty, { headers: uiTokenHeader() });
   },
-  // Scrollback ring buffer for reattach: replay `body.data`, then dedup live
+  // Screen snapshot for reattach: replay `body.data`, then dedup live
   // pty:data frames with `seq <= body.seq`. 404 (session gone) → envelope ok:false.
   async getPtyBuffer(id) {
     return getJson(ROUTES.ptyBuffer(id), { headers: uiTokenHeader() });

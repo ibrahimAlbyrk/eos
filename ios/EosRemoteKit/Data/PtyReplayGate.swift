@@ -20,7 +20,7 @@ public struct PtyReplayGate: Sendable {
         return accept(seq, data).map { [$0] } ?? []
     }
 
-    // The fetched ring buffer — seq 0 / "" when it was unavailable, so every held frame writes
+    // The fetched snapshot — seq 0 / "" when it was unavailable, so every held frame writes
     // through. A second call is ignored.
     public mutating func replay(seq: Int, data: String) -> [String] {
         guard !replayed else { return [] }

@@ -4,6 +4,7 @@ import { spawnPtyHost, type PtyHost, type SpawnPtyHost } from "../../spawner/pty
 import type { PtyKind, PtyPending, PtySession } from "../../contracts/src/http.ts";
 import { claudeLaunch, createOscScanner } from "./pty/claudeLaunch.ts";
 import { stepGapMs } from "./pty/claudeKeys.ts";
+import { createScreenMirror, type ScreenMirror } from "./pty/screenMirror.ts";
 
 // Interactive multi-tab PTY sessions (the `pty` feature). Each session is a
 // long-lived login shell in a real PTY. Output is BATCHED onto the bus as
@@ -13,9 +14,9 @@ import { stepGapMs } from "./pty/claudeKeys.ts";
 // 200ms of the one-shot TerminalRunService idiom: interactive echo lands inside
 // the window on every keystroke, so 200ms there felt rubber-banded. The 8KB
 // trigger still caps a full-throughput dump. Output mirrors into a per-session
-// rolling ring buffer that
+// headless terminal (pty/screenMirror) whose screen snapshot
 // GET /pty/:id/buffer replays on reattach; the client dedups live frames with
-// seq <= its last-seen seq. Distinct from TerminalRunService, the one-shot `!`
+// seq <= the snapshot's seq. Distinct from TerminalRunService, the one-shot `!`
 // runner — see the naming note in contracts/src/http.ts.
 // A session's metadata (kind, size, Claude conversation id, title) is published
 // as pty:session on create and whenever it changes.
@@ -37,16 +38,15 @@ interface Session {
   scanOsc: ReturnType<typeof createOscScanner>;
   // Serializes multi-step input (sendSteps) so two sequences never interleave.
   inputChain: Promise<unknown>;
-  // Ring buffer holds ONLY flushed (published) output, so its content always
-  // corresponds exactly to `seq` — a reattach replay can never double-render a
-  // batch that is still pending.
-  buffer: string;
+  // Fed ONLY flushed (published) output, so a snapshot always corresponds
+  // exactly to `seq` — a reattach replay can never double-render a batch that
+  // is still pending.
+  screen: ScreenMirror;
   seq: number;
   pending: string;
   flushTimer: ReturnType<typeof setTimeout> | null;
 }
 
-const BUFFER_CAP = 256 * 1024;
 // Trailing-batch window: ~one frame at 60fps. Bounds added echo latency to
 // <=~16ms during sustained typing while still coalescing bursts; the 8KB
 // trigger below handles throughput floods (cat bigfile) without waiting.
@@ -68,12 +68,18 @@ export class PtySessionService {
   private spawn: SpawnPtyHost;
   private defaultCwd: string;
   private sleep: (ms: number) => Promise<void>;
+  // Env for a claude session; unset → the host's default env.
+  private claudeEnv?: () => Record<string, string | undefined>;
 
-  constructor(deps: { bus: EventBus; defaultCwd: string; spawn?: SpawnPtyHost; sleep?: (ms: number) => Promise<void> }) {
+  constructor(deps: {
+    bus: EventBus; defaultCwd: string; spawn?: SpawnPtyHost; sleep?: (ms: number) => Promise<void>;
+    claudeEnv?: () => Record<string, string | undefined>;
+  }) {
     this.bus = deps.bus;
     this.defaultCwd = deps.defaultCwd;
     this.spawn = deps.spawn ?? spawnPtyHost;
     this.sleep = deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.claudeEnv = deps.claudeEnv;
   }
 
   create(input: {
@@ -88,12 +94,13 @@ export class PtySessionService {
     const cwd = input.cwd ?? this.defaultCwd;
     const claude = input.claude ? claudeLaunch(input.claude.resume) : null;
     const command = claude?.command ?? input.command;
-    const host = this.spawn({ cwd, cols: input.cols, rows: input.rows, command });
+    const env = claude ? this.claudeEnv?.() : undefined;
+    const host = this.spawn({ cwd, cols: input.cols, rows: input.rows, command, env });
     const session: Session = {
       id, number, host, cwd, cols: input.cols, rows: input.rows, alive: true,
       kind: claude ? "claude" : "shell", claudeSessionId: claude?.claudeSessionId ?? null,
       title: null, remote: input.remote === true, dialog: null, scanOsc: createOscScanner(), inputChain: Promise.resolve(),
-      buffer: "", seq: 0, pending: "", flushTimer: null,
+      screen: createScreenMirror(input.cols, input.rows), seq: 0, pending: "", flushTimer: null,
     };
     this.sessions.set(id, session);
     host.onData((data) => this.onData(id, data));
@@ -152,15 +159,17 @@ export class PtySessionService {
     s.cols = cols;
     s.rows = rows;
     s.host.resize(cols, rows);
+    s.screen.resize(cols, rows);
     // A mirroring device draws at the PTY's grid.
     if (changed) this.bus.publish("pty:session", toPublic(s));
     return true;
   }
 
-  buffer(id: string): { seq: number; data: string } | null {
+  async buffer(id: string): Promise<{ seq: number; data: string } | null> {
     const s = this.sessions.get(id);
     if (!s) return null;
-    return { seq: s.seq, data: s.buffer };
+    const seq = s.seq;
+    return { seq, data: await s.screen.snapshot() };
   }
 
   kill(id: string): boolean {
@@ -216,8 +225,7 @@ export class PtySessionService {
     const data = s.pending;
     s.pending = "";
     s.seq += 1;
-    s.buffer += data;
-    if (s.buffer.length > BUFFER_CAP) s.buffer = s.buffer.slice(s.buffer.length - BUFFER_CAP);
+    s.screen.write(data);
     this.bus.publish("pty:data", { sessionId: s.id, number: s.number, seq: s.seq, data });
   }
 
@@ -227,6 +235,7 @@ export class PtySessionService {
     this.publishPending(s); // drain trailing output ahead of the exit frame
     s.alive = false;
     if (s.flushTimer) { clearTimeout(s.flushTimer); s.flushTimer = null; }
+    s.screen.dispose();
     this.sessions.delete(id);
     // Registry emptied → reopen numbering from 1 (see nextNumber above).
     if (this.sessions.size === 0) this.nextNumber = 1;

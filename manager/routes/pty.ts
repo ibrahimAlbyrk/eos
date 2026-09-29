@@ -55,9 +55,9 @@ export function registerPtyRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { ok: true });
   });
 
-  r.get(/^\/pty\/(?<id>[^/]+)\/buffer$/, ({ params, req, res }) => {
+  r.get(/^\/pty\/(?<id>[^/]+)\/buffer$/, async ({ params, req, res }) => {
     if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
-    const buf = c.ptySessions.buffer(params.id);
+    const buf = await c.ptySessions.buffer(params.id);
     if (!buf) { writeJson(res, 404, { error: "session not found" }); return; }
     writeJson(res, 200, buf);
   });

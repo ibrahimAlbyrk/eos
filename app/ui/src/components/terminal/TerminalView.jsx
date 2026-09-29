@@ -20,7 +20,7 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 // hides it with display:none) so scrollback survives tab switches client-side.
 //
 // REATTACH: a fresh xterm has no scrollback, so on mount we fetch the session's
-// server ring buffer (GET /pty/:id/buffer) and replay it, then feed live pty:data
+// server screen snapshot (GET /pty/:id/buffer) and replay it, then feed live pty:data
 // through a replayGate that drops any frame the buffer already covers (seq <=
 // buffer seq) — so a reopened panel restores prior output with no duplicated
 // lines. Wiring: xterm.onData → POST /pty/:id/input (coalescing send queue);
@@ -46,9 +46,8 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 //
 // `paused` (the whole view is hidden but kept mounted): output is queued instead
 // of parsed, so a background terminal costs nothing; it's written on resume. A
-// queue past PAUSED_QUEUE_CAP (twice the server's 256KB ring buffer, so a normal
-// open's replay never trips it) is dropped and the terminal re-syncs from the
-// server buffer instead — the same output a reattach would show.
+// queue past PAUSED_QUEUE_CAP is dropped and the terminal re-syncs from the
+// server's screen snapshot instead — the same screen a reattach would show.
 const PAUSED_QUEUE_CAP = 512 * 1024;
 
 export function TerminalView({

@@ -1,6 +1,6 @@
 // replayGate — orders a PTY session's reattach so the restored scrollback and
 // the live stream never interleave or double-render. On mount TerminalView both
-// subscribes to live pty:data frames AND fetches the server ring buffer; those
+// subscribes to live pty:data frames AND fetches the server screen snapshot; those
 // race. The gate resolves the race:
 //   - frames arriving before the buffer resolves are HELD (not written), so the
 //     replayed scrollback always writes first;
@@ -27,7 +27,7 @@ export function createReplayGate(write) {
       if (!replayed) { queued.push(f); return; }
       accept(f);
     },
-    // The fetched ring buffer ({ seq, data }), or null if it was unavailable
+    // The fetched snapshot ({ seq, data }), or null if it was unavailable
     // (fresh session / 404 / error): with no buffer, lastSeq stays 0 so every
     // held frame writes through. Idempotent — a second call is ignored.
     replay(buffer) {
