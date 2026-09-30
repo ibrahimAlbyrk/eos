@@ -300,6 +300,92 @@
 .msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-user .msg-link:hover { opacity: 0.8; }
 
+/* ── send flight — the composer card shrinks into the new bubble ─────────
+   lib/sendFlight.js drives the geometry (a spring onto the bubble's live
+   rect); this owns the material. Clear glass lifts off the card, condenses
+   into the bubble blue as it lands, and one sheen sweeps it. The ghost's
+   resting state IS `.msg-user .b`, so the hand-off to the real bubble is
+   invisible. */
+.msg-user.send-flight {
+  display: block;
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 50;
+  pointer-events: none;
+  contain: layout style;
+  transition: opacity 0.16s ease;
+}
+.send-flight.is-gone { opacity: 0; }
+.send-flight .b {
+  position: absolute;
+  inset: 0;
+  max-width: none;
+  padding: 0;
+  -webkit-backdrop-filter: blur(0px) saturate(1);
+  backdrop-filter: blur(0px) saturate(1);
+}
+/* Holding on the card until the bubble renders: only the text shows. */
+.send-flight:not(.is-flying) .b { background: none; box-shadow: none; }
+.send-flight:not(.is-flying) .b::after { opacity: 0; }
+.send-flight.is-flying .b { animation: sf-material 0.72s linear both; }
+.send-flight.is-flying .b::after { animation: sf-fade-in 0.72s ease both; }
+.send-flight .sf-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.send-flight.is-flying .sf-from { animation: sf-fade-out 0.2s ease-out both; }
+.send-flight.is-flying .sf-to { animation: sf-fade-in 0.22s ease-out 0.06s both; }
+.send-flight .sf-rim,
+.send-flight .sf-sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}
+.send-flight .sf-rim {
+  padding: 1px;
+  background: linear-gradient(160deg, rgba(230, 240, 255, 0.55), rgba(160, 200, 255, 0.08) 35%, rgba(110, 164, 232, 0) 60%, rgba(200, 225, 255, 0.25));
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.send-flight.is-flying .sf-rim { animation: sf-rim 0.72s ease both; }
+.send-flight .sf-sheen {
+  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.2) 48%, rgba(255, 255, 255, 0) 62%) no-repeat;
+  background-size: 260% 100%;
+}
+.send-flight.is-flying .sf-sheen { animation: sf-sheen 0.7s ease-in-out 0.5s both; }
+/* 100% falls back to `.msg-user .b` — the real bubble's look. */
+@keyframes sf-material {
+  0% {
+    background-color: transparent;
+    -webkit-backdrop-filter: blur(0px) saturate(1);
+    backdrop-filter: blur(0px) saturate(1);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0), 0 4px 12px -6px rgba(var(--ink), 0);
+  }
+  16% {
+    background-color: rgba(140, 180, 240, 0.07);
+    -webkit-backdrop-filter: blur(14px) saturate(1.7);
+    backdrop-filter: blur(14px) saturate(1.7);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16), 0 26px 44px -18px rgba(var(--ink), 0.75);
+  }
+  58% {
+    background-color: color-mix(in srgb, var(--bubble) 60%, transparent);
+    -webkit-backdrop-filter: blur(10px) saturate(1.5);
+    backdrop-filter: blur(10px) saturate(1.5);
+  }
+}
+@keyframes sf-rim { 16% { opacity: 1; } }
+@keyframes sf-sheen {
+  from { opacity: 1; background-position: 130% 0; }
+  to { opacity: 1; background-position: -30% 0; }
+}
+@keyframes sf-fade-in { from { opacity: 0; } }
+@keyframes sf-fade-out { to { opacity: 0; } }
+
 /* Hover action row (copy + timestamp) under text messages. Absolutely
    positioned into the container's block gap below the message so revealing it
    never shifts layout (the transcript auto-scrolls and a reflow would jump). */

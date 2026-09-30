@@ -26,6 +26,7 @@ import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes.js";
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
+import { launchSendFlight } from "../../../lib/sendFlight.js";
 import { ContextStrip } from "./ContextStrip.jsx";
 import { SessionTray } from "./SessionTray.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
@@ -576,6 +577,9 @@ export function Composer({ live, worker, paneId, focused }) {
       return;
     }
 
+    // Only a direct send lands as a chat bubble; a busy or compacting agent
+    // queues it as a pill. Launched before prepareMessage clears the editor.
+    if (selected && !gitMode && !compacting && selected.state !== "WORKING") launchSendFlight(editorRef.current);
     let { displayText, agentText } = await prepareMessage();
 
     if (gitMode) {
