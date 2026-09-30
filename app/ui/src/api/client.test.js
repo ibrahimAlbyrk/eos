@@ -250,3 +250,29 @@ describe("api.renameIntent wire contract", () => {
     expect(JSON.parse(opts.body)).toEqual({ active: false });
   });
 });
+
+describe("api.uploadPaste wire contract", () => {
+  const okFetch = () => vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ path: "/tmp/x" }) });
+
+  it("uploads a File's own bytes (a Blob's bytes() method is not a snapshot)", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.uploadPaste(new File(["hello"], "note.txt"));
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.fsPaste);
+    expect(new TextDecoder().decode(opts.body)).toBe("hello");
+  });
+
+  it("percent-encodes the filename so non-Latin-1 names can travel in a header", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.uploadPaste({ name: "şema ğ PM.png", bytes: new ArrayBuffer(1) });
+
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(opts.headers["x-filename"]).toBe(encodeURIComponent("şema ğ PM.png"));
+    expect([...opts.headers["x-filename"]].every((c) => c.charCodeAt(0) <= 0xff)).toBe(true);
+  });
+});

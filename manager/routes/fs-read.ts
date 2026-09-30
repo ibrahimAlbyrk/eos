@@ -17,6 +17,13 @@ const PASTE_MAX_BYTES = 20 * 1024 * 1024;
 const PASTE_B64_MAX_BODY_BYTES = Math.ceil((PASTE_MAX_BYTES / 3) * 4) + 64 * 1024;
 const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
+// Header values are ISO-8859-1 only, so the UI percent-encodes x-filename
+// (Turkish letters, macOS's U+202F in screenshot names). An older client's raw
+// name that isn't valid encoding ("100%.png") is kept as sent.
+function decodeFilename(name: string): string {
+  try { return decodeURIComponent(name); } catch { return name; }
+}
+
 function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
@@ -171,7 +178,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     try {
       const buf = await readRawBody(req, PASTE_MAX_BYTES);
       const dir = mkdtempSync(join(tmpdir(), "eos-paste-"));
-      const dest = join(dir, name.replace(/[/\0]/g, "_"));
+      const dest = join(dir, decodeFilename(name).replace(/[/\0]/g, "_"));
       writeFileSync(dest, buf);
       writeJson(res, 200, { path: dest });
     } catch (e) {

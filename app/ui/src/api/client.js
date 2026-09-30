@@ -362,12 +362,14 @@ export const api = {
   // goes empty once the clipboard changes, so the byte read can't be deferred
   // to here. `bytes` may be an ArrayBuffer or a Promise<ArrayBuffer>.
   async uploadPaste(src) {
-    const buf = src.bytes !== undefined ? await src.bytes : await src.arrayBuffer();
+    // A Blob has a bytes() METHOD of its own — tell the two apart by type.
+    const buf = src instanceof Blob ? await src.arrayBuffer() : await src.bytes;
     const r = await fetch(`${DAEMON}${ROUTES.fsPaste}`, {
       method: "POST",
       headers: {
         "content-type": "application/octet-stream",
-        "x-filename": src.name || "paste.png",
+        // Header values must be ISO-8859-1 — "şema.png" would throw here.
+        "x-filename": encodeURIComponent(src.name || "paste.png"),
       },
       body: buf,
     });
