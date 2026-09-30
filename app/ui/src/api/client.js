@@ -727,8 +727,8 @@ export const api = {
     if (!r.ok) throw new Error(r.body?.error ?? `listHosts → ${r.status}`);
     return r.body?.hosts ?? [];
   },
-  async connectHost(invite, alias) {
-    return postJson(ROUTES.hosts, { invite, ...(alias ? { alias } : {}) }, uiTokenHeader());
+  async connectHost(invite, alias, mutual) {
+    return postJson(ROUTES.hosts, { invite, ...(alias ? { alias } : {}), ...(mutual ? { mutual: true } : {}) }, uiTokenHeader());
   },
   async updateHost(id, patch) {
     return putJson(ROUTES.host(id), patch, uiTokenHeader());

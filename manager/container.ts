@@ -1365,7 +1365,7 @@ export function buildContainer() {
   // controlling (links to the hosts this Mac drives, kept up in the background).
   const peerDir = join(config.daemon.home, "peer");
   const peerIdentity = loadOrCreateIdentity(peerDir);
-  const peerHost = new PeerHostService({
+  const peerHost: PeerHostService = new PeerHostService({
     identity: peerIdentity,
     devices: createPairedDeviceStore(peerDir),
     invites: createOpenInviteStore(peerDir),
@@ -1376,14 +1376,20 @@ export function buildContainer() {
       const url = config.peer.relayUrl ?? config.remote.relay?.url;
       return url ? { url, ...loadOrCreateRelayRoom(peerDir) } : null;
     },
+    // Both roles at once: a computer this Mac controls may control this Mac
+    // too, and each can carry the other in if only one of them can dial.
+    onReverse: (fp) => hostLinks.reverseFrom(fp),
+    onDeviceAllowed: (fp) => hostLinks.offerReverse(fp),
+    onReciprocal: (device) => hostLinks.adoptReciprocal(device),
     bus,
     now: () => Date.now(),
     log,
   });
-  const hostLinks = new HostLinkService({
+  const hostLinks: HostLinkService = new HostLinkService({
     creds: peerIdentity,
     hosts: createKnownHostStore(peerDir),
     deviceName: () => peerHost.hostInfo().name,
+    reverseSink: (fp) => (peerHost.allowsControlFrom(fp) ? (pipe) => peerHost.acceptPipe(pipe) : null),
     bus,
     now: () => Date.now(),
     log,

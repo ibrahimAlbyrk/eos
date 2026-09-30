@@ -12,7 +12,7 @@ describe("isLocalOnlyRoute", () => {
 
   it("keeps peering management local, including chaining through /h/", () => {
     for (const [m, p] of [["GET", "/api/peer"], ["POST", "/api/peer/invite"], ["DELETE", "/api/peer/devices/ab"],
-      ["GET", "/api/hosts"], ["POST", "/api/hosts/x/reconnect"], ["GET", "/h/abc/workers"], ["POST", "/peer/pair"],
+      ["GET", "/api/hosts"], ["POST", "/api/hosts/x/reconnect"], ["GET", "/h/abc/workers"], ["POST", "/peer/pair"], ["POST", "/peer/reverse"],
       ["PUT", "/api/remote/config"]] as const) {
       assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
     }

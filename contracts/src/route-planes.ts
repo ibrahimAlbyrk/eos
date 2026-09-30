@@ -26,7 +26,7 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/api/hosts/*"],
   ["*", "/api/remote/*"],
   ["*", "/h/*"],
-  ["*", "/peer/pair"],
+  ["*", "/peer/*"],
 ];
 
 function templateRegex(template: string): RegExp {

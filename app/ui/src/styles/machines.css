@@ -261,6 +261,7 @@ button.mc-card--quiet:hover { background: var(--lg-chip-bg); box-shadow: var(--l
 }
 .connect-preview__head { display: flex; align-items: center; gap: 14px; }
 .connect-preview__pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.connect-sheet__mutual { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .connect-sheet__foot { display: flex; align-items: center; gap: 8px; }
 .connect-sheet__note { flex: 1; font-size: var(--text-xs); color: var(--fg-faint); }
 .connect-sheet__err { font-size: var(--text-sm); color: var(--err); }

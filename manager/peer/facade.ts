@@ -117,6 +117,8 @@ export function registerHostFacade(r: Router, deps: {
   const handler: RouteHandler = async ({ req, res, params, url }) => {
     const link = deps.link(params.hostId);
     if (!link) { writeJson(res, 404, { error: "unknown computer", code: "unknown-host" }); return; }
+    // Pairing and tunnels belong to the link itself — no caller here may speak them.
+    if ((params.rest ?? "").startsWith("/peer/")) { writeJson(res, 404, { error: "not an API route" }); return; }
     await forwardToHost({
       link, req, res,
       path: (params.rest || "/") + url.search,

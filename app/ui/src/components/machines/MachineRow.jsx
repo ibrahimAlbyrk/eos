@@ -35,7 +35,7 @@ export function MachineRow({ live }) {
   const name = remote ? hostLabel(host ?? currentHost()) : local?.name ?? "This Mac";
   const tone = remote ? linkTone(host?.link) : "ok";
   const meta = !remote ? "This Mac"
-    : host?.link?.state === "live" ? (host.link.route === "relay" ? "Relay" : "LAN")
+    : host?.link?.state === "live" ? (host.link.route === "relay" ? "Relay" : host.link.route === "reverse" ? "Tunnel" : "LAN")
     : routeLabel(host?.link).toLowerCase();
 
   const run = (fn) => () => { ui.closeAllPops(); fn(); };

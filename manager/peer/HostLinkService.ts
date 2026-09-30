@@ -9,7 +9,7 @@ import type { Duplex } from "node:stream";
 import { networkInterfaces } from "node:os";
 
 import {
-  PairResponseSchema, type HostView, type KnownHost, type PairRequest, type UpdateHostRequest,
+  PairResponseSchema, type HostView, type KnownHost, type LinkRoute, type PairRequest, type RelayGrant, type UpdateHostRequest,
 } from "../../contracts/src/peer.ts";
 import { ROUTES } from "../../contracts/src/http.ts";
 import { formatDeviceId, inviteState } from "../../core/src/domain/peer.ts";
@@ -21,6 +21,7 @@ import { parseAddress } from "../../infra/src/peer/machine.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { HostLink } from "./HostLink.ts";
+import { dialFailure, explainDialFailures, type DialFailure } from "./dial-failure.ts";
 import { decodeInvite } from "./invite-codec.ts";
 import { openRelayPipe, relayJoinBearer, RelayJoinError } from "./relay-pipe.ts";
 
@@ -36,6 +37,14 @@ export class PairingError extends Error {
   }
 }
 
+// "Let it control this Mac too", sent with a pairing: this Mac's own ways in.
+export interface ReciprocalOffer {
+  addrs: string[];
+  relay?: RelayGrant;
+  // The host took the offer — let it control this Mac.
+  accepted: (host: KnownHost) => void;
+}
+
 export interface HostLinkServiceDeps {
   creds: PeerCredentials & { fingerprint: string };
   hosts: KnownHostStore;
@@ -43,6 +52,9 @@ export interface HostLinkServiceDeps {
   deviceName: () => string;
   // Override for tests; defaults to joining the host's relay room.
   dialRelay?: (target: { url: string; room: string; bearer: string }) => Promise<Duplex> | null;
+  // When a host may also control this Mac: where a tunnel offered to it lands
+  // (this Mac's peer server). null ⇒ it may not.
+  reverseSink?: (hostId: string) => ((pipe: Duplex) => void) | null;
   bus: EventBus;
   now: () => number;
   log: Logger;
@@ -103,7 +115,8 @@ export class HostLinkService {
 
   // Redeem an invite: prove the host is who the invite names, hand it the
   // single-use secret, and remember it with whatever relay admission it grants.
-  async pair(inviteLink: string, alias?: string): Promise<HostView> {
+  // With a reciprocal offer the host controls this Mac back — one pairing, both ways.
+  async pair(inviteLink: string, alias?: string, reciprocal?: ReciprocalOffer): Promise<HostView> {
     let invite;
     try { invite = decodeInvite(inviteLink); } catch (e) { throw new PairingError(400, errMsg(e)); }
     if (inviteState(invite, this.deps.now()) === "expired") throw new PairingError(410, "this invite has expired — make a new one on that Mac");
@@ -117,7 +130,12 @@ export class HostLinkService {
     let body: string;
     let status: number;
     try {
-      const req: PairRequest = { secret: invite.sec, name: this.deps.deviceName(), platform: process.platform };
+      const req: PairRequest = {
+        secret: invite.sec,
+        name: this.deps.deviceName(),
+        platform: process.platform,
+        ...(reciprocal ? { reciprocal: { addrs: reciprocal.addrs, relay: reciprocal.relay } } : {}),
+      };
       ({ status, body } = await postJson(session, ROUTES.peerPair, req));
     } catch (e) {
       if (refused) throw new PairingError(403, "that Mac isn't taking this invite — it was already used or cancelled; make a new one there");
@@ -132,16 +150,36 @@ export class HostLinkService {
     }
     const parsed = PairResponseSchema.safeParse(JSON.parse(body));
     if (!parsed.success) throw new PairingError(502, "that Mac answered with an incompatible Eos version");
-    const existing = this.deps.hosts.get(invite.fp);
-    const host: KnownHost = {
+    const host = this.remember({
       id: invite.fp,
       name: parsed.data.host.name,
-      alias: alias?.trim() || existing?.alias || null,
+      alias: alias?.trim() || null,
       platform: parsed.data.host.platform,
       addrs: invite.addrs,
-      ...(parsed.data.relay ? { relay: parsed.data.relay } : existing?.relay ? { relay: existing.relay } : {}),
-      pairedAt: existing?.pairedAt ?? this.deps.now(),
+      relay: parsed.data.relay,
       lastConnectedAt: this.deps.now(),
+    });
+    if (reciprocal && parsed.data.reciprocal) reciprocal.accepted(host);
+    return this.view(host);
+  }
+
+  // A device pairing with this Mac lets this Mac control it too: remember it
+  // like a host paired through an invite, and bring its link up.
+  adoptReciprocal(d: { fp: string; name: string; platform: string; addrs: string[]; relay?: RelayGrant }): void {
+    this.remember({ id: d.fp, name: d.name, alias: null, platform: d.platform, addrs: d.addrs, relay: d.relay, lastConnectedAt: null });
+  }
+
+  // Save a paired host (keeping what the person set before) and (re)start its link.
+  private remember(h: Omit<KnownHost, "pairedAt">): KnownHost {
+    const existing = this.deps.hosts.get(h.id);
+    const { relay: given, ...rest } = h;
+    const relay = given ?? existing?.relay;
+    const host: KnownHost = {
+      ...rest,
+      alias: h.alias || existing?.alias || null,
+      ...(relay ? { relay } : {}),
+      pairedAt: existing?.pairedAt ?? this.deps.now(),
+      lastConnectedAt: h.lastConnectedAt ?? existing?.lastConnectedAt ?? null,
     };
     this.deps.hosts.upsert(host);
     const link = this.ensureLink(host.id);
@@ -149,7 +187,7 @@ export class HostLinkService {
     link.start();
     this.changed(host.id);
     this.deps.log.info("[hosts] paired with host", { host: host.name, deviceId: formatDeviceId(host.id) });
-    return this.view(host);
+    return host;
   }
 
   update(id: string, patch: UpdateHostRequest): HostView | null {
@@ -174,6 +212,18 @@ export class HostLinkService {
     return removed;
   }
 
+  // A host this Mac controls opened a tunnel back through its link here: that
+  // host's link takes it. null ⇒ this Mac doesn't control that computer.
+  reverseFrom(id: string): ((pipe: Duplex) => void) | null {
+    const link = this.link(id);
+    return link ? (pipe) => link.addReverse(pipe) : null;
+  }
+
+  // That host may now control this Mac: offer it a way back through the link.
+  offerReverse(id: string): void {
+    this.links.get(id)?.offerReverse();
+  }
+
   reconnect(id: string): boolean {
     const link = this.link(id);
     if (!link) return false;
@@ -187,20 +237,23 @@ export class HostLinkService {
 
   private async openPairingSession(invite: ReturnType<typeof decodeInvite>): Promise<http2.ClientHttp2Session> {
     const tries: Array<Promise<import("node:tls").TLSSocket>> = [];
+    const failures: DialFailure[] = [];
+    const tracked = (route: LinkRoute, p: Promise<import("node:tls").TLSSocket>) =>
+      p.catch((e: unknown) => { failures.push(dialFailure(route, e)); throw e; });
     for (const addr of invite.addrs) {
       const target = parseAddress(addr);
-      if (target) tries.push(connectSecure({ creds: this.deps.creds, expectFingerprint: invite.fp, transport: target, timeoutMs: PAIR_TIMEOUT_MS }));
+      if (target) tries.push(tracked("direct", connectSecure({ creds: this.deps.creds, expectFingerprint: invite.fp, transport: target, timeoutMs: PAIR_TIMEOUT_MS })));
     }
     // Over the relay the room admits this device, for as long as the invite is
     // open, by a bearer derived from its secret — the secret itself only ever
     // crosses inside TLS.
     if (invite.relay) {
       const relay = invite.relay;
-      tries.push((async () => {
+      tries.push(tracked("relay", (async () => {
         const pipe = await this.dialRelayPipe({ url: relay.url, room: relay.room, bearer: relayJoinBearer(invite.sec) });
         if (!pipe) throw new PairingError(502, "relay unavailable");
         return connectSecure({ creds: this.deps.creds, expectFingerprint: invite.fp, transport: pipe, timeoutMs: PAIR_TIMEOUT_MS });
-      })());
+      })()));
     }
     if (tries.length === 0) throw new PairingError(502, "that Mac offers no way in — turn on \"Direct on this network\" or set a relay there");
     try {
@@ -213,7 +266,8 @@ export class HostLinkService {
       const errors = e instanceof AggregateError ? e.errors : [e];
       if (errors.some((x) => x instanceof PeerIdentityError)) throw new PairingError(403, "the Mac at that address is not the one that made the invite");
       if (errors.some((x) => x instanceof RelayJoinError && x.code === "BEARER_DENIED")) throw new PairingError(410, "the relay no longer accepts this invite — make a new one on that Mac");
-      throw new PairingError(502, invite.relay ? "couldn't reach that Mac directly or through its relay" : "couldn't reach that Mac — are both on the same network?");
+      this.deps.log.warn("[hosts] pairing found no route to that Mac", { host: invite.name, failures });
+      throw new PairingError(502, `couldn't reach that Mac: ${explainDialFailures(failures)}`);
     }
   }
 
@@ -224,6 +278,7 @@ export class HostLinkService {
       creds: this.deps.creds,
       host: () => this.deps.hosts.get(id),
       dialRelay: (h) => (h.relay ? this.dialRelayPipe(h.relay) : null),
+      reverseSink: () => this.deps.reverseSink?.(id) ?? null,
       now: this.deps.now,
       log: this.deps.log,
       onChange: () => this.changed(id),

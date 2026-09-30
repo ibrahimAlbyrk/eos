@@ -18,7 +18,7 @@ import path from "node:path";
 
 export interface HostLink {
   state: "connecting" | "live" | "reconnecting" | "offline" | "unauthorized" | "incompatible";
-  route: "direct" | "relay" | null;
+  route: "direct" | "relay" | "reverse" | null;
   rttMs: number | null;
   error: string | null;
 }

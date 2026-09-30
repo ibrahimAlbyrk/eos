@@ -2,7 +2,8 @@
 // alive and tells the rest of the daemon how that link is doing.
 //
 // Connecting races every route the host might be on (its LAN/tailnet addresses,
-// then the relay) and keeps the first one that proves the pinned identity.
+// a tunnel the host opened back to this Mac, then the relay) and keeps the first
+// one that proves the pinned identity.
 // Liveness is an HTTP/2 PING — it doubles as the latency the UI shows. A host
 // that refuses this device (revoked, remote access switched off) says so in its
 // GOAWAY, and the link stops retrying instead of looping as if offline.
@@ -18,6 +19,7 @@ import type { Logger } from "../../core/src/ports/Logger.ts";
 import { connectSecure, openPeerSession, PeerIdentityError, type PeerCredentials } from "../../infra/src/peer/secure-channel.ts";
 import { parseAddress } from "../../infra/src/peer/machine.ts";
 import { errMsg } from "../../contracts/src/util.ts";
+import { blockedFromLocalNetwork, dialFailure, explainDialFailures, type DialFailure } from "./dial-failure.ts";
 
 // Error codes surfaced in LinkStatus.error — the UI maps them to copy.
 export const LINK_ERROR = {
@@ -26,19 +28,26 @@ export const LINK_ERROR = {
   hostingOff: PEER_REFUSAL.hostingOff,
   noRoute: "no-route",
   unreachable: "unreachable",
+  // A direct path failed with "no route to host" — most often macOS Local
+  // Network privacy keeping Eos off the LAN.
+  localNetwork: "local-network",
 } as const;
 
 const DIAL_TIMEOUT_MS = 6_000;
 // Direct candidates start this far apart; the relay joins after them so a
 // reachable LAN address wins without waiting for the relay handshake.
 const STAGGER_MS = 150;
+// A tunnel from the host rides a link that is already up — tried before the relay.
+const REVERSE_DELAY_MS = 200;
 const RELAY_DELAY_MS = 400;
+// A tunnel this Mac offered was used up or dropped: offer the next after this.
+const REOFFER_MS = 1_000;
 const PING_INTERVAL_MS = 10_000;
 const PING_TIMEOUT_MS = 6_000;
 const BACKOFF_MS = [500, 1_000, 2_000, 4_000, 8_000, 10_000];
 // Remote access switched off on the host: check back now and then, not in a loop.
 const HOSTING_OFF_RETRY_MS = 30_000;
-// On the relay, look for a direct path this often (and on every network change).
+// Off a direct path, look for one this often (and on every network change).
 const UPGRADE_INTERVAL_MS = 30_000;
 const FIRST_UPGRADE_MS = 3_000;
 // A replaced session gets this long to finish in-flight requests.
@@ -56,6 +65,9 @@ export interface HostLinkDeps {
   // The host's own notifications (an agent finished, one needs you) — raised on
   // this Mac so they reach the person even when that host's window is closed.
   onNotification?: (payload: unknown) => void;
+  // When the host may also control this Mac: where a tunnel this Mac offers it
+  // lands (this Mac's peer server). null ⇒ offer none.
+  reverseSink?: () => ((pipe: Duplex) => void) | null;
   pingIntervalMs?: number;
 }
 
@@ -86,6 +98,11 @@ export class HostLink {
   private upgradeTimer: ReturnType<typeof setInterval> | null = null;
   private upgrading = false;
   private waiters: Waiter[] = [];
+  private lastFailure: string | null = null;
+  // A tunnel the host opened back to this Mac, kept ready as a way in.
+  private reverse: Duplex | null = null;
+  // The tunnel this Mac offered the host through the live session.
+  private offered: http2.ClientHttp2Stream | null = null;
 
   constructor(deps: HostLinkDeps) {
     this.deps = deps;
@@ -107,6 +124,9 @@ export class HostLink {
     const s = this.session;
     this.session = null;
     s?.destroy();
+    this.reverse?.destroy();
+    this.reverse = null;
+    this.offered = null;
     this.rejectWaiters(new LinkUnavailableError(LINK_ERROR.unreachable, "link stopped"));
     this.setStatus({ state: "offline", route: null, rttMs: null, error: null, attempt: 0 });
   }
@@ -117,7 +137,7 @@ export class HostLink {
     if (this.stopped) return;
     if (this.session) {
       this.ping();
-      if (this.state.route === "relay") void this.tryUpgrade();
+      if (this.state.route !== "direct") void this.tryUpgrade();
       return;
     }
     if (this.retryTimer) { clearTimeout(this.retryTimer); this.retryTimer = null; }
@@ -145,6 +165,48 @@ export class HostLink {
     });
   }
 
+  // The host opened a tunnel back to this Mac inside its own link here — the
+  // way in when this Mac has no path of its own (no route into the host's
+  // network, Local Network privacy, the relay out of reach).
+  addReverse(pipe: Duplex): void {
+    if (this.stopped) { pipe.destroy(); return; }
+    this.reverse?.destroy();
+    this.reverse = pipe;
+    pipe.once("close", () => { if (this.reverse === pipe) this.reverse = null; });
+    if (!this.session && !this.dialing) this.kick();
+  }
+
+  // The host may also control this Mac: hand it a tunnel back through this
+  // session, so it reaches this Mac even when it has no path of its own. Never
+  // through a session that itself rides such a tunnel.
+  offerReverse(): void {
+    const session = this.session;
+    if (!session || session.destroyed || this.offered || this.state.route === "reverse") return;
+    const sink = this.deps.reverseSink?.();
+    if (!sink) return;
+    let stream: http2.ClientHttp2Stream;
+    try {
+      stream = session.request({ ":method": "POST", ":path": ROUTES.peerReverse });
+    } catch {
+      return;
+    }
+    this.offered = stream;
+    let taken = false;
+    stream.on("error", () => {});
+    stream.once("response", (h) => {
+      if (Number(h[":status"]) !== 200) { stream.close(); return; }
+      taken = true;
+      sink(stream);
+    });
+    stream.once("close", () => {
+      if (this.offered === stream) this.offered = null;
+      // Used or dropped: offer the next while this session lives. A host that
+      // declined is asked again only when trust changes (offerReverse again).
+      if (!taken || this.session !== session || session.destroyed) return;
+      setTimeout(() => this.offerReverse(), REOFFER_MS).unref?.();
+    });
+  }
+
   private async connect(): Promise<void> {
     if (this.stopped || this.dialing || this.session) return;
     const host = this.deps.host();
@@ -163,8 +225,15 @@ export class HostLink {
         this.refuse(LINK_ERROR.notPaired);
       } else {
         const code = e instanceof LinkUnavailableError ? e.code : LINK_ERROR.unreachable;
+        // Retries repeat the same failure; say why once, and again when it changes.
+        const why = errMsg(e);
+        if (why !== this.lastFailure) {
+          this.lastFailure = why;
+          this.deps.log.warn("[hosts] no route to host", { host: host.name, why });
+        }
         this.setStatus({ state: "reconnecting", route: null, rttMs: null, error: code });
-        this.scheduleRetry();
+        // A tunnel from the host arrived while this dial ran: use it now.
+        this.scheduleRetry(this.reverse ? 0 : undefined);
       }
     } finally {
       this.dialing = false;
@@ -181,6 +250,17 @@ export class HostLink {
         open: () => connectSecure({ creds: this.deps.creds, expectFingerprint: host.id, transport: target, timeoutMs: DIAL_TIMEOUT_MS }),
       });
     });
+    if (this.reverse) {
+      attempts.push({
+        delay: attempts.length ? REVERSE_DELAY_MS : 0, route: "reverse",
+        open: () => {
+          const pipe = this.reverse;
+          this.reverse = null;
+          if (!pipe || pipe.destroyed) return Promise.reject(new LinkUnavailableError(LINK_ERROR.noRoute, "the host's tunnel closed"));
+          return connectSecure({ creds: this.deps.creds, expectFingerprint: host.id, transport: pipe, timeoutMs: DIAL_TIMEOUT_MS });
+        },
+      });
+    }
     const relayPipe = this.deps.dialRelay;
     if (relayPipe && host.relay) {
       attempts.push({
@@ -199,6 +279,7 @@ export class HostLink {
       let failed = 0;
       let relayIdentityError: PeerIdentityError | null = null;
       let relayDenied = false;
+      const failures: DialFailure[] = [];
       for (const a of attempts) {
         setTimeout(() => {
           if (settled) { failed++; return; }
@@ -209,6 +290,7 @@ export class HostLink {
               resolve({ sock, route: a.route });
             },
             (e: unknown) => {
+              failures.push(dialFailure(a.route, e));
               // A different key at a LAN address is most likely another machine
               // that inherited the IP; only the relay room — which is this
               // host's alone — proves the host itself changed identity.
@@ -217,9 +299,11 @@ export class HostLink {
               if (a.route === "relay" && (e as { code?: unknown })?.code === "BEARER_DENIED") relayDenied = true;
               if (++failed === attempts.length && !settled) {
                 settled = true;
+                const code = blockedFromLocalNetwork(failures) ? LINK_ERROR.localNetwork
+                  : e instanceof LinkUnavailableError ? e.code : LINK_ERROR.unreachable;
                 reject(relayIdentityError
                   ?? (relayDenied ? new LinkUnavailableError(LINK_ERROR.notPaired, "the host's relay no longer admits this device") : null)
-                  ?? (e instanceof LinkUnavailableError ? e : new LinkUnavailableError(LINK_ERROR.unreachable, errMsg(e))));
+                  ?? new LinkUnavailableError(code, explainDialFailures(failures) || errMsg(e)));
               }
             },
           );
@@ -246,13 +330,16 @@ export class HostLink {
       else this.scheduleRetry(0);
     });
     this.session = session;
+    this.lastFailure = null;
+    // An offer made through the previous session dies with it.
+    this.offered = null;
     this.setStatus({ state: "live", route, error: null, attempt: 0 });
     for (const w of this.waiters) { clearTimeout(w.timer); w.resolve(session); }
     this.waiters = [];
     this.pingTimer = setInterval(() => this.ping(), this.deps.pingIntervalMs ?? PING_INTERVAL_MS);
     this.pingTimer.unref?.();
     this.ping();
-    if (route === "relay" && (this.deps.host()?.addrs.length ?? 0) > 0) {
+    if (route !== "direct" && (this.deps.host()?.addrs.length ?? 0) > 0) {
       const first = setTimeout(() => void this.tryUpgrade(), FIRST_UPGRADE_MS);
       first.unref?.();
       this.upgradeTimer = setInterval(() => void this.tryUpgrade(), UPGRADE_INTERVAL_MS);
@@ -260,6 +347,7 @@ export class HostLink {
     }
     void this.refreshInfo(session);
     if (this.deps.onNotification) this.watchNotifications(session);
+    this.offerReverse();
   }
 
   // A filtered event stream (only notification:fire) for as long as this session
@@ -290,14 +378,14 @@ export class HostLink {
     req.on("error", () => {});
   }
 
-  // On the relay but the host also has direct addresses (the same LAN, a
-  // tailnet): once one answers, move the link there. New requests take the new
-  // session at once; the old one drains, then its event streams break and the
-  // dashboard resumes them from their last event id.
+  // On the relay or a tunnel but the host also has direct addresses (the same
+  // LAN, a tailnet): once one answers, move the link there. New requests take
+  // the new session at once; the old one drains, then its event streams break
+  // and the dashboard resumes them from their last event id.
   private async tryUpgrade(): Promise<void> {
     const host = this.deps.host();
     const old = this.session;
-    if (this.upgrading || !host || !old || this.state.route !== "relay") return;
+    if (this.upgrading || !host || !old || this.state.route === "direct") return;
     const targets = host.addrs.map(parseAddress).filter((t): t is { host: string; port: number } => t != null);
     if (targets.length === 0) return;
     this.upgrading = true;
@@ -312,7 +400,7 @@ export class HostLink {
       old.close();
       setTimeout(() => { if (!old.destroyed) old.destroy(); }, DRAIN_MS).unref?.();
     } catch {
-      // no direct path yet — stay on the relay
+      // no direct path yet — stay where we are
     } finally {
       this.upgrading = false;
     }

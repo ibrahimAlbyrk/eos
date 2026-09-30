@@ -13,7 +13,7 @@ import { homedir } from "node:os";
 import { ROUTES } from "../../contracts/src/http.ts";
 import {
   PairRequestSchema, PEER_REFUSAL,
-  type HostInfo, type InviteResponse, type PairResponse, type PairedDevice, type PairedDeviceView, type PeerConfig, type PeerStatus,
+  type HostInfo, type InviteResponse, type PairResponse, type PairedDeviceView, type PeerConfig, type PeerStatus, type RelayGrant,
 } from "../../contracts/src/peer.ts";
 import { admitPeer, formatDeviceId } from "../../core/src/domain/peer.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
@@ -72,6 +72,15 @@ export interface PeerHostDeps {
   // Holds system sleep off while hosting (a sleeping Mac can't be reached);
   // returns the release. Defaults to caffeinate, as for the iPhone edge.
   keepAwake?: () => () => void;
+  // A paired device that this Mac also controls opened a tunnel back to itself:
+  // where it goes (that host's link here). null ⇒ this Mac doesn't control it.
+  onReverse?: (fp: string) => ((pipe: Duplex) => void) | null;
+  // A device may now control this Mac (just paired, or hosting turned on) — a
+  // link this Mac holds to it can offer it a way back.
+  onDeviceAllowed?: (fp: string) => void;
+  // A device pairing here lets this Mac control it too (its reciprocal offer):
+  // remember it as a host (HostLinkService.adoptReciprocal).
+  onReciprocal?: (device: { fp: string; name: string; platform: string; addrs: string[]; relay?: RelayGrant }) => void;
 }
 
 function sha256(s: string): Buffer {
@@ -197,6 +206,36 @@ export class PeerHostService {
     return n;
   }
 
+  // Let a computer control this Mac — it redeemed an invite here, or a host this
+  // Mac paired with took this Mac's reciprocal offer.
+  allowDevice(d: { fp: string; name: string; platform: string; relayBearerHash?: string }): void {
+    const existing = this.deps.devices.get(d.fp);
+    const now = this.deps.now();
+    // Every paired device has its own relay bearer, so revoking one device
+    // closes the relay to it alone.
+    const relayBearerHash = d.relayBearerHash ?? existing?.relayBearerHash;
+    this.deps.devices.upsert({
+      fp: d.fp,
+      name: d.name,
+      platform: d.platform,
+      pairedAt: existing?.pairedAt ?? now,
+      lastSeenAt: now,
+      ...(relayBearerHash ? { relayBearerHash } : {}),
+    });
+    this.relayHost?.refreshAllow();
+    this.deps.log.info("[peer] device paired", { deviceId: formatDeviceId(d.fp), name: d.name });
+    this.publishPresence();
+    this.deps.onDeviceAllowed?.(d.fp);
+  }
+
+  // What this Mac hands a host it pairs with so that host can control it back:
+  // its direct addresses and a relay bearer for that host alone. The bearer's
+  // hash takes effect only through allowDevice, once the host accepts.
+  reciprocalOffer(): { addrs: string[]; relay?: RelayGrant; relayBearerHash?: string } {
+    const grant = this.mintRelayGrant();
+    return { addrs: this.currentAddresses(), ...(grant ? { relay: grant.relay, relayBearerHash: grant.hash } : {}) };
+  }
+
   revoke(fp: string): boolean {
     const device = this.deps.devices.get(fp);
     if (!device) return false;
@@ -212,9 +251,13 @@ export class PeerHostService {
     return this.server.disconnect(fp);
   }
 
-  // A relay-carried connection enters the same TLS server as a direct one.
-  acceptRelayed(transport: Duplex): void {
+  // A relay- or tunnel-carried connection enters the same TLS server as a direct one.
+  acceptPipe(transport: Duplex): void {
     this.server.accept(transport);
+  }
+
+  allowsControlFrom(fp: string): boolean {
+    return this.deps.getConfig().enabled && this.deps.devices.get(fp) != null;
   }
 
   // Who the relay may admit into this Mac's room: paired devices by their own
@@ -253,6 +296,7 @@ export class PeerHostService {
     this.applyRelay(cfg.enabled ? this.deps.relayRoom() : null);
     if (cfg.enabled && !this.releaseKeepAwake) {
       this.releaseKeepAwake = (this.deps.keepAwake ?? (() => startKeepAwake({ log: (m, x) => this.deps.log.info(`[peer] ${m}`, x ?? {}) })))();
+      for (const d of this.deps.devices.list()) this.deps.onDeviceAllowed?.(d.fp);
     } else if (!cfg.enabled && this.releaseKeepAwake) {
       this.releaseKeepAwake();
       this.releaseKeepAwake = null;
@@ -287,7 +331,7 @@ export class PeerHostService {
       room: room.room,
       owner: room.owner,
       allow: () => this.relayAllow(),
-      onPipe: (pipe: RelayPipe) => this.acceptRelayed(pipe),
+      onPipe: (pipe: RelayPipe) => this.acceptPipe(pipe),
       log: this.deps.log,
     });
     this.relayHost.start();
@@ -299,6 +343,13 @@ export class PeerHostService {
     const port = this.boundPort;
     const advertised = (this.deps.getConfig().advertise ?? []).map((a) => (parseAddress(a) ? a : `${a}:${port}`));
     return [...new Set([...advertised, ...(this.deps.addresses ?? directAddresses)(port)])];
+  }
+
+  private mintRelayGrant(): { relay: RelayGrant; hash: string } | null {
+    const relay = this.relayHost;
+    if (!relay) return null;
+    const bearer = randomBytes(32).toString("base64url");
+    return { relay: { url: relay.url, room: relay.room, bearer }, hash: bearerHash(bearer) };
   }
 
   private trustedSet(): Set<string> {
@@ -333,11 +384,24 @@ export class PeerHostService {
     }
     // Trust is re-read per stream: a revoked device's in-flight session gets
     // nothing more even before its teardown lands.
-    if (!this.deps.getConfig().enabled || !this.deps.devices.get(peer.fingerprint)) {
+    if (!this.allowsControlFrom(peer.fingerprint)) {
       respondJson(stream, 403, { error: "this device is not paired" });
       return;
     }
+    if (headers[":path"] === ROUTES.peerReverse && headers[":method"] === "POST") {
+      this.takeReverse(stream, peer.fingerprint);
+      return;
+    }
     this.forwarder.forward(stream, headers, peer.fingerprint);
+  }
+
+  // The stream itself becomes the byte pipe: this Mac dials the device's TLS
+  // server through it, pinned like any other route.
+  private takeReverse(stream: http2.ServerHttp2Stream, fp: string): void {
+    const take = this.deps.onReverse?.(fp);
+    if (!take) { respondJson(stream, 404, { error: "this Mac doesn't control that one" }); return; }
+    stream.respond({ ":status": 200 });
+    take(stream);
   }
 
   private async pair(stream: http2.ServerHttp2Stream, peer: PeerSessionInfo): Promise<void> {
@@ -353,32 +417,17 @@ export class PeerHostService {
       respondJson(stream, 403, { error: "invite is invalid, already used or cancelled — make a new one on that Mac" });
       return;
     }
-    const now = this.deps.now();
-    const existing = this.deps.devices.get(peer.fingerprint);
-    // Every paired device gets its own relay bearer, so revoking one device
-    // closes the relay to it alone.
-    const relay = this.relayHost;
-    let relayGrant: PairResponse["relay"];
-    let relayBearerHash = existing?.relayBearerHash;
-    if (relay) {
-      const bearer = randomBytes(32).toString("base64url");
-      relayBearerHash = bearerHash(bearer);
-      relayGrant = { url: relay.url, room: relay.room, bearer };
-    }
-    const device: PairedDevice = {
-      fp: peer.fingerprint,
-      name: parsed.data.name,
-      platform: parsed.data.platform,
-      pairedAt: existing?.pairedAt ?? now,
-      lastSeenAt: now,
-      ...(relayBearerHash ? { relayBearerHash } : {}),
+    const { name, platform, reciprocal } = parsed.data;
+    const grant = this.mintRelayGrant();
+    const controlsBack = reciprocal != null && this.deps.onReciprocal != null;
+    if (controlsBack) this.deps.onReciprocal!({ fp: peer.fingerprint, name, platform, ...reciprocal });
+    this.allowDevice({ fp: peer.fingerprint, name, platform, ...(grant ? { relayBearerHash: grant.hash } : {}) });
+    const response: PairResponse = {
+      host: this.hostInfo(),
+      ...(grant ? { relay: grant.relay } : {}),
+      ...(controlsBack ? { reciprocal: true } : {}),
     };
-    this.deps.devices.upsert(device);
-    this.relayHost?.refreshAllow();
-    this.deps.log.info("[peer] device paired", { deviceId: formatDeviceId(peer.fingerprint), name: device.name });
-    const response: PairResponse = { host: this.hostInfo(), ...(relayGrant ? { relay: relayGrant } : {}) };
     respondJson(stream, 200, response);
-    this.publishPresence();
   }
 
   private onSession(peer: PeerSessionInfo, event: "open" | "close"): void {

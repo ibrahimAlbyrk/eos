@@ -32,7 +32,7 @@ function ConnectionCard({ host, anchor, onClose, triggerRef }) {
           <span className="kv__k">Route</span>
           <span className="kv__v">
             {link?.route === "relay" ? <CloudIcon /> : <LanIcon />}
-            {link?.state === "live" ? (link.route === "relay" ? "Relay" : "Local network, direct") : "—"}
+            {link?.state === "live" ? (link.route === "relay" ? "Relay" : link.route === "reverse" ? "Through its link to this Mac" : "Local network, direct") : "—"}
           </span>
         </div>
         <div className="kv"><span className="kv__k">Latency</span><span className="kv__v"><span className="mono">{lat ?? "—"}</span></span></div>

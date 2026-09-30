@@ -2304,6 +2304,9 @@ export const ROUTES = {
   peerDeviceDisconnect: (fp: string): string => `/api/peer/devices/${fp}/disconnect`,
   // Redeem an invite. Served ONLY on the secure peer channel, never on loopback.
   peerPair: "/peer/pair",
+  // A paired device this Mac controls opens a byte tunnel back to itself, so this
+  // Mac can reach it with no path of its own. Secure peer channel only.
+  peerReverse: "/peer/reverse",
   // Controlling other hosts — loopback + ui-token only. GET lists hosts with live
   // link state; POST { invite, alias? } pairs + saves a new host.
   hosts: "/api/hosts",

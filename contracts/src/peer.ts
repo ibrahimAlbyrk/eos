@@ -82,19 +82,32 @@ export const OpenInviteSchema = z.object({
 export type OpenInvite = z.infer<typeof OpenInviteSchema>;
 export type InviteResponse = z.infer<typeof InviteResponseSchema>;
 
+// Admission to a Mac's relay room for one paired computer: the room and that
+// computer's own bearer.
+export const RelayGrantSchema = z.object({ url: z.string().url(), room: z.string(), bearer: z.string() });
+export type RelayGrant = z.infer<typeof RelayGrantSchema>;
+
 // POST /peer/pair — reachable ONLY over the secure channel by a not-yet-paired
 // device; the device's identity is taken from its TLS certificate, never the body.
 export const PairRequestSchema = z.object({
   secret: z.string().min(22),
   name: z.string().trim().min(1).max(64),
   platform: z.string().max(32),
+  // "Let it control this Mac too": the device's own ways in, so one pairing
+  // works in both directions.
+  reciprocal: z.object({
+    addrs: z.array(z.string().min(3)).max(12),
+    relay: RelayGrantSchema.optional(),
+  }).optional(),
 });
 export type PairRequest = z.infer<typeof PairRequestSchema>;
 
 export const PairResponseSchema = z.object({
   host: HostInfoSchema,
   // Per-device relay admission, present when the host is reachable via a relay.
-  relay: z.object({ url: z.string().url(), room: z.string(), bearer: z.string() }).optional(),
+  relay: RelayGrantSchema.optional(),
+  // The host took the device's reciprocal offer: it now controls the device too.
+  reciprocal: z.boolean().optional(),
 });
 export type PairResponse = z.infer<typeof PairResponseSchema>;
 
@@ -135,7 +148,9 @@ export type PeerStatus = z.infer<typeof PeerStatusSchema>;
 export const LinkStateSchema = z.enum(["connecting", "live", "reconnecting", "offline", "unauthorized", "incompatible"]);
 export type LinkState = z.infer<typeof LinkStateSchema>;
 
-export const LinkRouteSchema = z.enum(["direct", "relay"]);
+// "reverse": through a tunnel the host opened inside its own link to this Mac —
+// for when this Mac has no path of its own to the host.
+export const LinkRouteSchema = z.enum(["direct", "relay", "reverse"]);
 export type LinkRoute = z.infer<typeof LinkRouteSchema>;
 
 export const LinkStatusSchema = z.object({
@@ -155,7 +170,7 @@ export const KnownHostSchema = z.object({
   alias: z.string().nullable(),
   platform: z.string(),
   addrs: z.array(z.string()),
-  relay: z.object({ url: z.string().url(), room: z.string(), bearer: z.string() }).optional(),
+  relay: RelayGrantSchema.optional(),
   pairedAt: z.number(),
   lastConnectedAt: z.number().nullable(),
 });
@@ -173,6 +188,8 @@ export type HostView = z.infer<typeof HostViewSchema>;
 export const ConnectHostRequestSchema = z.object({
   invite: z.string().min(PEER_INVITE_PREFIX.length + 10),
   alias: z.string().trim().max(64).optional(),
+  // Also let that computer control this one (turns Remote access on here).
+  mutual: z.boolean().optional(),
 });
 export type ConnectHostRequest = z.infer<typeof ConnectHostRequestSchema>;
 

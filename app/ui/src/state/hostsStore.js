@@ -110,11 +110,12 @@ export function linkTone(link) {
 
 export function routeLabel(link) {
   if (!link) return "";
-  if (link.state === "live") return link.route === "relay" ? "Relay" : "Local network";
+  if (link.state === "live") return link.route === "relay" ? "Relay" : link.route === "reverse" ? "Tunnel" : "Local network";
   if (link.state === "connecting") return "Connecting…";
   if (link.state === "reconnecting") return "Reconnecting…";
   if (link.state === "unauthorized") return link.error === "identity-changed" ? "ID changed" : "Not paired";
   if (link.error === "remote-access-off") return "Remote access off";
+  if (link.error === "local-network") return "Local network blocked";
   return "Offline";
 }
 

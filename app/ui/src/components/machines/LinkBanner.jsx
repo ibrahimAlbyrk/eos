@@ -29,6 +29,7 @@ export function LinkBanner() {
       <span className="host-chip__dot host-chip__dot--warn" />
       <span>
         {off ? <>Remote access is off on {name}.</>
+          : link.error === "local-network" ? <>This Mac can't reach {name} on the local network. If Eos is off in System Settings › Privacy &amp; Security › Local Network, turn it on.</>
           : link.state === "connecting" ? <>Connecting to {name}…</>
           : <>Connection to {name} lost. Reconnecting — agents there keep running.</>}
       </span>

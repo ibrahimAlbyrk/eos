@@ -33,7 +33,7 @@ const EXPECTED_KEYS = [
   "settings", "settingsArchive", "settingsCompaction",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
-  "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair",
+  "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair", "peerReverse",
   "hosts", "host", "hostReconnect", "hostViewToken", "hostProxyPrefix",
   "anthropicConfig", "usage",
   "accounts", "accountSignIn", "signIn", "signInCode",

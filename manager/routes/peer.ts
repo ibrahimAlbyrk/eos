@@ -15,6 +15,7 @@ import { patchConfigBlock } from "./settings.ts";
 import { ConnectHostRequestSchema, PeerUpdateRequestSchema, UpdateHostRequestSchema } from "../../contracts/src/peer.ts";
 import { isFingerprint } from "../../core/src/domain/peer.ts";
 import { PairingError } from "../peer/HostLinkService.ts";
+import { pairWith } from "../peer/pair-mutual.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 const FP = "(?<fp>[0-9a-f]{64})";
@@ -73,8 +74,13 @@ export function registerPeerRoutes(r: Router, c: Container): void {
   r.post("/api/hosts", async ({ req, res }) => {
     if (!gate(req, res)) return;
     const body = validate(ConnectHostRequestSchema, await readBody(req));
+    // "Let it control this Mac too" is hosting — the person just asked for it.
+    if (body.mutual && !c.config.peer.enabled) {
+      if (!patchConfigBlock(c, "peer", { enabled: true }, res)) return;
+      await c.peerHost.reconcile();
+    }
     try {
-      writeJson(res, 200, await c.hostLinks.pair(body.invite, body.alias));
+      writeJson(res, 200, await pairWith(c.peerHost, c.hostLinks, body.invite, { alias: body.alias, mutual: body.mutual }));
     } catch (e) {
       if (e instanceof PairingError) { writeJson(res, e.status, { error: e.message }); return; }
       writeJson(res, 502, { error: errMsg(e) });
