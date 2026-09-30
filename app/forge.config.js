@@ -78,6 +78,11 @@ module.exports = {
     appBundleId: "com.ibrahimalbyrk.eos",
     appCategoryType: "public.app-category.developer-tools",
     appCopyright: "Eos",
+    // Shown in macOS's Local Network prompt: the daemon dials other Macs on
+    // this network directly (Settings › Remote access, Machines).
+    extendInfo: {
+      NSLocalNetworkUsageDescription: "Eos connects directly to your other computers on this network so you can control them from here.",
+    },
     // pack app/ into app.asar — best practice, and lets @electron/universal merge
     // the two arch slices (avoids its identical-SHA check on loose files). Unpack
     // any native addon (node-pty's pty.node) so dlopen() can load it from a real

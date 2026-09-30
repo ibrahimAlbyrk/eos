@@ -188,6 +188,10 @@ export async function startDaemon(repoRoot: string, logPath: string): Promise<vo
     programArguments: ["/bin/bash", "-c", cmd],
     env,
     logPath,
+    // A launch agent isn't exempt from Local Network privacy: without this the
+    // packaged daemon (this app's own binary) can be kept off the LAN with no
+    // prompt naming Eos, and every direct link to another Mac fails.
+    ...(app.isPackaged ? { associatedBundleId: APP_BUNDLE_ID } : {}),
   }, DAEMON_STOP_TIMEOUT_MS);
 }
 
@@ -195,6 +199,9 @@ export async function startDaemon(repoRoot: string, logPath: string): Promise<vo
 export function stopDaemon(): void {
   bootoutLaunchAgent(DAEMON_LABEL);
 }
+
+// forge.config.js packagerConfig.appBundleId.
+const APP_BUNDLE_ID = "com.ibrahimalbyrk.eos";
 
 // Above the daemon's own shutdown deadline (5s) and launchd's ExitTimeOut (10s).
 const DAEMON_STOP_TIMEOUT_MS = 12_000;

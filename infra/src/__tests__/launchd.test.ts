@@ -33,11 +33,17 @@ describe("renderPlist", () => {
     assert.match(xml, /<key>KeepAlive<\/key><dict><key>SuccessfulExit<\/key><false\/><\/dict>/);
   });
 
+  it("names the owning app only when given one", () => {
+    assert.doesNotMatch(renderPlist(spec({})), /AssociatedBundleIdentifiers/);
+    const xml = renderPlist({ ...spec({}), associatedBundleId: "com.example.app" });
+    assert.match(xml, /<key>AssociatedBundleIdentifiers<\/key><array><string>com\.example\.app<\/string><\/array>/);
+  });
+
   it("is a valid property list", { skip: process.platform !== "darwin" }, () => {
     const dir = mkdtempSync(join(tmpdir(), "plist-test-"));
     try {
       const file = join(dir, "a.plist");
-      writeFileSync(file, renderPlist(spec({ PATH: "/usr/bin", Q: "<a & b>" })));
+      writeFileSync(file, renderPlist({ ...spec({ PATH: "/usr/bin", Q: "<a & b>" }), associatedBundleId: "com.example.app" }));
       execFileSync("plutil", ["-lint", file]);
     } finally {
       rmSync(dir, { recursive: true, force: true });

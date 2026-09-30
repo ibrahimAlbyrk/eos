@@ -25,6 +25,9 @@ export interface LaunchAgentSpec {
   programArguments: string[];
   env: Record<string, string | undefined>;
   logPath: string;
+  // The app this agent belongs to. macOS privacy prompts (Local Network) and
+  // System Settings then name that app, and one choice there covers the agent.
+  associatedBundleId?: string;
 }
 
 // Characters XML 1.0 cannot carry at all — a var holding one is left out.
@@ -57,7 +60,7 @@ export function renderPlist(spec: LaunchAgentSpec): string {
 <key>ThrottleInterval</key><integer>5</integer>
 <key>ExitTimeOut</key><integer>10</integer>
 <key>ProcessType</key><string>Interactive</string>
-</dict></plist>
+${spec.associatedBundleId ? `<key>AssociatedBundleIdentifiers</key><array>${xmlString(spec.associatedBundleId)}</array>\n` : ""}</dict></plist>
 `;
 }
 
