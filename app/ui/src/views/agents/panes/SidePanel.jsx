@@ -104,8 +104,16 @@ function TabPill({ id, label, active, onSelect, onClose }) {
 }
 
 function PlusMenu({ tabs, onPick }) {
+  const ref = useRef(null);
+  // The + drifts right as tabs open; shift the menu left so it stays inside the
+  // window. Measured from the anchor, not the menu: its open animation scales it.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const over = el.offsetParent.getBoundingClientRect().left + el.offsetWidth - (window.innerWidth - 8);
+    if (over > 0) el.style.left = `${-over}px`;
+  }, []);
   return (
-    <div className="sp-plus-menu" data-pop="sidepanel-plus">
+    <div className="sp-plus-menu" data-pop="sidepanel-plus" ref={ref}>
       {tabs.map((type) => (
         <div key={type} className="sp-plus-item" onClick={(e) => { e.stopPropagation(); onPick(type); }}>
           <span className="sp-tab-icon">{ICONS[type]}</span>
@@ -238,8 +246,10 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
               onClose={() => closeTabById(id)}
             />
           ))}
-          <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+          <span className="sp-plus-wrap">
+            <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+            </span>
             {plusOpen && <PlusMenu tabs={tabs} onPick={pickTab} />}
           </span>
           <span className="sp-spacer" />

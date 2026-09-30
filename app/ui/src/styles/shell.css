@@ -749,10 +749,12 @@ html.native .single-pane { --spt-top: 12px; }
 }
 .sp-plus:hover, .sp-chrome-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 .sp-plus.on, .sp-chrome-btn.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
-.sp-plus { position: relative; }
+.sp-plus-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
 .sp-spacer { flex: 1; }
-/* Dropped from the + button (its anchor), so it tracks the button wherever the
-   open-tab count pushes it along the bar. */
+/* Dropped from the + button's wrapper (its anchor), so it tracks the button
+   wherever the open-tab count pushes it along the bar. Not inside the button:
+   its hover glass (a backdrop-filter) would trap the menu's z-index under the
+   tab content and blank the menu's own glass, flickering as hover toggles. */
 .sp-plus-menu {
   position: absolute;
   top: calc(100% + 6px);
