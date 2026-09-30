@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../api/client.js";
 import { useRemotePicker, finishRemotePick } from "../../state/remotePickerStore.js";
 import { currentHost } from "../../lib/host.js";
@@ -31,6 +31,8 @@ export function RemotePicker() {
   const [entries, setEntries] = useState([]);
   const [selected, setSelected] = useState(new Set());
   const [error, setError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const localInput = useRef(null);
 
   const load = useCallback(async (path) => {
     setError(null);
@@ -61,6 +63,20 @@ export function RemotePicker() {
   if (!request) return null;
   const files = request.mode === "files";
   const where = hostLabel(currentHost());
+
+  // Files on THIS Mac: copy them over and answer with where they landed, so
+  // callers attach them like any file picked on that computer.
+  const pickLocal = async (list) => {
+    const picked = Array.from(list ?? []);
+    if (!picked.length) return;
+    setUploading(true);
+    setError(null);
+    const results = await Promise.all(picked.map((f) => api.uploadPaste(f).catch(() => null)));
+    setUploading(false);
+    const paths = results.map((r) => r?.body?.path).filter(Boolean);
+    if (paths.length) finishRemotePick({ paths });
+    else setError(`Couldn't copy the files to ${where}.`);
+  };
   const toggle = (p) => setSelected((s) => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n; });
   const choose = () => finishRemotePick(files ? { paths: [...selected] } : { path: dir });
 
@@ -97,6 +113,14 @@ export function RemotePicker() {
         </div>
         <div className="connect-sheet__foot">
           <span className="connect-sheet__note">{files ? `${selected.size} selected` : "Opens the folder you're in."}</span>
+          {files && (
+            <>
+              <input ref={localInput} type="file" multiple hidden onChange={(e) => void pickLocal(e.target.files)} />
+              <button type="button" className="m-btn" disabled={uploading} onClick={() => localInput.current?.click()}>
+                {uploading ? "Copying…" : "From this Mac…"}
+              </button>
+            </>
+          )}
           <button type="button" className="m-btn" onClick={() => finishRemotePick({ cancelled: true })}>Cancel</button>
           <button type="button" className="m-btn m-btn--accent" disabled={files ? selected.size === 0 : !dir} onClick={choose}>
             {files ? `Add ${selected.size || ""} file${selected.size === 1 ? "" : "s"}`.replace("  ", " ") : "Choose this folder"}

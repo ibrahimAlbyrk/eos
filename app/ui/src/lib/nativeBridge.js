@@ -73,12 +73,16 @@ function wireDomDrops() {
     if (hasFiles(e) && !e.relatedTarget) for (const cb of dragSubs) cb(false);
   }, true);
   document.addEventListener("drop", (e) => {
+    if (hasFiles(e)) for (const cb of dragSubs) cb(false);
+  }, true);
+  // Bubble phase: a surface that handles its own drop (a terminal) stops it
+  // before it reaches the composer subscribers.
+  document.addEventListener("drop", (e) => {
     if (!hasFiles(e)) return;
     e.preventDefault();
-    for (const cb of dragSubs) cb(false);
     const files = Array.from(e.dataTransfer.files);
     for (const cb of fileDropSubs) cb(files);
-  }, true);
+  });
 }
 
 export function onFileDrop(cb) {

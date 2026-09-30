@@ -1,6 +1,10 @@
 import { Menu, clipboard } from "electron";
 import type { WebContents, MenuItemConstructorOptions } from "electron";
 
+function clipboardHasFiles(): boolean {
+  return clipboard.availableFormats().some((f) => f.startsWith("image/") || f === "text/uri-list");
+}
+
 // The app menu is load-bearing: on macOS the menu accelerators consume
 // ⌘Z/⌘C/⌘X/⌘V/⌘A before the renderer sees them, so — exactly like the Swift
 // shell (doc 10 §e, main.swift:998-1041) — Undo/Redo route to the composer's own
@@ -33,7 +37,9 @@ export function buildAppMenu(getWC: () => WebContents | null, machines?: MenuIte
     const wc = getWC();
     if (!wc) return;
     const focused = await run("window.__eosTerm?.isFocused() === true");
-    if (focused === true) {
+    // Images and Finder files take the page's own paste event even in a
+    // terminal: only there can a view of another computer read their bytes.
+    if (focused === true && !clipboardHasFiles()) {
       const b64 = Buffer.from(clipboard.readText(), "utf8").toString("base64");
       void run(`window.__eosTerm.pasteBase64(${JSON.stringify(b64)})`);
     } else {

@@ -14,6 +14,7 @@ import { macEditBytes, shellEscapePath } from "./terminalKeys.js";
 import { createWheelAccumulator, sgrWheelReports } from "./mouseWheel.js";
 import { createPathLinkProvider, openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
 import { claimNextDrop } from "../../lib/nativeBridge.js";
+import { isRemoteView } from "../../lib/host.js";
 import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessionOsc.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
@@ -155,19 +156,44 @@ export function TerminalView({
       return true;
     });
 
+    const pastePaths = (paths) => {
+      if (!paths.length) return;
+      term.paste(paths.map(shellEscapePath).join(" ") + " ");
+      term.focus();
+    };
+    // A view of another computer has no local paths: copy the files over there
+    // and paste where they landed (an image path is attached by Claude Code).
+    // A folder arrives as an empty typeless File — nothing to copy.
+    const withBytes = (list) => Array.from(list ?? []).filter((f) => f.type || f.size);
+    const pasteUploads = async (files) => {
+      const results = await Promise.all(files.map((f) => api.uploadPaste(f).catch(() => null)));
+      pastePaths(results.map((r) => r?.body?.path).filter(Boolean));
+    };
+
     // Finder drop → paste the escaped paths, like Ghostty. The preload resolves
     // real paths and delivers them via the native bridge after this DOM event.
     const onDrop = (e) => {
       if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
       e.preventDefault();
-      claimNextDrop((entries) => {
-        const paths = entries.map((x) => x.path).filter(Boolean);
-        if (!paths.length) return;
-        term.paste(paths.map(shellEscapePath).join(" ") + " ");
-        term.focus();
-      });
+      if (isRemoteView()) {
+        e.stopPropagation(); // not the composer's drop too
+        void pasteUploads(withBytes(e.dataTransfer.files));
+        return;
+      }
+      claimNextDrop((entries) => pastePaths(entries.map((x) => x.path).filter(Boolean)));
     };
     host.addEventListener("drop", onDrop);
+    // ⌘V of an image or Finder files (the menu routes those through the DOM
+    // paste event); text falls through to xterm.
+    const onPaste = (e) => {
+      if (!isRemoteView()) return;
+      const files = withBytes(e.clipboardData?.files);
+      if (!files.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      void pasteUploads(files);
+    };
+    host.addEventListener("paste", onPaste, true);
 
     let opened = false;
     let fitTimer = null;
@@ -296,6 +322,7 @@ export function TerminalView({
       ro.disconnect();
       io.disconnect();
       host.removeEventListener("drop", onDrop);
+      host.removeEventListener("paste", onPaste, true);
       unregisterTerm();
       offData();
       offExit();
