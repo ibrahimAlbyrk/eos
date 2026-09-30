@@ -72,11 +72,16 @@ export class HostViews {
   private readonly views = new Map<string, WebContentsView>();
   private readonly pending = new Map<string, Promise<WebContentsView>>();
   private readonly bundles = new Map<string, HostBundle>();
+  // Hosts opened in a window of their own ("Open in Window").
+  private readonly windows = new Set<BrowserWindow>();
   private active: string | null = null;
 
   constructor(deps: Deps) {
     this.deps = deps;
     deps.win.on("resize", () => this.layout());
+    // A reactivated window hands focus to its own page, hidden under the host
+    // view — then ⌘V lands nowhere and copy buttons fail ("not focused").
+    deps.win.on("focus", () => { if (this.active) this.views.get(this.active)?.webContents.focus(); });
     ipcMain.handle("eosHosts:list", () => this.snapshot());
     ipcMain.on("eosHosts:switch", (_e, id: unknown) => void this.switchTo(typeof id === "string" ? id : null));
     ipcMain.on("eosHosts:openWindow", (_e, id: unknown) => { if (typeof id === "string") void this.openInWindow(id); });
@@ -143,6 +148,8 @@ export class HostViews {
   // The web contents that has the user's attention — the menu's edit commands
   // and reload act on it.
   focusedContents(): WebContents {
+    const focused = BrowserWindow.getFocusedWindow();
+    if (focused && this.windows.has(focused)) return focused.webContents;
     const view = this.active ? this.views.get(this.active) : null;
     return view ? view.webContents : this.deps.win.webContents;
   }
@@ -167,6 +174,8 @@ export class HostViews {
       webPreferences: await this.webPreferences(id),
     });
     this.lockdown(win.webContents);
+    this.windows.add(win);
+    win.on("closed", () => this.windows.delete(win));
     await win.loadURL("eos://app/index.html");
   }
 
