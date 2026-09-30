@@ -320,8 +320,6 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.5);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 .acc-sheet {
   width: min(460px, calc(100vw - 48px));

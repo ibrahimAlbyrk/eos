@@ -106,8 +106,8 @@
 /* ============== Eos ▾ workspace switcher dropdown ============== */
 .eos-menu {
   position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
+  top: calc(100% + 10px);
+  left: -10px;
   width: 200px;
   padding: 6px;
   background: var(--pop);
@@ -602,8 +602,6 @@
   justify-content: center;
   padding-top: 24vh;
   background: rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
 }
 .cmdk {
   width: min(520px, calc(100vw - 32px));
@@ -709,8 +707,6 @@
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 .stg-modal {
   position: relative;
@@ -1118,8 +1114,6 @@
   justify-content: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.45);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
 }
 .del-confirm {
   width: 440px;
@@ -1179,8 +1173,6 @@
   justify-content: center;
   padding-top: 22vh;
   background: rgba(0, 0, 0, 0.28);
-  -webkit-backdrop-filter: blur(2px);
-  backdrop-filter: blur(2px);
 }
 .rw-modal {
   width: min(560px, calc(100vw - 48px));
@@ -1634,8 +1626,10 @@
 }
 .archive-hint__icon { display: inline-flex; }
 
-.composer-archived {
-  flex-shrink: 0;
+.composer-archived { flex-shrink: 0; }
+/* Dim the content, not the card: opacity on a glass surface drops its blur. */
+.composer-archived .composer-inner > :not(.composer-card),
+.composer-archived .composer-card > :not(.lg-backdrop, .lg-tint, .lg-rim, .lg-sheen, .lg-edge-light) {
   opacity: 0.45;
 }
 

@@ -127,6 +127,11 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
    cursor's y); the right-edge hairline catches it and the surface glows faintly.
    ============================================================================ */
 @property --side-light { syntax: "<number>"; inherits: true; initial-value: 0; }
+.side, .side-handle-popup {
+  /* the sidebar glass as a solid colour (its tint over the window bg), for
+     fades painted over its lists */
+  --side-surface: color-mix(in srgb, rgb(23 23 23) calc(min(94%, 72% + var(--lg-tint) * 40%)), var(--bg));
+}
 .side {
   --sy: 30%;
   display: flex;
@@ -201,6 +206,8 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex-shrink: 0;
 }
 .side-eos__spacer { flex: 1; }
+/* holds the trigger and its menu side by side (see EosSwitcher) */
+.eos-switch-wrap { position: relative; display: inline-flex; }
 .eos-switch {
   position: relative;
   display: inline-flex; align-items: center; gap: 7px;
@@ -362,10 +369,31 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   padding: 4px 8px 8px;
   overflow-y: auto;
   scrollbar-width: none;
-  -webkit-mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
-          mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
 }
 .agents-section::-webkit-scrollbar { display: none; }
+/* The fades are painted in the sidebar's own colour, not a mask: a mask would
+   blank the blur of any glass menu opened inside the list. */
+.agents-section::before, .agents-section::after,
+.cw-side-scroll::before, .cw-side-scroll::after {
+  content: "";
+  display: block;
+  position: sticky;
+  z-index: 2;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.agents-section::before, .cw-side-scroll::before {
+  top: 0;
+  height: 10px;
+  margin-bottom: -10px;
+  background: linear-gradient(to bottom, var(--side-surface), transparent);
+}
+.agents-section::after, .cw-side-scroll::after {
+  bottom: 0;
+  height: 18px;
+  margin-top: auto;
+  background: linear-gradient(to top, var(--side-surface), transparent);
+}
 /* Saved-layout groups sit above the list as a content-sized block. */
 .layout-groups {
   flex: 0 0 auto;

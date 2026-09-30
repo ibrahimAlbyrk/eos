@@ -41,17 +41,20 @@ export function EosSwitcher() {
 
   return (
     <div className="side-eos">
-      <div
-        ref={rootRef}
-        className={"eos-switch" + (open ? " on" : "")}
-        onClick={() => setOpen((v) => !v)}
-        role="button"
-        tabIndex={0}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <span className="eos-switch__mark">{active.label}</span>
-        <span className="eos-switch__chev"><ChevronDown /></span>
+      {/* The menu is the trigger's sibling, never its child: the trigger's
+          hover/open glass has a backdrop-filter, which would blank the menu's. */}
+      <div className="eos-switch-wrap" ref={rootRef}>
+        <div
+          className={"eos-switch" + (open ? " on" : "")}
+          onClick={() => setOpen((v) => !v)}
+          role="button"
+          tabIndex={0}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          <span className="eos-switch__mark">{active.label}</span>
+          <span className="eos-switch__chev"><ChevronDown /></span>
+        </div>
         {open && (
           <div className="eos-menu" role="menu">
             {tabs.map((t) => (

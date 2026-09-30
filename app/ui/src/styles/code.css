@@ -252,9 +252,7 @@ html.native .cw-main { --spt-top: 12px; }
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .cw-side-scroll {
   flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px;
-  scrollbar-width: none;
-  -webkit-mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
-          mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
+  scrollbar-width: none; /* edge fades: see .agents-section (shell.css) */
 }
 .cw-side-scroll::-webkit-scrollbar { display: none; }
 .cw-side-scroll .sb-seclabel { padding-left: 18px; }

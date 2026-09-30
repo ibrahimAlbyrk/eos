@@ -1667,7 +1667,6 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(var(--blur-sm));
   display: none;
   align-items: center;
   justify-content: center;
@@ -3703,7 +3702,7 @@
 .ca-ctx .menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
 
 /* BranchConfirmDialog */
-.ca-modal-backdrop { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.45); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.ca-modal-backdrop { position: fixed; inset: 0; z-index: 500; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.45); }
 .ca-modal { width: 420px; max-width: calc(100vw - 48px); display: flex; flex-direction: column; gap: 10px; padding: 20px 22px 18px; border-radius: var(--r-modal); box-shadow: var(--sh-modal); }
 .ca-modal .bc-msg { margin: 0 0 8px; font-size: var(--text-base); line-height: 1.6; color: var(--fg-mid); text-wrap: pretty; }
 .ca-modal .bc-actions { display: flex; justify-content: flex-end; gap: 8px; }
