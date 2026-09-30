@@ -44,9 +44,6 @@ import { CollapsedComposer } from "./CollapsedComposer.jsx";
 import { useCompacting } from "../../../state/compactionStore.js";
 import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
 
-// Edge refraction of the composer card: its 26px radius, a 34px bevel band.
-const CARD_LENS = { radius: 26, bevel: 34, scale: 60 };
-
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
   const wrapRef = useRef(null);
@@ -1079,7 +1076,7 @@ export function Composer({ live, worker, paneId, focused }) {
               <ContextStrip live={live} />
             )}
             <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
-              <GlassLayers lens={CARD_LENS} />
+              <GlassLayers />
               {modeClass && <ModeFx key={inputMode} />}
               <div className="c-row2-wrap">
                 {showMenu && (

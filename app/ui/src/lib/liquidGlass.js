@@ -1,32 +1,61 @@
-// "Regular Glass" from ybouane/liquidglass — its fragment shader (src/shaders.ts
-// FS_GLASS) with the demo panel's config (defaults.ts + blurAmount 0), ported to
-// maps for a backdrop-filter (Chromium only). The reference rasterises the page
-// into WebGL; here Chromium hands the filter the live backdrop, so everything in
-// the shader that depends only on the panel's shape is computed once per size:
+// ybouane/liquidglass — its fragment shader (src/shaders.ts FS_GLASS) ported to
+// maps for a backdrop-filter (Chromium only), with the demo's panel configs as
+// presets: Frosted Glass is the composer card's; Clear and Dark Glass (and
+// Dark's grades) are kept for other surfaces. The reference rasterises the
+// page into WebGL; here Chromium hands the filter the live backdrop, so
+// everything in the shader that depends only on the panel's shape is computed
+// once per size:
 //   disp    per colour channel, where to sample the backdrop (refraction ± the
-//           chromatic aberration) — R = x, G = y, for <feDisplacementMap>
-//   shade   the lighting as fin = col · gain + light: fresnel, rim, inner
-//           glow, inner stroke. Grey = gain / GAIN_MAX, alpha = 1 − light —
-//           grey and alpha survive colour management, so gain never bleeds
-//           into light
+//           chromatic aberration) — R = x, G = y, for <feDisplacementMap>. The
+//           red map's alpha is how much of the blurred backdrop shows (the rim
+//           keeps a little of the sharp one); the green map's alpha is the
+//           anti-aliased edge mask, squared
+//   shade   the lighting as fin = col · gain + light: brightness, fresnel,
+//           rim, inner glow, inner stroke. Grey = gain / GAIN_MAX, alpha =
+//           1 − light — grey and alpha survive colour management, so gain
+//           never bleeds into light
 //   shadow  the drop shadow around the panel (alpha only)
-// Blur, specular, distortion, tint, saturation and brightness are 0 in this
-// preset, so their terms drop out. Lengths are device px, as in the reference.
-export const REGULAR_GLASS = {
+// Specular, distortion, tint and saturation are 0 in every preset, so their
+// terms drop out. Lengths are device px, as in the reference.
+// defaults.ts + blurAmount 0.5, fresnel reflection 20% under the reference's.
+// `fill` is Eos's, not the reference's: how much of a solid fill (glass.css
+// --lg-fill) the glass mixes in under its lighting, making it that much more
+// opaque than the reference
+export const FROSTED_GLASS = {
+  blurAmount: 0.5,
+  brightness: 0,
+  fill: 0.3,
   refraction: 0.69,
   chromAberration: 0.05,
   edgeHighlight: 0.05,
-  fresnel: 1,
+  fresnel: 0.8,
   zRadius: 40,
   shadowOpacity: 0.3,
   shadowSpread: 10,
   shadowOffsetY: 1,
 };
+// defaults.ts as they are: no blur
+export const CLEAR_GLASS = { ...FROSTED_GLASS, blurAmount: 0 };
+// defaults.ts + brightness −0.3, blurAmount 0.4
+export const DARK_GLASS = { ...FROSTED_GLASS, brightness: -0.3, blurAmount: 0.4 };
+// Dark Glass with a 12px rim, for thin layers: under the full 40px rim a short
+// surface is all lens
+export const DARK_GLASS_THIN = { ...DARK_GLASS, zRadius: 12 };
+// ...and for menus over text: the reference's heaviest frost and a deeper dim,
+// or the text behind competes with the rows
+export const DARK_GLASS_MENU = { ...DARK_GLASS_THIN, blurAmount: 1, brightness: -0.4 };
 
 // CSS px the shadow reaches past the panel
 export const SHADOW_PAD = 20;
-// the brightest the glass lifts what is behind it (flat middle: 1 + 0.06)
+// the most the glass can lift what is behind it (flat middle at brightness 0:
+// 1 + 0.06), so the shade map's grey never clips
 export const GAIN_MAX = 1.06;
+
+// The reference blurs with 6 rounds of a separable 9-tap Gaussian whose taps
+// sit blurAmount · 2.5 texels apart; together they are one Gaussian of this σ.
+const BLUR_TAPS = [0.194594, 0.121622, 0.054054, 0.016216];
+const PASS_VARIANCE = 2 * BLUR_TAPS.reduce((v, w, i) => v + w * (i + 1) ** 2, 0);
+export const blurSigma = (blurAmount) => Math.sqrt(6 * PASS_VARIANCE) * blurAmount * 2.5;
 
 const smoothstep = (e0, e1, x) => {
   const t = Math.min(Math.max((x - e0) / (e1 - e0), 0), 1);
@@ -43,7 +72,7 @@ const rrSDF = (x, y, bx, by, r) => {
 const bevelHeight = (d, zR) => (d <= 0 ? 0 : d >= zR ? zR : Math.sqrt(d * (2 * zR - d)));
 
 // One pixel inside the panel, p from its centre (y down). Writes
-// [refraction x, y, aberration x, y, gain, light] into out.
+// [refraction x, y, aberration x, y, gain, light, blur mix] into out.
 function glassPixel(out, px, py, hx, hy, r, zR, cfg) {
   const inside = -rrSDF(px, py, hx, hy, r);
   const edge = smoothstep(Math.min(hx, hy) * 0.35, 0, inside);
@@ -75,8 +104,9 @@ function glassPixel(out, px, py, hx, hy, r, zR, cfg) {
   const env = (ny * 0.5 + 0.5) * fres * 0.08;
   const light = rim + innerGlow + stroke * cfg.edgeHighlight * 0.55 + env;
   const white = fres * 0.2;
-  out[4] = (1 + 0.06 * depth) * (1 - white);
+  out[4] = (1 + cfg.brightness) * (1 + 0.06 * depth) * (1 - white);
   out[5] = light * (1 - white) + white;
+  out[6] = 1 - edge * 0.15;
 }
 
 function shadowAlpha(px, py, hx, hy, r, dpr, cfg) {
@@ -89,58 +119,66 @@ function shadowAlpha(px, py, hx, hy, r, dpr, cfg) {
   return s * s;
 }
 
-// The maps for a w × h (CSS px) panel with the given corner radius. `scale` is
-// the <feDisplacementMap> scale in CSS px.
-export function regularGlass(w, h, dpr, radius, cfg = REGULAR_GLASS) {
+// The maps for a w × h (CSS px) panel with the given corner radius, all sized
+// to the panel plus SHADOW_PAD on each side — the reference samples a crop of
+// the page padded like that, clamped at its edge. `scale` is the
+// <feDisplacementMap> scale and `blur` the backdrop blur σ, both in CSS px.
+export function glassMaps(w, h, dpr, radius, cfg = FROSTED_GLASS) {
   const W = Math.round(w * dpr), H = Math.round(h * dpr);
   const hx = W / 2, hy = H / 2;
   const r = Math.min(radius * dpr, hx, hy);
   const zR = cfg.zRadius * dpr;
+  const pad = Math.round(SHADOW_PAD * dpr);
+  const SW = W + pad * 2, SH = H + pad * 2, n = SW * SH;
+  const edgeX = SW / 2 - 0.5, edgeY = SH / 2 - 0.5;
+  const clamp = (v, e) => Math.min(Math.max(v, -e), e);
 
-  const px = new Float32Array(W * H * 6);
-  const out = new Float64Array(6);
+  const offsets = new Float32Array(n * 6);
+  const mask = new Float32Array(n);
+  const blurMix = new Float32Array(n).fill(1);
+  const shade = new Uint8ClampedArray(n * 4);
+  const shadow = new Uint8ClampedArray(n * 4);
+  const out = new Float64Array(7);
   let max = 1e-6;
-  for (let y = 0; y < H; y++) {
-    for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 6;
-      const X = x + 0.5 - hx, Y = y + 0.5 - hy;
-      if (rrSDF(X, Y, hx, hy, r) > 0) { px[i + 4] = 1; continue; }
+  for (let y = 0; y < SH; y++) {
+    for (let x = 0; x < SW; x++) {
+      const p = y * SW + x;
+      const X = x + 0.5 - SW / 2, Y = y + 0.5 - SH / 2;
+      const sdf = rrSDF(X, Y, hx, hy, r);
+      if (sdf > 0) {
+        shadow[p * 4 + 3] = 255 * shadowAlpha(X, Y, hx, hy, r, dpr, cfg);
+        continue;
+      }
       glassPixel(out, X, Y, hx, hy, r, zR, cfg);
-      px.set(out, i);
-      max = Math.max(max, Math.abs(out[0]) + Math.abs(out[2]), Math.abs(out[1]) + Math.abs(out[3]));
+      // red, green, blue: the aberration pushes red outward, blue inward
+      for (let c = 0; c < 3; c++) {
+        const dx = clamp(X + out[0] + (1 - c) * out[2], edgeX) - X;
+        const dy = clamp(Y + out[1] + (1 - c) * out[3], edgeY) - Y;
+        offsets[p * 6 + c * 2] = dx;
+        offsets[p * 6 + c * 2 + 1] = dy;
+        max = Math.max(max, Math.abs(dx), Math.abs(dy));
+      }
+      mask[p] = 1 - smoothstep(-1.5, 0.5, sdf);
+      blurMix[p] = out[6];
+      shade[p * 4] = shade[p * 4 + 1] = shade[p * 4 + 2] = 255 * (out[4] / GAIN_MAX);
+      shade[p * 4 + 3] = 255 * (1 - out[5]);
     }
   }
 
   const scale = max * 2;
-  const disp = [1, 0, -1].map((sign) => {
-    const data = new Uint8ClampedArray(W * H * 4);
-    for (let i = 0, j = 0; j < data.length; i += 6, j += 4) {
-      data[j] = 255 * ((px[i] + sign * px[i + 2]) / scale + 0.5);
-      data[j + 1] = 255 * ((px[i + 1] + sign * px[i + 3]) / scale + 0.5);
-      data[j + 2] = 128;
-      data[j + 3] = 255;
+  const disp = [0, 1, 2].map((c) => {
+    const data = new Uint8ClampedArray(n * 4);
+    for (let p = 0; p < n; p++) {
+      data[p * 4] = 255 * (offsets[p * 6 + c * 2] / scale + 0.5);
+      data[p * 4 + 1] = 255 * (offsets[p * 6 + c * 2 + 1] / scale + 0.5);
+      data[p * 4 + 2] = 128;
+      // alpha — red: the blur mix; green: the mask squared (the reference writes
+      // (fin · mask, alpha mask) with SRC_ALPHA blending, so the edge shows
+      // fin · mask³ at alpha mask²)
+      data[p * 4 + 3] = 255 * [blurMix[p], mask[p] ** 2, 1][c];
     }
     return data;
   });
-  const shade = new Uint8ClampedArray(W * H * 4);
-  for (let i = 0, j = 0; j < shade.length; i += 6, j += 4) {
-    shade[j] = shade[j + 1] = shade[j + 2] = 255 * (px[i + 4] / GAIN_MAX);
-    shade[j + 3] = 255 * (1 - px[i + 5]);
-  }
 
-  const pad = Math.round(SHADOW_PAD * dpr);
-  const SW = W + pad * 2, SH = H + pad * 2;
-  const shadow = new Uint8ClampedArray(SW * SH * 4);
-  for (let y = 0; y < SH; y++) {
-    for (let x = 0; x < SW; x++) {
-      const X = x + 0.5 - SW / 2, Y = y + 0.5 - SH / 2;
-      if (rrSDF(X, Y, hx, hy, r) > 0) shadow[(y * SW + x) * 4 + 3] = 255 * shadowAlpha(X, Y, hx, hy, r, dpr, cfg);
-    }
-  }
-
-  return {
-    width: W, height: H, scale: scale / dpr,
-    disp, shade,
-    shadow: { width: SW, height: SH, data: shadow },
-  };
+  return { width: SW, height: SH, scale: scale / dpr, blur: blurSigma(cfg.blurAmount) / dpr, disp, shade, shadow };
 }

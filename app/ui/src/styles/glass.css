@@ -16,10 +16,13 @@
      which leave any positioning transform alone; their content fades. */
 
 :root {
-  /* the sidebar and the model panel derive their blur/tint from these (the
-     composer card is Regular Glass: GlassLayers.jsx) */
+  /* the sidebar derives its blur/tint from these (the composer card is
+     Frosted Glass: GlassLayers.jsx) */
   --lg-blur: 6px;
   --lg-tint: 0.14;
+  /* the solid the liquid glass mixes in (its preset's `fill`), so it reads
+     more opaque than the reference */
+  --lg-fill: var(--pop);
   --lg-ease: cubic-bezier(.2, .8, .2, 1);
 
   /* small glass: hover / selected / open-trigger */
@@ -84,7 +87,7 @@
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   }
 }
-.tpl-modal, .q-card, .update-card, .ca-git-agent,
+.tpl-modal, .q-card, .update-card,
 .head-menu > .ctx-menu.menu-pane { position: relative; }
 
 /* Scroll containers can't carry pseudo layers (they'd scroll away with the
@@ -183,20 +186,16 @@ button.mc-card--quiet) {
   background: var(--lg-sep);
 }
 
-/* the model / effort panel is lighter, so the transcript reads through */
-.me-panel::before {
-  -webkit-backdrop-filter: blur(max(3px, calc(var(--lg-blur) * 0.55))) saturate(1.8) brightness(1.05);
-  backdrop-filter: blur(max(3px, calc(var(--lg-blur) * 0.55))) saturate(1.8) brightness(1.05);
-  background: linear-gradient(180deg, rgba(var(--tint), 0.08) 0%, rgba(var(--tint), 0.02) 50%, rgba(var(--tint), 0.035) 100%),
-              rgba(20, 20, 22, max(0.1, calc(var(--lg-tint) - 0.06)));
-}
-
 /* ── Large glass surface: GlassLayers.jsx (the composer card + pill) ──────── */
-.lg-shadow, .lg-backdrop {
+/* both reach SHADOW_PAD (lib/liquidGlass.js) past the host; the shadow sits
+   above the backdrop so the glass never refracts its own shadow */
+.lg-backdrop, .lg-shadow {
   position: absolute;
+  left: -20px; top: -20px;
+  width: calc(100% + 40px); height: calc(100% + 40px);
   pointer-events: none;
 }
-/* the drop shadow reaches SHADOW_PAD (lib/liquidGlass.js) past the host */
-.lg-shadow { left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); z-index: -2; }
-.lg-backdrop { inset: 0; z-index: -1; border-radius: inherit; }
+.lg-backdrop { z-index: -2; }
+.lg-shadow { z-index: -1; }
 .lg-filter-svg { position: absolute; width: 0; height: 0; }
+.lg-fill { flood-color: var(--lg-fill); }
