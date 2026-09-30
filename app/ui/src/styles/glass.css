@@ -16,11 +16,9 @@
      which leave any positioning transform alone; their content fades. */
 
 :root {
-  /* glass material — clear: content behind stays sharp and the edge refraction
-     reads (frosted: 16px/1.6/.34 · dark: 22px/1.3/.58). The sidebar and the
-     model panel derive their blur/tint from these, as in the design. */
+  /* the sidebar and the model panel derive their blur/tint from these (the
+     composer card is Regular Glass: GlassLayers.jsx) */
   --lg-blur: 6px;
-  --lg-sat: 1.8;
   --lg-tint: 0.14;
   --lg-ease: cubic-bezier(.2, .8, .2, 1);
 
@@ -194,52 +192,11 @@ button.mc-card--quiet) {
 }
 
 /* ── Large glass surface: GlassLayers.jsx (the composer card + pill) ──────── */
-.lg-backdrop, .lg-tint, .lg-rim, .lg-sheen, .lg-edge-light {
+.lg-shadow, .lg-backdrop {
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
   pointer-events: none;
 }
-.lg-backdrop {
-  z-index: -3;
-  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
-  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
-  box-shadow: 0 26px 60px -18px rgba(var(--ink), 0.8), 0 6px 16px -4px rgba(var(--ink), 0.45);
-}
-.lg-tint {
-  z-index: -2;
-  background: linear-gradient(180deg, rgba(var(--tint), 0.075) 0%, rgba(var(--tint), 0.02) 46%, rgba(var(--tint), 0.035) 100%),
-              rgba(20, 20, 22, var(--lg-tint));
-  /* lens thickness: light caught inside the glass edge */
-  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.15), inset 0 -1px 1px rgba(var(--tint), 0.05),
-              inset 0 0 15px rgba(var(--tint), 0.055), inset 0 -20px 32px -20px rgba(var(--tint), 0.065);
-}
-.lg-rim, .lg-edge-light {
-  padding: 1px;
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-.lg-rim {
-  z-index: -1;
-  opacity: 0.72;
-  background: linear-gradient(160deg, rgba(var(--tint), 0.34) 0%, rgba(var(--tint), 0.06) 22%, rgba(var(--tint), 0.02) 55%, rgba(var(--tint), 0.14) 100%);
-}
-/* pointer light: a faint band across the surface, the rim lit above and below
-   the cursor — never a round spotlight */
-.lg-sheen, .lg-edge-light {
-  z-index: -1;
-  opacity: 0;
-  transition: opacity 600ms ease;
-}
-.lg-sheen {
-  background: linear-gradient(105deg, transparent calc(var(--mx, 50%) - 260px), rgba(var(--tint), 0.018) calc(var(--mx, 50%) - 60px),
-              rgba(var(--tint), 0.028) var(--mx, 50%), rgba(var(--tint), 0.012) calc(var(--mx, 50%) + 120px), transparent calc(var(--mx, 50%) + 320px));
-}
-.lg-edge-light {
-  background: radial-gradient(420px 90px at var(--mx, 50%) 0%, rgba(var(--tint), 0.32), transparent 70%),
-              radial-gradient(420px 90px at var(--mx, 50%) 100%, rgba(var(--tint), 0.08), transparent 70%);
-}
-:hover > .lg-sheen, :hover > .lg-edge-light { opacity: 1; }
-.lg-lens-svg { position: absolute; width: 0; height: 0; }
-@media (prefers-reduced-motion: reduce) { .lg-sheen, .lg-edge-light { display: none; } }
+/* the drop shadow reaches SHADOW_PAD (lib/liquidGlass.js) past the host */
+.lg-shadow { left: -20px; top: -20px; width: calc(100% + 40px); height: calc(100% + 40px); z-index: -2; }
+.lg-backdrop { inset: 0; z-index: -1; border-radius: inherit; }
+.lg-filter-svg { position: absolute; width: 0; height: 0; }
