@@ -110,9 +110,10 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 /* floating, yet still the sidebar: its quiet, near-opaque glass */
 .side-handle-popup.side-island::before {
-  -webkit-backdrop-filter: blur(34px) saturate(1.2);
-  backdrop-filter: blur(34px) saturate(1.2);
-  background: linear-gradient(180deg, rgba(var(--tint), 0.03), rgba(var(--tint), 0) 28%), rgba(23, 23, 23, 0.86);
+  -webkit-backdrop-filter: blur(calc(var(--lg-blur) * 1.6 + 8px)) saturate(1.2);
+  backdrop-filter: blur(calc(var(--lg-blur) * 1.6 + 8px)) saturate(1.2);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.03), rgba(var(--tint), 0) 28%),
+              rgba(23, 23, 23, min(0.94, calc(0.72 + var(--lg-tint) * 0.4)));
 }
 .side-handle-popup .agents-section {
   flex: 1;
@@ -146,12 +147,12 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  -webkit-backdrop-filter: blur(34px) saturate(1.2);
-  backdrop-filter: blur(34px) saturate(1.2);
+  -webkit-backdrop-filter: blur(calc(var(--lg-blur) * 1.6 + 8px)) saturate(1.2);
+  backdrop-filter: blur(calc(var(--lg-blur) * 1.6 + 8px)) saturate(1.2);
   background:
     radial-gradient(260px 200px at 100% var(--sy), rgba(var(--tint), calc(0.018 * var(--side-light))), transparent 70%),
     linear-gradient(180deg, rgba(var(--tint), 0.022) 0%, rgba(var(--tint), 0) 28%, rgba(var(--tint), 0) 82%, rgba(var(--tint), 0.012) 100%),
-    rgba(23, 23, 23, 0.86);
+    rgba(23, 23, 23, min(0.94, calc(0.72 + var(--lg-tint) * 0.4)));
 }
 /* right edge: a hairline brighter at the top, lit at the cursor's height */
 .side::after {

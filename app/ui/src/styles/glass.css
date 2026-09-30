@@ -16,10 +16,12 @@
      which leave any positioning transform alone; their content fades. */
 
 :root {
-  /* composer material — frosted (clear: 6px/1.8/.14 · dark: 22px/1.3/.58) */
-  --lg-blur: 16px;
-  --lg-sat: 1.6;
-  --lg-tint: 0.34;
+  /* glass material — clear: content behind stays sharp and the edge refraction
+     reads (frosted: 16px/1.6/.34 · dark: 22px/1.3/.58). The sidebar and the
+     model panel derive their blur/tint from these, as in the design. */
+  --lg-blur: 6px;
+  --lg-sat: 1.8;
+  --lg-tint: 0.14;
   --lg-ease: cubic-bezier(.2, .8, .2, 1);
 
   /* small glass: hover / selected / open-trigger */
@@ -185,10 +187,10 @@ button.mc-card--quiet) {
 
 /* the model / effort panel is lighter, so the transcript reads through */
 .me-panel::before {
-  -webkit-backdrop-filter: blur(9px) saturate(1.8) brightness(1.05);
-  backdrop-filter: blur(9px) saturate(1.8) brightness(1.05);
+  -webkit-backdrop-filter: blur(max(3px, calc(var(--lg-blur) * 0.55))) saturate(1.8) brightness(1.05);
+  backdrop-filter: blur(max(3px, calc(var(--lg-blur) * 0.55))) saturate(1.8) brightness(1.05);
   background: linear-gradient(180deg, rgba(var(--tint), 0.08) 0%, rgba(var(--tint), 0.02) 50%, rgba(var(--tint), 0.035) 100%),
-              rgba(20, 20, 22, 0.28);
+              rgba(20, 20, 22, max(0.1, calc(var(--lg-tint) - 0.06)));
 }
 
 /* ── Large glass surface: GlassLayers.jsx (the composer card + pill) ──────── */
