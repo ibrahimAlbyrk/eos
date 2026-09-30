@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { startRun } from "../../../state/terminalStore.js";
@@ -42,9 +42,15 @@ import { TryDeck } from "./TryBanner.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
 import { CollapsedComposer } from "./CollapsedComposer.jsx";
 import { useCompacting } from "../../../state/compactionStore.js";
+import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
+
+// Edge refraction of the composer card: its 26px radius, a 34px bevel band.
+const CARD_LENS = { radius: 26, bevel: 34, scale: 60 };
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
+  const wrapRef = useRef(null);
+  usePublishHeight(wrapRef, "--composer-h");
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
@@ -1019,7 +1025,7 @@ export function Composer({ live, worker, paneId, focused }) {
   };
 
   return (
-    <div className="composer-wrap">
+    <div className="composer-wrap" ref={wrapRef}>
       <div className="composer-inner">
         <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
         {hasPermission ? (
@@ -1073,6 +1079,7 @@ export function Composer({ live, worker, paneId, focused }) {
               <ContextStrip live={live} />
             )}
             <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
+              <GlassLayers lens={CARD_LENS} />
               {modeClass && <ModeFx key={inputMode} />}
               <div className="c-row2-wrap">
                 {showMenu && (
@@ -1141,4 +1148,19 @@ export function Composer({ live, worker, paneId, focused }) {
       </div>
     </div>
   );
+}
+
+// The composer floats over the transcript, which scrolls under it: publish its
+// height on the shared parent so the transcript can pad its end clear of it.
+function usePublishHeight(ref, prop) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const host = el?.parentElement;
+    if (!el || !host) return undefined;
+    const publish = () => host.style.setProperty(prop, `${el.offsetHeight}px`);
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    publish();
+    return () => ro.disconnect();
+  }, [ref, prop]);
 }

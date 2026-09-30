@@ -1,4 +1,6 @@
+import { useRef } from "react";
 import { useUi } from "../../state/ui.jsx";
+import { usePointerVar } from "../../hooks/usePointerVar.js";
 
 // Shared workspace skeleton: the 3-column grid (sidebar | center | right panel).
 // A view fills the slots; it must not reproduce the grid itself. The shared
@@ -18,13 +20,16 @@ import { useUi } from "../../state/ui.jsx";
 // `main` (PaneGrid/SinglePane), so the grid is just sidebar | center.
 export function AppLayout({ sidebar, main, gridClass, children, hidden = false }) {
   const ui = useUi();
+  // the sidebar's glass edge catches the light at the cursor's height
+  const sideRef = useRef(null);
+  usePointerVar(sideRef, "--sy", "y");
   const cls = ["app", gridClass, ui.sideCollapsed ? "side-collapsed" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
     <div className={cls} style={hidden ? { display: "none" } : undefined}>
-      <aside className="side">
+      <aside className="side" ref={sideRef}>
         {sidebar("full")}
       </aside>
 

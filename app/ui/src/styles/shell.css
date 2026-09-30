@@ -1,10 +1,9 @@
 /* shell.css — sidebar, header/PaneHeader, collapsed sidebar, native titlebar,
    split/pane grid and AppLayout. charcoal-aurora: depth is a
-   surface step (bg → panel → raised → row-on → chip), the ONLY border color is
-   --line, and floating layers get --sh-pop / --sh-palette / --sh-modal. Fills —
-   never borders or shadows — mark hover/selected; the only animation is d-breathe
-   on status dots. Tokens, base reset, scrollbars, keyframes and the .app grid
-   live in styles.css. */
+   surface step (bg → panel → raised → row-on → chip) and the ONLY border color is
+   --line. Hover/selected are small glass chips (--lg-chip-*), the sidebar is a
+   quiet docked glass and floating layers are liquid glass (glass.css). Tokens,
+   base reset, scrollbars, keyframes and the .app grid live in styles.css. */
 
 /* Sidebar is 300px in the prototype; the styles.css .app grid ships 280px, so
    widen it here without touching the base (collapsed still wins by source order). */
@@ -40,8 +39,8 @@ html.native .native-toggle {
   color: var(--fg-dim2);
   --app-region: no-drag;
 }
-html.native .native-toggle:hover { background: var(--chip); color: var(--fg-mid); }
-html.native .native-toggle.on { background: var(--row-on); color: var(--fg); }
+html.native .native-toggle:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+html.native .native-toggle.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 
 /* Sidebar drag region: only the top strip drags; content opts out. */
 html.native .side { --app-region: no-drag; -webkit-user-select: none; }
@@ -78,8 +77,8 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   color: var(--fg-dim2);
   cursor: pointer;
 }
-.side-handle:hover { background: var(--chip); color: var(--fg-mid); }
-.side-handle.on { background: var(--row-on); color: var(--fg); }
+.side-handle:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+.side-handle.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 
 /* New-output cue on the collapsed toggle: a small breathing accent dot — the one
    allowed animation — rather than tinting the icon. */
@@ -106,10 +105,14 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex-direction: column;
   overflow: hidden;
   padding-top: 16px;
-  background: var(--panel);
   border-radius: var(--r-pop);
-  box-shadow: var(--sh-pop);
   z-index: 230;
+}
+/* floating, yet still the sidebar: its quiet, near-opaque glass */
+.side-handle-popup.side-island::before {
+  -webkit-backdrop-filter: blur(34px) saturate(1.2);
+  backdrop-filter: blur(34px) saturate(1.2);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.03), rgba(var(--tint), 0) 28%), rgba(23, 23, 23, 0.86);
 }
 .side-handle-popup .agents-section {
   flex: 1;
@@ -118,17 +121,60 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 
 /* ============================================================================
-   SIDEBAR
+   SIDEBAR — docked, quiet glass: full height, no radius or gap, reads as the
+   --panel charcoal with a hint of depth. Pointer light: AppLayout sets --sy (the
+   cursor's y); the right-edge hairline catches it and the surface glows faintly.
    ============================================================================ */
+@property --side-light { syntax: "<number>"; inherits: true; initial-value: 0; }
 .side {
-  background: var(--panel);
+  --sy: 30%;
   display: flex;
   flex-direction: column;
+  /* fixed, so collapsing slides it out whole while its grid column narrows */
+  width: 300px;
   min-width: 0;
   overflow: visible;
   position: relative;
   z-index: 50;
+  isolation: isolate;
+  transition: transform 340ms var(--lg-ease), opacity 260ms ease, --side-light 700ms ease;
 }
+.side:hover { --side-light: 1; }
+.side::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  -webkit-backdrop-filter: blur(34px) saturate(1.2);
+  backdrop-filter: blur(34px) saturate(1.2);
+  background:
+    radial-gradient(260px 200px at 100% var(--sy), rgba(var(--tint), calc(0.018 * var(--side-light))), transparent 70%),
+    linear-gradient(180deg, rgba(var(--tint), 0.022) 0%, rgba(var(--tint), 0) 28%, rgba(var(--tint), 0) 82%, rgba(var(--tint), 0.012) 100%),
+    rgba(23, 23, 23, 0.86);
+}
+/* right edge: a hairline brighter at the top, lit at the cursor's height */
+.side::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; right: 0;
+  width: 1px;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1px 220px at 50% var(--sy), rgba(var(--tint), calc(0.22 * var(--side-light))), transparent),
+    linear-gradient(180deg, rgba(var(--tint), 0.09) 0%, rgba(var(--tint), 0.035) 18%, rgba(var(--tint), 0.025) 80%, rgba(var(--tint), 0.05) 100%);
+}
+/* ambient "dawn" light behind the sidebar — one cool source from the top-left */
+.app::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 420px;
+  pointer-events: none;
+  background: radial-gradient(ellipse 90% 30% at 30% 0%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
+}
+@media (prefers-reduced-motion: reduce) { .side { transition: none; } }
 
 /* ── Top chrome: traffic lights + collapse (web; hidden in native) ────────── */
 .side-top {
@@ -145,7 +191,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.side-collapse:hover { background: var(--chip); color: var(--fg-mid); }
+.side-collapse:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 /* ── Eos ▾ switcher row + search ──────────────────────────────────────────── */
 .side-eos {
@@ -163,7 +209,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   cursor: pointer;
   user-select: none;
 }
-.eos-switch:hover, .eos-switch.on { background: var(--row-on); }
+.eos-switch:hover, .eos-switch.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .eos-switch__mark {
   font-size: var(--text-xl);
   font-weight: 600;
@@ -178,7 +224,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.eos-search:hover { background: var(--chip); color: var(--fg-mid); }
+.eos-search:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 /* ── Primary nav rows: New task / Changes / Archive ───────────────────────── */
 .sb-nav {
@@ -195,9 +241,9 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   text-align: left;
   cursor: pointer;
 }
-.sb-nav-row:hover { background: var(--row-on); }
+.sb-nav-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .sb-nav-row.strong { color: var(--fg); }
-.sb-nav-row.on { background: var(--row-on); color: var(--fg-strong); }
+.sb-nav-row.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg-strong); }
 .sb-nav-row__ic { display: inline-flex; flex-shrink: 0; }
 .sb-nav-row__label { min-width: 0; }
 .sb-nav-row.strong .sb-nav-row__label,
@@ -225,8 +271,8 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.sb-seclabel__filter:hover { background: var(--chip); color: var(--fg); }
-.sb-seclabel__filter.on { background: var(--row-on); color: var(--fg); }
+.sb-seclabel__filter:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
+.sb-seclabel__filter.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 
 /* Flat container — no card/glass/border; the panel background carries it. */
 .side-island { position: relative; }
@@ -238,14 +284,22 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   overflow: visible;
 }
 
-/* Settings footer — profile row (avatar + name + gear), above a 1px --line. */
+/* Settings footer — profile row (avatar + name + gear), under a centered
+   hairline that fades out at both ends. */
 .sb-settings {
+  position: relative;
   margin-top: auto;
   display: flex; align-items: center; gap: 11px;
   padding: 14px 16px 16px;
-  border-top: 1px solid var(--line);
   color: var(--fg-mid);
   font-size: var(--text-base);
+}
+.sb-settings::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 14px; right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(var(--tint), 0.09) 20%, rgba(var(--tint), 0.09) 80%, transparent);
 }
 .sb-settings__avatar {
   width: 24px; height: 24px;
@@ -267,7 +321,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   text-align: left;
 }
 .sb-settings__account:hover,
-.sb-settings__account.on { background: var(--row-on); color: var(--fg); }
+.sb-settings__account.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 /* ============================================================================
    SIDEBAR · AGENTS SECTION
@@ -298,15 +352,19 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   color: var(--fg-dim2);
   display: inline-flex; align-items: center; justify-content: center;
 }
-.sb-iconbtn:hover { background: var(--chip); color: var(--fg-mid); }
+.sb-iconbtn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
-/* Agents list — scrolls to fill. */
+/* Agents list — scrolls to fill; no scrollbar, the edges fade instead. */
 .agents-section {
   flex: 1;
   display: flex; flex-direction: column;
   padding: 4px 8px 8px;
   overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
+          mask: linear-gradient(to bottom, transparent 0, #000 10px, #000 calc(100% - 18px), transparent);
 }
+.agents-section::-webkit-scrollbar { display: none; }
 /* Saved-layout groups sit above the list as a content-sized block. */
 .layout-groups {
   flex: 0 0 auto;
@@ -346,9 +404,9 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   position: relative;
   color: var(--fg-dim);
 }
-.agents-row:hover { background: var(--row-on); }
-.agents-row.on { background: var(--row-on); }
-/* Selected row shows as a --row-on fill only — no accent rail, no border. */
+.agents-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.agents-row.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
+/* Selected row shows as on-glass only — no accent rail, no border. */
 .agents-row .ag-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
@@ -488,7 +546,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   margin-right: -2px;
   cursor: pointer;
 }
-.tree-chev:hover { background: var(--chip); color: var(--fg); }
+.tree-chev:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .tree-chev svg { transition: transform 160ms ease; }
 .tree-node.collapsed > .agents-row .tree-chev svg { transform: rotate(-90deg); }
 .tree-chev-spacer {
@@ -633,9 +691,9 @@ html.native .single-pane { --spt-top: 12px; }
   cursor: pointer;
   user-select: none;
 }
-.sp-tab:hover { background: var(--chip); color: var(--fg-mid); }
-.sp-tab.is-active { background: var(--row-on); color: var(--fg); cursor: default; }
-.sp-tab.is-active:hover { background: var(--row-on); }
+.sp-tab:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+.sp-tab.is-active { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); cursor: default; }
+.sp-tab.is-active:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .sp-tab-icon { display: inline-flex; flex-shrink: 0; }
 .sp-tab-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-tab-x {
@@ -660,8 +718,8 @@ html.native .single-pane { --spt-top: 12px; }
   cursor: pointer;
   flex-shrink: 0;
 }
-.sp-plus:hover, .sp-chrome-btn:hover { background: var(--chip); color: var(--fg-mid); }
-.sp-plus.on, .sp-chrome-btn.on { background: var(--row-on); color: var(--fg); }
+.sp-plus:hover, .sp-chrome-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+.sp-plus.on, .sp-chrome-btn.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 .sp-plus { position: relative; }
 .sp-spacer { flex: 1; }
 /* Dropped from the + button (its anchor), so it tracks the button wherever the
@@ -689,7 +747,7 @@ html.native .single-pane { --spt-top: 12px; }
   color: var(--fg);
   cursor: pointer;
 }
-.sp-plus-item:hover { background: var(--row-on); }
+.sp-plus-item:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .sp-plus-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sp-plus-kbd {
   margin-left: auto;
@@ -751,18 +809,6 @@ html.native .single-pane { --spt-top: 12px; }
   pointer-events: auto;
   z-index: 1;
 }
-/* Single-pane bottom fade — stops short of the transcript scrollbar. */
-.tx-pane.on::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 14px;
-  bottom: 0;
-  height: 48px;
-  background: linear-gradient(to bottom, transparent, var(--bg));
-  pointer-events: none;
-  z-index: 1;
-}
 
 /* ============================================================================
    SPLIT VIEW · 2-4 transcripts side by side (PaneGrid). Panes are absolutely
@@ -818,7 +864,7 @@ html.native .single-pane { --spt-top: 12px; }
   min-height: 0;
   background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: var(--r-menu);
+  border-radius: var(--panel-radius);
   overflow: clip;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
@@ -849,7 +895,7 @@ html.native .single-pane { --spt-top: 12px; }
   pointer-events: none;
   background: color-mix(in srgb, var(--accent) 8%, transparent);
   border: 1.5px solid var(--accent);
-  border-radius: var(--r-menu);
+  border-radius: var(--panel-radius);
   inset: 0;
   transition: inset 150ms ease-out;
 }
@@ -982,7 +1028,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; white-space: nowrap; flex-shrink: 0; }
 .pane-head .crumb .crumb-link:hover { color: var(--fg); }
 .pane-head .crumb .v-wrap { position: relative; align-self: center; display: inline-flex; flex-shrink: 0; margin-left: -5px; }
-/* 22px chevron opening the agent menu; --row-on fill while open. */
+/* 22px chevron opening the agent menu; on-glass while open. */
 .pane-head .crumb .v {
   width: 22px; height: 22px;
   border-radius: var(--r-icon);
@@ -992,9 +1038,9 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   align-items: center;
   justify-content: center;
 }
-.pane-head .crumb .v:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .v:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 .pane-head .crumb .v[aria-expanded="true"],
-.pane-head .crumb .v.on { background: var(--row-on); color: var(--fg); }
+.pane-head .crumb .v.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 /* Plan chip (PlanChip.jsx) — TodoWrite progress ring + count beside the crumb. */
 .pane-head .crumb .plan-chip {
   align-self: center;
@@ -1009,8 +1055,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   color: var(--fg-dim2);
   cursor: pointer;
 }
-.pane-head .crumb .plan-chip:hover { background: var(--chip); color: var(--fg-mid); }
-.pane-head .crumb .plan-chip.on { background: var(--row-on); color: var(--fg); }
+.pane-head .crumb .plan-chip:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+.pane-head .crumb .plan-chip.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 /* Context chip (ContextChip.jsx) — hairline context meter + % beside the crumb. */
 .pane-head .crumb .ctx-chip {
   align-self: center;
@@ -1025,8 +1071,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   color: var(--fg-dim2);
   cursor: pointer;
 }
-.pane-head .crumb .ctx-chip:hover { background: var(--chip); color: var(--fg-mid); }
-.pane-head .crumb .ctx-chip.on { background: var(--row-on); color: var(--fg); }
+.pane-head .crumb .ctx-chip:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
+.pane-head .crumb .ctx-chip.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 .ctx-chip .usage-meter { position: relative; width: 28px; height: 2px; overflow: visible; }
 /* Drains visibly when a compaction drops occupancy. */
 .ctx-chip .usage-meter > i { transition: width 1200ms cubic-bezier(0.65, 0, 0.35, 1); }
@@ -1099,10 +1145,10 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   --app-region: no-drag;
   cursor: pointer;
 }
-.pane-close:hover { background: var(--row-on); color: var(--fg); }
+.pane-close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 /* Header icon buttons (terminal / git / files / …): 30px in the single/main
-   header, 24px inside split panes; active = --row-on fill. */
+   header, 24px inside split panes; active = on-glass. */
 .pane-split-btn {
   width: 30px;
   height: 30px;
@@ -1112,20 +1158,16 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   align-items: center;
   justify-content: center;
 }
-.pane-split-btn:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-split-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 .pane-split-btn:disabled { opacity: 0.4; cursor: default; }
 .pane-split-btn:disabled:hover { background: transparent; color: var(--fg-dim2); }
-.pane-split-btn.is-active { background: var(--row-on); color: var(--fg); }
-.pane-split-btn.is-active:hover { background: var(--row-on); color: var(--fg); }
+.pane-split-btn.is-active { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
+.pane-split-btn.is-active:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .pane .pane-split-btn { width: 24px; height: 24px; border-radius: var(--r-icon); }
 /* New-task header shows the Environment icon decoratively (no worker → nothing
    to open); inert = dimmed, no hover, no pointer. Matches the reference. */
 .pane-split-btn--inert { cursor: default; }
 .pane-split-btn--inert:hover { background: transparent; color: var(--fg-dim2); }
-
-/* The composer's own ::before fade IS the per-pane bottom fade in split view;
-   single-pane keeps its transcript-scoped fade, so scope the scrim to split. */
-.app:not(.split) .composer-wrap::before { content: none; }
 
 /* ============== In-pane agent picker (empty split panes) ==============
    A hover-triggered --pop card with the picker; a resting hint sits in the empty
@@ -1195,8 +1237,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   border-radius: var(--r-row); cursor: pointer; text-align: left;
   transition: background 0.12s;
 }
-.pane-picker-item:hover { background: var(--row-on); }
-.pane-picker-item.is-active { background: var(--row-on); }
+.pane-picker-item:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.pane-picker-item.is-active { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .pane-picker-item.is-shown { opacity: 0.55; }
 .pane-picker-name {
   flex: 1; min-width: 0; color: var(--fg);

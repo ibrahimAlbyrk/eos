@@ -1,0 +1,243 @@
+/* glass.css — the liquid-glass material layer (design handoff "eos · Liquid
+   Glass"). Glass is an accent, not a theme: only layers that float above content
+   and interactive states become glass; the docked sidebar gets a quiet version
+   that stays close to the charcoal. The palette is unchanged.
+
+   Imported LAST from styles.css, so the surface recipes here win over the
+   partials' flat --pop fills by source order. Hover / selected states use the
+   --lg-chip-* tokens in place (see the partials).
+
+   Two rules of the material:
+   - The blur never sits on a glass HOST. It lives on a ::before layer (or the
+     .lg-backdrop child), so a host never becomes a backdrop root and a glass
+     layer inside it still sees what is behind.
+   - Never animate opacity on a glass host: it drops the backdrop mid-animation
+     and the content behind flashes through. Hosts rise with translate/scale,
+     which leave any positioning transform alone; their content fades. */
+
+:root {
+  /* composer material — frosted (clear: 6px/1.8/.14 · dark: 22px/1.3/.58) */
+  --lg-blur: 16px;
+  --lg-sat: 1.6;
+  --lg-tint: 0.34;
+  --lg-ease: cubic-bezier(.2, .8, .2, 1);
+
+  /* small glass: hover / selected / open-trigger */
+  --lg-chip-bg: linear-gradient(180deg, rgba(var(--tint), 0.06), rgba(var(--tint), 0.018) 60%, rgba(var(--tint), 0.03));
+  --lg-chip-sh: inset 0 0.5px 0 rgba(var(--tint), 0.2), inset 0 0 0 0.5px rgba(var(--tint), 0.07),
+                inset 0 -0.5px 0 rgba(var(--tint), 0.05), 0 1px 4px -1px rgba(var(--ink), 0.25);
+  --lg-chip-fx: blur(3px) saturate(1.6) brightness(1.12);
+  --lg-chip-on-bg: linear-gradient(180deg, rgba(var(--tint), 0.07), rgba(var(--tint), 0.022) 60%, rgba(var(--tint), 0.035));
+  --lg-chip-on-sh: inset 0 0.5px 0 rgba(var(--tint), 0.22), inset 0 0 0 0.5px rgba(var(--tint), 0.08),
+                   inset 0 -0.5px 0 rgba(var(--tint), 0.05), 0 1px 4px -1px rgba(var(--ink), 0.25);
+
+  /* floating surfaces: popovers, menus, modals, toasts */
+  --lg-pop-fx: blur(14px) saturate(1.8) brightness(1.05);
+  --lg-pop-tint: linear-gradient(180deg, rgba(var(--tint), 0.08) 0%, rgba(var(--tint), 0.02) 50%, rgba(var(--tint), 0.035) 100%),
+                 rgba(22, 22, 24, 0.5);
+  --lg-pop-inset: inset 0 1px 0 rgba(var(--tint), 0.16), inset 0 0 14px rgba(var(--tint), 0.03);
+  --lg-pop-shadow: 0 22px 50px -14px rgba(var(--ink), 0.7), 0 6px 14px -4px rgba(var(--ink), 0.35);
+  --lg-pop-rim: linear-gradient(160deg, rgba(var(--tint), 0.32) 0%, rgba(var(--tint), 0.06) 24%, rgba(var(--tint), 0.02) 55%, rgba(var(--tint), 0.12) 100%);
+  --lg-sep: linear-gradient(90deg, transparent, rgba(var(--tint), 0.1) 15%, rgba(var(--tint), 0.1) 85%, transparent);
+}
+
+@keyframes lg-pop-rise { from { translate: 0 8px; scale: 0.965; } }
+@keyframes lg-fade-in { from { opacity: 0; } }
+
+/* ── Floating glass: popovers, menus, modals, toasts, palette ─────────────── */
+:is(.glass-pop, .eos-menu, .split-menu, .ctx-card, .acct-menu, .plan-pop, .plan-tip,
+.env-pop, .host-card, .link-banner, .cw-menu, .pr-menu, .cmd-names, .cmd-tooltip,
+.slash-info, .paste-info, .cb-chip-dd, .attach-popover, .tpl-popover, .tpl-modal,
+.me-panel, .accept-popover, .model-popover, .ca-pop, .sp-plus-menu,
+.drag-affordance-label, .pane-picker, .fv-openwith, .page-find, .turn-card,
+.q-card, .update-card, .side-handle-popup, .scroll-to-bottom) {
+  isolation: isolate;
+  background: transparent;
+  border: 0;
+  box-shadow: var(--lg-pop-shadow);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+
+  &::before, &::after {
+    content: "";
+    display: block;
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+  }
+  /* backdrop + tint */
+  &::before {
+    z-index: -2;
+    -webkit-backdrop-filter: var(--lg-pop-fx);
+    backdrop-filter: var(--lg-pop-fx);
+    background: var(--lg-pop-tint);
+    box-shadow: var(--lg-pop-inset);
+  }
+  /* 1px gradient rim, brightest at the top-left */
+  &::after {
+    z-index: -1;
+    padding: 1px;
+    background: var(--lg-pop-rim);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+  }
+}
+.tpl-modal, .q-card, .update-card, .ca-git-agent,
+.head-menu > .ctx-menu.menu-pane { position: relative; }
+
+/* Scroll containers can't carry pseudo layers (they'd scroll away with the
+   content), so these hold the glass on the host itself, rim drawn inset. */
+.acc-sheet, .machines-menu, .sp-chip-dd, .split-menu.fx-picker,
+.child-int-panel.open .child-int-list {
+  background: var(--lg-pop-tint);
+  border: 0;
+  -webkit-backdrop-filter: var(--lg-pop-fx);
+  backdrop-filter: var(--lg-pop-fx);
+  box-shadow: var(--lg-pop-inset), inset 0 0 0 1px rgba(var(--tint), 0.07), var(--lg-pop-shadow);
+}
+.split-menu.fx-picker::before, .split-menu.fx-picker::after,
+.child-int-list::before, .child-int-list::after { content: none; }
+
+/* Open motion: the host rises (translate/scale — never opacity), its content
+   fades. :where() keeps both at zero specificity, so a layer with its own
+   entrance (toast, banners, the model panel's views) keeps it. Always-mounted
+   layers (turn card, hover cards, pane picker) are left out. */
+:where(.glass-pop:not(.slash-hovercard), .eos-menu, .split-menu, .ctx-card, .acct-menu,
+.plan-pop, .env-pop, .host-card, .cw-menu, .pr-menu, .cmd-names, .cb-chip-dd,
+.attach-popover, .tpl-popover, .tpl-modal, .me-panel, .accept-popover, .model-popover,
+.ca-pop, .sp-plus-menu, .fv-openwith, .machines-menu, .sp-chip-dd, .acc-sheet) {
+  transform-origin: 12% 0;
+  animation: lg-pop-rise 280ms var(--lg-ease) both;
+
+  & > * { animation: lg-fade-in 200ms ease both; }
+
+  @media (prefers-reduced-motion: reduce) {
+    &, & > * { animation: none; }
+  }
+}
+/* flyouts rise from the parent row's edge, slightly faster */
+:where(.ctx-menu.ctx-flyout, .head-menu > .menu-flyout, .sb-prefs-flyout) {
+  transform-origin: 0 12%;
+  animation-duration: 240ms;
+}
+/* layers that open upward out of the composer, and right-anchored menus */
+:where(.attach-popover, .tpl-popover, .accept-popover, .cmd-names, .cb-chip-dd) { transform-origin: 12% 100%; }
+:where(.me-panel, .model-popover, .pr-menu) { transform-origin: 85% 100%; }
+:where(.split-menu, .acct-menu) { transform-origin: 85% 0; }
+
+/* Hover / selected glass eases in and out on every chip host. :where() keeps it
+   at zero specificity, so an element's own transition wins. */
+:where(.acc-icon-btn, .acct-action, .agents-group__head--toggle, .agents-row, .ap-option,
+.att-chip.att-element .att-remove, .att-chip.att-file .att-remove,
+.att-chip.att-folder .att-remove, .attach-popover .menu-item, .bm-iconbtn,
+.browser-tab, .browser-tab .browser-tab__audio, .browser-tab__add,
+.browser-tab__close, .ca-branch-mgr .bm-iconbtn, .ca-branch-mgr .sp-chip-dd-item,
+.ca-ctx .menu-item, .ca-ctx .menu-item.danger, .ca-folder-dd .sp-chip-dd-item,
+.ca-git-agent .menu-item, .ca-git-agent .menu-item.warn, .cb-chip-group
+.cb-chip.cb-chip--in-group, .cc-attach, .chatfiles-jump, .chatfiles-row,
+.child-int-row, .cmd-item, .cmdk__close, .cmdk__item, .cmp-history, .cmp-toggle,
+.code-copy-btn, .composer-inner .c-row3 .effort-pill, .composer-inner .c-row3
+.iconbtn, .composer-inner .c-row3 .iconbtn.git-agent-btn, .composer-inner .c-row3
+.mode-pill, .composer-inner .c-row3 .model-pill, .ctx-menu .menu-item, .cv-row,
+.cw-group__head, .cw-grp__more, .cw-menu__item, .cw-row, .cw-row__act,
+.cw-seclabel__acts .sb-iconbtn, .env-row, .eos-menu__item, .eos-search, .eos-switch,
+.ep-info-btn, .file-chevron, .file-crumb, .file-item, .fp-copy, .fv-close,
+.fv-find-nav, .fv-icon-btn, .fv-ow-item, .fv-symrefs-row, .fx-row, .fx-tb-btn,
+.gd-commit, .gd-tree-row, .git-agent-popover .menu-item, .icon-picker__cat,
+.icon-picker__cell, .machine-row, .me-model-row, .me-readout, .me-reset,
+.model-effort-trigger, .mon-close, .mon-row, .mp-row, .msg-action-btn, .mv-confirm-no,
+.native-toggle, .page-find-nav, .pane-close, .pane-head .crumb .ctx-chip, .pane-head
+.crumb .plan-chip, .pane-head .crumb .v, .pane-picker-item, .pane-split-btn,
+.perm-always, .perm-deny, .plan-summary, .pr-menu-item, .proj-card__action,
+.proj-card__pin, .proj-folder--add, .proj-folder__x, .proj-modal__cancel,
+.proj-modal__close, .proj-modal__icon-btn, .q-btn, .q-close, .queue-ic, .queue-row,
+.queue-steer, .rpick__row, .rw-close, .rw-item, .sb-iconbtn, .sb-nav-row,
+.sb-seclabel__filter, .sb-settings__account, .side-collapse, .side-handle,
+.sp-chip-dd-item, .sp-chrome-btn, .sp-close, .sp-plus, .sp-plus-item, .sp-seg__btn,
+.sp-tab, .spawn-modal__close, .spawn-seg__btn, .split-menu .menu-item, .stg-close,
+.stg-dd__opt, .stg-input__eye, .stg-prov-add, .stg-prov-rm, .stg-seg__btn,
+.stg-toolpick__opt, .stg-toolpick__rm, .strip-pill, .tc-stop, .tpl-act, .tpl-add,
+.tpl-modal .spawn-modal__close, .tpl-popover .menu-item, .tree-chev, button.mc-card,
+button.mc-card--quiet) {
+  transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+
+/* radii: menus 16 · flyouts 14 · permission popover 18 · model/effort 20 */
+.acct-menu, .plan-pop, .machines-menu, .host-card, .env-pop, .ctx-card,
+.proj-card, .cb-chip-dd, .sp-chip-dd, .sp-plus-menu, .mon-panel { border-radius: var(--r-menu); }
+.ctx-menu.ctx-flyout, .head-menu > .menu-flyout, .sb-prefs-flyout { border-radius: var(--r-flyout); }
+.accept-popover { border-radius: 18px; }
+.me-panel { border-radius: 20px; }
+/* rows inside glass */
+.ctx-menu .menu-item, .split-menu .menu-item, .eos-menu__item, .attach-popover .menu-item,
+.tpl-popover .menu-item, .git-agent-popover .menu-item, .pr-menu-item, .acct-action,
+.cmdk__item, .cw-menu__item, .sp-plus-item, .fv-ow-item, .sp-chip-dd-item, .stg-dd__opt,
+.stg-toolpick__opt, .cmd-item, .file-item, .pane-picker-item, .rpick__row,
+.proj-card__action, .mon-row, .rw-item { border-radius: var(--r-item); }
+.ap-option, .me-model-row, .mp-row { border-radius: 12px; }
+/* hairline separators fade out at both ends */
+.ctx-menu .menu-sep, .split-menu .menu-sep, .acct-sep, .mp-sep, .cw-menu__sep,
+.fv-ow-sep, .proj-card__sep, .ca-folder-dd .sp-chip-dd-sep, .ca-git-agent .gap-sep {
+  background: var(--lg-sep);
+}
+
+/* the model / effort panel is lighter, so the transcript reads through */
+.me-panel::before {
+  -webkit-backdrop-filter: blur(9px) saturate(1.8) brightness(1.05);
+  backdrop-filter: blur(9px) saturate(1.8) brightness(1.05);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.08) 0%, rgba(var(--tint), 0.02) 50%, rgba(var(--tint), 0.035) 100%),
+              rgba(20, 20, 22, 0.28);
+}
+
+/* ── Large glass surface: GlassLayers.jsx (the composer card + pill) ──────── */
+.lg-backdrop, .lg-tint, .lg-rim, .lg-sheen, .lg-edge-light {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.lg-backdrop {
+  z-index: -3;
+  -webkit-backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
+  backdrop-filter: blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(1.04);
+  box-shadow: 0 26px 60px -18px rgba(var(--ink), 0.8), 0 6px 16px -4px rgba(var(--ink), 0.45);
+}
+.lg-tint {
+  z-index: -2;
+  background: linear-gradient(180deg, rgba(var(--tint), 0.075) 0%, rgba(var(--tint), 0.02) 46%, rgba(var(--tint), 0.035) 100%),
+              rgba(20, 20, 22, var(--lg-tint));
+  /* lens thickness: light caught inside the glass edge */
+  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.15), inset 0 -1px 1px rgba(var(--tint), 0.05),
+              inset 0 0 15px rgba(var(--tint), 0.055), inset 0 -20px 32px -20px rgba(var(--tint), 0.065);
+}
+.lg-rim, .lg-edge-light {
+  padding: 1px;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+}
+.lg-rim {
+  z-index: -1;
+  opacity: 0.72;
+  background: linear-gradient(160deg, rgba(var(--tint), 0.34) 0%, rgba(var(--tint), 0.06) 22%, rgba(var(--tint), 0.02) 55%, rgba(var(--tint), 0.14) 100%);
+}
+/* pointer light: a faint band across the surface, the rim lit above and below
+   the cursor — never a round spotlight */
+.lg-sheen, .lg-edge-light {
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 600ms ease;
+}
+.lg-sheen {
+  background: linear-gradient(105deg, transparent calc(var(--mx, 50%) - 260px), rgba(var(--tint), 0.018) calc(var(--mx, 50%) - 60px),
+              rgba(var(--tint), 0.028) var(--mx, 50%), rgba(var(--tint), 0.012) calc(var(--mx, 50%) + 120px), transparent calc(var(--mx, 50%) + 320px));
+}
+.lg-edge-light {
+  background: radial-gradient(420px 90px at var(--mx, 50%) 0%, rgba(var(--tint), 0.32), transparent 70%),
+              radial-gradient(420px 90px at var(--mx, 50%) 100%, rgba(var(--tint), 0.08), transparent 70%);
+}
+:hover > .lg-sheen, :hover > .lg-edge-light { opacity: 1; }
+.lg-lens-svg { position: absolute; width: 0; height: 0; }
+@media (prefers-reduced-motion: reduce) { .lg-sheen, .lg-edge-light { display: none; } }

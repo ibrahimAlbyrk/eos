@@ -63,10 +63,10 @@
 .acc-btn--primary { background: var(--accent); color: var(--accent-fg); }
 .acc-btn--primary:hover:not(:disabled) { background: var(--accent-hover); }
 .acc-btn--ghost { height: 30px; padding: 0 8px; background: none; color: var(--fg-dim); font-weight: 400; }
-.acc-btn--ghost:hover:not(:disabled) { background: rgba(var(--tint), 0.05); color: var(--fg-mid); }
+.acc-btn--ghost:hover:not(:disabled) { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 .acc-btn--danger:hover:not(:disabled) { color: var(--err); }
 .acc-btn--outline { background: none; box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--fg-mid); }
-.acc-btn--outline:hover:not(:disabled) { background: rgba(var(--tint), 0.04); color: var(--fg); }
+.acc-btn--outline:hover:not(:disabled) { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .acc-btn--block { width: 100%; }
 .acc-btn--tall { height: 44px; padding: 0 20px; border-radius: 10px; font-size: var(--text-base); }
 
@@ -105,7 +105,7 @@
   justify-content: center;
   color: var(--fg-dim2);
 }
-.acc-icon-btn:hover { background: var(--chip); color: var(--fg-mid); }
+.acc-icon-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 .acc-input {
   flex: 1;

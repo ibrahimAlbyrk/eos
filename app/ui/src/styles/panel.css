@@ -39,9 +39,9 @@
   flex-shrink: 0;
   transition: background 120ms ease, color 120ms ease;
 }
-.fv-icon-btn:hover { background: var(--row-on); color: var(--fg); }
+.fv-icon-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .fv-close { color: var(--fg-dim2); }
-.fv-close:hover { background: var(--chip); color: var(--fg); }
+.fv-close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .fv-btn {
   display: inline-flex; align-items: center;
   height: 26px;
@@ -58,7 +58,7 @@
   font-weight: 500;
 }
 .fv-btn--save:hover { background: var(--accent); filter: brightness(1.06); }
-.fv-icon-btn.on { background: var(--row-on); color: var(--fg); }
+.fv-icon-btn.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 
 /* ---- Memory viewer (project Claude file-based memory) -------------------- */
 .mv-body {
@@ -172,7 +172,7 @@
 }
 .mv-confirm-yes:hover { background: color-mix(in srgb, var(--err) 24%, transparent); }
 .mv-confirm-no { font-size: var(--text-sm); padding: 5px 10px; border-radius: 7px; cursor: pointer; color: var(--fg-dim); }
-.mv-confirm-no:hover { color: var(--fg); background: var(--row-on); }
+.mv-confirm-no:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 
 /* Composer memory button: greyed when no agent is selected */
 .mem-wrap .iconbtn:disabled { opacity: 0.4; cursor: default; }
@@ -213,7 +213,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.fv-find-nav:hover { background: var(--chip); color: var(--fg); }
+.fv-find-nav:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 /* Find match highlights */
 .fv-match {
@@ -279,8 +279,8 @@
   color: var(--fg-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .fv-symrefs-row { display: flex; align-items: center; gap: 8px; padding: 2px 10px 2px 18px; cursor: pointer; }
-.fv-symrefs-row:hover { background: var(--row-on); }
-.fv-symrefs-row.on { background: var(--row-on); }
+.fv-symrefs-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.fv-symrefs-row.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .fv-symrefs-line {
   flex: 0 0 auto; min-width: 26px; text-align: right;
   font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
@@ -330,7 +330,7 @@
   font-size: var(--text-base);
   color: var(--fg);
 }
-.fv-ow-item:hover { background: var(--row-on); }
+.fv-ow-item:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .fv-ow-sep {
   height: 1px;
   background: var(--line);
@@ -629,7 +629,7 @@
   cursor: pointer;
   min-width: 0;
 }
-.cv-row:hover { background: var(--row-on); }
+.cv-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .cv-chev { color: var(--fg-faint); flex-shrink: 0; transition: transform 140ms ease; }
 .cv-commit.open .cv-chev { transform: rotate(90deg); }
 .cv-sha { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent); flex-shrink: 0; }
@@ -1002,7 +1002,7 @@
   border-radius: 5px; color: var(--fg-faint);
   transition: background 120ms ease, color 120ms ease;
 }
-.fx-tb-btn:hover { background: var(--row-on); color: var(--fg); }
+.fx-tb-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .fx-tb-btn.on { color: var(--accent); background: var(--accent-soft); }
 
 /* Search (inset well) */
@@ -1028,8 +1028,8 @@
   position: relative; cursor: default; user-select: none;
   content-visibility: auto; contain-intrinsic-size: 0 26px;
 }
-.fx-row:hover { background: var(--row-on); }
-.fx-row.on { background: var(--row-on); }
+.fx-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.fx-row.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .fx-row.on.anchor::after {
   content: ""; position: absolute; left: 0; top: 5px; bottom: 5px;
   width: 2px; border-radius: 2px; background: var(--accent);
@@ -1755,8 +1755,8 @@
   font-size: var(--text-xs);
   color: var(--fg);
 }
-.gd-tree-row:hover { background: var(--row-on); }
-.gd-tree-row.sel { background: var(--row-on); }
+.gd-tree-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.gd-tree-row.sel { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .gd-tree-chev {
   color: var(--fg-faint);
   flex-shrink: 0;
@@ -1809,8 +1809,8 @@
   cursor: pointer;
   text-align: left;
 }
-.gd-commit:hover { background: var(--row-on); }
-.gd-commit.on { background: var(--row-on); }
+.gd-commit:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.gd-commit.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .gd-commit-subject {
   font-size: var(--text-xs);
   color: var(--fg);
@@ -1981,10 +1981,11 @@
   user-select: none;
   transition: color 140ms ease, background 140ms ease;
 }
-.browser-tab:not(.is-active):hover { color: var(--fg); background: var(--row-on); }
+.browser-tab:not(.is-active):hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .browser-tab.is-active {
   color: var(--fg);
-  background: var(--row-on);
+  background: var(--lg-chip-on-bg);
+  box-shadow: var(--lg-chip-on-sh);
 }
 .browser-tab__icon { flex: 0 0 auto; display: flex; width: 12px; height: 12px; color: var(--fg-faint); }
 .browser-tab__icon img { width: 12px; height: 12px; border-radius: 2px; }
@@ -2004,7 +2005,7 @@
 .browser-tab.is-muted .browser-tab__audio { visibility: visible; }
 .browser-tab.is-audible:not(.is-muted) .browser-tab__audio { color: var(--accent); }
 .browser-tab.is-muted .browser-tab__audio { color: var(--fg-faint); }
-.browser-tab .browser-tab__audio:hover { background: var(--chip); color: var(--fg); }
+.browser-tab .browser-tab__audio:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 .browser-tab__audio,
 .browser-tab__close,
@@ -2020,9 +2021,9 @@
   border-radius: 4px;
 }
 .browser-tab__close { width: 18px; height: 18px; border-radius: 5px; opacity: 0.7; }
-.browser-tab__close:hover { background: var(--chip); color: var(--fg); opacity: 1; }
+.browser-tab__close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); opacity: 1; }
 .browser-tab__add { width: 24px; height: 24px; border-radius: var(--r-icon); color: var(--fg-dim2); }
-.browser-tab__add:hover { background: var(--chip); color: var(--fg); }
+.browser-tab__add:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 /* Navigation row — back/forward/reload then the address field (.fx-search well). */
 .browser-nav {
@@ -2305,7 +2306,7 @@
 .chatfiles-section-title { font-size: var(--text-xs); color: var(--fg-faint); }
 .chatfiles-section-count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
 .chatfiles-row { display: flex; align-items: center; border-radius: var(--r-row); }
-.chatfiles-row:hover { background: var(--row-on); }
+.chatfiles-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .chatfiles-main {
   flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
   padding: 7px 8px 7px 10px; text-align: left; color: inherit; cursor: pointer;
@@ -2325,5 +2326,5 @@
   display: inline-flex; align-items: center; justify-content: center;
   color: var(--fg-faint);
 }
-.chatfiles-jump:hover { background: var(--chip); color: var(--fg); }
+.chatfiles-jump:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 

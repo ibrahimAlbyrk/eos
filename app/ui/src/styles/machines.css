@@ -45,7 +45,7 @@
   text-align: left;
   --mg-ring: var(--panel);
 }
-.machine-row:hover, .machine-row.on { background: var(--row-on); color: var(--fg); --mg-ring: var(--row-on); }
+.machine-row:hover, .machine-row.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); --mg-ring: var(--row-on); }
 .machine-row__name { font-size: var(--text-base); color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .machine-row__meta { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); white-space: nowrap; }
 .machine-row__meta.is-warn { color: var(--warn); }
@@ -84,9 +84,9 @@
   color: inherit;
   --mg-ring: var(--raised);
 }
-button.mc-card:hover { background: var(--row-on); --mg-ring: var(--row-on); }
+button.mc-card:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); --mg-ring: var(--row-on); }
 .mc-card--quiet { background: transparent; padding: 8px 12px; --mg-ring: var(--pop); }
-button.mc-card--quiet:hover { background: var(--row-on); }
+button.mc-card--quiet:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .mc-card__head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .mc-card__text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .mc-card__name { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -206,7 +206,7 @@ button.mc-card--quiet:hover { background: var(--row-on); }
 .m-btn--accent { background: var(--accent); color: var(--accent-fg); }
 .m-btn--accent:hover:not(:disabled) { background: var(--accent-hover); color: var(--accent-fg); }
 .m-btn--quiet { background: none; color: var(--fg-dim); }
-.m-btn--quiet:hover:not(:disabled) { background: var(--chip); }
+.m-btn--quiet:hover:not(:disabled) { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .m-btn--danger { background: none; color: var(--err); }
 .m-btn--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--err) 14%, transparent); color: var(--err); }
 .m-btn--sm { height: 26px; padding: 0 10px; font-size: var(--text-xs); }
@@ -320,7 +320,7 @@ button.mc-card--quiet:hover { background: var(--row-on); }
   color: var(--fg-mid);
   text-align: left;
 }
-.rpick__row:hover:not(:disabled), .rpick__row.on { background: var(--row-on); color: var(--fg); }
+.rpick__row:hover:not(:disabled), .rpick__row.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .rpick__row.is-dim { color: var(--fg-faint); cursor: default; }
 .rpick__ic { display: inline-flex; color: var(--fg-dim2); flex-shrink: 0; }
 .rpick__name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

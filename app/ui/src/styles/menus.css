@@ -4,29 +4,18 @@
    (charcoal-aurora phase 0). */
 
 /* ============================================================================
-   POPOVERS & MODALS — charcoal-aurora floating layers
-   Flat surface-step depth: solid --pop, one --line (where needed), and a
-   shadow only because these float. No blur, no gradient rim.
+   POPOVERS & MODALS — floating layers. Their surface (backdrop, tint, rim,
+   shadow, open motion) is the liquid glass in glass.css; this file owns layout.
    ============================================================================ */
 
-/* Shared base for any floating layer. Consumers override radius + shadow:
-   menus (--r-menu), popovers (--r-pop + --sh-pop), palette/rewind
-   (--sh-palette), modals (--r-modal + --sh-modal). */
+/* Shared base for any floating layer. Consumers override the radius: menus
+   (--r-menu), popovers (--r-pop), modals (--r-modal). */
 .glass-pop {
   position: relative;
-  background: var(--pop);
   border-radius: var(--r-pop);
-  box-shadow: var(--sh-pop);
   font-size: var(--text-sm);
   pointer-events: auto;
-  /* Canonical flat layer: no blur, no gradient rim. Reset both here (menus.css
-     is @imported last) so the pre-redesign .glass-pop recipe in composer.css —
-     backdrop-blur + a diagonal masked ::after rim — can't leak onto any floating
-     layer that didn't already patch it away per-popover. */
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
-.glass-pop::after { content: none; }
 
 /* slash-pill info popover — same plane as the autocomplete menu.
    Must come after .glass-pop: both are single-class, so source order is
@@ -142,7 +131,7 @@
   color: var(--fg);
   cursor: pointer;
 }
-.eos-menu__item:hover { background: var(--row-on); }
+.eos-menu__item:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .eos-menu__ic { display: inline-flex; color: var(--fg-dim2); }
 .eos-menu__item[aria-checked="true"] .eos-menu__ic { color: var(--fg-mid); }
 .eos-menu__check {
@@ -181,7 +170,7 @@
   position: relative;
 }
 .ctx-menu .menu-item:hover,
-.ctx-menu .menu-item.active { background: var(--row-on); }
+.ctx-menu .menu-item.active { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .ctx-menu .menu-item svg { color: var(--fg-dim2); flex-shrink: 0; }
 .ctx-menu .menu-item .kbd {
   margin-left: auto;
@@ -274,7 +263,7 @@
   cursor: pointer;
 }
 .split-menu .menu-item:hover,
-.split-menu .menu-item.on { background: var(--row-on); }
+.split-menu .menu-item.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .split-menu .menu-item:disabled { opacity: 0.4; cursor: default; }
 .split-menu .menu-item:disabled:hover { background: transparent; }
 .split-menu .menu-item svg { flex-shrink: 0; color: var(--fg-dim2); }
@@ -415,7 +404,7 @@
   color: var(--fg-mid);
 }
 .acct-action svg { flex-shrink: 0; color: var(--fg-dim2); }
-.acct-action:hover { background: var(--row-on); color: var(--fg); }
+.acct-action:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .acct-kbd { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
 
 /* Plan popover + hover peek (PlanChip.jsx) — portal'd under the header chip. */
@@ -453,7 +442,7 @@
 }
 .plan-label { flex: 1; min-width: 0; line-height: 18px; }
 .plan-summary { color: var(--fg-dim); cursor: pointer; }
-.plan-summary:hover { background: var(--row-on); }
+.plan-summary:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .plan-toggle { font-size: var(--text-xs); line-height: 18px; color: var(--fg-faint); }
 .plan-row.completed { color: var(--fg-faint); }
 .plan-row.in_progress { color: var(--fg-strong); font-weight: 500; }
@@ -495,6 +484,7 @@
   flex-direction: row;
 }
 .env-dock-main {
+  position: relative;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -552,7 +542,7 @@
 .env-row.env-static,
 .env-row.env-fx-row { cursor: default; }
 .env-row:not(.env-static):not(.env-fx-row):hover,
-.env-row.is-active { background: var(--row-on); }
+.env-row.is-active { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .env-row > svg { flex-shrink: 0; color: var(--fg-dim2); }
 .env-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .env-count { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-sm); }
@@ -643,7 +633,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.cmdk__close:hover { background: var(--chip); color: var(--fg-mid); }
+.cmdk__close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 .cmdk__list {
   overflow-y: auto;
@@ -672,7 +662,7 @@
   position: relative;
 }
 .cmdk__item:hover,
-.cmdk__item.is-active { background: var(--row-on); }
+.cmdk__item.is-active { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .cmdk__item-icon {
   display: inline-flex;
   color: var(--fg-dim);
@@ -797,7 +787,7 @@
   display: inline-flex; align-items: center; justify-content: center;
   z-index: 2;
 }
-.stg-close:hover { background: var(--chip); color: var(--fg-mid); }
+.stg-close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 .stg-title {
   margin: 0 0 18px;
@@ -882,7 +872,7 @@
   transition: background 120ms ease, color 120ms ease;
 }
 .stg-seg__btn:hover { color: var(--fg); }
-.stg-seg__btn.is-active { color: var(--fg); background: var(--row-on); }
+.stg-seg__btn.is-active { color: var(--fg); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 
 /* Select — a compact --chip pill (radius 7), open menu is a flat --pop popover */
 .stg-dd { position: relative; flex-shrink: 0; }
@@ -926,7 +916,7 @@
   text-align: left;
   white-space: nowrap;
 }
-.stg-dd__opt:hover { background: var(--row-on); }
+.stg-dd__opt:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .stg-dd__opt svg { color: var(--accent); flex-shrink: 0; }
 .stg-dd__opt.is-disabled { color: var(--fg-faint); cursor: default; opacity: 0.55; }
 .stg-dd__opt.is-disabled:hover { background: none; }
@@ -976,7 +966,7 @@
   color: var(--fg-dim2);
   flex-shrink: 0;
 }
-.stg-input__eye:hover { background: var(--chip); color: var(--fg-mid); }
+.stg-input__eye:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 /* Tool picker (toolPicker control) — chips + "+" popover */
 .stg-toolpick {
@@ -1004,7 +994,7 @@
   border-radius: 4px;
   color: var(--fg-faint);
 }
-.stg-toolpick__rm:hover { background: var(--row-on); color: var(--fg); }
+.stg-toolpick__rm:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .stg-toolpick__empty {
   font-size: var(--text-sm);
   color: var(--fg-faint);
@@ -1040,7 +1030,7 @@
   font-family: var(--font-mono);
   color: var(--fg-dim);
 }
-.stg-toolpick__opt:hover { background: var(--row-on); color: var(--fg); }
+.stg-toolpick__opt:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 
 /* Provider-management UI ("Model" settings tab) — add/remove buttons, error
    warnings, and the "Test & Save" flow. Consistent with stg-row / stg-input. */
@@ -1053,7 +1043,7 @@
   color: var(--fg-dim2);
   transition: background 120ms ease, color 120ms ease;
 }
-.stg-prov-add:hover { background: var(--chip); color: var(--fg); }
+.stg-prov-add:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .stg-prov-rm {
   display: inline-flex;
   align-items: center;
@@ -1063,7 +1053,7 @@
   color: var(--fg-dim2);
   transition: background 120ms ease, color 120ms ease;
 }
-.stg-prov-rm:hover { background: var(--chip); color: var(--fg); }
+.stg-prov-rm:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .stg-prov-rm:disabled { opacity: 0.4; cursor: default; }
 .stg-prov-cancel {
   display: inline-flex;
@@ -1220,7 +1210,7 @@
   border-radius: 6px;
   color: var(--fg-faint);
 }
-.rw-close:hover { background: var(--chip); color: var(--fg-mid); }
+.rw-close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 .rw-sub {
   padding: 0 18px 12px;
   font-size: var(--text-sm);
@@ -1265,7 +1255,7 @@
   text-overflow: ellipsis;
   cursor: pointer;
 }
-.rw-item:hover { background: var(--row-on); }
+.rw-item:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .rw-item.is-sel { background: var(--row-on); color: var(--fg-strong); }
 .rw-empty {
   padding: 22px 18px 26px;
@@ -1507,7 +1497,7 @@
   width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
   border-radius: 6px; color: var(--fg-faint); cursor: pointer; font-size: var(--text-xs);
 }
-.mon-close:hover { background: var(--chip); color: var(--fg-mid); }
+.mon-close:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg-mid); }
 
 .mon-list {
   display: flex; flex-direction: column; overflow-y: auto;
@@ -1518,7 +1508,7 @@
   padding: 9px 10px; border-radius: 9px;
   transition: background 0.12s;
 }
-.mon-row:hover { background: var(--row-on); }
+.mon-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .mon-kind { flex-shrink: 0; margin-top: 2px; display: inline-flex; }
 .mon-kind--monitor { color: var(--accent); }
 .mon-kind--bash { color: var(--ok); }
@@ -1533,6 +1523,87 @@
 .mon-label {
   font-size: 11.5px; color: var(--fg-dim); font-family: var(--font-mono);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ============================================================================
+   TOASTS — app-wide notification stack (state/toastStore + components/toast).
+   Fixed top-right glass cards (.glass-pop): slide in from the right on mount,
+   out to the right on exit, right-only pointer-drag to dismiss. Above cmdk.
+   See NOTIFICATION_SYSTEM_DESIGN.md.
+   ============================================================================ */
+.toast-viewport {
+  position: fixed;
+  top: 52px; /* clears the topmost pane-head toolbar */
+  right: 16px;
+  z-index: 1000; /* above cmdk (500) + settings (450/500) */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 28px));
+  pointer-events: none; /* only the cards opt back in */
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 10px 10px 12px;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  cursor: grab;
+  touch-action: pan-y; /* keep vertical page scroll; we own the horizontal axis */
+  /* translate only — a glass host never fades (its backdrop would drop out) */
+  animation: toast-in 280ms var(--lg-ease) backwards;
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 220ms;
+}
+.toast.dragging { cursor: grabbing; transition: none; } /* 1:1 finger tracking */
+/* `backwards` fill (not `both`) is load-bearing: a forwards-filling animation
+   would outrank the leave transform and the inline drag transform. */
+.toast.leaving { animation: none; transform: translateX(120%); }
+.toast--info { --tone: var(--accent); }
+.toast--warning { --tone: var(--warn); }
+.toast--error { --tone: var(--err); }
+@keyframes toast-in { from { transform: translateX(calc(100% + 24px)); } }
+.toast__glyph {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+}
+/* one inline row: an optional (de-emphasized) title before the message */
+.toast__body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.toast__title { flex: none; font-weight: 600; }
+.toast__msg { min-width: 0; word-break: break-word; }
+.toast__action {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+.toast__action:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+.toast__close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--fg-faint);
+}
+.toast__close:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  /* no transform exit: the JS fallback timer handles removal */
+  .toast, .toast.leaving { transition: opacity 120ms linear; transform: none; }
+  .toast.leaving { opacity: 0; }
 }
 
 /* ============================== Archive panel ============================= */

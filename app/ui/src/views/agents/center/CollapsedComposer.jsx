@@ -4,6 +4,7 @@ import { modelName, EFFORT_LABELS } from "../../../lib/models.js";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { SubmitButton } from "./SubmitButton.jsx";
+import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
 
 // The composer's collapsed state: while a permission or question card is shown
 // the strip + full card hide and the composer shrinks to one pill row — attach
@@ -31,6 +32,7 @@ export function CollapsedComposer({ worker, hasQuestion, onAttach, submit }) {
 
   return (
     <div className="composer-compact">
+      <GlassLayers />
       <div className="cc-attach-wrap" style={{ position: "relative" }}>
         <button className="cc-attach" title="Attach" onClick={(e) => toggle("attach", e)} data-popover-trigger="attach">
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">

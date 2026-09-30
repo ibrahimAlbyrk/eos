@@ -22,6 +22,7 @@
 @import "./styles/project.css";
 @import "./styles/accounts.css";
 @import "./styles/machines.css";
+@import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -129,11 +130,13 @@ kbd {
 
   /* radii scale */
   --r-pill: 999px;
-  --r-composer: 22px;
+  --r-composer: 26px;
   --r-modal: 16px;
+  --r-menu: 16px;   /* glass menus */
   --r-pop: 14px;
-  --r-menu: 12px;
+  --r-flyout: 14px; /* submenus beside a menu */
   --r-card: 10px;
+  --r-item: 10px;   /* rows inside a glass menu */
   --r-row: 8px;
   --r-icon: 6px;
   --r-kbd: 5px;
@@ -223,9 +226,10 @@ kbd {
   grid-template-rows: 100%;
   height: 100vh;
   width: 100vw;
-  /* No grid-template-columns transition: animating a layout property reflows
-     the whole app every frame for its duration — panels must open instantly;
-     motion lives on the island content (compositor-only transform/opacity). */
+  position: relative;
+  /* Collapsing the sidebar slides the center's left edge with the sidebar
+     (same curve), instead of jumping. Right panels never touch this grid. */
+  transition: grid-template-columns 340ms var(--lg-ease);
 }
 .app.side-collapsed {
   grid-template-columns: 0 1fr 0fr;
@@ -234,4 +238,4 @@ kbd {
    .pane-panel-slot), not in window column 3 — so the window grid never resizes
    for a panel. Column 3 stays a dead 0fr track. */
 .app.side-collapsed .side { transform: translateX(-100%); opacity: 0; pointer-events: none; }
-.side { transition: transform 200ms ease, opacity 200ms ease; }
+@media (prefers-reduced-motion: reduce) { .app { transition: none; } }

@@ -23,14 +23,18 @@
   flex-direction: column;
   gap: 34px;
 }
-/* New-task / new-session: the empty transcript centers the hero in the full
-   scroller height (the composer sits below, outside .messages-wrap). */
+/* The floating composer covers the scroller's end: pad past it so the last
+   message rests above the card. */
+.env-dock-main .messages { padding-bottom: calc(var(--composer-h, 120px) + 26px); }
+/* New-task / new-session: the empty transcript centers the hero in the
+   scroller height left above the composer. */
 .messages.messages-empty {
   min-height: 100%;
   justify-content: center;
   align-items: center;
   padding-bottom: 8vh;
 }
+.env-dock-main .messages.messages-empty { padding-bottom: calc(var(--composer-h, 120px) + 8vh); }
 .nt-hero {
   display: flex;
   flex-direction: column;
@@ -80,25 +84,25 @@
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
 }
-/* scroll-to-bottom pill — sticky to bottom-center of messages-wrap */
+/* scroll-to-bottom — a small glass drop, sticky to bottom-center of
+   messages-wrap, just above the floating composer */
 .scroll-to-bottom {
   position: sticky;
   bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: var(--r-icon);
-  background: var(--raised);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
   color: var(--fg-dim2);
   cursor: pointer;
   z-index: 2;
-  transition: background 0.15s, color 0.15s;
-  box-shadow: var(--sh-pop);
+  transition: color 200ms ease;
   margin: 0 auto;
 }
-.scroll-to-bottom:hover { background: var(--row-on); color: var(--fg); }
+.env-dock-main .scroll-to-bottom { bottom: calc(var(--composer-h, 120px) + 10px); }
+.scroll-to-bottom:hover { color: var(--fg); }
 
 /* ── turn rail — left-edge minimap, one tick per turn (TurnRail.jsx) ──── */
 /* Positioning frame so the rail + card float over the scroller, not in it. */
@@ -252,7 +256,7 @@
   color: var(--fg-dim2);
   cursor: pointer;
 }
-.page-find-nav:hover { background: var(--chip); color: var(--fg); }
+.page-find-nav:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 /* CSS Custom Highlight API — names registered in hooks/usePageFind.js.
    All matches: warn 32%. Current match: solid warn, dark ink. */
 ::highlight(page-find) { background-color: color-mix(in srgb, var(--warn) 32%, transparent); }
@@ -265,8 +269,13 @@
   align-items: flex-end;
 }
 .msg-user .b {
+  position: relative;
+  isolation: isolate;
   max-width: 78%;
-  background: var(--bubble);
+  background:
+    linear-gradient(180deg, rgba(160, 200, 255, 0.06) 0%, rgba(110, 164, 232, 0) 50%, rgba(110, 164, 232, 0.02) 100%),
+    var(--bubble);
+  box-shadow: inset 0 0.5px 0 rgba(200, 225, 255, 0.16), 0 4px 12px -6px rgba(var(--ink), 0.35);
   color: var(--bubble-fg);
   padding: 12px 18px;
   border-radius: 18px;
@@ -274,6 +283,19 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.msg-user .b::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: linear-gradient(160deg, rgba(210, 230, 255, 0.16) 0%, rgba(160, 200, 255, 0.04) 30%, rgba(110, 164, 232, 0) 60%, rgba(160, 200, 255, 0.06) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 .msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-user .msg-link:hover { opacity: 0.8; }
@@ -305,7 +327,7 @@
   border-radius: var(--r-icon);
   color: var(--fg-faint);
 }
-.msg-action-btn:hover { color: var(--fg); background: var(--row-on); }
+.msg-action-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .msg-action-btn.is-busy { opacity: 0.45; pointer-events: none; }
 .msg-action-btn.is-err { color: var(--err); }
 .msg-time {
@@ -558,7 +580,7 @@
   transition: opacity 120ms;
 }
 .read-detail:hover .fp-copy { opacity: 1; }
-.fp-copy:hover { color: var(--fg); background: var(--row-on); }
+.fp-copy:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .fp-copy-float { position: absolute; top: 6px; right: 8px; z-index: 1; background: var(--panel); }
 
 .code-preview,
@@ -651,7 +673,7 @@
   flex-shrink: 0;
   transition: color 160ms ease, background 160ms ease;
 }
-.tc-stop:hover { color: var(--fg); background: var(--chip); }
+.tc-stop:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .tc-out {
   padding: 0 14px 11px;
   font-size: 11.5px;
@@ -1324,7 +1346,7 @@
 }
 .code-block-wrap:hover > .code-copy-btn,
 .code-copy-btn:focus-visible { opacity: 1; }
-.code-copy-btn:hover { color: var(--fg); background: var(--row-on); }
+.code-copy-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .code-copy-btn .ccb-check { display: none; }
 .code-copy-btn.copied { opacity: 1; color: var(--ok); }
 .code-copy-btn.copied .ccb-copy { display: none; }
@@ -1446,7 +1468,7 @@
   align-self: center; margin-bottom: 12px; padding: 4px 10px; border-radius: var(--r-icon);
   font-size: 12.5px; color: var(--fg-faint); transition: background-color 150ms ease, color 150ms ease;
 }
-.cmp-history:hover { background: var(--chip); color: var(--fg); }
+.cmp-history:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .cmp-history:focus-visible, .cmp-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* Every glow is pinned to the header row in px (never %), so opening the summary
@@ -1493,7 +1515,7 @@
   border-radius: var(--r-icon); font-size: 12.5px; color: var(--fg-dim);
   transition: background-color 150ms ease, color 150ms ease;
 }
-.cmp-toggle:hover { background: var(--chip); color: var(--fg); }
+.cmp-toggle:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
 .cmp-toggle svg { transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1); }
 .cmp-card.open .cmp-toggle svg { transform: rotate(90deg); }
 

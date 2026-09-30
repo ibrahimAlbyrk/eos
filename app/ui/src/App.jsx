@@ -3,6 +3,7 @@ import { useUi, UiProvider, useAttentionSync } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { useStorePrune } from "./hooks/useStorePrune.js";
 import { useViewSwitchHotkeys } from "./hooks/useViewSwitchHotkeys.js";
+import { useSidebarToggleHotkey } from "./hooks/useSidebarToggleHotkey.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
@@ -35,6 +36,8 @@ function Shell() {
 
   // Cmd+Ctrl+1/2 → Agents / Code.
   useViewSwitchHotkeys();
+  // Cmd+B → collapse / expand the sidebar.
+  useSidebarToggleHotkey();
 
   // First-run welcome: decided ONCE, when both the stored skip flag and the
   // accounts have loaded — shown only when nothing is connected at all and the
