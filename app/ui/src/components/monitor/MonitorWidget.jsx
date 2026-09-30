@@ -40,7 +40,7 @@ export function MonitorWidget({ live }) {
   const toggle = () => (open ? closeAllPops() : openPop("monitor"));
 
   return (
-    <div className="mon-widget">
+    <div className="mon-widget" data-popover="monitor">
       {open && (
         <MonitorPanel
           items={items}

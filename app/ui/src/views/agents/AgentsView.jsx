@@ -97,18 +97,6 @@ export function AgentsView({ live }) {
     });
   }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle]);
 
-  // Outside-click closes any open popover (except the popover itself + trigger)
-  useEffect(() => {
-    if (!ui.openPopover) return;
-    const handler = (e) => {
-      const inside = e.target.closest(`[data-popover="${ui.openPopover}"]`)
-        || e.target.closest(`[data-popover-trigger="${ui.openPopover}"]`);
-      if (!inside) ui.closeAllPops();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [ui.openPopover, ui]);
-
   // The right side panel is per-pane now (rendered inside each pane by
   // PaneGrid/SinglePane), not a shared shell column. The grid is just
   // sidebar | center; split view only toggles the `split` class.

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../api/client.js";
 import {
-  useHosts, switchMachine, hostLabel, linkTone, routeLabel, latencyLabel, canManageMachines,
+  useHosts, hostLabel, linkTone, routeLabel, latencyLabel, canManageMachines,
 } from "../../state/hostsStore.js";
 import { currentHost, isRemoteView } from "../../lib/host.js";
 import { summarizeSessions } from "../../lib/machineSessions.js";
@@ -42,7 +42,7 @@ function Stats({ summary }) {
 // The Machines menu, above the sidebar footer's machine row: every computer this
 // Mac drives, what its agents are doing, and the ways to add one or to let
 // others in. Portal'd like the Account menu; data-popover keeps inside clicks inside.
-export function MachinesMenu({ anchor, live, onConnect, onAllMachines, onRemoteAccess }) {
+export function MachinesMenu({ anchor, live, onSwitch, onConnect, onAllMachines, onRemoteAccess }) {
   const { hosts, local } = useHosts();
   const remote = isRemoteView();
   const here = remote ? currentHost()?.id : null;
@@ -71,7 +71,7 @@ export function MachinesMenu({ anchor, live, onConnect, onAllMachines, onRemoteA
     <div className="machines-menu" data-popover="machines-menu" role="menu" aria-label="Machines" style={pos}>
       <div className="machines-menu__label">Machines<span className="acct-kbd">⌘⇧M</span></div>
 
-      <button type="button" className="mc-card" role="menuitemradio" aria-checked={!remote} onClick={() => switchMachine(null)}>
+      <button type="button" className="mc-card" role="menuitemradio" aria-checked={!remote} onClick={() => onSwitch(null)}>
         <span className="mc-card__head">
           <MachineGlyph name={local?.name} platform={local?.platform} tone="ok" size="lg" />
           <span className="mc-card__text">
@@ -91,7 +91,7 @@ export function MachinesMenu({ anchor, live, onConnect, onAllMachines, onRemoteA
         const lat = latencyLabel(h.link);
         const tone = linkTone(h.link);
         return (
-          <button type="button" className="mc-card" role="menuitemradio" aria-checked={isHere} key={h.id} onClick={() => switchMachine(h.id)}>
+          <button type="button" className="mc-card" role="menuitemradio" aria-checked={isHere} key={h.id} onClick={() => onSwitch(h.id)}>
             <span className="mc-card__head">
               <MachineGlyph name={h.name} platform={h.platform} tone={tone} size="lg" />
               <span className="mc-card__text">
@@ -110,7 +110,7 @@ export function MachinesMenu({ anchor, live, onConnect, onAllMachines, onRemoteA
       })}
 
       {offline.map((h) => (
-        <button type="button" className="mc-card mc-card--quiet" key={h.id} onClick={() => switchMachine(h.id)}>
+        <button type="button" className="mc-card mc-card--quiet" key={h.id} onClick={() => onSwitch(h.id)}>
           <span className="mc-card__head">
             <MachineGlyph name={h.name} platform={h.platform} tone="off" size="lg" />
             <span className="mc-card__text">

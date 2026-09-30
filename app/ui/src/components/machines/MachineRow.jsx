@@ -5,7 +5,7 @@ import { useNavigation } from "../../state/navigation.jsx";
 import { useKeybinding } from "../../keymap/useKeymap.js";
 import { combo } from "../../keymap/index.js";
 import {
-  useHosts, ensureHostsLoaded, hostLabel, linkTone, openConnectSheet, routeLabel,
+  useHosts, ensureHostsLoaded, hostLabel, linkTone, openConnectSheet, routeLabel, switchMachine,
 } from "../../state/hostsStore.js";
 import { currentHost, isRemoteView } from "../../lib/host.js";
 import { MachineGlyph } from "./MachineGlyph.jsx";
@@ -62,6 +62,7 @@ export function MachineRow({ live }) {
         <MachinesMenu
           anchor={anchor}
           live={live}
+          onSwitch={(id) => { ui.closeAllPops(); switchMachine(id); }}
           onConnect={run(openConnectSheet)}
           onAllMachines={run(() => setActiveView("machines"))}
           onRemoteAccess={run(() => openSettings("remote"))}
