@@ -322,6 +322,9 @@
   inset: 0;
   max-width: none;
   padding: 0;
+  /* The ghost is the bubble's shape: text taller than it (early in the flight
+     of a long message) stays inside and is revealed as it grows. */
+  overflow: hidden;
   -webkit-backdrop-filter: blur(0px) saturate(1);
   backdrop-filter: blur(0px) saturate(1);
 }

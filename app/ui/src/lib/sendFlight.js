@@ -37,6 +37,10 @@ function isPinned(tx) {
   return Boolean(wrap) && wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < PIN_SLACK_PX;
 }
 
+// Copied, not inherited: the ghost lives under <body>, and any drift in the
+// metrics re-wraps the text so the last line spills out of the bubble.
+const typography = (cs) => ({ font: cs.font, letterSpacing: cs.letterSpacing, wordSpacing: cs.wordSpacing });
+
 function layer(className, nodes, style) {
   const el = document.createElement("div");
   el.className = className;
@@ -58,15 +62,16 @@ export function launchSendFlight(editor) {
   const fromRadius = parseFloat(getComputedStyle(card).borderTopLeftRadius) || 0;
   const ed = editor.getBoundingClientRect();
   const es = getComputedStyle(editor);
-  const textFrom = { x: ed.left - from.left, y: ed.top - from.top - editor.scrollTop };
+  const textFrom = { x: ed.left - from.left, y: ed.top - from.top };
 
   const ghost = document.createElement("div");
   ghost.className = "msg-user send-flight";
   ghost.setAttribute("aria-hidden", "true");
   const body = document.createElement("div");
   body.className = "b";
+  // Same window as the editor: a long draft is scrolled inside max-height.
   const texts = [layer("sf-text sf-from", [...editor.cloneNode(true).childNodes], {
-    width: `${ed.width}px`, font: es.font, letterSpacing: es.letterSpacing, wordSpacing: es.wordSpacing, color: es.color,
+    ...typography(es), width: `${ed.width}px`, height: `${ed.height}px`, overflow: "hidden", color: es.color,
   })];
   const rim = document.createElement("span");
   rim.className = "sf-rim";
@@ -78,6 +83,7 @@ export function launchSendFlight(editor) {
   let target = null;
   let toRadius = fromRadius;
   let textTo = textFrom;
+  let padX = 0;
   let start = 0;
   let raf = 0;
   const born = performance.now();
@@ -109,12 +115,11 @@ export function launchSendFlight(editor) {
     target.style.visibility = "hidden";
     if (texts.length > 1) return;
     const bs = getComputedStyle(target);
-    const padL = parseFloat(bs.paddingLeft), padR = parseFloat(bs.paddingRight);
+    const padL = parseFloat(bs.paddingLeft);
+    padX = padL + parseFloat(bs.paddingRight);
     toRadius = parseFloat(bs.borderTopLeftRadius) || 0;
     textTo = { x: padL, y: parseFloat(bs.paddingTop) };
-    texts.push(layer("sf-text sf-to", [...target.cloneNode(true).childNodes], {
-      width: `${target.clientWidth - padL - padR}px`,
-    }));
+    texts.push(layer("sf-text sf-to", [...target.cloneNode(true).childNodes], typography(bs)));
     body.append(texts[1]);
   };
 
@@ -128,6 +133,8 @@ export function launchSendFlight(editor) {
     }
     const to = target.getBoundingClientRect();
     if (!to.width) return abort(); // the pane was parked mid-flight
+    // Fractional and live: a scrollbar appearing mid-flight narrows the bubble.
+    texts[1].style.width = `${to.width - padX}px`;
     if (!start) {
       start = now;
       ghost.classList.add("is-flying");
@@ -146,5 +153,6 @@ export function launchSendFlight(editor) {
 
   place(from, fromRadius, 0);
   document.body.append(ghost);
+  texts[0].scrollTop = editor.scrollTop;
   raf = requestAnimationFrame(frame);
 }
