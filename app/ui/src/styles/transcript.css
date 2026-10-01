@@ -106,8 +106,7 @@
 .env-dock-main .scroll-to-bottom { bottom: calc(var(--composer-h, 120px) + 10px); }
 .scroll-to-bottom:hover { color: var(--fg-strong); scale: 1.12; }
 .scroll-to-bottom:active { scale: 0.92; transition-duration: 200ms, 90ms; }
-/* hidden: the press ripple plays out, then the drop shrinks away (never
-   opacity on a glass host) */
+/* hidden: the drop shrinks away (never opacity on a glass host) */
 .scroll-to-bottom.is-leaving {
   scale: 0;
   pointer-events: none;
@@ -124,23 +123,8 @@
   background: radial-gradient(closest-side, rgba(var(--ink), 0.45) 35%, transparent 75%);
   pointer-events: none;
 }
-/* one ring spreading out of the drop on press, like a touch on water */
-.stb-ripple {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  border-radius: 50%;
-  box-shadow: 0 0 0 1px rgba(var(--tint), 0.35), 0 0 6px rgba(var(--tint), 0.12);
-  pointer-events: none;
-  animation: stb-ripple 520ms cubic-bezier(.2, .7, .3, 1) forwards;
-}
-@keyframes stb-ripple {
-  from { scale: 0.7; opacity: 1; }
-  to { scale: 1.9; opacity: 0; }
-}
 @media (prefers-reduced-motion: reduce) {
   .scroll-to-bottom, .scroll-to-bottom.is-leaving { transition: color 200ms ease; }
-  .stb-ripple { display: none; }
 }
 
 /* ── turn rail — left-edge minimap, one tick per turn (TurnRail.jsx) ──── */
