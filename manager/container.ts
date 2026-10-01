@@ -33,6 +33,8 @@ import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBacke
 import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
+import { createSdkCommandCatalog } from "./backends/sdk/SdkCommandCatalog.ts";
+import { buildBillingGuardEnv } from "./backends/sdk/billing-env.ts";
 import { createSubscriptionAuthResolver, readClaudeCodeLogin, clearClaudeLogin, refreshClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { probeClaudeToken } from "../infra/src/auth/claudeTokenProbe.ts";
 import { AccountsService } from "./services/accounts/AccountsService.ts";
@@ -1169,6 +1171,14 @@ export function buildContainer() {
     disableAutoCompact: () => config.compaction.enabled,
     log,
   });
+  // The slash menu's view of Claude Code's own commands, as a focused session sees them.
+  const claudeCommands = createSdkCommandCatalog({
+    buildEnv: async () => buildBillingGuardEnv({
+      auth: await authResolver.resolve(undefined), anthropic: config.anthropic,
+      workerId: "command-catalog", daemonUrl: sdkDaemonUrl, claudeStore: claudeStoreDir, fullSurface: true,
+    }),
+    log,
+  });
 
   // The plan lanes driven through a provider's CLI (Codex, Gemini) reach Eos's
   // tools through the stdio MCP servers (orchestrator / worker), which call back
@@ -1475,6 +1485,7 @@ export function buildContainer() {
     modelPricing,
     updates,
     usage,
+    claudeCommands,
     accounts,
     signIns,
     cleanupMcpConfig,

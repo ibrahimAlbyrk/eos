@@ -1499,7 +1499,8 @@ export type CommandsQuery = z.infer<typeof CommandsQuerySchema>;
 export const CommandItemSchema = z.object({
   name: z.string(),
   description: z.string(),
-  source: z.enum(["user", "project", "skill", "plugin"]),
+  // "claude" = shipped with Claude Code itself (e.g. /design, /code-review).
+  source: z.enum(["user", "project", "skill", "plugin", "claude"]),
   argumentHint: z.string().optional(),
 });
 export type CommandItem = z.infer<typeof CommandItemSchema>;

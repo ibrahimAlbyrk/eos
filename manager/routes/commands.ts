@@ -105,8 +105,8 @@ function scanInstalledPluginSkills(): CommandItem[] {
   return results;
 }
 
-export function registerCommandRoutes(r: Router, _c: Container): void {
-  r.get("/commands", ({ url, res }) => {
+export function registerCommandRoutes(r: Router, c: Container): void {
+  r.get("/commands", async ({ url, res }) => {
     const cwd = url.searchParams.get("cwd") ?? undefined;
     const home = homedir();
 
@@ -127,11 +127,17 @@ export function registerCommandRoutes(r: Router, _c: Container): void {
     // installed plugin skills
     items.push(...scanInstalledPluginSkills());
 
-    // deduplicate: first occurrence wins (project > user > skill > plugin)
+    // what Claude Code itself offers (bundled + claude.ai-synced skills), last so
+    // a folder's own definition keeps its source tag
+    if (cwd) items.push(...await c.claudeCommands.list(cwd));
+
+    // deduplicate: first occurrence wins (project > user > skill > plugin > claude);
+    // Claude Code lowercases skill names, so compare case-insensitively
     const seen = new Set<string>();
-    const deduped = items.filter((c) => {
-      if (seen.has(c.name)) return false;
-      seen.add(c.name);
+    const deduped = items.filter((item) => {
+      const key = item.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
       return true;
     });
 
