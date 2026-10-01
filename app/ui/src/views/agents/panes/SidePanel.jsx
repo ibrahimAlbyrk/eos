@@ -13,8 +13,8 @@ import "./registerPanels.js";
 // invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
 // via PaneScopeContext), so every read/action here resolves to that pane; it
 // returns null when that pane's panel is closed. Pills render ONLY the open tabs
-// (default: none — a quiet empty state); the + menu opens Terminal / Files / Chat
-// files (every opened file gets its own pill), the active pill's × closes just that tab. The
+// (default: none — a quiet empty state); the + menu opens Review / Terminal / Files /
+// Chat files (every opened file gets its own pill), the active pill's × closes just that tab. The
 // panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
 // header's top-right, so it stays put while the panel slides open/closed under
 // it. Width is that pane's own --sp-w, stored as a fraction of the pane so it keeps
@@ -48,7 +48,7 @@ const TAB_LABELS = {
 
 // + menu entries, in order. The Code view passes its own subset (no agent-bound
 // tabs); menu shortcut hints per type.
-const AGENT_TABS = ["terminal", "files", "browser", "chatfiles", "subagents"];
+const AGENT_TABS = ["review", "terminal", "files", "browser", "chatfiles", "subagents"];
 const TAB_KBD = { terminal: "⌃`", files: "⌘P" };
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
