@@ -37,6 +37,7 @@ import { ContextThresholdService } from "./services/ContextThresholdService.ts";
 import { suspendWorker, suspendResumableWorkersForShutdown } from "./commands/handlers/suspend-worker.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { makePermissionAskNotify } from "./services/permission-ask-notify.ts";
+import { makeTurnEndNotify } from "./services/turn-end-notify.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
@@ -405,6 +406,17 @@ const permissionAskNotify = makePermissionAskNotify({
 });
 c.bus.subscribe("pending:created", (msg) =>
   permissionAskNotify(msg.payload as { id?: string; workerId?: string }),
+);
+// A top-level agent finished its turn → banner with its name + reply excerpt.
+const turnEndNotify = makeTurnEndNotify({
+  findWorker: (id) => c.workers.findById(id),
+  eventsSince: (workerId, since) => c.events.list({ workerId, since, limit: 60, order: "desc" }),
+  fire: (n) => c.bus.publish("notification:fire", n),
+  now: () => c.clock.now(),
+  defer: (fn) => { setTimeout(fn, 1000); },
+});
+c.bus.subscribe("worker:change", (msg) =>
+  turnEndNotify(msg.payload as { workerId?: string; from?: string; state?: string }),
 );
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an
