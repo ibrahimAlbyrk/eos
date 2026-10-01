@@ -25,6 +25,7 @@ import { useRewind } from "../../../hooks/useRewind.js";
 import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
 import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { FindBar } from "./FindBar.jsx";
+import { ScrollToBottom } from "./ScrollToBottom.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
 import { MessageLoop } from "./MessageLoop.jsx";
@@ -623,13 +624,7 @@ export function Messages({ live, agentId, isActive = true }) {
           />
         )}
       </div>
-      {stick.showJumpBtn && (
-        <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to bottom">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      )}
+      <ScrollToBottom show={stick.showJumpBtn} onClick={scrollToBottom} />
     </div>
     {selectedId && isActive && (
       <NebulaOverlay workerId={selectedId} wrapRef={wrapRef} contentRef={contentRef} status={compaction} />

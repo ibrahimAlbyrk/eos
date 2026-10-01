@@ -2,10 +2,10 @@ import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { FROSTED_GLASS, GAIN_MAX, SHADOW_PAD, glassMaps } from "../../lib/liquidGlass.js";
 
-// A liquid-glass surface (the composer card + pill): ybouane/liquidglass, see
-// lib/liquidGlass.js. Render it as the FIRST child of a positioned
-// `isolation: isolate` host — the layers sit under the host's content (styles
-// in glass.css). The host itself never
+// A liquid-glass surface (the composer card + pill, the scroll-to-bottom drop):
+// ybouane/liquidglass, see lib/liquidGlass.js. Render it as the FIRST child of
+// a positioned `isolation: isolate` host — the layers sit under the host's
+// content (styles in glass.css). The host itself never
 // gets a backdrop-filter, so glass popovers inside it still see through. No
 // ancestor may be a backdrop root (opacity < 1, filter, mask, clip-path) —
 // the glass would see nothing behind it.

@@ -84,25 +84,64 @@
   0% { background-position: 100% 0; }
   100% { background-position: -100% 0; }
 }
-/* scroll-to-bottom — a small glass drop, sticky to bottom-center of
-   messages-wrap, just above the floating composer */
+/* scroll-to-bottom — a small frosted liquid-glass drop (ScrollToBottom.jsx),
+   sticky to bottom-center of messages-wrap, just above the floating composer.
+   Hover grows it; a press squeezes it and the release springs back. */
 .scroll-to-bottom {
   position: sticky;
   bottom: 0;
+  isolation: isolate;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  color: var(--fg-dim2);
+  color: var(--fg-mid);
   cursor: pointer;
   z-index: 2;
-  transition: color 200ms ease;
+  transition: color 200ms ease, scale 320ms cubic-bezier(.3, 1.45, .55, 1);
   margin: 0 auto;
 }
 .env-dock-main .scroll-to-bottom { bottom: calc(var(--composer-h, 120px) + 10px); }
-.scroll-to-bottom:hover { color: var(--fg); }
+.scroll-to-bottom:hover { color: var(--fg-strong); scale: 1.12; }
+.scroll-to-bottom:active { scale: 0.92; transition-duration: 200ms, 90ms; }
+/* hidden: the press ripple plays out, then the drop shrinks away (never
+   opacity on a glass host) */
+.scroll-to-bottom.is-leaving {
+  scale: 0;
+  pointer-events: none;
+  transition: scale 240ms ease-in 160ms;
+}
+/* the lens magnifies the text behind — a soft dark core over the glass keeps
+   the arrow readable */
+.scroll-to-bottom::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(closest-side, rgba(var(--ink), 0.45) 35%, transparent 75%);
+  pointer-events: none;
+}
+/* one ring spreading out of the drop on press, like a touch on water */
+.stb-ripple {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(var(--tint), 0.35), 0 0 6px rgba(var(--tint), 0.12);
+  pointer-events: none;
+  animation: stb-ripple 520ms cubic-bezier(.2, .7, .3, 1) forwards;
+}
+@keyframes stb-ripple {
+  from { scale: 0.7; opacity: 1; }
+  to { scale: 1.9; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scroll-to-bottom, .scroll-to-bottom.is-leaving { transition: color 200ms ease; }
+  .stb-ripple { display: none; }
+}
 
 /* ── turn rail — left-edge minimap, one tick per turn (TurnRail.jsx) ──── */
 /* Positioning frame so the rail + card float over the scroller, not in it. */

@@ -53,7 +53,7 @@
 .slash-info, .paste-info, .cb-chip-dd, .attach-popover, .tpl-popover, .tpl-modal,
 .me-panel, .accept-popover, .model-popover, .ca-pop, .sp-plus-menu,
 .drag-affordance-label, .pane-picker, .fv-openwith, .page-find, .turn-card,
-.q-card, .update-card, .side-handle-popup, .scroll-to-bottom) {
+.q-card, .update-card, .side-handle-popup) {
   isolation: isolate;
   background: transparent;
   border: 0;
@@ -186,7 +186,7 @@ button.mc-card--quiet) {
   background: var(--lg-sep);
 }
 
-/* ── Large glass surface: GlassLayers.jsx (the composer card + pill) ──────── */
+/* ── Liquid glass: GlassLayers.jsx (composer card + pill, scroll-to-bottom) ─ */
 /* both reach SHADOW_PAD (lib/liquidGlass.js) past the host; the shadow sits
    above the backdrop so the glass never refracts its own shadow */
 .lg-backdrop, .lg-shadow {
