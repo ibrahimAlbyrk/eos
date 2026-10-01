@@ -557,6 +557,7 @@
 .tool-item { font-size: var(--text-base); }
 .ti-verb { color: inherit; white-space: nowrap; }
 .ti-file { color: var(--fg); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ti-file:empty { display: none; }
 .ti-mono { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg-mid); }
 .ti-link { cursor: pointer; }
 .ti-link:hover { text-decoration: underline; text-decoration-color: var(--fg-faint); text-underline-offset: 3px; }
@@ -1230,23 +1231,68 @@
   opacity: 0.7;
 }
 
-/* ── activity line — breathing status dot + label (working / goal check) ─ */
+/* ── activity line — Eos star + label (working / goal check) ───────────── */
 .activity-line {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: var(--text-sm);
   color: var(--fg-faint);
+  --al-blue: #5f93dd;
+  --al-blue-hi: #d6e7fc;
+  --al-blue-glow: 110, 164, 232;
 }
-.activity-line .al-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--fg-mute);
-}
-.activity-line.is-busy .al-dot { background: var(--accent); animation: d-breathe 2.2s ease-in-out infinite; }
-.activity-line.is-check .al-dot { background: var(--warn); animation: d-breathe 2.2s ease-in-out infinite; }
 .activity-line .mono { font-family: var(--font-mono); }
+
+/* The star (ActivityStar.jsx) — the Eos mark. Busy / goal check: it turns and
+   its halo breathes. Idle: still, a touch smaller, grey. A state only sets the
+   --al-* colors; idle falls back to the greys. */
+.activity-line.is-busy {
+  --al-ray: var(--al-blue); --al-hi: var(--al-blue-hi); --al-core: #fff;
+  --al-glow: var(--al-blue-glow);
+}
+.activity-line.is-check {
+  --al-ray: #b98d4f; --al-hi: #f3e2c0; --al-core: #fff8ec; --al-glow: 201, 161, 99;
+}
+.al-star { flex-shrink: 0; overflow: visible; }
+.al-star .al-spin, .al-star .al-rays, .al-star .al-core { transform-box: view-box; transform-origin: 0 0; }
+.al-star .al-rays, .al-star .al-core { transform: scale(0.86); }
+.al-star .al-ray { fill: var(--al-ray, var(--fg-mute)); }
+.al-star .al-ray-hi { fill: var(--al-hi, color-mix(in srgb, var(--fg-mute), var(--fg-faint))); }
+.al-star .al-core { fill: var(--al-core, var(--fg-faint)); }
+
+.activity-line:is(.is-busy, .is-check) .al-star { animation: al-halo 2.4s ease-in-out infinite; }
+.activity-line:is(.is-busy, .is-check) :is(.al-rays, .al-core) { transform: none; }
+/* is-done keeps the same spin, paused, so the star stops where it is rather
+   than snapping upright; going busy again resumes it from there. */
+.activity-line:is(.is-busy, .is-done) .al-spin { animation: al-spin 6s linear infinite; }
+.activity-line.is-done .al-spin { animation-play-state: paused; }
+.activity-line.is-check .al-spin { animation: al-spin 9s linear infinite; }
+
+/* Busy → idle in place (ProcessingLine): a short drift carries the frozen spin
+   to rest, easing out, while the blue drains — once, instead of snapping grey.
+   Each `from` is the busy look; the end state is the idle rules above. */
+.activity-line.is-done .al-star { animation: al-set-glow 0.8s ease-out both; }
+.activity-line.is-done .al-rays { animation: al-set-rays 0.8s cubic-bezier(.33, 1, .68, 1) both; }
+.activity-line.is-done .al-ray { animation: al-set-ray 0.8s ease-out both; }
+.activity-line.is-done .al-ray-hi { animation: al-set-ray-hi 0.8s ease-out both; }
+.activity-line.is-done .al-core { animation: al-set-core 0.8s cubic-bezier(.33, 1, .68, 1) both; }
+
+@keyframes al-spin { to { transform: rotate(360deg); } }
+@keyframes al-halo {
+  0%, 100% { filter: drop-shadow(0 0 1px rgba(var(--al-glow), 0.4)); }
+  50% { filter: drop-shadow(0 0 3.5px rgba(var(--al-glow), 0.85)); }
+}
+/* 16° on this ease-out over 0.8s starts at the busy spin's 60°/s — no hitch. */
+@keyframes al-set-rays { from { transform: none; } to { transform: rotate(16deg) scale(0.86); } }
+@keyframes al-set-glow { from { filter: drop-shadow(0 0 2px rgba(var(--al-blue-glow), 0.6)); } }
+@keyframes al-set-ray { from { fill: var(--al-blue); } }
+@keyframes al-set-ray-hi { from { fill: var(--al-blue-hi); } }
+@keyframes al-set-core { from { fill: #fff; transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-line :is(.al-star, .al-spin, .al-rays, .al-ray, .al-ray-hi, .al-core) { animation: none !important; }
+}
 
 /* ── interrupted marker — warn dot outside the last block's left edge ──── */
 .msg-interrupted-wrap { position: relative; }
@@ -1338,54 +1384,6 @@
   background: var(--chip);
   color: var(--fg-mid);
 }
-
-/* ── agent block (Claude Agent tool_use — spawn subagent) ──────────────── */
-/* Running — header line + card */
-.agent-block--running .agent-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--text-base);
-  color: var(--fg-dim2);
-  margin-bottom: 8px;
-}
-.agent-block--running .agent-header-desc { color: var(--fg-mid); }
-.agent-block--running .agent-header-chev { color: var(--fg-faint); margin-left: 2px; }
-.agent-block--running .agent-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: var(--panel);
-  border-radius: var(--panel-radius);
-  padding: 12px 16px;
-  max-width: 420px;
-  cursor: pointer;
-}
-.agent-block--running .agent-card:hover { background: var(--row-on); }
-.agent-block--running .agent-card-body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.agent-block--running .agent-card-title {
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.agent-block--running .agent-card-status { font-size: var(--text-sm); color: var(--fg-dim); }
-.agent-block--running .agent-card-chev { color: var(--fg-faint); flex-shrink: 0; }
-
-/* Done — disclosure row: "Ran agent · model · desc · Agent completed · N tools",
-   expands to the result in a --panel detail (reuses .report-detail). */
-.agent-icon { color: var(--fg-dim2); flex-shrink: 0; margin-left: -3px; display: inline-flex; }
-.agent-block--done .agent-done-model { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
-.agent-block--done .agent-done-desc { color: var(--fg-mid); }
-.agent-block--done .agent-done-meta { color: var(--fg-faint); font-size: var(--text-sm); }
 
 /* ── rendered markdown prose (chat .msg-asst + file-view .fv-preview) ──── */
 .md-prose {
@@ -1536,6 +1534,52 @@
 .md-prose hr { border: none; border-top: 1px solid var(--line); margin: 12px 0; }
 .md-prose a { color: var(--accent); text-decoration: none; }
 .md-prose a:hover { text-decoration: underline; }
+
+/* ── artifact chip — a claude.ai artifact link as a small glass pill, in the
+   Artifact tool row and in prose (lib/artifactLink.js); hover opens .art-peek
+   (menus.css) ───────────────────────────────────────────────────────────── */
+.art-chip-host { display: inline-flex; min-width: 0; }
+.art-chip,
+.md-prose a.art-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 100%;
+  height: 24px;
+  padding: 0 10px 0 3px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  vertical-align: middle;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  color: var(--fg);
+  text-decoration: none;
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.art-chip:hover,
+.md-prose a.art-chip:hover {
+  text-decoration: none;
+  background: linear-gradient(180deg, rgba(var(--tint), 0.1), rgba(var(--tint), 0.03) 60%, rgba(var(--tint), 0.05));
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.26), inset 0 0 0 0.5px rgba(var(--tint), 0.1),
+              0 4px 12px -4px rgba(var(--ink), 0.45);
+}
+.art-chip-thumb {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 18px;
+  border-radius: var(--r-pill);
+  color: var(--fg-dim);
+  background: rgba(var(--tint), 0.06);
+  box-shadow: inset 0 0 0 0.5px rgba(var(--tint), 0.1);
+}
+.art-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-chip-arrow { flex-shrink: 0; color: var(--fg-dim2); transition: color 160ms ease, translate 160ms ease; }
+.art-chip:hover .art-chip-arrow { color: var(--fg); translate: 1px -1px; }
 .md-prose .ic { font-size: var(--text-sm); }
 
 /* assistant inline key/value table (lib/richText) */

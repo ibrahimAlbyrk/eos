@@ -6,6 +6,7 @@ import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
+import { SubagentsIcon } from "../subagents/SubagentsIcon.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area, plus a 6px
@@ -25,6 +26,7 @@ const ICONS = {
   terminal: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M4 6l2.5 2L4 10" /><line x1="8" y1="10.5" x2="11" y2="10.5" /></svg>,
   browser: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="8" cy="8" r="6" /><ellipse cx="8" cy="8" rx="2.6" ry="6" /><path d="M2.4 6h11.2M2.4 10h11.2" /></svg>,
   chatfiles: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4L13 10.6" /></svg>,
+  subagents: <SubagentsIcon />,
 };
 
 // Resize bounds within the owning pane: the panel keeps ≥MIN_PANEL_W, the
@@ -41,11 +43,12 @@ const TAB_LABELS = {
   terminal: "Terminal",
   browser: "Browser",
   chatfiles: "Chat files",
+  subagents: "Subagents",
 };
 
 // + menu entries, in order. The Code view passes its own subset (no agent-bound
 // tabs); menu shortcut hints per type.
-const AGENT_TABS = ["terminal", "files", "browser", "chatfiles"];
+const AGENT_TABS = ["terminal", "files", "browser", "chatfiles", "subagents"];
 const TAB_KBD = { terminal: "⌃`", files: "⌘P" };
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);

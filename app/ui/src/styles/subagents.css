@@ -1,0 +1,179 @@
+/* Subagents — Claude's subagents as tiny colored glyphs ("mini agents"): the
+   transcript launch line, the side panel's Subagents tab (list ⇄ detail) and
+   the Environment popover summary. Each glyph brings its own color as --sa
+   (lib/subagentIdentity.js); everything else is the shared palette, with the
+   liquid-glass chip recipe for hover. */
+
+.sa-glyph {
+  flex-shrink: 0;
+  color: var(--sa);
+  transition: transform 200ms var(--lg-ease), filter 200ms ease;
+}
+.sa-glyph.is-live { animation: d-breathe 2.2s ease-in-out infinite; }
+.sa-glyph.is-dim { filter: grayscale(1); opacity: 0.55; }
+
+/* ── transcript: "◆ ✣ ✺  A, B and C started working" ─────────────────── */
+.sa-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: var(--text-base);
+  line-height: 22px;
+  color: var(--fg-dim2);
+}
+.sa-line__glyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  flex-shrink: 0;
+}
+.sa-line__glyph { display: inline-flex; }
+.sa-line__glyph.is-hot .sa-glyph {
+  transform: scale(1.22);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--sa) 85%, transparent));
+}
+/* The pill pads out into the separators (negative margin) so lighting a name
+   never shifts the sentence. */
+.sa-name {
+  margin: 0 -5px;
+  padding: 1px 5px;
+  border-radius: 6px;
+}
+.sa-name.is-hot, .sa-name:focus-visible {
+  color: var(--fg-strong);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  backdrop-filter: var(--lg-chip-fx);
+}
+
+/* ── side panel: Subagents tab ────────────────────────────────────────── */
+.sa-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px 16px;
+}
+.sa-list__head {
+  padding: 12px 12px 6px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim2);
+}
+.sa-list__head ~ .sa-list__head { padding-top: 18px; }
+.sa-list__none {
+  padding: 6px 12px;
+  font-size: var(--text-sm);
+  color: var(--fg-faint);
+}
+.sa-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: var(--r-item);
+  font-size: var(--text-base);
+  color: var(--fg);
+  text-align: left;
+}
+.sa-row:hover, .sa-row:focus-visible {
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  backdrop-filter: var(--lg-chip-fx);
+}
+.sa-row__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sa-row__activity {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sa-row__meta {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.sa-row__meta--time { font-family: var(--font-mono); color: var(--fg-dim2); }
+.sa-row__meta--failed { color: var(--err); }
+
+.sa-detail__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px 0 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+.sa-back {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--r-row);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-dim2);
+}
+.sa-back:hover, .sa-back:focus-visible {
+  color: var(--fg);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  backdrop-filter: var(--lg-chip-fx);
+}
+.sa-detail__name {
+  min-width: 0;
+  font-weight: 500;
+  color: var(--fg-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sa-detail__meta {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-faint);
+}
+.sa-detail__scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.sa-detail__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 26px 40px;
+}
+.sa-worked { font-size: var(--text-sm); color: var(--fg-dim2); }
+.sa-worked:hover { color: var(--fg-mid); }
+.sa-work { display: flex; flex-direction: column; gap: 10px; }
+.sa-prompt {
+  margin: 0;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--fg-faint);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sa-detail__sep { height: 1px; background: var(--line); }
+.sa-detail__note { margin: 0; font-size: var(--text-sm); color: var(--fg-faint); }
+
+/* ── Environment popover: "◆ ✺ 2 active" / "✣ ✦ 2 done" ─────────────── */
+.env-head--subagents { padding-top: 14px; }
+.env-glyphs { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .sa-glyph.is-live { animation: none; }
+}

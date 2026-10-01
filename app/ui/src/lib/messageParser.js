@@ -17,11 +17,8 @@ export function providerErrorMessage(reason) {
 }
 
 // Tools that never merge into a toolGroup — always rendered as standalone blocks.
-// "Agent" is here for the live hook-only window: the transcript tool_use (which
-// renders the agentRun block) flushes at step boundaries, so mid-turn the Agent
-// only exists as a tool_running event and would otherwise group as generic.
 export const STANDALONE_TOOLS = new Set([
-  "Agent",
+  "Artifact",
   "AskUserQuestion",
   "Skill",
   "EnterPlanMode",
@@ -34,6 +31,11 @@ export const STANDALONE_TOOLS = new Set([
 // backend stamps it), OR name === "Agent" for events persisted before the marker
 // existed. Drives agentRun folding + inner-tool attribution.
 const isSubagentToolUse = (p) => p.spawnsSubagent === true || p.name === "Agent";
+
+// The live hook-only window (claude-cli): the transcript tool_use flushes at step
+// boundaries, so mid-turn a top-level Agent call exists only as a tool_running
+// pulse. It opens the agentRun right away; its tool_use takes over once flushed.
+const isSubagentPulse = (tr) => tr.toolName === "Agent" && !tr.parentAgentToolUseId;
 
 // Grouping lanes: a consecutive run of same-lane tools collapses into one
 // toolGroup; a lane change flushes the run. null = standalone, never groups.
@@ -195,8 +197,8 @@ function normalizeEvents(events) {
       if (e.phase === "error") out.push({ type: "turn_error", ts, payload: { reason: e.reason ?? "" } });
     } else if (e?.type === "session" && e.phase === "ended") {
       out.push({ type: "exit", ts, payload: {} }); // exit barrier — closes every open tool
-    } else if (e?.type === "subagent_started" || e?.type === "subagent_completed") {
-      out.push({ type: e.type, ts, payload: e }); // background-subagent lifecycle (see buildBlocks)
+    } else if (e?.type === "subagent_started" || e?.type === "subagent_completed" || e?.type === "subagent_profile") {
+      out.push({ type: e.type, ts, payload: e }); // subagent lifecycle + profile (see buildBlocks)
     }
     // role:"user" → rendered via the synthesized user_message event (no double);
     // delta/usage/permission_request/question_request: no content/lifecycle here.
@@ -221,7 +223,22 @@ export function buildBlocks(rawEvents) {
   // A Skill's injected SKILL.md body arrives as its own jsonl event, keyed to
   // the Skill tool_use id — collect it up front so the tool block can carry it.
   const skillBodyById = new Map();
+  // What each subagent runs on (model + effort) as the lane observed it — the
+  // newest profile wins; older events carry none.
+  const profileByCallId = new Map();
   for (const ev of events) {
+    if (ev.type === "subagent_profile") {
+      const p = parsePayload(ev.payload);
+      if (p.callId) profileByCallId.set(p.callId, p);
+      continue;
+    }
+    if (ev.type === "tool_running") {
+      const tr = parsePayload(ev.payload);
+      if (tr.toolUseId && isSubagentPulse(tr) && !agentSpans.has(tr.toolUseId)) {
+        agentSpans.set(tr.toolUseId, { startTs: ev.ts, endTs: Infinity, background: false });
+      }
+      continue;
+    }
     if (ev.type === "subagent_started") {
       const p = parsePayload(ev.payload);
       if (p.callId) {
@@ -238,7 +255,8 @@ export function buildBlocks(rawEvents) {
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_use" && p.id) {
       toolUseIds.add(p.id);
-      if (isSubagentToolUse(p)) {
+      // An earlier tool_running pulse already opened this span — keep its start.
+      if (isSubagentToolUse(p) && !agentSpans.has(p.id)) {
         agentSpans.set(p.id, { startTs: ev.ts, endTs: Infinity, background: false });
       }
     } else if (p.kind === "skill_body" && p.toolUseId) {
@@ -249,23 +267,36 @@ export function buildBlocks(rawEvents) {
     const span = agentSpans.get(callId);
     if (span) span.background = true;
   }
+  // When each subagent finished, in the same clock domain as its block ts (the
+  // transcript's creation time where the line carries it) — its working time.
+  const agentEndTs = new Map();
   // Correlation: callId when present, else agentId via the started event's mapping.
   const completionByCallId = new Map();
   for (const { p, ts } of subagentCompletions) {
     const callId = p.callId ?? callIdByAgentId.get(p.agentId);
     if (!callId) continue;
-    completionByCallId.set(callId, { status: p.status ?? "completed", result: p.result ?? null });
+    completionByCallId.set(callId, { status: p.status ?? "completed", result: p.result ?? null, usage: p.usage ?? null });
     const span = agentSpans.get(callId);
     if (span) span.endTs = ts;
+    agentEndTs.set(callId, ts);
   }
   for (const ev of events) {
+    if (ev.type === "tool_done") {
+      // A pulse-only agent (no jsonl yet) ends with its tool_done.
+      const d = parsePayload(ev.payload);
+      if (agentSpans.get(d.toolUseId)?.background === false && !agentEndTs.has(d.toolUseId)) agentEndTs.set(d.toolUseId, ev.ts);
+      continue;
+    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_result" && p.toolUseId && agentSpans.has(p.toolUseId)) {
       const span = agentSpans.get(p.toolUseId);
       // A background span's tool_result is only the async-launch stub — its end
       // comes from the completion event above.
-      if (!span.background) span.endTs = ev.ts;
+      if (!span.background) {
+        span.endTs = ev.ts;
+        agentEndTs.set(p.toolUseId, p.tsTranscript ?? ev.ts);
+      }
     }
   }
 
@@ -287,7 +318,8 @@ export function buildBlocks(rawEvents) {
     const ev = events[i];
     if (ev.type !== "tool_running") continue;
     const tr = parsePayload(ev.payload);
-    if (!tr.toolUseId || toolUseIds.has(tr.toolUseId)) continue;
+    // A subagent's own pulse is the agent itself, never one of its inner tools.
+    if (!tr.toolUseId || toolUseIds.has(tr.toolUseId) || agentSpans.has(tr.toolUseId)) continue;
     if (tr.parentAgentToolUseId && agentSpans.has(tr.parentAgentToolUseId)) {
       attachInnerTool(tr.parentAgentToolUseId, tr, i, ev.ts);
       continue;
@@ -341,6 +373,39 @@ export function buildBlocks(rawEvents) {
     }
     pendingTools = [];
     pendingLane = null;
+  };
+
+  // One subagent's block, from its tool_use or (before that flushes) its pulse.
+  const pushAgentRun = (id, input, ts, evIdx, parentModel) => {
+    flushTools();
+    const isBackground = subagentStartCallIds.has(id);
+    const completion = isBackground ? completionByCallId.get(id) : undefined;
+    // Background: the tool_result is only the launch stub — the completion
+    // event carries the real output. Foreground: the tool_result IS the output.
+    const cleanResult = isBackground ? (completion?.result ?? null) : (lc.resultOf(id)?.text ?? null);
+    // Background agents outlive turns: only their subagent_completed event or
+    // the worker exiting can close them. Foreground agents close like any
+    // tool — result, or a turn/exit barrier (kill mid-agent).
+    const closed = isBackground
+      ? completion != null || lc.exitAfter(evIdx)
+      : lc.isClosed(id, evIdx);
+    out.push({
+      kind: "agentRun",
+      toolUseId: id,
+      description: input?.description || (input?.prompt ?? "").slice(0, 100) || "agent",
+      prompt: input?.prompt ?? "",
+      // The model the subagent actually ran on beats the spawn call's requested alias.
+      model: profileByCallId.get(id)?.model ?? input?.model ?? parentModel ?? null,
+      effort: profileByCallId.get(id)?.effort ?? null,
+      subagentType: input?.subagent_type ?? null,
+      status: closed ? (completion?.status ?? "completed") : "running",
+      background: isBackground,
+      result: cleanResult,
+      tools: agentToolMap.get(id) ?? [],
+      usage: completion?.usage ?? null,
+      endTs: closed ? (agentEndTs.get(id) ?? null) : null,
+      ts,
+    });
   };
 
   const pushTool = (tool) => {
@@ -459,6 +524,10 @@ export function buildBlocks(rawEvents) {
       const tr = parsePayload(ev.payload);
       if (tr.toolUseId && !toolUseIds.has(tr.toolUseId) && !attributedToolIds.has(tr.toolUseId)) {
         lastAsst = null;
+        if (agentSpans.has(tr.toolUseId)) {
+          pushAgentRun(tr.toolUseId, tr.input, ev.ts, evIdx, null);
+          continue;
+        }
         pushTool({
           id: tr.toolUseId,
           name: tr.toolName ?? "unknown",
@@ -597,32 +666,7 @@ export function buildBlocks(rawEvents) {
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (isSubagentToolUse(p)) {
-        flushTools();
-        const isBackground = subagentStartCallIds.has(p.id);
-        const completion = isBackground ? completionByCallId.get(p.id) : undefined;
-        // Background: the tool_result is only the launch stub — the completion
-        // event carries the real output. Foreground: the tool_result IS the output.
-        const cleanResult = isBackground ? (completion?.result ?? null) : (lc.resultOf(p.id)?.text ?? null);
-        const tools = agentToolMap.get(p.id) ?? [];
-        // Background agents outlive turns: only their subagent_completed event or
-        // the worker exiting can close them. Foreground agents close like any
-        // tool — result, or a turn/exit barrier (kill mid-agent).
-        const closed = isBackground
-          ? completion != null || lc.exitAfter(evIdx)
-          : lc.isClosed(p.id, evIdx);
-        out.push({
-          kind: "agentRun",
-          toolUseId: p.id,
-          description: p.input?.description || (p.input?.prompt ?? "").slice(0, 100) || "agent",
-          prompt: p.input?.prompt ?? "",
-          model: p.input?.model ?? p.parentModel ?? null,
-          subagentType: p.input?.subagent_type ?? null,
-          status: closed ? (completion?.status ?? "completed") : "running",
-          background: isBackground,
-          result: cleanResult,
-          tools,
-          ts: p.tsTranscript ?? ev.ts,
-        });
+        pushAgentRun(p.id, p.input, p.tsTranscript ?? ev.ts, evIdx, p.parentModel);
       } else {
         pushTool({
           id: p.id,

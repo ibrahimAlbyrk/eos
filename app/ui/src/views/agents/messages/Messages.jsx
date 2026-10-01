@@ -33,7 +33,11 @@ import { LoopStatus } from "./LoopStatus.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
-import { AgentBlock } from "./AgentBlock.jsx";
+import { SubagentLine } from "../subagents/SubagentLine.jsx";
+import { collectSubagents, groupSubagentRuns } from "../../../lib/subagentRuns.js";
+import { publishSubagents } from "../../../state/subagentsStore.js";
+import { collectArtifacts } from "../../../lib/artifactLink.js";
+import { publishArtifacts } from "../../../state/artifactsStore.js";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
@@ -351,6 +355,20 @@ export function Messages({ live, agentId, isActive = true }) {
     [cleared, compactionSplit, folded, bootPromptOffset],
   );
 
+  // This agent's subagents, each with its glyph + color — published for the
+  // side panel's Subagents tab and the Environment popover. Only once the window
+  // is this agent's own: mid-switch it is empty and would blank their lists.
+  const subagents = useMemo(() => collectSubagents(baseBlocks), [baseBlocks]);
+  useEffect(() => {
+    if (owned) publishSubagents(selectedId, subagents);
+  }, [owned, selectedId, subagents]);
+
+  // Same publish for the Environment popover's Artifacts section.
+  const artifacts = useMemo(() => collectArtifacts(baseBlocks), [baseBlocks]);
+  useEffect(() => {
+    if (owned) publishArtifacts(selectedId, artifacts);
+  }, [owned, selectedId, artifacts]);
+
   const blocks = useMemo(() => {
     const base = baseBlocks.slice();
     // Queued items render as pills above the input bar, not here; the bubble
@@ -383,9 +401,10 @@ export function Messages({ live, agentId, isActive = true }) {
       base.push({ kind: "thinking", ts: lb.ts, blockId: lb.blockId, live: true, interrupted: lb.interrupted });
     }
     // Conversation position is ts (creation domain), not append order — see
-    // sortBlocksByTs for the clock-domain rationale.
-    return sortBlocksByTs(base);
-  }, [baseBlocks, selectedId, termTick, outboxTick, thinkTick]);
+    // sortBlocksByTs for the clock-domain rationale. A launch batch of
+    // subagents then folds into one line.
+    return groupSubagentRuns(sortBlocksByTs(base), subagents);
+  }, [baseBlocks, subagents, selectedId, termTick, outboxTick, thinkTick]);
 
   // With older pages unloaded the window starts mid-conversation, so the boot
   // turn comes from the whole-conversation index instead.
@@ -479,7 +498,7 @@ export function Messages({ live, agentId, isActive = true }) {
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
   // dispatches; see core/use-cases/DrainQueuedMessages.)
-  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
+  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
   // Live goal-check (transient store) — shown only while the worker is idle under
@@ -641,7 +660,7 @@ function blockKey(b, i) {
   switch (b.kind) {
     case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
-    case "agentRun":  return "ag-" + (b.toolUseId ?? b.ts ?? i);
+    case "subagents": return "sa-" + (b.runs[0]?.toolUseId ?? b.ts ?? i);
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
     default:          return b.blockId ? b.kind + "-" + b.blockId : b.kind + "-" + (b.ts ?? i);
   }
@@ -673,7 +692,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
     case "terminal":  return <TerminalCard key={key} block={b} />;
-    case "agentRun":  return <AgentBlock key={key} block={b} />;
+    case "subagents": return <SubagentLine key={key} runs={b.runs} workerId={sessionId} />;
     case "deliveryFailed":
       return (
         <div key={key} className="delivery-failed mono">

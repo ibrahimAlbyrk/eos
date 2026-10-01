@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
@@ -15,6 +15,7 @@ import { ArchiveNode } from "./ArchiveNode.jsx";
 import { ProjectHoverCard } from "./ProjectHoverCard.jsx";
 import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { useProjects } from "../../../state/projectsStore.js";
+import { useHoverCard } from "../../../hooks/useHoverCard.js";
 import { api } from "../../../api/client.js";
 
 // A fully transparent 1×1 image to suppress the browser's native drag ghost — the
@@ -32,25 +33,6 @@ function PlusIcon() {
       <path d="M8 3v10M3 8h10" />
     </svg>
   );
-}
-
-const HOVER_OPEN_MS = 350;
-const HOVER_CLOSE_MS = 150;
-
-// Open/close timers for a hover card that must survive the pointer crossing the
-// gap between its anchor and the card itself.
-function useHoverCard() {
-  const [anchor, setAnchor] = useState(null);
-  const timer = useRef(null);
-  const clear = () => clearTimeout(timer.current);
-  useEffect(() => clear, []);
-  return {
-    anchor,
-    enterAnchor: (el) => { clear(); timer.current = setTimeout(() => setAnchor(el.getBoundingClientRect()), HOVER_OPEN_MS); },
-    enterCard: clear,
-    leave: () => { clear(); timer.current = setTimeout(() => setAnchor(null), HOVER_CLOSE_MS); },
-    close: () => { clear(); setAnchor(null); },
-  };
 }
 
 // A project section: the project header (icon, name, its own "+" that spawns a

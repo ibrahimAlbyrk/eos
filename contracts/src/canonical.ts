@@ -221,6 +221,17 @@ export const SubagentCompletedEventSchema = z.object({
   usage: SubagentUsageSchema.optional(),
 });
 
+// What a subagent (foreground or background) actually runs on, as the lane
+// observes it: the model its own messages report and the reasoning effort its
+// turns apply (after any silent downgrade for that model — absent when the
+// model takes no effort). Re-emitted whenever either becomes known or changes.
+export const SubagentProfileEventSchema = z.object({
+  type: z.literal("subagent_profile"),
+  callId: z.string(), // spawning Agent/Task tool_use id
+  model: z.string().optional(),
+  effort: z.string().optional(),
+});
+
 // Cumulative billing usage for a unit of work (one request, or a whole turn for
 // backends that only report at turn end). The daemon SUMS these into the cost +
 // token ledger. Do NOT read this for context-window occupancy — use ContextEvent.
@@ -288,6 +299,7 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
   ActivityEventSchema,
   SubagentStartedEventSchema,
   SubagentCompletedEventSchema,
+  SubagentProfileEventSchema,
   UsageEventSchema,
   ContextEventSchema,
   SessionEventSchema,

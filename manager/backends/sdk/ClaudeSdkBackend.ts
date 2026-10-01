@@ -10,7 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import { query as realQuery, forkSession as realForkSession } from "@anthropic-ai/claude-agent-sdk";
-import type { Options, McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, McpServerConfig, HookCallback } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
@@ -442,6 +442,14 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const append = deps.assembleAppendPrompt?.(spec) ?? null;
       const additionalDirectories = deps.resolveAdditionalDirs?.(spec) ?? [];
 
+      // A hook fired inside a subagent carries the reasoning effort its turn
+      // applied — the only place the SDK reports it (→ subagent_profile). It only
+      // observes: canUseTool stays the single decision authority.
+      const noteSubagentHook: HookCallback = async (input) => {
+        for (const e of live.get(spec.workerId)?.mapper?.noteHook(input) ?? []) cb?.onEvent?.(e);
+        return {};
+      };
+
       // Options shared by the initial launch AND any /clear restart. `resume` is
       // added per-launch — the initial honors backendOptions.resume; a clear
       // restart never resumes (fresh session, empty context). mcpServers +
@@ -466,6 +474,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           },
         } : undefined),
         includePartialMessages: true,
+        hooks: { PreToolUse: [{ hooks: [noteSubagentHook] }], SubagentStop: [{ hooks: [noteSubagentHook] }] },
         // Stop ends only the current turn, as Esc does in a terminal: background
         // subagents keep running and wake the agent when they finish. Without this
         // the binary kills every background task on interrupt.

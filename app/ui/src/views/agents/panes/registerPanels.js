@@ -11,6 +11,7 @@ import { FileViewer } from "../messages/FileViewer.jsx";
 import { TerminalViewer } from "../messages/TerminalViewer.jsx";
 import { BrowserPanel } from "../../browser/BrowserPanel.jsx";
 import { ChatFilesPanel } from "../../chatfiles/ChatFilesPanel.jsx";
+import { SubagentsPanel } from "../subagents/SubagentsPanel.jsx";
 
 registerPanel({ type: "review", label: "Review", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -18,3 +19,4 @@ registerPanel({ type: "file", label: "File", Component: FileViewer });
 registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer });
 registerPanel({ type: "browser", label: "Browser", Component: BrowserPanel });
 registerPanel({ type: "chatfiles", label: "Chat files", Component: ChatFilesPanel });
+registerPanel({ type: "subagents", label: "Subagents", Component: SubagentsPanel });

@@ -1,4 +1,5 @@
 import { loopCheckAttemptText, loopCheckPhaseLabel } from "../../../lib/loopDisplay.js";
+import { ActivityStar } from "./ActivityStar.jsx";
 
 // M:SS clock for the live goal-check elapsed timer.
 function fmtClock(ms) {
@@ -15,7 +16,7 @@ export function GoalCheckLine({ check, now }) {
   const elapsed = fmtClock((now ?? check.startedAt) - check.startedAt);
   return (
     <div className="activity-line is-check goal-check-line">
-      <span className="al-dot" aria-hidden></span>
+      <ActivityStar />
       <span className="gc-text">Goal check · attempt {loopCheckAttemptText(check)} · {loopCheckPhaseLabel(check)}</span>
       <span className="mono"> · {elapsed}</span>
     </div>

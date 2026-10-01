@@ -26,7 +26,7 @@ interface SdkMsg {
   uuid?: string;
   session_id?: string;
   event?: RawStreamEvent;
-  message?: { id?: string; content?: RawBlock[] | string; usage?: SdkUsage };
+  message?: { id?: string; content?: RawBlock[] | string; usage?: SdkUsage; model?: string };
   // Anthropic usage on `result` messages; task usage on system/task_notification.
   // Intersection (all fields optional) so both readers stay type-safe.
   usage?: SdkUsage & SdkTaskUsage;
@@ -175,8 +175,15 @@ export function durableBlocks(msgId: string, content: RawBlock[], startIdx: numb
   return blocks;
 }
 
+// The subset of an SDK hook input (BaseHookInput) the subagent profile reads:
+// agent_id is set only inside a subagent; effort only on models that take one.
+export interface SubagentHookInput { agent_id?: string; effort?: { level?: string } }
+
 export interface SdkEventMapper {
   map(msg: SdkMsg): AgentEvent[];
+  // A hook fired (inside a subagent, or not): the effort its turn applied — the
+  // only place the SDK reports a subagent's effort.
+  noteHook(input: SubagentHookInput): AgentEvent[];
   readonly sessionId: string | null;
   // uuid of the last completed top-level assistant message — the recall anchor
   // (forkSession slices the transcript up to and including it). null until the
@@ -242,6 +249,21 @@ export function createSdkEventMapper(): SdkEventMapper {
     return fresh;
   };
 
+  // Subagent profiles (model + effort), keyed by the spawning call. A hook knows
+  // its subagent only by agent_id (≡ task_id), which task_started maps to the
+  // call; a hook that beats task_started (it rides the control channel, not this
+  // stream) parks its effort until the mapping lands.
+  const taskCallIds = new Map<string, string>();
+  const pendingEffort = new Map<string, string>();
+  const profiles = new Map<string, { model?: string; effort?: string }>();
+  const noteProfile = (out: AgentEvent[], callId: string, patch: { model?: string; effort?: string }): void => {
+    const cur = profiles.get(callId) ?? {};
+    const next = { ...cur, ...patch };
+    if (next.model === cur.model && next.effort === cur.effort) return;
+    profiles.set(callId, next);
+    out.push({ type: "subagent_profile", callId, ...(next.model ? { model: next.model } : {}), ...(next.effort ? { effort: next.effort } : {}) });
+  };
+
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
@@ -249,6 +271,15 @@ export function createSdkEventMapper(): SdkEventMapper {
   return {
     get sessionId() { return sessionId; },
     get lastAssistantUuid() { return lastAssistantUuid; },
+    noteHook(input: SubagentHookInput): AgentEvent[] {
+      const out: AgentEvent[] = [];
+      const level = input.effort?.level;
+      if (!input.agent_id || !level) return out;
+      const callId = taskCallIds.get(input.agent_id);
+      if (callId) noteProfile(out, callId, { effort: level });
+      else pendingEffort.set(input.agent_id, level);
+      return out;
+    },
     map(msg: SdkMsg): AgentEvent[] {
       const out: AgentEvent[] = [];
       if (msg.session_id && !sessionId) sessionId = msg.session_id;
@@ -273,12 +304,19 @@ export function createSdkEventMapper(): SdkEventMapper {
               });
             }
           }
-          // task_started only backfills the task_id→callId map — live it routinely
-          // arrives BEFORE the stub. It never emits events (it also fires for
-          // foreground subagents); subagent_started comes from the async_launched
-          // stub, which is background-only.
+          // task_started backfills the task_id→callId map — live it routinely
+          // arrives BEFORE the stub. It never announces a subagent (it also fires
+          // for foreground subagents); subagent_started comes from the
+          // async_launched stub, which is background-only. It does release a
+          // subagent effort a hook reported before the mapping existed.
           else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
             resolveBgEntry(msg.task_id, msg.tool_use_id);
+            taskCallIds.set(msg.task_id, msg.tool_use_id);
+            const effort = pendingEffort.get(msg.task_id);
+            if (effort) {
+              pendingEffort.delete(msg.task_id);
+              noteProfile(out, msg.tool_use_id, { effort });
+            }
           }
           return out;
 
@@ -330,6 +368,7 @@ export function createSdkEventMapper(): SdkEventMapper {
           // It never opens a parent turn: a background subagent keeps streaming after
           // the parent's turn ended, and the parent is idle until it is woken.
           if (msg.parent_tool_use_id) {
+            if (msg.message?.model) noteProfile(out, msg.parent_tool_use_id, { model: msg.message.model });
             for (const b of content) {
               if (b.type === "tool_use") out.push({ type: "activity", kind: "tool_started", callId: b.id ?? null, toolName: b.name, input: b.input ?? {}, parentCallId: msg.parent_tool_use_id });
             }

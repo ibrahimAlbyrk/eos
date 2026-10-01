@@ -28,6 +28,7 @@ export function deriveTurns(blocks, keyOf, boot = null) {
     if (b.kind === "assistant" && b.text?.trim()) cur.preview = plainPreview(b.text);
     else if (b.kind === "toolGroup") cur.tools += b.tools.length;
     else if (b.kind === "tool" || b.kind === "agentRun") cur.tools += 1;
+    else if (b.kind === "subagents") cur.tools += b.runs.length;
   });
   return turns;
 }
