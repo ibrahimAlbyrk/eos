@@ -47,6 +47,61 @@
   backdrop-filter: var(--lg-chip-fx);
 }
 
+/* ── transcript, a crowd: "◆ ✣ ✺ ◇ ✦ +3  9 subagents started working ·
+   5 running · 4 done ›" — a tool-group header that opens onto its rail ── */
+.sa-group__glyphs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.sa-group__more {
+  margin-left: 2px;
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  background: rgba(var(--tint), 0.06);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 18px;
+  color: var(--fg-dim2);
+}
+.sa-group__summary {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+.sa-rail-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+  padding: 0 10px;
+  margin-left: -10px;
+  border-radius: var(--r-row);
+  font-size: var(--text-base);
+  color: var(--fg-mid);
+  text-align: left;
+}
+.sa-rail-row:hover, .sa-rail-row:focus-visible {
+  color: var(--fg-strong);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  backdrop-filter: var(--lg-chip-fx);
+}
+.sa-rail-row:hover .sa-glyph, .sa-rail-row:focus-visible .sa-glyph {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--sa) 85%, transparent));
+}
+.sa-rail-row__name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── side panel: Subagents tab ────────────────────────────────────────── */
 .sa-list {
   flex: 1;
@@ -92,7 +147,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sa-row__activity {
+/* shared by panel rows and the transcript rail: what it's doing, then its time */
+.sa-activity {
   flex: 1;
   min-width: 0;
   font-family: var(--font-mono);
@@ -101,14 +157,15 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.sa-row__meta {
+.sa-meta {
   flex-shrink: 0;
   margin-left: auto;
   font-size: var(--text-xs);
   color: var(--fg-faint);
+  white-space: nowrap;
 }
-.sa-row__meta--time { font-family: var(--font-mono); color: var(--fg-dim2); }
-.sa-row__meta--failed { color: var(--err); }
+.sa-meta--time { font-family: var(--font-mono); color: var(--fg-dim2); }
+.sa-meta--failed { color: var(--err); }
 
 .sa-detail__head {
   display: flex;

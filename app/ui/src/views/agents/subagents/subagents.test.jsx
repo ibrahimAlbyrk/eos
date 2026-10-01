@@ -4,6 +4,7 @@ import { UiProvider } from "../../../state/ui.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 import { collectSubagents } from "../../../lib/subagentRuns.js";
 import { SubagentLine } from "./SubagentLine.jsx";
+import { SubagentBatch } from "./SubagentBatch.jsx";
 import { SubagentList } from "./SubagentList.jsx";
 import { SubagentDetail } from "./SubagentDetail.jsx";
 
@@ -51,6 +52,29 @@ describe("SubagentLine", () => {
   });
 });
 
+describe("SubagentBatch", () => {
+  const crowd = (n) => collectSubagents(Array.from({ length: n }, (_, i) => (
+    { kind: "agentRun", toolUseId: `t${i}`, description: `Topic ${i}`, status: i % 2 ? "completed" : "running", ts: 59_000, endTs: i % 2 ? 70_000 : null, tools: [], usage: null }
+  )));
+
+  it("keeps a few subagents as a sentence of names", () => {
+    expect(text(render(<SubagentBatch runs={runs} workerId="w1" />))).toBe("Git özeti, Dosya özeti and Unity sürümü started working");
+  });
+
+  it("folds a crowd into one closed summary row", () => {
+    const html = render(<SubagentBatch runs={crowd(5)} workerId="w1" />);
+    expect(text(html)).toBe("5 subagents started working3 running · 2 done");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("sa-rail-row");
+  });
+
+  it("shows six glyphs and counts the rest", () => {
+    const html = render(<SubagentBatch runs={crowd(9)} workerId="w1" />);
+    expect(html.match(/class="sa-glyph/g)).toHaveLength(6);
+    expect(html).toContain(">+3<");
+  });
+});
+
 describe("SubagentList", () => {
   it("shows what each active subagent is doing and how long it has worked", () => {
     const html = render(<SubagentList runs={runs} now={NOW} onOpen={() => {}} />);
@@ -72,7 +96,7 @@ describe("SubagentDetail", () => {
   it("leads a finished subagent with its report, work folded away", () => {
     const html = render(<SubagentDetail run={byId("unity")} now={NOW} workers={[]} onBack={() => {}} />);
     expect(html).toContain("Unity sürümü");
-    expect(html).toContain("Explore · Sonnet 4.5 · High effort");
+    expect(html).toContain("Explore · Sonnet 4.5 · High");
     expect(html).toContain("Worked for 34s");
     expect(html).toContain("6000.0.23f1");
     expect(html).not.toContain("tokens: 9");

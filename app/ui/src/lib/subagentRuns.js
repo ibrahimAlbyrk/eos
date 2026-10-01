@@ -4,7 +4,7 @@
 // and the Environment popover so all three tell the same story.
 
 import { assignIdentities } from "./subagentIdentity.js";
-import { fmtElapsedShort } from "./format.js";
+import { fmtElapsedShort, fmtTimeAgo } from "./format.js";
 
 // Every agentRun in spawn order, each carrying its identity ({ color, hex, glyph }).
 export function collectSubagents(blocks) {
@@ -78,6 +78,30 @@ export function subagentStatusPhrase(run, now) {
   const [timed, bare] = PHRASES[run.status] ?? PHRASES.completed;
   const ms = subagentElapsedMs(run, now);
   return ms != null ? `${timed} ${fmtElapsedShort(ms)}` : bare;
+}
+
+// The right-hand note on a subagent's row: live time while it runs, when it
+// finished once done, or what went wrong. `tone` picks the row's styling.
+export function subagentMeta(run, now) {
+  if (isRunning(run)) return { text: fmtElapsedShort(subagentElapsedMs(run, now)), tone: "time" };
+  if (run.status === "completed") return { text: fmtTimeAgo(run.endTs ?? run.ts, now), tone: "ago" };
+  return { text: run.status, tone: "failed" };
+}
+
+// A folded batch's summary: "3 running · 2 done" while any work goes on; once
+// all are over, what went wrong (if anything) and how long the batch took.
+export function batchSummary(runs, now) {
+  const count = (status) => runs.filter((r) => r.status === status).length;
+  const tally = (pairs) => pairs.filter(([, n]) => n > 0).map(([label, n]) => `${n} ${label}`);
+  const trouble = [["failed", count("failed")], ["stopped", count("stopped")]];
+  if (runs.some(isRunning)) {
+    return tally([["running", count("running")], ["done", count("completed")], ...trouble]).join(" · ");
+  }
+  const ends = runs
+    .map((r) => { const ms = subagentElapsedMs(r, now); return ms == null ? null : r.ts + ms; })
+    .filter((end) => end != null);
+  const span = ends.length ? fmtElapsedShort(Math.max(...ends) - Math.min(...runs.map((r) => r.ts))) : null;
+  return [...tally(trouble), span].filter(Boolean).join(" · ");
 }
 
 // Claude Code appends a <usage>…</usage> footer to a subagent's result — noise

@@ -33,7 +33,7 @@ import { LoopStatus } from "./LoopStatus.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
-import { SubagentLine } from "../subagents/SubagentLine.jsx";
+import { SubagentBatch } from "../subagents/SubagentBatch.jsx";
 import { collectSubagents, groupSubagentRuns } from "../../../lib/subagentRuns.js";
 import { publishSubagents } from "../../../state/subagentsStore.js";
 import { collectArtifacts } from "../../../lib/artifactLink.js";
@@ -699,7 +699,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
     case "terminal":  return <TerminalCard key={key} block={b} />;
-    case "subagents": return <SubagentLine key={key} runs={b.runs} workerId={sessionId} />;
+    case "subagents": return <SubagentBatch key={key} runs={b.runs} workerId={sessionId} />;
     case "deliveryFailed":
       return (
         <div key={key} className="delivery-failed mono">

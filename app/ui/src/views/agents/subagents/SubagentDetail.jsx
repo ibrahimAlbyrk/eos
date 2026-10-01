@@ -37,7 +37,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
   }, []);
   const tools = useMemo(() => toolsOf(run), [run]);
   const result = cleanSubagentResult(run.result);
-  const effort = run.effort ? `${EFFORT_LABELS[run.effort] ?? run.effort} effort` : null;
+  const effort = run.effort ? EFFORT_LABELS[run.effort] ?? run.effort : null;
   const meta = [run.subagentType, modelName(run.model), effort].filter(Boolean).join(" · ");
 
   return (
