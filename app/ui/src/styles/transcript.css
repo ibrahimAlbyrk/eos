@@ -342,7 +342,7 @@
 /* ── send flight — the composer card shrinks into the new bubble ─────────
    lib/sendFlight.js drives the geometry (a spring onto the bubble's live
    rect); this owns the material. Clear glass lifts off the card, condenses
-   into the bubble blue as it lands, and one sheen sweeps it. The ghost's
+   into the bubble blue as it lands. The ghost's
    resting state IS `.msg-user .b`, so the hand-off to the real bubble is
    invisible. */
 .msg-user.send-flight {
@@ -380,8 +380,7 @@
 }
 .send-flight.is-flying .sf-from { animation: sf-fade-out 0.2s ease-out both; }
 .send-flight.is-flying .sf-to { animation: sf-fade-in 0.22s ease-out 0.06s both; }
-.send-flight .sf-rim,
-.send-flight .sf-sheen {
+.send-flight .sf-rim {
   position: absolute;
   inset: 0;
   border-radius: inherit;
@@ -395,11 +394,6 @@
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
 .send-flight.is-flying .sf-rim { animation: sf-rim 0.72s ease both; }
-.send-flight .sf-sheen {
-  background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, 0.2) 48%, rgba(255, 255, 255, 0) 62%) no-repeat;
-  background-size: 260% 100%;
-}
-.send-flight.is-flying .sf-sheen { animation: sf-sheen 0.7s ease-in-out 0.5s both; }
 /* 100% falls back to `.msg-user .b` — the real bubble's look. */
 @keyframes sf-material {
   0% {
@@ -421,10 +415,6 @@
   }
 }
 @keyframes sf-rim { 16% { opacity: 1; } }
-@keyframes sf-sheen {
-  from { opacity: 1; background-position: 130% 0; }
-  to { opacity: 1; background-position: -30% 0; }
-}
 @keyframes sf-fade-in { from { opacity: 0; } }
 @keyframes sf-fade-out { to { opacity: 0; } }
 

@@ -3,11 +3,11 @@
 // starts on the card's rect and springs to the bubble's LIVE rect, re-read
 // every frame because the pinned transcript glides while it flies. The real
 // bubble stays hidden until the ghost hands off. Material (clear glass
-// condensing into the bubble blue), the text crossfade and the landing sheen
-// are CSS: `.send-flight` in styles/transcript.css.
+// condensing into the bubble blue) and the text crossfade are CSS:
+// `.send-flight` in styles/transcript.css.
 
 const MOVE_MS = 640;
-const HANDOFF_MS = 1200; // the sheen has swept by then
+const HANDOFF_MS = 1200; // the material has settled by then
 const WAIT_MS = 1000;    // the bubble renders after attachments resolve
 const FADE_MS = 160;
 const PIN_SLACK_PX = 48;
@@ -75,9 +75,7 @@ export function launchSendFlight(editor) {
   })];
   const rim = document.createElement("span");
   rim.className = "sf-rim";
-  const sheen = document.createElement("span");
-  sheen.className = "sf-sheen";
-  body.append(rim, sheen, texts[0]);
+  body.append(rim, texts[0]);
   ghost.append(body);
 
   let target = null;
