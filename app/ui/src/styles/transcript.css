@@ -1213,6 +1213,12 @@
   54%  { color: var(--fg); }
   100% { color: var(--fg-dim2); }
 }
+/* Finished out of sight (ThinkingLine) — lands closed, no motion. */
+.thinking-line.is-instant .thinking-head-wrap,
+.thinking-line.is-instant .thinking-body-wrap,
+.thinking-line.is-instant .thinking-body-in,
+.thinking-line.is-instant .thinking-body,
+.thinking-line.is-instant .thinking-header { transition: none; animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .thinking-head-wrap, .thinking-body-wrap, .thinking-body-in,
   .thinking-line .thinking-body, .thinking-line .thinking-header { transition: none !important; animation: none !important; }

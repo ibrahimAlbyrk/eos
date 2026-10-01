@@ -32,10 +32,22 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
   // Derived during render so the settle class lands in the same commit as the
   // collapse — a separate effect could let the default transition start first.
   const [settling, setSettling] = useState(false);
+  // Reasoning that finished out of the reader's sight — parked session pane,
+  // hidden window, far offscreen, or already done when this line mounted —
+  // snaps closed with no motion. Inside content-visibility:hidden the browser
+  // defers the style change, so without this the collapse replays the moment
+  // the pane is shown again. Cleared by the first manual toggle.
+  const [instant, setInstant] = useState(false);
+  const [doneAtMount] = useState(() => live && getBlock(sessionId, streamId)?.done === true);
   const [prevLive, setPrevLive] = useState(live);
   if (live !== prevLive) {
     setPrevLive(live);
-    if (!live) setSettling(true);
+    if (!live) {
+      const seen = !doneAtMount && !document.hidden
+        && (ref.current?.checkVisibility?.({ contentVisibilityAuto: true }) ?? true);
+      if (seen) setSettling(true);
+      else setInstant(true);
+    }
   }
   useEffect(() => {
     if (!settling) return;
@@ -83,9 +95,11 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
   const cls = "thinking-line"
     + (live ? " is-live" : "")
     + (!live && !expanded ? " is-collapsed" : "")
-    + (settling ? " is-settling" : "");
+    + (settling ? " is-settling" : "")
+    + (instant ? " is-instant" : "");
   const toggle = () => {
     setSettling(false);
+    setInstant(false);
     setExpanded((e) => !e);
   };
   return (
