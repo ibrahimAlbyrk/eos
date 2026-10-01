@@ -75,7 +75,10 @@ describe("peer link — pair, proxy, stream, revoke", () => {
         }
         if (req.url?.includes("topics=notification:fire")) {
           res.writeHead(200, { "content-type": "text/event-stream" });
-          res.write(`id: n-1\nevent: change\ndata: ${JSON.stringify({ reason: "notification:fire", ts: 1, payload: { title: "Build finished", body: "all green", workerId: "w9" } })}\n\n`);
+          // One the host itself raised from a Mac it controls — relaying it back
+          // is what loops between mutually paired Macs.
+          res.write(`id: n-1\nevent: change\ndata: ${JSON.stringify({ reason: "notification:fire", ts: 1, payload: { title: "Test MacBook · Input needed", body: "?", workerId: "w1", host: { id: "x", name: "Test MacBook" } } })}\n\n`);
+          res.write(`id: n-2\nevent: change\ndata: ${JSON.stringify({ reason: "notification:fire", ts: 2, payload: { title: "Build finished", body: "all green", workerId: "w9" } })}\n\n`);
           return;
         }
         if (req.url?.startsWith("/stream")) {
@@ -158,6 +161,10 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     assert.equal(notes[0].title, "Office · Build finished");
     assert.equal(notes[0].workerId, "w9");
     assert.deepEqual(notes[0].host, { id: hostId, name: "Office" });
+  });
+
+  it("never relays a notification the host itself relayed", () => {
+    assert.equal(notes.length, 1);
   });
 
   it("proxies requests; the host token rides only with the human dashboard's", async () => {

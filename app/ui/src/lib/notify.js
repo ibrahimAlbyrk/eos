@@ -7,15 +7,29 @@
 //   const id = notify.error("Push failed", { title: "Git", duration: 6000 });
 //   notify.dismiss(id);   // early, programmatic
 //
-// Visible toasts were removed from the app (charcoal-aurora redesign). This
-// stays a no-op facade so the many existing call sites keep working without a
-// visible surface; error/warning still reach the console so dev signal is not
-// lost. Restores an on-screen surface later by re-pointing these verbs.
+// There is no in-app surface (visible toasts were removed in the charcoal-aurora
+// redesign). Errors and warnings go to macOS as native notifications through the
+// desktop shell's eosNotify bridge — shown only while Eos is in the background —
+// and to the console. Info stays silent so routine feedback ("Path copied") never
+// lands in Notification Center. Without the bridge (plain browser, a controlled
+// computer's view) only the console sees them.
+
+function toMac(title, message) {
+  globalThis.eosNotify?.show({ title, body: String(message) });
+}
 
 export const notify = {
   info: () => undefined,
-  warning: (message) => { console.warn("[notify]", message); return undefined; },
-  error: (message) => { console.error("[notify]", message); return undefined; },
+  warning: (message, opts) => {
+    console.warn("[notify]", message);
+    toMac(opts?.title ?? "Warning", message);
+    return undefined;
+  },
+  error: (message, opts) => {
+    console.error("[notify]", message);
+    toMac(opts?.title ?? "Error", message);
+    return undefined;
+  },
   dismiss: () => {},
   clear: () => {},
 };

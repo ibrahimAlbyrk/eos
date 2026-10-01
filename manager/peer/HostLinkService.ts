@@ -285,7 +285,9 @@ export class HostLinkService {
       onNotification: (payload) => {
         const h = this.deps.hosts.get(id);
         const p = (payload ?? {}) as Record<string, unknown>;
-        if (!h || typeof p.title !== "string") return;
+        // Only the host's own: one it relayed from another Mac (`host` set) would
+        // bounce back and forth between mutually paired Macs without end.
+        if (!h || typeof p.title !== "string" || p.host) return;
         // Raised here so this Mac's app shows it; `host` tells the app which
         // computer to switch to when it is clicked.
         this.deps.bus.publish("notification:fire", {

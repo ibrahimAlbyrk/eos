@@ -36,6 +36,7 @@ import { ReportGapService } from "./services/ReportGapService.ts";
 import { ContextThresholdService } from "./services/ContextThresholdService.ts";
 import { suspendWorker, suspendResumableWorkersForShutdown } from "./commands/handlers/suspend-worker.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
+import { makePermissionAskNotify } from "./services/permission-ask-notify.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
@@ -392,6 +393,16 @@ const permissionAskPush = makePermissionAskPush({
 });
 c.bus.subscribe("pending:created", (msg) =>
   permissionAskPush(msg.payload as { id?: string; workerId?: string }),
+);
+// …and tell the operator, who is the one that has to approve it.
+const permissionAskNotify = makePermissionAskNotify({
+  findWorker: (id) => c.workers.findById(id),
+  findPending: (id) => c.pending.findById(id),
+  fire: (n) => c.bus.publish("notification:fire", n),
+  now: () => c.clock.now(),
+});
+c.bus.subscribe("pending:created", (msg) =>
+  permissionAskNotify(msg.payload as { id?: string; workerId?: string }),
 );
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an
