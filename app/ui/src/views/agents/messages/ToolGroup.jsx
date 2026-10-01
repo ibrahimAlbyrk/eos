@@ -1,6 +1,5 @@
 import { ToolItem } from "./ToolItem.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
-import { ToolIcon } from "./ToolIcon.jsx";
 import { Collapse } from "./Collapse.jsx";
 
 // "Read 3 files, ran 2 shell commands" → the counted phrases ("3 files",
@@ -16,11 +15,7 @@ export function ToolGroup({ summary, tools, open, onToggle, cwd, workers }) {
   return (
     <div className="tool-group">
       <DisclosureRow expanded={open} onToggle={onToggle} className="tool-group-header">
-        <span className="ti-icon">
-          <ToolIcon name={running ? "spin" : "stack"} className={running ? "ti-spin" : ""} />
-        </span>
         <span className={"tg-summary" + (running ? " ti-shimmer" : "")}>{emphasizeCounts(summary)}</span>
-        <span className="ti-meta">{tools.length} calls</span>
       </DisclosureRow>
       <Collapse open={open}>
         <div className="tool-group-list">

@@ -71,17 +71,19 @@ export function ReadDetail({ tool }) {
   );
 }
 
-export function BashDetail({ tool }) {
+export function BashDetail({ tool, showCommand = true }) {
   const cmd = tool.input?.command ?? "";
   const output = tool.result?.text ?? "";
   const isError = tool.result?.isError ?? false;
 
   return (
     <div className="tool-detail bash-detail">
-      <div className="bash-cmd">
-        <span className="bash-prompt">$</span>
-        <span className="bash-cmd-text">{cmd}</span>
-      </div>
+      {showCommand && (
+        <div className="bash-cmd">
+          <span className="bash-prompt">$</span>
+          <span className="bash-cmd-text">{cmd}</span>
+        </div>
+      )}
       {!isError && (
         <div className="bash-output">
           {output ? output.slice(0, 4000) : tool.running ? "Running…" : "(Bash completed with no output)"}

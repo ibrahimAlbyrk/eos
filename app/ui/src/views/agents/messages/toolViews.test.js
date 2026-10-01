@@ -1,4 +1,6 @@
 import { describe, it, expect } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { getToolView } from "./toolViews.jsx";
 import { GenericToolCard } from "./ToolDetail.jsx";
 import { WorkerToolBody } from "./WorkerToolCard.jsx";
@@ -322,12 +324,20 @@ describe("getToolView", () => {
     expect(search.expandable({ input: { query: "x" } })).toBe(false);
   });
 
-  it("names an icon for every registered tool and shows search patterns in the header", () => {
-    expect(getToolView("Read").icon).toBe("file");
-    expect(getToolView("Bash").icon).toBe("terminal");
-    expect(getToolView("mcp__x__y").icon).toBe("tool");
+  it("shows search patterns in the header", () => {
     expect(getToolView("Grep").label({ input: { pattern: "foo" } })).toEqual({ verb: "Grep", file: "foo" });
     expect(getToolView("Glob").mono).toBe(true);
+  });
+
+  it("repeats the bash command in the body only when the header couldn't show it", () => {
+    const { Detail } = getToolView("Bash");
+    const body = (command) => renderToStaticMarkup(
+      createElement(Detail, { tool: { name: "Bash", input: { command }, result: { text: "ok" } } }),
+    );
+    expect(body("npm test")).not.toContain("bash-cmd");
+    expect(body("x".repeat(61))).toContain("bash-cmd");
+    expect(body("npm run build\nnpm test")).toContain("bash-cmd");
+    expect(body("git push origin dev")).toContain("bash-cmd");
   });
 
   it("renders a published artifact as one chip line and other Artifact calls generically", () => {

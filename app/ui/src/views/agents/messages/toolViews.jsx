@@ -35,7 +35,6 @@ import { ArtifactChip } from "./ArtifactChip.jsx";
 // need. `summary` is null here so bespoke tools (which already encode their hint
 // in label.file) show no extra args summary — only the FALLBACK surfaces one.
 const BASE = {
-  icon: "tool",
   mono: false,
   label: (t) => ({ verb: "Used", file: toolDisplayName(t.name) }),
   runningLabel: (t) => ({ verb: "Running", file: toolDisplayName(t.name) }),
@@ -90,7 +89,6 @@ function hostOf(url) {
 const filePathOf = (t) => t.input?.file_path ?? null;
 
 register("Read", {
-  icon: "file",
   label: (t) => {
     const skill = skillNameFromRead(t.input?.file_path, t.result?.text);
     return { verb: "Read", file: skill ? `${skill} SKILL` : fileName(t.input?.file_path) };
@@ -101,7 +99,6 @@ register("Read", {
 });
 
 register("Edit", {
-  icon: "pencil",
   label: (t) => ({ verb: "Edit", file: fileName(t.input?.file_path) }),
   runningLabel: (t) => ({ verb: "Editing", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
@@ -110,7 +107,6 @@ register("Edit", {
 });
 
 register("MultiEdit", {
-  icon: "pencil",
   label: (t) => ({ verb: "Edit", file: fileName(t.input?.file_path) }),
   runningLabel: (t) => ({ verb: "Editing", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
@@ -119,7 +115,6 @@ register("MultiEdit", {
 });
 
 register("Write", {
-  icon: "filePlus",
   label: (t) => ({ verb: "Write", file: fileName(t.input?.file_path) }),
   runningLabel: (t) => ({ verb: "Writing", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
@@ -136,19 +131,30 @@ function bashExpandable(t) {
   return cmd.length > BASH_HEADER_MAX || cmd.includes("\n");
 }
 
+// The header shows the whole command unless it is long, multi-line, or a git
+// action summarized as a verb ("Committed abc1234").
+function bashHeaderShowsCommand(t) {
+  const cmd = t.input?.command ?? "";
+  if (cmd.length > BASH_HEADER_MAX || cmd.includes("\n")) return false;
+  return t.running === true || gitActions(t).length === 0;
+}
+
+// The body repeats the command only when the header couldn't show it.
+function BashBody(props) {
+  return <BashDetail {...props} showCommand={!bashHeaderShowsCommand(props.tool)} />;
+}
+
 register("Bash", {
-  icon: "terminal",
   mono: true,
   label: bashLabel,
   runningLabel: (t) => ({ verb: "Running", file: (t.input?.command ?? "").slice(0, BASH_HEADER_MAX) }),
   expandable: bashExpandable,
-  Detail: BashDetail,
+  Detail: BashBody,
 });
 
 const searchLabel = (verb) => (t) => ({ verb, file: t.input?.pattern ?? t.input?.query ?? "" });
-for (const [name, icon] of [["Glob", "folder"], ["Grep", "search"]]) {
+for (const name of ["Glob", "Grep"]) {
   register(name, {
-    icon,
     mono: true,
     label: searchLabel(name),
     runningLabel: searchLabel("Searching"),
@@ -157,14 +163,12 @@ for (const [name, icon] of [["Glob", "folder"], ["Grep", "search"]]) {
 }
 
 register("WebSearch", {
-  icon: "globe",
   expandable: genericExpandable,
   label: (t) => ({ verb: "Searched the web", file: t.input?.query ?? "" }),
   runningLabel: (t) => ({ verb: "Searching the web", file: t.input?.query ?? "" }),
 });
 
 register("WebFetch", {
-  icon: "globe",
   expandable: genericExpandable,
   label: (t) => ({ verb: "Fetched", file: hostOf(t.input?.url) }),
   runningLabel: (t) => ({ verb: "Fetching", file: hostOf(t.input?.url) }),
@@ -190,14 +194,12 @@ register("Artifact", {
 });
 
 register("AskUserQuestion", {
-  icon: "chat",
   label: () => ({ verb: "Asked", file: "user" }),
   runningLabel: () => ({ verb: "Asking", file: "user" }),
   Detail: AskUserQuestionDetail,
 });
 
 register("Skill", {
-  icon: "sparkle",
   label: (t) => ({ verb: "Used", file: `${t.input?.skill ?? "skill"} skill` }),
   runningLabel: (t) => ({ verb: "Using", file: `${t.input?.skill ?? "skill"} skill` }),
   filePath: (t) => skillFilePath(t.skillPath),
@@ -207,28 +209,24 @@ register("Skill", {
 });
 
 register("mcp__orchestrator__ask_user", {
-  icon: "chat",
   label: () => ({ verb: "Asked", file: "user" }),
   runningLabel: () => ({ verb: "Asking", file: "user" }),
   Detail: AskUserDetail,
 });
 
 register("mcp__orchestrator__notify_user", {
-  icon: "bell",
   label: () => ({ verb: "Notified", file: "user" }),
   runningLabel: () => ({ verb: "Notifying", file: "user" }),
   Detail: NotifyDetail,
 });
 
 register("mcp__orchestrator__create_worker", {
-  icon: "agent",
   label: (t) => ({ verb: "Created worker", file: t.input?.name ?? "" }),
   runningLabel: (t) => ({ verb: "Creating worker", file: t.input?.name ?? "" }),
   Detail: CreateWorkerDetail,
 });
 
 register("mcp__orchestrator__list_available_workers", {
-  icon: "agent",
   label: (t) => {
     const n = availableWorkersCount(t);
     return { verb: "Listed", file: n != null ? `available workers (${n})` : "available workers" };
@@ -249,14 +247,12 @@ function availableWorkersCount(t) {
 }
 
 register("mcp__worker__send_message_to_parent", {
-  icon: "send",
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),
   agentRef: (t, ctx) => (ctx?.parent ? { id: ctx.parent.id, name: ctx.parent.name } : null),
   Detail: MessageDetail,
 });
 
 register("mcp__worker__list_peers", {
-  icon: "agent",
   label: () => ({ verb: "Listed", file: "peers" }),
   runningLabel: () => ({ verb: "Listing", file: "peers" }),
   Detail: PeerListDetail,
@@ -271,7 +267,6 @@ function peerAskTarget(t) {
 }
 
 register("mcp__worker__ask_peer", {
-  icon: "chat",
   label: (t) => ({ verb: "Asked", file: peerAskTarget(t)?.name ?? "peer" }),
   runningLabel: (t) => ({ verb: "Asking", file: peerAskTarget(t)?.name ?? "peer" }),
   agentRef: (t) => peerAskTarget(t),
@@ -295,7 +290,6 @@ function peerReplyResult(t) {
 const peerReplyTo = (t) => t.peerTo ?? peerReplyResult(t);
 
 register("mcp__worker__respond_to_peer", {
-  icon: "send",
   label: (t) => ({ verb: "Replied to", file: peerReplyTo(t)?.name ?? "peer" }),
   runningLabel: (t) => ({ verb: "Replying to", file: peerReplyTo(t)?.name ?? "peer" }),
   agentRef: (t) => peerReplyTo(t),
@@ -307,7 +301,6 @@ register("mcp__worker__respond_to_peer", {
 // never opens unless the call failed.
 for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current_datetime"]) {
   register(name, {
-    icon: "clock",
     label: (t) => ({ verb: "Checked", file: datetimeFormatted(t) || "date & time" }),
     runningLabel: () => ({ verb: "Checking", file: "date & time" }),
     expandable: failed,
@@ -320,7 +313,6 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
 // live in ToolDetail.jsx. The result payloads are plain text, so the Get/List
 // count + badge parse it (parseTaskGet/parseTaskListRows).
 register("TaskCreate", {
-  icon: "todo",
   // subject + pending badge are already in the header; only a description adds anything
   expandable: (t) => !!t.input?.description || failed(t),
   label: (t) => ({ verb: "Created task", file: t.input?.subject ?? "" }),
@@ -330,7 +322,6 @@ register("TaskCreate", {
 });
 
 register("TaskUpdate", {
-  icon: "todo",
   // a status-only update is fully told by the header badge
   expandable: (t) => {
     const i = t.input ?? {};
@@ -343,7 +334,6 @@ register("TaskUpdate", {
 });
 
 register("TaskGet", {
-  icon: "todo",
   expandable: (t) => {
     const task = parseTaskGet(t.result?.text);
     return !!(task?.description || task?.blocks || task?.blockedBy) || failed(t);
@@ -355,7 +345,6 @@ register("TaskGet", {
 });
 
 register("TodoWrite", {
-  icon: "todo",
   label: () => ({ verb: "Updated", file: "task list" }),
   runningLabel: () => ({ verb: "Updating", file: "tasks…" }),
   summary: (t) => {
@@ -370,7 +359,6 @@ register("TodoWrite", {
 });
 
 register("TaskList", {
-  icon: "todo",
   label: (t) => {
     const n = parseTaskListRows(t.result?.text).length;
     return { verb: "Listed", file: n > 0 ? `tasks (${n})` : "tasks" };
@@ -394,7 +382,6 @@ function toolSearchExpandable(t) {
 }
 
 register("ToolSearch", {
-  icon: "search",
   expandable: toolSearchExpandable,
   label: (t) => ({ verb: "Searched tools", file: t.input?.query ?? "" }),
   runningLabel: (t) => ({ verb: "Searching tools", file: t.input?.query ?? "" }),
@@ -402,14 +389,12 @@ register("ToolSearch", {
 });
 
 register("ScheduleWakeup", {
-  icon: "clock",
   label: (t) => ({ verb: "Scheduled wakeup", file: formatDelay(t.input?.delaySeconds) }),
   runningLabel: (t) => ({ verb: "Scheduling wakeup", file: formatDelay(t.input?.delaySeconds) }),
   Detail: ScheduleWakeupDetail,
 });
 
 register("TaskOutput", {
-  icon: "terminal",
   label: (t) => ({ verb: "Read task output", file: t.input?.task_id ?? "" }),
   runningLabel: (t) => ({ verb: "Reading task output", file: t.input?.task_id ?? "" }),
   Detail: TaskOutputDetail,
@@ -433,7 +418,6 @@ const spawnLoopBadge = (t) =>
     : null;
 
 register("mcp__orchestrator__spawn_worker", {
-  icon: "agent",
   label: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.verb, file: "" }),
   runningLabel: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.running, file: "" }),
   agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
@@ -447,7 +431,6 @@ for (const name of [
   "mcp__orchestrator__get_worker",
 ]) {
   register(name, {
-    icon: name.endsWith("message_worker") ? "send" : "agent",
     label: () => ({ verb: WORKER_TOOL_SPECS[name].verb, file: "" }),
     runningLabel: () => ({ verb: WORKER_TOOL_SPECS[name].running, file: "" }),
     agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
@@ -459,7 +442,6 @@ for (const name of [
 // kill_worker's body was one "killed · <branch>" line — the header already says
 // Killed, so the branch rides along as the row's meta and the row never opens.
 register("mcp__orchestrator__kill_worker", {
-  icon: "agent",
   label: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__kill_worker.verb, file: "" }),
   runningLabel: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__kill_worker.running, file: "" }),
   agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
@@ -469,7 +451,6 @@ register("mcp__orchestrator__kill_worker", {
 });
 
 register("mcp__orchestrator__list_active_workers", {
-  icon: "agent",
   label: (t) => {
     const n = workerListCount(t);
     return { verb: WORKER_TOOL_SPECS[t.name].verb, file: n != null ? `workers (${n})` : "workers" };
@@ -480,7 +461,6 @@ register("mcp__orchestrator__list_active_workers", {
 });
 
 register("mcp__orchestrator__list_pending_permissions", {
-  icon: "clock",
   label: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].verb, file: "pending permissions" }),
   runningLabel: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].running, file: "pending permissions" }),
   expandable: workerExpandable,

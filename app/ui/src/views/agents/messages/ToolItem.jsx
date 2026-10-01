@@ -4,7 +4,6 @@ import { getToolView } from "./toolViews.jsx";
 import { failureKind } from "../../../lib/toolFailure.js";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
-import { ToolIcon } from "./ToolIcon.jsx";
 import { Collapse } from "./Collapse.jsx";
 
 // The single tool-render dispatcher: every tool (bespoke or generic fallback,
@@ -45,16 +44,16 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
         onToggle={() => ui.toggleToolExpanded(expandKey)}
         className={"tool-item-header" + (isRunning ? " ti-running" : "")}
       >
-        <span className="ti-icon">
-          <ToolIcon name={isRunning ? "spin" : failure ? "ban" : view.icon} className={isRunning ? "ti-spin" : ""} />
+        {/* one span so a running row's shine sweeps verb + object + hint as a single line */}
+        <span className={"ti-text" + (isRunning ? " ti-shimmer" : "")}>
+          <span className="ti-verb">{label.verb}</span>
+          {agentRef ? (
+            <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
+          ) : (
+            <span className={"ti-file" + (view.mono ? " ti-mono" : "") + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+          )}
+          {summary && <span className="ti-arg-summary">{summary}</span>}
         </span>
-        <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
-        {agentRef ? (
-          <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
-        ) : (
-          <span className={"ti-file" + (view.mono ? " ti-mono" : "") + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
-        )}
-        {summary && <span className="ti-arg-summary">{summary}</span>}
         {headerBadge}
         {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
         {!failure && diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
