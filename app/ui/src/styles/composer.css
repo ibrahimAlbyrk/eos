@@ -3099,36 +3099,36 @@
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
 .composer-card .c-row2::after { display: none; }
-/* Reply card — the message being answered, atop the input until sent or dismissed. */
-.reply-card { display: flex; flex-direction: column; gap: 8px; }
-.reply-card-head {
-  position: relative;
-  display: flex; align-items: center; justify-content: center;
-  min-height: 22px;
-}
-.reply-card-time { font-size: var(--text-xs); color: var(--fg-faint); }
-.reply-card-close {
-  position: absolute; right: 0; top: 50%; translate: 0 -50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; border-radius: 50%;
-  border: 1px solid var(--line);
-  color: var(--fg-dim2);
-}
-.reply-card-close:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
-.reply-card-quote {
+/* Reply capsule — the message being answered, floating in liquid glass
+   (GlassLayers) above the card until sent or dismissed. Rises in like the glass
+   popovers; never fades the host (the backdrop would drop mid-animation). */
+.reply-capsule {
+  position: relative; isolation: isolate;
   align-self: flex-start;
-  max-width: 85%;
-  padding: 10px 16px;
-  border-radius: 16px;
-  background: var(--chip);
-  color: var(--fg);
+  display: flex; align-items: center; gap: 10px;
+  max-width: min(560px, calc(100% - 12px));
+  height: 40px; box-sizing: border-box;
+  margin: 0 0 10px 6px;
+  padding: 0 5px 0 14px;
+  border-radius: var(--r-pill);
   font-size: var(--text-sm);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  color: var(--fg);
+  animation: lg-pop-rise 220ms var(--lg-ease);
 }
-.reply-card-quote.is-user { align-self: flex-end; background: var(--bubble); color: var(--bubble-fg); }
+/* the raised git tray rises into the band the capsule floats in */
+.composer-inner:has(.git-tray:hover, .git-tray.pinned) .reply-capsule { visibility: hidden; }
+.reply-capsule-icon { flex-shrink: 0; color: var(--accent); }
+.reply-capsule-sep { flex-shrink: 0; width: 1px; height: 14px; background: rgba(var(--tint), 0.14); }
+.reply-capsule-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-dim); }
+.reply-capsule-close {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  color: var(--fg-mid);
+  background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh);
+  transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease;
+}
+.reply-capsule-close:hover { color: var(--fg); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .composer-card .c-row2.term-mode,
 .composer-card .c-row2.git-mode,
 .composer-card .c-row2.drop-active { box-shadow: none; }

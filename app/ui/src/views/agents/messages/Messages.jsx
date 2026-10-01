@@ -44,6 +44,7 @@ import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { replyTargetOf } from "../../../lib/replyTarget.js";
+import { nameOf } from "../../../lib/agentName.js";
 import { setReplyTarget } from "../../../state/replyStore.js";
 import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
@@ -682,7 +683,10 @@ const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request"
 // the gap since the previous transcript event approximates how long it thought.
 function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs, onReply, onJumpToRow) {
   switch (b.kind) {
-    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} onJumpToReply={onJumpToRow} /></MessageRow>;
+    case "user": {
+      const self = b.replyTo?.role === "assistant" ? workers.find((w) => w.id === sessionId) : null;
+      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} /></MessageRow>;
+    }
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;

@@ -190,7 +190,6 @@ kbd {
   --dock-tile-inset: 1.5px;
   --panel-radius: 12px;
   --block-gap: 26px;
-  --msg-actions-h: 18px;
 
   /* syntax (github-dark-dimmed) — shared by CodeMirror (cmHighlight.js) */
   --hl-fg: #adbac7;

@@ -36,6 +36,7 @@ import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { ReplyCard } from "./ReplyCard.jsx";
 import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
+import { nameOf } from "../../../lib/agentName.js";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { UpdateBanner } from "./UpdateBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
@@ -1085,6 +1086,9 @@ export function Composer({ live, worker, paneId, focused }) {
           />
         ) : (
           <>
+            {selected && replyTarget && !modeClass && (
+              <ReplyCard target={replyTarget} agentName={nameOf(selected)} onClose={() => clearReplyTarget(selected.id)} />
+            )}
             {selected ? (
               <SessionTray
                 live={live}
@@ -1101,9 +1105,6 @@ export function Composer({ live, worker, paneId, focused }) {
             <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
               <GlassLayers />
               {modeClass && <ModeFx key={inputMode} />}
-              {selected && replyTarget && !modeClass && (
-                <ReplyCard target={replyTarget} onClose={() => clearReplyTarget(selected.id)} />
-              )}
               <div className="c-row2-wrap">
                 {showMenu && (
                   <CommandMenu

@@ -8,6 +8,7 @@ import { PASTE_RE } from "../../../lib/pasteTokens.js";
 import { listMarkers } from "../../../lib/markdownBlocks.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { SlashPill } from "./SlashPill.jsx";
+import { ReplyWho } from "./ReplyWho.jsx";
 
 function basename(path) {
   const p = path.endsWith("/") ? path.slice(0, -1) : path;
@@ -61,7 +62,7 @@ function buildRules(labels, slashMap) {
   return rules;
 }
 
-export function MessageUser({ text, cwd, replyTo, onJumpToReply }) {
+export function MessageUser({ text, cwd, replyTo, agentName, onJumpToReply }) {
   const slashItems = useSlashItems(cwd);
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
   const { display, attachments } = parseAttachmentMessage(text);
@@ -77,8 +78,13 @@ export function MessageUser({ text, cwd, replyTo, onJumpToReply }) {
   return (
     <div className="msg-user">
       {replyTo && (
-        <button type="button" className="msg-reply-quote" onClick={() => onJumpToReply?.(replyTo.rowId)} title="Go to the original message">
-          {replyTo.excerpt}
+        <button type="button" className="msg-reply-ref" onClick={() => onJumpToReply?.(replyTo.rowId)} title="Go to the original message">
+          <svg className="msg-reply-ref-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="m15 10 5 5-5 5" />
+            <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+          </svg>
+          <ReplyWho role={replyTo.role} agentName={agentName} />
+          <span className="msg-reply-ref-text">{replyTo.excerpt}</span>
         </button>
       )}
       {attachments.length > 0 && (

@@ -63,6 +63,11 @@
 .messages > [data-bkey].cv {
   content-visibility: auto;
   contain-intrinsic-size: auto 64px;
+  /* Paint containment clips at the border box. Widen it (padding) without
+     moving content (matching negative margin) so row hover chips, which bleed
+     10px left of the text, and their shadows stay whole. */
+  padding: 4px 12px;
+  margin: -4px -12px;
 }
 /* backward-pagination sentinel — fixed height so the IntersectionObserver has
    a stable target and the loading skeleton doesn't shift content */
@@ -320,22 +325,34 @@
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
-/* Reply quote above a sent bubble — click jumps to the original message. */
-.msg-reply-quote {
-  max-width: 78%;
-  margin-bottom: 4px;
-  padding: 4px 10px;
-  border-left: 2px solid var(--accent);
-  border-radius: 6px;
-  color: var(--fg-faint);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  text-align: left;
-  white-space: pre-wrap;
-  word-break: break-word;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+/* Reply reference — a glass capsule above a sent bubble; click jumps to the
+   original message. */
+.msg-reply-ref {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  max-width: min(380px, 70%);
+  height: 30px;
+  margin: 0 8px 6px 0;
+  padding: 0 13px 0 10px;
+  border-radius: var(--r-pill);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  color: var(--fg-dim2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease;
 }
-.msg-reply-quote:hover { color: var(--fg-dim); background: var(--lg-chip-bg); }
+.msg-reply-ref:hover { color: var(--fg-dim); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
+.msg-reply-ref .reply-who { color: var(--fg-mid); }
+.msg-reply-ref-icon { flex-shrink: 0; }
+.msg-reply-ref-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* Who a reply points at (ReplyWho.jsx) — shared by the reference above and the
+   composer's reply capsule. */
+.reply-who { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 0; font-weight: 500; white-space: nowrap; }
+.reply-who .al-star { width: 12px; height: 12px; --al-ray: var(--fg-dim2); --al-hi: var(--fg-dim); --al-core: var(--fg-dim); }
+.reply-who-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-user .msg-link:hover { opacity: 0.8; }
 
@@ -418,40 +435,57 @@
 @keyframes sf-fade-in { from { opacity: 0; } }
 @keyframes sf-fade-out { to { opacity: 0; } }
 
-/* Hover action row (copy + timestamp) under text messages. Absolutely
-   positioned into the container's block gap below the message so revealing it
-   never shifts layout (the transcript auto-scrolls and a reflow would jump). */
-.msg-row { position: relative; }
+/* Hover action pill (timestamp + rewind + copy + reply). Absolutely positioned
+   so revealing it never shifts layout (the transcript auto-scrolls and a
+   reflow would jump): in the block gap under the message, or — for a user
+   message — beside the bubble, centred on it. Its 34px height fills the gap
+   flush, so there is no unhoverable dead zone between message and pill. */
+.msg-row { position: relative; anchor-scope: --msg-body; }
+/* The bubble when there is one, else the attachments (last in tree order wins). */
+.msg-row .msg-attachments, .msg-row .msg-user .b { anchor-name: --msg-body; }
 .msg-actions {
   position: absolute;
   top: 100%;
   left: 0;
-  right: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 8px;
-  /* 4px visual gap to the message lives INSIDE the box as padding so there is
-     no unhoverable dead zone between message and actions row. */
-  padding-top: 4px;
-  height: calc(var(--msg-actions-h) + 4px);
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(30, 30, 30, 0.86);
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.14), inset 0 0 0 0.5px rgba(var(--tint), 0.07),
+              0 12px 28px -12px rgba(var(--ink), 0.8);
   opacity: 0;
   transition: opacity 120ms;
 }
 .msg-row:hover .msg-actions { opacity: 1; }
-.msg-actions.right { justify-content: flex-end; }
+.msg-actions.right {
+  position-anchor: --msg-body;
+  top: anchor(center);
+  right: anchor(left);
+  left: auto;
+  margin-right: 10px;
+  translate: 0 -50%;
+}
 .msg-action-btn {
   display: inline-flex;
-  padding: 3px;
-  border-radius: var(--r-icon);
-  color: var(--fg-faint);
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  color: var(--fg-dim2);
 }
 .msg-action-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .msg-action-btn.is-busy { opacity: 0.45; pointer-events: none; }
-.msg-action-reply { margin-left: auto; }
 .msg-action-btn.is-err { color: var(--err); }
 .msg-time {
+  padding: 0 6px 0 9px;
   font-size: var(--text-xs);
-  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--fg-dim2);
 }
 
 /* ── initial task — faint label + a block with border-left 2px --line ─── */
