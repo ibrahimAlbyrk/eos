@@ -25,6 +25,9 @@ export const ROUTES = {
   // Every prompt (+ clear/rewind/recall marker) across the whole conversation —
   // the turn rail indexes turns the paged window hasn't loaded yet.
   workerPromptEvents: (id) => `/workers/${id}/prompt-events`,
+  // Every row that rebuilds the conversation's subagents — the Subagents panel
+  // lists the ones the paged window hasn't loaded too.
+  workerSubagentEvents: (id) => `/workers/${id}/subagent-events`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,

@@ -50,6 +50,7 @@ import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
+import { useConversationSubagents } from "../../../hooks/useConversationSubagents.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { useProjects } from "../../../state/projectsStore.js";
@@ -361,7 +362,12 @@ export function Messages({ live, agentId, isActive = true }) {
   // This agent's subagents, each with its glyph + color — published for the
   // side panel's Subagents tab and the Environment popover. Only once the window
   // is this agent's own: mid-switch it is empty and would blank their lists.
-  const subagents = useMemo(() => collectSubagents(baseBlocks), [baseBlocks]);
+  // All of the conversation's, not just the loaded window's or the unfolded part.
+  const windowSubagents = useMemo(() => collectSubagents(baseBlocks), [baseBlocks]);
+  const subagents = useConversationSubagents(selectedId, events, windowSubagents, {
+    partial: owned && (windowHasOlder || folded),
+    bootPromptOffset,
+  });
   useEffect(() => {
     if (owned) publishSubagents(selectedId, subagents);
   }, [owned, selectedId, subagents]);

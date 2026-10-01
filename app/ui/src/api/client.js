@@ -250,6 +250,11 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerPromptEvents → ${r.status}`);
     return r.body;
   },
+  async getWorkerSubagentEvents(id) {
+    const r = await getJson(ROUTES.workerSubagentEvents(id));
+    if (!r.ok) throw new Error(`getWorkerSubagentEvents → ${r.status}`);
+    return r.body;
+  },
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
     return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });
   },
