@@ -82,7 +82,8 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
 
   // New-spawn provider picker: the unified provider list (subscription kinds +
   // configured API profiles). Picking one sets composer.provider + a model.
-  const showSpawnProvider = !selected && providerChoices().length > 0;
+  // A focused session always runs on the Claude SDK lane — no provider to pick.
+  const showSpawnProvider = !selected && providerChoices().length > 0 && ui.composer.agentMode !== "focused";
   const spawnProviderLabel = providerName(spawnChoice) ?? ui.composer.provider ?? "Provider";
 
   const toggle = (id, e) => {

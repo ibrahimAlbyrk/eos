@@ -2967,6 +2967,9 @@
 .strip-branch { color: var(--fg-dim); max-width: 230px; }
 .strip-branch.on { color: var(--fg); }
 .strip-branch-ic { flex-shrink: 0; color: var(--fg-dim2); }
+.strip-mode { display: inline-flex; gap: 2px; margin-left: auto; }
+.strip-mode .strip-pill { color: var(--fg-dim); }
+.strip-mode .strip-pill.on { color: var(--fg); }
 /* Fade only when the name is actually cut off: a self scroll-timeline is
    inactive when nothing overflows, so the masking animation never applies. */
 .strip-branch-name {

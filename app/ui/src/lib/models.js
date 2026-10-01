@@ -105,6 +105,10 @@ export function modelName(raw) {
   return raw;
 }
 
+export function isClaudeModel(raw) {
+  return resolveModel(raw) !== null;
+}
+
 export function modelCtx(raw) {
   return formatCtx(resolveModel(raw)?.ctxTokens) || null;
 }

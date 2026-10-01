@@ -8,6 +8,9 @@ const DEFAULT_COMPOSER = {
   model: "opus",
   effort: "xhigh",
   permissionMode: "bypassPermissions",
+  // "orchestrator" plans the task and runs workers; "focused" is one Claude Code
+  // session that does the work itself (always on the Claude SDK lane).
+  agentMode: "focused",
   // Selected provider NAME from the unified spawn picker (providerChoices):
   // a subscription kind ("claude" | "claude-cli") or an operator profile
   // name ("deepseek"), seeded from the provider setting. Resolved to

@@ -251,7 +251,7 @@ function TreeNode({ node, onRename, variant = "full" }) {
         {isRenaming
           ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} workerId={node.id} />
           : <span
-              className={`ag-name ${node.is_orchestrator ? "main" : ""}`}
+              className={`ag-name ${node.is_orchestrator || node.agent_role === "focused" ? "main" : ""}`}
               onDoubleClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();

@@ -7,6 +7,12 @@ import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { subscribeGitChange, BRANCH_KINDS } from "../../../state/gitChangeBus.js";
 import { FolderDropdown } from "../popovers/FolderDropdown.jsx";
 import { BranchManager } from "../popovers/BranchManager.jsx";
+import { isClaudeModel } from "../../../lib/models.js";
+
+const AGENT_MODES = [
+  { id: "orchestrator", label: "Orchestrator", hint: "Plans the task and runs workers for it" },
+  { id: "focused", label: "Focused", hint: "One Claude Code session that does the work itself" },
+];
 
 // The context strip: a --pop tab tucked behind the composer card holding a
 // project pill (the project's icon + name, folder icon by default) and a branch pill for the next spawn (no session yet — once one
@@ -65,6 +71,19 @@ export function ContextStrip({ live }) {
     else ui.openPop(id);
   };
 
+  // A focused session always runs on the Claude SDK lane, so its spawn config
+  // stays there — whatever provider/model the settings or the last launch seeded.
+  const { agentMode, provider, model } = ui.composer;
+  useEffect(() => {
+    if (agentMode !== "focused") return;
+    const patch = {
+      ...(provider !== "claude" ? { provider: "claude" } : {}),
+      ...(isClaudeModel(model) ? {} : { model: "opus" }),
+    };
+    if (Object.keys(patch).length) ui.updateComposer(patch);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentMode, provider, model]);
+
   return (
     <div className="c-strip">
       <div className="c-strip-wrap">
@@ -94,6 +113,20 @@ export function ContextStrip({ live }) {
           <BranchManager live={live} cwd={cwd} />
         </div>
       )}
+      <div className="strip-mode" role="radiogroup" aria-label="Session mode">
+        {AGENT_MODES.map((m) => (
+          <button
+            key={m.id}
+            role="radio"
+            aria-checked={agentMode === m.id}
+            className={"strip-pill" + (agentMode === m.id ? " on" : "")}
+            title={m.hint}
+            onClick={() => ui.updateComposer({ agentMode: m.id })}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

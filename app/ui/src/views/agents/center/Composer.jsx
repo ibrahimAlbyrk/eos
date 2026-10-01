@@ -648,6 +648,7 @@ export function Composer({ live, worker, paneId, focused }) {
       permissionMode: ui.composer.permissionMode,
       backendKind: backendKind ?? undefined,
       backendProfile: backendProfile ?? undefined,
+      mode: ui.composer.agentMode,
     });
     if (r?.ok && r.body?.id) {
       try {
