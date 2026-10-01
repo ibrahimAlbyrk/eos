@@ -27,6 +27,8 @@ import { argsSummary } from "../../../lib/toolArgs.js";
 import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText, killedBranch } from "./WorkerToolCard.jsx";
 import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
+import { artifactFromTool } from "../../../lib/artifactLink.js";
+import { ArtifactChip } from "./ArtifactChip.jsx";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -166,6 +168,25 @@ register("WebFetch", {
   expandable: genericExpandable,
   label: (t) => ({ verb: "Fetched", file: hostOf(t.input?.url) }),
   runningLabel: (t) => ({ verb: "Fetching", file: hostOf(t.input?.url) }),
+});
+
+// A published/opened claude.ai artifact is one line: verb + the link chip (hover
+// peeks, click opens) — nothing to expand. Every other Artifact call
+// (quickstart, list, read, uploads, failures) keeps the generic row.
+register("Artifact", {
+  label: (t) => {
+    const artifact = artifactFromTool(t);
+    return artifact ? { verb: artifact.verb, file: "" } : BASE.label(t);
+  },
+  runningLabel: (t) => ((t.input?.action ?? "publish") === "publish"
+    ? { verb: "Publishing", file: artifactFromTool(t) ? "" : t.input?.title ?? "" }
+    : BASE.runningLabel(t)),
+  summary: (t) => (artifactFromTool(t) ? null : FALLBACK.summary(t)),
+  expandable: (t) => !artifactFromTool(t) && genericExpandable(t),
+  headerBadge: (t) => {
+    const artifact = artifactFromTool(t);
+    return artifact && <ArtifactChip url={artifact.url} title={artifact.title} />;
+  },
 });
 
 register("AskUserQuestion", {

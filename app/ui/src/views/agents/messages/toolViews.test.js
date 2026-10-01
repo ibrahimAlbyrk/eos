@@ -329,4 +329,20 @@ describe("getToolView", () => {
     expect(getToolView("Grep").label({ input: { pattern: "foo" } })).toEqual({ verb: "Grep", file: "foo" });
     expect(getToolView("Glob").mono).toBe(true);
   });
+
+  it("renders a published artifact as one chip line and other Artifact calls generically", () => {
+    const view = getToolView("Artifact");
+    const url = "https://claude.ai/artifact/YBc8tWaK41fiYSKdCZ88EM";
+    const published = { input: { title: "Cards" }, result: { text: `Created a new Artifact at ${url} (version 1)` } };
+    expect(view.label(published)).toEqual({ verb: "Published", file: "" });
+    expect(view.expandable(published, {})).toBe(false);
+    expect(view.summary(published)).toBe(null);
+    expect(view.headerBadge(published, {}).props).toEqual({ url, title: "Cards" });
+    expect(view.runningLabel({ input: { title: "Cards" } })).toEqual({ verb: "Publishing", file: "Cards" });
+
+    const quickstart = { name: "Artifact", input: { action: "quickstart", intent: "design" }, result: { text: "Quickstart…" } };
+    expect(view.label(quickstart)).toEqual({ verb: "Used", file: "Artifact" });
+    expect(view.expandable(quickstart, {})).toBe(true);
+    expect(view.headerBadge(quickstart, {})).toBe(null);
+  });
 });

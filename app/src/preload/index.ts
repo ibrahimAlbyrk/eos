@@ -79,6 +79,22 @@ if (!hostView) contextBridge.exposeInMainWorld("eosBrowserView", {
   cancelPick: () => ipcRenderer.send("browserView:pickCancel"),
 });
 
+// Native macOS notification for the dashboard's errors/warnings (ui lib/notify.js);
+// main shows it only while Eos is in the background. Withheld from a controlled
+// computer's view so its page can't raise banners on this Mac.
+if (!hostView) contextBridge.exposeInMainWorld("eosNotify", {
+  show: (n: { title: string; body: string }) => ipcRenderer.send("eos:notify", n),
+});
+
+// Artifact link previews: the renderer asks main to render a published claude.ai
+// artifact in Eos's own claude.ai session and hand back a JPEG. Withheld from a
+// controlled computer's view — the login + render happen on THIS Mac.
+if (!hostView) contextBridge.exposeInMainWorld("eosArtifactPreview", {
+  status: (): Promise<{ signedIn: boolean }> => ipcRenderer.invoke("artifactPreview:status"),
+  get: (url: string): Promise<{ state: string; dataUrl?: string }> => ipcRenderer.invoke("artifactPreview:get", url),
+  connect: (): Promise<{ signedIn: boolean }> => ipcRenderer.invoke("artifactPreview:connect"),
+});
+
 // html.native gates ~30 CSS rules (titlebar/traffic-light insets, sidebar chrome).
 // The DOM is shared across isolated worlds, so setting it here is visible to the
 // page; guard for pre-documentElement timing (doc 20 §e-3, plan §C4 item 3).

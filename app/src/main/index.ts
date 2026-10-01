@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog } from "electron";
+import { app, BrowserWindow, shell, dialog, ipcMain } from "electron";
 import path from "node:path";
 import { registerEosSchemePrivileges, installEosProtocol } from "./scheme";
 import { resolveUiRoot, resolveDaemonUrl, resolveRawUrl, themeBackground } from "./config";
@@ -24,6 +24,7 @@ import { makeNotifier } from "./notifications";
 import { checkUpdateStatus } from "./updater";
 import { initBinaryAutoUpdate } from "./updater-binary";
 import { initBrowserHost } from "./browser";
+import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
 import type { MenuItemConstructorOptions } from "electron";
 
@@ -358,6 +359,8 @@ async function startBackgroundServices(token: string): Promise<void> {
       return wc;
     },
   );
+  // The dashboard's own errors/warnings (ui lib/notify.js) take the same native path.
+  ipcMain.on("eos:notify", (_e, payload: unknown) => void notifier(payload));
   let hostsRefresh: ReturnType<typeof setTimeout> | null = null;
   const sse = new SSEClient(`${DAEMON_URL}/stream`, token, {
     onEvent: (reason, payload) => {
@@ -418,6 +421,9 @@ app.whenReady().then(async () => {
   // the native WebContentsView views (M1/M2). The renderer positions them via the
   // eosBrowserView preload bridge; the daemon drives them over /browser/host.
   initBrowserHost({ win, daemonUrl: DAEMON_URL, uiToken: token });
+
+  // Artifact link previews render in Eos's own claude.ai session (artifactPreview.ts).
+  initArtifactPreview(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
 
   // Defer the rest so it can't block time-to-first-frame.
   setImmediate(() => void startBackgroundServices(token));

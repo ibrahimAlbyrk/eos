@@ -1,6 +1,8 @@
 import { useMemo, useRef } from "react";
 import { renderMarkdown } from "../../../lib/markdown.js";
 import { withCopyButtons } from "../../../lib/codeBlockCopy.js";
+import { withArtifactChips } from "../../../lib/artifactLink.js";
+import { useArtifactPeek } from "./ArtifactPeek.jsx";
 import { useMermaid, useResolvedTheme } from "../../../hooks/useMermaid.js";
 
 // Copies the raw text of one code block when its injected copy button is
@@ -25,17 +27,22 @@ function onCopyClick(e) {
 
 export function MessageAssistant({ text }) {
   const ref = useRef(null);
-  const html = useMemo(() => withCopyButtons(renderMarkdown(text)), [text]);
+  const html = useMemo(() => withArtifactChips(withCopyButtons(renderMarkdown(text))), [text]);
   const theme = useResolvedTheme();
+  const peek = useArtifactPeek();
 
   useMermaid(ref, html, theme);
 
   return (
-    <div
-      ref={ref}
-      className="msg-asst md-prose"
-      onClick={onCopyClick}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
+    <>
+      <div
+        ref={ref}
+        className="msg-asst md-prose"
+        onClick={onCopyClick}
+        {...peek.handlers}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+      {peek.layer}
+    </>
   );
 }
