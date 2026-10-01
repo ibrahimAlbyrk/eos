@@ -9,7 +9,7 @@ import { PowerIcon, ShieldIcon } from "./icons.jsx";
 function PresenceCard({ devices, anchor, onClose, triggerRef }) {
   const ref = useRef(null);
   useOutsideClose(ref, triggerRef, onClose);
-  const style = { left: Math.round(anchor.left), top: Math.round(anchor.bottom + 8), width: 300 };
+  const style = { top: Math.round(anchor.bottom + 8) };
   const disconnect = async (fp) => { await api.disconnectDevice(fp).catch(() => {}); void refreshPeer(); };
   const revoke = async (d) => {
     if (!window.confirm(`Revoke ${d.name}? It will have to pair again to control this Mac.`)) return;

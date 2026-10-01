@@ -26,6 +26,8 @@ html.native .native-toggle-zone {
   position: fixed;
   left: 92px;
   top: 11px;
+  /* Stays inside the 300px sidebar; a long machine name ellipsizes instead. */
+  max-width: calc(300px - 92px - 12px);
   z-index: 300;
   --app-region: no-drag;
 }
@@ -34,6 +36,7 @@ html.native .native-toggle {
   display: inline-flex !important;
   position: relative;
   width: 26px; height: 26px;
+  flex-shrink: 0;
   border-radius: var(--r-icon);
   align-items: center; justify-content: center;
   color: var(--fg-dim2);
@@ -57,7 +60,7 @@ html.native .side-top { display: none !important; }
 html.native .side-island--agents { padding-top: 54px; flex: 1; }
 html.native .empty-tree { padding: 6px 14px !important; }
 html.native .side-handle-zone { display: none !important; }
-html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
+html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; max-width: calc(300px - 16px - 12px); }
 html.native.fullscreen .side-island--agents { padding-top: 16px; }
 
 /* ============================================================================

@@ -15,7 +15,7 @@ function ConnectionCard({ host, anchor, onClose, triggerRef }) {
   const link = host?.link;
   const lat = latencyLabel(link);
   const tone = linkTone(link);
-  const style = { left: Math.round(anchor.left), top: Math.round(anchor.bottom + 8) };
+  const style = { top: Math.round(anchor.bottom + 8) };
   const act = (fn) => () => { onClose(); fn(); };
   return createPortal(
     <div ref={ref} className="host-card" role="dialog" aria-label={`${hostLabel(host)} connection`} style={style}>

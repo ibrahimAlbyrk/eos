@@ -127,7 +127,7 @@ button.mc-card--quiet:hover { background: var(--lg-chip-bg); box-shadow: var(--l
   --app-region: no-drag;
 }
 .host-chip:hover, .host-chip.on { background: var(--row-on); color: var(--fg); }
-.host-chip__lat { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); }
+.host-chip__lat { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); flex-shrink: 0; }
 .host-chip__lat.is-warn { color: var(--warn); }
 .host-chip__lat.is-err { color: var(--err); }
 .host-chip__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
@@ -137,15 +137,18 @@ button.mc-card--quiet:hover { background: var(--lg-chip-bg); box-shadow: var(--l
 .host-chip__dot--off { background: var(--fg-mute); }
 .host-chip__dot--presence { background: var(--accent); }
 .side-top .host-chip { margin-left: auto; min-width: 0; max-width: 170px; }
+.native-toggle-zone .host-chip { min-width: 0; }
 .side-top .side-dot, .side-top .side-collapse { flex-shrink: 0; }
 .host-chip > span:not(.host-chip__dot) { overflow: hidden; text-overflow: ellipsis; }
 @media (prefers-reduced-motion: reduce) { .host-chip__dot--warn { animation: none; } }
 
 /* connection card (from the identity chip) + presence card */
+/* Opens inside the 300px sidebar column, not across the transcript. */
 .host-card {
   position: fixed;
   z-index: 400;
-  width: 340px;
+  left: 12px;
+  width: calc(300px - 24px);
   padding: 6px;
   background: var(--pop);
   border-radius: var(--r-pop);
@@ -155,10 +158,11 @@ button.mc-card--quiet:hover { background: var(--lg-chip-bg); box-shadow: var(--l
   --mg-ring: var(--pop);
 }
 .host-card__head { display: flex; align-items: center; gap: 12px; padding: 10px 10px 12px; }
+.host-card .mc-card__name, .host-card .mc-card__sub { white-space: normal; }
 .host-card__rows { display: flex; flex-direction: column; padding: 4px 0; }
 .kv { display: flex; align-items: center; gap: 12px; padding: 7px 10px; }
 .kv__k { width: 92px; flex-shrink: 0; color: var(--fg-faint); }
-.kv__v { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--fg-mid); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kv__v { display: inline-flex; align-items: center; gap: 7px; min-width: 0; color: var(--fg-mid); }
 .kv__v .mono { font-size: var(--text-xs); }
 .host-card .acct-action.is-danger, .host-card .acct-action.is-danger svg { color: var(--err); }
 
