@@ -3038,7 +3038,9 @@
   margin-left: 0; width: 100%; justify-content: flex-end;
   opacity: 0; transition: opacity 160ms ease 140ms;
 }
-.git-tray:hover .git-tray-body, .git-tray.pinned .git-tray-body { transform: none; clip-path: inset(-30px -30px 13px -30px); transition-delay: 0ms; }
+/* raised: still cut under the card, but open upward so split menus rising
+   out of the tray aren't sliced off */
+.git-tray:hover .git-tray-body, .git-tray.pinned .git-tray-body { transform: none; clip-path: inset(-100vh -30px 13px -30px); transition-delay: 0ms; }
 .git-tray:hover .diff-actions, .git-tray.pinned .diff-actions { opacity: 1; transition-delay: 60ms; }
 .session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::before,
 .session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::after { opacity: 0; }
