@@ -2159,6 +2159,7 @@ export const ROUTES = {
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerAttachments: (id: string): string => `/workers/${id}/attachments`,
   workerPromptEvents: (id: string): string => `/workers/${id}/prompt-events`,
+  workerSubagentEvents: (id: string): string => `/workers/${id}/subagent-events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,
