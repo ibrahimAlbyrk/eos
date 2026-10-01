@@ -19,6 +19,7 @@ import {
   FsStashesQuerySchema,
   FsStashApplyRequestSchema,
   FsStashDropRequestSchema,
+  RecentRemoveRequestSchema,
   type ChangedFile,
 } from "../../contracts/src/http.ts";
 import { guardMutation, isSafeAbsPath, repoRelative, IMAGE_MIME } from "./fs-shared.ts";
@@ -274,5 +275,12 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
 
   r.get("/fs/recents", ({ res }) => {
     writeJson(res, 200, { paths: c.recents.list() });
+  });
+
+  r.post("/fs/recents/remove", async ({ req, res }) => {
+    const body = validate(RecentRemoveRequestSchema, await readBody(req));
+    if (!guardMutation(req, res, body.path, c.uiToken)) return;
+    c.recents.remove(body.path);
+    writeJson(res, 200, { ok: true });
   });
 }

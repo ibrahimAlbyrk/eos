@@ -986,6 +986,12 @@ export type RemoteBranchDeleteResponse = z.infer<typeof RemoteBranchDeleteRespon
 export const RecentsResponseSchema = z.object({ paths: z.array(z.string()) });
 export type RecentsResponse = z.infer<typeof RecentsResponseSchema>;
 
+// ---- POST /fs/recents/remove ------------------------------------------------
+// Forgets one folder from the recents list (the folder itself is untouched).
+
+export const RecentRemoveRequestSchema = z.object({ path: z.string().min(1) });
+export type RecentRemoveRequest = z.infer<typeof RecentRemoveRequestSchema>;
+
 // ---- Projects (~/.eos/projects.json) -----------------------------------------
 // A named set of source folders. folders[0] is the PRIMARY: agents run (and git
 // is tracked) there; the rest reach the session as SDK additionalDirectories.
@@ -2181,6 +2187,7 @@ export const ROUTES = {
   fsStashApply: "/fs/stash/apply",
   fsStashDrop: "/fs/stash/drop",
   fsRecents: "/fs/recents",
+  fsRecentsRemove: "/fs/recents/remove",
   projects: "/projects",
   projectsDelete: "/projects/delete",
   fsReveal: "/fs/reveal",
