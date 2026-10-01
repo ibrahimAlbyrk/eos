@@ -28,6 +28,10 @@ export interface BillingGuardInput {
   /** Eos's claude credential store: the only login the child may read, so a
    *  Claude Code login elsewhere on the Mac never bills. */
   readonly claudeStore?: string;
+  /** A focused session: the binary's own defaults, like a terminal session —
+   *  the Artifact tool on (the binary turns it off for SDK sessions) and tool
+   *  search left on (MCP tools load on demand). */
+  readonly fullSurface?: boolean;
 }
 
 // The ONE credential env var the SDK child gets, per the Accounts rule
@@ -65,7 +69,7 @@ export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, s
     // Spread AFTER the strip so an operator-set apiKey survives it.
     ...anthropicCredentialEnv(input.anthropic ?? {}, input.auth),
     ...(input.claudeStore ? { [CLAUDE_STORE_ENV]: input.claudeStore } : {}),
-    ENABLE_TOOL_SEARCH: "false",
+    ...(input.fullSurface ? { CLAUDE_CODE_ARTIFACT: "1" } : { ENABLE_TOOL_SEARCH: "false" }),
     ...(input.disableAutoCompact ? { DISABLE_AUTO_COMPACT: "1" } : {}),
     EOS_SPAWNED: "1",
     EOS_WORKER_ID: input.workerId,

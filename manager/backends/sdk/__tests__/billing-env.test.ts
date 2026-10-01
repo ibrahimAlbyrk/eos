@@ -30,6 +30,14 @@ describe("buildBillingGuardEnv — SDK child billing guard", () => {
     assert.equal(buildBillingGuardEnv(base).DISABLE_AUTO_COMPACT, undefined);
   });
 
+  it("a focused session gets the Artifact tool and keeps tool search on", () => {
+    const base = { auth: { scheme: "none" } as const, workerId: "w", daemonUrl: "http://x" };
+    const focused = buildBillingGuardEnv({ ...base, fullSurface: true });
+    assert.equal(focused.CLAUDE_CODE_ARTIFACT, "1");
+    assert.equal(focused.ENABLE_TOOL_SEARCH, undefined);
+    assert.equal(buildBillingGuardEnv(base).CLAUDE_CODE_ARTIFACT, undefined);
+  });
+
   it("points the child at the Eos credential store, signed in or not", () => {
     const base = { workerId: "w", daemonUrl: "http://x", claudeStore: "/eos/accounts/claude" };
     assert.equal(buildBillingGuardEnv({ ...base, auth: { scheme: "oauth" } }).CLAUDE_SECURESTORAGE_CONFIG_DIR, "/eos/accounts/claude");

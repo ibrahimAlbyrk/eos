@@ -16,6 +16,7 @@ import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
 import { resolveCombinedModel } from "../../core/src/domain/worker-definition-resolution.ts";
 import { resolveTier, defaultTierName, CLAUDE_IDENTITY } from "../../core/src/domain/model-tier.ts";
+import { FOCUSED_ROLE } from "../../contracts/src/worker.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -26,17 +27,22 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const body = validate(SpawnOrchestratorRequestSchema, await readBody(req));
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
-    const id = c.ids.newOrchestratorId();
+    // A focused session is the same top-level spawn minus the orchestration: it
+    // works itself, always on the claude SDK lane (the operator's provider pick
+    // doesn't apply).
+    const focused = body.mode === "focused";
+    const id = focused ? c.ids.newWorkerId() : c.ids.newOrchestratorId();
     // Accept the combined `provider/model` form (sugar for backendProfile + model) —
     // mirrors the worker-def path. resolveCombinedModel adopts the prefix as the
     // profile when none is picked, normalizes a redundant prefix already on its own
     // profile (so it never reaches the client raw), and keeps an explicit different
     // profile + provider-routed slash id intact.
-    const split = resolveCombinedModel(body.model, body.backendProfile, new Set(Object.keys(c.config.backends)));
-    const explicitProfileName = split.backendProfile;
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName, explicitModel: split.model, isOrchestrator: true });
+    const split = resolveCombinedModel(body.model, focused ? undefined : body.backendProfile, new Set(Object.keys(c.config.backends)));
+    const explicitKind = focused ? "claude" : body.backendKind;
+    const explicitProfileName = focused ? undefined : split.backendProfile;
+    const rb = await resolveSpawnBackend(c, { explicitKind, explicitProfileName, explicitModel: split.model, isOrchestrator: !focused });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.backends.get("claude");
-    const explicit = !!(body.backendKind || explicitProfileName);
+    const explicit = !!(explicitKind || explicitProfileName);
     const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
     const result = await spawnWorker(
@@ -72,7 +78,8 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
           rb.providerIdentity ?? CLAUDE_IDENTITY,
         ),
         effort: body.effort ?? "xhigh",
-        isOrchestrator: true,
+        isOrchestrator: !focused,
+        ...(focused ? { role: FOCUSED_ROLE } : {}),
         backendProfile: rb.profileName ?? undefined,
         // Own-backend identity, threaded to DPI assembly for the persona/tier vars.
         providerIdentity: rb.providerIdentity,

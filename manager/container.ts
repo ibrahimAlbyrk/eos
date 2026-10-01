@@ -76,7 +76,7 @@ import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } fro
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
 import { spawnSync } from "node:child_process";
-import type { WorkerRow } from "../contracts/src/worker.ts";
+import { FOCUSED_ROLE, type WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
@@ -654,7 +654,7 @@ export function buildContainer() {
   // null → no append (a top-level worker with no role fragment).
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string, lane: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator"
-      : spec.role === "git" ? "git"
+      : spec.role === "git" || spec.role === FOCUSED_ROLE ? spec.role
       : "worker";
     const lookupCwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
     // The resolved definition body becomes one synthetic role/20 fragment (built-in,
@@ -785,7 +785,7 @@ export function buildContainer() {
   // ToolContext, the one policy engine, and the prompt-library descriptions.
   const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
   const sdkPolicy = {
-    async decide(i: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null }) {
+    async decide(i: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null; fullSurface?: boolean }) {
       const d = await policyGateway.decide(i);
       return { behavior: d.behavior === "allow" ? ("allow" as const) : ("deny" as const), message: d.message, updatedInput: d.updatedInput };
     },

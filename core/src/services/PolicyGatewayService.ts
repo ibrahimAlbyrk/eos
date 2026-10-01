@@ -82,9 +82,10 @@ export class PolicyGatewayService implements PolicyGateway {
     input: Record<string, unknown>;
     toolUseId?: string | null;
     agentId?: string | null;
+    fullSurface?: boolean;
   }): Promise<Decision> {
     const policy = this.deps.getPolicy();
-    const decision = this.evaluate(policy, input.workerId, input.toolName, input.input, input.agentId ?? null);
+    const decision = this.evaluate(policy, input.workerId, input.toolName, input.input, input.agentId ?? null, input.fullSurface ?? false);
     this.deps.onDecision?.(decision.behavior);
 
     this.deps.events.append(input.workerId, this.deps.clock.now(), "policy", {
@@ -129,10 +130,11 @@ export class PolicyGatewayService implements PolicyGateway {
     toolName: string,
     input: Record<string, unknown>,
     agentId: string | null,
+    fullSurface: boolean,
   ): Decision {
     // Structural invariants ahead of user rules — a policy.yaml allow or a
     // permissive mode (bypassPermissions) must not override them.
-    if (isBlockedBuiltinTool(toolName)) {
+    if (!fullSurface && isBlockedBuiltinTool(toolName)) {
       return { behavior: "deny", message: blockedBuiltinToolMessage(toolName) };
     }
     // A subagent may not drive the control plane. Absent agent_id (main loop)

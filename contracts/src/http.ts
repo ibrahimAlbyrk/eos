@@ -101,6 +101,9 @@ export const SpawnOrchestratorRequestSchema = z.object({
   // carries its costMode/model/auth — unlike a bare backendKind. The composer
   // picks one or the other (it clears backendKind when a profile is chosen).
   backendProfile: z.string().optional(),
+  // "focused" starts a focused session (FOCUSED_ROLE) instead of an orchestrator:
+  // it always runs on the claude SDK lane, so backendKind/backendProfile are ignored.
+  mode: z.enum(["orchestrator", "focused"]).optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 

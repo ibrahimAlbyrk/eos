@@ -33,6 +33,13 @@ describe("buildRespawnSpec", () => {
     assert.equal(spec.role, "git");
   });
 
+  it("focused session: persistent + role=focused", () => {
+    const spec = buildRespawnSpec(row({ agent_role: "focused" }), deps);
+    assert.equal(spec.persistent, true);
+    assert.equal(spec.role, "focused");
+    assert.equal(spec.isOrchestrator, false);
+  });
+
   it("orchestrator-dispatched child: gateway heuristic + mode fallback", () => {
     const spec = buildRespawnSpec(row({ parent_id: "o-1", with_gateway: null, permission_mode: null }), deps);
     assert.equal(spec.persistent, true);

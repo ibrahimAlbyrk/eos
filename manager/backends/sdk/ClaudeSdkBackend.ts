@@ -27,6 +27,8 @@ import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
 import { disallowedBuiltinToolsFor } from "../../../contracts/src/tool-scope.ts";
+import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
+import { askOperator } from "../../tools/defs/ask_user.ts";
 
 const CAPS: AgentCapabilities = {
   interrupt: true,
@@ -393,11 +395,16 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
     descriptor: SDK_DESCRIPTOR,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const opts = spec.backendOptions ?? {};
+      // A focused session is a plain Claude Code session: the full built-in tool
+      // surface, the binary's own MCP discovery (claude.ai connectors included)
+      // and settings — only permissions still route through the Eos gateway.
+      const focused = opts.spec?.role === FOCUSED_ROLE;
       const auth = await deps.authResolver.resolve(opts.auth);
       const anthropic = deps.getAnthropicConfig?.() ?? {};
       const env = buildBillingGuardEnv({
         auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl,
         disableAutoCompact: deps.disableAutoCompact?.() ?? false, claudeStore: deps.claudeStore,
+        fullSurface: focused,
       });
       const ctx = deps.makeToolContext(spec);
       // MCP servers are built PER LAUNCH, never shared across queries: the Eos
@@ -415,10 +422,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           collaborate: backendCollaborate(opts),
           ctx,
         });
-        // Default: just the in-process Eos builtins (judge / no resolver). With the
+        // Default: just the in-process Eos builtins (judge / no resolver, and a
+        // focused session, whose binary discovers the rest itself). With the
         // resolver wired (worker/orchestrator lane) the inherited + external servers
         // are merged in, Eos builtins winning collisions; dropped entries are logged.
-        if (!deps.resolveSdkMcpServers) return built;
+        if (!deps.resolveSdkMcpServers || focused) return built;
         const r = deps.resolveSdkMcpServers(spec, built.mcpServers);
         if (r.dropped.length) {
           deps.log?.warn("dropped inherited MCP servers", { workerId: spec.workerId, dropped: r.dropped });
@@ -450,28 +458,36 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // surface in Eos; redirect to mcp__orchestrator__ask_user) — platform-wide deny.
         // Orchestrators additionally lose Task (they dispatch via spawn_worker, not
         // internal subagents); workers keep it. Keyed on the immutable isOrchestrator fact.
-        disallowedTools: disallowedBuiltinToolsFor(spec.isOrchestrator),
-        canUseTool: makeCanUseTool(spec.workerId, deps.policy),
+        disallowedTools: focused ? [] : disallowedBuiltinToolsFor(spec.isOrchestrator),
+        canUseTool: makeCanUseTool(spec.workerId, deps.policy, focused ? {
+          async askUser(questions, toolUseId, signal) {
+            const r = await askOperator(ctx, questions, { toolUseId, signal });
+            return r.status === "answered" ? r.answers : null;
+          },
+        } : undefined),
         includePartialMessages: true,
         // Load the user/project filesystem sources so the binary discovers skills
         // (and agents/commands/CLAUDE.md) natively, exactly like the CLI lane —
         // settingSources:[] suppressed that and broke user/project skills. MCP is
         // still isolated independently by strictMcpConfig below (the explicit
         // resolveSdkMcpServers set wins; ambient .mcp.json never leaks in).
-        settingSources: ["user", "project"] as Options["settingSources"],
+        // A focused session also reads local settings, as a terminal session does.
+        settingSources: (focused ? ["user", "project", "local"] : ["user", "project"]) as Options["settingSources"],
         // Permission allow/ask/deny rules from those settings.json files must NOT
         // pre-approve a tool ahead of the Eos gateway: canUseTool only fires on the
         // prompt path, so a settings `allow` rule would bypass it. Restricting
         // permission rules to the (empty) managed tier neutralizes that — every
         // call still routes through canUseTool → PolicyGatewayService.
         managedSettings: { allowManagedPermissionRulesOnly: true } as Options["managedSettings"],
-        strictMcpConfig: true,
+        strictMcpConfig: !focused,
         // display:"summarized" is required to stream thinking on Opus 4.7+ (it
         // otherwise defaults to omitted) — proven by the spike.
         thinking: (opts.thinking as Options["thinking"]) ?? ({ type: "adaptive", display: "summarized" } as Options["thinking"]),
         // effort maps 1:1 to the CLI `--effort` enum, already normalized by SpawnWorker.
         ...(spec.effort ? { effort: spec.effort as Options["effort"] } : {}),
-        ...(append ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } } : {}),
+        // A focused session usually has no Eos append, but it is a Claude Code
+        // session all the same — its preset is never left to the SDK default.
+        ...(append || focused ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, ...(append ? { append } : {}) } } : {}),
         // spec.permissionMode is deliberately NOT forwarded (SDK runs in its
         // 'default' mode, no auto-approvals): any SDK-side mode auto-approves
         // ahead of the canUseTool step — bypassPermissions everything,

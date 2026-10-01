@@ -70,3 +70,11 @@ describe("PolicyGatewayService — subagent caller scope", () => {
     assert.deepEqual(policyEvents, [{ tool: REPORT, decision: "deny" }]);
   });
 });
+
+describe("PolicyGatewayService — blocked builtins", () => {
+  it("hard-denies a blocked builtin even in bypassPermissions, except for a focused session", async () => {
+    const { svc } = buildService({ mode: "bypassPermissions" });
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Workflow", input: {} })).behavior, "deny");
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Workflow", input: {}, fullSurface: true })).behavior, "allow");
+  });
+});

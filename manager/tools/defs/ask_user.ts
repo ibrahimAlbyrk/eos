@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ToolDefinition } from "../types.ts";
+import type { ToolContext, ToolDefinition } from "../types.ts";
 
 // Register-then-poll: a single long-lived HTTP wait would hit undici's
 // headersTimeout and the CLI's MCP tool ceiling; short GETs every few seconds
@@ -13,6 +13,43 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 interface PollState {
   status: "pending" | "answered" | "dismissed" | "gone";
   answers?: Record<string, string>;
+}
+
+export type OperatorAnswer =
+  | { status: "answered"; answers: Record<string, string> }
+  | { status: "dismissed" | "gone" };
+
+// Shows the questions as the dashboard banner and waits for the operator.
+// Shared by ask_user and a focused session's native AskUserQuestion. An aborted
+// wait (the turn was interrupted) dismisses the banner so it doesn't linger.
+export async function askOperator(
+  ctx: ToolContext,
+  questions: unknown,
+  opts: { toolUseId?: string; signal?: AbortSignal } = {},
+): Promise<OperatorAnswer> {
+  const reg = (await ctx.api("POST", `/workers/${ctx.selfId}/question`, {
+    questions,
+    ...(opts.toolUseId ? { toolUseId: opts.toolUseId } : {}),
+  })) as { questionId: string; toolUseId: string };
+
+  for (;;) {
+    await sleep(POLL_INTERVAL_MS);
+    if (opts.signal?.aborted) {
+      await ctx.api("POST", `/workers/${ctx.selfId}/question-answer`, { toolUseId: reg.toolUseId, dismissed: true }).catch(() => {});
+      return { status: "dismissed" };
+    }
+    let state: PollState;
+    try {
+      state = (await ctx.api(
+        "GET",
+        `/workers/${ctx.selfId}/question/${reg.questionId}`,
+      )) as PollState;
+    } catch {
+      continue; // transient daemon hiccup — the question still stands
+    }
+    if (state.status === "answered") return { status: "answered", answers: state.answers ?? {} };
+    if (state.status !== "pending") return { status: state.status };
+  }
 }
 
 export const askUserDef: ToolDefinition = {
@@ -43,28 +80,11 @@ export const askUserDef: ToolDefinition = {
   },
   handler: async (ctx, args) => {
     const { questions } = args as { questions: unknown };
-    const reg = (await ctx.api("POST", `/workers/${ctx.selfId}/question`, {
-      questions,
-    })) as { questionId: string };
-
-    for (;;) {
-      await sleep(POLL_INTERVAL_MS);
-      let state: PollState;
-      try {
-        state = (await ctx.api(
-          "GET",
-          `/workers/${ctx.selfId}/question/${reg.questionId}`,
-        )) as PollState;
-      } catch {
-        continue; // transient daemon hiccup — the question still stands
-      }
-      if (state.status === "answered") return { answers: state.answers ?? {} };
-      if (state.status === "dismissed") {
-        return "The user dismissed the question without answering. Proceed on your best judgment; if you stay blocked, say so in chat and notify_user.";
-      }
-      if (state.status === "gone") {
-        return "The question is no longer tracked (daemon restarted or the question was superseded). Ask again if you still need the answer.";
-      }
+    const r = await askOperator(ctx, questions);
+    if (r.status === "answered") return { answers: r.answers };
+    if (r.status === "dismissed") {
+      return "The user dismissed the question without answering. Proceed on your best judgment; if you stay blocked, say so in chat and notify_user.";
     }
+    return "The question is no longer tracked (daemon restarted or the question was superseded). Ask again if you still need the answer.";
   },
 };

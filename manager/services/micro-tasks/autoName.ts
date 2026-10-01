@@ -1,7 +1,7 @@
-// auto-name MicroTask — names a freshly-spawned ORCHESTRATOR once, from its
-// first request, via the one-shot Haiku path. Fires on the orchestrator's first
-// WORKING transition (the runner's seen-guard keeps it to once); gated to
-// is_orchestrator rows whose name is still the random default (name_source=
+// auto-name MicroTask — names a freshly-spawned ORCHESTRATOR (or focused session)
+// once, from its first request, via the one-shot Haiku path. Fires on the
+// orchestrator's first WORKING transition (the runner's seen-guard keeps it to
+// once); gated to top-level rows whose name is still the random default (name_source=
 // 'default'); CAS-writes so it can NEVER clobber a human ('user') name —
 // invariant I1. Fail-closed: a non-nameable request skips the LLM call, and any
 // sentinel/refusal/echo/garbage model output aborts — in every case the default
@@ -12,6 +12,7 @@ import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
 import type { EventRepo } from "../../../core/src/ports/EventRepo.ts";
 import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { WorkerEventRow } from "../../../contracts/src/events.ts";
+import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
 
 export interface AutoNameDeps {
   workers: Pick<WorkerRepo, "findById" | "updateNameIfSource">;
@@ -70,9 +71,10 @@ export function makeAutoNameTask(deps: AutoNameDeps): MicroTask {
       const row = deps.workers.findById(ctx.entityId);
       if (!row) return false;
       // is_orchestrator is a 0/1 column (not a boolean — the directive's `=== true`
-      // would never match), so compare against 1. Only the random default name is
-      // eligible; 'user'/'auto'/legacy-NULL rows are left alone.
-      return row.is_orchestrator === 1 && row.name_source === "default";
+      // would never match), so compare against 1. A focused session is the other
+      // top-level session kind. Only the random default name is eligible;
+      // 'user'/'auto'/legacy-NULL rows are left alone.
+      return (row.is_orchestrator === 1 || row.agent_role === FOCUSED_ROLE) && row.name_source === "default";
     },
     async extract(ctx) {
       const userInput = readUserInput(deps, ctx.entityId);

@@ -424,6 +424,73 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow"]);
   });
 
+  it("focused session: full Claude Code surface — no blocks, native MCP, Artifact, AskUserQuestion via the banner", async (t) => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle session */ })();
+    };
+    const decided: Array<{ toolName: string; fullSurface?: boolean }> = [];
+    const apiCalls: Array<{ method: string; path: string; body?: unknown }> = [];
+    let answer: unknown = { status: "answered", answers: { "Which one?": "A" } };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async (i) => { decided.push({ toolName: i.toolName, fullSurface: i.fullSurface }); return { behavior: "allow" }; } },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s: AgentLaunchSpec): ToolContext => ({
+        selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false,
+        api: async (method, path, body) => {
+          apiCalls.push({ method, path, body });
+          if (method === "POST" && path.endsWith("/question")) return { questionId: "q1", toolUseId: (body as { toolUseId: string }).toolUseId };
+          return method === "GET" ? answer : {};
+        },
+      }),
+      resolveSdkMcpServers: () => { throw new Error("a focused session discovers its MCP servers natively"); },
+      queryFn,
+    });
+
+    await be.start(spec({ backendOptions: { spec: { role: "focused" } } }), {});
+    const o = capturedOptions!;
+    assert.deepEqual(o.disallowedTools, []);
+    assert.equal(o.strictMcpConfig, false);
+    assert.deepEqual(Object.keys(o.mcpServers as Record<string, unknown>), ["worker"]);
+    assert.deepEqual(o.settingSources, ["user", "project", "local"]);
+    assert.deepEqual(o.systemPrompt, { type: "preset", preset: "claude_code" });
+    const env = o.env as Record<string, string>;
+    assert.equal(env.CLAUDE_CODE_ARTIFACT, "1");
+    assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+
+    type CanUse = (name: string, input: Record<string, unknown>, opts: { signal: AbortSignal; toolUseID: string }) => Promise<{ behavior: string; updatedInput?: Record<string, unknown> }>;
+    const canUseTool = o.canUseTool as CanUse;
+    // Workflow is no longer blocked: it reaches the gateway, flagged as a focused call.
+    assert.equal((await canUseTool("Workflow", {}, { signal: new AbortController().signal, toolUseID: "toolu_0" })).behavior, "allow");
+    assert.deepEqual(decided, [{ toolName: "Workflow", fullSurface: true }]);
+
+    // AskUserQuestion is answered in the dashboard banner and returned as its own `answers`.
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const questions = [{ question: "Which one?", header: "Pick", options: [{ label: "A", description: "" }, { label: "B", description: "" }] }];
+    const asked = canUseTool("AskUserQuestion", { questions }, { signal: new AbortController().signal, toolUseID: "toolu_1" });
+    await new Promise((r) => setImmediate(r));
+    t.mock.timers.tick(2500);
+    const r = await asked;
+    assert.equal(r.behavior, "allow");
+    assert.deepEqual(r.updatedInput, { questions, answers: { "Which one?": "A" } });
+    assert.deepEqual(apiCalls[0], { method: "POST", path: "/workers/w-1/question", body: { questions, toolUseId: "toolu_1" } });
+    assert.equal(decided.length, 1); // the question never went through the policy gateway
+
+    // An interrupted turn dismisses the banner and denies the call.
+    answer = { status: "pending" };
+    apiCalls.length = 0;
+    const ac = new AbortController();
+    const dismissed = canUseTool("AskUserQuestion", { questions }, { signal: ac.signal, toolUseID: "toolu_2" });
+    await new Promise((r) => setImmediate(r));
+    ac.abort();
+    t.mock.timers.tick(2500);
+    assert.equal((await dismissed).behavior, "deny");
+    assert.deepEqual(apiCalls.at(-1), { method: "POST", path: "/workers/w-1/question-answer", body: { toolUseId: "toolu_2", dismissed: true } });
+  });
+
   it("additionalDirectories: forwarded from resolveAdditionalDirs, omitted when empty", async () => {
     let capturedOptions: Record<string, unknown> | null = null;
     const queryFn: SdkQueryFn = (params) => {

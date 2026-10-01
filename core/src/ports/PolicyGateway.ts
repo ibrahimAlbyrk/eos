@@ -13,6 +13,9 @@ export interface PolicyGateway {
     toolUseId?: string | null;
     /** Subagent id from the hook input — when set, Eos control tools are denied. */
     agentId?: string | null;
+    /** A focused session's call (set in-process by the claude lane only, never
+     * from HTTP) — the platform-wide blocked builtins don't apply to it. */
+    fullSurface?: boolean;
   }): Promise<Decision>;
   /** Resolve a pending request from an external trigger (UI/CLI). Returns
    * true if the resolution was applied; false if the id was already

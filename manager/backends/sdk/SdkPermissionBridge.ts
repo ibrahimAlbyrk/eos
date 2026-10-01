@@ -18,17 +18,31 @@ export interface PolicyDecision {
 // the gateway's rung-0.5 caller-scope check can hard-deny Eos control tools for
 // nested Task subagents (the API lane has no native agent_id hook).
 export interface PolicyDecider {
-  decide(input: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null }): Promise<PolicyDecision>;
+  decide(input: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null; fullSurface?: boolean }): Promise<PolicyDecision>;
 }
 
-export function makeCanUseTool(workerId: string, policy: PolicyDecider): CanUseTool {
-  return async (toolName, input): Promise<PermissionResult> => {
+// A focused session runs the full Claude Code surface: the blocked builtins pass
+// through to the gateway (which then skips its own block), and AskUserQuestion is
+// answered in the dashboard's question banner. Returns the answers keyed by
+// question text (AskUserQuestion's own shape), or null when the operator didn't answer.
+export interface FullSurfaceOptions {
+  askUser(questions: unknown, toolUseId: string, signal: AbortSignal): Promise<Record<string, string> | null>;
+}
+
+export function makeCanUseTool(workerId: string, policy: PolicyDecider, fullSurface?: FullSurfaceOptions): CanUseTool {
+  return async (toolName, input, opts): Promise<PermissionResult> => {
+    if (fullSurface && toolName === "AskUserQuestion") {
+      const answers = await fullSurface.askUser(input.questions, opts.toolUseID, opts.signal);
+      return answers
+        ? { behavior: "allow", updatedInput: { ...input, answers } }
+        : { behavior: "deny", message: "The user dismissed the question without answering. Proceed on your best judgment." };
+    }
     // Blocked builtins are hard-denied platform-wide with a tool-keyed message
     // (single source: contracts/src/tool-scope.ts).
-    if (isBlockedBuiltinTool(toolName)) {
+    if (!fullSurface && isBlockedBuiltinTool(toolName)) {
       return { behavior: "deny", message: blockedBuiltinToolMessage(toolName) };
     }
-    const d = await policy.decide({ workerId, toolName, input });
+    const d = await policy.decide({ workerId, toolName, input, ...(fullSurface ? { fullSurface: true } : {}) });
     return d.behavior === "allow"
       ? { behavior: "allow", updatedInput: d.updatedInput ?? input }
       : { behavior: "deny", message: d.message ?? "denied by policy" };

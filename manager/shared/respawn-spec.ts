@@ -8,7 +8,7 @@
 // must NOT be recreated); the row keeps its worktree_from/branch columns for
 // delete-time cleanup.
 
-import type { WorkerRow } from "../../contracts/src/worker.ts";
+import { FOCUSED_ROLE, type WorkerRow } from "../../contracts/src/worker.ts";
 import type { SpawnWorkerSpec } from "../../core/src/use-cases/SpawnWorker.ts";
 
 export interface RespawnSpecDeps {
@@ -24,6 +24,7 @@ export interface RespawnSpecDeps {
 
 export function buildRespawnSpec(row: WorkerRow, deps: RespawnSpecDeps): SpawnWorkerSpec {
   const isGitAgent = row.agent_role === "git";
+  const isFocused = row.agent_role === FOCUSED_ROLE;
   const isOrchestrator = !!row.is_orchestrator;
   const parentId = row.parent_id ?? undefined;
   const workerDefinition = row.worker_definition ?? undefined;
@@ -41,7 +42,7 @@ export function buildRespawnSpec(row: WorkerRow, deps: RespawnSpecDeps): SpawnWo
     // Peer-mesh opt-in is a spawn fact both lanes read from spec.collaborate;
     // dropping it on resume silently strips a collaborate worker's peer tools.
     collaborate: !!row.collaborate,
-    persistent: isOrchestrator || isGitAgent || !!parentId || !!def?.persistent,
+    persistent: isOrchestrator || isGitAgent || isFocused || !!parentId || !!def?.persistent,
     // with_gateway predates migration 026 on old rows — fall back to the
     // orchestrator-dispatched heuristic (spawn_worker defaults gateway on).
     withGateway: row.with_gateway != null ? !!row.with_gateway : !!parentId,

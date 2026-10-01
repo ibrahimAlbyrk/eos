@@ -11,6 +11,11 @@ import { LoopStatusSchema } from "./loop.ts";
 // creation (the ONLY value eligible for auto-naming); "user" = an explicit
 // creation name or a human rename (never auto-renamed); "auto" = set by the
 // auto-name micro-task. Legacy rows (pre-migration) are NULL ⇒ ineligible.
+// A focused session: one top-level Claude Code session that does the work itself
+// (no orchestrator, no spawned workers) on the claude SDK lane, with the full
+// Claude Code surface — none of Eos's tool blocks apply to it.
+export const FOCUSED_ROLE = "focused";
+
 export const NameSourceSchema = z.enum(["default", "auto", "user"]);
 export type NameSource = z.infer<typeof NameSourceSchema>;
 
@@ -92,6 +97,7 @@ export const WorkerRowSchema = z.object({
   effort: z.string().nullable().optional(),
   backend_kind: z.string().nullable().optional(),
   backend_profile: z.string().nullable().optional(),
+  // null = plain worker; "git" = git agent; FOCUSED_ROLE = a focused session.
   agent_role: z.string().nullable().optional(),
   // Resolved worker-definition name (built-in / file / runtime), set once at spawn.
   // Drives the DPI workerDefinition fact + the body fragment on resume.
