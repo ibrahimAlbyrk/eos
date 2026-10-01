@@ -7,15 +7,17 @@ export interface QueueRow {
   id: number; workerId: string; clientMsgId: string | null;
   text: string; createdAt: number; dispatchedAt: number | null;
   envelope?: DispatchEnvelope; displayText?: string; plane?: MessagePlane;
+  replyTo?: { rowId: number };
 }
 
 export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
   const rows: QueueRow[] = [];
   let nextId = 1;
-  const toPublic = ({ id, workerId, clientMsgId, text, createdAt, envelope, displayText }: QueueRow) => ({
+  const toPublic = ({ id, workerId, clientMsgId, text, createdAt, envelope, displayText, replyTo }: QueueRow) => ({
     id, workerId, clientMsgId, text, createdAt,
     ...(envelope ? { envelope } : {}),
     ...(displayText != null ? { displayText } : {}),
+    ...(replyTo ? { replyTo } : {}),
   });
   return {
     rows,

@@ -17,6 +17,7 @@ import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
 import { computeCostUsd } from "../domain/value-objects.ts";
 import { applyTaskTool, parseStoredTasks } from "../domain/tasks.ts";
+import { stampAssistantMsgIds } from "../domain/message-id.ts";
 
 // SPAWNING always heals on activity (boot); IDLE heals only when NOT settling —
 // an IDLE reached via a just-ended turn must stay put (trailing transcript).
@@ -141,7 +142,10 @@ export function processAgentSignal(
     deps.bus.publish("worker:change", { workerId, type: "context" });
     return;
   }
-  const rowId = logEvent(deps, workerId, "agent_event", event);
+  const logged = deps.messageIds
+    ? stampAssistantMsgIds(event, () => deps.messageIds!.nextAssistant(workerId))
+    : event;
+  const rowId = logEvent(deps, workerId, "agent_event", logged);
   if (event.type === "usage") {
     handleUsage(deps, workerId, event, rowId);
     return;

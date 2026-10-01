@@ -64,6 +64,7 @@ export async function drainQueuedMessages(
       // not a plain user_message. Absent for plain dashboard sends.
       ...(head.envelope ? { envelope: head.envelope } : {}),
       ...(head.displayText != null ? { displayText: head.displayText } : {}),
+      ...(head.replyTo ? { replyTo: head.replyTo } : {}),
     });
   } catch (e) {
     deps.log.warn("queue drain dispatch failed — row stays pending", {

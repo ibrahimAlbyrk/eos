@@ -22,6 +22,8 @@ import type { ProviderCapabilities } from "../../../contracts/src/provider-capab
 import type { ProviderIdentity } from "../domain/model-tier.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { applySenderTag } from "../domain/sender-tag.ts";
+import { prefixOperatorTurn, startsWithSlashCommand } from "../domain/message-id.ts";
+import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { transitionState } from "./TransitionState.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
@@ -149,6 +151,9 @@ export interface SpawnWorkerDeps {
    *  onExit skips markDone so the SUSPENDED state survives the session stop's
    *  async process exit (see SuspendGuardService). Absent → normal markDone. */
   isSuspending?(workerId: string): boolean;
+  /** Gives the boot prompt its inbound message id (message-id.ts). Absent →
+   *  the boot prompt goes out without one. */
+  messageIds?: Pick<MessageIdRepo, "nextInbound">;
 }
 
 // Classify who authored the boot prompt and wrap it in that sender's tag. Pure
@@ -158,13 +163,21 @@ export interface SpawnWorkerDeps {
 //   • a root orchestrator or an operator-spawned worker has no parent → the
 //     operator, delivered untagged.
 // An empty prompt (a persistent worker with no boot directive) is left untouched.
-function tagBootPrompt(deps: SpawnWorkerDeps, spec: SpawnWorkerSpec): string {
-  if (!spec.prompt || !spec.prompt.trim()) return spec.prompt;
+// The boot prompt is the worker's first inbound message, so it also takes the
+// first message id (same rules as DispatchMessage).
+function tagBootPrompt(deps: SpawnWorkerDeps, spec: SpawnWorkerSpec, workerId: string): { prompt: string; msgId?: number } {
+  if (!spec.prompt || !spec.prompt.trim()) return { prompt: spec.prompt };
   if (spec.parentId && !spec.isOrchestrator) {
     const parent = deps.workers.findById(spec.parentId);
-    return applySenderTag(spec.prompt, "agent", { from: parent?.name ?? spec.parentId, "from-id": spec.parentId });
+    const msgId = deps.messageIds?.nextInbound(workerId);
+    return {
+      prompt: applySenderTag(spec.prompt, "agent", { from: parent?.name ?? spec.parentId, "from-id": spec.parentId, id: msgId?.toString() }),
+      msgId,
+    };
   }
-  return spec.prompt;
+  if (startsWithSlashCommand(spec.prompt)) return { prompt: spec.prompt };
+  const msgId = deps.messageIds?.nextInbound(workerId);
+  return { prompt: prefixOperatorTurn(spec.prompt, msgId, undefined), msgId };
 }
 
 // Daemon bookkeeping for a session's process exit — the shared onExit body for
@@ -211,7 +224,7 @@ export function recordSessionExit(deps: SessionExitDeps, workerId: string, code:
 export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
-): Promise<{ id: string; port: number }> {
+): Promise<{ id: string; port: number; bootMsgId?: number }> {
   // A parented worker spawn requires the parent row to still exist. A caller
   // deleted mid-turn (its ghost turn runs until aborted) must fail here — not
   // insert an orphan child under a parent that is already gone.
@@ -288,7 +301,7 @@ export async function spawnWorker(
   // own words (untagged). Tag ONCE here so it uniformly covers the PTY argv, the
   // post-boot paste, and the SDK initialPrompt. NEVER persisted — the row keeps
   // the clean prompt, so the UI and a `--resume` never see the wrapper.
-  const bootPrompt = tagBootPrompt(deps, resolved);
+  const { prompt: bootPrompt, msgId: bootMsgId } = tagBootPrompt(deps, resolved, id);
   // Carry the normalized effort on the spec: buildArgs derives the --effort
   // flag from spec.effort, so this is what actually reaches the claude CLI. The
   // wrapped bootPrompt rides here too so the PTY lane's argv/paste is tagged.
@@ -437,5 +450,5 @@ export async function spawnWorker(
     pid,
   });
   deps.bus.publish("worker:spawn", { workerId: id, rowId: evtId });
-  return { id, port };
+  return { id, port, ...(bootMsgId != null ? { bootMsgId } : {}) };
 }

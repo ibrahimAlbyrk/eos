@@ -349,6 +349,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       {
         workerId: params.id, text: body.text,
         clientMsgId: body.clientMsgId, queueWhenBusy: body.queueWhenBusy,
+        replyTo: body.replyTo,
         origin: "dashboard",
       },
     );

@@ -24,6 +24,8 @@ export interface QueuedMessage {
   /** What the chat renders instead of `text` (a report's bare body vs the
    *  routing wrapper the model reads). */
   displayText?: string;
+  /** Operator reply target — resolved only when the row drains. */
+  replyTo?: { rowId: number };
 }
 
 export interface MessageQueueInsert {
@@ -36,6 +38,7 @@ export interface MessageQueueInsert {
   /** Persisted only for pending rows so the drain can rebuild the dispatch. */
   envelope?: DispatchEnvelope;
   displayText?: string;
+  replyTo?: { rowId: number };
   /** Visibility plane. Omitted → "user". Agent-plane callers (those passing an
    *  envelope) set "agent" so the row drains normally but never shows as a pill. */
   plane?: MessagePlane;

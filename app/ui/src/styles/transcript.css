@@ -320,6 +320,22 @@
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
 }
+/* Reply quote above a sent bubble — click jumps to the original message. */
+.msg-reply-quote {
+  max-width: 78%;
+  margin-bottom: 4px;
+  padding: 4px 10px;
+  border-left: 2px solid var(--accent);
+  border-radius: 6px;
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.msg-reply-quote:hover { color: var(--fg-dim); background: var(--lg-chip-bg); }
 .msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-user .msg-link:hover { opacity: 0.8; }
 
@@ -431,6 +447,7 @@
 }
 .msg-action-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .msg-action-btn.is-busy { opacity: 0.45; pointer-events: none; }
+.msg-action-reply { margin-left: auto; }
 .msg-action-btn.is-err { color: var(--err); }
 .msg-time {
   font-size: var(--text-xs);

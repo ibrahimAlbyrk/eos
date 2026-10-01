@@ -125,10 +125,13 @@ export const OrchestratorListResponseSchema = z.array(WorkerRowSchema);
 // message arriving while the worker is WORKING is held in the daemon-side
 // queue and dispatched at the next IDLE instead of steering mid-turn.
 // MCP/action paths omit both (mid-turn steering stays available to them).
+// replyTo: the event row id of the earlier chat message this one answers; the
+// daemon resolves it into the <reply_to> block the model reads.
 export const MessageRequestSchema = z.object({
   text: z.string().min(1),
   clientMsgId: z.string().min(1).max(128).optional(),
   queueWhenBusy: z.boolean().optional(),
+  replyTo: z.object({ rowId: z.number().int().positive() }).optional(),
 });
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 

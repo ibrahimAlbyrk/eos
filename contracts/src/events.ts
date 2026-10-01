@@ -124,6 +124,17 @@ export const MessageRecalledPayloadSchema = z.object({
 });
 export type MessageRecalledPayload = z.infer<typeof MessageRecalledPayloadSchema>;
 
+// The earlier message a user_message replies to, stored on that row as a display
+// snapshot (`replyTo`) — the target row may later be pruned by retention. `msgId`
+// is the target's message id when it has one; `role` says whose message it was.
+export const ReplyRefSchema = z.object({
+  rowId: z.number().int().positive(),
+  msgId: z.string().optional(),
+  role: z.enum(["user", "assistant", "agent", "system"]),
+  excerpt: z.string(),
+});
+export type ReplyRef = z.infer<typeof ReplyRefSchema>;
+
 // Context compaction timeline payloads. trigger: "auto" (turn ended at/over the
 // threshold) or "manual" (/compact). Token figures are context-window occupancy;
 // afterTokens is an estimate until the next turn reports the real footprint.

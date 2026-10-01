@@ -17,9 +17,14 @@ import type { AgentBackendRegistry } from "../ports/AgentBackend.ts";
 import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { TurnOutputTracker } from "../ports/TurnOutputTracker.ts";
 import type { Logger } from "../ports/Logger.ts";
+import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import type { MessageRecord } from "../../../contracts/src/http.ts";
+import type { ReplyRef } from "../../../contracts/src/events.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
 import { applySenderTag, senderTagForEnvelope } from "../domain/sender-tag.ts";
+import {
+  buildReplyBlock, prefixOperatorTurn, replyRefOf, replyTargetFromRow, startsWithSlashCommand, type ReplyTarget,
+} from "../domain/message-id.ts";
 import type { SlashCommandRegistry, SlashSideEffects } from "../domain/slash-command.ts";
 import { parseSlash } from "../domain/slash-command.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
@@ -77,29 +82,47 @@ function appendChatEvent(
   env: DispatchEnvelope | undefined,
   text: string,
   clientMsgIds: string[] | undefined,
+  ids: { msgId?: string; replyTo?: ReplyRef },
 ): number | null {
+  const base = { text, ...ids };
   switch (env?.kind) {
     case "orchestrator_message":
-      events.append(workerId, ts, "orchestrator_message", { text, fromParent: env.fromParent, parentName: env.parentName ?? env.fromParent });
+      events.append(workerId, ts, "orchestrator_message", { ...base, fromParent: env.fromParent, parentName: env.parentName ?? env.fromParent });
       return null;
     case "worker_report":
-      events.append(workerId, ts, "worker_report", { text, fromWorker: env.fromWorker, workerName: env.workerName ?? env.fromWorker });
+      events.append(workerId, ts, "worker_report", { ...base, fromWorker: env.fromWorker, workerName: env.workerName ?? env.fromWorker });
       return null;
     case "peer_request":
-      events.append(workerId, ts, "peer_request", { text, fromWorker: env.fromWorker, fromName: env.fromName ?? env.fromWorker });
+      events.append(workerId, ts, "peer_request", { ...base, fromWorker: env.fromWorker, fromName: env.fromName ?? env.fromWorker });
       return null;
     case "loop":
-      events.append(workerId, ts, "loop_continuation", { text });
+      events.append(workerId, ts, "loop_continuation", base);
       return null;
     case "report_reminder":
-      events.append(workerId, ts, "report_reminder", { text });
+      events.append(workerId, ts, "report_reminder", base);
       return null;
     case "permission_ask":
-      events.append(workerId, ts, "permission_ask", { text });
+      events.append(workerId, ts, "permission_ask", base);
       return null;
     default:
-      return events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
+      return events.append(workerId, ts, "user_message", { ...base, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
   }
+}
+
+function findReplyTarget(events: EventRepo, workerId: string, rowId: number): ReplyTarget | null {
+  const row = events.findById(workerId, rowId);
+  return row ? replyTargetFromRow(row) : null;
+}
+
+// The newest row that dropped the model's earlier context — anything at or
+// below it is no longer visible to the model.
+function contextBoundaryRowId(events: EventRepo, workerId: string): number {
+  let boundary = 0;
+  for (const type of ["compaction_completed", "conversation_cleared"] as const) {
+    const rows = events.listByType(workerId, type);
+    if (rows.length > 0) boundary = Math.max(boundary, rows[rows.length - 1].id);
+  }
+  return boundary;
 }
 
 export interface DispatchMessageDeps {
@@ -150,6 +173,9 @@ export interface DispatchMessageDeps {
    *  (which fires after the first token). Read later by RecallPendingTurn. */
   turnOutput?: TurnOutputTracker;
   excerptLimit?: number;
+  /** Assigns each delivered message its inbound id (message-id.ts). Absent →
+   *  messages go out without ids (legacy/tests). */
+  messageIds?: Pick<MessageIdRepo, "nextInbound">;
 }
 
 export interface DispatchMessageInput {
@@ -179,6 +205,9 @@ export interface DispatchMessageInput {
    * queue-serialized delivery. The record (PTY self-report) and the daemon-side
    * chat event (in-process) are both derived from it. */
   envelope?: DispatchEnvelope;
+  /** Operator reply: the event row of the earlier chat message this one
+   *  answers. Resolved at delivery into the <reply_to> block the model reads. */
+  replyTo?: { rowId: number };
 }
 
 export async function dispatchMessage(
@@ -197,6 +226,14 @@ export async function dispatchMessage(
   const backend = deps.backends?.has(kind) ? deps.backends.get(kind) : undefined;
   const isInproc = backend?.descriptor.processModel === "in-process";
   if (!isInproc && !w.port) throw new ConflictError("worker has no port");
+
+  // Looked up again at drain time, where a vanished target (pruned while the
+  // message sat in the queue) degrades to a plain message instead of wedging
+  // the queue on a dispatch that can never succeed.
+  const replyTarget = input.replyTo ? findReplyTarget(deps.events, input.workerId, input.replyTo.rowId) : null;
+  if (input.replyTo && !replyTarget && input.origin !== "queue-drain") {
+    throw new NotFoundError("message", String(input.replyTo.rowId));
+  }
 
   const now = deps.clock.now();
 
@@ -231,6 +268,7 @@ export async function dispatchMessage(
       // as a worker_report (not a plain user_message showing the wrapper).
       ...(input.envelope ? { envelope: input.envelope } : {}),
       ...(input.displayText ? { displayText: input.displayText } : {}),
+      ...(input.replyTo ? { replyTo: input.replyTo } : {}),
     });
     if (queueId === null) return { status: 200, body: { ok: true, deduped: true } };
     deps.log.info("message queued (worker busy)", { workerId: input.workerId, queueId, origin: input.origin });
@@ -328,8 +366,23 @@ export async function dispatchMessage(
   // `outgoing` verbatim; the chat still renders the bare body (record.displayText
   // / the daemon-side append below), so the tag never reaches the UI. An operator
   // dispatch (no envelope) leaves outgoing untagged.
+  //
+  // The message id is assigned here too, at delivery (not enqueue), so the ids
+  // the model reads always ascend in the order it received them. An operator
+  // turn carries it (and its reply block) as a head line; an agent/system turn
+  // as an attribute of its wrapper. A leading slash command gets neither.
   const tag = senderTagForEnvelope(input.envelope);
-  if (tag) outgoing = applySenderTag(outgoing, tag.cls, tag.attrs);
+  const isSlashTurn = !tag && startsWithSlashCommand(outgoing);
+  const msgId = isSlashTurn ? undefined : deps.messageIds?.nextInbound(input.workerId);
+  const reply = !tag && !isSlashTurn && replyTarget ? replyTarget : null;
+  if (tag) {
+    outgoing = applySenderTag(outgoing, tag.cls, msgId != null ? { ...tag.attrs, id: String(msgId) } : tag.attrs);
+  } else {
+    const replyBlock = reply
+      ? buildReplyBlock(reply, reply.rowId > contextBoundaryRowId(deps.events, input.workerId))
+      : undefined;
+    outgoing = prefixOperatorTurn(outgoing, msgId, replyBlock);
+  }
 
   const recordClientMsgIds = input.recordClientMsgIds
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
@@ -402,7 +455,11 @@ export async function dispatchMessage(
   }
 
   if (!selfReports) {
-    const chatRowId = appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds);
+    const ids = {
+      ...(msgId != null ? { msgId: String(msgId) } : {}),
+      ...(reply ? { replyTo: replyRefOf(reply) } : {}),
+    };
+    const chatRowId = appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds, ids);
     // The recall target for this turn: exactly the user_message row just
     // appended. The !seen gate covers the send→append microtask gap.
     if (chatRowId != null) deps.turnOutput?.setRecallRow(input.workerId, chatRowId);

@@ -286,13 +286,13 @@ export function useLive() {
   const workersRef = useRef(workers);
   workersRef.current = workers;
 
-  const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy } = {}) => {
+  const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) => {
     setInterruptedId(null);
     // New turn starting — retire the previous turn's finalized thinking buffers.
     dropInterruptedThinking(id);
     const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
-    const opts = { clientMsgId, queueWhenBusy };
+    const opts = { clientMsgId, queueWhenBusy, replyTo };
     const r = worker.is_orchestrator
       ? await api.sendOrchestratorMessage(id, text, opts)
       : await api.sendWorkerMessage(id, text, opts);

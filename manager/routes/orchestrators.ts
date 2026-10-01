@@ -56,6 +56,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
         caps: c.modelCatalog,
+        messageIds: c.messageIds,
       },
       {
         prompt: body.prompt ?? "",
@@ -93,7 +94,10 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
       },
     );
     if (body.prompt) {
-      appendSynthesized(c, id, "user_message", { text: body.prompt });
+      appendSynthesized(c, id, "user_message", {
+        text: body.prompt,
+        ...(result.bootMsgId != null ? { msgId: String(result.bootMsgId) } : {}),
+      });
     }
     writeJson(res, 201, { ...result, name });
   });
@@ -107,6 +111,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
       {
         workerId: params.id, text: body.text,
         clientMsgId: body.clientMsgId, queueWhenBusy: body.queueWhenBusy,
+        replyTo: body.replyTo,
         origin: "dashboard",
       },
     );

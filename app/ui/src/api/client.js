@@ -250,8 +250,8 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerPromptEvents → ${r.status}`);
     return r.body;
   },
-  async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
-    return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy });
+  async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
+    return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });
   },
   // Daemon-side message queue — pills render from this; dismiss removes a
   // still-pending row.
@@ -314,8 +314,8 @@ export const api = {
   async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) {
     return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
   },
-  async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
-    return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy });
+  async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
+    return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });
   },
 
   // Pending

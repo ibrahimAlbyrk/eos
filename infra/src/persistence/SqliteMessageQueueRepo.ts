@@ -20,11 +20,12 @@ interface Row {
 interface QueueMeta {
   envelope?: DispatchEnvelope;
   displayText?: string;
+  replyTo?: { rowId: number };
 }
 
-function encodeMeta(envelope?: DispatchEnvelope, displayText?: string): string | null {
-  if (!envelope && displayText == null) return null;
-  return JSON.stringify({ envelope, displayText });
+function encodeMeta({ envelope, displayText, replyTo }: QueueMeta): string | null {
+  if (!envelope && displayText == null && !replyTo) return null;
+  return JSON.stringify({ envelope, displayText, replyTo });
 }
 
 function decodeMeta(meta: string | null): QueueMeta {
@@ -37,7 +38,7 @@ function decodeMeta(meta: string | null): QueueMeta {
 }
 
 function toQueuedMessage(r: Row): QueuedMessage {
-  const { envelope, displayText } = decodeMeta(r.meta);
+  const { envelope, displayText, replyTo } = decodeMeta(r.meta);
   return {
     id: r.id,
     workerId: r.worker_id,
@@ -46,6 +47,7 @@ function toQueuedMessage(r: Row): QueuedMessage {
     createdAt: r.created_at,
     ...(envelope ? { envelope } : {}),
     ...(displayText != null ? { displayText } : {}),
+    ...(replyTo ? { replyTo } : {}),
   };
 }
 
@@ -98,7 +100,7 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
   }
 
   insert(row: MessageQueueInsert): number | null {
-    const meta = encodeMeta(row.envelope, row.displayText);
+    const meta = encodeMeta(row);
     const info = this.stmtInsert.run(row.workerId, row.clientMsgId, row.text, row.createdAt, row.dispatchedAt, meta, row.plane ?? "user");
     return info.changes === 0 ? null : Number(info.lastInsertRowid);
   }

@@ -41,7 +41,9 @@ export function senderClassOf(env: DispatchEnvelope | undefined): SenderClass {
 // wrapper to impersonate the operator/system. One canonical rule neutralizes
 // both: entity-escape the `<` of every reserved open/close tag so no literal
 // wrapper survives inside a body and only the OUTER tag Eos emits is a boundary.
-const RESERVED_TAG = /<(\/?(?:agent_message|system_message)\b)/g;
+// msg/reply_to are the message-id markers (message-id.ts) — reserved so a body
+// can't forge an id or a reply either.
+const RESERVED_TAG = /<(\/?(?:agent_message|system_message|msg|reply_to)\b)/g;
 
 export function escapeTagBody(body: string): string {
   return body.replace(RESERVED_TAG, "&lt;$1");
@@ -87,13 +89,15 @@ export function applySenderTag(
 // reversing escapeTagBody's entity-escape. Untagged text passes through unchanged.
 // Display-only: callers run it on a COPY, never on stored rows.
 const SENDER_TAG_WRAPPER = /<(agent_message|system_message)\b[^>]*>([\s\S]*?)<\/\1>/g;
-const ESCAPED_RESERVED_TAG = /&lt;(\/?(?:agent_message|system_message)\b)/g;
+const ESCAPED_RESERVED_TAG = /&lt;(\/?(?:agent_message|system_message|msg|reply_to)\b)/g;
+// The id marker + reply block heading an operator turn — dropped whole.
+const TURN_HEAD = /<msg id="[^"]*"\/>\n?|<reply_to\b[^>]*\/>\n?|<reply_to\b[^>]*>[\s\S]*?<\/reply_to>\n?/g;
 
 export function stripSenderTags(text: string): string {
-  if (!text || (!text.includes("<agent_message") && !text.includes("<system_message"))) {
+  if (!text || !["<agent_message", "<system_message", "<msg ", "<reply_to"].some((t) => text.includes(t))) {
     return text;
   }
-  return text.replace(SENDER_TAG_WRAPPER, (_m, _tag, body: string) => {
+  return text.replace(TURN_HEAD, "").replace(SENDER_TAG_WRAPPER, (_m, _tag, body: string) => {
     // applySenderTag renders the body as `>\n${escapeTagBody(body)}\n</` — drop the
     // one leading and one trailing newline it added, then reverse the escape so the
     // body's own quoted tags come back as literal text.

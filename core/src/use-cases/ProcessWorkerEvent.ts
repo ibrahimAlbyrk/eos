@@ -11,6 +11,7 @@ import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { ModelCatalog } from "../ports/ModelCatalog.ts";
 import type { Logger } from "../ports/Logger.ts";
+import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
 import { processAgentSignal } from "./ProcessAgentSignal.ts";
@@ -34,6 +35,9 @@ export interface ProcessWorkerEventDeps {
    *  Injected by the daemon composition root (the claude-cli adapter's
    *  translator); absent in unit tests, which exercise the legacy path. */
   toCanonical?(type: string, payload: unknown): AgentEvent[];
+  /** Stamps each logged assistant text block with its message id
+   *  (message-id.ts). Absent → blocks are logged without one. */
+  messageIds?: Pick<MessageIdRepo, "nextAssistant">;
 }
 
 export interface WorkerEventInput {

@@ -43,6 +43,8 @@ import { ProcessingLine } from "./ProcessingLine.jsx";
 import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
+import { replyTargetOf } from "../../../lib/replyTarget.js";
+import { setReplyTarget } from "../../../state/replyStore.js";
 import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
@@ -376,7 +378,7 @@ export function Messages({ live, agentId, isActive = true }) {
     // exactly where its durable event will (see outboxStore.js).
     for (const m of outbox.itemsFor(selectedId)) {
       if (m.state === "queued") continue;
-      base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
+      base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true, ...(m.replyTo ? { replyTo: m.replyTo } : {}) });
     }
     // Overlay live terminal runs whose durable `terminal` event hasn't landed.
     const durableRuns = new Set(base.filter((b) => b.kind === "terminal" && b.runId).map((b) => b.runId));
@@ -411,24 +413,27 @@ export function Messages({ live, agentId, isActive = true }) {
   // A folded boundary hides the task card too, so it gets no turn of its own.
   const windowTurns = useMemo(() => deriveTurns(blocks, blockKey, hasOlder || folded ? null : bootTurn), [blocks, hasOlder, folded, bootTurn]);
   const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, bootTurn, keyOf: blockKey });
-  // A turn outside the loaded window pages older rows in until its prompt
-  // renders (the effect below), then glides there.
-  const jumpToTurn = useCallback((key) => {
-    const el = contentRef.current?.querySelector(`[data-bkey="${CSS.escape(key)}"]`);
+  // A block outside the loaded window pages older rows in until it renders
+  // (the effect below), then glides there. pendingJumpRef holds the selector.
+  const jumpTo = useCallback((selector) => {
+    const el = contentRef.current?.querySelector(selector);
     if (el) {
       pendingJumpRef.current = null;
       revealBlock(el, TURN_JUMP_OFFSET);
       return;
     }
-    pendingJumpRef.current = key;
+    pendingJumpRef.current = selector;
     // Stop tail trimming so the hunt's prepends aren't undone mid-way.
     setFollowing(false);
     triggerLoadOlderRef.current();
   }, [contentRef, revealBlock, setFollowing]);
+  const jumpToTurn = useCallback((key) => jumpTo(`[data-bkey="${CSS.escape(key)}"]`), [jumpTo]);
+  // A reply quote jumps to the message it answers.
+  const jumpToRow = useCallback((rowId) => jumpTo(`[data-rowid="${rowId}"]`), [jumpTo]);
   useEffect(() => {
-    const key = pendingJumpRef.current;
-    if (!key) return;
-    const el = contentRef.current?.querySelector(`[data-bkey="${CSS.escape(key)}"]`);
+    const selector = pendingJumpRef.current;
+    if (!selector) return;
+    const el = contentRef.current?.querySelector(selector);
     if (el) {
       pendingJumpRef.current = null;
       revealBlock(el, TURN_JUMP_OFFSET);
@@ -608,6 +613,8 @@ export function Messages({ live, agentId, isActive = true }) {
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
+          const replyTarget = selectedId ? replyTargetOf(b) : null;
+          const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
           const block = b.kind === "compacted"
             ? (
               <CompactionCard
@@ -620,7 +627,7 @@ export function Messages({ live, agentId, isActive = true }) {
             )
             : b.kind === "compactionFailed"
               ? <CompactionFailedLine block={b} />
-              : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts);
+              : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow);
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -633,7 +640,7 @@ export function Messages({ live, agentId, isActive = true }) {
             isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
             MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
           ].filter(Boolean).join(" ") || undefined;
-          return <div key={key} data-bkey={key} className={cls}>{block}</div>;
+          return <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
         })}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
         {showAnchor && !showCheck && !compaction.pending && (
@@ -673,15 +680,15 @@ const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request"
 
 // prevTs: the preceding block's ts — reasoning has no start time of its own, so
 // the gap since the previous transcript event approximates how long it thought.
-function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs) {
+function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs, onReply, onJumpToRow) {
   switch (b.kind) {
-    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
-    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
-    case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
-    case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
-    case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
+    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} onJumpToReply={onJumpToRow} /></MessageRow>;
+    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
+    case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
+    case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
+    case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={prevTs != null ? b.ts - prevTs : undefined} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);

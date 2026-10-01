@@ -29,6 +29,7 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
         // Adopted leak cleanups (shared cascade): loop rows + the conversation
         // transcript keyed by the row's session_id.
         loops: c.loops,
+        messageIds: c.messageIds,
         deleteConversation: c.deleteConversation,
         bus: c.bus,
         supervisor: c.supervisor,

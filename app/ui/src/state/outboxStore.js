@@ -60,7 +60,7 @@ function setItems(workerId, list) {
 // `busy` is the caller's best guess from its workers snapshot — presentation
 // only (pill vs bubble for the first RTT); the daemon's queued/dispatched
 // response corrects it in settleSend. No dispatch decision is made here.
-export function beginSend(workerId, { text, agentText, clientMsgId = null, busy = false }) {
+export function beginSend(workerId, { text, agentText, clientMsgId = null, busy = false, replyTo = null }) {
   if (!workerId || !text) return null;
   const item = {
     id: newId(),
@@ -70,6 +70,7 @@ export function beginSend(workerId, { text, agentText, clientMsgId = null, busy 
     state: busy ? "queued" : "sending",
     ts: Date.now(),
     queueId: null,
+    ...(replyTo ? { replyTo } : {}),
   };
   setItems(workerId, [...itemsFor(workerId), item]);
   return item.id;

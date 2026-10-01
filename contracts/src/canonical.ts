@@ -34,6 +34,9 @@ export const TextBlockSchema = z.object({
   // durable block reconciles with its live delta buffer; absent for non-streaming
   // backends (claude-cli).
   blockId: z.string().optional(),
+  // Daemon-assigned message id of an assistant text block ("<inbound id>.<n>"),
+  // the handle a reply points at. Never shown to the model.
+  msgId: z.string().optional(),
 });
 
 // Was Claude's "thinking". `redacted` covers the API's redacted_thinking; absent

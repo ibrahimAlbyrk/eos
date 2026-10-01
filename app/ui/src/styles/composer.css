@@ -3099,6 +3099,36 @@
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
 .composer-card .c-row2::after { display: none; }
+/* Reply card — the message being answered, atop the input until sent or dismissed. */
+.reply-card { display: flex; flex-direction: column; gap: 8px; }
+.reply-card-head {
+  position: relative;
+  display: flex; align-items: center; justify-content: center;
+  min-height: 22px;
+}
+.reply-card-time { font-size: var(--text-xs); color: var(--fg-faint); }
+.reply-card-close {
+  position: absolute; right: 0; top: 50%; translate: 0 -50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line);
+  color: var(--fg-dim2);
+}
+.reply-card-close:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.reply-card-quote {
+  align-self: flex-start;
+  max-width: 85%;
+  padding: 10px 16px;
+  border-radius: 16px;
+  background: var(--chip);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.reply-card-quote.is-user { align-self: flex-end; background: var(--bubble); color: var(--bubble-fg); }
 .composer-card .c-row2.term-mode,
 .composer-card .c-row2.git-mode,
 .composer-card .c-row2.drop-active { box-shadow: none; }

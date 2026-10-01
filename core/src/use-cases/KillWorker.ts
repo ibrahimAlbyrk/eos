@@ -12,6 +12,7 @@ import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
 import type { WorktreeRemovalQueue } from "../ports/WorktreeRemovalQueue.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { LoopStateRepo } from "../ports/LoopStateRepo.ts";
+import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { NotFoundError } from "../errors/index.ts";
 import { stopWorkerProcess, cascadeWorkerRemoval } from "./worker-teardown.ts";
@@ -24,6 +25,7 @@ export interface KillWorkerDeps {
   // Adopted leak cleanups, executed by the shared cascade when wired: loop rows
   // + the conversation transcript (keyed by the row's session_id).
   loops?: Pick<LoopStateRepo, "deleteByWorker">;
+  messageIds?: Pick<MessageIdRepo, "deleteByWorker">;
   deleteConversation?(sessionId: string): void;
   bus: EventBus;
   supervisor: ProcessSupervisor;

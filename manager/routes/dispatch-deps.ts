@@ -42,6 +42,7 @@ export function dispatchDeps(
     clearTurnSettle: (id: string) => c.turnSettle.clear(id),
     // Scope the recall window from each genuine dispatch push (see DispatchMessageDeps).
     turnOutput: c.turnOutput,
+    messageIds: c.messageIds,
     ...(opts.requireOrchestrator ? { requireOrchestrator: true } : {}),
     excerptLimit: opts.excerptLimit ?? 200,
   };

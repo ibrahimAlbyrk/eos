@@ -4,6 +4,7 @@
 // JSONL text; all fs/path reading stays in spawner and the manager backend.
 
 import { activeBranchEntries, type ClaudeJsonlEntry } from "./claude-transcript.ts";
+import { stripTurnHead } from "./message-id.ts";
 
 export interface RewindTarget {
   uuid: string;
@@ -33,7 +34,9 @@ function promptText(e: ClaudeJsonlEntry): string | null {
   if (text.trim() === "") return null;
   if (text.startsWith("[Request interrupted")) return null;
   if (text.startsWith("<local-command-stdout")) return null;
-  return text;
+  // The chat bubble and the composer prefill hold what the operator typed, not
+  // the id/reply head it was delivered with.
+  return stripTurnHead(text);
 }
 
 function displayFor(text: string): string {

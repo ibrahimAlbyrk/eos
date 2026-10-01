@@ -34,6 +34,8 @@ import { ModeFx, ModeOrb } from "./ComposerModeFx.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
+import { ReplyCard } from "./ReplyCard.jsx";
+import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { UpdateBanner } from "./UpdateBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
@@ -78,6 +80,7 @@ export function Composer({ live, worker, paneId, focused }) {
   // own agent.
   const selected = worker;
   const compacting = useCompacting(selected?.id);
+  const replyTarget = useReplyTarget(selected?.id);
 
   // git↔term are mutually exclusive; entering git while term is active is a
   // no-op (nextGitMode encodes it). Shared by the git button, startCustom and
@@ -100,16 +103,18 @@ export function Composer({ live, worker, paneId, focused }) {
   // Escape exits git/terminal mode — but only the FOCUSED pane's composer owns
   // the selection provider's single Escape ref, so N mounted composers don't
   // clobber it. Re-registered on mode change so the handler reads fresh state.
+  // The same Escape also cancels a pending reply (once no mode is left to exit).
   useEffect(() => {
     if (!focused) return;
     ui.registerEscapeGitMode(() => {
       if (termMode) { setTermMode(false); return true; }
-      if (!gitMode) return false;
-      setGitMode(false);
+      if (gitMode) { setGitMode(false); return true; }
+      if (!replyTarget) return false;
+      clearReplyTarget(selected.id);
       return true;
     });
     return () => ui.registerEscapeGitMode(null);
-  }, [focused, gitMode, termMode, ui.registerEscapeGitMode]);
+  }, [focused, gitMode, termMode, replyTarget, selected?.id, ui.registerEscapeGitMode]);
 
   // Cmd+G routes through the composer provider to whichever composer is focused;
   // register this one's toggler while it holds focus (same single-ref discipline).
@@ -306,6 +311,11 @@ export function Composer({ live, worker, paneId, focused }) {
     setTextAndSync(r.content, r.content.length);
     editorRef.current?.focus();
   }, [recallTick, selected?.id]);
+
+  // A fresh reply puts the caret in the input, ready for the answer.
+  useEffect(() => {
+    if (replyTarget) editorRef.current?.focus();
+  }, [replyTarget]);
 
   // Browser annotation "Add to chat" (P6): the browser panel and this composer
   // in one pane share the same paneId, so a marked-up image handed off for THIS
@@ -509,12 +519,18 @@ export function Composer({ live, worker, paneId, focused }) {
   // Optimistic send of one prepared message to one agent. The daemon decides
   // queue-vs-dispatch; settleSend reconciles the optimistic bubble/pill.
   // steer skips the queue: the message lands in the running turn.
-  const dispatchTo = async (worker, displayText, agentText, { steer = false } = {}) => {
+  const dispatchTo = async (worker, displayText, agentText, { steer = false, replyTo = null } = {}) => {
     const clientMsgId = crypto.randomUUID();
     const busy = !steer && worker.state === "WORKING";
-    const itemId = outbox.beginSend(worker.id, { text: displayText, agentText, clientMsgId, busy });
+    const itemId = outbox.beginSend(worker.id, {
+      text: displayText, agentText, clientMsgId, busy,
+      replyTo: replyTo ? { rowId: replyTo.rowId, role: replyTo.role, excerpt: replyTo.text } : null,
+    });
     try {
-      const r = await live.sendToAgent(worker.id, agentText, { clientMsgId, queueWhenBusy: !steer });
+      const r = await live.sendToAgent(worker.id, agentText, {
+        clientMsgId, queueWhenBusy: !steer,
+        ...(replyTo ? { replyTo: { rowId: replyTo.rowId } } : {}),
+      });
       outbox.settleSend(worker.id, itemId, r);
       if (!r?.ok && !r?.body?.queued) {
         console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
@@ -628,7 +644,9 @@ export function Composer({ live, worker, paneId, focused }) {
     }
 
     if (selected) {
-      await dispatchTo(selected, displayText, agentText);
+      const reply = replyTarget;
+      if (reply) clearReplyTarget(selected.id);
+      await dispatchTo(selected, displayText, agentText, { replyTo: reply });
       return;
     }
 
@@ -1083,6 +1101,9 @@ export function Composer({ live, worker, paneId, focused }) {
             <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
               <GlassLayers />
               {modeClass && <ModeFx key={inputMode} />}
+              {selected && replyTarget && !modeClass && (
+                <ReplyCard target={replyTarget} onClose={() => clearReplyTarget(selected.id)} />
+              )}
               <div className="c-row2-wrap">
                 {showMenu && (
                   <CommandMenu

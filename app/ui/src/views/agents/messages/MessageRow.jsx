@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
 
-// Hover-revealed action row (copy + optional rewind + relative timestamp)
-// under text messages. `onRewind` is an async () => {ok, error?}; the button
+// Hover-revealed action row (copy + optional rewind + relative timestamp +
+// optional reply) under text messages. `onRewind` is an async () => {ok, error?}; the button
 // renders only when it is provided. `rewindDisabled` keeps it visible but
 // inert (dimmed) — e.g. while the agent is mid-turn and the backend would
-// refuse the rewind anyway.
-export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, children }) {
+// refuse the rewind anyway. `onReply` (when provided) sits at the row's right end.
+export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onReply, children }) {
   const [copied, setCopied] = useState(false);
   const [rewindState, setRewindState] = useState(null); // null | "busy" | "error"
 
@@ -59,6 +59,15 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, chil
         )}
         {ts != null && (
           <span className="msg-time" title={new Date(ts).toLocaleString()}>{fmtTimeAgo(ts)}</span>
+        )}
+        {onReply && (
+          <button className="msg-action-btn msg-action-reply" onClick={onReply} title="Reply">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 17a2 2 0 0 1-2 2H6.8a2 2 0 0 0-1.4.6l-2.2 2.2a.7.7 0 0 1-1.2-.5V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z" />
+              <path d="m10 8-3 3 3 3" />
+              <path d="M17 14v-1a2 2 0 0 0-2-2H7" />
+            </svg>
+          </button>
         )}
       </div>
     </div>

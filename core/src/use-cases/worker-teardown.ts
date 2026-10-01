@@ -13,6 +13,7 @@ import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
 import type { WorktreeRemovalQueue } from "../ports/WorktreeRemovalQueue.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { LoopStateRepo } from "../ports/LoopStateRepo.ts";
+import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 
 export interface StopWorkerProcessDeps {
@@ -82,6 +83,7 @@ export interface CascadeWorkerRemovalDeps {
   // precedent): worker_loops rows and the ~/.eos conversation transcript were
   // never removed before. Absent in unit tests / pre-wiring callers.
   loops?: Pick<LoopStateRepo, "deleteByWorker">;
+  messageIds?: Pick<MessageIdRepo, "deleteByWorker">;
   deleteConversation?(sessionId: string): void;
   bus: EventBus;
   postKillCleanup?(workerId: string): void;
@@ -126,6 +128,7 @@ export function cascadeWorkerRemoval(deps: CascadeWorkerRemovalDeps, row: Worker
   deps.pending.deleteByWorker(row.id);
   deps.messageQueue?.deleteByWorker(row.id);
   deps.loops?.deleteByWorker(row.id);
+  deps.messageIds?.deleteByWorker(row.id);
   if (row.session_id != null) deps.deleteConversation?.(row.session_id);
   deps.postKillCleanup?.(row.id);
   deps.bus.publish("worker:removed", { workerId: row.id });

@@ -87,6 +87,7 @@ import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
+import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
 import { LlmJudgeStrategy } from "../core/src/services/LlmJudgeStrategy.ts";
@@ -242,6 +243,7 @@ export function buildContainer() {
   const worktreeRemovals = new SqliteWorktreeRemovalQueue(db);
   const loops = new SqliteLoopStateRepo(db);
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
+  const messageIds = new SqliteMessageIdRepo(db);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -1364,7 +1366,7 @@ export function buildContainer() {
       turnOutput.markSeen(workerId);
     }
     processAgentSignal(
-      { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
+      { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
       workerId,
       event,
     );
@@ -1421,6 +1423,7 @@ export function buildContainer() {
     worktreeRemovals,
     loops,
     contextMarks,
+    messageIds,
     strategyFor,
     judgeBackend,
     microTasks,

@@ -351,3 +351,21 @@ describe("ProcessAgentSignal — session id persistence (claude resume)", () => 
     assert.deepEqual(sessionIds, []);
   });
 });
+
+describe("processAgentSignal — assistant message ids", () => {
+  it("logs each assistant text block with the next message id", () => {
+    const { deps, events } = buildDeps("WORKING");
+    let n = 0;
+    deps.messageIds = { nextAssistant: () => `3.${++n}` };
+    processAgentSignal(deps, "w1", { type: "message", role: "assistant", blocks: [{ type: "text", text: "Pick one" }] });
+    const logged = events.find((e) => e.type === "agent_event")?.payload as { blocks: Array<{ msgId?: string }> };
+    assert.equal(logged.blocks[0].msgId, "3.1");
+  });
+
+  it("without the repo wired, blocks are logged as-is", () => {
+    const { deps, events } = buildDeps("WORKING");
+    const event: AgentEvent = { type: "message", role: "assistant", blocks: [{ type: "text", text: "hi" }] };
+    processAgentSignal(deps, "w1", event);
+    assert.equal(events.find((e) => e.type === "agent_event")?.payload, event);
+  });
+});

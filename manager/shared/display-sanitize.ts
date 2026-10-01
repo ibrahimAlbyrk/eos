@@ -34,7 +34,7 @@ export function sanitizeForDisplay(value: unknown): unknown {
 // input row is never mutated.
 export function sanitizeEventRowForDisplay(row: WorkerEventRow): WorkerEventRow {
   const p = row.payload;
-  if (p == null || (!p.includes("agent_message") && !p.includes("system_message"))) {
+  if (p == null || !["agent_message", "system_message", "<msg ", "reply_to"].some((t) => p.includes(t))) {
     return row;
   }
   try {

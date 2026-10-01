@@ -56,8 +56,9 @@ describe("DPI assembles per-role system prompts", () => {
     assert.ok(r.activeFragmentIds.length > 1); // split into concern fragments
     assert.equal(r.activeFragmentIds[0], "system-preamble-orchestrator"); // orchestrator preamble emits first
     assert.ok(!r.activeFragmentIds.includes("system-preamble-worker")); // worker preamble must NOT leak in
-    assert.equal(r.activeFragmentIds[1], "role/orchestrator/01-intro"); // role intro is the first role fragment
-    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/orchestrator/")));
+    assert.equal(r.activeFragmentIds[1], "message-ids"); // every role reads message ids the same way
+    assert.equal(r.activeFragmentIds[2], "role/orchestrator/01-intro"); // role intro is the first role fragment
+    assert.ok(r.activeFragmentIds.slice(2).every((id) => id.startsWith("role/orchestrator/")));
     assert.match(r.text, /# Orchestrator/);
     // Tool-name variables resolve from the registry-backed globals.
     assert.match(r.text, /`spawn_worker`/);
@@ -92,7 +93,8 @@ describe("DPI assembles per-role system prompts", () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "git" });
     assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
     assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
-    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/git/")));
+    assert.equal(r.activeFragmentIds[1], "message-ids");
+    assert.ok(r.activeFragmentIds.slice(2).every((id) => id.startsWith("role/git/")));
     assert.match(r.text, /# Git Agent/);
   });
 
@@ -113,7 +115,8 @@ describe("DPI assembles per-role system prompts", () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
     assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
     assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
-    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/worker/")));
+    assert.equal(r.activeFragmentIds[1], "message-ids");
+    assert.ok(r.activeFragmentIds.slice(2).every((id) => id.startsWith("role/worker/")));
     assert.match(r.text, /# Worker/);
     // Worktree isolation content is gone for a plain-cwd worker (worker/04
     // removed; env/worktree* are worktree-gated).
@@ -132,7 +135,8 @@ describe("DPI assembles per-role system prompts", () => {
     assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
     assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
     assert.equal(r.activeFragmentIds.at(-1), "env/worktree");
-    assert.ok(r.activeFragmentIds.slice(1, -1).every((id) => id.startsWith("role/worker/")));
+    assert.equal(r.activeFragmentIds[1], "message-ids");
+    assert.ok(r.activeFragmentIds.slice(2, -1).every((id) => id.startsWith("role/worker/")));
     assert.match(r.text, /# Worker/); // role content present
     assert.match(r.text, /isolation: worktree/); // env block follows
     assert.match(r.text, /branch `eos-x`/); // BRANCH substituted

@@ -26,6 +26,7 @@ export const purgeWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, PurgeWor
         pending: c.pending,
         messageQueue: c.messageQueue,
         loops: c.loops,
+        messageIds: c.messageIds,
         deleteConversation: c.deleteConversation,
         bus: c.bus,
         postKillCleanup: (wid) => {

@@ -1039,3 +1039,18 @@ describe("buildBlocks turn:error → rendered error block", () => {
     expect(blocks.some((b) => b.kind === "turnError")).toBe(false);
   });
 });
+
+describe("reply anchors (rowId + replyTo)", () => {
+  it("a user block carries its event row id and reply snapshot", () => {
+    const replyTo = { rowId: 3, msgId: "2.1", role: "assistant", excerpt: "Pick one" };
+    const blocks = buildBlocks([{ id: 7, type: "user_message", ts: 10, payload: JSON.stringify({ text: "1", msgId: "3", replyTo }) }]);
+    expect(blocks[0]).toMatchObject({ kind: "user", rowId: 7, replyTo });
+  });
+
+  it("an assistant bubble carries the row id of its first text row", () => {
+    const text = (id, t, ts) => ({ id, type: "agent_event", ts, payload: { type: "message", role: "assistant", blocks: [{ type: "text", text: t, msgId: `1.${id}` }] } });
+    const blocks = buildBlocks([text(4, "one", 10), text(5, "two", 11)]);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toMatchObject({ kind: "assistant", text: "one\ntwo", rowId: 4 });
+  });
+});

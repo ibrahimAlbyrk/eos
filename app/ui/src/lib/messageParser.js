@@ -175,7 +175,7 @@ function normalizeEvents(events) {
     const ts = ev.ts;
     if (e?.type === "message" && e.role === "assistant") {
       for (const b of e.blocks ?? []) {
-        if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId } });
+        if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId, rowId: ev.id } });
         else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId, ...(b.interrupted ? { interrupted: true } : {}) } });
         else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {}, ...(b.spawnsSubagent ? { spawnsSubagent: true } : {}) } });
         else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "", patch: b.patch } });
@@ -431,7 +431,7 @@ export function buildBlocks(rawEvents) {
       // anchorTs (the consuming transcript entry's creation time) is the true
       // conversation position; sentAt (dispatch time) covers emissions with no
       // sighting (unverified delivery, flush); event receipt ts is last resort.
-      out.push({ kind: "user", text: payload.text ?? "", ts: payload.anchorTs ?? payload.sentAt ?? ev.ts });
+      out.push({ kind: "user", text: payload.text ?? "", ts: payload.anchorTs ?? payload.sentAt ?? ev.ts, rowId: ev.id, ...(payload.replyTo ? { replyTo: payload.replyTo } : {}) });
       continue;
     }
     if (ev.type === "worker_report") {
@@ -444,6 +444,7 @@ export function buildBlocks(rawEvents) {
         fromWorker: payload.fromWorker ?? null,
         workerName: payload.workerName ?? null,
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+        rowId: ev.id,
       });
       continue;
     }
@@ -457,6 +458,7 @@ export function buildBlocks(rawEvents) {
         fromParent: payload.fromParent ?? null,
         parentName: payload.parentName ?? null,
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+        rowId: ev.id,
       });
       continue;
     }
@@ -468,6 +470,7 @@ export function buildBlocks(rawEvents) {
         kind: "loop",
         text: payload.text ?? "",
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+        rowId: ev.id,
       });
       continue;
     }
@@ -501,6 +504,7 @@ export function buildBlocks(rawEvents) {
         fromWorker: payload.fromWorker ?? null,
         fromName: payload.fromName ?? null,
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+        rowId: ev.id,
       });
       continue;
     }
@@ -655,7 +659,7 @@ export function buildBlocks(rawEvents) {
       if (lastAsst && out[out.length - 1] === lastAsst) {
         lastAsst.text += "\n" + (p.text ?? "");
       } else {
-        lastAsst = { kind: "assistant", text: p.text ?? "", ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}) };
+        lastAsst = { kind: "assistant", text: p.text ?? "", ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}), ...(p.rowId ? { rowId: p.rowId } : {}) };
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {

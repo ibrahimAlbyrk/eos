@@ -355,6 +355,15 @@ export const MIGRATIONS: Migration[] = [
   // Claude backend kind. Rekey any persisted rows so resume/boot-reconcile resolves
   // a registered backend instead of throwing "unknown backend" on an old kind.
   { id: "058_rekey_backend_kind_claude", sql: "UPDATE workers SET backend_kind = 'claude' WHERE backend_kind IN ('claude-cli', 'claude-sdk')" },
+  // Message id counter (MessageIdRepo): seq = last inbound id, sub = assistant
+  // text blocks since it. Kept off the workers row so WorkerRow stays unchanged.
+  { id: "059_worker_message_ids", sql: `
+    CREATE TABLE IF NOT EXISTS worker_message_ids (
+      worker_id TEXT PRIMARY KEY,
+      seq INTEGER NOT NULL,
+      sub INTEGER NOT NULL
+    )
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

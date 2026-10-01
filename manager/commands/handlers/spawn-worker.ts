@@ -229,6 +229,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         recents: c.recents,
         caps: c.modelCatalog,
         isSuspending: (wid) => c.suspendGuard.isSuspending(wid),
+        messageIds: c.messageIds,
       },
       spec,
     );
@@ -241,7 +242,10 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // parent?", NOT the backend's reportsMessageEvents (which is about runtime
     // dispatch echo, not the boot prompt).
     if (!body.parentId) {
-      appendSynthesized(c, result.id, "user_message", { text: bootPrompt });
+      appendSynthesized(c, result.id, "user_message", {
+        text: bootPrompt,
+        ...(result.bootMsgId != null ? { msgId: String(result.bootMsgId) } : {}),
+      });
     }
     // Arm-at-spawn: attach the loop to the just-created worker BEFORE its first
     // turn. SPAWNING (not IDLE) so no immediate tick — the first idle edge ticks

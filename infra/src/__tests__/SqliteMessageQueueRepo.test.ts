@@ -144,6 +144,13 @@ describe("SqliteMessageQueueRepo", () => {
     assert.equal(row.displayText, "body");
   });
 
+  it("round-trips an operator reply target through the meta column", () => {
+    repo.insert({ ...pending("a", "yes"), replyTo: { rowId: 42 } });
+    const [row] = repo.listPending("w1");
+    assert.deepEqual(row.replyTo, { rowId: 42 });
+    assert.equal(row.envelope, undefined);
+  });
+
   it("a plain message carries no envelope/displayText (NULL meta)", () => {
     repo.insert(pending("a", "hi"));
     const [row] = repo.listPending("w1");
