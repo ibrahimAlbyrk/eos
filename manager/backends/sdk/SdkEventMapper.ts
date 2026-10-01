@@ -323,17 +323,19 @@ export function createSdkEventMapper(): SdkEventMapper {
         }
 
         case "assistant": {
-          startTurn(out);
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
           // Subagent-internal assistant message: surface only its tool_use blocks as
           // PARENTED activity so the UI groups them under the agentRun (the Agent
           // tool); its text/reasoning are internal, summarized by the Agent's result.
+          // It never opens a parent turn: a background subagent keeps streaming after
+          // the parent's turn ended, and the parent is idle until it is woken.
           if (msg.parent_tool_use_id) {
             for (const b of content) {
               if (b.type === "tool_use") out.push({ type: "activity", kind: "tool_started", callId: b.id ?? null, toolName: b.name, input: b.input ?? {}, parentCallId: msg.parent_tool_use_id });
             }
             return out;
           }
+          startTurn(out);
           // Track the last completed top-level assistant message uuid — the recall
           // anchor (the entry the SDK transcript is sliced to on recall). Subagent
           // messages returned above never set it.

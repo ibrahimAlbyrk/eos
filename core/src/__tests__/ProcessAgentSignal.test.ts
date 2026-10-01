@@ -163,6 +163,12 @@ describe("ProcessAgentSignal — activity (mirror PostToolUse / heartbeat)", () 
     assert.deepEqual(states(events), []);
   });
 
+  it("a subagent's tool_finished leaves an IDLE parent IDLE", () => {
+    const { deps, events } = buildDeps("IDLE");
+    processAgentSignal(deps, "w1", { type: "activity", kind: "tool_finished", callId: "t1", parentCallId: "agent1" });
+    assert.deepEqual(states(events), []);
+  });
+
   it("alive recovers SPAWNING → WORKING", () => {
     const { deps, events } = buildDeps("SPAWNING");
     processAgentSignal(deps, "w1", { type: "activity", kind: "alive" });

@@ -466,6 +466,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           },
         } : undefined),
         includePartialMessages: true,
+        // Stop ends only the current turn, as Esc does in a terminal: background
+        // subagents keep running and wake the agent when they finish. Without this
+        // the binary kills every background task on interrupt.
+        perTaskStopAffordance: true,
         // Load the user/project filesystem sources so the binary discovers skills
         // (and agents/commands/CLAUDE.md) natively, exactly like the CLI lane —
         // settingSources:[] suppressed that and broke user/project skills. MCP is

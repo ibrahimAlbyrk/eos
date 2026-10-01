@@ -653,6 +653,23 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 
+  it("declares per-task stop, so an interrupt spares background subagents", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: (params) => {
+        capturedOptions = params.options as unknown as Record<string, unknown>;
+        return (async function* () { /* idle session */ })();
+      },
+    });
+    await be.start(spec(), {});
+    assert.equal(capturedOptions!.perTaskStopAffordance, true);
+  });
+
   // Crash disposition ordering: on a query failure the exit callback fires BEFORE
   // the `session ended (crashed)` event. The daemon's exit handler reads the row
   // state to suspend a resumable session, and the ended event would flip it to

@@ -95,4 +95,19 @@ describe("SdkEventMapper — live ordering (task_started precedes the stub)", ()
     };
     assert.deepEqual(subagentEvents(run(mapper, [SPAWN, fgStarted, fgResult])), []);
   });
+
+  it("a background subagent working after the parent's turn ended does not reopen the turn", () => {
+    const mapper = createSdkEventMapper();
+    const result = { type: "result", subtype: "success", usage: {} };
+    const innerCall = {
+      type: "assistant",
+      parent_tool_use_id: CALL_ID,
+      message: { id: "msg_sub", content: [{ type: "tool_use", id: "toolu_inner", name: "Read", input: { file_path: "/x" } }] },
+    };
+    const turns = (events: AgentEvent[]) => events.filter((e) => e.type === "turn").map((e) => (e as { phase: string }).phase);
+    assert.deepEqual(turns(run(mapper, [SPAWN, TASK_STARTED, STUB_RESULT, result])), ["started", "ended"]);
+    const after = run(mapper, [innerCall]);
+    assert.deepEqual(turns(after), []);
+    assert.deepEqual(after.map((e) => e.type), ["activity"]);
+  });
 });

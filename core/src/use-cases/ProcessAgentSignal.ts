@@ -78,6 +78,9 @@ export function reduceAgentSignal(
 
     case "activity":
       if (event.kind === "tool_finished") {
+        // A subagent's inner tool says nothing about the parent: a background
+        // subagent keeps running after the parent's turn ended.
+        if (event.parentCallId) return;
         if (deps.isSettling?.(workerId)) return;
         transitionState(deps, { workerId, next: "WORKING", reason: "agent:tool_finished" });
       } else if (event.kind === "alive") {
