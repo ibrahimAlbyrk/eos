@@ -6,14 +6,32 @@ const { execFileSync } = require("node:child_process");
 // /Applications/Eos.app. Don't launch the packaged app while the old native
 // Eos.app is still running (they'd share a bundle id and confuse LaunchServices).
 
-// Signing is a NO-OP unless EOS_SIGNING_IDENTITY is set (a "Developer ID
-// Application: …" name). Notarization only wires up when Apple API-key env is also
-// present — and notarytool still only runs during `make` if the operator opts in.
-const signingIdentity = process.env.EOS_SIGNING_IDENTITY;
+// Signing identity: EOS_SIGNING_IDENTITY wins; otherwise the keychain's
+// "Developer ID Application" cert, so the release Mac signs with no setup. A stable
+// identity is what keeps macOS privacy grants (TCC) across rebuilds — an ad-hoc
+// signature is pinned to its cdhash, so every build looked like a new app.
+// No identity (a contributor's Mac) ⇒ ad-hoc, see postPackage.
+const signingIdentity = process.env.EOS_SIGNING_IDENTITY || findDeveloperIdIdentity();
+
+function findDeveloperIdIdentity() {
+  if (process.platform !== "darwin") return undefined;
+  try {
+    const out = execFileSync("security", ["find-identity", "-v", "-p", "codesigning"], { encoding: "utf8" });
+    return out.match(/"(Developer ID Application: [^"]+)"/)?.[1];
+  } catch {
+    return undefined;
+  }
+}
 const entitlements = path.resolve(__dirname, "build", "entitlements.mac.plist");
 // The shipped `claude` binary is a non-Electron JS-runtime exe and needs a broader
 // Hardened Runtime set (JIT + unsigned-exec-mem + library-validation off).
 const claudeEntitlements = path.resolve(__dirname, "build", "entitlements.claude.plist");
+
+// Notarize only for a release (EOS_NOTARIZE=1, set by scripts/release.sh): it
+// uploads to Apple and takes minutes, so an everyday `eos build` only signs.
+// Credentials are a notarytool keychain profile, created once with
+// `xcrun notarytool store-credentials eos-notary --key … --key-id … --issuer …`.
+const notarize = Boolean(signingIdentity) && process.env.EOS_NOTARIZE === "1";
 
 const osxSign = signingIdentity
   ? {
@@ -21,21 +39,19 @@ const osxSign = signingIdentity
       // Per-file entitlements: the app + our native addon get the strict set; the
       // bundled third-party `claude` binary gets the broader set so it can JIT and
       // load its own libs under Hardened Runtime.
+      // Notarization needs a secure timestamp, but each one is a ~1s round trip to
+      // Apple per file (~1000 files ⇒ 10+ minutes), so non-release builds skip it.
       optionsForFile: (filePath) => ({
         hardenedRuntime: true,
         entitlements: /claude-agent-sdk-[^/]+\/claude$/.test(filePath) ? claudeEntitlements : entitlements,
+        ...(notarize ? {} : { timestamp: "none" }),
       }),
     }
   : undefined;
 
-const osxNotarize =
-  signingIdentity && process.env.EOS_APPLE_API_KEY && process.env.EOS_APPLE_API_KEY_ID && process.env.EOS_APPLE_API_ISSUER
-    ? {
-        appleApiKey: process.env.EOS_APPLE_API_KEY,
-        appleApiKeyId: process.env.EOS_APPLE_API_KEY_ID,
-        appleApiIssuer: process.env.EOS_APPLE_API_ISSUER,
-      }
-    : undefined;
+const osxNotarize = notarize
+  ? { keychainProfile: process.env.EOS_NOTARY_PROFILE || "eos-notary" }
+  : undefined;
 
 module.exports = {
   hooks: {
@@ -82,6 +98,8 @@ module.exports = {
     // this network directly (Settings › Remote access, Machines).
     extendInfo: {
       NSLocalNetworkUsageDescription: "Eos connects directly to your other computers on this network so you can control them from here.",
+      // Without it macOS denies Apple Events from Eos's agents and terminals without asking.
+      NSAppleEventsUsageDescription: "Eos agents and terminals run scripts that control other apps.",
     },
     // pack app/ into app.asar — best practice, and lets @electron/universal merge
     // the two arch slices (avoids its identical-SHA check on loose files). Unpack
@@ -102,6 +120,8 @@ module.exports = {
       path.resolve(__dirname, "..", "manager", "prompts"),
       path.resolve(__dirname, "..", "manager", "workers"),
       path.resolve(__dirname, ".forge-build", "Eos.saver"),
+      // Native notifications play it by name (main/notifications.ts); macOS finds it in Contents/Resources.
+      path.resolve(__dirname, "build", "eos-notification.aiff"),
     ],
     // The packaged app.asar needs only package.json + the bundled entry
     // (.forge-build/{main,preload}.js). Exclude the nested UI package (its

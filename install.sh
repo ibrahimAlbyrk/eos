@@ -3,16 +3,24 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash
 #
-# Auto-installs the toolchain (Xcode CLT / git, Node 22+, Bun, claude), clones
-# the source to ~/eos, installs every package dir, links `eos`, fixes PATH, then
-# runs `eos build` to compile and launch the macOS app. Re-running is safe.
+# On Apple Silicon macOS it installs the signed + notarized Eos.app from the
+# latest GitHub release (needs only git, via Xcode CLT). Re-running updates it.
+#
+# --from-source (and Linux / Intel): auto-installs the toolchain (Xcode CLT / git,
+# Node 22+, Bun, claude), clones the source to ~/eos, installs every package dir,
+# links `eos`, fixes PATH, then runs `eos build` to compile and launch the macOS
+# app. Re-running is safe.
 set -euo pipefail
 
 EOS_REPO="${EOS_REPO:-https://github.com/ibrahimAlbyrk/eos}"
 EOS_BRANCH="${EOS_BRANCH:-main}"
 EOS_DIR="${EOS_DIR:-$HOME/eos}"
+EOS_RELEASE_URL="${EOS_RELEASE_URL:-$EOS_REPO/releases/latest/download/Eos-darwin-arm64.zip}"
+APP_PATH="/Applications/Eos.app"
+DAEMON_LABEL="com.ibrahimalbyrk.eos.daemon"
 NODE_MIN=22
 DO_BUILD=1
+FROM_SOURCE="${EOS_FROM_SOURCE:-0}"
 
 OS="$(uname -s)"
 PERSIST_DIRS=()
@@ -35,18 +43,22 @@ Eos installer
 
   curl -fsSL <raw-url>/install.sh | bash
 
+Default (Apple Silicon macOS): installs the signed Eos.app from the latest release.
+
 Options (env or flags):
-  --no-build           set up only; don't compile the macOS app
-  --dir DIR            install location           (env EOS_DIR,    default ~/eos)
+  --from-source        clone + build instead      (env EOS_FROM_SOURCE=1)
+  --no-build           from source: set up only; don't compile the macOS app
+  --dir DIR            source location            (env EOS_DIR,    default ~/eos)
   --branch BRANCH      branch to clone            (env EOS_BRANCH, default main)
   -h, --help           this help
 
-After install:  eos build   (recompile + relaunch)   ·   eos help
+After a source install:  eos build   (recompile + relaunch)   ·   eos help
 EOF
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --from-source) FROM_SOURCE=1 ;;
     --no-build) DO_BUILD=0 ;;
     --dir) EOS_DIR="${2:?--dir needs a path}"; shift ;;
     --branch) EOS_BRANCH="${2:?--branch needs a name}"; shift ;;
@@ -204,8 +216,41 @@ pin_bun_path() {
   ok "pinned bun → $bun_bin in $home/config.json"
 }
 
+# ── prebuilt app (macOS) ─────────────────────────────────────────────────────
+# The release app carries Eos's Developer ID signature, which is what lets macOS
+# keep its privacy grants (files, screen recording, …) across updates.
+install_release() {
+  local tmp
+  tmp="$(mktemp -d)"
+  log "Downloading $EOS_RELEASE_URL"
+  curl -fSL --progress-bar "$EOS_RELEASE_URL" -o "$tmp/Eos.zip" \
+    || die "download failed — is a release published? (or use --from-source)"
+  ditto -x -k "$tmp/Eos.zip" "$tmp" || die "could not unpack the release"
+  spctl -a "$tmp/Eos.app" 2>/dev/null || die "downloaded Eos.app failed Gatekeeper verification — not installing it"
+
+  if [ -d "$APP_PATH" ]; then
+    log "Updating $APP_PATH — quitting Eos and stopping its daemon (running agents stop)"
+    osascript -e 'if application "Eos" is running then tell application "Eos" to quit' >/dev/null 2>&1 || true
+    launchctl bootout "gui/$(id -u)/$DAEMON_LABEL" >/dev/null 2>&1 || true
+    mv "$APP_PATH" "$tmp/Eos.old.app"
+  fi
+  ditto "$tmp/Eos.app" "$APP_PATH" || { mv "$tmp/Eos.old.app" "$APP_PATH" 2>/dev/null; die "could not install to $APP_PATH"; }
+  rm -rf "$tmp"
+  ok "installed $APP_PATH"
+  open "$APP_PATH"
+}
+
 # ── main ─────────────────────────────────────────────────────────────────────
 main() {
+  # Releases are Apple Silicon macOS only; everything else builds from source.
+  if [ "$FROM_SOURCE" != "1" ] && [ "$OS" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+    log "Eos installer · release app"
+    ensure_xcode_clt
+    install_release
+    log "Done."
+    return 0
+  fi
+
   log "Eos installer · ${EOS_DIR}"
   [ "$OS" = "Darwin" ] || [ "$OS" = "Linux" ] || die "unsupported platform: $OS (macOS / Linux only)"
   [ "$OS" = "Linux" ] && warn "Linux: the macOS app step is skipped (no Swift compiler)."

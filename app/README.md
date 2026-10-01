@@ -119,30 +119,32 @@ EOS_DMG=1 npm run make     # also produce a .dmg (needs the native `appdmg`)
   (Swift), Forge → `app/out/` (Electron). Nothing auto-replaces
   `/Applications/Eos.app`; that swap is a deliberate post-M7 cutover.
 
-### Signing + notarization (unsigned by default)
+### Signing, notarization, releases
 
-The default build is **unsigned (ad-hoc / linker-signed)** — it runs locally but
-Gatekeeper will warn on distribution. To sign + notarize, the operator supplies
-credentials via env; the config is otherwise a no-op:
+Every build (`npm run package`/`make`, so also `eos build`) signs with the
+keychain's **Developer ID Application** cert when one is present
+(`EOS_SIGNING_IDENTITY` overrides). Without one — a contributor's Mac — it falls
+back to an ad-hoc signature. The stable signature is what makes macOS keep its
+privacy grants (files, screen recording, automation, …) across rebuilds and
+updates: an ad-hoc signature is pinned to the binary's hash, so each build looked
+like a new app and every permission was asked again.
 
-```bash
-# 1. Sign with a "Developer ID Application" cert (required for notarized distribution):
-export EOS_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
-# 2. (optional) Notarize via an App Store Connect API key:
-export EOS_APPLE_API_KEY=/path/to/AuthKey_XXXX.p8
-export EOS_APPLE_API_KEY_ID=XXXXXXXXXX
-export EOS_APPLE_API_ISSUER=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-npm run make -- --arch=universal
-```
+- Signing uses Hardened Runtime + `build/entitlements.mac.plist`: `allow-jit`, plus
+  `automation.apple-events` / `device.audio-input` / `device.camera` — agents and
+  terminals ask for these through Eos, and Hardened Runtime denies them without a
+  prompt otherwise. The bundled `claude` binary gets `build/entitlements.claude.plist`.
+- Notarization runs only with `EOS_NOTARIZE=1` (it uploads to Apple). Credentials
+  are a notarytool keychain profile, created once on the release Mac:
 
-- Signing uses Hardened Runtime + `build/entitlements.mac.plist` (only
-  `com.apple.security.cs.allow-jit` — **not** `allow-unsigned-executable-memory`,
-  which Electron ≥12 doesn't need).
-- This checkout has **no Developer ID Application cert** (only Apple
-  Development/Distribution), so the M6 build is unsigned. Notarization
-  (`notarytool`, which uploads to Apple) is **not run here** — it's wired but
-  requires the API-key env above and a network submit the operator performs.
-- `spctl -a -vv` and `xcrun notarytool submit` are the operator's release steps.
+  ```bash
+  xcrun notarytool store-credentials eos-notary \
+    --key AuthKey_XXXX.p8 --key-id XXXXXXXXXX --issuer xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  ```
+
+- **Release:** `bash scripts/release.sh <version>` bumps the version, builds,
+  signs, notarizes + staples, checks Gatekeeper accepts it, tags `v<version>` and
+  publishes `Eos-darwin-arm64.zip` as a GitHub release. `install.sh` installs that
+  zip on Apple Silicon Macs (`--from-source` builds instead).
 
 ### Binary auto-update (electron-updater) — inert hook
 
@@ -206,7 +208,7 @@ If `app/ui/dist` is missing or stale, rebuild it (build output only, safe):
 - `npm run bundle` — esbuild → `.forge-build/{main,preload}.js` (single CJS files).
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm start` — bundle, then `electron-forge start`.
-- `npm run package` / `npm run make` — Forge packaging (**M6**; not signed/notarized yet).
+- `npm run package` / `npm run make` — Forge packaging, signed (see Signing, notarization, releases).
 
 ## Layout
 
