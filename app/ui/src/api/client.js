@@ -493,6 +493,9 @@ export const api = {
   async deleteProject(id) {
     return postJson(ROUTES.projectsDelete, { id }, uiTokenHeader());
   },
+  async removeRecent(path) {
+    return postJson(ROUTES.fsRecentsRemove, { path }, uiTokenHeader());
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);

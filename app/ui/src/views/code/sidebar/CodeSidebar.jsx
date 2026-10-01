@@ -6,7 +6,7 @@ import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { leaves } from "../../../lib/paneLayout.js";
 import {
-  KINDS, openTerminal, focusPane, closePane, setCwd,
+  KINDS, openTerminal, focusPane, closePane, setCwd, clearCwd,
 } from "../../../state/codeWorkspaceStore.js";
 import { api } from "../../../api/client.js";
 import { useCodeWorkspace } from "../useCodeWorkspace.js";
@@ -30,7 +30,8 @@ function CollapseIcon() {
 // then the active group's project folders — each folder header (click selects
 // it as the workspace folder, double-click or + starts Claude Code there, in the
 // active group) above its open sessions (one per pane, draggable onto a pane to
-// rearrange the split). Recent folders without a session show as empty groups.
+// rearrange the split). Recent folders without a session show as empty groups,
+// and × forgets one from the list.
 // Below them, the closed sessions (HistoryList), to reopen with a click.
 export function CodeSidebar({ live, variant = "full" }) {
   const ui = useUi();
@@ -47,6 +48,13 @@ export function CodeSidebar({ live, variant = "full" }) {
   const startIn = (path) => {
     setCwd(path);
     openTerminal(KINDS.claude);
+  };
+
+  // Forgetting the workspace folder clears it too, so the view falls back to
+  // the first remaining folder (CodeView) instead of keeping it listed.
+  const forget = (path) => {
+    live.removeRecent(path);
+    clearCwd(path);
   };
 
   const browse = async () => {
@@ -98,6 +106,7 @@ export function CodeSidebar({ live, variant = "full" }) {
                   current={g.path === ws.cwd}
                   onSelect={() => setCwd(g.path)}
                   onStart={() => startIn(g.path)}
+                  onRemove={g.roots.length === 0 ? () => forget(g.path) : undefined}
                 >
                   {g.roots.map((s) => (
                     <SessionRow
@@ -167,7 +176,7 @@ function SessionRow({ leafId, index, term, focused }) {
   );
 }
 
-function FolderGroup({ group, current, onSelect, onStart, children }) {
+function FolderGroup({ group, current, onSelect, onStart, onRemove, children }) {
   const { path, name } = group;
   return (
     <div className="agents-group cw-group">
@@ -182,6 +191,17 @@ function FolderGroup({ group, current, onSelect, onStart, children }) {
       >
         <span className="agents-group__icon" aria-hidden="true"><FolderGlyph size={14} /></span>
         <span className="agents-group__name">{name}</span>
+        {onRemove && (
+          <button
+            className="sb-iconbtn cw-group__remove"
+            title={`Remove ${name} from the list`}
+            aria-label={`Remove ${name} from the list`}
+            onClick={(e) => { e.stopPropagation(); onRemove(); }}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <CloseGlyph />
+          </button>
+        )}
         {path && (
           <button
             className="sb-iconbtn agents-group__add"

@@ -305,6 +305,9 @@ html.native .cw-main { --spt-top: 12px; }
 .cw-group__head.on .agents-group__icon { color: var(--accent); }
 .cw-group__head.on .agents-group__name { color: var(--fg-strong); }
 .cw-group .cw-row { margin-left: 16px; }
+/* Remove-from-list: only on folders without a session, shown on hover. */
+.cw-group__remove { width: 20px; height: 20px; flex-shrink: 0; color: var(--fg-faint); display: none; }
+.cw-group__head:hover .cw-group__remove, .cw-group__head:focus-within .cw-group__remove { display: inline-flex; }
 
 /* ── Sidebar: pane groups ────────────────────────────────────────────────── */
 /* Each row carries its color as --cw-group (inline). The active row is tinted

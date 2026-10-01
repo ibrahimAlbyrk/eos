@@ -28,6 +28,7 @@ import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
 import { emitFsChange } from "../state/fsChangeBus.js";
+import { notify } from "../lib/notify.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
 import { startPolling } from "../lib/pollInterval.js";
 import { refreshHosts } from "../state/hostsStore.js";
@@ -244,6 +245,15 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
+  // Optimistic: the folder leaves the list at once; the refetch restores it if
+  // the daemon refused.
+  const removeRecent = useCallback(async (path) => {
+    setRecents((prev) => prev.filter((p) => p !== path));
+    const r = await api.removeRecent(path).catch(() => null);
+    if (!r?.ok) notify.error("Couldn't remove the folder from the list");
+    refreshRecents();
+  }, [refreshRecents]);
+
   const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile } = {}) => {
     const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile });
     // Refresh workers synchronously so the new id is visible before the
@@ -423,6 +433,7 @@ export function useLive() {
     setModel,
     switchBackend,
     refreshRecents,
+    removeRecent,
     interruptedId,
     pendingPermissions,
     approvePending,
