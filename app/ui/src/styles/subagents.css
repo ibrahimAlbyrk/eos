@@ -216,6 +216,7 @@
 .sa-worked { font-size: var(--text-sm); color: var(--fg-dim2); }
 .sa-worked:hover { color: var(--fg-mid); }
 .sa-work { display: flex; flex-direction: column; gap: 10px; }
+.sa-tools { display: flex; flex-direction: column; }
 .sa-prompt {
   margin: 0;
   font-size: var(--text-sm);

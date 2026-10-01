@@ -110,4 +110,12 @@ describe("SubagentDetail", () => {
     expect(html).toContain("tool-item");
     expect(html).not.toContain("No output captured.");
   });
+
+  it("folds a run of tools into a transcript-style group", () => {
+    const grouped = { ...byId("files"), tools: [read("r1", false), read("r2", false), read("r3", false)] };
+    const html = render(<SubagentDetail run={grouped} now={NOW} workers={[]} onBack={() => {}} />);
+    expect(text(html)).toContain("Read 3 files");
+    expect(html.match(/class="tool-group"/g)).toHaveLength(1);
+    expect(html).not.toContain("tool-item standalone");
+  });
 });

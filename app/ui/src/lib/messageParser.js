@@ -360,17 +360,7 @@ export function buildBlocks(rawEvents) {
 
   const flushTools = () => {
     if (pendingTools.length === 0) return;
-    if (pendingTools.length === 1) {
-      out.push({ kind: "tool", tool: pendingTools[0], ts: pendingTools[0].ts });
-    } else {
-      out.push({
-        kind: "toolGroup",
-        lane: pendingLane,
-        summary: LANES[pendingLane].summarize(pendingTools),
-        tools: [...pendingTools],
-        ts: pendingTools[0].ts,
-      });
-    }
+    out.push(toolBlock(pendingTools, pendingLane));
     pendingTools = [];
     pendingLane = null;
   };
@@ -834,6 +824,36 @@ const LANES = {
   generic: { summarize: buildSummary },
   worker: { summarize: buildWorkerSummary },
 };
+
+// One tool alone stays a "tool" block; a same-lane run folds into a "toolGroup".
+const toolBlock = (tools, lane) => tools.length === 1
+  ? { kind: "tool", tool: tools[0], ts: tools[0].ts }
+  : { kind: "toolGroup", lane, summary: LANES[lane].summarize(tools), tools: [...tools], ts: tools[0].ts };
+
+// A bare list of tools (a subagent's work) in transcript shape: the same lane
+// rules buildBlocks applies to a conversation.
+export function groupTools(tools) {
+  const out = [];
+  let run = [];
+  let runLane = null;
+  const flush = () => {
+    if (run.length > 0) out.push(toolBlock(run, runLane));
+    run = [];
+  };
+  for (const tool of tools) {
+    const lane = laneOf(tool.name);
+    if (lane === null) {
+      flush();
+      out.push({ kind: "tool", tool, ts: tool.ts });
+      continue;
+    }
+    if (run.length > 0 && lane !== runLane) flush();
+    runLane = lane;
+    run.push(tool);
+  }
+  flush();
+  return out;
+}
 
 export function verbFor(name) {
   const n = String(name || "").toLowerCase();

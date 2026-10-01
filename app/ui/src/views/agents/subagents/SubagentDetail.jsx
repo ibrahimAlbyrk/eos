@@ -1,26 +1,27 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import { modelName, EFFORT_LABELS } from "../../../lib/models.js";
-import { verbFor } from "../../../lib/messageParser.js";
+import { groupTools, verbFor } from "../../../lib/messageParser.js";
 import { cleanSubagentResult, isRunning, subagentStatusPhrase } from "../../../lib/subagentRuns.js";
 import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { ScrollHoldContext } from "../messages/scrollHoldContext.js";
 import { DisclosureRow } from "../messages/DisclosureRow.jsx";
 import { Collapse } from "../messages/Collapse.jsx";
-import { ToolItem } from "../messages/ToolItem.jsx";
+import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageRow } from "../messages/MessageRow.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 
-// Inner tools in ToolItem's shape. Once the subagent is over nothing in it can
-// still be running, whatever its last pulse said.
-function toolsOf(run) {
+// Inner tools as transcript blocks (lone tools and grouped runs), in ToolItem's
+// shape. Once the subagent is over nothing in it can still be running, whatever
+// its last pulse said.
+function toolBlocksOf(run) {
   const over = !isRunning(run);
-  return (run.tools ?? []).map((t) => ({
+  return groupTools((run.tools ?? []).map((t) => ({
     ...t,
     verb: verbFor(t.name),
     result: t.result ?? (t.done || over ? { text: "", isError: false } : null),
     running: t.running === true && !over,
-  }));
+  })));
 }
 
 // One subagent, opened from the list or the transcript: what it was asked, the
@@ -35,7 +36,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
     if (running) stick.write(Infinity, { pin: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const tools = useMemo(() => toolsOf(run), [run]);
+  const blocks = useMemo(() => toolBlocksOf(run), [run]);
   const result = cleanSubagentResult(run.result);
   const effort = run.effort ? EFFORT_LABELS[run.effort] ?? run.effort : null;
   const meta = [run.subagentType, modelName(run.model), effort].filter(Boolean).join(" · ");
@@ -59,9 +60,11 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
             <Collapse open={open}>
               <div className="sa-work">
                 {run.prompt && <p className="sa-prompt">{run.prompt}</p>}
-                {tools.length > 0 && (
-                  <div className="tool-group-list">
-                    {tools.map((t) => <ToolItem key={t.id} tool={t} standalone cwd={cwd} workers={workers} />)}
+                {blocks.length > 0 && (
+                  <div className="sa-tools">
+                    {blocks.map((b) => (
+                      <ToolBlock key={(b.tool ?? b.tools[0]).id} block={b} cwd={cwd} workers={workers} />
+                    ))}
                   </div>
                 )}
               </div>

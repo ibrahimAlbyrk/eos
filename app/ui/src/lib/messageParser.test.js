@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, splitAtCompaction, compactionStatus, sortBlocksByTs, providerErrorMessage } from "./messageParser.js";
+import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, splitAtCompaction, compactionStatus, sortBlocksByTs, providerErrorMessage, groupTools } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -451,6 +451,27 @@ describe("buildBlocks subagent via spawnsSubagent marker (in-process lane)", () 
     const run = buildBlocks(events).find((b) => b.kind === "agentRun" && b.toolUseId === "ag-1");
     expect(run).toBeTruthy();
     expect(run.tools.map((t) => t.id)).toEqual(["inner-9"]);
+  });
+});
+
+describe("groupTools", () => {
+  const tool = (id, name = "Bash") => ({ id, name, input: {}, ts: 1 });
+
+  it("folds a same-lane run into one group and leaves a lone tool bare", () => {
+    const [group, lone] = groupTools([tool("a", "Read"), tool("b", "Read"), tool("c", "Skill")]);
+    expect(group.kind).toBe("toolGroup");
+    expect(group.summary).toBe("Read 2 files");
+    expect(group.tools.map((t) => t.id)).toEqual(["a", "b"]);
+    expect(lone).toMatchObject({ kind: "tool", tool: { id: "c" } });
+  });
+
+  it("splits the run around a standalone tool, as the transcript does", () => {
+    const blocks = groupTools([tool("a"), tool("b"), tool("s", "Skill"), tool("c"), tool("d")]);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup", "tool", "toolGroup"]);
+  });
+
+  it("has nothing to show for no tools", () => {
+    expect(groupTools([])).toEqual([]);
   });
 });
 
