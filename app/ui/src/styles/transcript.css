@@ -437,9 +437,9 @@
 
 /* Hover action pill (timestamp + rewind + copy + reply). Absolutely positioned
    so revealing it never shifts layout (the transcript auto-scrolls and a
-   reflow would jump): in the block gap under the message, or — for a user
-   message — beside the bubble, centred on it. Its 34px height fills the gap
-   flush, so there is no unhoverable dead zone between message and pill. */
+   reflow would jump): in the block gap under the message — left-aligned, or
+   right-aligned under the bubble for a user message. Its 34px height fills
+   the gap flush, so there is no unhoverable dead zone between message and pill. */
 .msg-row { position: relative; anchor-scope: --msg-body; }
 /* The bubble when there is one, else the attachments (last in tree order wins). */
 .msg-row .msg-attachments, .msg-row .msg-user .b { anchor-name: --msg-body; }
@@ -461,12 +461,18 @@
 }
 .msg-row:hover .msg-actions { opacity: 1; }
 .msg-actions.right {
+  --pill-gap: 6px;
   position-anchor: --msg-body;
-  top: anchor(center);
-  right: anchor(left);
+  top: calc(anchor(bottom) + var(--pill-gap));
+  right: anchor(right);
   left: auto;
-  margin-right: 10px;
-  translate: 0 -50%;
+}
+/* Invisible bridge over the gap so the pointer never leaves the row on its way to the pill. */
+.msg-actions.right::before {
+  content: "";
+  position: absolute;
+  inset: auto 0 100%;
+  height: var(--pill-gap);
 }
 .msg-action-btn {
   display: inline-flex;
@@ -546,7 +552,8 @@
   transition: grid-template-rows 620ms cubic-bezier(.32, .72, 0, 1);
 }
 .collapse.is-collapsed { grid-template-rows: 0fr; }
-.collapse-in { min-height: 0; overflow-x: visible; overflow-y: clip; }
+/* min-width: 0 — an unbreakable line inside must not widen the grid track past its container */
+.collapse-in { min-height: 0; min-width: 0; overflow-x: visible; overflow-y: clip; }
 .collapse-body {
   transform-origin: 0 0;
   transition: opacity 380ms ease, filter 480ms ease, transform 620ms cubic-bezier(.32, .72, 0, 1);

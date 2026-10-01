@@ -2,8 +2,8 @@ import { useState } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
 
 // Hover-revealed action pill (relative timestamp + optional rewind + copy +
-// optional reply) beside text messages: left of a user bubble, under anything
-// else. `onRewind` is an async () => {ok, error?}; the button
+// optional reply) under text messages: right-aligned under a user bubble,
+// left-aligned under anything else. `onRewind` is an async () => {ok, error?}; the button
 // renders only when it is provided. `rewindDisabled` keeps it visible but
 // inert (dimmed) — e.g. while the agent is mid-turn and the backend would
 // refuse the rewind anyway. `onReply` (when provided) sits at the pill's end.
