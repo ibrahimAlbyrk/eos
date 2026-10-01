@@ -1294,7 +1294,10 @@
 .al-star .al-spin, .al-star .al-rays, .al-star .al-core { transform-box: view-box; transform-origin: 0 0; }
 .al-star .al-rays, .al-star .al-core { transform: scale(0.86); }
 .al-star .al-ray { fill: var(--al-ray, var(--fg-mute)); }
-.al-star .al-ray-hi { fill: var(--al-hi, color-mix(in srgb, var(--fg-mute), var(--fg-faint))); }
+/* Plain hex, not color-mix(): Chromium interpolates hex → color-mix() in oklab
+   with raw 0–255 channels, so the is-done settle flashed yellow/red.
+   #5d5d5d = 50/50 of --fg-mute and --fg-faint. */
+.al-star .al-ray-hi { fill: var(--al-hi, #5d5d5d); }
 .al-star .al-core { fill: var(--al-core, var(--fg-faint)); }
 
 .activity-line:is(.is-busy, .is-check) .al-star { animation: al-halo 2.4s ease-in-out infinite; }
