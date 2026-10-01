@@ -1993,6 +1993,9 @@
   height: auto;
   white-space: nowrap;
 }
+/* Same z-index as the card that follows, so the card would paint over an open
+   dropdown rising out of this row — lift the row while one is open. */
+.c-row1.c-row1--config:has(.cb-chip-dd.open) { z-index: 5; }
 .cb-chip {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 9px;
