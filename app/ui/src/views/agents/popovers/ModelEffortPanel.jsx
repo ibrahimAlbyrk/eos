@@ -62,12 +62,19 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   const paneRef = useRef(null);
   const barRef = useRef(null);
   const particleWrapRef = useRef(null);
-  const [dragFrac, setDragFrac] = useState(null); // non-null while dragging
+  const [drag, setDrag] = useState(null); // { frac, live } while pressed; live once the pointer really moves
+  const [pendingEffort, setPendingEffort] = useState(null);
   const [showList, setShowList] = useState(false);
 
   const selected = worker ?? null;
   const currentModel = selected?.model ?? config?.model ?? ui.composer.model;
   const currentEffort = selected?.effort ?? config?.effort ?? ui.composer.effort;
+  // A worker's effort only comes back after the save + refetch; hold the picked
+  // level until then so the thumb doesn't slide back to the old stop meanwhile.
+  const effort = pendingEffort ?? currentEffort;
+  useEffect(() => {
+    if (pendingEffort === currentEffort) setPendingEffort(null);
+  }, [pendingEffort, currentEffort]);
 
   // The rail's ordered stops = the API effort levels the model supports, minus
   // ultracode. A model that supports no effort hides the whole panel upstream.
@@ -84,33 +91,37 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   const idxFromFrac = (f) => (count > 1 ? Math.round(clamp01(f) * (count - 1)) : 0);
   const colorIdxOf = (i) => (count > 1 ? Math.round((i / (count - 1)) * 4) : 0);
 
-  let committedIdx = railIds.indexOf(currentEffort);
-  if (committedIdx < 0) committedIdx = currentEffort === "ultracode" ? count - 1 : Math.min(count - 1, idxFromFrac(0.5));
-  const dragging = dragFrac !== null;
-  const shownFrac = dragging ? dragFrac : fracFromIdx(committedIdx);
-  const shownIdx = dragging ? idxFromFrac(dragFrac) : committedIdx;
+  let committedIdx = railIds.indexOf(effort);
+  if (committedIdx < 0) committedIdx = effort === "ultracode" ? count - 1 : Math.min(count - 1, idxFromFrac(0.5));
+  const shownIdx = drag ? idxFromFrac(drag.frac) : committedIdx;
+  // A plain click animates to its snapped stop; only a real drag follows the pointer.
+  const shownFrac = drag?.live ? drag.frac : fracFromIdx(shownIdx);
   const colorIdx = colorIdxOf(shownIdx);
   const isMax = shownIdx === count - 1;
   const lvl = LV[colorIdx];
 
   const commit = (i) => {
     const id = railIds[i];
-    if (!id || id === currentEffort) return;
-    if (selected) live.setModel(selected.id, currentModel, id);
-    else if (onPick) onPick(id);
+    if (!id || id === effort) return;
+    setPendingEffort(id);
+    if (selected) {
+      live.setModel(selected.id, currentModel, id).then((r) => {
+        if (!r.ok) setPendingEffort((p) => (p === id ? null : p));
+      });
+    } else if (onPick) onPick(id);
     else ui.updateComposer({ effort: id });
   };
 
   const pickModel = (m) => {
     const id = m.aliases?.[0] ?? m.id;
-    if (selected) live.setModel(selected.id, id, currentEffort);
+    if (selected) live.setModel(selected.id, id, effort);
     else if (onPick) onPick(id);
     else ui.updateComposer({ model: id });
     setShowList(false);
   };
 
   const reset = () => {
-    setDragFrac(null);
+    setDrag(null);
     const mid = railIds.indexOf("medium");
     commit(mid >= 0 ? mid : Math.floor((count - 1) / 2));
   };
@@ -124,13 +135,18 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   const onPointerDown = (e) => {
     if (e.button) return;
     e.preventDefault();
-    setDragFrac(fracAt(e.clientX));
-    const move = (ev) => setDragFrac(fracAt(ev.clientX));
+    const startX = e.clientX;
+    let live = false;
+    setDrag({ frac: fracAt(startX), live });
+    const move = (ev) => {
+      live ||= Math.abs(ev.clientX - startX) > 3;
+      setDrag({ frac: fracAt(ev.clientX), live });
+    };
     const up = (ev) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       const i = idxFromFrac(fracAt(ev.clientX));
-      setDragFrac(null);
+      setDrag(null);
       commit(i);
     };
     window.addEventListener("pointermove", move);
@@ -165,7 +181,7 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   // the hook order is identical on every render (react-hooks/rules-of-hooks).
   if (!levels.length) return null;
 
-  const noAnim = dragging;
+  const noAnim = Boolean(drag?.live);
   const fillW = `calc(${2 * INSET}px + ${shownFrac} * (100% - ${2 * INSET}px))`;
   const clip = `inset(0 calc(100% - (${2 * INSET}px + ${shownFrac} * (100% - ${2 * INSET}px))) 0 0 round 999px)`;
 
