@@ -9,6 +9,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AddressInfo } from "node:net";
+import { createGunzip } from "node:zlib";
 
 import { PeerHostService } from "../PeerHostService.ts";
 import { HostLinkService } from "../HostLinkService.ts";
@@ -206,6 +207,28 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     assert.equal(r.status, 200);
     assert.match(String(r.headers["content-type"]), /text\/event-stream/);
     assert.equal((r.body.match(/event: change/g) ?? []).length, 3);
+    assert.equal(r.headers["content-encoding"], undefined, "a caller that never asked for gzip gets plain frames");
+  });
+
+  it("gzips the event stream for a caller that accepts it, each frame still arriving as written", async () => {
+    const r = await new Promise<{ encoding: unknown; text: string; firstAt: number; endAt: number }>((resolve, reject) => {
+      const req = httpRequest({ host: "127.0.0.1", port: facadePort, path: `/h/${hostId}/stream?since=e-0`, headers: { "accept-encoding": "gzip" } }, (res) => {
+        const gunzip = createGunzip();
+        let text = "";
+        let firstAt = 0;
+        gunzip.setEncoding("utf8");
+        gunzip.on("data", (d: string) => { text += d; if (!firstAt && text.includes("\n\n")) firstAt = Date.now(); });
+        gunzip.on("end", () => resolve({ encoding: res.headers["content-encoding"], text, firstAt, endAt: Date.now() }));
+        gunzip.on("error", reject);
+        res.pipe(gunzip);
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(r.encoding, "gzip");
+    assert.equal((r.text.match(/event: change/g) ?? []).length, 3);
+    // The fake daemon writes a frame every 15 ms: the first must decode long before the end.
+    assert.ok(r.endAt - r.firstAt >= 15, `first frame decoded ${r.endAt - r.firstAt} ms before the end`);
   });
 
   it("reconnects by itself after the link drops", async () => {

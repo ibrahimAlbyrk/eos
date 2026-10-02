@@ -21,6 +21,12 @@ export interface PeerCredentials {
 
 const TLS_BASE = { minVersion: "TLSv1.3", ALPNProtocols: ["h2"] } as const;
 const HANDSHAKE_TIMEOUT_MS = 10_000;
+// HTTP/2 starts every stream AND the whole connection at a 64 KB flow-control
+// window: a link then moves at most 64 KB per round trip (~400 KB/s over a
+// 150 ms relay), and one large response holds every event stream behind it.
+// Open both wide so a link runs at its bandwidth, not its latency.
+export const PEER_WINDOW_BYTES = 16 * 1024 * 1024;
+const H2_SETTINGS = { initialWindowSize: PEER_WINDOW_BYTES } as const;
 
 export class PeerIdentityError extends Error {
   readonly expected: string;
@@ -66,13 +72,17 @@ export function connectSecure(args: {
       // The HTTP/2 session installs its own handling; until then a late error
       // must not become an uncaught exception.
       sock.on("error", () => {});
+      // Keystrokes and small frames go out at once instead of waiting on Nagle.
+      sock.setNoDelay(true);
       resolve(sock);
     });
   });
 }
 
 export function openPeerSession(sock: tls.TLSSocket): http2.ClientHttp2Session {
-  return http2.connect("https://eos-peer", { createConnection: () => sock });
+  const session = http2.connect("https://eos-peer", { createConnection: () => sock, settings: H2_SETTINGS });
+  session.once("connect", () => { if (!session.destroyed) session.setLocalWindowSize(PEER_WINDOW_BYTES); });
+  return session;
 }
 
 export interface PeerSessionInfo {
@@ -117,7 +127,7 @@ export function createSecurePeerServer(args: {
 }): SecurePeerServer {
   const sessions = new Map<string, Set<http2.ServerHttp2Session>>();
 
-  const h2 = http2.createServer();
+  const h2 = http2.createServer({ settings: H2_SETTINGS });
   h2.on("session", (session) => {
     const tag = (session.socket as unknown as TaggedSocket)[PEER];
     if (!tag) { session.destroy(); return; }
@@ -128,6 +138,7 @@ export function createSecurePeerServer(args: {
       setTimeout(() => session.destroy(), REFUSED_LINGER_MS).unref();
       return;
     }
+    session.setLocalWindowSize(PEER_WINDOW_BYTES);
     const peer: PeerSessionInfo = tag;
     const set = sessions.get(peer.fingerprint) ?? new Set();
     set.add(session);
@@ -157,6 +168,7 @@ export function createSecurePeerServer(args: {
   tlsServer.on("secureConnection", (sock: TaggedSocket) => {
     const fingerprint = peerFingerprint(sock);
     if (!fingerprint || sock.alpnProtocol !== "h2") { sock.destroy(); return; }
+    sock.setNoDelay(true);
     const decision = args.admit(fingerprint);
     if (decision.admission === "refused") {
       args.log?.("peer refused", { fingerprint: fingerprint.slice(0, 16), reason: decision.reason ?? null });

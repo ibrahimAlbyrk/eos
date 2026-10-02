@@ -9,6 +9,7 @@
 import http from "node:http";
 import http2 from "node:http2";
 import type { Readable } from "node:stream";
+import zlib from "node:zlib";
 
 import { PEER_DEVICE_HEADER, PEER_HUMAN_HEADER } from "../../contracts/src/peer.ts";
 import { isLocalOnlyRoute } from "../../contracts/src/route-planes.ts";
@@ -124,8 +125,19 @@ export function createLocalForwarder(target: LocalDaemonTarget): {
       for (const [k, v] of Object.entries(res.headers)) {
         if (v !== undefined && !DROP_HEADERS.has(k)) h[k] = v;
       }
+      const events = String(res.headers["content-type"] ?? "").startsWith("text/event-stream");
+      // Event frames are verbose, repetitive JSON — one gzip context per stream
+      // shrinks them ~8x. Every write is sync-flushed, so a frame is still
+      // readable on the device the moment it leaves here.
+      const gzipEvents = events && !res.headers["content-encoding"] && /\bgzip\b/.test(String(headers["accept-encoding"] ?? ""));
+      if (gzipEvents) { h["content-encoding"] = "gzip"; h.vary = "accept-encoding"; }
       stream.respond(h);
-      if (String(res.headers["content-type"] ?? "").startsWith("text/event-stream")) coalesceStream(res, stream);
+      if (gzipEvents) {
+        const gz = zlib.createGzip({ flush: zlib.constants.Z_SYNC_FLUSH });
+        gz.on("error", () => stream.close(http2.constants.NGHTTP2_INTERNAL_ERROR));
+        gz.pipe(stream);
+        coalesceStream(res, gz);
+      } else if (events) coalesceStream(res, stream);
       else res.pipe(stream);
       res.on("error", () => stream.close(http2.constants.NGHTTP2_INTERNAL_ERROR));
     });

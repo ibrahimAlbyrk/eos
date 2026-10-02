@@ -1,14 +1,28 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { X509Certificate, createPrivateKey } from "node:crypto";
-import { duplexPair } from "node:stream";
+import { Duplex, duplexPair } from "node:stream";
 import type http2 from "node:http2";
 
 import { createSelfSignedIdentity, certFingerprint, pemToDer } from "../peer/x509.ts";
 import {
-  connectSecure, openPeerSession, createSecurePeerServer, PeerIdentityError,
+  connectSecure, openPeerSession, createSecurePeerServer, PeerIdentityError, PEER_WINDOW_BYTES,
   type PeerSessionInfo, type SecurePeerServer,
 } from "../peer/secure-channel.ts";
+
+const BIG_BYTES = 1024 * 1024;
+
+// A byte pipe with a fixed one-way delay — a relay leg in miniature.
+function laggyPair(oneWayMs: number): [Duplex, Duplex] {
+  const ends: Duplex[] = [];
+  const end = (i: number): Duplex => new Duplex({
+    read() {},
+    write(chunk, _enc, cb) { setTimeout(() => ends[1 - i].push(chunk), oneWayMs); cb(); },
+    final(cb) { setTimeout(() => ends[1 - i].push(null), oneWayMs); cb(); },
+  });
+  ends.push(end(0), end(1));
+  return [ends[0], ends[1]];
+}
 import { admitPeer } from "../../../core/src/domain/peer.ts";
 
 function request(session: http2.ClientHttp2Session, path: string): Promise<{ status: number; body: string; chunks: number }> {
@@ -44,6 +58,11 @@ function echoServer(serverId: ReturnType<typeof createSelfSignedIdentity>, trust
           stream.write(`data: ${n}\n\n`);
           if (++n === 3) { clearInterval(t); stream.end(); }
         }, 10);
+        return;
+      }
+      if (headers[":path"] === "/big") {
+        stream.respond({ ":status": 200, "content-type": "application/octet-stream" });
+        stream.end(Buffer.alloc(BIG_BYTES, 120));
         return;
       }
       stream.respond({ ":status": 200, "content-type": "text/plain" });
@@ -135,6 +154,27 @@ describe("peer secure channel", () => {
       assert.ok(r.chunks >= 2, `expected incremental chunks, got ${r.chunks}`);
       const many = await Promise.all(Array.from({ length: 25 }, (_, i) => request(session, `/r/${i}`)));
       assert.deepEqual(many.map((m) => m.body), Array.from({ length: 25 }, (_, i) => `hello /r/${i}`));
+      session.close();
+    } finally {
+      await server.close();
+    }
+  });
+
+  test("a high-latency link moves a large response in a round trip or two, not one per 64 KB", async () => {
+    const server = echoServer(serverId, new Set([clientId.fingerprint]));
+    try {
+      const [clientEnd, serverEnd] = laggyPair(50);
+      server.accept(serverEnd);
+      const sock = await connectSecure({ creds: clientId, expectFingerprint: serverId.fingerprint, transport: clientEnd });
+      const session = openPeerSession(sock);
+      await request(session, "/warm");
+      assert.equal(session.remoteSettings.initialWindowSize, PEER_WINDOW_BYTES, "the host opened its stream window");
+      const t0 = performance.now();
+      const r = await request(session, "/big");
+      const ms = performance.now() - t0;
+      assert.equal(r.body.length, BIG_BYTES);
+      // 1 MB through HTTP/2's default 64 KB window takes 16 round trips (≥1.6 s here).
+      assert.ok(ms < 800, `1 MB over a 100 ms RTT link took ${Math.round(ms)} ms`);
       session.close();
     } finally {
       await server.close();
