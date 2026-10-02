@@ -851,7 +851,7 @@ export function CopyButton({ text, title = "Copy" }) {
 
 // Collapsed full input+result payload — the debugging escape hatch for any tool
 // (clamped on display, copied in full).
-function RawPayload({ tool }) {
+export function RawPayload({ tool }) {
   const [open, setOpen] = useState(false);
   const json = safeJson({ input: tool.input ?? {}, result: tool.result ?? null });
   return (

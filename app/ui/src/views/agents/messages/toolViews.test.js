@@ -36,6 +36,25 @@ describe("getToolView", () => {
     expect(getToolView("Read").Detail).not.toBe(GenericToolCard);
   });
 
+  it("gives the web tools bespoke cards with a meta hint in the header", () => {
+    const search = getToolView("WebSearch");
+    expect(search.Detail).not.toBe(GenericToolCard);
+    const links = [{ title: "a", url: "https://docs.x.com/a" }, { title: "b", url: "https://x.com/b" }, { title: "c", url: "https://y.org" }];
+    expect(search.summary({ result: { text: `Links: ${JSON.stringify(links)}\nsummary` } })).toBe("2 sources");
+    expect(search.summary({ result: { text: 'Links: [{"title":"c","url":"https://y.org"}]' } })).toBe("1 source");
+    expect(search.summary({ result: { text: "Links: []" } })).toBe(null);
+    expect(search.summary({ result: { isError: true, text: "x" } })).toBe(null);
+    expect(search.summary({})).toBe(null);
+
+    const fetch = getToolView("WebFetch");
+    expect(fetch.Detail).not.toBe(GenericToolCard);
+    const tool = { input: { url: "https://www.pubmed.gov/8976999/" } };
+    expect(fetch.label(tool)).toEqual({ verb: "Fetched", file: "pubmed.gov" });
+    expect(fetch.summary(tool)).toBe("/8976999/");
+    expect(fetch.summary({ input: { url: "https://x.com" } })).toBe(null);
+    expect(fetch.label({ input: {} })).toEqual({ verb: "Fetched", file: "" });
+  });
+
   it("builds Read labels from the file basename", () => {
     const read = getToolView("Read");
     const tool = { input: { file_path: "/a/b/c.ts" } };

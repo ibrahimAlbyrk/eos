@@ -1,0 +1,259 @@
+/* webtools.css — WebSearch / WebFetch tool bodies (WebToolCards.jsx).
+   The card is the transcript's soft well plus a gradient rim and a faint accent
+   light at its top-left; bars, chips and buttons are small glass (--lg-chip-*).
+   Search: a Spotlight-style query bar over site chips and the summary.
+   Fetch: a glass address bar over the prompt and the result. */
+
+.web-card {
+  position: relative;
+  isolation: isolate;
+  margin: 4px 0 8px;
+  border-radius: 18px;
+  background:
+    radial-gradient(560px 150px at 0% 0%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 70%),
+    linear-gradient(180deg, rgba(var(--tint), 0.045), rgba(var(--tint), 0.016) 38%, rgba(var(--tint), 0.026));
+  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.06), 0 26px 50px -30px rgba(var(--ink), 0.9);
+
+  /* 1px rim, brightest at the top-left (glass.css floating-surface recipe) */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(var(--tint), 0.24), rgba(var(--tint), 0.05) 24%, rgba(var(--tint), 0.015) 55%, rgba(var(--tint), 0.1));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+  & > .tool-failure-banner { margin: 12px 14px 0; }
+  & > .gd-raw { padding: 10px 20px 12px; }
+}
+.web-detail:hover .fp-copy { opacity: 1; }
+
+/* ── bars ─────────────────────────────────────────────────────────────── */
+.web-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.web-bar-icon { flex-shrink: 0; color: var(--fg-dim); }
+.ti-failed-state .web-bar-icon { color: var(--err); }
+
+.ws-bar {
+  gap: 13px;
+  height: 60px;
+  padding: 0 14px 0 20px;
+  border-radius: 18px 18px 0 0;
+}
+.ws-query {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xl);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--fg-strong);
+}
+.web-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 11px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-xs);
+  color: var(--fg-mid);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+}
+
+.wf-bar {
+  height: 42px;
+  margin: 12px 12px 0;
+  padding: 0 6px 0 16px;
+  border-radius: var(--r-pill);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  font-size: var(--text-sm);
+  color: var(--fg-dim2);
+
+  & .fp-copy { width: 28px; height: 28px; border-radius: var(--r-pill); }
+}
+.wf-url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-host { color: var(--fg-strong); }
+.web-icon-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--r-pill);
+  color: var(--fg-faint);
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+.web-icon-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+
+/* running: a light sweeps the query bar; a thin bar runs under the address */
+.ws-bar.is-running .web-bar-icon { color: var(--accent); }
+.web-bar.is-running::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  background-repeat: no-repeat;
+}
+.ws-bar.is-running::after {
+  inset: 0;
+  border-radius: inherit;
+  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 14%, transparent), transparent);
+  background-size: 32% 100%;
+  animation: web-sweep 2s var(--lg-ease) infinite;
+}
+.wf-bar.is-running::after {
+  left: 18px;
+  right: 18px;
+  bottom: 0;
+  height: 1.5px;
+  background-image: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 30% 100%;
+  animation: web-sweep 1.4s ease-in-out infinite;
+}
+@keyframes web-sweep {
+  from { background-position: -60% 0; }
+  to { background-position: 160% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .web-bar.is-running::after { animation: none; }
+}
+
+/* ── body ─────────────────────────────────────────────────────────────── */
+.web-sep { height: 1px; flex-shrink: 0; background: var(--lg-sep); }
+.web-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px 20px 4px;
+}
+.web-body:empty { display: none; }
+.web-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.web-label { font-size: var(--text-xs); color: var(--fg-dim2); }
+.wf-prompt {
+  margin: 0;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.web-empty { padding: 14px 20px 2px; font-size: var(--text-sm); color: var(--fg-dim); }
+
+/* summary / result prose, folded when long */
+.web-prose-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.web-prose { color: var(--fg-mid); }
+.web-prose.is-clamped {
+  max-height: 252px; /* CLAMP_PX in WebToolCards.jsx */
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(180deg, #000 62%, transparent);
+  mask-image: linear-gradient(180deg, #000 62%, transparent);
+}
+.web-more {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+
+  & svg { transition: transform 200ms var(--lg-ease); }
+  &[aria-expanded="true"] svg { transform: rotate(180deg); }
+}
+
+/* ── site chips ───────────────────────────────────────────────────────── */
+.ws-sites { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-site {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px 0 5px;
+  border: 0;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+.ws-more { padding: 0 12px 0 8px; color: var(--fg-dim); }
+:is(.ws-site, .web-more):hover,
+.ws-site.is-open {
+  color: var(--fg-strong);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.1), rgba(var(--tint), 0.03) 60%, rgba(var(--tint), 0.05));
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.26), inset 0 0 0 0.5px rgba(var(--tint), 0.1),
+              0 4px 12px -4px rgba(var(--ink), 0.45);
+}
+.ws-site-count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* letter tile: one quiet hue per site (--h from siteHue) */
+.web-tile {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  color: oklch(0.87 0.08 var(--h));
+  background: oklch(0.3 0.05 var(--h));
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.16), inset 0 0 0 0.5px rgba(var(--tint), 0.06);
+}
+.ws-stack { display: inline-flex; }
+.web-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: var(--r-pill);
+  background: oklch(0.45 0.07 var(--h));
+  outline: 1.5px solid var(--pop);
+
+  & + & { margin-left: -4px; }
+}
+
+/* one site's links, opened from its chip */
+.ws-links { display: flex; flex-direction: column; margin: -6px -10px 0; }
+.ws-link {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: var(--r-item);
+  text-decoration: none;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.ws-link:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.ws-link-title,
+.ws-link-url { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-link-title { font-size: var(--text-sm); color: var(--fg); }
+.ws-link-url { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }

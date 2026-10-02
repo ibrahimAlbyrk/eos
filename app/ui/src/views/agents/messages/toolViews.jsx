@@ -29,6 +29,8 @@ import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText, 
 import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
 import { artifactFromTool } from "../../../lib/artifactLink.js";
 import { ArtifactChip } from "./ArtifactChip.jsx";
+import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
+import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -77,14 +79,7 @@ function fileName(p) {
   return parts[parts.length - 1] || p;
 }
 
-function hostOf(url) {
-  if (!url) return "";
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
+const hostOf = (url) => splitUrl(url)?.host ?? url ?? "";
 
 const filePathOf = (t) => t.input?.file_path ?? null;
 
@@ -162,16 +157,27 @@ for (const name of ["Glob", "Grep"]) {
   });
 }
 
+// The header's meta slot counts the sites the search drew on.
+function webSearchSourceCount(t) {
+  if (!t.result || t.result.isError) return null;
+  const n = groupBySite(parseWebSearch(t.result.text).links).length;
+  return n > 0 ? `${n} source${n === 1 ? "" : "s"}` : null;
+}
+
 register("WebSearch", {
   expandable: genericExpandable,
   label: (t) => ({ verb: "Searched the web", file: t.input?.query ?? "" }),
   runningLabel: (t) => ({ verb: "Searching the web", file: t.input?.query ?? "" }),
+  summary: webSearchSourceCount,
+  Detail: WebSearchDetail,
 });
 
 register("WebFetch", {
   expandable: genericExpandable,
   label: (t) => ({ verb: "Fetched", file: hostOf(t.input?.url) }),
   runningLabel: (t) => ({ verb: "Fetching", file: hostOf(t.input?.url) }),
+  summary: (t) => splitUrl(t.input?.url)?.rest || null,
+  Detail: WebFetchDetail,
 });
 
 // A published/opened claude.ai artifact is one line: verb + the link chip (hover

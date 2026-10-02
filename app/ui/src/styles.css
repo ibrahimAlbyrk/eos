@@ -23,6 +23,7 @@
 @import "./styles/accounts.css";
 @import "./styles/machines.css";
 @import "./styles/subagents.css";
+@import "./styles/webtools.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }
