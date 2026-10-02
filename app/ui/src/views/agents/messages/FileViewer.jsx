@@ -21,14 +21,27 @@ import { filePathOf } from "../../../lib/panelTabs.js";
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
 const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 
-// A `file:<path>` side-panel tab: one opened file per tab, beside the Files tree.
+// A `file:<path>` side-panel tab: a pinned file, one per tab.
 export function FileViewer({ live, tabId }) {
+  const ui = useUi();
   const path = filePathOf(tabId);
   if (!path) return null;
-  return <FileViewerInner path={path} tabId={tabId} live={live} />;
+  return (
+    <FileView
+      path={path}
+      live={live}
+      reveal={ui.panelData?.[tabId]?.reveal}
+      findActive={ui.activeTab === tabId && ui.focusedRegion === "panel"}
+      onRemove={() => ui.closeTab(tabId)}
+    />
+  );
 }
 
-function FileViewerInner({ path, tabId, live }) {
+// One file, shown by a pinned tab or the panel's dock. `findActive` says when
+// ⌘F belongs to this viewer (`findPriority` breaks a tie with another viewer);
+// `onRemove` runs when the file is deleted on disk; `lead`/`trail` are the
+// host's own controls around the path row.
+export function FileView({ path, live, reveal, findActive, findPriority = 10, onRemove, lead, trail }) {
   const ui = useUi();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
@@ -91,7 +104,6 @@ function FileViewerInner({ path, tabId, live }) {
   const [refs, setRefs] = useState(null); // { name, occurrences, loading } | null
   const refsRef = useRef(refs);
   refsRef.current = refs;
-  const revealTarget = ui.panelData?.[tabId]?.reveal;
 
   // Definitions + lazy reference counts come from the shared hook (also used by
   // the Files-tab editor); the references drawer + go-to-def stay local here.
@@ -165,21 +177,21 @@ function FileViewerInner({ path, tabId, live }) {
     }
   };
 
-  // ⌘F while this file's tab is active in the focused side panel
+  // ⌘F while this viewer is the focused side panel's find target
   // → this find bar outranks the chat's (priority 10 vs 0). Unlike the button's
   // toggle, a repeat ⌘F re-opens + selects the query (chat semantics). Non-text
   // files have no find bar, so their `when` fails and ⌘F falls through to chat.
   useKeybinding({
     match: combo("mod+f"),
-    priority: 10,
-    when: () => isText && ui.activeTab === tabId && ui.focusedRegion === "panel",
+    priority: findPriority,
+    when: () => isText && findActive,
     run: (ctx, e) => {
       e.preventDefault();
       setShowOpenWith(false);
       setShowFind(true);
       requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
     },
-  }, [isText, ui.activeTab, tabId, ui.focusedRegion]);
+  }, [isText, findActive, findPriority]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));
@@ -194,15 +206,16 @@ function FileViewerInner({ path, tabId, live }) {
   const dirty = isText && content !== null && editContent !== content;
 
   // Live-refresh on a disk change of THIS file (agent edit, git op, …). Refetch
-  // unless the buffer is dirty or a save is in flight; close the tab on unlink.
+  // unless the buffer is dirty or a save is in flight; let the host drop it on unlink.
   useFileWatch(path, {
     onChange: () => { if (!dirty && !saving) setReloadTick((t) => t + 1); },
-    onRemove: () => ui.closeTab(tabId),
+    onRemove,
   });
 
   return (
     <div className="panel-shell panel-shell--file">
       <div className="fv-row2">
+        {lead}
         <span className="fv-path" title={shortPath}>
           {pathDir && <span className="fv-path-dir">{pathDir}</span>}
           {pathBase}
@@ -262,6 +275,7 @@ function FileViewerInner({ path, tabId, live }) {
             ))}
           </div>
         )}
+        {trail}
       </div>
       {showFind && (
         <div className="fv-find-bar">
@@ -309,9 +323,9 @@ function FileViewerInner({ path, tabId, live }) {
                   codeLens={codeLens}
                   onCodeLensClick={onCodeLensClick}
                   onVisibleDefs={requestCounts}
-                  revealLine={revealTarget?.line}
-                  revealColumn={revealTarget?.column}
-                  revealSeq={revealTarget?.seq}
+                  revealLine={reveal?.line}
+                  revealColumn={reveal?.column}
+                  revealSeq={reveal?.seq}
                 />
               )
             )}

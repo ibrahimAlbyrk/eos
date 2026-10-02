@@ -2,17 +2,26 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer, activateTab, fileTabId } from "../lib/panelTabs.js";
+import { EMPTY_DOCK, peekFile, restoreDock } from "../lib/fileDock.js";
 
 const SelectionContext = createContext(null);
 
 // One pane's side-panel: an open flag, an ordered set of open tabs + the active
-// one, a width, a fullscreen flag, and per-tab data. Frozen shared default so empty panes resolve to a stable identity.
+// one, a width, a fullscreen flag, per-tab data, and the file dock under the
+// tabs (lib/fileDock.js). Frozen shared default so empty panes resolve to a stable identity.
 export const EMPTY_PANEL = Object.freeze({
-  open: false, openTabs: [], activeTab: null, tabHistory: [], width: null, fullscreen: false, data: {},
+  open: false, openTabs: [], activeTab: null, tabHistory: [], width: null, fullscreen: false, data: {}, dock: EMPTY_DOCK,
 });
 
+// A file's reveal target (line/column + a fresh seq, so re-opening the same line
+// re-centers the editor), keyed by its tab id: the dock and a pinned tab of the
+// same file read the same entry.
+function withReveal(data, path, reveal, seq) {
+  return reveal ? { ...data, [fileTabId(path)]: { reveal: { line: reveal.line, column: reveal.column, seq } } } : data;
+}
+
 // Per-pane panels persist keyed by leaf id (the pane tree persists the same
-// ids), storing only the durable bits — open / tabs / width. A pane with no
+// ids), storing only the durable bits — open / tabs / width / dock. A pane with no
 // stored entry resolves to EMPTY_PANEL, so a fresh session starts with no tabs.
 function loadPanels() {
   try {
@@ -26,7 +35,7 @@ function loadPanels() {
         const tabHistory = Array.isArray(v.tabHistory) ? v.tabHistory.filter((t) => openTabs.includes(t)) : [];
         // Width is a fraction of the pane; legacy px values (>1) fall back to default.
         const width = Number.isFinite(v.width) && v.width > 0 && v.width < 1 ? v.width : null;
-        out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, tabHistory, width };
+        out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, tabHistory, width, dock: restoreDock(v.dock) };
       }
       return out;
     }
@@ -39,8 +48,9 @@ function savePanels(map) {
   try {
     const out = {};
     for (const [id, s] of Object.entries(map)) {
-      if (!s.open && !s.openTabs.length && !s.width) continue;
-      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, tabHistory: s.tabHistory, width: s.width };
+      const hasDock = s.dock.history.length > 0;
+      if (!s.open && !s.openTabs.length && !s.width && !hasDock) continue;
+      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, tabHistory: s.tabHistory, width: s.width, dock: hasDock ? s.dock : undefined };
     }
     if (Object.keys(out).length) localStorage.setItem("cm:sidePanels", JSON.stringify(out));
     else localStorage.removeItem("cm:sidePanels");
@@ -121,8 +131,9 @@ export function SelectionProvider({ children }) {
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   // ── Per-pane right side panels (open-tabs model) ──
   // Each pane (keyed by leaf id) owns its OWN panel: an open flag, an ordered
-  // set of open tabs + the active one, a width, a fullscreen flag, and per-tab
-  // data (an opened file is its own tab). In split view every pane opens and
+  // set of open tabs + the active one, a width, a fullscreen flag, per-tab data,
+  // and a file dock (an opened file lands there; a pinned one is its own tab).
+  // In split view every pane opens and
   // resizes its panel independently. Opening a tab appends+activates it and
   // reveals that pane's panel; the active pill's × closes just THAT tab
   // (activating a neighbor), leaving the panel open — empty when the last tab
@@ -204,15 +215,32 @@ export function SelectionProvider({ children }) {
       return { ...m, [paneId]: { ...cur, width: frac > 0 && frac < 1 ? frac : null } };
     });
   }, []);
+  // Opening a file shows it in the panel's dock, under the active tab, which
+  // stays as it was.
   const openFileIn = useCallback((paneId, path, reveal) => {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
-      const id = fileTabId(path);
-      const data = reveal
-        ? { ...cur.data, [id]: { reveal: { line: reveal.line, column: reveal.column, seq: ++fileRevealSeq.current } } }
-        : cur.data;
-      return { ...m, [paneId]: { ...cur, ...openTabReducer(cur, id), open: true, data } };
+      const data = withReveal(cur.data, path, reveal, ++fileRevealSeq.current);
+      return { ...m, [paneId]: { ...cur, open: true, dock: peekFile(cur.dock, path), data } };
+    });
+  }, []);
+  // Pinning gives the file its own panel tab (⌘-click, or the dock's pin).
+  const openFileTabIn = useCallback((paneId, path, reveal) => {
+    if (!paneId) return;
+    setPanelsByPane((m) => {
+      const cur = m[paneId] ?? EMPTY_PANEL;
+      const data = withReveal(cur.data, path, reveal, ++fileRevealSeq.current);
+      return { ...m, [paneId]: { ...cur, ...openTabReducer(cur, fileTabId(path)), open: true, data } };
+    });
+  }, []);
+  // Applies a lib/fileDock.js reducer to a pane's dock.
+  const updateDockIn = useCallback((paneId, fn) => {
+    if (!paneId) return;
+    setPanelsByPane((m) => {
+      const cur = m[paneId] ?? EMPTY_PANEL;
+      const dock = fn(cur.dock);
+      return dock === cur.dock ? m : { ...m, [paneId]: { ...cur, dock } };
     });
   }, []);
   const [renamingId, setRenamingId] = useState(null);
@@ -338,7 +366,7 @@ export function SelectionProvider({ children }) {
     // owning/focused pane and exposes the scope-aware reads (openTabs/activeTab/
     // showSidePanel/…) + actions (openPanel/setTab/closeTab/…) every call uses.
     panelsByPane,
-    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -349,7 +377,7 @@ export function SelectionProvider({ children }) {
     openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
     panelsByPane,
-    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     registerEscapeIdle,

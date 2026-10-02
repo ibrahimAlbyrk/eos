@@ -64,7 +64,7 @@ export function useUi() {
   // Scope-aware side-panel: resolve THIS consumer's pane state + wrap the raw
   // pane-explicit ops so every call site (ui.openPanel/ui.setTab/…) targets the
   // owning/focused pane with no prop-drilling.
-  const { openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, panelsByPane } = selection;
+  const { openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn, panelsByPane } = selection;
   const panelState = panelsByPane[scopePane] ?? EMPTY_PANEL;
   const openPanel = useCallback((tab, data) => openPanelIn(scopeRef.current, tab, data), [openPanelIn]);
   const openNewTab = useCallback((type) => openNewTabIn(scopeRef.current, type), [openNewTabIn]);
@@ -74,7 +74,13 @@ export function useUi() {
   const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
   const toggleFullscreen = useCallback(() => toggleFullscreenIn(scopeRef.current), [toggleFullscreenIn]);
   const setSidePanelWidth = useCallback((frac) => setWidthIn(scopeRef.current, frac), [setWidthIn]);
-  const openFile = useCallback((path, reveal) => openFileIn(scopeRef.current, path, reveal), [openFileIn]);
+  // A file opens in the panel's dock; `{ tab: true }` (⌘-click) pins it as its own tab instead.
+  const openFile = useCallback(
+    (path, reveal, opts) => (opts?.tab ? openFileTabIn : openFileIn)(scopeRef.current, path, reveal),
+    [openFileIn, openFileTabIn],
+  );
+  const openFileTab = useCallback((path, reveal) => openFileTabIn(scopeRef.current, path, reveal), [openFileTabIn]);
+  const updateDock = useCallback((fn) => updateDockIn(scopeRef.current, fn), [updateDockIn]);
 
   return useMemo(() => ({
     ...navigation,
@@ -99,10 +105,11 @@ export function useUi() {
     sidePanelWidth: panelState.width,
     panelFullscreen: panelState.fullscreen,
     panelData: panelState.data,
-    openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile,
+    fileDock: panelState.dock,
+    openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
   }), [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
     openPopoverIn, openPop, closeAllPops,
-    panelState, openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile,
+    panelState, openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
   ]);
 }

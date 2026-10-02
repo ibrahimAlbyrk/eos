@@ -33,7 +33,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
   const onFileClick = (e) => {
     if (!filePath) return;
     e.stopPropagation();
-    ui.openFile(filePath);
+    ui.openFile(filePath, undefined, { tab: e.metaKey });
   };
 
   return (

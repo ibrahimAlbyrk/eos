@@ -176,9 +176,9 @@ function SourcesSection({ ui, workerId }) {
   }, [workerId]);
 
   const attachments = snap.attachments;
-  const open = (att) => {
+  const open = (att, e) => {
     if (att.kind === "folder") openFolder(ui, att.path);
-    else ui.openFile(att.path);
+    else ui.openFile(att.path, undefined, { tab: e.metaKey });
   };
 
   return (
@@ -191,7 +191,7 @@ function SourcesSection({ ui, workerId }) {
       ) : (
         <div className="env-sources">
           {attachments.map((att) => (
-            <button key={att.path} className="env-row" onClick={() => open(att)} title={att.path}>
+            <button key={att.path} className="env-row" onClick={(e) => open(att, e)} title={att.path}>
               {att.kind === "folder" ? <FolderGlyph /> : <DocIcon />}
               <span className="env-label">{basename(att.path)}</span>
             </button>

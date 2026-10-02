@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
-import { ImageLightbox } from "../agents/ImageLightbox.jsx";
 import { subscribe, getSnapshot, attach } from "../../state/chatAttachmentsStore.js";
 import { requestReveal } from "../../state/transcriptReveal.js";
 import { openFolder } from "../files/openFolder.js";
@@ -53,15 +52,15 @@ function iconFor(section) {
   return <FileIcon />;
 }
 
-function FileRow({ att, section, workerId, gallery, galleryIndex }) {
+function FileRow({ att, section, workerId }) {
   const ui = useUi();
   const [broken, setBroken] = useState(false);
   const name = basename(att.path);
   const showThumb = section === "image" && !broken;
 
-  const open = useCallback(() => {
+  const open = useCallback((e) => {
     if (att.kind === "folder") openFolder(ui, att.path);
-    else ui.openFile(att.path);
+    else ui.openFile(att.path, undefined, { tab: e.metaKey });
   }, [att.kind, att.path, ui]);
 
   const inner = (
@@ -80,13 +79,7 @@ function FileRow({ att, section, workerId, gallery, galleryIndex }) {
 
   return (
     <div className="chatfiles-row">
-      {section === "image" && !broken ? (
-        <ImageLightbox gallery={gallery} index={galleryIndex}>
-          <span className="chatfiles-main">{inner}</span>
-        </ImageLightbox>
-      ) : (
-        <button className="chatfiles-main" onClick={open} title={`Open ${name}`}>{inner}</button>
-      )}
+      <button className="chatfiles-main" onClick={open} title={`Open ${name}`}>{inner}</button>
       <button
         className="chatfiles-jump"
         onClick={() => requestReveal(workerId, att.path)}
@@ -101,7 +94,7 @@ function FileRow({ att, section, workerId, gallery, galleryIndex }) {
   );
 }
 
-function Section({ title, section, items, workerId, gallery }) {
+function Section({ title, section, items, workerId }) {
   if (!items.length) return null;
   return (
     <div className="chatfiles-section">
@@ -110,14 +103,7 @@ function Section({ title, section, items, workerId, gallery }) {
         <span className="chatfiles-section-count">{items.length}</span>
       </div>
       {items.map((att) => (
-        <FileRow
-          key={att.path}
-          att={att}
-          section={section}
-          workerId={workerId}
-          gallery={gallery}
-          galleryIndex={section === "image" ? gallery.findIndex((g) => g.path === att.path) : 0}
-        />
+        <FileRow key={att.path} att={att} section={section} workerId={workerId} />
       ))}
     </div>
   );
@@ -143,13 +129,6 @@ export function ChatFilesPanel() {
   const videos = attachments.filter((a) => a.kind === "file" && VIDEO_EXTS.has(extOf(a.path)));
   const documents = attachments.filter((a) => a.kind === "file" && !VIDEO_EXTS.has(extOf(a.path)));
 
-  const gallery = images.map((a) => ({
-    path: a.path,
-    src: api.imageUrl(a.path),
-    alt: basename(a.path),
-    title: basename(a.path),
-  }));
-
   const empty = attachments.length === 0;
 
   return (
@@ -159,10 +138,10 @@ export function ChatFilesPanel() {
           <div className="chatfiles-empty">No files attached to this chat yet.</div>
         ) : (
           <>
-            <Section title="Images" section="image" items={images} workerId={workerId} gallery={gallery} />
-            <Section title="Videos" section="video" items={videos} workerId={workerId} gallery={gallery} />
-            <Section title="Documents" section="file" items={documents} workerId={workerId} gallery={gallery} />
-            <Section title="Folders" section="folder" items={folders} workerId={workerId} gallery={gallery} />
+            <Section title="Images" section="image" items={images} workerId={workerId} />
+            <Section title="Videos" section="video" items={videos} workerId={workerId} />
+            <Section title="Documents" section="file" items={documents} workerId={workerId} />
+            <Section title="Folders" section="folder" items={folders} workerId={workerId} />
           </>
         )}
       </div>

@@ -23,8 +23,8 @@ export function ReadDetail({ tool }) {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const openInViewer = () => {
-    if (filePath) ui.openFile(filePath);
+  const openInViewer = (e) => {
+    if (filePath) ui.openFile(filePath, undefined, { tab: e.metaKey });
   };
 
   return (
@@ -198,8 +198,8 @@ export function WriteDetail({ tool }) {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const openInViewer = () => {
-    if (filePath) ui.openFile(filePath);
+  const openInViewer = (e) => {
+    if (filePath) ui.openFile(filePath, undefined, { tab: e.metaKey });
   };
 
   return (
@@ -316,8 +316,8 @@ export function SkillDetail({ tool }) {
     setTimeout(() => setCopied(false), 3000);
   };
 
-  const openInViewer = () => {
-    if (skillFile) ui.openFile(skillFile);
+  const openInViewer = (e) => {
+    if (skillFile) ui.openFile(skillFile, undefined, { tab: e.metaKey });
   };
 
   const copyBtn = body ? (

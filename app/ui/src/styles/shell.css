@@ -656,8 +656,8 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 @keyframes sp-close { to { width: 0; } }
 .side-panel--open { animation: sp-open 240ms cubic-bezier(0.2, 0.7, 0.3, 1); }
 .side-panel--close { animation: sp-close 200ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
-.side-panel--open > .sp-tabbar, .side-panel--open > .sp-content,
-.side-panel--close > .sp-tabbar, .side-panel--close > .sp-content {
+.side-panel--open > .sp-tabbar, .side-panel--open > .sp-body,
+.side-panel--close > .sp-tabbar, .side-panel--close > .sp-body {
   width: var(--sp-final);
   flex-shrink: 0;
   align-self: flex-end;
@@ -796,7 +796,16 @@ html.native .single-pane { --spt-top: 12px; }
   font-size: var(--text-xs, 11px);
   color: var(--fg-faint);
 }
-/* Single content area — the active tab's component fills it. */
+/* Everything under the tab bar: the active tab's content over the file dock. */
+.sp-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Single content area — the active tab's component fills it. A maximized dock
+   squeezes it to nothing but keeps it mounted (terminals, the browser view). */
 .sp-content {
   flex: 1;
   min-height: 0;
@@ -804,6 +813,32 @@ html.native .single-pane { --spt-top: 12px; }
   flex-direction: column;
   overflow: hidden;
 }
+.sp-body--dock-max > .sp-content { flex: 0 0 0; }
+/* File dock (FileDock.jsx): an opened file shows here, under the active tab.
+   Its height is a fraction of the body; with no tab above it fills the body. */
+.fdock {
+  position: relative;
+  flex: 0 0 var(--fdock-h, 45%);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+.fdock--fill, .sp-body--dock-max > .fdock { flex: 1 1 auto; }
+.fdock--fill { border-top: none; }
+.fdock .fv-row2 { padding-top: 8px; }
+.fdock-nav:disabled { color: var(--fg-mute); pointer-events: none; }
+/* Invisible row-resize strip over the dock's top edge; hovering lights the line. */
+.fdock-resize {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 8px;
+  z-index: 5;
+  cursor: row-resize;
+}
+.fdock:has(> .fdock-resize:hover), .fdock:has(> .fdock-resize:active) { border-top-color: rgba(var(--tint), 0.28); }
 /* The per-tab island fills sp-content (no longer an absolute dock tile). */
 .panel-shell {
   flex: 1;

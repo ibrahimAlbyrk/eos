@@ -7,14 +7,16 @@ import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
 import { SubagentsIcon } from "../subagents/SubagentsIcon.jsx";
+import { FileDock } from "./FileDock.jsx";
 import "./registerPanels.js";
 
-// A pane's right side panel: a tab bar over a single content area, plus a 6px
-// invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
+// A pane's right side panel: a tab bar over a single content area and the file
+// dock under it, plus a 6px invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
 // via PaneScopeContext), so every read/action here resolves to that pane; it
 // returns null when that pane's panel is closed. Pills render ONLY the open tabs
 // (default: none — a quiet empty state); the + menu opens Review / Terminal / Files /
-// Chat files (every opened file gets its own pill), the active pill's × closes just that tab. The
+// Chat files, an opened file shows in the dock (pinned files get their own pill),
+// the active pill's × closes just that tab. The
 // panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
 // header's top-right, so it stays put while the panel slides open/closed under
 // it. Width is that pane's own --sp-w, stored as a fraction of the pane so it keeps
@@ -227,6 +229,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   if (!open && slide !== "close") return toggle;
 
   const fullscreen = ui.panelFullscreen;
+  const dock = ui.fileDock;
+  const dockOpen = dock.open && dock.history.length > 0;
 
   return (
     <>
@@ -264,8 +268,13 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
             )}
           </span>
         </div>
-        <div className="sp-content">
-          {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
+        <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
+          {(panel || !dockOpen) && (
+            <div className="sp-content">
+              {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
+            </div>
+          )}
+          {dockOpen && <FileDock live={live} fill={!panel} />}
         </div>
       </aside>
       {toggle}
