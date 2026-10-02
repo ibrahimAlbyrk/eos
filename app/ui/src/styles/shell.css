@@ -390,7 +390,14 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   height: 10px;
   margin-bottom: -10px;
   background: linear-gradient(to bottom, var(--side-surface), transparent);
+  /* Unscrolled, it would sit over the first row; it fades in only once the
+     list scrolls (a scroll-timeline is inactive when nothing overflows). */
+  opacity: 0;
+  animation: sb-top-fade linear both;
+  animation-timeline: scroll();
+  animation-range: 0 10px;
 }
+@keyframes sb-top-fade { to { opacity: 1; } }
 .agents-section::after, .cw-side-scroll::after {
   bottom: 0;
   height: 18px;
