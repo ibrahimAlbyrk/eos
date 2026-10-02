@@ -72,7 +72,7 @@ describe("WebSearchDetail", () => {
 describe("WebFetchDetail", () => {
   it("splits the address and shows prompt and result", () => {
     const html = fetchCard({ result: { text: "The abstract is not present." } });
-    expect(html).toContain('<span class="wf-host">pubmed.ncbi.nlm.nih.gov</span>/8976999/');
+    expect(html).toContain('<span class="fetch-host">pubmed.ncbi.nlm.nih.gov</span>/8976999/');
     expect(html).toContain('href="https://pubmed.ncbi.nlm.nih.gov/8976999/"');
     expect(html).toContain("Give the citation");
     expect(html).toContain(">Result<");
@@ -80,7 +80,7 @@ describe("WebFetchDetail", () => {
 
   it("runs a progress bar under the address while fetching", () => {
     const html = fetchCard({ running: true });
-    expect(html).toContain("wf-bar is-running");
+    expect(html).toContain("fetch-bar is-running");
     expect(html).not.toContain(">Result<");
   });
 

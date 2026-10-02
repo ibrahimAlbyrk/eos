@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { renderMarkdown } from "../../../lib/markdown.js";
 import { parseWebSearch, groupBySite, siteHue, splitUrl } from "../../../lib/webSources.js";
-import { CopyButton, FailureBanner, RawPayload } from "./ToolDetail.jsx";
+import { CopyButton, FailureBanner } from "./ToolDetail.jsx";
 
 // Bodies for the web tools. WebSearch: a Spotlight-style query bar over the
 // sources as site chips and the search's summary. WebFetch: a glass address bar
@@ -153,7 +153,6 @@ export function WebSearchDetail({ tool }) {
         {!failed && !hasBody && tool.result && !tool.running && (
           <div className="web-empty">No sources came back for this query.</div>
         )}
-        <RawPayload tool={tool} />
       </div>
     </div>
   );
@@ -168,10 +167,10 @@ export function WebFetchDetail({ tool }) {
   return (
     <div className="tool-detail web-detail">
       <div className="web-card">
-        <div className={"web-bar wf-bar" + (tool.running ? " is-running" : "")}>
+        <div className={"web-bar fetch-bar" + (tool.running ? " is-running" : "")}>
           {parts?.secure === false ? GlobeIcon : LockIcon}
-          <span className="wf-url">
-            {parts ? <><span className="wf-host">{parts.host}</span>{parts.rest}</> : url}
+          <span className="fetch-url">
+            {parts ? <><span className="fetch-host">{parts.host}</span>{parts.rest}</> : url}
           </span>
           <CopyButton text={url} title="Copy URL" />
           {parts && (
@@ -183,7 +182,7 @@ export function WebFetchDetail({ tool }) {
           {prompt && (
             <section className="web-section">
               <div className="web-label">Prompt</div>
-              <p className="wf-prompt">{prompt}</p>
+              <p className="fetch-prompt">{prompt}</p>
             </section>
           )}
           {!failed && output && (
@@ -196,7 +195,6 @@ export function WebFetchDetail({ tool }) {
             </>
           )}
         </div>
-        <RawPayload tool={tool} />
       </div>
     </div>
   );

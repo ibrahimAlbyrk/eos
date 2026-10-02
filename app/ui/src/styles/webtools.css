@@ -27,8 +27,7 @@
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
     pointer-events: none;
   }
-  & > .tool-failure-banner { margin: 12px 14px 0; }
-  & > .gd-raw { padding: 10px 20px 12px; }
+  & > .tool-failure-banner { margin: 12px 14px; }
 }
 .web-detail:hover .fp-copy { opacity: 1; }
 
@@ -73,7 +72,7 @@
   box-shadow: var(--lg-chip-sh);
 }
 
-.wf-bar {
+.fetch-bar {
   height: 42px;
   margin: 12px 12px 0;
   padding: 0 6px 0 16px;
@@ -85,8 +84,8 @@
 
   & .fp-copy { width: 28px; height: 28px; border-radius: var(--r-pill); }
 }
-.wf-url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wf-host { color: var(--fg-strong); }
+.fetch-url { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fetch-host { color: var(--fg-strong); }
 .web-icon-btn {
   flex-shrink: 0;
   display: inline-flex;
@@ -115,7 +114,7 @@
   background-size: 32% 100%;
   animation: web-sweep 2s var(--lg-ease) infinite;
 }
-.wf-bar.is-running::after {
+.fetch-bar.is-running::after {
   left: 18px;
   right: 18px;
   bottom: 0;
@@ -139,19 +138,19 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 16px 20px 4px;
+  padding: 16px 20px 18px;
 }
 .web-body:empty { display: none; }
 .web-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .web-label { font-size: var(--text-xs); color: var(--fg-dim2); }
-.wf-prompt {
+.fetch-prompt {
   margin: 0;
   line-height: 1.6;
   color: var(--fg-dim);
   text-wrap: pretty;
   overflow-wrap: anywhere;
 }
-.web-empty { padding: 14px 20px 2px; font-size: var(--text-sm); color: var(--fg-dim); }
+.web-empty { padding: 14px 20px 16px; font-size: var(--text-sm); color: var(--fg-dim); }
 
 /* summary / result prose, folded when long */
 .web-prose-wrap { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
