@@ -53,7 +53,7 @@ function RootIcon() {
 
 const STATE_COLORS = { WORKING: "var(--ok)", IDLE: "var(--fg-faint)", SPAWNING: "var(--ok)" };
 
-function HighlightedName({ name, query }) {
+export function HighlightedName({ name, query }) {
   if (!query) return <span>{name}</span>;
   const idx = name.toLowerCase().indexOf(query.toLowerCase());
   if (idx === -1) return <span>{name}</span>;

@@ -10,6 +10,8 @@ import { getHandoff, subscribe as subscribeHandoff, consumeHandoff } from "../..
 import { useContentEditableEditor, getCursorOffset, getFocusOffset, getSelectionOffsets, setSelectionOffsets, extendSelectionToOffset, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
+import { useBranchNames } from "../../../hooks/useBranchNames.js";
+import { expandBranchRefs } from "../../../lib/branchTokens.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
 import { useAttachmentIntake } from "../../../hooks/useAttachmentIntake.js";
@@ -33,6 +35,7 @@ import { ComposerControls } from "./ComposerControls.jsx";
 import { ModeFx, ModeOrb } from "./ComposerModeFx.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
+import { BranchMenu } from "./BranchMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { ReplyCard } from "./ReplyCard.jsx";
 import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
@@ -54,6 +57,7 @@ export function Composer({ live, worker, paneId, focused }) {
   usePublishHeight(wrapRef, "--composer-h");
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
+  const [branchMenuIndex, setBranchMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   // git ("custom task") + terminal modes are per-pane: each pane owns its
   // Composer, so they live here, not in the shared ui.composer singleton. Seeded
@@ -134,6 +138,7 @@ export function Composer({ live, worker, paneId, focused }) {
   // (builtins/templates included), unlike cmdMap (daemon commands only,
   // drives argument hints and token deletion).
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
+  const branches = useBranchNames(cwd);
 
   const uploadFailedRef = useRef(() => {});
   const attachments = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
@@ -155,7 +160,7 @@ export function Composer({ live, worker, paneId, focused }) {
     handleInput,
     undo,
     redo,
-  } = useContentEditableEditor(slashMap, insertedPathsRef, selected?.id ?? null, attachmentItems, reconcileToText, pastesRef, focused);
+  } = useContentEditableEditor(slashMap, insertedPathsRef, selected?.id ?? null, attachmentItems, reconcileToText, pastesRef, focused, branches.names);
 
   // Attachment intake (paste/drop/picker → [label] tokens + chips), shared with
   // the template editor. The inline token is the source of truth; this hook owns
@@ -203,7 +208,7 @@ export function Composer({ live, worker, paneId, focused }) {
     }
   );
 
-  const { slashCtx, atCtx, atIntent, filtered, atResults, activeMenu } = useCompletion({
+  const { slashCtx, atCtx, atIntent, hashCtx, filtered, atResults, branchResults, activeMenu } = useCompletion({
     text,
     cursorPos,
     commands: slashItems,
@@ -211,12 +216,14 @@ export function Composer({ live, worker, paneId, focused }) {
     selected,
     workers: live.workers,
     insertedPathsRef,
+    branches: branches.list,
   });
 
   const menuVis = menuVisibility({ activeMenu, menuDismissed });
-  // Terminal mode: shell text is full of `/` and `@` — completion menus off.
+  // Terminal mode: shell text is full of `/`, `@` and `#` — completion menus off.
   const showMenu = menuVis.showMenu && !termMode;
   const showFileMenu = menuVis.showFileMenu && !termMode;
+  const showBranchMenu = menuVis.showBranchMenu && !termMode;
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -345,6 +352,7 @@ export function Composer({ live, worker, paneId, focused }) {
 
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
+  useEffect(() => { setBranchMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [hashCtx?.query]);
 
   useEffect(() => { setEscArmed(false); }, [text]);
   useEffect(() => {
@@ -473,6 +481,15 @@ export function Composer({ live, worker, paneId, focused }) {
     editorRef.current?.focus();
   };
 
+  const selectBranch = (name) => {
+    if (!hashCtx) return;
+    const before = text.slice(0, hashCtx.start);
+    const inserted = "#" + name + " ";
+    setTextAndSync(before + inserted + text.slice(cursorPos), before.length + inserted.length);
+    setBranchMenuIndex(0);
+    editorRef.current?.focus();
+  };
+
   const findPathAt = (pos) => {
     for (const [display] of insertedPathsRef.current) {
       const token = "@" + display;
@@ -491,18 +508,20 @@ export function Composer({ live, worker, paneId, focused }) {
   const currentTokenRegions = () => tokenRegions(text, {
     slashNames: slashMap,
     paths: [...insertedPathsRef.current.keys()],
+    branchNames: branches.names,
     pasteKeys: [...pastesRef.current.keys()],
     attachmentLabels: attachmentItems.map((it) => it.label),
   });
 
-  // Shared text-prep for a normal (non-term) send: resolve @paths + pending
-  // attachments, clear the input, return display/agent text.
+  // Shared text-prep for a normal (non-term) send: resolve @paths, #branches +
+  // pending attachments, clear the input, return display/agent text.
   const prepareMessage = async () => {
     const t = text.trim();
     let agentText = t;
     for (const [display, absPath] of insertedPathsRef.current) {
       agentText = agentText.replaceAll("@" + display, absPath);
     }
+    agentText = expandBranchRefs(agentText, branches.names);
     // Expand collapsed pastes for the agent; displayText keeps the pill so the
     // chat bubble stays compact (same split as @paths: short shown, full sent).
     for (const [ph, full] of pastesRef.current) {
@@ -729,6 +748,30 @@ export function Composer({ live, worker, paneId, focused }) {
       }
     }
 
+    if (showBranchMenu) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setBranchMenuIndex((i) => (i + 1) % branchResults.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setBranchMenuIndex((i) => (i - 1 + branchResults.length) % branchResults.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (branchResults[branchMenuIndex]) selectBranch(branchResults[branchMenuIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        applyEscapeMenu();
+        return;
+      }
+    }
+
     if (showFileMenu) {
       const entry = atResults[fileMenuIndex];
       if (e.key === "ArrowDown") {
@@ -765,11 +808,11 @@ export function Composer({ live, worker, paneId, focused }) {
     }
 
     // Atomic caret: a plain Arrow (no completion menu open, no word/line
-    // modifier) steps OVER a whole @-path or /-command token in one move instead
-    // of char-by-char into it. Shift+Arrow extends the selection across it;
-    // Option/Cmd+Arrow keep native word/line nav. Non-collapsed + no Shift falls
-    // through to native collapse.
-    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !showMenu && !showFileMenu && !e.altKey && !e.metaKey) {
+    // modifier) steps OVER a whole @-path, #-branch or /-command token in one
+    // move instead of char-by-char into it. Shift+Arrow extends the selection
+    // across it; Option/Cmd+Arrow keep native word/line nav. Non-collapsed + no
+    // Shift falls through to native collapse.
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !showMenu && !showFileMenu && !showBranchMenu && !e.altKey && !e.metaKey) {
       const el = editorRef.current;
       const sel = window.getSelection();
       if (el && sel?.rangeCount && (e.shiftKey || sel.isCollapsed)) {
@@ -885,6 +928,12 @@ export function Composer({ live, worker, paneId, focused }) {
         e.preventDefault();
         const next = text.slice(0, cmd.start) + text.slice(cmd.end);
         setTextAndSync(next, cmd.start);
+        return;
+      }
+      const branchHit = tokenAt(currentTokenRegions(), pos);
+      if (branchHit?.kind === "branch") {
+        e.preventDefault();
+        setTextAndSync(text.slice(0, branchHit.start) + text.slice(branchHit.end), branchHit.start);
         return;
       }
     }
@@ -1123,6 +1172,15 @@ export function Composer({ live, worker, paneId, focused }) {
                     onCrumb={jumpToCrumb}
                     query={atIntent?.filter ?? atCtx?.query ?? ""}
                     dir={atIntent?.mode === "browse" ? atIntent.dir : ""}
+                  />
+                )}
+                {showBranchMenu && (
+                  <BranchMenu
+                    branches={branchResults}
+                    current={branches.current}
+                    selectedIndex={branchMenuIndex}
+                    onSelect={selectBranch}
+                    query={hashCtx?.query ?? ""}
                   />
                 )}
                 <SlashInfoPopover />

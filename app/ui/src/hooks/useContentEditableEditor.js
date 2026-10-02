@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { findPlaceholders } from "../lib/placeholders.js";
 import { findSlashTokens } from "../lib/slashTokens.js";
+import { findBranchTokens } from "../lib/branchTokens.js";
 import { findLabelRegions } from "../lib/attachmentTokens.js";
 import { listMarkers } from "../lib/markdownBlocks.js";
 import { initUndo, recordCoalescing, recordDiscrete, settle, undo as undoStack, redo as redoStack, bound } from "../lib/undoStack.js";
@@ -208,6 +209,10 @@ function pasteRegions(pastesRef) {
   }));
 }
 
+function branchRegions(branchNames) {
+  return (text) => findBranchTokens(text, branchNames).map(({ start, end }) => ({ start, end, cls: "cmd-hl" }));
+}
+
 function placeholderRegions(text) {
   return findPlaceholders(text).map(({ start, end }) => ({ start, end, cls: "tpl-hl" }));
 }
@@ -286,7 +291,7 @@ function ensureUndoDispatch() {
   window.__eosRedo = () => undoTargets[undoTargets.length - 1]?.redo();
 }
 
-export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef, autoFocus = true) {
+export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef, autoFocus = true, branchNames) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const editorRef = useRef(null);
@@ -300,13 +305,14 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     placeholderRegions,
     listRegions,
     slashRegions(cmdMap),
+    branchRegions(branchNames),
     literalRegions([...insertedPathsRef.current.keys()].map((d) => ({ token: "@" + d, cls: "cmd-hl" }))),
     literalRegions(attachItems.map((it) => ({
       token: it.label,
       cls: it.status === "uploading" ? "att-hl att-hl-uploading" : "att-hl",
     }))),
     ...(pastesRef ? [pasteRegions(pastesRef)] : []),
-  ], [cmdMap, insertedPathsRef, attachItems, pastesRef]);
+  ], [cmdMap, insertedPathsRef, attachItems, pastesRef, branchNames]);
 
   const applyColoring = useCallback(() => {
     const el = editorRef.current;

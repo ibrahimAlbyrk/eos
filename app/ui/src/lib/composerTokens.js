@@ -1,6 +1,7 @@
 import { findSlashTokens } from "./slashTokens.js";
 import { findLabelRegions } from "./attachmentTokens.js";
 import { findPlaceholders } from "./placeholders.js";
+import { findBranchTokens } from "./branchTokens.js";
 
 // Single source of truth for "where are the tokens in the composer model text".
 // Coloring (useContentEditableEditor) and atomic delete (Composer) historically
@@ -10,22 +11,27 @@ import { findPlaceholders } from "./placeholders.js";
 //
 //   kind 'cmd'         — /slash command   (atomic)
 //   kind 'path'        — @file mention    (atomic)
+//   kind 'branch'      — #branch ref      (atomic)
 //   kind 'paste'       — [Pasted text #N] (atomic)
 //   kind 'attachment'  — [label]          (atomic)
 //   kind 'placeholder' — {{field}}        (NOT atomic — typed-over for templates)
 //
-// ctx = { slashNames, paths, pasteKeys, attachmentLabels } — `paths` are the
-// @-mention display strings (the "@" prefix is added here); `slashNames` is any
-// collection with `.has(name)` (the same set coloring uses, so atomicity matches
-// the blue rendering, not the narrower delete set).
+// ctx = { slashNames, paths, branchNames, pasteKeys, attachmentLabels } — `paths`
+// are the @-mention display strings (the "@" prefix is added here); `slashNames`
+// is any collection with `.has(name)` (the same set coloring uses, so atomicity
+// matches the blue rendering, not the narrower delete set); `branchNames` a Set.
 export function tokenRegions(text, ctx = {}) {
-  const { slashNames, paths = [], pasteKeys = [], attachmentLabels = [] } = ctx;
+  const { slashNames, paths = [], branchNames, pasteKeys = [], attachmentLabels = [] } = ctx;
   const regions = [];
 
   if (slashNames) {
     for (const t of findSlashTokens(text, slashNames)) {
       regions.push({ start: t.start, end: t.end, kind: "cmd", key: t.name, atomic: true });
     }
+  }
+
+  for (const t of findBranchTokens(text, branchNames)) {
+    regions.push({ start: t.start, end: t.end, kind: "branch", key: t.name, atomic: true });
   }
 
   for (const display of paths) {

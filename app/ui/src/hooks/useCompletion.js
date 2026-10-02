@@ -4,10 +4,18 @@ import { triggerContext } from "../lib/triggerContext.js";
 import { resolveMentionQuery } from "../lib/mentionQuery.js";
 import { nameOf } from "../lib/agentName.js";
 
-export function useCompletion({ text, cursorPos, commands, cwd, selected, workers, insertedPathsRef }) {
+export function useCompletion({ text, cursorPos, commands, cwd, selected, workers, insertedPathsRef, branches = [] }) {
   const slashCtx = useMemo(() => triggerContext(text, cursorPos, "/"), [text, cursorPos]);
 
   const atCtx = useMemo(() => triggerContext(text, cursorPos, "@"), [text, cursorPos]);
+
+  const hashCtx = useMemo(() => triggerContext(text, cursorPos, "#"), [text, cursorPos]);
+
+  const branchResults = useMemo(() => {
+    if (!hashCtx) return [];
+    if (hashCtx.query === "") return branches;
+    return branches.filter((b) => b.toLowerCase().includes(hashCtx.query));
+  }, [branches, hashCtx]);
 
   const filtered = useMemo(() => {
     if (!slashCtx) return [];
@@ -107,8 +115,9 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
     }
     if (slashCtx && filtered.length > 0) return "slash";
     if (atCtx && atResults.length > 0) return "file";
+    if (hashCtx && branchResults.length > 0) return "branch";
     return null;
-  }, [slashCtx, atCtx, filtered.length, atResults.length]);
+  }, [slashCtx, atCtx, hashCtx, filtered.length, atResults.length, branchResults.length]);
 
   useEffect(() => {
     const paths = insertedPathsRef.current;
@@ -125,8 +134,10 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
     slashCtx,
     atCtx,
     atIntent,
+    hashCtx,
     filtered,
     atResults,
+    branchResults,
     activeMenu,
   };
 }

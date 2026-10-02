@@ -2,6 +2,7 @@ export function menuVisibility({ activeMenu, menuDismissed }) {
   return {
     showMenu: activeMenu === "slash" && !menuDismissed,
     showFileMenu: activeMenu === "file" && !menuDismissed,
+    showBranchMenu: activeMenu === "branch" && !menuDismissed,
   };
 }
 

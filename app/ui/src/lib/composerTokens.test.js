@@ -16,6 +16,12 @@ describe("tokenRegions", () => {
     ]);
   });
 
+  it("finds a #branch token as atomic", () => {
+    expect(tokenRegions("merge #dev now", { branchNames: new Set(["dev"]) })).toEqual([
+      { start: 6, end: 10, kind: "branch", key: "dev", atomic: true },
+    ]);
+  });
+
   it("finds [paste] and [attachment] label tokens", () => {
     const r = tokenRegions("a [Pasted text #1] b [report.txt]", {
       pasteKeys: ["[Pasted text #1]"],

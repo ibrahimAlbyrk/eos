@@ -6,6 +6,7 @@ describe("menuVisibility", () => {
     expect(menuVisibility({ activeMenu: "slash", menuDismissed: false })).toEqual({
       showMenu: true,
       showFileMenu: false,
+      showBranchMenu: false,
     });
   });
 
@@ -13,18 +14,29 @@ describe("menuVisibility", () => {
     expect(menuVisibility({ activeMenu: "file", menuDismissed: false })).toEqual({
       showMenu: false,
       showFileMenu: true,
+      showBranchMenu: false,
+    });
+  });
+
+  it("shows branch menu when active and not dismissed", () => {
+    expect(menuVisibility({ activeMenu: "branch", menuDismissed: false })).toEqual({
+      showMenu: false,
+      showFileMenu: false,
+      showBranchMenu: true,
     });
   });
 
   it("hides both menus when dismissed regardless of activeMenu", () => {
     expect(menuVisibility({ activeMenu: "slash", menuDismissed: true }).showMenu).toBe(false);
     expect(menuVisibility({ activeMenu: "file", menuDismissed: true }).showFileMenu).toBe(false);
+    expect(menuVisibility({ activeMenu: "branch", menuDismissed: true }).showBranchMenu).toBe(false);
   });
 
   it("hides both menus when no menu is active", () => {
     expect(menuVisibility({ activeMenu: null, menuDismissed: false })).toEqual({
       showMenu: false,
       showFileMenu: false,
+      showBranchMenu: false,
     });
   });
 });
