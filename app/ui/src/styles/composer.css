@@ -2952,8 +2952,9 @@
   padding: 9px 14px 20px;
   position: relative;
   z-index: 1;
-  /* the card is glass: cut the tab where it tucks under, or it shows through */
-  clip-path: inset(0 0 13px 0);
+  /* the card is glass: cut the tab where it tucks under, or it shows through.
+     Only the bottom — the project/branch pickers open upward out of it. */
+  clip-path: inset(-100vh -100vw 13px);
 }
 .c-strip-wrap { position: relative; display: inline-flex; }
 .strip-pill {
