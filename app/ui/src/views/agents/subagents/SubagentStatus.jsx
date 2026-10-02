@@ -1,15 +1,15 @@
 import { subagentMeta } from "../../../lib/subagentRuns.js";
 import { getToolView } from "../messages/toolViews.jsx";
 
-// What a running subagent is doing right now, worded like its tool row.
+// What a running subagent is doing right now (or did last), worded like its tool
+// row. Subagents report only tool pulses, never thinking — so between tools the
+// last one stays on screen instead of flickering to "Thinking…".
 export function subagentActivity(run) {
   const tools = run.tools ?? [];
-  const live = tools.findLast((t) => t.running);
-  if (live) {
-    const { verb, file } = getToolView(live.name).runningLabel(live);
-    return file ? `${verb} ${file}` : verb;
-  }
-  return tools.length ? "Thinking…" : "Starting…";
+  const last = tools.findLast((t) => t.running) ?? tools.at(-1);
+  if (!last) return "Thinking…";
+  const { verb, file } = getToolView(last.name).runningLabel(last);
+  return file ? `${verb} ${file}` : verb;
 }
 
 export function SubagentMeta({ run, now }) {

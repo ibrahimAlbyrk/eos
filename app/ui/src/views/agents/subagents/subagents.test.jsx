@@ -7,6 +7,7 @@ import { SubagentLine } from "./SubagentLine.jsx";
 import { SubagentBatch } from "./SubagentBatch.jsx";
 import { SubagentList } from "./SubagentList.jsx";
 import { SubagentDetail } from "./SubagentDetail.jsx";
+import { subagentActivity } from "./SubagentStatus.jsx";
 
 // The markdown renderer sanitizes through DOMPurify, which needs a DOM the node
 // env lacks; the report's text is what these tests check.
@@ -89,6 +90,23 @@ describe("SubagentList", () => {
   it("says so when nothing is running, and has an empty state", () => {
     expect(render(<SubagentList runs={[byId("git")]} now={NOW} onOpen={() => {}} />)).toContain("No active subagents");
     expect(render(<SubagentList runs={[]} now={NOW} onOpen={() => {}} />)).toContain("No subagents yet");
+  });
+});
+
+describe("subagentActivity", () => {
+  const withTools = (...tools) => ({ ...byId("files"), tools });
+  const bash = (id, command, running) => ({ id, name: "Bash", input: { command }, running, ts: 61_000 });
+
+  it("says Thinking only before its first tool", () => {
+    expect(subagentActivity(withTools())).toBe("Thinking…");
+  });
+
+  it("keeps the last tool on screen once it finished", () => {
+    expect(subagentActivity(withTools(read("r1", false)))).toBe("Reading Movement2D.cs");
+  });
+
+  it("prefers a still-running tool over a later finished one", () => {
+    expect(subagentActivity(withTools(bash("b1", "npm test", true), read("r1", false)))).toBe("Running npm test");
   });
 });
 
