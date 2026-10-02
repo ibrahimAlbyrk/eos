@@ -98,7 +98,7 @@ export function handleError(
     const { open, limit } = fdStats();
     const detail = open != null && limit != null ? ` (${open}/${limit} fds open)` : "";
     ctx.log.error("fd exhaustion", { request_id: ctx.requestId, method: ctx.method, path: ctx.path, error: errMsg(e), open, limit });
-    writeJson(res, 503, { error: `daemon hit its file-descriptor limit${detail} — raise it (ulimit -n) or reduce concurrent workers`, code: fdCode });
+    writeJson(res, 503, { error: `daemon ran out of file descriptors${detail} — reduce concurrent workers or restart the daemon`, code: fdCode });
     return;
   }
 
