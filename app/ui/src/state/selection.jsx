@@ -132,7 +132,7 @@ export function SelectionProvider({ children }) {
   // ── Per-pane right side panels (open-tabs model) ──
   // Each pane (keyed by leaf id) owns its OWN panel: an open flag, an ordered
   // set of open tabs + the active one, a width, a fullscreen flag, per-tab data,
-  // and a file dock (an opened file lands there; a pinned one is its own tab).
+  // and a file dock (a file opened inside the panel lands there; others get their own tab).
   // In split view every pane opens and
   // resizes its panel independently. Opening a tab appends+activates it and
   // reveals that pane's panel; the active pill's × closes just THAT tab

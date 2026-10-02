@@ -2,7 +2,7 @@ import { useCallback, useContext, useMemo, useRef } from "react";
 import { NavigationProvider, useNavigation } from "./navigation.jsx";
 import { SelectionProvider, useSelection, EMPTY_PANEL } from "./selection.jsx";
 import { PaneProvider, usePane } from "./pane.jsx";
-import { PaneScopeContext } from "./paneScope.js";
+import { PaneScopeContext, SidePanelScopeContext } from "./paneScope.js";
 import { ComposerProvider, useComposer } from "./composer.jsx";
 import { AttentionProvider, useAttention } from "./attention.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
@@ -74,10 +74,12 @@ export function useUi() {
   const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
   const toggleFullscreen = useCallback(() => toggleFullscreenIn(scopeRef.current), [toggleFullscreenIn]);
   const setSidePanelWidth = useCallback((frac) => setWidthIn(scopeRef.current, frac), [setWidthIn]);
-  // A file opens in the panel's dock; `{ tab: true }` (⌘-click) pins it as its own tab instead.
+  // A file opened inside the side panel lands in its dock; from outside it, or
+  // with `{ tab: true }` (⌘-click), it gets its own tab.
+  const inSidePanel = useContext(SidePanelScopeContext);
   const openFile = useCallback(
-    (path, reveal, opts) => (opts?.tab ? openFileTabIn : openFileIn)(scopeRef.current, path, reveal),
-    [openFileIn, openFileTabIn],
+    (path, reveal, opts) => (opts?.tab || !inSidePanel ? openFileTabIn : openFileIn)(scopeRef.current, path, reveal),
+    [openFileIn, openFileTabIn, inSidePanel],
   );
   const openFileTab = useCallback((path, reveal) => openFileTabIn(scopeRef.current, path, reveal), [openFileTabIn]);
   const updateDock = useCallback((fn) => updateDockIn(scopeRef.current, fn), [updateDockIn]);

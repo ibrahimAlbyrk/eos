@@ -243,12 +243,16 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
                     <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
                   </svg>
                 </button>
-                <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); setShowFind(false); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with" style={{ position: "relative" }}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H6l1.5 2H12.5A1.5 1.5 0 0 1 14 5.5V12.5A1.5 1.5 0 0 1 12.5 14H3.5A1.5 1.5 0 0 1 2 12.5V5Z" />
-                  </svg>
+                {/* The menu sits beside the button, not inside it: the button's
+                    hover glass is a backdrop-filter, which would blank the menu's. */}
+                <span style={{ position: "relative", display: "inline-flex" }}>
+                  <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); setShowFind(false); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H6l1.5 2H12.5A1.5 1.5 0 0 1 14 5.5V12.5A1.5 1.5 0 0 1 12.5 14H3.5A1.5 1.5 0 0 1 2 12.5V5Z" />
+                    </svg>
+                  </button>
                   {showOpenWith && (
-                    <div className="fv-openwith" onClick={(e) => e.stopPropagation()}>
+                    <div className="fv-openwith">
                       <div className="fv-ow-head">
                         <span>Open in</span>
                         <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>x</button>
@@ -258,7 +262,7 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
                       {hasLocalScreen() && <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>}
                     </div>
                   )}
-                </button>
+                </span>
                 <button className="fv-icon-btn" onClick={() => { navigator.clipboard.writeText(content ?? ""); setCopied(true); setTimeout(() => setCopied(false), 3000); }} title="Copy">
                   {copied ? (
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

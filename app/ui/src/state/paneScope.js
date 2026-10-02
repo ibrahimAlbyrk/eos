@@ -7,3 +7,7 @@ import { createContext, useContext } from "react";
 export const PaneScopeContext = createContext(null);
 
 export const useOriginPane = () => useContext(PaneScopeContext);
+
+// True inside a side panel's body: a file opened from there lands in the panel's
+// dock; opened from anywhere else (transcript, header) it gets its own tab.
+export const SidePanelScopeContext = createContext(false);

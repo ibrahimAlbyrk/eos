@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { SidePanelScopeContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import { tabType, filePathOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
@@ -15,7 +16,8 @@ import "./registerPanels.js";
 // via PaneScopeContext), so every read/action here resolves to that pane; it
 // returns null when that pane's panel is closed. Pills render ONLY the open tabs
 // (default: none — a quiet empty state); the + menu opens Review / Terminal / Files /
-// Chat files, an opened file shows in the dock (pinned files get their own pill),
+// Chat files, a file opened from inside the panel shows in the dock (one opened
+// from outside, or pinned, gets its own pill),
 // the active pill's × closes just that tab. The
 // panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
 // header's top-right, so it stays put while the panel slides open/closed under
@@ -268,14 +270,16 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
             )}
           </span>
         </div>
-        <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
-          {(panel || !dockOpen) && (
-            <div className="sp-content">
-              {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
-            </div>
-          )}
-          {dockOpen && <FileDock live={live} fill={!panel} />}
-        </div>
+        <SidePanelScopeContext.Provider value={true}>
+          <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
+            {(panel || !dockOpen) && (
+              <div className="sp-content">
+                {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
+              </div>
+            )}
+            {dockOpen && <FileDock live={live} fill={!panel} />}
+          </div>
+        </SidePanelScopeContext.Provider>
       </aside>
       {toggle}
     </>
