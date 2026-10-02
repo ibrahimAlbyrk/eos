@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { ChokidarGitWatcher } from "../git/ChokidarGitWatcher.ts";
 import { childProcessGitInfo as gitInfo } from "../git/ChildProcessGitInfo.ts";
 import { systemClock } from "../time/SystemClock.ts";
+import { openFdCount } from "../util/fd-stats.ts";
 import type { GitChangeEvent } from "../../../core/src/ports/GitWatcher.ts";
 
 const git = (cwd: string, ...args: string[]): void => {
@@ -123,6 +124,34 @@ describe("ChokidarGitWatcher", () => {
       await w.closeAll();
       git(repo, "worktree", "remove", "--force", ".eos/worktrees/feat");
       rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  // A descriptor per watched file pushes a big checkout past macOS's spawn
+  // ceiling (fd numbers ≥ 10240), after which every child spawn fails EBADF.
+  it("watches the repo without a descriptor per file or ref", { skip: process.platform !== "darwin", timeout: 15000 }, async () => {
+    const dir = initRepo();
+    for (let i = 0; i < 500; i++) writeFileSync(join(dir, `f${i}.txt`), "x\n");
+    const head = spawnSync("git", ["-C", dir, "rev-parse", "HEAD"], { encoding: "utf8" }).stdout;
+    for (let i = 0; i < 200; i++) writeFileSync(join(dir, ".git", "refs", "tags", `t${i}`), head);
+    const events: GitChangeEvent[] = [];
+    const w = new ChokidarGitWatcher({
+      clock: systemClock,
+      sink: (ev) => events.push(ev),
+      resolveDirs: (cwd) => gitInfo.gitDirs(cwd),
+    });
+    try {
+      const before = openFdCount()!;
+      w.watch(dir);
+      await sleep(900);
+      const opened = openFdCount()! - before;
+      assert.ok(opened < 20, `watch opened ${opened} fds for 500 files + 200 refs`);
+
+      writeFileSync(join(dir, "f1.txt"), "y\n");
+      assert.ok(await waitFor(() => events.some((e) => e.kinds.includes("worktree"))), "expected a worktree event for a file edit");
+    } finally {
+      await w.closeAll();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

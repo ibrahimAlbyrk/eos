@@ -1,5 +1,5 @@
 // FileWatcher port — ref-counted directory watching for the Files explorer.
-// The adapter (NodeFileWatcher, chokidar) pushes coalesced change batches
+// The adapter (NodeFileWatcher, native fs.watch) pushes coalesced change batches
 // through an injected FsChangeSink; it never imports the EventBus or SSE
 // (Dependency Inversion — the manager supplies a sink that publishes
 // "fs:change"). Watching is shallow (one level per dir) and ref-counted so N

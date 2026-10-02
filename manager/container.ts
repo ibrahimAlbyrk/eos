@@ -379,7 +379,7 @@ export function buildContainer() {
       })
     : noopFsHelpers;
 
-  // Files explorer: generic file ops + a chokidar directory watcher whose
+  // Files explorer: generic file ops + a native directory watcher whose
   // change batches are published on the bus → SSE → web (the Files tab
   // re-lists only the affected dir). FsWatchRegistry ties watches to SSE
   // clients so a dropped tab releases them.

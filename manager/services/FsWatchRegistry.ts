@@ -1,5 +1,5 @@
 // Tracks which directories each SSE client (browser tab) is watching, so a
-// dropped connection tears down all of that client's chokidar watches even if
+// dropped connection tears down all of that client's dir watches even if
 // the explicit DELETE /fs/unwatch never arrives (tab crash, reload, network
 // drop). The underlying FileWatcher ref-counts across clients — two tabs
 // watching the same dir keep it alive until both disconnect.
