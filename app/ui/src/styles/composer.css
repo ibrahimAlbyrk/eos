@@ -731,7 +731,10 @@
   background: var(--pop);
   border-radius: var(--r-card);
   box-shadow: var(--sh-pop);
-  /* mono preview fades out toward the bottom edge */
+}
+/* mono preview fades out toward the bottom edge. On the body, not the card: a
+   mask on the card would cut its glass off from the backdrop (no blur). */
+.paste-info-body {
   -webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent);
           mask-image: linear-gradient(to bottom, #000 75%, transparent);
 }
@@ -3090,15 +3093,25 @@
 /* ── context strip: a --pop tab tucked behind the card ── */
 .c-strip {
   display: flex; align-items: center; gap: 10px;
-  background: var(--pop);
   border-radius: var(--r-pop) var(--r-pop) 0 0;
   margin: 0 20px -13px;
   padding: 9px 14px 20px;
   position: relative;
   z-index: 1;
-  /* the card is glass: cut the tab where it tucks under, or it shows through.
-     Only the bottom — the project/branch pickers open upward out of it. */
-  clip-path: inset(-100vh -100vw 13px);
+}
+/* the card is glass: cut the tab where it tucks under, or it shows through.
+   The cut lives on this surface layer, not the strip: a clip-path on the strip
+   would cut the project/branch pickers opening out of it off from the backdrop,
+   leaving their glass unblurred. */
+.c-strip::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--pop);
+  border-radius: inherit;
+  clip-path: inset(0 0 13px);
+  pointer-events: none;
 }
 .c-strip-wrap { position: relative; display: inline-flex; }
 .strip-pill {

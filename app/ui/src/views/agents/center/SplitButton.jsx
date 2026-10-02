@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { createPortal } from "react-dom";
 
 export function OptionIcon({ type }) {
   if (type === "draft") return (
@@ -35,9 +36,14 @@ export function OptionIcon({ type }) {
 
 // Main action + caret that picks which action the main button runs.
 // onOpenChange lets the host keep itself expanded while the menu is up.
+// The menu is portaled to <body>: the git tray clips itself (clip-path) where it
+// tucks under the composer card, and a clip-path ancestor cuts a glass layer
+// off from the backdrop, so a nested menu would render unblurred.
 export function SplitButton({ options, mode, onSelectMode, onAction, onOpenChange, disabled, title }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
   const ref = useRef(null);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -48,18 +54,27 @@ export function SplitButton({ options, mode, onSelectMode, onAction, onOpenChang
   useEffect(() => {
     if (!open) return;
     const close = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+      if (ref.current?.contains(e.target) || menuRef.current?.contains(e.target)) return;
+      setOpen(false);
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, [open]);
 
+  const toggle = () => {
+    if (!open) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ right: window.innerWidth - r.right, bottom: window.innerHeight - r.top + 6 });
+    }
+    setOpen(!open);
+  };
+
   const active = options.find((o) => o.id === mode) ?? options[0];
 
   return (
     <div className="pr-wrap" ref={ref}>
-      {open && (
-        <div className="pr-menu">
+      {open && createPortal(
+        <div className="pr-menu" ref={menuRef} style={{ position: "fixed", ...pos }}>
           {options.map((opt) => (
             <button key={opt.id} className={"pr-menu-item" + (mode === opt.id ? " on" : "")} onClick={() => { onSelectMode(opt.id); setOpen(false); }}>
               <OptionIcon type={opt.icon} />
@@ -71,13 +86,14 @@ export function SplitButton({ options, mode, onSelectMode, onAction, onOpenChang
               )}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
       <button className="pr-create-btn" disabled={disabled} title={title ?? active.label} onClick={() => onAction(active.id)}>
         <span className="split-ic"><OptionIcon type={active.icon} /></span>
         <span className="btn-label">{active.label}</span>
       </button>
-      <button className="pr-dropdown-toggle" disabled={disabled} onClick={() => setOpen(!open)}>
+      <button className="pr-dropdown-toggle" disabled={disabled} onClick={toggle}>
         <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
           <path d="m4 6 4 4 4-4" />
         </svg>
