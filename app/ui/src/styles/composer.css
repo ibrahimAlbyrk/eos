@@ -2533,10 +2533,12 @@
 
 /* ── attachment chips (composer) ── */
 /* One row that never wraps: it scrolls sideways and fades whichever edge still
-   hides cards. The padding (cancelled by the margins) is room for the corner ×,
-   the hover lift and its shadow, which the scroll box would otherwise clip. */
+   hides cards. Compact cards sit on the baseline of the taller previews. The
+   padding (cancelled by the margins) is room for the corner ×, the hover lift
+   and its shadow, which the scroll box would otherwise clip. */
 .attachment-chips {
   display: flex;
+  align-items: flex-end;
   gap: 8px;
   width: 100%;
   margin: -6px 0 -8px;
@@ -2589,13 +2591,6 @@
               0 0.5px 0 rgba(var(--tint), 0.07);
   color: var(--fg-mid);
 }
-.att-tile > .lightbox-trigger { display: block; width: 100%; height: 100%; }
-.att-thumb {
-  display: block;
-  width: 100%; height: 100%;
-  object-fit: cover;
-  cursor: zoom-in;
-}
 .att-ext {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -2634,6 +2629,87 @@
 .att-chip.att-element .att-name { font-family: var(--font-mono); }
 .att-chip.att-uploading .att-name { color: var(--fg-dim); }
 
+/* Preview tiles — an image fills a 120 square; a text/HTML file shows a page of
+   its content over a name strip. The frame clips, so the × can sit outside it. */
+.att-chip.att-preview {
+  width: 120px; height: 120px;
+  max-width: none;
+  padding: 0;
+  --page-scale: 0.21; /* 800px-wide HTML render → 168px tile */
+}
+.att-chip.att-preview--doc { width: 168px; }
+.att-frame {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: rgba(var(--ink), 0.3);
+}
+/* hairline rim over the content, brightest on top */
+.att-frame::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.22), inset 0 0 0 0.5px rgba(var(--tint), 0.09);
+}
+.att-frame > .att-spinner { margin: auto; }
+.att-frame > .lightbox-trigger { display: block; width: 100%; height: 100%; }
+.att-shot {
+  display: block;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  cursor: zoom-in;
+}
+.att-page {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel);
+}
+/* A thumbnail of the text, not reading copy — zoomed below the 12px floor on
+   purpose, the way a page preview shrinks. */
+.att-page-text {
+  margin: 0;
+  padding: 18px 20px;
+  zoom: 0.55;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  white-space: pre;
+}
+.att-page-html {
+  position: absolute;
+  top: 0; left: 0;
+  width: 800px; height: 600px;
+  border: 0;
+  background: #fff; /* an unstyled page renders on white, as in a browser */
+  transform: scale(var(--page-scale));
+  transform-origin: 0 0;
+  pointer-events: none;
+}
+.att-page-empty {
+  height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--fg-faint);
+}
+.att-caption {
+  flex-shrink: 0;
+  height: 30px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 10px;
+  background: var(--raised);
+  box-shadow: 0 -0.5px 0 rgba(var(--tint), 0.08);
+  color: var(--fg-dim);
+}
+.att-caption svg { flex-shrink: 0; }
+.att-caption .att-name { font-size: var(--text-xs); line-height: 16px; }
+
 /* × — an 18px glass dot on the card's corner; scales in on hover / focus
    (scale, not opacity, so its backdrop never drops mid-animation). */
 .att-remove {
@@ -2657,12 +2733,16 @@
 .att-remove:hover { color: var(--fg-strong); background: color-mix(in srgb, var(--chip) 96%, transparent); }
 .att-remove:focus-visible { outline: none; }
 
-/* A narrow composer drops the context line (it stays in the tooltip). */
+/* A narrow composer drops the context line (it stays in the tooltip) and
+   shrinks the previews. */
 @container (max-width: 520px) {
   .att-chip { height: 40px; max-width: 180px; gap: 8px; padding: 0 12px 0 6px; border-radius: 12px; }
   .att-tile { width: 28px; height: 28px; border-radius: 7px; }
   .att-tile svg:not(.att-spinner) { width: 16px; height: 16px; }
   .att-meta { display: none; }
+  .att-chip.att-preview { width: 88px; height: 88px; --page-scale: 0.155; }
+  .att-chip.att-preview--doc { width: 124px; }
+  .att-caption { height: 26px; padding: 0 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .att-chip, .att-remove { transition: none; }
