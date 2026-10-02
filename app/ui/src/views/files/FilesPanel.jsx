@@ -18,8 +18,8 @@ import { useExplorerKeys } from "./useExplorerKeys.js";
 let mounted = 0;
 
 // Files tab of the single side panel: the explorer (toolbar / search / tree)
-// only — opening a file adds its own `file:<path>` tab. Root seeds from the panel's `cwd` data or, when absent,
-// the selected agent's worktree / project path (a Code view pane: its folder).
+// only — opening a file adds its own `file:<path>` tab. Root seeds from the selected agent's
+// worktree / project path (a Code view pane: its folder); openFolder() sets it outright.
 export function FilesPanel({ live }) {
   const ui = useUi();
   const host = usePanelHost();
@@ -28,9 +28,7 @@ export function FilesPanel({ live }) {
 
   const worker = (live?.workers ?? []).find((w) => w.id === ui.selectedId) ?? null;
   const agentDir = workerGitDir(worker) ?? projectPathFor(live?.workers ?? [], ui.selectedId);
-  const cwd = ui.panelData?.files?.cwd
-    ?? (host ? host.cwd : agentDir ?? ui.composer?.cwd)
-    ?? null;
+  const cwd = (host ? host.cwd : agentDir ?? ui.composer?.cwd) ?? null;
   useEffect(() => {
     explorer.ensureRoot(cwd);
   }, [cwd]);

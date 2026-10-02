@@ -15,6 +15,7 @@ import { openSubagents } from "../subagents/openSubagents.js";
 import { ToolIcon } from "../messages/ToolIcon.jsx";
 import { useArtifacts } from "../../../state/artifactsStore.js";
 import { artifactLabel } from "../../../lib/artifactLink.js";
+import { openFolder } from "../../files/openFolder.js";
 
 // Environment & changes panel, toggled from the header's checklist button. Opens
 // in the pane's right gutter; the transcript + composer column slides left only
@@ -176,7 +177,7 @@ function SourcesSection({ ui, workerId }) {
 
   const attachments = snap.attachments;
   const open = (att) => {
-    if (att.kind === "folder") ui.openPanel("files", { cwd: att.path });
+    if (att.kind === "folder") openFolder(ui, att.path);
     else ui.openFile(att.path);
   };
 
