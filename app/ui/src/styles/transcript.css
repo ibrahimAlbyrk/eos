@@ -21,7 +21,7 @@
   padding: 30px 32px;
   display: flex;
   flex-direction: column;
-  gap: 34px;
+  gap: 10px;
 }
 /* The floating composer covers the scroller's end: pad past it so the last
    message rests above the card. */
@@ -437,13 +437,15 @@
 
 /* Hover action pill (timestamp + rewind + copy + reply). Absolutely positioned
    so revealing it never shifts layout (the transcript auto-scrolls and a
-   reflow would jump): in the block gap under the message — left-aligned, or
-   right-aligned under the bubble for a user message. Its 34px height fills
-   the gap flush, so there is no unhoverable dead zone between message and pill. */
+   reflow would jump), and beside the message so it never covers the next
+   block: left of a user bubble, right after the text for anything else. With
+   no room there (narrow pane, wide bubble) it falls back to floating under the message.
+   Hidden, it takes no pointer events, so it never steals another block's hover/clicks. */
 .msg-row { position: relative; anchor-scope: --msg-body; }
 /* The bubble when there is one, else the attachments (last in tree order wins). */
 .msg-row .msg-attachments, .msg-row .msg-user .b { anchor-name: --msg-body; }
 .msg-actions {
+  --pill-gap: 6px;
   position: absolute;
   top: 100%;
   left: 0;
@@ -457,22 +459,50 @@
   box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.14), inset 0 0 0 0.5px rgba(var(--tint), 0.07),
               0 12px 28px -12px rgba(var(--ink), 0.8);
   opacity: 0;
+  pointer-events: none;
   transition: opacity 120ms;
 }
-.msg-row:hover .msg-actions { opacity: 1; }
+.msg-row:hover .msg-actions { opacity: 1; pointer-events: auto; }
+/* User: vertically centered left of the bubble; under it when the pill doesn't fit there. */
 .msg-actions.right {
-  --pill-gap: 6px;
   position-anchor: --msg-body;
-  top: calc(anchor(bottom) + var(--pill-gap));
-  right: anchor(right);
+  top: auto;
+  align-self: anchor-center;
+  right: calc(anchor(left) + var(--pill-gap));
   left: auto;
+  position-try-fallbacks: --msg-pill-under;
 }
-/* Invisible bridge over the gap so the pointer never leaves the row on its way to the pill. */
+/* The negative bottom stretches the fit-check area below the row, which the
+   pill sits outside of — otherwise this spot never "fits" and the browser
+   keeps a stale left placement after a resize. align-self stops it stretching. */
+@position-try --msg-pill-under {
+  top: calc(anchor(bottom) + var(--pill-gap));
+  bottom: -100px;
+  right: anchor(right);
+  align-self: start;
+}
+/* Invisible bridge over the gap under the bubble so the pointer never leaves
+   the row on its way to the pill. */
 .msg-actions.right::before {
   content: "";
   position: absolute;
   inset: auto 0 100%;
   height: var(--pill-gap);
+}
+/* Anything else: vertically centered right after the text; MessageRow measures
+   the text on hover and sets `left`, or leaves the pill under the message when
+   the pane has no room. The bridge spans the gap when the pill sits past the row's edge. */
+/* translate, not align-self: a one-line row is shorter than the pill, and an
+   overflowing self-aligned box isn't reliably centered. */
+.msg-actions.beside {
+  top: 50%;
+  translate: 0 -50%;
+}
+.msg-actions.beside::before {
+  content: "";
+  position: absolute;
+  inset: 0 100% 0 auto;
+  width: 10px;
 }
 .msg-action-btn {
   display: inline-flex;
