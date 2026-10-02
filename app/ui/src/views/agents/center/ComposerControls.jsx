@@ -11,6 +11,7 @@ import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget, usesClaudeCatalog } from "../../../lib/backendCaps.js";
 import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
+import { composerCwd } from "../../../lib/composerFolder.js";
 import { SubmitButton } from "./SubmitButton.jsx";
 
 // The combined Model·Effort trigger's level word (xHigh, not the model catalog's
@@ -159,7 +160,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           <GitAgentPopover
             live={live}
             worker={selected}
-            cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
+            cwd={selected ? (selected.cwd ?? selected.worktree_from) : composerCwd(ui.composer, live.recents)}
           />
         </div>
       </div>

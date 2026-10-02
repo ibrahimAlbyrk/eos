@@ -112,7 +112,7 @@ export function ArchiveContextMenu({ live }) {
       {doomed && (
         <DeleteConfirmDialog
           title="Delete archived agent"
-          message={permanentDeleteMessage(nameOf(doomed), subtreeIds(rows, doomed.id).length)}
+          message={permanentDeleteMessage(nameOf(doomed), subtreeIds(rows, doomed.id).length, !!doomed.scratch)}
           busy={busy}
           onConfirm={confirmPurge}
           onCancel={() => { if (!busy) setConfirmId(null); }}

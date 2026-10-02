@@ -24,6 +24,7 @@ import { shouldCollapsePaste, makePasteLabel, pasteLineCount, pastePreview } fro
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { parentScope } from "../../../lib/mentionQuery.js";
 import { providerSpawn } from "../../../lib/backendCaps.js";
+import { composerCwd } from "../../../lib/composerFolder.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes.js";
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
@@ -129,7 +130,7 @@ export function Composer({ live, worker, paneId, focused }) {
     return () => ui.registerGitModeToggle(null);
   }, [focused, toggleGitMode, ui.registerGitModeToggle]);
 
-  const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
+  const cwd = selected?.cwd ?? composerCwd(ui.composer, live.recents);
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
@@ -606,7 +607,7 @@ export function Composer({ live, worker, paneId, focused }) {
       }
       // No agent selected → workspace-scoped run in the composer's cwd;
       // ephemeral cards in the empty center, gone once an agent is selected.
-      const wsCwd = ui.composer.cwd ?? live.recents[0] ?? null;
+      const wsCwd = composerCwd(ui.composer, live.recents);
       if (!wsCwd) { alert("Pick a folder first."); return; }
       const r = await api.runWorkspaceTerminal(wsCwd, t);
       if (r?.ok && r.body?.runId) startRun(null, r.body.runId, t);
@@ -644,7 +645,7 @@ export function Composer({ live, worker, paneId, focused }) {
       // the worker's.
       const gitCwd = selected
         ? (selected.cwd ?? selected.worktree_from)
-        : (ui.composer.cwd ?? live.recents[0] ?? null);
+        : composerCwd(ui.composer, live.recents);
       if (!gitCwd) { alert("Pick a folder first."); return; }
       setGitMode(false);
       const gitBranch = selected?.branch ?? ui.composer.branch ?? null;
@@ -670,8 +671,8 @@ export function Composer({ live, worker, paneId, focused }) {
       return;
     }
 
-    const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
-    if (!cwdFallback) { alert("Pick a folder first."); return; }
+    // No folder (picked, or none known yet) → the daemon makes a scratch folder.
+    const spawnCwd = composerCwd(ui.composer, live.recents);
     // Resolve the picked provider to spawn fields: a name backed by an operator
     // profile spawns via backendProfile (carrying its kind/baseUrl/auth/params —
     // e.g. claude's thinking, deepseek's endpoint); a bare subscription kind
@@ -679,7 +680,7 @@ export function Composer({ live, worker, paneId, focused }) {
     // profile lane (its pinned model is the default).
     const { backendKind, backendProfile } = providerSpawn(ui.composer.provider);
     const r = await live.spawnOrchestrator({
-      cwd: cwdFallback,
+      ...(spawnCwd ? { cwd: spawnCwd } : { scratch: true }),
       model: ui.composer.model,
       effort: ui.composer.effort,
       prompt: agentText,
@@ -693,6 +694,7 @@ export function Composer({ live, worker, paneId, focused }) {
         localStorage.setItem("cm:lastLaunched", JSON.stringify({
           provider: ui.composer.provider ?? null,
           model: ui.composer.model ?? null,
+          noFolder: !!ui.composer.noFolder,
         }));
       } catch {}
       const realId = r.body.id;

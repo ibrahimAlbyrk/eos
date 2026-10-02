@@ -25,7 +25,11 @@ export function archivedTree(rows) {
 
 // One copy for every permanent-delete confirm (live kill and archived purge
 // both run the same subtree-wide cascade).
-export function permanentDeleteMessage(name, subtreeSize) {
+// A "No folder" agent's (scratch) folder goes with it, so the copy says so.
+export function permanentDeleteMessage(name, subtreeSize, scratch = false) {
   const kids = subtreeSize > 1 ? ` and its ${subtreeSize - 1} sub-agent${subtreeSize > 2 ? "s" : ""}` : "";
-  return `Permanently delete "${name}"${kids}? The transcript is deleted and the worktree is removed — this cannot be undone.`;
+  const what = scratch
+    ? "The transcript and every file in its folder are deleted"
+    : "The transcript is deleted and the worktree is removed";
+  return `Permanently delete "${name}"${kids}? ${what} — this cannot be undone.`;
 }

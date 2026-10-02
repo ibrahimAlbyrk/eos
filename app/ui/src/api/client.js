@@ -316,8 +316,8 @@ export const api = {
   },
 
   // Orchestrators
-  async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) {
-    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
+  async spawnOrchestrator({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) {
+    return postJson(ROUTES.orchestrators, { name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
   },
   async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
     return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });

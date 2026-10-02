@@ -87,7 +87,7 @@ export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
       )}
       {confirming && (
         <DeleteConfirmDialog
-          message={permanentDeleteMessage(nameOf(agent), subtreeIds(live.workers, agent.id).length)}
+          message={permanentDeleteMessage(nameOf(agent), subtreeIds(live.workers, agent.id).length, !!agent.scratch)}
           busy={busy}
           onConfirm={confirmKill}
           onCancel={() => { if (!busy) setConfirming(false); }}

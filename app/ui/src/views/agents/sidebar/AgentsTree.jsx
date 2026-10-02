@@ -48,17 +48,20 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
   const hover = useHoverCard();
   const collapseId = `group:${group.key}`;
   const collapsed = ui.collapsedNodes.has(collapseId);
-  const selected = !!group.path && ui.selectedId == null && ui.composer.cwd === group.path;
+  const selected = ui.selectedId == null && (group.scratch
+    ? !!ui.composer.noFolder
+    : !!group.path && !ui.composer.noFolder && ui.composer.cwd === group.path);
 
   const onAdd = useCallback((e) => {
     e.stopPropagation();
-    // Pre-seat the composer's cwd with this project's path, then enter spawn
-    // mode exactly like the global + (SidebarHead). ComposerConfigRow only
-    // auto-seeds cwd when unset, so this pre-selection survives the switch.
+    // Pre-seat the composer's cwd with this project's path (or No folder), then
+    // enter spawn mode exactly like the global + (SidebarHead). ComposerConfigRow
+    // only auto-seeds cwd when unset, so this pre-selection survives the switch.
     // "Other" (no path) just falls back to the global +'s behaviour.
-    if (group.path) ui.updateComposer({ cwd: group.path });
+    if (group.scratch) ui.updateComposer({ noFolder: true });
+    else if (group.path) ui.updateComposer({ cwd: group.path });
     ui.setSelectedId(null);
-  }, [group.path, ui]);
+  }, [group.scratch, group.path, ui]);
 
   return (
     <div className="agents-group">
@@ -70,10 +73,10 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
       >
         <span className="agents-group__icon" aria-hidden="true"><ProjectIcon icon={group.project?.icon} /></span>
         <span className="agents-group__name">{group.name}</span>
-        {group.path && (
+        {(group.path || group.scratch) && (
           <button
             className="sb-iconbtn agents-group__add"
-            title={`New orchestrator in ${group.name}`}
+            title={group.scratch ? "New orchestrator with no folder" : `New orchestrator in ${group.name}`}
             onClick={onAdd}
           >
             <PlusIcon />

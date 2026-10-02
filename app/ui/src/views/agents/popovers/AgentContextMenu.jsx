@@ -204,7 +204,7 @@ export function AgentContextMenu({ live }) {
       {menu}
       {doomed && (
         <DeleteConfirmDialog
-          message={permanentDeleteMessage(nameOf(doomed), subtreeIds(live.workers, doomed.id).length)}
+          message={permanentDeleteMessage(nameOf(doomed), subtreeIds(live.workers, doomed.id).length, !!doomed.scratch)}
           busy={busy}
           onConfirm={confirmKill}
           onCancel={() => { if (!busy) setConfirmId(null); }}

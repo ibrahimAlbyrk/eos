@@ -110,7 +110,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   if (!worker) {
     // Reference new-task header: "new orchestrator" (strong) + the faint project
     // name, which disappears entirely when no folder is set.
-    const { project } = newSessionProject(ui.composer.cwd, live.recents, projects);
+    const { project } = newSessionProject(ui.composer, live.recents, projects);
     return (
       <div className={rootClass}>
         {insetEl}

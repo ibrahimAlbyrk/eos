@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { projectForPath, projectLabel } from "../../../lib/projects.js";
+import { composerCwd } from "../../../lib/composerFolder.js";
 import { useProjects } from "../../../state/projectsStore.js";
 import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { subscribeGitChange, BRANCH_KINDS } from "../../../state/gitChangeBus.js";
@@ -20,15 +21,15 @@ const AGENT_MODES = [
 // read/write ui.composer, the pre-spawn config.
 export function ContextStrip({ live }) {
   const ui = useUi();
-  const cwd = ui.composer.cwd ?? live.recents[0] ?? null;
+  const cwd = composerCwd(ui.composer, live.recents);
   const { projects } = useProjects();
   const project = projectForPath(projects, cwd);
-  const folderLabel = cwd ? projectLabel(project, cwd) : "pick project…";
+  const folderLabel = cwd ? projectLabel(project, cwd) : "No folder";
 
   // Seed ui.composer.cwd from the first recent so a spawn has a folder without
   // the operator opening the picker (was in ComposerConfigRow).
   useEffect(() => {
-    if (!ui.composer.cwd && live.recents[0]) ui.updateComposer({ cwd: live.recents[0] });
+    if (!ui.composer.cwd && !ui.composer.noFolder && live.recents[0]) ui.updateComposer({ cwd: live.recents[0] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live.recents, ui.selectedId]);
 
@@ -63,7 +64,7 @@ export function ContextStrip({ live }) {
     return subscribeGitChange(cwd, BRANCH_KINDS, refreshBranch);
   }, [cwd, refreshBranch]);
 
-  const branch = isGit ? (ui.composer.branch ?? "main") : null;
+  const branch = cwd && isGit ? (ui.composer.branch ?? "main") : null;
 
   const toggle = (id, e) => {
     e.stopPropagation();

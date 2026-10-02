@@ -4,6 +4,9 @@ const ComposerContext = createContext(null);
 
 const DEFAULT_COMPOSER = {
   cwd: null,
+  // "No folder": the next spawn gets a private scratch folder instead of cwd
+  // (read through lib/composerFolder.js). Picking any folder turns it off.
+  noFolder: false,
   branch: null,
   model: "opus",
   effort: "xhigh",
@@ -33,11 +36,21 @@ const DEFAULT_COMPOSER = {
   pendingMention: null,
 };
 
+// "No folder" sticks across launches like the model/provider (cm:lastLaunched,
+// written on every successful spawn).
+function initialComposer() {
+  try {
+    const last = JSON.parse(localStorage.getItem("cm:lastLaunched") ?? "null");
+    if (last?.noFolder) return { ...DEFAULT_COMPOSER, noFolder: true };
+  } catch {}
+  return DEFAULT_COMPOSER;
+}
+
 export function ComposerProvider({ children }) {
-  const [composer, setComposer] = useState(DEFAULT_COMPOSER);
+  const [composer, setComposer] = useState(initialComposer);
 
   const updateComposer = useCallback((patch) => {
-    setComposer((c) => ({ ...c, ...patch }));
+    setComposer((c) => ({ ...c, ...(patch.cwd ? { noFolder: false } : {}), ...patch }));
   }, []);
 
   // gitMode is per-pane local state now, so the focused pane's Composer registers

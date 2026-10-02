@@ -68,6 +68,18 @@ describe("groupRootsByProject", () => {
     expect(groups[2].roots).toEqual([]);
   });
 
+  it("No folder roots share one pathless group, just before Other", () => {
+    const groups = groupRootsByProject([
+      { ...root("s1", "/h/.eos/scratch/s1"), scratch: 1 },
+      root("a", null),
+      root("b", "/u/x"),
+      { ...root("s2", "/h/.eos/scratch/s2"), scratch: 1 },
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["x", "No folder", "Other"]);
+    expect(groups[1].path).toBe(null);
+    expect(groups[1].roots.map((r) => r.id)).toEqual(["s1", "s2"]);
+  });
+
   it("pinned projects sort first, Other stays last", () => {
     const projects = [{ id: "p", name: "Pinned", folders: ["/u/p"], pinned: true }];
     const groups = groupRootsByProject([root("a", null), root("b", "/u/x"), root("c", "/u/p")], projects);

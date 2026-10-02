@@ -254,8 +254,8 @@ export function useLive() {
     refreshRecents();
   }, [refreshRecents]);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
+  const spawnOrchestrator = useCallback(async ({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
     // Refresh workers synchronously so the new id is visible before the
     // caller sets it as selected — otherwise App.jsx's stale-selection
     // cleanup races with the caller and immediately clears the selection.

@@ -6,6 +6,8 @@ import { basename } from "./path.js";
 
 // Roots with no known project directory land in this bucket, rendered last.
 const OTHER_GROUP_KEY = "__other__";
+// "No folder" roots (each in its own scratch folder) share one group, just before "Other".
+const SCRATCH_GROUP_KEY = "__scratch__";
 
 // Partition top-level agent roots into project groups, keyed by their project
 // directory (worktree_from — the original project of a worktree agent — falling
@@ -13,8 +15,8 @@ const OTHER_GROUP_KEY = "__other__";
 // one of its folders and names the group; its path is the primary folder, and it
 // shows even with no roots. Roots keep their incoming order (started_at ASC from
 // buildAgentTree); groups appear in the order their first root does (then empty
-// registered projects), pinned projects first and the "Other" bucket (no known
-// project) always last. Deterministic — nothing re-sorts as agent statuses
+// registered projects), pinned projects first, then "No folder" and the "Other"
+// bucket (no known project) always last. Deterministic — nothing re-sorts as agent statuses
 // change, so rows never jump around.
 export function groupRootsByProject(roots, projects = []) {
   const groups = new Map();
@@ -25,6 +27,10 @@ export function groupRootsByProject(roots, projects = []) {
   };
   const projectGroup = (p) => groupFor(`project:${p.id}`, { path: p.folders[0], name: p.name, project: p });
   for (const r of roots) {
+    if (r.scratch) {
+      groupFor(SCRATCH_GROUP_KEY, { path: null, name: "No folder", scratch: true }).roots.push(r);
+      continue;
+    }
     const path = r.worktree_from ?? r.cwd ?? null;
     const project = path ? projects.find((p) => p.folders.includes(path)) : null;
     const g = project ? projectGroup(project)
@@ -32,7 +38,7 @@ export function groupRootsByProject(roots, projects = []) {
     g.roots.push(r);
   }
   for (const p of projects) projectGroup(p);
-  const rank = (g) => (g.project?.pinned ? 0 : g.key === OTHER_GROUP_KEY ? 2 : 1);
+  const rank = (g) => (g.project?.pinned ? 0 : g.key === OTHER_GROUP_KEY ? 3 : g.scratch ? 2 : 1);
   return [...groups.values()].sort((a, b) => rank(a) - rank(b));
 }
 

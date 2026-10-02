@@ -1,6 +1,7 @@
 import { basename } from "./path.js";
 import { nameOf } from "./agentName.js";
 import { projectForPath, projectLabel } from "./projects.js";
+import { composerCwd } from "./composerFolder.js";
 
 // Breadcrumb model for the center header: project name + the selected agent's
 // ancestor chain, root-first (orchestrator → … → selected). The project name
@@ -17,18 +18,19 @@ export function breadcrumbFor(workers, selectedId, fallbackCwd) {
     node = node.parent_id ? byId.get(node.parent_id) ?? null : null;
   }
   const root = chain[0] ?? null;
-  const project =
-    basename(root?.cwd ?? root?.worktree_from ?? fallbackCwd ?? "") || "—";
+  const project = root?.scratch
+    ? "No folder"
+    : basename(root?.cwd ?? root?.worktree_from ?? fallbackCwd ?? "") || "—";
   return { project, chain: chain.map((w) => ({ id: w.id, label: nameOf(w), worker: w })) };
 }
 
 // The pre-spawn folder for the new-task / new-session screen: the composer's
-// chosen cwd, else the most recent project. Returns project=null when no folder
-// is available at all — the new-task headline drops its "in <project>" clause and
-// the header omits the faint project name entirely. A registered project owning
-// the folder lends its name.
-export function newSessionProject(composerCwd, recents, projects = []) {
-  const cwd = composerCwd ?? recents?.[0] ?? null;
+// chosen cwd, else the most recent project. Returns project=null under "No
+// folder" or when no folder is available at all — the new-task headline drops its
+// "in <project>" clause and the header omits the faint project name entirely. A
+// registered project owning the folder lends its name.
+export function newSessionProject(composer, recents, projects = []) {
+  const cwd = composerCwd(composer, recents);
   return { cwd, project: cwd ? projectLabel(projectForPath(projects, cwd), cwd) : null };
 }
 

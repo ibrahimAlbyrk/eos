@@ -594,7 +594,7 @@ export function Messages({ live, agentId, isActive = true }) {
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
-        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer.cwd, live.recents, projects).project} />}
+        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer, live.recents, projects).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}

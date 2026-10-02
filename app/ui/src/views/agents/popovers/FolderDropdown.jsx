@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { basename } from "../../../lib/path.js";
 import { projectChoices } from "../../../lib/projects.js";
+import { composerCwd } from "../../../lib/composerFolder.js";
 import { useProjects, openProjectModal } from "../../../state/projectsStore.js";
 import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { SearchField } from "./SearchField.jsx";
 
-// Project picker for the next spawn: registered projects, then recent folders no
-// project owns. Picking seats ui.composer.cwd to the project's primary folder;
-// "New project" opens the create modal and seats the new project on save.
+// Project picker for the next spawn: "No folder" (a temporary folder deleted with
+// the agent), registered projects, then recent folders no project owns. Picking
+// seats ui.composer.cwd to the project's primary folder; "New project" opens the
+// create modal and seats the new project on save.
 export function FolderDropdown({ live }) {
   const ui = useUi();
   const { projects } = useProjects();
@@ -21,9 +23,13 @@ export function FolderDropdown({ live }) {
 
   if (!open) return null;
 
-  const current = ui.composer.cwd;
+  const current = composerCwd(ui.composer, live.recents);
   const pick = (path) => {
     ui.updateComposer({ cwd: path });
+    ui.closeAllPops();
+  };
+  const pickNoFolder = () => {
+    ui.updateComposer({ noFolder: true });
     ui.closeAllPops();
   };
 
@@ -42,6 +48,18 @@ export function FolderDropdown({ live }) {
     <div className="cb-chip-dd ca-pop ca-folder-dd open" id="cbFolderDD" data-popover="folder-dd">
       {all.length > 0 && <SearchField value={query} onChange={setQuery} placeholder="Search projects" />}
       <div className="cb-chip-dd-scroll">
+        {!q && (
+          <button className={"sp-chip-dd-item" + (current ? "" : " on")} onClick={pickNoFolder} title="A temporary folder, deleted with the agent">
+            <ProjectIcon icon={null} />
+            <span className="ca-folder-dd__name">No folder</span>
+            <span className="ca-folder-dd__dir">temporary</span>
+            <span className="check">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="m4 8 3 3 5-6" />
+              </svg>
+            </span>
+          </button>
+        )}
         {choices.length === 0 && (
           <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
             {all.length > 0 ? "No matching projects" : "No projects yet"}
