@@ -133,8 +133,7 @@
 /* Hover / selected glass eases in and out on every chip host. :where() keeps it
    at zero specificity, so an element's own transition wins. */
 :where(.acc-icon-btn, .acct-action, .agents-group__head--toggle, .agents-row, .ap-option,
-.att-chip.att-element .att-remove, .att-chip.att-file .att-remove,
-.att-chip.att-folder .att-remove, .attach-popover .menu-item, .bm-iconbtn,
+.attach-popover .menu-item, .bm-iconbtn,
 .browser-tab, .browser-tab .browser-tab__audio, .browser-tab__add,
 .browser-tab__close, .ca-branch-mgr .bm-iconbtn, .ca-branch-mgr .sp-chip-dd-item,
 .ca-ctx .menu-item, .ca-ctx .menu-item.danger, .ca-folder-dd .sp-chip-dd-item,

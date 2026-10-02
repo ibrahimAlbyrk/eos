@@ -2203,16 +2203,14 @@
   white-space: nowrap;
 }
 
-/* Element attachment chips (composer + sent bubble) — a text pill carrying the
-   element identity, unlike the file/folder icon squares. */
-.att-chip.att-element,
+/* Element attachment chips (sent bubble) — a text pill carrying the element
+   identity, unlike the file/folder icon squares. */
 .msg-att.msg-att-element {
   width: auto;
   max-width: 220px;
   background: var(--row-on);
   border-radius: 8px;
 }
-.att-element-body,
 .msg-att-element-body {
   display: flex;
   align-items: baseline;
@@ -2220,14 +2218,12 @@
   padding: 6px 9px;
   min-width: 0;
 }
-.att-element-tag,
 .msg-att-element-tag {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--fg);
   flex: 0 0 auto;
 }
-.att-element-detail,
 .msg-att-element-detail {
   font-size: var(--text-xs);
   color: var(--fg-dim);
