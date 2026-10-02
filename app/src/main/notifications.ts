@@ -7,6 +7,10 @@ import { navigateToWorker } from "./bridge";
 // the file, so macOS falls back to its default sound there.
 const NOTIFICATION_SOUND = "eos-notification.aiff";
 
+// A shown Notification whose JS object is garbage collected loses its click
+// handler, so clicking the banner did nothing. Hold each one until it's settled.
+const live = new Set<Notification>();
+
 // Fires a native notification from an SSE `notification:fire` payload, but ONLY
 // when the app is not active/frontmost (mirrors doc 10 :864-867). Click →
 // activate + show + __nativeNavigate to the worker. Returns the outcome so the
@@ -28,14 +32,20 @@ export function makeNotifier(
     const workerId = typeof p.workerId === "string" ? p.workerId : "";
     const n = new Notification({ title: p.title, body: p.body, sound: NOTIFICATION_SOUND });
     // Electron 42's UNNotification path refuses unsigned builds with this event instead of a banner.
-    n.on("failed", (_e, error) => console.error("[eos-electron] notification failed:", error));
+    n.on("failed", (_e, error) => {
+      live.delete(n);
+      console.error("[eos-electron] notification failed:", error);
+    });
+    n.on("close", () => live.delete(n));
     const hostId = typeof p.host?.id === "string" ? p.host.id : null;
     n.on("click", async () => {
+      live.delete(n);
       app.focus({ steal: true });
       showWindow();
       const wc = hostId && openHost ? await openHost(hostId) : getWindow()?.webContents;
       if (wc && workerId) navigateToWorker(wc, workerId);
     });
+    live.add(n);
     n.show();
     return "fired";
   };
