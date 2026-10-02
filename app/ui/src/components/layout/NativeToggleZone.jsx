@@ -47,9 +47,10 @@ export function NativeToggleZone({ popup, hasAttention }) {
         {showDot && <span className="sb-new-dot" aria-label="new output" />}
       </button>
       {/* Which computer this window drives (a controlled one), or who is
-          driving this Mac right now — next to the traffic lights, always. */}
-      <HostChip />
-      <PresenceChip />
+          driving this Mac right now — next to the traffic lights while the
+          sidebar is open; collapsed, it would sit over the title. */}
+      {!collapsed && <HostChip />}
+      {!collapsed && <PresenceChip />}
       {hovering && popup}
     </div>
   );
