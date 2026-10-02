@@ -31,6 +31,7 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
         loops: c.loops,
         messageIds: c.messageIds,
         deleteConversation: c.deleteConversation,
+        removeScratchWorkspace: c.removeScratchWorkspace,
         bus: c.bus,
         supervisor: c.supervisor,
         log: c.log,

@@ -43,8 +43,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, worker_definition, tool_scope, with_gateway, collaborate, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, worker_definition, tool_scope, with_gateway, collaborate, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready, scratch)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
@@ -114,6 +114,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.worktreeDir ?? null,
       input.workspaceOwnerId ?? null,
       input.workspaceReady ? 1 : 0,
+      input.scratch ? 1 : 0,
     );
   }
 

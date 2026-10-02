@@ -90,7 +90,10 @@ export type SpawnWorkerResponse = z.infer<typeof SpawnWorkerResponseSchema>;
 
 export const SpawnOrchestratorRequestSchema = z.object({
   name: z.string().optional(),
-  cwd: z.string().min(1),
+  cwd: z.string().min(1).optional(),
+  // "No folder": the daemon creates a private folder for this agent
+  // (~/.eos/scratch/<id>) and deletes it with the agent. Exclusive with cwd.
+  scratch: z.literal(true).optional(),
   model: z.string().optional(),
   effort: z.string().optional(),
   prompt: z.string().optional(),
@@ -104,6 +107,8 @@ export const SpawnOrchestratorRequestSchema = z.object({
   // "focused" starts a focused session (FOCUSED_ROLE) instead of an orchestrator:
   // it always runs on the claude SDK lane, so backendKind/backendProfile are ignored.
   mode: z.enum(["orchestrator", "focused"]).optional(),
+}).refine((b) => !!b.cwd !== !!b.scratch, {
+  message: "exactly one of cwd or scratch required",
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 

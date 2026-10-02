@@ -122,11 +122,13 @@ import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
+import { createFsScratchWorkspaces } from "../infra/src/filesystem/FsScratchWorkspaces.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { createRuntimeMcpClient } from "../infra/src/mcp/RuntimeMcpClient.ts";
 import { connectRuntimeMcpTools } from "./backends/runtime-mcp.ts";
 import { FileMemoryProvider } from "../infra/src/memory/FileMemoryProvider.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
+import { pruneOrphanScratch } from "../core/src/use-cases/PruneOrphanScratch.ts";
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
 import { purgeExpiredArchives } from "../core/src/use-cases/PurgeExpiredArchives.ts";
 import { archivePurgeDeps } from "./shared/archive-purge.ts";
@@ -481,6 +483,23 @@ export function buildContainer() {
 
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
   const projects = new JsonProjectsRepo(join(config.daemon.home, "projects.json"));
+
+  // "No folder" agents: each gets ~/.eos/scratch/<id>, deleted with the agent.
+  // Not in the user-data backup manifest — it is throwaway by design.
+  const scratch = createFsScratchWorkspaces({
+    root: join(config.daemon.home, "scratch"),
+    claudeProjectsDir: join(claudeHome, "projects"),
+  });
+  // Waits out the kill grace (as the worktree reaper does) so a stopping
+  // session can't write back into the folder after it is gone.
+  const SCRATCH_REMOVE_DELAY_MS = 2000;
+  const removeScratchWorkspace = (dir: string): void => {
+    setTimeout(() => {
+      void scratch.remove(dir).catch((e) => log.warn("scratch folder removal failed", { dir, error: errMsg(e) }));
+    }, SCRATCH_REMOVE_DELAY_MS).unref();
+  };
+  void pruneOrphanScratch({ workers, scratch, log })
+    .catch((e) => log.warn("scratch prune failed", { error: errMsg(e) }));
 
   // UI-origin token. Required as the x-eos-ui-token header on every
   // checkout-mutating endpoint (/workers/:id/try*) so agents holding
@@ -1457,6 +1476,8 @@ export function buildContainer() {
     viewTokens: new ViewTokens(),
     recents,
     projects,
+    scratch,
+    removeScratchWorkspace,
     resolveWorktreeDir,
     logFileFor,
     backends,

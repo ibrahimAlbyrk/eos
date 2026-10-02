@@ -13,7 +13,8 @@ rules:
   - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+~(\\s|$|/)",          action: deny, reason: "rm -rf ~ blocked" }
   - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+/Users(\\s|/|$)",     action: deny, reason: "rm -rf /Users blocked" }
   - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.claude",    action: deny, reason: ".claude directory removal blocked" }
-  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.eos", action: deny, reason: ".eos removal blocked" }
+  # ~/.eos/scratch/<id> is a "No folder" agent's own cwd — it may clean up inside it.
+  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.eos(?!/scratch/[^\\s/]+/)", action: deny, reason: ".eos removal blocked" }
 
   # ── Bash convenience: rewrite curl to inject a timeout so workers don't hang
   - { tool: Bash, command: "(^|\\s)curl(?!.*--max-time)", action: rewrite,

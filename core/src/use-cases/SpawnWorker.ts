@@ -105,6 +105,10 @@ export interface SpawnWorkerSpec {
    * use-case only persists it (tool_scope JSON); the gate enforces it per call.
    * Absent ⇒ no tool restriction. */
   toolScope?: ToolScope;
+  /** cwd is a "No folder" scratch dir the spawn route created for this worker.
+   * Persisted so the cascade deletes the folder with the worker; kept out of
+   * the recents list (it must never become the default folder for the next agent). */
+  scratch?: boolean;
 }
 
 export interface SpawnWorkerDeps {
@@ -422,6 +426,7 @@ export async function spawnWorker(
     // attach, and in-process (created above, ready now) spawns point at a tree
     // that already exists.
     workspaceReady: !resolved.worktreeFrom || !!resolved.workspaceOf || inProcWorktreeDir !== null,
+    scratch: !!resolved.scratch,
   });
 
   // In-process worktree: persist the fork base now (no claude_spawning enrichment
@@ -443,7 +448,7 @@ export async function spawnWorker(
   }
 
   const folder = resolved.cwd ?? resolved.worktreeFrom ?? null;
-  if (folder) deps.recents?.push(folder);
+  if (folder && !resolved.scratch) deps.recents?.push(folder);
 
   const evtId = deps.events.append(id, deps.clock.now(), "spawn", {
     ...(logArgs ? { args: logArgs.slice(2) } : {}),

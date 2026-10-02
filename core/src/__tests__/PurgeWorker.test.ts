@@ -42,6 +42,7 @@ function buildHarness(
       ? {
           loops: { deleteByWorker: (id: string) => { calls.push(`loops.delete:${id}`); } },
           deleteConversation: (sessionId: string) => { calls.push(`conversation.delete:${sessionId}`); },
+          removeScratchWorkspace: (dir: string) => { calls.push(`scratch.remove:${dir}`); },
         }
       : {}),
     bus: {
@@ -121,6 +122,16 @@ describe("purgeWorker — cascade", () => {
     purgeWorker(h.deps, "w1");
     assert.equal(h.enqueued.length, 0);
     assert.ok(h.calls.includes("workers.delete:w1"));
+  });
+
+  it("deletes a 'No folder' row's scratch folder, never a plain cwd", () => {
+    const h = buildHarness({
+      s1: { cwd: "/home/.eos/scratch/s1", scratch: 1 },
+      p1: { cwd: "/some/dir", scratch: 0 },
+    });
+    purgeWorker(h.deps, "s1");
+    purgeWorker(h.deps, "p1");
+    assert.deepEqual(h.calls.filter((c) => c.startsWith("scratch.remove:")), ["scratch.remove:/home/.eos/scratch/s1"]);
   });
 
   it("skips the conversation delete when session_id is null", () => {

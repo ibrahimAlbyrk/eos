@@ -27,6 +27,7 @@ export interface KillWorkerDeps {
   loops?: Pick<LoopStateRepo, "deleteByWorker">;
   messageIds?: Pick<MessageIdRepo, "deleteByWorker">;
   deleteConversation?(sessionId: string): void;
+  removeScratchWorkspace?(dir: string): void;
   bus: EventBus;
   supervisor: ProcessSupervisor;
   log: Logger;

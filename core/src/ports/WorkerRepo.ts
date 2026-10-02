@@ -40,6 +40,8 @@ export interface InsertWorkerInput {
   // claude_spawning event confirms creation. Plain-cwd and attach spawns are
   // born ready (their tree already exists).
   workspaceReady: boolean;
+  // cwd is a "No folder" scratch dir owned by this worker (deleted with it).
+  scratch?: boolean;
 }
 
 export interface UsageDelta {

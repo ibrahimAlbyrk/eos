@@ -140,6 +140,9 @@ export const WorkerRowSchema = z.object({
   // leave GET /workers unconditionally and only the dashboard-only
   // /workers/archived route lists them.
   archived_at: z.number().nullable().optional(),
+  // 1 when cwd is a "No folder" scratch dir the daemon created for this agent
+  // (~/.eos/scratch/<id>): the folder is deleted together with the agent.
+  scratch: z.number().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

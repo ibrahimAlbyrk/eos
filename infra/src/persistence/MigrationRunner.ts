@@ -364,6 +364,9 @@ export const MIGRATIONS: Migration[] = [
       sub INTEGER NOT NULL
     )
   ` },
+  // "No folder" agents: 1 = cwd is a scratch dir the daemon created and deletes
+  // with the row. DEFAULT 0 keeps every existing row a plain folder.
+  { id: "060_workers_add_scratch", sql: "ALTER TABLE workers ADD COLUMN scratch INTEGER NOT NULL DEFAULT 0" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

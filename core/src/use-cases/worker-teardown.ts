@@ -85,6 +85,9 @@ export interface CascadeWorkerRemovalDeps {
   loops?: Pick<LoopStateRepo, "deleteByWorker">;
   messageIds?: Pick<MessageIdRepo, "deleteByWorker">;
   deleteConversation?(sessionId: string): void;
+  // Deletes a "No folder" worker's scratch dir (its whole cwd). A crash before
+  // it runs is covered by the boot sweep (PruneOrphanScratch).
+  removeScratchWorkspace?(dir: string): void;
   bus: EventBus;
   postKillCleanup?(workerId: string): void;
   // Durable worktree-removal intent. Recorded (synchronously, before the row is
@@ -130,6 +133,7 @@ export function cascadeWorkerRemoval(deps: CascadeWorkerRemovalDeps, row: Worker
   deps.loops?.deleteByWorker(row.id);
   deps.messageIds?.deleteByWorker(row.id);
   if (row.session_id != null) deps.deleteConversation?.(row.session_id);
+  if (row.scratch && row.cwd) deps.removeScratchWorkspace?.(row.cwd);
   deps.postKillCleanup?.(row.id);
   deps.bus.publish("worker:removed", { workerId: row.id });
 }

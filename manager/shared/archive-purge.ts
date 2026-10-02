@@ -14,6 +14,7 @@ export function archivePurgeDeps(c: Container): PurgeExpiredArchivesDeps {
     messageQueue: c.messageQueue,
     loops: c.loops,
     deleteConversation: (sessionId) => c.deleteConversation(sessionId),
+    removeScratchWorkspace: c.removeScratchWorkspace,
     bus: c.bus,
     postKillCleanup: (workerId) => {
       c.cleanupMcpConfig(workerId);

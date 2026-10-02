@@ -26,7 +26,6 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.post("/orchestrators", async ({ req, res }) => {
     const body = validate(SpawnOrchestratorRequestSchema, await readBody(req));
     const name = (body.name ?? "").trim() || randomOrchestratorName();
-    const cwd = expandPath(body.cwd);
     // A focused session is the same top-level spawn minus the orchestration: it
     // works itself, always on the claude SDK lane (the operator's provider pick
     // doesn't apply).
@@ -45,6 +44,10 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const explicit = !!(explicitKind || explicitProfileName);
     const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
+    // "No folder": the agent gets its own scratch folder, made only once the
+    // spawn is known to be valid and dropped again if the spawn fails.
+    const scratch = !!body.scratch;
+    const cwd = scratch ? await c.scratch.create(id) : expandPath(body.cwd)!;
     const result = await spawnWorker(
       {
         workers: c.workers, events: c.events, bus: c.bus,
@@ -61,6 +64,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
       {
         prompt: body.prompt ?? "",
         cwd,
+        scratch,
         name,
         // A human-supplied name is 'user' (never auto-renamed); the random default
         // is 'default' — the auto-name micro-task's only eligible state.
@@ -92,7 +96,10 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         backendParams: rb.params,
         backendCapabilities: rb.capabilities,
       },
-    );
+    ).catch(async (e: unknown) => {
+      if (scratch) await c.scratch.remove(cwd);
+      throw e;
+    });
     if (body.prompt) {
       appendSynthesized(c, id, "user_message", {
         text: body.prompt,

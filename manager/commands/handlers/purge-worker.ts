@@ -28,6 +28,7 @@ export const purgeWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, PurgeWor
         loops: c.loops,
         messageIds: c.messageIds,
         deleteConversation: c.deleteConversation,
+        removeScratchWorkspace: c.removeScratchWorkspace,
         bus: c.bus,
         postKillCleanup: (wid) => {
           c.cleanupMcpConfig(wid);
