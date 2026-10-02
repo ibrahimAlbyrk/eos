@@ -69,6 +69,9 @@
   background: var(--raised);
   border-radius: var(--r-row);
   box-shadow: inset 0 0 0 1px var(--line);
+  /* The modal's content fade would make this row an opacity layer, trapping the
+     icon picker under the rows below it and cutting its glass blur off. */
+  animation: none;
 }
 .proj-modal__name:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); }
 .proj-modal__icon-btn {
