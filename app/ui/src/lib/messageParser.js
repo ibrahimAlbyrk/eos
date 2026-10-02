@@ -314,14 +314,18 @@ export function buildBlocks(rawEvents) {
       ts,
     });
   };
+  // Inner tools of a subagent launched before the loaded window: they belong to
+  // that subagent, never to the main stream or a neighbouring span.
+  const offWindowToolIds = new Set();
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];
     if (ev.type !== "tool_running") continue;
     const tr = parsePayload(ev.payload);
     // A subagent's own pulse is the agent itself, never one of its inner tools.
     if (!tr.toolUseId || toolUseIds.has(tr.toolUseId) || agentSpans.has(tr.toolUseId)) continue;
-    if (tr.parentAgentToolUseId && agentSpans.has(tr.parentAgentToolUseId)) {
-      attachInnerTool(tr.parentAgentToolUseId, tr, i, ev.ts);
+    if (tr.parentAgentToolUseId) {
+      if (agentSpans.has(tr.parentAgentToolUseId)) attachInnerTool(tr.parentAgentToolUseId, tr, i, ev.ts);
+      else offWindowToolIds.add(tr.toolUseId);
       continue;
     }
     let bestAgent = null;
@@ -341,7 +345,7 @@ export function buildBlocks(rawEvents) {
     if (bestAgent) attachInnerTool(bestAgent, tr, i, ev.ts);
   }
 
-  const attributedToolIds = new Set();
+  const attributedToolIds = new Set(offWindowToolIds);
   for (const tools of agentToolMap.values()) {
     for (const t of tools) attributedToolIds.add(t.id);
   }

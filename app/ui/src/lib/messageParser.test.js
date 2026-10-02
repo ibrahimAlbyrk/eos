@@ -995,6 +995,23 @@ describe("buildBlocks canonical agent_event decoder (claude / in-process lanes)"
     expect(inner).toMatchObject({ name: "Bash", input: { command: "find ." } });
     expect(inner.result?.text).toBe("found");
   });
+
+  // The paged window can start after a long-running subagent's launch row.
+  const offWindowInner = [
+    ae(101, { type: "activity", kind: "tool_started", callId: "inner_1", toolName: "Bash", input: { command: "find ." }, parentCallId: "agent_1" }),
+    ae(102, { type: "activity", kind: "tool_finished", callId: "inner_1", result: "found", parentCallId: "agent_1" }),
+  ];
+
+  it("keeps a subagent's inner tools out of the main stream when its launch is outside the window", () => {
+    expect(buildBlocks(offWindowInner)).toEqual([]);
+  });
+
+  it("never hands an off-window subagent's inner tools to another subagent in the window", () => {
+    const other = ae(90, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "agent_0", name: "Agent", input: { description: "other" } }] });
+    const blocks = buildBlocks([other, ...offWindowInner]);
+    expect(blocks.map((b) => b.kind)).toEqual(["agentRun"]);
+    expect(blocks[0].tools).toEqual([]);
+  });
 });
 
 describe("buildBlocks dynamic-loop continuation", () => {
