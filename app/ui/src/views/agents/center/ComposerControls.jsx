@@ -257,7 +257,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             )}
           </div>
         )}
-        {submit && <SubmitButton stop={submit.stop} dim={submit.dim} onClick={submit.onClick} />}
+        {submit && <SubmitButton key={selected?.id} stop={submit.stop} dim={submit.dim} onClick={submit.onClick} />}
       </div>
     </div>
   );

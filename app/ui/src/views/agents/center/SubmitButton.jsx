@@ -1,26 +1,21 @@
+import { useBallRoll } from "../../../hooks/useBallRoll.js";
+
 // Send / stop affordance for the composer. Presentational only: the composer
 // owns the decision (which mode) and the wiring (what each click does); this
-// just renders the matching icon and forwards the click.
-const SendIcon = (
-  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M8 13V4M4.5 7.5 8 4l3.5 3.5" />
-  </svg>
-);
-
-const StopIcon = (
-  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-    <rect x="1" y="1" width="14" height="14" rx="3" />
-  </svg>
-);
-
+// renders the ball — arrow on its front, stop square on its back — which rolls
+// forward half a turn whenever the mode flips (lib/ballRoll.js). Callers key it
+// by agent, so switching agents snaps to that agent's face instead of rolling.
 export function SubmitButton({ stop, dim, onClick }) {
+  const { buttonRef, canvasRef } = useBallRoll(stop);
   return (
     <button
+      ref={buttonRef}
       className={"submit" + (stop ? " stop" : "") + (dim ? " dim" : "")}
       title={stop ? "Stop (Esc)" : "Send"}
       onClick={onClick}
     >
-      {stop ? StopIcon : SendIcon}
+      <canvas ref={canvasRef} className="ball-decal" aria-hidden="true" />
+      <span className="ball-gloss" aria-hidden="true" />
     </button>
   );
 }

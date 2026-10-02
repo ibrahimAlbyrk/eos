@@ -3425,6 +3425,7 @@
 /* send — a glossy accent drop (brand DawnStar stops), the ONE control with a
    resting fill */
 .composer-inner .submit, .composer-compact .submit {
+  position: relative;
   width: 32px; height: 32px; border-radius: 50%;
   background: radial-gradient(circle at 34% 26%, #e8f1ff 0%, #a9cdf6 22%, var(--accent) 58%, #3f6fb5 100%);
   color: var(--accent-fg);
@@ -3437,6 +3438,17 @@
 .composer-inner .submit:hover, .composer-compact .submit:hover { filter: brightness(1.08); transform: scale(1.05); }
 .composer-inner .submit:active, .composer-compact .submit:active { transform: scale(0.94); }
 .composer-inner .submit.stop, .composer-compact .submit.stop { opacity: 1; }
+/* the arrow/stop decals are painted on a canvas sphere (lib/ballRoll.js); the
+   gloss sits above them so the light stays put while the ball turns */
+.submit .ball-decal, .submit .ball-gloss {
+  position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+}
+.submit .ball-decal { width: 100%; height: 100%; }
+.submit .ball-gloss {
+  background:
+    radial-gradient(circle at 33% 22%, rgba(255, 255, 255, 0.38) 0, rgba(255, 255, 255, 0.12) 12%, rgba(255, 255, 255, 0) 28%),
+    radial-gradient(ellipse 70% 38% at 50% 100%, rgba(207, 226, 251, 0.22), rgba(207, 226, 251, 0) 70%);
+}
 
 /* ── collapsed composer (a permission/question card is showing) ── */
 .composer-compact {

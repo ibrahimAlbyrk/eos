@@ -54,7 +54,7 @@ export function CollapsedComposer({ worker, hasQuestion, onAttach, submit }) {
           {pct > 0 && <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} />}
         </svg>
       </span>
-      <SubmitButton stop={submit.stop} dim={submit.dim} onClick={submit.onClick} />
+      <SubmitButton key={selected?.id} stop={submit.stop} dim={submit.dim} onClick={submit.onClick} />
     </div>
   );
 }
