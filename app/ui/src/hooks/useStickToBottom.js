@@ -69,6 +69,17 @@ export function useStickToBottom({
     prevTopRef.current = el.scrollTop;
   }, []);
 
+  // Chromium's native scroll anchoring is off while pinned — the follow loop
+  // owns the position there. Left on, the anchor survives a bottom clamp (a
+  // content-visibility block settling smaller than its placeholder) and replays
+  // that stale offset on the next growth: expanding a disclosure jumped the view,
+  // which then read as a scroll back to the bottom and re-pinned. Unpinned, it
+  // keeps the read position steady as blocks above settle.
+  const setPinned = useCallback((pinned) => {
+    pinnedRef.current = pinned;
+    if (scrollerRef.current) scrollerRef.current.style.overflowAnchor = pinned ? "none" : "";
+  }, []);
+
   const settlingRef = useRef(false);
   const settleRafRef = useRef(0);
 
@@ -162,7 +173,7 @@ export function useStickToBottom({
         && performance.now() - ledger.t < SELF_FRESH_MS;
       const was = pinnedRef.current;
       const now = nextPinned(was, { distance, deltaTop, isSelf, threshold });
-      pinnedRef.current = now;
+      if (now !== was) setPinned(now);
       if (now && !was) cbRef.current.onPinned?.();
       if (!now && !isSelf) { endSettle(); cbRef.current.onUserAway?.(top); }
       if (!now) stopFollow();
@@ -179,13 +190,14 @@ export function useStickToBottom({
     const handleWheel = (e) => {
       if (e.deltaY >= 0 || !pinnedRef.current) return;
       if (el.scrollHeight - el.clientHeight <= 1) return;
-      pinnedRef.current = false;
+      setPinned(false);
       endSettle();
       stopFollow();
       cbRef.current.onUserAway?.(el.scrollTop);
       updateBtn();
     };
 
+    setPinned(pinnedRef.current);
     el.addEventListener("scroll", handleScroll, { passive: true });
     el.addEventListener("wheel", handleWheel, { passive: true });
     lastWidthRef.current = el.clientWidth;
@@ -221,14 +233,14 @@ export function useStickToBottom({
       stopFollow();
       endSettle();
     };
-  }, [threshold, startFollow, stopFollow, updateBtn, ownWrite, captureAnchorToken, endSettle]);
+  }, [threshold, startFollow, stopFollow, updateBtn, ownWrite, captureAnchorToken, endSettle, setPinned]);
 
   const scrollToBottom = useCallback(({ instant = false } = {}) => {
     const el = scrollerRef.current;
     if (!el) return;
     endSettle(); // explicit user jump — the glide is the point
     const was = pinnedRef.current;
-    pinnedRef.current = true;
+    setPinned(true);
     if (!was) cbRef.current.onPinned?.();
     if (instant || reducedMotionRef.current?.matches) {
       stopFollow();
@@ -237,7 +249,7 @@ export function useStickToBottom({
       startFollow();
     }
     updateBtn();
-  }, [ownWrite, startFollow, stopFollow, updateBtn, endSettle]);
+  }, [ownWrite, startFollow, stopFollow, updateBtn, endSettle, setPinned]);
 
   // Owned write for positioning that is not "go to the bottom": initial
   // restore (pin:"auto" re-derives the pin from where we landed) and the
@@ -248,12 +260,12 @@ export function useStickToBottom({
     stopFollow();
     ownWrite(el, top);
     if (pin === "auto") {
-      pinnedRef.current = shouldStick(
+      setPinned(shouldStick(
         { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
         threshold,
-      );
+      ));
     } else if (pin !== "keep") {
-      pinnedRef.current = Boolean(pin);
+      setPinned(Boolean(pin));
     }
     // A programmatic restore that lands mid-history (initial restore, prepend
     // compensation, parked→active flip) seeds the anchor so a width resize can
@@ -261,32 +273,33 @@ export function useStickToBottom({
     captureAnchorToken();
     updateBtn();
     beginSettle();
-  }, [ownWrite, stopFollow, updateBtn, threshold, captureAnchorToken, beginSettle]);
+  }, [ownWrite, stopFollow, updateBtn, threshold, captureAnchorToken, beginSettle, setPinned]);
 
   // Content-swap reset (agent switch). Unpinned by default so the swap's
   // resize churn doesn't glide anywhere before the initial write decides.
   const reset = useCallback(({ pinned = false } = {}) => {
     stopFollow();
-    pinnedRef.current = pinned;
+    setPinned(pinned);
     ledgerRef.current = null;
     anchorTokenRef.current = null;
     prevTopRef.current = scrollerRef.current?.scrollTop ?? 0;
     beginSettle();
-  }, [stopFollow, beginSettle]);
+  }, [stopFollow, beginSettle, setPinned]);
 
   // User intent like wheel-up, but from a disclosure toggle: the content is
   // about to grow under the user's click, so stop following and unpin —
   // otherwise the follow glide drags the expanded detail past the viewport.
+  // Unlike wheel-up it applies even when nothing overflows yet: the growth
+  // itself is what would start the glide.
   const hold = useCallback(() => {
     const el = scrollerRef.current;
     if (!el || !pinnedRef.current) return;
-    if (el.scrollHeight - el.clientHeight <= 1) return;
-    pinnedRef.current = false;
+    setPinned(false);
     endSettle();
     stopFollow();
     cbRef.current.onUserAway?.(el.scrollTop);
     updateBtn();
-  }, [stopFollow, updateBtn, endSettle]);
+  }, [stopFollow, updateBtn, endSettle, setPinned]);
 
   const isPinned = useCallback(() => pinnedRef.current, []);
 
