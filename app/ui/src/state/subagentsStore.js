@@ -6,4 +6,5 @@ import { createWorkerListStore } from "./workerListStore.js";
 const store = createWorkerListStore();
 
 export const publishSubagents = store.publish;
+export const getSubagents = store.get;
 export const useSubagents = store.useList;

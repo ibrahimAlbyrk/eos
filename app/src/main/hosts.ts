@@ -9,8 +9,9 @@ import path from "node:path";
 // localStorage, cache, cookies) and talks only to its host's facade prefix on
 // the local daemon (/h/<id>/…).
 //
-// A view may run the host's own dashboard bundle (so UI and daemon always
-// match). That code is the host's, not ours: it never sees this Mac's ui-token
+// A view runs this Mac's dashboard whenever it speaks the host's API, and the
+// host's own bundle only when it doesn't (so UI and daemon always match). That
+// code is the host's, not ours: it never sees this Mac's ui-token
 // (it gets a token valid only under its own /h/<id>/ prefix), its CSP pins every
 // fetch to that prefix, and its preload omits the bridges that touch this Mac's
 // files. The worst a compromised host can do from its view is what it could
@@ -30,8 +31,10 @@ export interface HostView {
   deviceId: string;
   platform: string;
   link: HostLink;
-  info: { servesUi: boolean; home: string; name: string } | null;
+  info: HostInfo | null;
 }
+
+interface HostInfo { servesUi: boolean; apiStamp: string; home: string; name: string }
 
 interface Deps {
   win: BrowserWindow;
@@ -57,11 +60,10 @@ function mimeFor(p: string): string {
 }
 
 interface HostBundle {
-  // Whose dashboard this host's views run: the host's own, or ours when it
-  // serves none (or is unreachable at load time).
+  // Whose dashboard this host's views run: ours when it speaks the host's API
+  // (one look on every computer, nothing to download), else the host's own —
+  // or ours when it serves none (or is unreachable at load time).
   source: "host" | "local";
-  // Fingerprinted assets never change — keep them so a reopen costs no WAN trip.
-  assets: Map<string, { body: ArrayBuffer; type: string }>;
 }
 
 export class HostViews {
@@ -69,6 +71,8 @@ export class HostViews {
   private hosts: HostView[] = [];
   // This Mac as its daemon describes itself — views of other computers can't ask it.
   private local: { name: string; platform: string; deviceId: string } | null = null;
+  // The API our own dashboard bundle speaks.
+  private localApiStamp: string | null = null;
   private readonly views = new Map<string, WebContentsView>();
   private readonly pending = new Map<string, Promise<WebContentsView>>();
   private readonly bundles = new Map<string, HostBundle>();
@@ -104,8 +108,9 @@ export class HostViews {
   async refresh(): Promise<void> {
     if (!this.local) {
       try {
-        const info = (await (await fetch(`${this.deps.daemonUrl}/api/host`)).json()) as { name?: string; platform?: string; deviceId?: string };
+        const info = (await (await fetch(`${this.deps.daemonUrl}/api/host`)).json()) as { name?: string; platform?: string; deviceId?: string; apiStamp?: string };
         if (info.name) this.local = { name: info.name, platform: info.platform ?? "darwin", deviceId: info.deviceId ?? "" };
+        this.localApiStamp = info.apiStamp ?? null;
       } catch { /* retried on the next refresh */ }
     }
     try {
@@ -237,12 +242,11 @@ export class HostViews {
     }
   }
 
-  // Serves the host's dashboard: its own bundle through the facade when it
-  // offers one, else ours. Decided once per page load (at index.html) so a page
-  // never mixes two builds.
+  // Serves a host view's dashboard. Decided once per page load (at index.html)
+  // so a page never mixes two builds.
   private installProtocol(id: string, ses: Session, apiBase: string, rawBase: string): void {
     if (this.bundles.has(id)) return;
-    const bundle: HostBundle = { source: "local", assets: new Map() };
+    const bundle: HostBundle = { source: "local" };
     this.bundles.set(id, bundle);
     const localRoot = path.resolve(this.deps.uiRoot);
     ses.protocol.handle("eos", async (request) => {
@@ -250,44 +254,50 @@ export class HostViews {
       try { pathname = decodeURIComponent(new URL(request.url).pathname); } catch { return notFound(); }
       if (pathname === "" || pathname === "/") pathname = "/index.html";
       const isEntry = pathname === "/index.html";
-      if (isEntry) bundle.source = (await this.hostServesUi(apiBase)) ? "host" : "local";
+      if (isEntry) bundle.source = await this.bundleSource(id, apiBase);
       const headers: Record<string, string> = {};
       const csp = isEntry ? this.deps.csp(apiBase, rawBase) : null;
       if (csp) headers["content-security-policy"] = csp;
 
-      if (bundle.source === "host") {
-        const cached = bundle.assets.get(pathname);
-        if (cached) return new Response(cached.body.slice(0), { status: 200, headers: { ...headers, "content-type": cached.type } });
+      const local = path.resolve(localRoot, "." + pathname);
+      if (local !== localRoot && !local.startsWith(localRoot + path.sep)) return notFound();
+      // A fingerprinted asset this Mac already has is byte-for-byte the host's.
+      if (bundle.source === "local" || pathname.startsWith("/assets/")) {
         try {
-          const res = await fetch(`${apiBase}/ui${pathname}`);
-          if (!res.ok) return notFound();
-          const body = await res.arrayBuffer();
-          const type = res.headers.get("content-type") ?? mimeFor(pathname);
-          if (pathname.startsWith("/assets/")) bundle.assets.set(pathname, { body, type });
-          return new Response(body, { status: 200, headers: { ...headers, "content-type": type } });
+          const data = await readFile(local);
+          return new Response(new Uint8Array(data), { status: 200, headers: { ...headers, "content-type": mimeFor(local) } });
         } catch {
-          return notFound();
+          if (bundle.source === "local") return notFound();
         }
       }
-      const resolved = path.resolve(localRoot, "." + pathname);
-      if (resolved !== localRoot && !resolved.startsWith(localRoot + path.sep)) return notFound();
       try {
-        const data = await readFile(resolved);
-        return new Response(new Uint8Array(data), { status: 200, headers: { ...headers, "content-type": mimeFor(resolved) } });
+        // Through the view's own session: its HTTP cache keeps the host's
+        // immutable assets across launches, so a reopen costs no WAN trip.
+        const res = await ses.fetch(`${apiBase}/ui${pathname}`);
+        if (!res.ok) return notFound();
+        const body = await res.arrayBuffer();
+        return new Response(body, { status: 200, headers: { ...headers, "content-type": res.headers.get("content-type") ?? mimeFor(pathname) } });
       } catch {
         return notFound();
       }
     });
   }
 
-  private async hostServesUi(apiBase: string): Promise<boolean> {
+  // Ours whenever it speaks the host's API; the host's own bundle only when it
+  // doesn't (an older or newer Eos there), or ours when it serves none.
+  private async bundleSource(id: string, apiBase: string): Promise<HostBundle["source"]> {
+    const info = this.hosts.find((h) => h.id === id)?.info ?? (await this.fetchHostInfo(apiBase));
+    if (!info?.servesUi) return "local";
+    return info.apiStamp === this.localApiStamp ? "local" : "host";
+  }
+
+  // Only before the link has reported the host's info.
+  private async fetchHostInfo(apiBase: string): Promise<HostInfo | null> {
     try {
       const res = await fetch(`${apiBase}/api/host`, { signal: AbortSignal.timeout(4000) });
-      if (!res.ok) return false;
-      const info = (await res.json()) as { servesUi?: unknown };
-      return info.servesUi === true;
+      return res.ok ? ((await res.json()) as HostInfo) : null;
     } catch {
-      return false;
+      return null;
     }
   }
 

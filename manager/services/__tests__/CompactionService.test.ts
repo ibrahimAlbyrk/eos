@@ -5,7 +5,7 @@ import type { CompactContextInput, CompactContextResult } from "../../../core/sr
 
 type Row = { id: string; state: string; model: string; backend_kind: string; last_context_tokens: number };
 
-function harness(over: { row?: Partial<Row>; enabled?: boolean; threshold?: number; capable?: boolean; result?: CompactContextResult } = {}) {
+function harness(over: { row?: Partial<Row>; enabled?: boolean; threshold?: number; capable?: boolean; result?: CompactContextResult; liveSubagents?: number } = {}) {
   const row: Row = { id: "w1", state: "IDLE", model: "opus", backend_kind: "claude", last_context_tokens: 150_000, ...over.row };
   const runs: CompactContextInput[] = [];
   let settle: (r: CompactContextResult) => void = () => {};
@@ -14,6 +14,8 @@ function harness(over: { row?: Partial<Row>; enabled?: boolean; threshold?: numb
     config: () => ({ enabled: over.enabled ?? true, threshold: over.threshold ?? 0.7 }),
     contextWindowFor: () => 200_000,
     canCompact: () => over.capable ?? true,
+    liveSubagents: () => over.liveSubagents ?? 0,
+    deferCap: () => 0.95,
     run: (input) => {
       runs.push(input);
       row.state = "WORKING";
@@ -41,6 +43,16 @@ describe("CompactionService.checkOnIdle", () => {
     assert.equal(harness({ enabled: false }).svc.checkOnIdle("w1"), false);
     assert.equal(harness({ capable: false }).svc.checkOnIdle("w1"), false);
     assert.equal(harness({ row: { state: "WORKING" } }).svc.checkOnIdle("w1"), false);
+  });
+
+  it("waits while background subagents run — the restart would kill them", () => {
+    assert.equal(harness({ liveSubagents: 2 }).svc.checkOnIdle("w1"), false); // 75%, due but deferred
+    assert.equal(harness({ liveSubagents: 0 }).svc.checkOnIdle("w1"), true);
+  });
+
+  it("stops waiting for subagents at the cap", () => {
+    assert.equal(harness({ liveSubagents: 1, row: { last_context_tokens: 188_000 } }).svc.checkOnIdle("w1"), false); // 94%
+    assert.equal(harness({ liveSubagents: 1, row: { last_context_tokens: 190_000 } }).svc.checkOnIdle("w1"), true); // 95%
   });
 
   it("follows a live threshold change", () => {

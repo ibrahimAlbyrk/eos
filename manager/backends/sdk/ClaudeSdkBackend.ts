@@ -78,6 +78,8 @@ export interface SdkQueryHandle extends AsyncIterable<unknown> {
   // primitive). Only effective when file checkpointing is enabled — returns
   // canRewind:false otherwise. Present on the real Query; scripted in tests.
   rewindFiles?(userMessageId: string, options?: { dryRun?: boolean }): Promise<{ canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number }>;
+  // Ends the query and terminates its CLI subprocess.
+  close?(): void;
 }
 export type SdkQueryFn = (params: { prompt: AsyncIterable<unknown>; options: Options }) => SdkQueryHandle;
 
@@ -174,6 +176,7 @@ interface Live {
   // (143 + turn:aborted), never a spurious clean exit (code 0 → markDone).
   interrupting: boolean;
   onExit?: (code: number | null) => void;
+  onEvent?: AgentStartCallbacks["onEvent"];
   // /clear: tear down the current query and start a fresh one (new session, no
   // resume, empty context). The session row stays alive across the swap.
   relaunch?: () => void;
@@ -192,6 +195,26 @@ interface Live {
   mapper?: SdkEventMapper;
   // The worker's cwd — the project dir forkSession scopes its transcript search to.
   cwd?: string;
+}
+
+// A launch's process is ending: its background subagents die with it, so they
+// must not be left showing as running.
+function reportLostSubagents(s: Live, mapper: SdkEventMapper | undefined): void {
+  for (const e of mapper?.stopLiveSubagents() ?? []) s.onEvent?.(e);
+}
+
+// Replace the live launch with a new one (/clear, compaction, recall, rewind).
+// The relaunch swaps rec.input first, so the old consume loop sees it is no
+// longer current and stays silent. The old process is then closed for real:
+// closing its input waits for the CLI to go idle and an interrupt spares
+// background subagents, so without close() they would keep working unseen.
+async function swapLaunch(s: Live, relaunch: () => void): Promise<void> {
+  const old = { input: s.input, q: s.q, mapper: s.mapper };
+  relaunch();
+  reportLostSubagents(s, old.mapper);
+  old.input.close();
+  if (old.q?.interrupt) { try { await old.q.interrupt(); } catch { /* best-effort */ } }
+  old.q?.close?.();
 }
 
 export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend {
@@ -224,18 +247,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       return { ok: true };
     },
     // /clear: the conversation lives in the SDK subprocess, so there is no buffer
-    // to reset — restart the query with a fresh session (no resume) instead. The
-    // OLD input/query are captured and torn down AFTER relaunch swaps rec.input to
-    // the new stream, so the old consume loop sees it is no longer current
-    // (isCurrent() false) and stays silent — no spurious onExit for the session.
+    // to reset — restart the query with a fresh session (no resume) instead.
     async clearContext() {
       const s = live.get(workerId);
       if (!s || !s.alive) return { ok: false };
-      const oldInput = s.input;
-      const oldQ = s.q;
-      s.relaunch?.();
-      oldInput.close();
-      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
+      await swapLaunch(s, () => s.relaunch?.());
       return { ok: true };
     },
     // Compaction: the summarizer reads the SDK's own transcript store — the ground
@@ -256,11 +272,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
     async replaceContext(seed: string) {
       const s = live.get(workerId);
       if (!s || !s.alive) return { ok: false, reason: "session gone" };
-      const oldInput = s.input;
-      const oldQ = s.q;
-      s.relaunchSeeded?.(seed);
-      oldInput.close();
-      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
+      await swapLaunch(s, () => s.relaunchSeeded?.(seed));
       return { ok: true };
     },
     // Recall (Layer 2): the user interrupted before the agent answered — roll the
@@ -276,8 +288,6 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const sessionId = s.mapper?.sessionId ?? null;
       if (!sessionId) return { ok: false, reason: "no session id captured yet" };
       const anchor = s.mapper?.lastAssistantUuid ?? null;
-      const oldInput = s.input;
-      const oldQ = s.q;
       // No anchor → the recalled message was the FIRST turn; nothing precedes it,
       // so relaunch empty (identical to /clear).
       if (anchor) {
@@ -288,12 +298,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         } catch (e) {
           return { ok: false, reason: e instanceof Error ? e.message : String(e) };
         }
-        s.relaunchResume?.(forkedId);
+        await swapLaunch(s, () => s.relaunchResume?.(forkedId));
       } else {
-        s.relaunch?.();
+        await swapLaunch(s, () => s.relaunch?.());
       }
-      oldInput.close();
-      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
     },
     // Rewind (the double-Esc panel / per-message undo): list the active-branch user
@@ -343,8 +351,6 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       // /clear. The web chat prefills the composer with target.text.
       if (mode === "conversation" || mode === "both") {
         const anchor = rewindSliceAnchor(jsonl, uuid);
-        const oldInput = s.input;
-        const oldQ = s.q;
         if (anchor) {
           let forkedId: string;
           try {
@@ -353,12 +359,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           } catch (e) {
             return { ok: false, error: e instanceof Error ? e.message : String(e) };
           }
-          s.relaunchResume?.(forkedId);
+          await swapLaunch(s, () => s.relaunchResume?.(forkedId));
         } else {
-          s.relaunch?.();
+          await swapLaunch(s, () => s.relaunch?.());
         }
-        oldInput.close();
-        if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       }
 
       return { ok: true, uuid: target.uuid, text: target.text, display: target.display, index };
@@ -385,9 +389,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       s.abort.abort();
       s.input.close();
       live.delete(workerId);
+      reportLostSubagents(s, s.mapper);
       s.onExit?.(143);
     },
     isAlive() { return live.get(workerId)?.alive ?? false; },
+    liveSubagents() { return live.get(workerId)?.mapper?.liveSubagents ?? 0; },
   });
 
   return {
@@ -512,7 +518,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // mode from the DB on every call.
       } as Options;
 
-      const rec: Live = { q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false, onExit: cb?.onExit, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
+      const rec: Live = { q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false, onExit: cb?.onExit, onEvent: cb?.onEvent, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
@@ -565,6 +571,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
             if (rec.alive) {
               rec.alive = false;
               live.delete(spec.workerId);
+              reportLostSubagents(rec, mapper);
               // The input stream stays open across interrupt(), so the loop should
               // not end on a mere interrupt; if it did, report it as an interrupt
               // (143) — not a clean exit the daemon would record as a normal finish.
@@ -579,6 +586,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
               deps.log?.warn("claude query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
               rec.alive = false;
               live.delete(spec.workerId);
+              reportLostSubagents(rec, mapper);
               // onExit BEFORE the ended event: the exit handler reads the row
               // state to suspend a resumable session, and the ended event would
               // flip it to ENDING first — a state SUSPENDED is unreachable from.

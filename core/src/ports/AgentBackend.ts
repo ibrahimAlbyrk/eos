@@ -196,6 +196,10 @@ export interface AgentSession {
   // (!reportsMessageEvents); incapable backends omit it (the interrupt handler
   // gates on the method's presence — ISP, never on backend kind).
   recallLastUserTurn?(): Promise<{ ok: boolean; reason?: string }>;
+  // Background subagents still running inside this session. They die when the
+  // session is restarted (compaction, /clear, rewind, recall), so callers that
+  // may wait check this first. Omitted by lanes without background subagents.
+  liveSubagents?(): number;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. LIVE in-session

@@ -81,15 +81,20 @@ export function compactionStatus(events) {
 // event from the rewound-to user message (it returns to the composer) up to
 // the rewind marker is dropped, mirroring Claude Code's in-memory fork. The
 // transcript and events store keep the branch — this is display-only.
+// Subagent endings survive the cut: a subagent launched before the rewound-to
+// message may end inside the dropped branch (or be stopped by the rewind
+// itself), and without its end it would show as running forever.
 export function applyRewinds(events, { bootPromptOffset = 0 } = {}) {
   let out = [];
   for (const ev of events) {
     if (ev.type !== "conversation_rewound") { out.push(ev); continue; }
     const cut = findRewindCut(out, parsePayload(ev.payload), bootPromptOffset);
-    if (cut >= 0) out = out.slice(0, cut);
+    if (cut >= 0) out = out.slice(0, cut).concat(out.slice(cut).filter(isSubagentEnd));
   }
   return out;
 }
+
+const isSubagentEnd = (ev) => ev.type === "agent_event" && parsePayload(ev.payload).type === "subagent_completed";
 
 // message_recalled (interrupt-before-response, SDK lane) hides the just-sent
 // user message the agent never answered: the matching user_message is dropped
@@ -378,11 +383,13 @@ export function buildBlocks(rawEvents) {
     // event carries the real output. Foreground: the tool_result IS the output.
     const cleanResult = isBackground ? (completion?.result ?? null) : (lc.resultOf(id)?.text ?? null);
     // Background agents outlive turns: only their subagent_completed event or
-    // the worker exiting can close them. Foreground agents close like any
-    // tool — result, or a turn/exit barrier (kill mid-agent).
+    // the worker exiting can close them — an exit with no completion killed
+    // them. Foreground agents close like any tool — result, or a turn/exit
+    // barrier (kill mid-agent).
     const closed = isBackground
       ? completion != null || lc.exitAfter(evIdx)
       : lc.isClosed(id, evIdx);
+    const endStatus = completion?.status ?? (isBackground ? "stopped" : "completed");
     out.push({
       kind: "agentRun",
       toolUseId: id,
@@ -392,7 +399,7 @@ export function buildBlocks(rawEvents) {
       model: profileByCallId.get(id)?.model ?? input?.model ?? parentModel ?? null,
       effort: profileByCallId.get(id)?.effort ?? null,
       subagentType: input?.subagent_type ?? null,
-      status: closed ? (completion?.status ?? "completed") : "running",
+      status: closed ? endStatus : "running",
       background: isBackground,
       result: cleanResult,
       tools: agentToolMap.get(id) ?? [],

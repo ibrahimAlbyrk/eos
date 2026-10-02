@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
+import { confirmSubagentStop, useSubagentStopRequest } from "../../../state/subagentStopConfirm.js";
 
 // Double-Esc rewind panel (Claude Code parity). Lists the user prompts on the
 // agent's active transcript branch; Enter restores the conversation to before
@@ -15,6 +16,7 @@ export function RewindPanel({ live }) {
   const [error, setError] = useState(null);
   const [rewinding, setRewinding] = useState(false);
   const listRef = useRef(null);
+  const stopRequest = useSubagentStopRequest();
 
   const worker = live.workers.find((w) => w.id === workerId) ?? null;
   // interruptedId maps the worker's state to IDLE optimistically while the stop
@@ -47,6 +49,7 @@ export function RewindPanel({ live }) {
     if (rewinding || busy || !targets) return;
     const t = targets[sel];
     if (!t) return;
+    if (!(await confirmSubagentStop(workerId, "rewind"))) return;
     setRewinding(true);
     setError(null);
     const r = await api.rewindWorker(workerId, t.uuid, mode);
@@ -60,9 +63,10 @@ export function RewindPanel({ live }) {
   };
 
   // Capture phase so the composer's own arrow/Enter/Escape handlers (history
-  // recall, send) never fire while the panel is open.
+  // recall, send) never fire while the panel is open. The subagent-stop
+  // question on top owns the keys while it is asked.
   useEffect(() => {
-    if (!workerId) return;
+    if (!workerId || stopRequest) return;
     const onKey = (e) => {
       if (e.key === "Escape") {
         e.preventDefault();

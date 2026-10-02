@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { api } from "../api/client.js";
 import { useUi } from "../state/ui.jsx";
 import { findRewindTarget } from "../lib/rewindMatch.js";
+import { confirmSubagentStop } from "../state/subagentStopConfirm.js";
 
 // One-click message rewind: resolves a chat bubble to its transcript target
 // and drives the same backend choreography as the double-Esc RewindPanel
@@ -10,6 +11,7 @@ export function useRewind(workerId) {
   const ui = useUi();
 
   return useCallback(async (text, occurrence = 0) => {
+    if (!(await confirmSubagentStop(workerId, "rewind"))) return { ok: false, cancelled: true };
     const r = await api.getRewindTargets(workerId);
     if (!r.ok || !Array.isArray(r.body?.targets)) {
       return { ok: false, error: r.body?.error || "couldn't load messages" };

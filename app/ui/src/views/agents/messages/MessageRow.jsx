@@ -32,7 +32,7 @@ function contentRight(row, pill) {
 // Hover-revealed action pill (relative timestamp + optional rewind + copy +
 // optional reply) beside text messages: left of a user bubble, right after the
 // text otherwise (styles/transcript.css); under the message when there's no room.
-// `onRewind` is an async () => {ok, error?}; the button
+// `onRewind` is an async () => {ok, error?, cancelled?}; the button
 // renders only when it is provided. `rewindDisabled` keeps it visible but
 // inert (dimmed) — e.g. while the agent is mid-turn and the backend would
 // refuse the rewind anyway. `onReply` (when provided) sits at the pill's end.
@@ -66,7 +66,7 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
     if (rewindDisabled || rewindState === "busy") return;
     setRewindState("busy");
     const r = await onRewind();
-    if (r?.ok) {
+    if (r?.ok || r?.cancelled) {
       setRewindState(null);
     } else {
       setRewindState("error");

@@ -142,6 +142,36 @@ describe("SdkEventMapper — background subagent events", () => {
     assert.deepEqual(subagentEvents(run(mapper, [SPAWN, foreground])), []);
   });
 
+  it("counts a background subagent as live from its launch until it completes", () => {
+    const mapper = createSdkEventMapper();
+    run(mapper, [SPAWN]);
+    assert.equal(mapper.liveSubagents, 0, "not yet launched");
+    run(mapper, [STUB_RESULT]);
+    assert.equal(mapper.liveSubagents, 1);
+    run(mapper, [NOTIFICATION]);
+    assert.equal(mapper.liveSubagents, 0);
+  });
+
+  it("stopLiveSubagents reports each still-running subagent stopped, exactly once", () => {
+    const mapper = createSdkEventMapper();
+    run(mapper, [SPAWN, STUB_RESULT]);
+    assert.deepEqual(mapper.stopLiveSubagents(), [
+      { type: "subagent_completed", agentId: AGENT_ID, callId: CALL_ID, status: "stopped", outputFile: OUTPUT_FILE },
+    ]);
+    assert.equal(mapper.liveSubagents, 0);
+    assert.deepEqual(mapper.stopLiveSubagents(), []);
+  });
+
+  it("stopLiveSubagents leaves completed and foreground subagents alone", () => {
+    const mapper = createSdkEventMapper();
+    const foregroundStart = { type: "system", subtype: "task_started", task_id: "afg1", tool_use_id: CALL_ID, description: "fg" };
+    run(mapper, [SPAWN, foregroundStart]);
+    assert.deepEqual(mapper.stopLiveSubagents(), [], "a foreground run closes with its turn, not here");
+    const done = createSdkEventMapper();
+    run(done, [SPAWN, STUB_RESULT, NOTIFICATION]);
+    assert.deepEqual(done.stopLiveSubagents(), []);
+  });
+
   it("ignores task carriers of non-subagent background tasks (Bash/Monitor/workflows)", () => {
     const mapper = createSdkEventMapper();
     const bashNotification = { ...NOTIFICATION, task_id: "bssnhs4ej", tool_use_id: "toolu_bash1" };

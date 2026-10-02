@@ -14,6 +14,10 @@ export function createWorkerListStore() {
     for (const fn of listeners.get(workerId) ?? []) fn();
   }
 
+  function get(workerId) {
+    return byWorker.get(workerId) ?? EMPTY;
+  }
+
   function subscribe(workerId, fn) {
     if (!listeners.has(workerId)) listeners.set(workerId, new Set());
     listeners.get(workerId).add(fn);
@@ -26,5 +30,5 @@ export function createWorkerListStore() {
     return useSyncExternalStore(sub, get, get);
   }
 
-  return { publish, useList };
+  return { publish, get, useList };
 }

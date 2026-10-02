@@ -26,6 +26,15 @@ export function isCompactionDue(input: { enabled: boolean; threshold: number; us
   return pct != null && pct >= input.threshold * 100;
 }
 
+/** Compacting restarts the session, which kills its running subagents, so a due
+ *  auto compaction waits for them — but only until occupancy reaches `cap`,
+ *  past which waiting risks running out of context. */
+export function shouldDeferCompaction(input: { liveSubagents: number; used: number; limit: number | null; cap: number }): boolean {
+  if (input.liveSubagents <= 0) return false;
+  const pct = computeContextPct(input.used, input.limit);
+  return pct != null && pct < input.cap * 100;
+}
+
 /**
  * The summary the agent continues from. The summarizer is asked for an
  * <analysis> scratchpad followed by a <summary> block; only the summary is kept.

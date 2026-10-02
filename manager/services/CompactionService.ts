@@ -5,6 +5,10 @@
 //     threshold is compacted before anything dispatches it more work.
 //   * manual: the /compact slash command.
 //
+// An auto run waits while the worker's background subagents are running (the
+// restart would kill them) — up to `deferCap` occupancy, then it runs anyway.
+// Their completion wakes the agent, and its next IDLE edge checks again.
+//
 // The work itself is the core CompactContext use-case (injected as `run`). An
 // auto run that failed is not retried at the same occupancy — only after a new
 // turn has moved the context — so a broken summarizer can't hot-loop at IDLE.
@@ -13,7 +17,7 @@
 import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
 import type { CompactContextInput, CompactContextResult } from "../../core/src/use-cases/CompactContext.ts";
-import { isCompactionDue } from "../../core/src/domain/compaction.ts";
+import { isCompactionDue, shouldDeferCompaction } from "../../core/src/domain/compaction.ts";
 
 export interface CompactionServiceDeps {
   workers: Pick<WorkerRepo, "findById">;
@@ -21,6 +25,9 @@ export interface CompactionServiceDeps {
   contextWindowFor(model: string | null | undefined): number | null;
   /** True when the worker's live session supports compaction (capability gate). */
   canCompact(workerId: string, backendKind: string | null): boolean;
+  liveSubagents(workerId: string, backendKind: string | null): number;
+  /** Occupancy ratio past which an auto run stops waiting for subagents. */
+  deferCap(): number;
   run(input: CompactContextInput): Promise<CompactContextResult>;
   log: Logger;
 }
@@ -52,8 +59,11 @@ export class CompactionService {
     const used = w.last_context_tokens ?? 0;
     if (this.failedAt.get(workerId) === used) return false;
     const { enabled, threshold } = this.deps.config();
-    if (!isCompactionDue({ enabled, threshold, used, limit: this.deps.contextWindowFor(w.model) })) return false;
-    if (!this.deps.canCompact(workerId, w.backend_kind ?? null)) return false;
+    const limit = this.deps.contextWindowFor(w.model);
+    if (!isCompactionDue({ enabled, threshold, used, limit })) return false;
+    const kind = w.backend_kind ?? null;
+    if (!this.deps.canCompact(workerId, kind)) return false;
+    if (shouldDeferCompaction({ liveSubagents: this.deps.liveSubagents(workerId, kind), used, limit, cap: this.deps.deferCap() })) return false;
     this.launch({ workerId, trigger: "auto" }, used);
     return true;
   }

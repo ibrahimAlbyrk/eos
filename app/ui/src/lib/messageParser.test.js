@@ -270,7 +270,7 @@ describe("buildBlocks lifecycle barriers", () => {
       exit(103),
     ];
     const run = buildBlocks(events).find((b) => b.kind === "agentRun");
-    expect(run.status).toBe("completed");
+    expect(run.status).toBe("stopped");
     expect(run.tools[0].running).toBe(false);
   });
 
@@ -386,7 +386,7 @@ describe("buildBlocks canonical background-subagent lifecycle", () => {
     expect(run.result).toBe("boom");
   });
 
-  it("closes at session exit when no completion ever arrives", () => {
+  it("closes at session exit when no completion ever arrives — stopped, it never finished", () => {
     const events = [
       agentRow("AG", 100),
       subagentStarted("AG", "a1", 101),
@@ -394,7 +394,7 @@ describe("buildBlocks canonical background-subagent lifecycle", () => {
       exit(300),
     ];
     const run = buildBlocks(events).find((b) => b.kind === "agentRun");
-    expect(run.status).toBe("completed");
+    expect(run.status).toBe("stopped");
   });
 
   it("completes with a null result when the event carries no result text", () => {

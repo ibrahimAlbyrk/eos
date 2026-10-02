@@ -189,6 +189,12 @@ export interface SdkEventMapper {
   // (forkSession slices the transcript up to and including it). null until the
   // first assistant message of the session.
   readonly lastAssistantUuid: string | null;
+  // Background subagents announced and not yet completed. They live inside this
+  // launch's process, so they die with it.
+  readonly liveSubagents: number;
+  // The process is going away: report every still-running background subagent
+  // as stopped (once), so none is left showing as running.
+  stopLiveSubagents(): AgentEvent[];
 }
 
 export function createSdkEventMapper(): SdkEventMapper {
@@ -221,11 +227,13 @@ export function createSdkEventMapper(): SdkEventMapper {
   // announced marks subagent_started as emitted — the entry may pre-exist it
   // (system task_started beats the stub on the live stream), so entry existence
   // alone must not suppress the announcement.
-  interface BgEntry { callId: string | null; outputFile?: string; usage?: SubagentUsage; pendingSummary?: boolean; announced?: boolean }
+  interface BgEntry { callId: string | null; outputFile?: string; usage?: SubagentUsage; pendingSummary?: boolean; announced?: boolean; done?: boolean }
   const agentCallIds = new Set<string>();
   const bgAgents = new Map<string, BgEntry>();
+  const isLive = (entry: BgEntry): boolean => entry.announced === true && entry.done !== true;
 
   const pushCompleted = (out: AgentEvent[], agentId: string, entry: BgEntry, c: { callId?: string | null; status: "completed" | "failed" | "stopped"; result?: string; outputFile?: string; usage?: SubagentUsage }): void => {
+    entry.done = true;
     out.push({
       type: "subagent_completed",
       agentId,
@@ -271,6 +279,14 @@ export function createSdkEventMapper(): SdkEventMapper {
   return {
     get sessionId() { return sessionId; },
     get lastAssistantUuid() { return lastAssistantUuid; },
+    get liveSubagents() { return [...bgAgents.values()].filter(isLive).length; },
+    stopLiveSubagents(): AgentEvent[] {
+      const out: AgentEvent[] = [];
+      for (const [agentId, entry] of bgAgents) {
+        if (isLive(entry)) pushCompleted(out, agentId, entry, { status: "stopped" });
+      }
+      return out;
+    },
     noteHook(input: SubagentHookInput): AgentEvent[] {
       const out: AgentEvent[] = [];
       const level = input.effort?.level;

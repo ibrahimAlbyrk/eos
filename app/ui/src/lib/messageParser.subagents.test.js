@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks } from "./messageParser.js";
+import { buildBlocks, applyRewinds } from "./messageParser.js";
 
 const agentUse = (id, ts, input = { description: id }) =>
   ({ type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input, tsTranscript: ts } });
@@ -84,5 +84,27 @@ describe("buildBlocks agentRun timing", () => {
     ];
     const [run] = runs(buildBlocks(events));
     expect(run).toMatchObject({ status: "completed", result: "out", endTs: 160, usage: { durationMs: 58000 } });
+  });
+});
+
+describe("buildBlocks background agents that end without finishing", () => {
+  const userMsg = (ts, text) => ({ type: "user_message", ts, payload: { text } });
+  const started = (ts) => ({ type: "agent_event", ts, payload: { type: "subagent_started", callId: "AG", agentId: "a1", background: true } });
+  const stopped = (ts) => ({ type: "agent_event", ts, payload: { type: "subagent_completed", agentId: "a1", callId: "AG", status: "stopped" } });
+
+  it("shows one the worker's exit killed as stopped, not completed", () => {
+    const events = [agentUse("AG", 100), started(101), toolResult("AG", 101, "launch stub"), { type: "exit", ts: 200, payload: {} }];
+    expect(runs(buildBlocks(events))[0].status).toBe("stopped");
+  });
+
+  it("keeps the end of one launched before a rewind's cut, so it never runs forever", () => {
+    const events = [
+      userMsg(90, "dig"),
+      agentUse("AG", 100), started(101), toolResult("AG", 101, "launch stub"),
+      userMsg(150, "next"),
+      stopped(160),
+      { type: "conversation_rewound", ts: 161, payload: { text: "next" } },
+    ];
+    expect(runs(buildBlocks(applyRewinds(events)))[0].status).toBe("stopped");
   });
 });

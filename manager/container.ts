@@ -1357,6 +1357,8 @@ export function buildContainer() {
     config: () => config.compaction,
     contextWindowFor,
     canCompact: (id, kind) => compactionSession({ backends }, id, kind) !== null,
+    liveSubagents: (id, kind) => compactionSession({ backends }, id, kind)?.liveSubagents?.() ?? 0,
+    deferCap: () => config.context.fullRatio,
     run: (input) => compactContext({
       workers, events, bus, clock: systemClock, backends, summarizer, prompts, contextWindowFor, log,
       timeoutMs: () => config.compaction.timeoutMs,

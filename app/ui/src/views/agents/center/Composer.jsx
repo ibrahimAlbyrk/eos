@@ -50,6 +50,7 @@ import { TryDeck } from "./TryBanner.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
 import { CollapsedComposer } from "./CollapsedComposer.jsx";
 import { useCompacting } from "../../../state/compactionStore.js";
+import { confirmSubagentStop } from "../../../state/subagentStopConfirm.js";
 import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
 
 export function Composer({ live, worker, paneId, focused }) {
@@ -584,6 +585,7 @@ export function Composer({ live, worker, paneId, focused }) {
     // "/clear" and "/compact" target an existing agent's session — spawning a
     // fresh agent (orchestrator/git) with one as the boot prompt is meaningless.
     if (mode !== "term" && (t === "/clear" || /^\/compact(\s|$)/.test(t)) && (!selected || gitMode)) return;
+    if (mode !== "term" && /^\/compact(\s|$)/.test(t) && !(await confirmSubagentStop(selected.id, "compact"))) return;
 
     // "/export" triggers a conversation download — never sends to any worker.
     if (mode !== "term" && t === "/export") {

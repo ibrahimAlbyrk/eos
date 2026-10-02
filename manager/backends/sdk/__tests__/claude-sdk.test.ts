@@ -1188,6 +1188,79 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     await new Promise((r) => setTimeout(r, 5));
     assert.equal(exitCode, 0);
   });
+
+  // Background subagents live inside the launch's process. A query whose first
+  // launch starts one, then idles until close().
+  function bgSubagentBackend() {
+    const launches: Array<{ closed: boolean }> = [];
+    const script = [
+      { type: "assistant", uuid: "a1", message: { id: "msg_S", content: [{ type: "tool_use", id: "toolu_bg", name: "Agent", input: { prompt: "dig" } }] } },
+      {
+        type: "user",
+        message: { content: [{ type: "tool_result", tool_use_id: "toolu_bg", content: [{ type: "text", text: "Async agent launched successfully." }] }] },
+        tool_use_result: { status: "async_launched", agentId: "agent-bg", description: "Dig", prompt: "dig" },
+      },
+    ];
+    const queryFn: SdkQueryFn = () => {
+      const pending = launches.length === 0 ? [...script] : [];
+      const launch = { closed: false };
+      launches.push(launch);
+      let wake: (() => void) | null = null;
+      return {
+        interrupt: async () => {},
+        close: () => { launch.closed = true; wake?.(); },
+        [Symbol.asyncIterator]() {
+          return {
+            next: async (): Promise<IteratorResult<unknown>> => {
+              if (pending.length) return { done: false, value: pending.shift() };
+              if (!launch.closed) await new Promise<void>((r) => { wake = r; });
+              return { done: true, value: undefined };
+            },
+          };
+        },
+      } as never;
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    return { be, launches };
+  }
+
+  const stoppedSubagents = (events: AgentEvent[]) =>
+    events.filter((e) => e.type === "subagent_completed" && e.status === "stopped").map((e) => (e as { agentId: string }).agentId);
+
+  it("a session swap reports the old launch's running subagents stopped and closes its process", async () => {
+    const { be, launches } = bgSubagentBackend();
+    const events: AgentEvent[] = [];
+    const session = await be.start(spec(), { onEvent: (e) => events.push(e) });
+    while (session.liveSubagents!() === 0) await new Promise((r) => setTimeout(r, 1));
+
+    await session.clearContext!();
+
+    assert.deepEqual(stoppedSubagents(events), ["agent-bg"]);
+    assert.equal(launches[0].closed, true, "the old process is shut down, not left running its subagents");
+    assert.equal(session.liveSubagents!(), 0);
+    assert.equal(session.isAlive(), true);
+  });
+
+  it("stop() reports running subagents stopped before the exit", async () => {
+    const { be } = bgSubagentBackend();
+    const order: string[] = [];
+    const session = await be.start(spec(), {
+      onEvent: (e) => { if (e.type === "subagent_completed") order.push(`${e.type}:${e.status}`); },
+      onExit: (c) => { order.push(`exit:${c}`); },
+    });
+    while (session.liveSubagents!() === 0) await new Promise((r) => setTimeout(r, 1));
+
+    session.stop();
+
+    assert.deepEqual(order, ["subagent_completed:stopped", "exit:143"]);
+  });
 });
 
 // Context compaction on the SDK lane: the summarizer reads the session's own
