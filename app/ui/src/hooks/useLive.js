@@ -35,6 +35,9 @@ import { refreshHosts } from "../state/hostsStore.js";
 import { applyPresence } from "../state/peerStore.js";
 
 const POLL_MS = 4000;
+// While the event stream is up it already triggers every refetch; the poll is
+// then only a safety net — and over a peer link each tick is a full list.
+const STREAM_LIVE_POLL_MS = 30_000;
 const SSE_DEBOUNCE_MS = 80;
 
 export function useLive() {
@@ -86,10 +89,13 @@ export function useLive() {
 
   const setPendingPermissionsRef = useRef(null);
   const refetchTimer = useRef(null);
+  const streamLiveRef = useRef(false);
+  const lastRefetchAtRef = useRef(0);
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) return;
     refetchTimer.current = setTimeout(async () => {
       refetchTimer.current = null;
+      lastRefetchAtRef.current = Date.now();
       const seq = ++workersSeqRef.current;
       try {
         const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch(() => [])]);
@@ -136,13 +142,15 @@ export function useLive() {
 
   // poll fallback
   useEffect(() => {
-    return startPolling(scheduleRefetch, POLL_MS);
+    return startPolling(() => {
+      if (!streamLiveRef.current || Date.now() - lastRefetchAtRef.current >= STREAM_LIVE_POLL_MS) scheduleRefetch();
+    }, POLL_MS);
   }, [scheduleRefetch]);
 
   // SSE
   useEffect(() => {
     const s = createReconnectingStream({
-      onOpen: () => { setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
+      onOpen: () => { streamLiveRef.current = true; setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
       // The daemon could not replay what this client missed (it restarted, or
       // the gap outgrew its buffer): refetch every live view from scratch.
       onResync: () => {
@@ -216,7 +224,7 @@ export function useLive() {
           scheduleRefetch();
         }
       },
-      onClose: () => setHealth(false),
+      onClose: () => { streamLiveRef.current = false; setHealth(false); },
     });
     return () => s.close();
   }, [scheduleRefetch]);

@@ -135,6 +135,17 @@ function withContext(c: Container, rows: WorkerRow[]): WorkerRow[] {
   });
 }
 
+// The dashboard refetches the whole list on nearly every state ping — over a
+// peer link that is most of its traffic, and most of each row is the boot
+// prompt, which never changes after spawn. `?brief=1` rows carry a preview
+// instead; the full text is one GET /workers/:id away.
+const PROMPT_PREVIEW_CHARS = 280;
+function withBriefPrompt(rows: WorkerRow[]): WorkerRow[] {
+  return rows.map((w) => (w.prompt.length > PROMPT_PREVIEW_CHARS
+    ? { ...w, prompt: w.prompt.slice(0, PROMPT_PREVIEW_CHARS), prompt_clipped: true }
+    : w));
+}
+
 // Surface a worker's active dynamic loop. Ungated on state — a loop sits IDLE
 // between iterations, so attach it whenever findActiveByWorker is non-null.
 function withLoopState(c: Container, rows: WorkerRow[]): WorkerRow[] {
@@ -180,7 +191,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const rows = parentId
       ? c.workers.listByParent(parentId).filter((w) => w.archived_at == null)
       : c.workers.listActive();
-    writeJson(res, 200, withContext(c, withLoopState(c, withBackgroundActivity(c, rows))));
+    const enriched = withContext(c, withLoopState(c, withBackgroundActivity(c, rows)));
+    writeJson(res, 200, url.searchParams.get("brief") === "1" ? withBriefPrompt(enriched) : enriched);
   });
 
   // Dedicated archived-only listing, consumed ONLY by the dashboard Archive

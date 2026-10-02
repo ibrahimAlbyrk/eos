@@ -37,6 +37,9 @@ export const WorkerRowSchema = z.object({
   worktree_from: z.string().nullable(),
   branch: z.string().nullable(),
   prompt: z.string(),
+  // true on a GET /workers?brief=1 row whose prompt was cut to a preview — the
+  // full text is on GET /workers/:id. Absent everywhere else.
+  prompt_clipped: z.boolean().optional(),
   name: z.string().nullable(),
   // Name provenance — gates the auto-name micro-task (only 'default' is eligible).
   name_source: NameSourceSchema.nullable(),

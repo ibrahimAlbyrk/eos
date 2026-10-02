@@ -22,6 +22,7 @@ import { usePageFind } from "../../../hooks/usePageFind.js";
 import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { useRewind } from "../../../hooks/useRewind.js";
+import { useWorkerPrompt } from "../../../hooks/useWorkerPrompt.js";
 import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
 import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { FindBar } from "./FindBar.jsx";
@@ -340,11 +341,12 @@ export function Messages({ live, agentId, isActive = true }) {
   }, [selectedId, isActive]);
 
   const selectedWorker = live.workers.find((w) => w.id === selectedId);
+  const selectedPrompt = useWorkerPrompt(selectedWorker);
   // A primitive on purpose: live.workers churns on every state ping, but the
   // parse only cares whether the boot prompt renders as a task card.
-  const bootPromptOffset = selectedWorker?.parent_id && selectedWorker?.prompt ? 1 : 0;
+  const bootPromptOffset = selectedWorker?.parent_id && selectedPrompt ? 1 : 0;
   // The task card has no block, so the turn rail gets it as a seeded first turn.
-  const bootPrompt = bootPromptOffset ? selectedWorker.prompt : null;
+  const bootPrompt = bootPromptOffset ? selectedPrompt : null;
   const bootTs = selectedWorker?.started_at;
   const bootTurn = useMemo(
     () => (bootPrompt ? { key: TASK_BKEY, text: bootPrompt, ts: bootTs } : null),
@@ -600,10 +602,10 @@ export function Messages({ live, agentId, isActive = true }) {
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
           </div>
         )}
-        {selectedWorker?.parent_id && selectedWorker.prompt && !folded && (
+        {selectedWorker?.parent_id && selectedPrompt && !folded && (
           <div data-bkey={TASK_BKEY}>
             <MessageTask
-              prompt={selectedWorker.prompt}
+              prompt={selectedPrompt}
               parentId={selectedWorker.parent_id}
               parentName={parentWorker?.name || "orchestrator"}
               workers={live.workers}

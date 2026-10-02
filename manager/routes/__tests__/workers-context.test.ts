@@ -10,13 +10,14 @@ import type { RouteContext } from "../Router.ts";
 // budget { used, limit, pct } (withContext). Occupancy comes from the row's
 // last_context_tokens; the window from ModelCatalogService.contextWindowFor.
 
-type Row = { id: string; model: string | null; last_context_tokens: number | null; parent_id: string | null; state: string; archived_at: number | null };
+type Row = { id: string; model: string | null; last_context_tokens: number | null; parent_id: string | null; state: string; archived_at: number | null; prompt?: string };
 
 function containerWith(rows: Row[], window: number | null) {
   return {
     workers: {
       findById: (id: string) => rows.find((r) => r.id === id) ?? null,
       listByParent: (pid: string) => rows.filter((r) => r.parent_id === pid),
+      listActive: () => rows.filter((r) => r.archived_at == null),
     },
     loops: { findActiveByWorker: () => null },
     backgroundActivity: { forWorker: () => [] },
@@ -71,5 +72,26 @@ describe("worker routes — context enrichment", () => {
     const rows = out.payload as Array<{ id: string; context: { pct: number } }>;
     assert.equal(rows.find((r) => r.id === "w-1")?.context.pct, 50);
     assert.equal(rows.find((r) => r.id === "w-2")?.context.pct, 25);
+  });
+});
+
+describe("worker routes — brief list", () => {
+  type Listed = { id: string; prompt: string; prompt_clipped?: boolean };
+  const long = "task ".repeat(400);
+  const c = containerWith([row({ id: "w-1", prompt: long }), row({ id: "w-2", prompt: "short task" })], 1_000_000);
+
+  it("?brief=1 cuts a long boot prompt to a flagged preview and leaves a short one whole", async () => {
+    const rows = (await dispatch(c, "/workers?brief=1")).payload as Listed[];
+    const clipped = rows.find((r) => r.id === "w-1");
+    assert.equal(clipped?.prompt_clipped, true);
+    assert.ok(clipped && clipped.prompt.length < 400 && long.startsWith(clipped.prompt));
+    assert.equal(rows.find((r) => r.id === "w-2")?.prompt, "short task");
+    assert.equal(rows.find((r) => r.id === "w-2")?.prompt_clipped, undefined);
+  });
+
+  it("the plain list (agents' list_active_workers) and the by-id route keep the full prompt", async () => {
+    const rows = (await dispatch(c, "/workers")).payload as Listed[];
+    assert.equal(rows.find((r) => r.id === "w-1")?.prompt, long);
+    assert.equal(((await dispatch(c, "/workers/w-1")).payload as Listed).prompt, long);
   });
 });

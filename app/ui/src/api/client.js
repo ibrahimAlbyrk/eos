@@ -203,11 +203,16 @@ export const api = {
   // issued after a spawn must never be handed a response snapshotted before
   // the spawn. The shared-URL dedup would join the older in-flight GET
   // (useLive's seq guard orders distinct requests, but can't see a shared
-  // stale body), so /workers always fetches fresh.
+  // stale body), so /workers always fetches fresh. Brief rows clip long boot
+  // prompts (prompt_clipped) — getWorker has the full text.
   async listWorkers() {
-    const r = await fetchJson(`${DAEMON}${ROUTES.workers}`);
+    const r = await fetchJson(`${DAEMON}${ROUTES.workers}?brief=1`);
     if (!r.ok) throw new Error(`listWorkers → ${r.status}`);
     return r.body;
+  },
+  async getWorker(id) {
+    const r = await getJson(ROUTES.worker(id));
+    return r.ok ? r.body : null;
   },
   async spawnWorker(spec) { return postJson(ROUTES.workers, spec); },
   // Archive / restore / purge / kill — the dashboard's worker lifecycle ops.
