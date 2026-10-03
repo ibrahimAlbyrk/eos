@@ -21,9 +21,9 @@ import { SidePanel } from "../agents/panes/SidePanel.jsx";
 
 // The view's single right side panel is keyed under this id in the per-pane
 // panel state, so it stays put whichever terminal pane is focused. Its tabs skip
-// the agent-bound ones (Chat files, Review) — nothing to show here.
+// the agent-bound ones (Chat files, Changes) — nothing to show here.
 const PANEL_ID = "code";
-const PANEL_TABS = ["terminal", "files", "browser"];
+const PANEL_TABS = ["terminal", "files", "page"];
 
 // Workspace hotkeys. All terminalSafe — in this view the terminal IS the
 // focus — and each stops the event so the key never also reaches xterm.

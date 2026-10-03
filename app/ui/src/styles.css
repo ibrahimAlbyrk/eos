@@ -24,6 +24,8 @@
 @import "./styles/machines.css";
 @import "./styles/subagents.css";
 @import "./styles/webtools.css";
+@import "./styles/newtab.css";
+@import "./styles/pages.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

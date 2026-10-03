@@ -33,6 +33,7 @@ import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.j
 import { startPolling } from "../lib/pollInterval.js";
 import { refreshHosts } from "../state/hostsStore.js";
 import { applyPresence } from "../state/peerStore.js";
+import { applyChange as applyPageChange, resyncPages } from "../state/pagesStore.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -157,6 +158,7 @@ export function useLive() {
         scheduleRefetch();
         setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null }));
         emitPtyResync();
+        resyncPages();
       },
       onChange: (e) => {
         try {
@@ -167,6 +169,9 @@ export function useLive() {
           // computer connected to / left this Mac (the "… connected" chip).
           if (data.reason === "hosts:change") { if (!window.eosHosts) void refreshHosts(); return; }
           if (data.reason === "peer:presence") { applyPresence(data.payload); return; }
+          // A page was written (by the user elsewhere or an agent) — open editors
+          // and page lists refetch; not a worker delta.
+          if (data.reason === "pages:change") { applyPageChange(data.payload); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
           if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }

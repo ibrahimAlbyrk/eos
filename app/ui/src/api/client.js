@@ -659,6 +659,33 @@ export const api = {
     return del(ROUTES.template(name));
   },
 
+  // Pages — markdown notes shared with agents. `project` scopes the list
+  // (omitted → every page); updates carry baseRev and answer 409 + the current
+  // page when an agent changed it meanwhile. Delete is ui-token gated.
+  async listPages({ project, query } = {}) {
+    const params = new URLSearchParams();
+    if (project) params.set("project", project);
+    if (query) params.set("q", query);
+    const qs = params.toString();
+    const r = await getJson(qs ? `${ROUTES.pages}?${qs}` : ROUTES.pages);
+    if (!r.ok) throw new Error(`listPages → ${r.status}`);
+    return r.body.pages;
+  },
+  async getPage(id) {
+    const r = await getJson(ROUTES.page(id));
+    if (!r.ok) throw new Error(`getPage → ${r.status}`);
+    return r.body.page;
+  },
+  async createPage({ title = "", body = "", project = null, agentId = null } = {}) {
+    return postJson(ROUTES.pages, { title, body, project, agentId });
+  },
+  async updatePage(id, patch) {
+    return putJson(ROUTES.page(id), patch);
+  },
+  async deletePage(id) {
+    return del(ROUTES.page(id), uiTokenHeader());
+  },
+
   // User settings — flat key→value map persisted daemon-side (localStorage
   // is wiped on every Eos.app launch, so it can't hold durable settings).
   async getSettings() {
