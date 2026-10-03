@@ -68,7 +68,7 @@ function harness(opts: { reportsMessageEvents?: boolean } = {}) {
     claudeCliBackend: backend,
     messageQueue: queue.repo,
     pendingPeerRequests: { cancelByWorker: () => {} },
-    turnSettle: { mark: () => {} },
+    turnSettle: { markInterrupt: () => {} },
     turnOutput,
   } as unknown as Container;
 

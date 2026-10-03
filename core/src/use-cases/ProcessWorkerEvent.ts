@@ -30,6 +30,9 @@ export interface ProcessWorkerEventDeps {
   isSettling?(workerId: string): boolean;
   /** Opens the settle window for a worker whose turn just ended (Stop hook). */
   markSettling?(workerId: string): void;
+  /** True from an interrupt until the agent's stream ends the interrupted turn
+   *  (or the settle window lapses). */
+  isInterruptPending?(workerId: string): boolean;
   /** When provided, hook/jsonl/heartbeat events are driven through the canonical
    *  pipeline (toCanonical → reduceAgentSignal) instead of the legacy handlers.
    *  Injected by the daemon composition root (the claude-cli adapter's

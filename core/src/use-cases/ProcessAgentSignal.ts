@@ -63,7 +63,15 @@ export function reduceAgentSignal(
 
     case "turn":
       if (event.phase === "started") {
-        if (canRecover(deps, workerId)) {
+        // Unlike a content block, a turn start is never trailing output of the
+        // turn that just ended — it comes from the agent's own ordered stream,
+        // so the settle window doesn't apply (a resume's zero-usage result or a
+        // background task's wake ends one turn and starts the next within it).
+        // Only an interrupt the stream hasn't closed yet holds it: that start
+        // may still belong to the interrupted turn.
+        const cur = deps.workers.findById(workerId);
+        const idle = cur?.state === "SPAWNING" || cur?.state === "IDLE";
+        if (idle && !deps.isInterruptPending?.(workerId)) {
           transitionState(deps, { workerId, next: "WORKING", reason: "agent:turn_started" });
         }
       } else if (event.phase === "ended") {

@@ -12,7 +12,7 @@ interface AppendedEvent { type: string; payload: unknown }
 
 function buildDeps(
   initialState: WorkerState,
-  opts: { settling?: boolean; price?: ModelPrice; model?: string | null } = {},
+  opts: { settling?: boolean; interruptPending?: boolean; price?: ModelPrice; model?: string | null } = {},
 ): {
   deps: ProcessWorkerEventDeps;
   events: AppendedEvent[];
@@ -71,6 +71,7 @@ function buildDeps(
     log,
     isSettling: () => settling,
     markSettling: () => { settling = true; },
+    isInterruptPending: () => opts.interruptPending ?? false,
   } as unknown as ProcessWorkerEventDeps;
 
   return { deps, events, row, toolCalls, deltas, tasks, logs, sessionIds, contextTokens };
@@ -141,6 +142,25 @@ describe("ProcessAgentSignal — turn boundaries (mirror Stop / interrupt)", () 
     const { deps, events } = buildDeps("IDLE");
     processAgentSignal(deps, "w1", { type: "turn", phase: "started" });
     assert.deepEqual(states(events), [{ state: "WORKING", from: "IDLE", reason: "agent:turn_started" }]);
+  });
+
+  // A resume's zero-usage result, or a background task waking the agent, ends
+  // one turn and starts the next within the settle window.
+  it("turn started right after a turn ended still recovers IDLE → WORKING", () => {
+    const { deps, events, row } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "turn", phase: "ended" });
+    processAgentSignal(deps, "w1", { type: "turn", phase: "started" });
+    assert.equal(row.state, "WORKING");
+    assert.deepEqual(states(events), [
+      { state: "IDLE", from: "WORKING", reason: "agent:turn_ended" },
+      { state: "WORKING", from: "IDLE", reason: "agent:turn_started" },
+    ]);
+  });
+
+  it("turn started is held while an interrupt waits for the interrupted turn's end", () => {
+    const { deps, events } = buildDeps("IDLE", { settling: true, interruptPending: true });
+    processAgentSignal(deps, "w1", { type: "turn", phase: "started" });
+    assert.deepEqual(states(events), []);
   });
 
   it("turn aborted → IDLE", () => {

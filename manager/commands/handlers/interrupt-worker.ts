@@ -34,7 +34,7 @@ export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, Interr
     // Esc abandons this worker's outstanding peer consultations too — its blocked
     // ask_peer (if any) unblocks "gone"; in-flight asks to it decline.
     c.pendingPeerRequests.cancelByWorker(id);
-    c.turnSettle.mark(id);
+    c.turnSettle.markInterrupt(id);
     session.interrupt().catch(() => {});
     transitionState(
       { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
