@@ -189,6 +189,9 @@ public actor WSConnection: RemoteLink {
         case .event(let e):
             frameLog.info("rx event seq=\(e.seq) \(e.reason, privacy: .public)")
             framesContinuation.yield(frame)
+        case .rows(let r):
+            frameLog.info("rx rows \(r.rows.count) for \(r.workerId, privacy: .public)")
+            framesContinuation.yield(frame)
         case .ka:
             break
         }
@@ -234,6 +237,15 @@ public actor WSConnection: RemoteLink {
         }
     }
 
+    // Tunneled REST without waiting for the answer (keystrokes): calls made one after another go out
+    // in that order, and the Mac writes terminal input in arrival order. The reply is dropped.
+    public func sendControlNoReply(method: String, path: String, bodyData: Data) throws {
+        guard !closed, let session, let task else { throw WSError.notConnected }
+        let frame = ControlFrame(correlationId: UUID().uuidString, method: method, path: path,
+                                 body: String(decoding: bodyData, as: UTF8.self))
+        task.send(.data(session.frameToEnvelope(try JSONEncoder().encode(frame)))) { _ in }
+    }
+
     private func fail(_ correlationId: String, _ error: Error) {
         pending.removeValue(forKey: correlationId)?.resume(throwing: error)
     }
@@ -250,6 +262,12 @@ public actor WSConnection: RemoteLink {
     // daemon forgets it with the socket, so the owner re-sends it after every reconnect.
     public func sendSubscription(pty ids: [String]) {
         sendFrame(SubFrame(pty: ids))
+    }
+
+    // What this phone shows for the Mac (Mac cap "focus"). Fire-and-forget; the Mac forgets it with
+    // the socket, so the owner re-sends it after every reconnect.
+    public func sendFocus(_ focus: FocusFrame) {
+        sendFrame(focus)
     }
 
     private func sendFrame<F: Encodable>(_ frame: F) {

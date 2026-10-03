@@ -123,9 +123,10 @@ final class TerminalSessionModel: ObservableObject {
     // Esc — what interrupts a running Claude Code turn.
     func interrupt() { sendInput("\u{1b}") }
 
-    // Keystrokes coalesce like the desktop terminal's send queue: one POST in flight, whatever is
-    // typed meanwhile rides the next — ordered, without a relay round trip per key.
+    // Keystrokes go out at once when the Mac writes them in arrival order. Otherwise they coalesce like
+    // the desktop terminal's send queue: one POST in flight, whatever is typed meanwhile rides the next.
     func sendInput(_ data: String) {
+        if app.ptyInputPipelined { app.ptyInputNoWait(sessionId, data: data); return }
         inputBuffer += data
         flushInput()
     }

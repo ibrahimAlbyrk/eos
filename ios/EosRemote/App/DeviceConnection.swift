@@ -102,6 +102,26 @@ final class DeviceConnection: NSObject {
 
     private struct LiveBuffer { var blockId: String; var channel: String; var text: String; var ts: Double }
 
+    // MARK: what the Mac understands + what this phone shows it (contracts REMOTE_CAPS)
+
+    // The Mac's snapshot caps. "focus": it sends live events only for what `focus` names. "rows": it
+    // pushes the open worker's new rows. Absent on older Macs — then everything works as before.
+    private var macCaps: Set<String> = []
+    private var rowsPushed: Bool { macCaps.contains("rows") }
+    // Whether this Mac is the one on screen (AppModel), and the terminal screen open for it.
+    private var isActiveDevice = true
+    private var focusPty: String?
+    // The open worker's first page landed, so newestRowId (even 0) is what this phone holds.
+    private var transcriptLoaded = false
+    private var sentFocus: FocusFrame?
+    private var focusSending = false
+    // The join snapshot carried the terminal list / ui-config, so going live needn't fetch them.
+    private var bootCarriedPtys = false
+    private var bootCarriedUiConfig = false
+    // Keystrokes waiting to go out, in order, without waiting for each answer.
+    private var ptyInputQueue: [(id: String, data: String)] = []
+    private var ptyInputDraining = false
+
     let store = Store()
     private let link: ConnectionSupervisor<WSConnection>
     private var connection: WSConnection? { link.liveLink }
@@ -151,7 +171,7 @@ final class DeviceConnection: NSObject {
         // D-10 route split: orchestrators message via their own resource, plain workers as before.
         let isOrchestrator = workers.first(where: { $0.id == id })?.isOrchestrator == true
         await control("POST", isOrchestrator ? "/orchestrators/\(id)/message" : "/workers/\(id)/message", body)
-        if openId == id { scheduleDelta() }
+        if openId == id && !rowsPushed { scheduleDelta() }
     }
 
     func interrupt(_ id: String) async { await control("POST", "/workers/\(id)/interrupt", .object([:])) }
@@ -335,6 +355,30 @@ final class DeviceConnection: NSObject {
         await controlReply("POST", "/pty/\(id)/input", .object(["data": .string(data)])) != nil
     }
 
+    // Whether keystrokes can go out without waiting for each answer: a Mac with cap "focus" writes a
+    // phone's terminal input in arrival order.
+    var ptyInputPipelined: Bool { macCaps.contains("focus") }
+
+    // Queue keystrokes; one drain sends them in order (merging what piled up for the same session).
+    func ptyInputNoWait(_ id: String, data: String) {
+        if let last = ptyInputQueue.last, last.id == id {
+            ptyInputQueue[ptyInputQueue.count - 1].data += data
+        } else {
+            ptyInputQueue.append((id, data))
+        }
+        guard !ptyInputDraining else { return }
+        ptyInputDraining = true
+        Task { @MainActor in
+            while !ptyInputQueue.isEmpty {
+                let item = ptyInputQueue.removeFirst()
+                let body = encodeOnce(.object(["data": .string(item.data)]))
+                do { try await connection?.sendControlNoReply(method: "POST", path: "/pty/\(item.id)/input", bodyData: body) }
+                catch { setError(error.localizedDescription) }
+            }
+            ptyInputDraining = false
+        }
+    }
+
     func ptyConversation(_ id: String, afterId: Int) async -> JSONValue? {       // GET /pty/:id/conversation
         (await controlReply("GET", "/pty/\(id)/conversation?afterId=\(afterId)", .object([:])))?.body
     }
@@ -479,7 +523,7 @@ final class DeviceConnection: NSObject {
     // credential lifetime.
     func teardown() {
         link.deactivate()
-        openId = nil; transcript = []
+        openId = nil; transcript = []; transcriptLoaded = false
         onChange?()
     }
 
@@ -489,13 +533,64 @@ final class DeviceConnection: NSObject {
     private func didGoLive() {
         controlError = nil
         eosLog.info("connect[\(self.deviceId, privacy: .public)]: live")
+        let fetchPtys = !bootCarriedPtys, fetchConfig = !bootCarriedUiConfig
+        bootCarriedPtys = false; bootCarriedUiConfig = false
+        // A new socket: the Mac knows nothing of what this phone shows.
+        sentFocus = nil
+        flushFocus()
         Task {
             if !ptySubscription.isEmpty { await connection?.sendSubscription(pty: ptySubscription) }
-            await fetchPtySessions()
+            if fetchPtys { await fetchPtySessions() }
             // C6: ui-config is fetched once per connect (covers reconnects too) and cached.
-            await fetchUiConfig()
+            if fetchConfig { await fetchUiConfig() }
         }
-        if openId != nil { scheduleDelta() }
+        // Pushed rows resume from the focus just sent; otherwise pull what landed meanwhile.
+        if openId != nil && !(rowsPushed && transcriptLoaded) { scheduleDelta() }
+    }
+
+    // MARK: focus (Mac cap "focus")
+
+    // AppModel: whether this Mac is the one on screen. A Mac off screen sends only state patches, so
+    // the live overlays it left behind have holes — they restart from the text the Mac sends back.
+    func setActiveDevice(_ active: Bool) {
+        guard active != isActiveDevice else { return }
+        isActiveDevice = active
+        if active && macCaps.contains("focus") {
+            liveBuffers = [:]
+            liveTerminals = [:]
+            scheduleRecompute()
+            // pty:session / pty:exit didn't reach an inactive phone.
+            if connected { Task { await fetchPtySessions() } }
+        }
+        flushFocus()
+    }
+
+    var focusedPty: String? { focusPty }
+
+    // AppModel: the terminal screen open for this Mac (its pty:conversation nudges).
+    func setFocusPty(_ id: String?) {
+        guard id != focusPty else { return }
+        focusPty = id
+        flushFocus()
+    }
+
+    private var wantedFocus: FocusFrame {
+        FocusFrame(active: isActiveDevice, worker: openId,
+                   afterId: openId != nil && transcriptLoaded ? newestRowId : nil, pty: focusPty)
+    }
+
+    // Serialized so the Mac always ends on the latest focus.
+    private func flushFocus() {
+        guard macCaps.contains("focus"), !focusSending, let connection else { return }
+        let want = wantedFocus
+        guard want != sentFocus else { return }
+        focusSending = true
+        Task { @MainActor in
+            await connection.sendFocus(want)
+            sentFocus = want
+            focusSending = false
+            flushFocus()
+        }
     }
 
     private func setError(_ message: String) { controlError = message; onChange?() }
@@ -512,13 +607,18 @@ final class DeviceConnection: NSObject {
         if let c = caches[id] {
             durableEvs = c.durableEvs; durableBlockIds = c.durableBlockIds
             newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
+            transcriptLoaded = true
             recompute()   // immediate: cached-first paint on open, no debounce
-            await fetchDelta()
+            flushFocus()
+            // A Mac that pushes rows sends what landed since the cache from the focus just sent.
+            if !(rowsPushed && connected) { await fetchDelta() }
         } else {
             durableEvs = [:]; durableBlockIds = []
             newestRowId = 0; oldestRowId = 0; hasOlder = false
+            transcriptLoaded = false
             transcript = []
             onChange?()   // publish the switch now, not after the first page's round trip
+            flushFocus()
             await fetchNewest()
         }
     }
@@ -531,6 +631,7 @@ final class DeviceConnection: NSObject {
         liveBuffers = [:]
         liveTerminals = [:]
         liveCheck = nil
+        flushFocus()
     }
 
     func loadOlder() async {
@@ -555,6 +656,8 @@ final class DeviceConnection: NSObject {
               let rows = await fetchEvents("limit=\(initialPageSize)&order=desc"), openId == id else { return }
         hasOlder = rows.count >= initialPageSize
         ingest(rows, workerId: id)
+        transcriptLoaded = true
+        flushFocus()   // the Mac pushes rows from here on
     }
 
     private func fetchDelta() async {
@@ -629,6 +732,32 @@ final class DeviceConnection: NSObject {
         buf.text += payload?["text"]?.stringValue ?? ""
         liveBuffers[blockId] = buf
         scheduleRecompute()
+    }
+
+    // Mac cap "rows": the open worker's new rows, or — right after a focus change — the text already
+    // streamed for its live blocks, which replaces what the buffers hold (every later delta follows it).
+    private func applyRows(_ frame: RowsFrame) {
+        guard frame.workerId == openId else { return }
+        if let live = frame.live {
+            let now = Date().timeIntervalSince1970 * 1000
+            for block in live where !durableBlockIds.contains(block.blockId) {
+                liveBuffers[block.blockId] = LiveBuffer(blockId: block.blockId, channel: block.channel,
+                                                        text: block.text, ts: liveBuffers[block.blockId]?.ts ?? now)
+            }
+            scheduleRecompute()
+        }
+        if !frame.rows.isEmpty { ingest(frame.rows, workerId: frame.workerId) }
+    }
+
+    // The Mac's caps + what its join snapshot carried beyond the lists.
+    private func applySnapshotExtras(_ snap: SnapshotFrame) {
+        macCaps = Set(snap.caps ?? [])
+        if let ptys = snap.ptys { applyPtySessions(ptys); bootCarriedPtys = true }
+        if let raw = snap.uiConfig, let config = UiConfig(raw: raw) {
+            uiConfig = config
+            bootCarriedUiConfig = true
+            onChange?()
+        }
     }
 
     // A snapshot is a resync point: deltas and terminal chunks streamed while the link was down are
@@ -831,7 +960,10 @@ extension DeviceConnection {
         switch frame {
         case .snapshot(let snapshot):
             await store.applySnapshot(snapshot)
+            applySnapshotExtras(snapshot)
             restartLiveOverlays(snapshot.live)
+        case .rows(let rows):
+            applyRows(rows)
         case .patch(let patch):
             if await store.applyPatch(patch) == .seqGap { await recoverFromGap() }
         case .event(let event):

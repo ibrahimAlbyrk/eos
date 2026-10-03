@@ -8,6 +8,7 @@ public enum ServerFrame: Sendable {
     case event(EventFrame)
     case patch(PatchFrame)
     case snapshot(SnapshotFrame)
+    case rows(RowsFrame)
     case reply(ReplyFrame)
     case asset(AssetFrame)
     case ka(ts: Double)
@@ -21,6 +22,7 @@ public enum ServerFrame: Sendable {
         case "event":     return .event(try d.decode(EventFrame.self, from: data))
         case "patch":     return .patch(try d.decode(PatchFrame.self, from: data))
         case "snapshot":  return .snapshot(try d.decode(SnapshotFrame.self, from: data))
+        case "rows":      return .rows(try d.decode(RowsFrame.self, from: data))
         case "reply":     return .reply(try d.decode(ReplyFrame.self, from: data))
         case "asset":     return .asset(try d.decode(AssetFrame.self, from: data))
         case "ka":        return .ka(ts: (try? d.decode(KaFrame.self, from: data).ts) ?? 0)
@@ -61,6 +63,22 @@ public struct SnapshotFrame: Codable, Sendable {
     // Text streamed so far for blocks still in flight, so a resync can restart the live overlays
     // without the hole the missed agent:delta frames would leave. Absent from older daemons.
     public var live: [LiveBlock]?
+    // What the Mac understands beyond the base protocol (contracts REMOTE_CAPS). Absent = none.
+    public var caps: [String]?
+    // Only on the snapshot sent as the phone joins: GET /pty sessions + GET /api/ui-config.
+    public var ptys: [JSONValue]?
+    public var uiConfig: JSONValue?
+}
+
+// New transcript rows of the open worker (Mac cap "rows"), oldest first. Right after a focus change a
+// frame with no rows carries `live`: the text already streamed for its in-flight blocks. Every later
+// delta follows it, so it replaces what the live buffers hold for those blocks.
+public struct RowsFrame: Codable, Sendable {
+    public let t: String
+    public let seq: Int
+    public let workerId: String
+    public let rows: [JSONValue]
+    public var live: [LiveBlock]?
 }
 
 public struct LiveBlock: Codable, Sendable {
@@ -68,6 +86,7 @@ public struct LiveBlock: Codable, Sendable {
     public let blockId: String
     public let channel: String     // "reasoning" | "text"
     public let text: String
+    public var done: Bool?
 }
 
 public struct ReplyFrame: Codable, Sendable {
@@ -98,6 +117,22 @@ public struct ErrorFrame: Codable, Sendable {
 public struct HelloFrame: Codable, Sendable {
     public var t = "hello"
     public var lastContentId: Int?
+    // What this app understands beyond the base protocol (contracts REMOTE_CAPS).
+    public var caps: [String]? = HelloFrame.clientCaps
+    public static let clientCaps = ["focus", "rows", "deflate"]
+}
+
+// What this phone shows for the Mac: `active` false = another Mac is on screen. `afterId` = the newest
+// transcript row held for `worker` (nil while its first page loads); `pty` = the open terminal screen.
+public struct FocusFrame: Codable, Sendable, Equatable {
+    public var t = "focus"
+    public var active: Bool
+    public var worker: String?
+    public var afterId: Int?
+    public var pty: String?
+    public init(active: Bool, worker: String?, afterId: Int?, pty: String?) {
+        self.active = active; self.worker = worker; self.afterId = afterId; self.pty = pty
+    }
 }
 
 // The PTY sessions whose raw output (pty:data) this device wants — replaces the previous set.

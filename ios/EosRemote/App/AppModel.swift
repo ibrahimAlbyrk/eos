@@ -135,6 +135,7 @@ final class AppModel: ObservableObject {
     // Copy the active device's fields into the published mirror. Called on activation + on any
     // active-device change (via onChange). Devices with no active member fall back to empty/needsPairing.
     private func mirrorActive() {
+        for conn in connections.values { conn.setActiveDevice(conn.deviceId == activeDeviceId) }
         guard let a = active else {
             workers = []; pending = []; transcript = []; transcriptOwner = nil
             connected = false; connecting = false; lastError = nil
@@ -357,6 +358,8 @@ final class AppModel: ObservableObject {
     func killPty(_ id: String) async -> Bool { await active?.killPty(id) ?? false }
     func ptyBuffer(_ id: String) async -> (seq: Int, data: String)? { await active?.ptyBuffer(id) }
     func ptyInput(_ id: String, data: String) async -> Bool { await active?.ptyInput(id, data: data) ?? false }
+    var ptyInputPipelined: Bool { active?.ptyInputPipelined ?? false }
+    func ptyInputNoWait(_ id: String, data: String) { active?.ptyInputNoWait(id, data: data) }
     func ptyConversation(_ id: String, afterId: Int) async -> JSONValue? {
         await active?.ptyConversation(id, afterId: afterId)
     }
@@ -376,6 +379,9 @@ final class AppModel: ObservableObject {
     private var ptyListeners: [String: (EventFrame) -> Void] = [:]
     func setPtyListener(_ sessionId: String, _ handler: ((EventFrame) -> Void)?) {
         ptyListeners[sessionId] = handler
+        // The open terminal screen is the active Mac's — it sends that terminal's pty:conversation.
+        if handler != nil { active?.setFocusPty(sessionId) }
+        else if active?.focusedPty == sessionId { active?.setFocusPty(nil) }
     }
 
     // MARK: UI state restoration (round 7) — per-device keys, written on change

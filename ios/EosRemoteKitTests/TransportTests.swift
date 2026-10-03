@@ -191,4 +191,23 @@ final class TransportTests: XCTestCase {
         XCTAssertEqual(env.dir, .c2s)
         XCTAssertEqual(session.envelopeToJSON(env), inner)         // payload comes back verbatim
     }
+
+    // A Mac that saw cap "deflate" sends 0x01 + raw DEFLATE (Node's deflateRawSync of the JSON below).
+    func testCompressedServerFrameInflatesAndDecodesAsRows() throws {
+        let session = SessionState(room: Bytes.ascii(String(repeating: "A", count: 22)), clientId: Data(count: 16))
+        let packed = Data(base64Encoded: "XYw7DoAgEETvMjWNsZIbeAZD4WcTCISNgGJiuLsbSqud92ayLwo0EtcMhUwn9KhQOXlK8yFNHcT3Wi8vnKipGYXgburmP90C777jJrTbNUYKQoWeIqIfDeskHxzlR0kXNdM+")!
+        let env = Envelope(type: .data, dir: .s2c, epoch: 0, seq: 0, room: session.room, clientId: session.clientId,
+                           payload: Data([SessionState.deflateMark]) + packed)
+        let json = session.envelopeToJSON(env)
+        guard case .rows(let rows) = try ServerFrame.decode(json) else { return XCTFail("not a rows frame") }
+        XCTAssertEqual(rows.workerId, "w1")
+        XCTAssertEqual(rows.rows.first?["id"]?.intValue, 9)
+        XCTAssertEqual(rows.live?.first?.text, "hi")
+        XCTAssertEqual(rows.live?.first?.done, true)
+    }
+
+    func testHelloListsThisAppsCaps() throws {
+        let obj = try JSONSerialization.jsonObject(with: JSONEncoder().encode(HelloFrame())) as? [String: Any]
+        XCTAssertEqual(obj?["caps"] as? [String], ["focus", "rows", "deflate"])
+    }
 }
