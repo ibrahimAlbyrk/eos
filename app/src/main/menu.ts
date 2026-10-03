@@ -1,4 +1,4 @@
-import { Menu, clipboard } from "electron";
+import { Menu, app, clipboard } from "electron";
 import type { WebContents, MenuItemConstructorOptions } from "electron";
 
 function clipboardHasFiles(): boolean {
@@ -14,7 +14,11 @@ function clipboardHasFiles(): boolean {
 // Chromium's contentEditable undo and bypass the composer stack.
 // `machines` is the Machines menu (switch between this Mac and the computers it
 // controls); omitted until the host list is known.
-export function buildAppMenu(getWC: () => WebContents | null, machines?: MenuItemConstructorOptions): void {
+export function buildAppMenu(
+  getWC: () => WebContents | null,
+  rebuild: () => void,
+  machines?: MenuItemConstructorOptions,
+): void {
   const run = (js: string): Promise<unknown> =>
     getWC()?.executeJavaScript(js, true).catch(() => null) ?? Promise.resolve(null);
 
@@ -55,7 +59,22 @@ export function buildAppMenu(getWC: () => WebContents | null, machines?: MenuIte
   }
 
   const template: MenuItemConstructorOptions[] = [
-    { role: "appMenu" },
+    {
+      label: app.name,
+      submenu: [
+        { role: "about" },
+        { type: "separator" },
+        { label: "Rebuild & Relaunch", accelerator: "CmdOrCtrl+Shift+R", click: rebuild },
+        { type: "separator" },
+        { role: "services" },
+        { type: "separator" },
+        { role: "hide" },
+        { role: "hideOthers" },
+        { role: "unhide" },
+        { type: "separator" },
+        { role: "quit" },
+      ],
+    },
     {
       label: "Edit",
       submenu: [

@@ -26,6 +26,7 @@ import { initBinaryAutoUpdate } from "./updater-binary";
 import { initBrowserHost } from "./browser";
 import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
+import { rebuildAndRelaunch } from "./rebuild";
 import type { MenuItemConstructorOptions } from "electron";
 
 const DAEMON_URL = resolveDaemonUrl();
@@ -97,6 +98,9 @@ let quitting = false;
 // one). Only a daemon we started is ever stopped on quit.
 let ownsDaemon = false;
 let splashWin: BrowserWindow | null = null;
+// Agents working right now (fleet feed) — a rebuild asks first when any are.
+let busyAgents = 0;
+const rebuild = (): void => void rebuildAndRelaunch(busyAgents);
 // Resolves once a healthy daemon is confirmed. The main window may load before
 // that (in parallel with the daemon boot) but stays hidden until then.
 let markDaemonReady!: () => void;
@@ -322,7 +326,7 @@ function rebuildMenu(): void {
   const key = hostViews ? `${hostViews.current()}|${hostViews.list().map((h) => `${h.id}:${h.alias ?? h.name}`).join(",")}` : "";
   if (key === menuKey && key !== "") return;
   menuKey = key;
-  buildAppMenu(focusedContents, machinesMenu());
+  buildAppMenu(focusedContents, rebuild, machinesMenu());
 }
 
 // Non-critical, main-process, read-only wiring — deferred past first paint so the
@@ -338,13 +342,17 @@ async function startBackgroundServices(token: string): Promise<void> {
   tray = new TrayController({
     wc: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null),
     showWindow: showMainWindow,
+    rebuild,
     quit: quitApp,
   });
   await tray.init();
 
   const DWELL_MS = 4350;
   const fleet = new FleetFeed(DAEMON_URL, token, {
-    onRunning: (r, c, conn) => void tray?.renderRunning(r, c, conn),
+    onRunning: (r, c, conn) => {
+      busyAgents = c;
+      void tray?.renderRunning(r, c, conn);
+    },
     onAnnounce: (c, rem) => void tray?.announce(c, rem, DWELL_MS),
     onDrained: (r, c) => tray?.drained(r, c),
   });

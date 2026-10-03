@@ -9,6 +9,7 @@ const ease = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t +
 interface TrayHooks {
   wc: () => WebContents | null;
   showWindow: () => void;
+  rebuild: () => void;
   quit: () => void;
 }
 
@@ -47,6 +48,8 @@ export class TrayController {
   private popMenu(): void {
     const menu = Menu.buildFromTemplate([
       { label: "Open Eos", click: () => this.hooks.showWindow() },
+      { type: "separator" },
+      { label: "Rebuild & Relaunch", click: () => this.hooks.rebuild() },
       { type: "separator" },
       { label: "Lock Screen", click: lockScreen },
       { label: "Install Screen Saver…", click: () => void installScreenSaver() },
