@@ -643,8 +643,8 @@ export function Messages({ live, agentId, isActive = true }) {
           // threading a prop through each component.
           // `cv` opts a block into content-visibility (perf). MessageRow text
           // blocks are excluded: paint containment (implied by content-visibility)
-          // would clip their hover action row, which overflows the wrapper
-          // (beside or below it). See styles.css.
+          // would clip their right-click action bar, which overflows the
+          // wrapper. See styles.css.
           const cls = [
             isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
             MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
@@ -682,8 +682,8 @@ function blockKey(b, i) {
   }
 }
 
-// Block kinds rendered via MessageRow — they carry a hover action row
-// (copy/rewind/timestamp) absolutely positioned outside the wrapper.
+// Block kinds rendered via MessageRow — they carry a right-click action bar
+// (copy/rewind/timestamp) absolutely positioned past the wrapper's edges.
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
 

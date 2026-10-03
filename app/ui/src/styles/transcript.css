@@ -58,7 +58,7 @@
 
 /* content-visibility skips layout/paint of far-offscreen blocks; contain-
    intrinsic-size `auto` keeps the remembered size once rendered. Opt-in via
-   `.cv` only — MessageRow text blocks whose hover action row overflows below
+   `.cv` only — MessageRow text blocks whose right-click action bar overflows
    the wrapper are left uncontained (paint containment would clip it). */
 .messages > [data-bkey].cv {
   content-visibility: auto;
@@ -435,82 +435,36 @@
 @keyframes sf-fade-in { from { opacity: 0; } }
 @keyframes sf-fade-out { to { opacity: 0; } }
 
-/* Hover action pill (timestamp + rewind + copy + reply). Absolutely positioned
-   so revealing it never shifts layout (the transcript auto-scrolls and a
-   reflow would jump), and beside the message so it never covers the next
-   block: left of a user bubble, right after the text for anything else. With
-   no room there (narrow pane, wide bubble) it falls back to floating under the message.
-   Hidden, it takes no pointer events, so it never steals another block's hover/clicks. */
-.msg-row { position: relative; anchor-scope: --msg-body; }
-/* The bubble when there is one, else the attachments (last in tree order wins). */
-.msg-row .msg-attachments, .msg-row .msg-user .b { anchor-name: --msg-body; }
-.msg-actions {
-  --pill-gap: 6px;
+/* Right-click action bar (timestamp + rewind + copy + reply), opened at the
+   pointer. Nothing shows on hover, so the transcript's spacing never changes.
+   It lives inside the row (not portaled) so it scrolls with its message while
+   the transcript streams; the glass comes from .glass-pop. */
+.msg-row { position: relative; }
+/* Two classes: must beat .glass-pop's position/radius (menus.css loads later). */
+.msg-row > .msg-actions {
   position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 2;
+  z-index: 5;
   display: flex;
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border-radius: var(--r-pill);
-  background: rgba(30, 30, 30, 0.86);
-  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.14), inset 0 0 0 0.5px rgba(var(--tint), 0.07),
-              0 12px 28px -12px rgba(var(--ink), 0.8);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms;
+  border-radius: 12px;
+  white-space: nowrap;
 }
-.msg-row:hover .msg-actions { opacity: 1; pointer-events: auto; }
-/* User: vertically centered left of the bubble; under it when the pill doesn't fit there. */
-.msg-actions.right {
-  position-anchor: --msg-body;
-  top: auto;
-  align-self: anchor-center;
-  right: calc(anchor(left) + var(--pill-gap));
-  left: auto;
-  position-try-fallbacks: --msg-pill-under;
+/* The message the bar acts on: a soft tint around it, a ring around a user bubble. */
+.msg-row.ctx-open:not(.right) {
+  border-radius: 4px;
+  background: rgba(var(--tint), 0.03);
+  box-shadow: 0 0 0 8px rgba(var(--tint), 0.03);
 }
-/* The negative bottom stretches the fit-check area below the row, which the
-   pill sits outside of — otherwise this spot never "fits" and the browser
-   keeps a stale left placement after a resize. align-self stops it stretching. */
-@position-try --msg-pill-under {
-  top: calc(anchor(bottom) + var(--pill-gap));
-  bottom: -100px;
-  right: anchor(right);
-  align-self: start;
-}
-/* Invisible bridge over the gap under the bubble so the pointer never leaves
-   the row on its way to the pill. */
-.msg-actions.right::before {
-  content: "";
-  position: absolute;
-  inset: auto 0 100%;
-  height: var(--pill-gap);
-}
-/* Anything else: vertically centered right after the text; MessageRow measures
-   the text on hover and sets `left`, or leaves the pill under the message when
-   the pane has no room. The bridge spans the gap when the pill sits past the row's edge. */
-/* translate, not align-self: a one-line row is shorter than the pill, and an
-   overflowing self-aligned box isn't reliably centered. */
-.msg-actions.beside {
-  top: 50%;
-  translate: 0 -50%;
-}
-.msg-actions.beside::before {
-  content: "";
-  position: absolute;
-  inset: 0 100% 0 auto;
-  width: 10px;
-}
+.msg-row.ctx-open .msg-user .b { outline: 5px solid rgba(var(--tint), 0.06); }
 .msg-action-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--r-pill);
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-row);
   color: var(--fg-dim2);
 }
 .msg-action-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
