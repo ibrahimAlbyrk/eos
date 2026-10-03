@@ -138,7 +138,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
         <div className="git-wrap" style={{ position: "relative" }}>
           <button
             className={"iconbtn git-agent-btn" + (gitMode ? " on" : "")}
-            title={gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
+            title={gitMode ? "Exit git mode (⌘G)" : "Git"}
             onClick={(e) => {
               if (gitMode) {
                 e.stopPropagation();
@@ -161,6 +161,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             live={live}
             worker={selected}
             cwd={selected ? (selected.cwd ?? selected.worktree_from) : composerCwd(ui.composer, live.recents)}
+            wtStatus={wtStatus}
           />
         </div>
       </div>

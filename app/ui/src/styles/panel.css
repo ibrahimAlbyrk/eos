@@ -668,11 +668,6 @@
 .cv-file-path { flex: 1; font-family: var(--font-mono); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-file-counts { display: inline-flex; gap: 6px; font-family: var(--font-mono); flex-shrink: 0; }
 
-/* sync chip doubles as the unpushed-commits panel trigger */
-.sync-chip-btn { cursor: pointer; border: 1px solid transparent; }
-.sync-chip-btn:hover { filter: brightness(1.15); }
-.sync-chip-btn.on { border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
-
 /* Header breadcrumb: folder icon + <base> → <head>. The arrow is a subtle
    separator; the head ref carries the accent so it reads as the current side. */
 .dv-crumb {

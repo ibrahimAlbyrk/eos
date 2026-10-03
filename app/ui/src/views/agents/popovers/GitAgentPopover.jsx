@@ -4,6 +4,10 @@ import { api } from "../../../api/client.js";
 import { gitAgentName } from "../../../lib/gitAgentName.js";
 import { addDispatched } from "../../../state/outboxStore.js";
 import { notify } from "../../../lib/notify.js";
+import { workerGitDir } from "../../../lib/workerGitDir.js";
+import { useGitStatus } from "../../../hooks/useGitStatus.js";
+import { hasUnintegratedWork } from "../../../lib/workState.js";
+import { requestStashFocus } from "../../../state/gitDiffIntent.js";
 
 const EMPTY = { isGit: true, current: null, branches: [], remoteUrl: null, ahead: 0, behind: 0, conflicts: 0 };
 
@@ -88,7 +92,153 @@ function PrIcon() {
   );
 }
 
-export function GitAgentPopover({ live, worker, cwd }) {
+function PushIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 13V5M5 8l3-3 3 3" />
+      <line x1="4" y1="2.5" x2="12" y2="2.5" />
+    </svg>
+  );
+}
+
+function PullIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 3v8M5 8l3 3 3-3" />
+      <line x1="4" y1="13.5" x2="12" y2="13.5" />
+    </svg>
+  );
+}
+
+function StashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5.5" width="10" height="6.5" rx="1" />
+      <line x1="3.5" y1="3.5" x2="10.5" y2="3.5" />
+      <line x1="4.5" y1="1.5" x2="9.5" y2="1.5" />
+    </svg>
+  );
+}
+
+// The session's own git actions, on top of the git agent's: commit / PR go to
+// the session's agent as worker actions, push / pull run directly. This menu is
+// the only git door on the composer — nothing shows while it's closed.
+function SessionGitSection({ live, worker, wtStatus }) {
+  const ui = useUi();
+  // Worktree dir first (cwd is NULL for worktree rows) — otherwise these rows
+  // describe the user's checkout instead of where the agent edits.
+  const gitDir = workerGitDir(worker);
+  const { status: gs } = useGitStatus(worker.id, { gitDir });
+  if (!gs?.isGit) return null;
+
+  const diff = gs.diff ?? { insertions: 0, deletions: 0, files: 0 };
+  const dirty = hasUnintegratedWork(diff);
+  const ahead = gs.ahead ?? 0;
+  const behind = gs.behind ?? 0;
+  const stash = gs.stash ?? 0;
+  const conflicts = gs.conflicts ?? 0;
+  const dirtyChildren = wtStatus?.children ?? [];
+  const blocked = conflicts > 0 ? "Resolve conflicts first" : undefined;
+
+  const run = (fn) => () => {
+    ui.closeAllPops();
+    fn();
+  };
+  const action = (id) => run(() => api.sendWorkerAction(worker.id, id));
+  const openReview = () => ui.openPanel("review", { workerId: worker.id, cwd: gitDir });
+
+  // Fan-in: a git agent in a fresh worktree merges the orchestrator's child
+  // branches into one verified result (children left intact).
+  const integrate = run(async () => {
+    const root = worker.cwd ?? worker.worktree_from;
+    const r = await live.spawnGitAgent({
+      worktreeFrom: root,
+      promptTemplate: { id: "integrate", vars: { BRANCHES: dirtyChildren.map((w) => w.branch).filter(Boolean).join(", ") } },
+      name: gitAgentName(root, gs.currentBranch ?? worker.branch, "merge"),
+    });
+    if (r?.ok && r.body?.id) ui.setSelectedId(r.body.id);
+    else if (!r?.ok) notify.error(r?.body?.error ?? "integration failed to start");
+  });
+
+  return (
+    <>
+      <button className="menu-item gap-session" title="Review changes" onClick={run(openReview)}>
+        <BranchIcon />
+        <span className="gap-branch">{gs.currentBranch ?? worker.branch ?? "—"}</span>
+        {conflicts > 0 ? (
+          <span className="gap-meta gap-warn">{conflicts} {conflicts === 1 ? "conflict" : "conflicts"}</span>
+        ) : dirty && (
+          <span className="gap-meta">
+            {diff.insertions > 0 || diff.deletions > 0 ? (
+              <>
+                <span className="gap-add">+{diff.insertions.toLocaleString()}</span>{" "}
+                <span className="gap-del">−{diff.deletions.toLocaleString()}</span>
+              </>
+            ) : (
+              <>{diff.files} new</>
+            )}
+          </span>
+        )}
+      </button>
+      {dirty && (
+        <>
+          <button className="menu-item" disabled={conflicts > 0} title={blocked} onClick={action("commit")}>
+            <CommitIcon />
+            Commit
+            <span className="gap-meta">{diff.files} {diff.files === 1 ? "file" : "files"}</span>
+          </button>
+          <button className="menu-item" disabled={conflicts > 0} title={blocked} onClick={action("commit-push")}>
+            <PushIcon />
+            Commit &amp; push
+          </button>
+        </>
+      )}
+      {gs.pushable && (
+        <button className="menu-item" onClick={run(() => api.pushWorker(worker.id))}>
+          <PushIcon />
+          {gs.pushKind === "set-upstream" ? "Publish" : "Push"}
+          {ahead > 0 && <span className="gap-meta">↑{ahead}</span>}
+        </button>
+      )}
+      {gs.pullable && (
+        <button className="menu-item" onClick={run(() => api.pullWorker(worker.id))}>
+          <PullIcon />
+          Pull
+          {behind > 0 && <span className="gap-meta">↓{behind}</span>}
+        </button>
+      )}
+      {stash > 0 && (
+        <button className="menu-item" onClick={run(() => { requestStashFocus(); openReview(); })}>
+          <StashIcon />
+          View stashes
+          <span className="gap-meta">{stash}</span>
+        </button>
+      )}
+      {Boolean(worker.is_orchestrator) && dirtyChildren.length >= 2 && (
+        <button
+          className="menu-item"
+          title="Merge these worktree branches into one verified result — spawns a git agent in a fresh worktree (originals untouched)"
+          onClick={integrate}
+        >
+          <MergeIcon />
+          Merge all
+          <span className="gap-meta">{dirtyChildren.length}</span>
+        </button>
+      )}
+      <button className="menu-item" onClick={action("pr")}>
+        <PrIcon />
+        Create PR
+      </button>
+      <button className="menu-item" onClick={action("draft-pr")}>
+        <PrIcon />
+        Create draft PR
+      </button>
+      <div className="gap-sep"></div>
+    </>
+  );
+}
+
+export function GitAgentPopover({ live, worker, cwd, wtStatus }) {
   const ui = useUi();
   const open = ui.openPopover === "git-agent";
   const [info, setInfo] = useState(EMPTY);
@@ -163,16 +313,27 @@ export function GitAgentPopover({ live, worker, cwd }) {
     );
   }
 
+  // With a session, its own section leads and covers PRs — the agent part
+  // below drops its PR rows; its commit stays (a separate git agent).
+  const sessionLed = Boolean(selected) && !picking;
+
   return (
     <div className="git-agent-popover ca-pop ca-git-agent open" data-popover="git-agent">
+      {sessionLed && <SessionGitSection live={live} worker={selected} wtStatus={wtStatus} />}
       <div className="gap-head">
-        <BranchIcon />
-        <span className="gap-branch">{current ?? "—"}</span>
-        {(info.ahead > 0 || info.behind > 0) && (
-          <span className="gap-sync">
-            {info.ahead > 0 && <span>↑{info.ahead}</span>}
-            {info.behind > 0 && <span>↓{info.behind}</span>}
-          </span>
+        {sessionLed ? (
+          <span className="gap-label">Git agent</span>
+        ) : (
+          <>
+            <BranchIcon />
+            <span className="gap-branch">{current ?? "—"}</span>
+            {(info.ahead > 0 || info.behind > 0) && (
+              <span className="gap-sync">
+                {info.ahead > 0 && <span>↑{info.ahead}</span>}
+                {info.behind > 0 && <span>↓{info.behind}</span>}
+              </span>
+            )}
+          </>
         )}
         <span className="gap-grow"></span>
         <span className="gap-model">sonnet</span>
@@ -229,7 +390,7 @@ export function GitAgentPopover({ live, worker, cwd }) {
               Sync with remote
             </button>
           )}
-          {info.remoteUrl && (
+          {info.remoteUrl && !sessionLed && (
             <>
               <button className="menu-item" onClick={() => spawn(`Open a pull request for the current branch (${current}). Make sure the branch is committed and pushed first, then write the title and body yourself.`, "pr")}>
                 <PrIcon />

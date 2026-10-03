@@ -1144,9 +1144,6 @@ export function Composer({ live, worker, paneId, focused }) {
             )}
             {selected ? (
               <SessionTray
-                live={live}
-                worker={selected}
-                wtStatus={wtStatus}
                 queued={queuedList}
                 onSteer={steerQueued}
                 onEdit={editQueued}

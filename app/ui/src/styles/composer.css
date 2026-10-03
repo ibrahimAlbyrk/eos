@@ -207,43 +207,6 @@
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
 }
 .c-row-diff > .git-chip { flex-shrink: 0; }
-.diff-actions {
-  margin-left: auto;
-  display: flex; align-items: center; justify-content: flex-end;
-  flex-wrap: nowrap; gap: 10px;
-  min-width: 0;
-}
-.diff-actions > * { flex-shrink: 0; }
-/* The action buttons collapse to icon-only when the composer is narrow, so the
-   git bar stays a SINGLE line instead of wrapping. Labels return when there's
-   room; the full action lives in each button's tooltip. */
-.split-ic { display: none; align-items: center; }
-.split-ic svg { display: block; }
-@container (max-width: 480px) {
-  .diff-actions { gap: 6px; }
-  .diff-actions .pr-create-btn { padding: 4px 8px; }
-  .diff-actions .btn-label { display: none; }
-  .diff-actions .split-ic { display: inline-flex; }
-  .diff-actions .git-chip .lbl { display: none; }
-}
-/* Narrower still: drop the read-only status badges (change counts, stash) — the
-   action buttons matter more and those numbers live in the Changes/Commits
-   panels. Sync stays (the push droplet flies from it); conflicts stay (a state
-   you must act on). */
-@container (max-width: 380px) {
-  .diff-actions .diff-badge,
-  .diff-actions .stash-chip { display: none; }
-}
-/* Tightest (wide panel on a small window): fold the split dropdown carets too —
-   the main action stays one tap away, the menu returns when there's room. */
-@container (max-width: 260px) {
-  .diff-actions { gap: 5px; }
-  .diff-actions .pr-wrap .pr-dropdown-toggle { display: none; }
-  .diff-actions .pr-wrap .pr-create-btn {
-    border-radius: 6px;
-    border-right: 1px solid rgba(var(--tint), 0.08);
-  }
-}
 .diff-badge {
   display: inline-flex; align-items: center; gap: 7px;
   padding: 3px 9px;
@@ -438,47 +401,7 @@
 .applied-chip { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .applied-chip .lbl { opacity: 1; font-weight: 600; }
 
-.sync-chip {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  color: var(--accent);
-  gap: 8px;
-}
-.sync-chip .ahead  { color: var(--ok); display: inline-flex; align-items: center; gap: 4px; }
-.sync-chip .behind { color: var(--err); display: inline-flex; align-items: center; gap: 4px; }
-.sync-chip .ahead svg, .sync-chip .behind svg { opacity: 0.85; }
-.sync-chip .dot {
-  width: 3px; height: 3px; border-radius: 50%;
-  background: currentColor; opacity: 0.25;
-}
-
-.stash-chip {
-  background: color-mix(in srgb, var(--warn) 11%, transparent);
-  color: var(--warn);
-}
-.stash-chip svg { opacity: 0.9; }
-.stash-chip-btn { cursor: pointer; font: inherit; }
-/* match diff-badge-btn/conflict-chip-btn: hover/open lightens the warn fill */
-.stash-chip-btn:hover, .stash-chip-btn.on {
-  background: color-mix(in srgb, var(--warn) 22%, transparent);
-}
-
-.conflict-chip {
-  background: color-mix(in srgb, var(--err) 12%, transparent);
-  color: var(--err);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 18%, transparent);
-  padding: 3px 9px 3px 8px;
-}
-.conflict-chip svg { opacity: 0.95; }
-.conflict-chip .lbl { opacity: 0.8; }
-.conflict-chip-btn { cursor: pointer; font: inherit; }
-/* match diff-badge-btn: hover/open lightens BOTH the fill and the outline */
-.conflict-chip-btn:hover, .conflict-chip-btn.on {
-  background: color-mix(in srgb, var(--err) 22%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 45%, transparent);
-}
-
 /* "Create PR" affordance — chip-style button matching cb-chip aesthetic */
-.pr-wrap { position: relative; display: inline-flex; }
 .pr-create-btn {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 4px 10px;
@@ -493,28 +416,6 @@
   transition: background 120ms ease;
 }
 .pr-create-btn:hover { background: rgba(var(--tint), 0.09); }
-.pr-dropdown-toggle {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 24px;
-  padding: 4px 0;
-  background: rgba(var(--tint), 0.06);
-  border: 1px solid rgba(var(--tint), 0.08);
-  border-left: 1px solid rgba(var(--tint), 0.1);
-  border-radius: 0 6px 6px 0;
-  color: var(--fg-dim);
-  cursor: pointer;
-  transition: background 120ms ease;
-}
-.pr-dropdown-toggle:hover { background: rgba(var(--tint), 0.09); color: var(--fg); }
-.pr-create-btn:disabled, .pr-dropdown-toggle:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-.pr-create-btn:disabled:hover, .pr-dropdown-toggle:disabled:hover {
-  background: rgba(var(--tint), 0.06);
-  color: var(--fg-dim);
-}
-.pr-create-btn:disabled:hover { color: var(--fg); }
 .pr-solo {
   border-right: 1px solid rgba(var(--tint), 0.08);
   border-radius: 6px;
@@ -587,19 +488,6 @@
   filter: drop-shadow(0 0 1.2px color-mix(in srgb, var(--ok) 40%, transparent));
 }
 .push-fx.is-error .push-ring path { stroke: var(--err); }
-
-/* Sync chip fade/shrink while its count leaps into the push button. Driven by a
-   React class (not imperative .style) so the node never leaks a stale style. */
-.sync-chip.sync-leaving {
-  opacity: 0;
-  transition: opacity 150ms ease;
-}
-.sync-chip.sync-exit {
-  opacity: 0;
-  transform: scale(0.3);
-  transform-origin: center;
-  transition: opacity 300ms ease, transform 300ms ease;
-}
 
 /* The commit-count droplet that leaps into the button (portaled to <body>). */
 .push-drop {
@@ -3145,69 +3033,14 @@
   }
 }
 
-/* ── session tray: the strip slot once a session exists. Queued messages sit
-   in it fully; otherwise the git actions hide entirely behind the card, marked
-   only by a lit seam on its top edge, and slide up on hover (or while one of
-   their menus is open). ── */
+/* ── session tray: the strip slot once a session exists, holding queued
+   messages. Git actions live in the composer's git menu (GitAgentPopover). ── */
 .session-tray { position: relative; }
-.git-tray-body, .queue-tray {
+.queue-tray {
   background: linear-gradient(180deg, #272727 0, var(--pop) 16px);
   border-radius: var(--r-pop) var(--r-pop) 0 0;
   box-shadow: inset 0 1px 0 rgba(var(--tint), 0.07), 0 -10px 24px -10px rgba(0, 0, 0, 0.7);
 }
-
-.git-tray {
-  position: relative;
-  height: 13px; /* all of it under the card — nothing sticks out */
-  margin: 0 20px -13px;
-}
-/* invisible hover bands around the seam so a fast pointer still catches it:
-   10px above, and 16px down over the card's top padding (z above the card) */
-.git-tray::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 10px; }
-.git-tray::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 16px; z-index: 3; }
-/* The lit seam marking the hidden tray is drawn by the card itself, inside its
-   stacking context: above the card surface, yet under any popover rising out of
-   the card. Spans the tray's middle 56% (tray is inset 20px each side). */
-.session-tray:has(> .git-tray) + .composer-card { --seam: rgba(var(--tint), 0.2); }
-.session-tray:has(> .git-tray.has-work) + .composer-card { --seam: color-mix(in srgb, var(--ok) 70%, transparent); }
-.session-tray:has(> .git-tray) + .composer-card::before,
-.session-tray:has(> .git-tray) + .composer-card::after {
-  content: ""; position: absolute; z-index: 1; pointer-events: none;
-  left: calc(20px + (100% - 40px) * 0.22); right: calc(20px + (100% - 40px) * 0.22);
-  transition: opacity 200ms ease;
-}
-.session-tray:has(> .git-tray) + .composer-card::before {
-  top: 0; height: 1px;
-  background: linear-gradient(90deg, transparent, var(--seam), transparent);
-}
-.session-tray:has(> .git-tray) + .composer-card::after {
-  top: -3px; height: 7px; margin: 0 calc((100% - 40px) * 0.56 * 0.18);
-  background: radial-gradient(closest-side, var(--seam), transparent);
-  opacity: 0.35; filter: blur(3px);
-}
-.git-tray-body {
-  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
-  display: flex; align-items: center;
-  padding: 8px 12px 21px;
-  transform: translateY(calc(100% - 13px));
-  /* The card is glass, so "hidden behind it" needs a cut: only the part above
-     the card's top edge ever shows. The clip tracks the slide (same timing). */
-  clip-path: inset(0 -30px 100% -30px);
-  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 140ms, clip-path 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 140ms;
-}
-.git-tray-body .diff-actions {
-  margin-left: 0; width: 100%; justify-content: flex-end;
-  opacity: 0; transition: opacity 160ms ease 140ms;
-}
-/* raised: still cut under the card, but open upward so split menus rising
-   out of the tray aren't sliced off */
-.git-tray:hover .git-tray-body, .git-tray.pinned .git-tray-body { transform: none; clip-path: inset(-100vh -30px 13px -30px); transition-delay: 0ms; }
-.git-tray:hover .diff-actions, .git-tray.pinned .diff-actions { opacity: 1; transition-delay: 60ms; }
-.session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::before,
-.session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::after { opacity: 0; }
-/* the raised tray takes the band the ambient rail floats in */
-.composer-inner .ambient-rail { transition: opacity 160ms ease; }
-.composer-inner:has(.git-tray:hover, .git-tray.pinned) .ambient-rail { opacity: 0; pointer-events: none; }
 
 .queue-tray {
   position: relative; z-index: 1;
@@ -3249,9 +3082,6 @@
   padding: 18px 20px 14px;
   display: flex; flex-direction: column; gap: 16px;
 }
-/* An open popover/menu rises out of the card over the tray's hover band (z 3) —
-   lift the card above it so the band can't swallow clicks on the popover. */
-.composer-card:has([data-popover], .cmd-menu) { z-index: 4; }
 .composer-card .c-row2-wrap { position: relative; }
 .composer-card .c-row2 {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -3276,8 +3106,6 @@
   color: var(--fg);
   animation: lg-pop-rise 220ms var(--lg-ease);
 }
-/* the raised git tray rises into the band the capsule floats in */
-.composer-inner:has(.git-tray:hover, .git-tray.pinned) .reply-capsule { visibility: hidden; }
 .reply-capsule-icon { flex-shrink: 0; color: var(--accent); }
 .reply-capsule-sep { flex-shrink: 0; width: 1px; height: 14px; background: rgba(var(--tint), 0.14); }
 .reply-capsule-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-dim); }
@@ -3951,6 +3779,13 @@
 .ca-git-agent .menu-item.warn svg { color: var(--warn); }
 .ca-git-agent .menu-item.warn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .ca-git-agent .gap-sep { height: 1px; margin: 5px 8px; background: var(--line); }
+.ca-git-agent .gap-label { color: var(--fg-faint); }
+.ca-git-agent .gap-session { font-size: var(--text-xs); color: var(--fg-dim); }
+.ca-git-agent .gap-meta { margin-left: auto; padding-left: 8px; font-family: var(--font-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--fg-faint); white-space: nowrap; }
+.ca-git-agent .gap-add { color: var(--ok); }
+.ca-git-agent .gap-del { color: var(--err); }
+.ca-git-agent .gap-warn { color: var(--warn); }
+.ca-git-agent .menu-item:disabled { opacity: 0.45; cursor: default; background: none; box-shadow: none; backdrop-filter: none; }
 .ca-git-agent .gap-search { width: calc(100% - 4px); margin: 2px 2px 4px; padding: 7px 10px; font-size: var(--text-sm); color: var(--fg); background: var(--raised); border: 0; border-radius: var(--r-row); outline: none; }
 .ca-git-agent .gap-search::placeholder { color: var(--fg-dim2); }
 .ca-git-agent .gap-branches { max-height: 180px; overflow-y: auto; }
