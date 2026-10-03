@@ -1,11 +1,17 @@
 import { useMemo, useState } from "react";
 import { buildFileTree } from "./buildFileTree.js";
+import { SearchGlyph } from "./glyphs.jsx";
 
-// File-tree sidebar: compressed dir chains with aggregate counts, file rows
-// with per-file counts. Selecting a file tells the viewer, which expands and
-// scrolls its card. Dir collapse state is local — it's pure navigation.
+// File-tree sidebar: a path filter over compressed dir chains with aggregate
+// counts, file rows with per-file counts. Selecting a file tells the viewer,
+// which expands and scrolls its card. Dir collapse state is local — it's pure
+// navigation.
 export function GitDiffTree({ files, selectedPath, onSelect, onFileContextMenu }) {
-  const tree = useMemo(() => buildFileTree(files ?? []), [files]);
+  const [filter, setFilter] = useState("");
+  const tree = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return buildFileTree((files ?? []).filter((f) => !q || f.path.toLowerCase().includes(q)));
+  }, [files, filter]);
   const [closedDirs, setClosedDirs] = useState(() => new Set());
 
   const toggleDir = (path) => {
@@ -18,6 +24,11 @@ export function GitDiffTree({ files, selectedPath, onSelect, onFileContextMenu }
 
   return (
     <div className="gd-tree">
+      <label className="gd-filter">
+        <SearchGlyph />
+        <input value={filter} placeholder="Filter files…" aria-label="Filter files" spellCheck={false} onChange={(e) => setFilter(e.target.value)} />
+      </label>
+      {tree.length === 0 && filter && <div className="gd-tree-note">No matching files</div>}
       {tree.map((node) => (
         <TreeNode
           key={node.path}

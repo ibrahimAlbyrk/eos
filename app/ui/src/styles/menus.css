@@ -310,9 +310,8 @@
 .sb-prefs-val { color: var(--fg-faint); font-size: var(--text-xs); }
 .sb-prefs-menu .menu-item .sub-chev { margin-left: 6px; }
 
-/* ============== Header Split menu (PaneHeader → SplitMenu) ============== */
-/* Portal'd to <body>, positioned inline (top/right measured from the header's
-   action cluster). Reference: 260px, --r-menu, --pop, anchored to header bottom. */
+/* ============== Split-style menu (Files folder picker) ============== */
+/* Fixed-position popover, positioned inline by its owner. 260px, --r-menu, --pop. */
 .split-menu {
   position: fixed;
   z-index: 400;
@@ -348,7 +347,6 @@
 .sm-check.on { opacity: 1; }
 .split-menu .kbd { color: var(--fg-faint); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; }
 .sm-sec { padding: 8px 10px 3px; font-size: var(--text-sm); color: var(--fg-faint); }
-.sm-empty { padding: 4px 10px 8px; font-size: var(--text-sm); color: var(--fg-faint); }
 
 /* ============== Environment & changes panel (PaneHeader toggle → EnvironmentPanel) */
 /* Sits in the pane's right gutter below the header; reference: 290px card,

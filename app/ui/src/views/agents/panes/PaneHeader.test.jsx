@@ -47,10 +47,10 @@ describe("PaneHeader", () => {
     expect(renderHeader({ canClose: true, split: true, topRow: true })).toContain("pane-head--toprow");
   });
 
-  it("renders Environment and Split in the single header; the side-panel toggle is SidePanel's overlay", () => {
+  it("renders Environment (no Split menu) in the single header; the side-panel toggle is SidePanel's overlay", () => {
     const html = renderHeader({ canClose: false });
     expect(html).toContain("Environment &amp; changes");
-    expect(html).toContain("Split layout");
+    expect(html).not.toContain("Split layout");
     expect(html).not.toContain("Open side panel");
     // The old per-panel toggle buttons are gone.
     expect(html).not.toContain("Toggle terminal panel");
@@ -68,7 +68,7 @@ describe("PaneHeader", () => {
     expect(html).toContain("1/3");
   });
 
-  it("split panes carry Environment but not the Split menu button", () => {
+  it("split panes carry Environment and no Split menu button", () => {
     const html = renderHeader({ canClose: true, split: true, topRow: true });
     expect(html).toContain("Environment &amp; changes");
     expect(html).not.toContain("Split layout");

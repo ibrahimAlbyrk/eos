@@ -6,21 +6,18 @@ import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
-import { SplitMenu } from "../popovers/SplitMenu.jsx";
 import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PlanChip } from "./PlanChip.jsx";
 import { ContextChip } from "./ContextChip.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
-// exactly the reference's three chrome buttons: Environment & changes (git
-// docked panel), Split (layout menu, single/primary header only), and a slot for
-// the Open-side-panel toggle (drawn by SidePanel as a pane overlay).
+// Environment & changes (git docked panel) and a slot for the Open-side-panel
+// toggle (drawn by SidePanel as a pane overlay).
 // Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so every
 // scoped ui read/action (openPop, toggleSidePanel) targets THIS pane with no
 // prop-drilling. The header is the native window-drag strip (--app-region: drag
 // in CSS); its buttons/inputs opt back out. `split` adds the split-pane extras
-// (status/attention cue + close ×) and drops the Split-menu button (a split pane
-// can't re-split from its own header — reference). Collapsed-sidebar chrome
+// (status/attention cue + close ×). Collapsed-sidebar chrome
 // (traffic lights + hamburger) is drawn by the shell's SideHandle/NativeToggleZone
 // overlays that sit over `.pane-head-inset`; see App.jsx.
 export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, topLeft, topRow, split }) {
@@ -34,9 +31,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // (overflow:hidden) and split panes paint-contain, so the menu can't render
   // in place — it measures this wrap and portals to <body> instead.
   const vWrapRef = useRef(null);
-  // Anchor for the portal'd Split popover — it measures this
-  // button cluster and drops from the header's bottom line, right-aligned.
-  const actionsRef = useRef(null);
   const envOpen = useEnvPanelOpen(ui.paneId);
 
   const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
@@ -44,18 +38,12 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
     .join(" ");
   const insetEl = topLeft ? <span className="pane-head-inset" aria-hidden="true" /> : null;
 
-  const togglePop = (id, e) => {
-    e.stopPropagation();
-    if (ui.openPopover === id) ui.closeAllPops();
-    else ui.openPop(id);
-  };
-
-  // Right-side actions. worker headers: Environment · (Split when not split) ·
-  // Open side panel; no-agent header: inert Environment · Open side panel (the
+  // Right-side actions. worker headers: Environment · Open side panel;
+  // no-agent header: inert Environment · Open side panel (the
   // reference new-task header shows the checklist icon decoratively — no worker,
   // nothing to open). × closes non-primary split panes.
   const actions = (
-    <div className="pane-head-actions" ref={actionsRef}>
+    <div className="pane-head-actions">
       {worker && (
         <button
           className={"pane-split-btn" + (envOpen ? " is-active" : "")}
@@ -68,20 +56,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
             <path d="M2.6 3.4 3.4 4.2 4.8 2.8" />
             <path d="M2.6 7.4 3.4 8.2 4.8 6.8" />
             <path d="M2.6 11.4 3.4 12.2 4.8 10.8" />
-          </svg>
-        </button>
-      )}
-      {worker && !split && (
-        <button
-          className={"pane-split-btn" + (ui.openPopover === "pane-menu" ? " is-active" : "")}
-          title="Split"
-          aria-label="Split layout"
-          onClick={(e) => togglePop("pane-menu", e)}
-          data-popover-trigger="pane-menu"
-        >
-          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="2" y="3" width="12" height="10" rx="2" />
-            <line x1="8" y1="3" x2="8" y2="13" />
           </svg>
         </button>
       )}
@@ -100,7 +74,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           empty slot holds its spot in the row while the panel is closed. */}
       {!ui.showSidePanel && <span className="pane-split-btn" aria-hidden="true" />}
       {canClose && <CloseButton onClose={onClose} />}
-      {worker && !split && <SplitMenu live={live} worker={worker} anchor={actionsRef} />}
     </div>
   );
 

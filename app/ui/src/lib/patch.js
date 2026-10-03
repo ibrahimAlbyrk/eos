@@ -1,7 +1,8 @@
 // Parses a unified git patch into hunks of render-ready rows. Single
 // line-number gutter (matches the chat Edit cards): del rows carry the OLD
-// line number, add/ctx rows the NEW one.
-const HUNK_RE = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
+// line number, add/ctx rows the NEW one. Each hunk also keeps its ranges
+// (old/newStart + count) and the function context git prints after the "@@".
+const HUNK_RE = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@ ?(.*)$/;
 
 export function parsePatch(patch) {
   if (!patch) return [];
@@ -18,8 +19,16 @@ export function parsePatch(patch) {
     const m = HUNK_RE.exec(line);
     if (m) {
       oldNum = parseInt(m[1], 10);
-      newNum = parseInt(m[2], 10);
-      cur = { header: line, rows: [] };
+      newNum = parseInt(m[3], 10);
+      cur = {
+        header: line,
+        oldStart: oldNum,
+        oldCount: m[2] === undefined ? 1 : parseInt(m[2], 10),
+        newStart: newNum,
+        newCount: m[4] === undefined ? 1 : parseInt(m[4], 10),
+        context: m[5].trim(),
+        rows: [],
+      };
       hunks.push(cur);
       continue;
     }

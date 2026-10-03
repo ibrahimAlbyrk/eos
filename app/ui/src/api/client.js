@@ -448,18 +448,22 @@ export const api = {
       return { commits: [], hasMore: false };
     }
   },
-  async getGitChanges(cwd, { sha, patches } = {}) {
+  // `base` = the branch scope (working tree vs its fork point with that ref;
+  // "auto" = the repo's default base).
+  async getGitChanges(cwd, { sha, base, patches } = {}) {
     const params = new URLSearchParams({ cwd });
     if (sha) params.set("sha", sha);
+    if (base) params.set("base", base);
     if (patches) params.set("patches", "1");
     const r = await getJson(`${ROUTES.fsChanges}?${params}`);
     if (!r.ok) throw new Error(r.body?.error ?? `changes → ${r.status}`);
     return r.body;
   },
-  async getGitFileDiff(cwd, path, { oldPath, sha } = {}) {
+  async getGitFileDiff(cwd, path, { oldPath, sha, base } = {}) {
     const params = new URLSearchParams({ cwd, path });
     if (oldPath) params.set("oldPath", oldPath);
     if (sha) params.set("sha", sha);
+    if (base) params.set("base", base);
     const r = await getJson(`${ROUTES.fsChangesFile}?${params}`);
     if (!r.ok) throw new Error(r.body?.error ?? `fileDiff → ${r.status}`);
     return r.body;

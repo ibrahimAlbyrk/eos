@@ -1,8 +1,10 @@
 // Git Diff panel cache (stale-while-revalidate) — the diffStore idiom keyed by
 // `${cwd} ${scopeKey}` instead of workerId, so one panel instance per pane can
-// show any repo dir at either the working-tree scope ("all") or a single
-// commit's scope ("commit:<sha>"). Commit-scope entries are immutable history:
-// fetched once, never revalidated, capped per cwd with oldest-first eviction.
+// show any repo dir at the working-tree scope ("all"), the branch scope
+// ("branch:<base>" — working tree vs the fork point with a base ref), or a
+// single commit's scope ("commit:<sha>"). Commit-scope entries are immutable
+// history: fetched once, never revalidated, capped per cwd with oldest-first
+// eviction.
 
 import { api } from "../api/client.js";
 
@@ -14,7 +16,16 @@ const entries = new Map();
 const EMPTY = { changes: null, patches: new Map() };
 
 export function scopeKeyOf(scope) {
-  return scope.kind === "commit" ? `commit:${scope.sha}` : "all";
+  if (scope.kind === "commit") return `commit:${scope.sha}`;
+  if (scope.kind === "branch") return `branch:${scope.base ?? "auto"}`;
+  return "all";
+}
+
+// The /fs/changes query for a scope.
+function scopeQuery(scope) {
+  if (scope.kind === "commit") return { sha: scope.sha };
+  if (scope.kind === "branch") return { base: scope.base ?? "auto" };
+  return {};
 }
 
 export function gitDiffKey(cwd, scope) {
@@ -59,8 +70,7 @@ export async function loadPatch(cwd, scope, file) {
   if (cur?.loading) return;
   setPatch(e, file.path, { loading: true, data: cur?.data });
   try {
-    const sha = scope.kind === "commit" ? scope.sha : undefined;
-    const data = await api.getGitFileDiff(cwd, file.path, { oldPath: file.oldPath, sha });
+    const data = await api.getGitFileDiff(cwd, file.path, { oldPath: file.oldPath, ...scopeQuery(scope) });
     setPatch(e, file.path, { loading: false, data });
   } catch (err) {
     setPatch(e, file.path, { loading: false, data: cur?.data, error: err.message });
@@ -87,8 +97,7 @@ export function revalidate(cwd, scope) {
   if (e.inflight) return e.inflight;
   e.inflight = (async () => {
     try {
-      const sha = scope.kind === "commit" ? scope.sha : undefined;
-      const r = await api.getGitChanges(cwd, { sha, patches: true });
+      const r = await api.getGitChanges(cwd, { ...scopeQuery(scope), patches: true });
       const prevFiles = e.snapshot.changes?.files ?? [];
       const prevByPath = new Map(prevFiles.map((f) => [f.path, f]));
       const patches = new Map();
