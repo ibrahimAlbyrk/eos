@@ -20,6 +20,12 @@ import { integrateWorkersDef } from "./defs/integrate_workers.ts";
 // import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
+import { listPagesDef } from "./defs/list_pages.ts";
+import { readPageDef } from "./defs/read_page.ts";
+import { createPageDef } from "./defs/create_page.ts";
+import { appendToPageDef } from "./defs/append_to_page.ts";
+import { editPageDef } from "./defs/edit_page.ts";
+import { setPageTaskDef } from "./defs/set_page_task.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
 import { browserFindDef } from "./defs/browser_find.ts";
@@ -61,6 +67,17 @@ const browserDefs: ToolDefinition[] = [
   browserShowDef,
 ];
 
+// Pages (markdown notes shared with the user) — on BOTH surfaces, just before
+// the browser verbs.
+const pageDefs: ToolDefinition[] = [
+  listPagesDef,
+  readPageDef,
+  createPageDef,
+  appendToPageDef,
+  editPageDef,
+  setPageTaskDef,
+];
+
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
 export const orchestratorDefs: ToolDefinition[] = [
@@ -80,11 +97,12 @@ export const orchestratorDefs: ToolDefinition[] = [
   // dynamicLoopDef,
   currentDatetimeDef,
   getWorkerMessagesDef,
+  ...pageDefs,
   ...browserDefs,
 ];
 
 // Always registered on a worker.
-export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...browserDefs];
+export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...browserDefs];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

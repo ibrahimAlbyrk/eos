@@ -37,6 +37,12 @@ import { browserNewTabDef } from "./tools/defs/browser_new_tab.ts";
 import { browserCloseTabDef } from "./tools/defs/browser_close_tab.ts";
 import { browserMuteDef } from "./tools/defs/browser_mute.ts";
 import { browserShowDef } from "./tools/defs/browser_show.ts";
+import { listPagesDef } from "./tools/defs/list_pages.ts";
+import { readPageDef } from "./tools/defs/read_page.ts";
+import { createPageDef } from "./tools/defs/create_page.ts";
+import { appendToPageDef } from "./tools/defs/append_to_page.ts";
+import { editPageDef } from "./tools/defs/edit_page.ts";
+import { setPageTaskDef } from "./tools/defs/set_page_task.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -72,6 +78,12 @@ export const TOOL_NAME_VARS: VariableScope = {
   BROWSER_CLOSE_TAB_TOOL: browserCloseTabDef.name,
   BROWSER_MUTE_TOOL: browserMuteDef.name,
   BROWSER_SHOW_TOOL: browserShowDef.name,
+  LIST_PAGES_TOOL: listPagesDef.name,
+  READ_PAGE_TOOL: readPageDef.name,
+  CREATE_PAGE_TOOL: createPageDef.name,
+  APPEND_TO_PAGE_TOOL: appendToPageDef.name,
+  EDIT_PAGE_TOOL: editPageDef.name,
+  SET_PAGE_TASK_TOOL: setPageTaskDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

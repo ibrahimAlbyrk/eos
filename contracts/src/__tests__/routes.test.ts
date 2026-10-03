@@ -29,7 +29,7 @@ const EXPECTED_KEYS = [
   "pty", "ptySession", "ptyInput", "ptyResize", "ptyBuffer", "ptyConversation", "ptyMessage", "ptyAnswer",
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands",
-  "templates", "template", "prompts", "promptPreview", "workerDefinitions",
+  "templates", "template", "pages", "page", "pageEdit", "prompts", "promptPreview", "workerDefinitions",
   "settings", "settingsArchive", "settingsCompaction",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",

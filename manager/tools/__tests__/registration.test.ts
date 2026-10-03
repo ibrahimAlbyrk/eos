@@ -16,11 +16,18 @@ import { sendMessageToParentDef } from "../defs/send_message_to_parent.ts";
 import { askPeerDef } from "../defs/ask_peer.ts";
 import { dynamicLoopDef } from "../defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "../defs/current_datetime.ts";
+import { listPagesDef } from "../defs/list_pages.ts";
+import { readPageDef } from "../defs/read_page.ts";
+import { appendToPageDef } from "../defs/append_to_page.ts";
+import { setPageTaskDef } from "../defs/set_page_task.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
 // Browser verbs (Phase 3) — appended to BOTH the orchestrator and worker
 // surfaces in this order (registry.ts browserDefs).
+// Page tools — on BOTH surfaces, just before the browser verbs (registry.ts pageDefs).
+const PAGE_TOOLS = ["list_pages", "read_page", "create_page", "append_to_page", "edit_page", "set_page_task"];
+
 const BROWSER_TOOLS = [
   "browser_navigate", "browser_snapshot", "browser_find", "browser_act",
   "browser_type", "browser_fill_form", "browser_press", "browser_scroll",
@@ -38,6 +45,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       // dynamic_loop TEMPORARILY not registered (loop system disabled) — see registry.ts.
       "list_available_workers", "create_worker", "integrate_workers",
       "current_datetime", "get_worker_messages",
+      ...PAGE_TOOLS,
       ...BROWSER_TOOLS,
     ]);
   });
@@ -45,7 +53,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...BROWSER_TOOLS]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...PAGE_TOOLS, ...BROWSER_TOOLS]);
   });
 
   it("peer (collaborate-only) tools match", () => {
@@ -67,6 +75,31 @@ describe("tool handlers issue the expected daemon calls", () => {
     };
     return { ctx, calls };
   }
+
+  it("page tools call the page routes and answer compactly", async () => {
+    const page = {
+      id: "pg-abcdef12", title: "Plan", body: "- [ ] a\n", project: "/repo", agentId: null, rev: 2,
+      createdAt: 0, updatedAt: 0, updatedBy: { kind: "agent", agentId: "self-1", name: "me" },
+    };
+    const list = recording({}, { pages: [{ ...page, body: undefined, excerpt: "a", tasks: { open: 1, done: 0 } }] });
+    const listed = await listPagesDef.handler(list.ctx, { query: "plan", all: false }) as { pages: Array<Record<string, unknown>> };
+    assert.deepEqual(list.calls, [{ method: "GET", path: "/api/pages?q=plan", body: undefined }]);
+    assert.equal(listed.pages[0]!.updatedBy, "you");
+
+    const read = recording({}, { page });
+    const text = await readPageDef.handler(read.ctx, { id: page.id }) as string;
+    assert.ok(text.startsWith("# Plan\n(page pg-abcdef12 · rev 2"));
+    assert.ok(text.endsWith("- [ ] a\n"));
+
+    const edit = recording({}, { page });
+    assert.deepEqual(await appendToPageDef.handler(edit.ctx, { id: page.id, text: "x", under_heading: "Notes" }), { id: page.id, rev: 2 });
+    await setPageTaskDef.handler(edit.ctx, { id: page.id, task: "a", done: true });
+    assert.deepEqual(edit.calls.map((c) => c.body), [
+      { op: "append", text: "x", heading: "Notes" },
+      { op: "setTask", task: "a", done: true },
+    ]);
+    assert.equal(edit.calls[0]!.path, "/api/pages/pg-abcdef12/edit");
+  });
 
   it("notify_user POSTs to /workers/:self/notify", async () => {
     const { ctx, calls } = recording();

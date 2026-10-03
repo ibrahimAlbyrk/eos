@@ -51,7 +51,10 @@ export type EventBusTopic =
   | "peer:presence"
   // Peering, device side: a controlled host was added/removed or its link state
   // changed (payload { id }) — the Machines menu + All machines view refetch.
-  | "hosts:change";
+  | "hosts:change"
+  // A page was created, edited or deleted (payload PageChangeEvent) — open
+  // editors and page lists refetch.
+  | "pages:change";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;

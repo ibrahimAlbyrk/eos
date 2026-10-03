@@ -1569,6 +1569,97 @@ export type TemplateUpdateRequest = z.infer<typeof TemplateUpdateRequestSchema>;
 export const TemplateMutationResponseSchema = z.object({ ok: z.boolean() });
 export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSchema>;
 
+// ---- /api/pages -------------------------------------------------------------
+// Pages: markdown notes the user and agents share (~/.eos/pages/<id>.md). A page
+// belongs to a project folder (null = no folder) and may be linked to the chat
+// (session-root agent) it was written in. `rev` bumps on every write; a PUT whose
+// baseRev is stale is refused (409, carrying the current page) so an editor never
+// silently overwrites an agent's change. Agents edit through the targeted ops of
+// POST /api/pages/:id/edit, which apply to the latest body and never conflict.
+
+export const PAGE_TITLE_MAX = 200;
+export const PAGE_BODY_MAX = 512 * 1024;
+
+export const PageIdSchema = z.string().regex(/^pg-[a-z0-9]{8,32}$/, "invalid page id");
+
+export const PageAuthorSchema = z.object({
+  kind: z.enum(["user", "agent"]),
+  agentId: z.string().nullable(),
+  name: z.string().nullable(),
+});
+export type PageAuthor = z.infer<typeof PageAuthorSchema>;
+
+export const PageSchema = z.object({
+  id: PageIdSchema,
+  title: z.string().max(PAGE_TITLE_MAX),
+  body: z.string().max(PAGE_BODY_MAX),
+  project: z.string().nullable(),
+  agentId: z.string().nullable(),
+  rev: z.number().int().nonnegative(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+  updatedBy: PageAuthorSchema,
+});
+export type Page = z.infer<typeof PageSchema>;
+
+export const PageSummarySchema = PageSchema.omit({ body: true }).extend({
+  excerpt: z.string(),
+  tasks: z.object({ open: z.number().int(), done: z.number().int() }),
+});
+export type PageSummary = z.infer<typeof PageSummarySchema>;
+
+export const PageListResponseSchema = z.object({ pages: z.array(PageSummarySchema) });
+export type PageListResponse = z.infer<typeof PageListResponseSchema>;
+
+export const PageResponseSchema = z.object({ page: PageSchema });
+export type PageResponse = z.infer<typeof PageResponseSchema>;
+
+export const PageCreateRequestSchema = z.object({
+  title: z.string().max(PAGE_TITLE_MAX).default(""),
+  body: z.string().max(PAGE_BODY_MAX).default(""),
+  project: z.string().min(1).nullable().optional(),
+  agentId: z.string().min(1).nullable().optional(),
+});
+export type PageCreateRequest = z.infer<typeof PageCreateRequestSchema>;
+
+export const PageUpdateRequestSchema = z.object({
+  title: z.string().max(PAGE_TITLE_MAX).optional(),
+  body: z.string().max(PAGE_BODY_MAX).optional(),
+  baseRev: z.number().int().nonnegative().optional(),
+});
+export type PageUpdateRequest = z.infer<typeof PageUpdateRequestSchema>;
+
+// Targeted edits: append (optionally under a heading, created when missing),
+// replace one exact, unique passage, or tick/untick one checklist item.
+export const PageEditRequestSchema = z.discriminatedUnion("op", [
+  z.object({
+    op: z.literal("append"),
+    text: z.string().min(1).max(PAGE_BODY_MAX),
+    heading: z.string().trim().min(1).max(PAGE_TITLE_MAX).optional(),
+  }),
+  z.object({
+    op: z.literal("replace"),
+    oldText: z.string().min(1).max(PAGE_BODY_MAX),
+    newText: z.string().max(PAGE_BODY_MAX),
+  }),
+  z.object({
+    op: z.literal("setTask"),
+    task: z.string().trim().min(1).max(500),
+    done: z.boolean(),
+  }),
+]);
+export type PageEditRequest = z.infer<typeof PageEditRequestSchema>;
+
+// SSE `pages:change` payload.
+export const PageChangeEventSchema = z.object({
+  id: PageIdSchema,
+  action: z.enum(["created", "updated", "deleted"]),
+  rev: z.number().int().nonnegative(),
+  project: z.string().nullable(),
+  by: PageAuthorSchema,
+});
+export type PageChangeEvent = z.infer<typeof PageChangeEventSchema>;
+
 // ---- Project memory (~/.claude/projects/<encoded-cwd>/memory/*.md) -----------
 // Claude Code's own file-based memory for a project: one markdown file per
 // memory (YAML frontmatter name/description/metadata.type + body) plus a
@@ -2286,6 +2377,9 @@ export const ROUTES = {
   commands: "/commands",
   templates: "/api/templates",
   template: (name: string): string => `/api/templates/${name}`,
+  pages: "/api/pages",
+  page: (id: string): string => `/api/pages/${id}`,
+  pageEdit: (id: string): string => `/api/pages/${id}/edit`,
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   workerExport: (id: string): string => `/workers/${id}/export`,

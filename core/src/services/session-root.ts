@@ -20,3 +20,11 @@ export function sessionRootOf(workers: Pick<WorkerRepo, "findById">, id: string)
   }
   return last;
 }
+
+// The folder a session works on: its root row's checkout, else the repo a
+// worktree root forked from; null for an unknown id. Mirrors the web's
+// projectPathFor, so what an agent files under a project is what the user sees.
+export function sessionProjectOf(workers: Pick<WorkerRepo, "findById">, id: string): string | null {
+  const root = workers.findById(sessionRootOf(workers, id));
+  return root?.cwd ?? root?.worktree_from ?? null;
+}

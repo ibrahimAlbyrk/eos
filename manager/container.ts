@@ -122,6 +122,8 @@ import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
+import { FilePageStore } from "../infra/src/persistence/FilePageStore.ts";
+import { PageService } from "../core/src/services/PageService.ts";
 import { createFsScratchWorkspaces } from "../infra/src/filesystem/FsScratchWorkspaces.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { createRuntimeMcpClient } from "../infra/src/mcp/RuntimeMcpClient.ts";
@@ -483,6 +485,15 @@ export function buildContainer() {
 
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
   const projects = new JsonProjectsRepo(join(config.daemon.home, "projects.json"));
+  // Pages: markdown notes shared by the user and agents (~/.eos/pages). A page
+  // linked to a chat outlives it — removing the agent just unlinks the page.
+  const pages = new PageService({
+    store: new FilePageStore(join(config.daemon.home, "pages")),
+    clock: systemClock,
+    bus,
+    newId: () => `pg-${randomBytes(6).toString("hex")}`,
+  });
+  bus.subscribe("worker:removed", (msg) => pages.unlinkAgent((msg.payload as { workerId: string }).workerId));
 
   // "No folder" agents: each gets ~/.eos/scratch/<id>, deleted with the agent.
   // Not in the user-data backup manifest — it is throwaway by design.
@@ -1478,6 +1489,7 @@ export function buildContainer() {
     viewTokens: new ViewTokens(),
     recents,
     projects,
+    pages,
     scratch,
     removeScratchWorkspace,
     resolveWorktreeDir,

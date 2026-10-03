@@ -329,6 +329,131 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "list_pages": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Only pages whose title or text contains this (case-insensitive)."
+        },
+        "all": {
+          "type": "boolean",
+          "default": false,
+          "description": "true = pages from every project, not just the one this chat works in."
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "read_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "create_page": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Short title the user will recognise in the page list."
+        },
+        "body": {
+          "type": "string",
+          "default": "",
+          "description": "Markdown content. Checklists use '- [ ] item'."
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "append_to_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown to add. Checklist items use '- [ ] item'."
+        },
+        "under_heading": {
+          "type": "string",
+          "description": "Add at the end of this heading's section (matched by text, any level); the heading is created at the end of the page when missing. Omit to add at the end of the page."
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "edit_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "old_text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact passage to replace, copied from read_page. Must occur exactly once."
+        },
+        "new_text": {
+          "type": "string",
+          "description": "Replacement markdown. Empty string deletes the passage."
+        }
+      },
+      "required": [
+        "id",
+        "old_text",
+        "new_text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "set_page_task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "task": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The checklist item's text (or a part of it that matches only that item)."
+        },
+        "done": {
+          "type": "boolean",
+          "default": true,
+          "description": "true ticks the item, false unticks it."
+        }
+      },
+      "required": [
+        "id",
+        "task"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "browser_navigate": {
       "type": "object",
       "properties": {
@@ -700,6 +825,131 @@
     "current_datetime": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "list_pages": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Only pages whose title or text contains this (case-insensitive)."
+        },
+        "all": {
+          "type": "boolean",
+          "default": false,
+          "description": "true = pages from every project, not just the one this chat works in."
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "read_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "create_page": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Short title the user will recognise in the page list."
+        },
+        "body": {
+          "type": "string",
+          "default": "",
+          "description": "Markdown content. Checklists use '- [ ] item'."
+        }
+      },
+      "required": [
+        "title"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "append_to_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Markdown to add. Checklist items use '- [ ] item'."
+        },
+        "under_heading": {
+          "type": "string",
+          "description": "Add at the end of this heading's section (matched by text, any level); the heading is created at the end of the page when missing. Omit to add at the end of the page."
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "edit_page": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "old_text": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Exact passage to replace, copied from read_page. Must occur exactly once."
+        },
+        "new_text": {
+          "type": "string",
+          "description": "Replacement markdown. Empty string deletes the passage."
+        }
+      },
+      "required": [
+        "id",
+        "old_text",
+        "new_text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "set_page_task": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+        },
+        "task": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The checklist item's text (or a part of it that matches only that item)."
+        },
+        "done": {
+          "type": "boolean",
+          "default": true,
+          "description": "true ticks the item, false unticks it."
+        }
+      },
+      "required": [
+        "id",
+        "task"
+      ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },

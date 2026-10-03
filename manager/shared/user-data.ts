@@ -12,6 +12,9 @@ export const USER_DATA_ENTRIES = [
   // User-authored worker definitions (~/.eos/workers/*.md) — non-regenerable user
   // data; without this they fall outside every backup/migration safety net.
   "workers",
+  // Pages (~/.eos/pages/*.md) — notes the user and agents write together.
+  // Non-regenerable: kept out of state.db so a --db wipe never takes them.
+  "pages",
   // Durable in-process conversations (~/.eos/conversations/<sessionId>.jsonl) — a
   // metered/API worker's transcript, replayed on resume. Non-regenerable: losing
   // it closes a SUSPENDED worker that could have resumed (M3 durability).
