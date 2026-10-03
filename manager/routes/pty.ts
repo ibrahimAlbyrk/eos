@@ -44,7 +44,10 @@ export function registerPtyRoutes(r: Router, c: Container): void {
   r.post(/^\/pty\/(?<id>[^/]+)\/input$/, async ({ params, req, res }) => {
     if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
     const body = validate(PtyInputRequestSchema, await readBody(req));
-    if (!c.ptySessions.input(params.id, body.data)) { writeJson(res, 404, { error: "session not found" }); return; }
+    const ok = body.stream && body.seq
+      ? c.ptySessions.inputInOrder(params.id, body.stream, body.seq, body.data)
+      : c.ptySessions.input(params.id, body.data);
+    if (!ok) { writeJson(res, 404, { error: "session not found" }); return; }
     writeJson(res, 200, { ok: true });
   });
 

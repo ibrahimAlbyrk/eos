@@ -112,6 +112,16 @@ describe("pty routes — ui-token gate", () => {
     assert.equal((await dispatch(c, "DELETE", "/pty/s1", { token: TOKEN })).status, 200);
   });
 
+  it("a numbered input goes through the in-order writer", async () => {
+    const calls: unknown[][] = [];
+    const c = containerWith({
+      inputInOrder: (...args: unknown[]): boolean => { calls.push(args); return args[0] === "s1"; },
+    }, new Set(["s1"]));
+    assert.equal((await dispatch(c, "POST", "/pty/s1/input", { body: { data: "l", stream: "tab-1", seq: 2 }, token: TOKEN })).status, 200);
+    assert.deepEqual(calls, [["s1", "tab-1", 2, "l"]]);
+    assert.equal((await dispatch(c, "POST", "/pty/ghost/input", { body: { data: "x", stream: "tab-1", seq: 1 }, token: TOKEN })).status, 404);
+  });
+
   it("unknown session id → 404 (tokened)", async () => {
     const c = containerWith({}, new Set());
     assert.equal((await dispatch(c, "POST", "/pty/ghost/input", { body: { data: "x" }, token: TOKEN })).status, 404);

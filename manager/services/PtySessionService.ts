@@ -5,6 +5,7 @@ import type { PtyKind, PtyPending, PtySession } from "../../contracts/src/http.t
 import { claudeLaunch, createOscScanner } from "./pty/claudeLaunch.ts";
 import { stepGapMs } from "./pty/claudeKeys.ts";
 import { createScreenMirror, type ScreenMirror } from "./pty/screenMirror.ts";
+import { OrderedInput } from "./pty/orderedInput.ts";
 
 // Interactive multi-tab PTY sessions (the `pty` feature). Each session is a
 // long-lived login shell in a real PTY. Output is BATCHED onto the bus as
@@ -65,6 +66,7 @@ export class PtySessionService {
   // (last tab closed / shell exited) — reopening from zero tabs is "Terminal 1"
   // again, not an ever-climbing count. Also resets on daemon restart.
   private nextNumber = 1;
+  private readonly orderedInput = new OrderedInput();
   private bus: EventBus;
   private spawn: SpawnPtyHost;
   private defaultCwd: string;
@@ -124,6 +126,14 @@ export class PtySessionService {
     const s = this.sessions.get(id);
     if (!s || !s.alive) return false;
     s.host.write(data);
+    return true;
+  }
+
+  // One client input stream's chunk, written in `seq` order (OrderedInput).
+  inputInOrder(id: string, stream: string, seq: number, data: string): boolean {
+    const s = this.sessions.get(id);
+    if (!s || !s.alive) return false;
+    this.orderedInput.accept(`${id}\0${stream}`, seq, data, (d) => { this.input(id, d); });
     return true;
   }
 
