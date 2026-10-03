@@ -9,6 +9,8 @@ import { selectionBar } from "./editor/selectionBar.js";
 import { startCompletion } from "@codemirror/autocomplete";
 import { pageActions } from "./editor/pageActions.js";
 import { PREFIXES, insertCodeBlock, setLineBlock, toggleTaskCommand } from "./editor/blocks.js";
+import { menuUndo } from "../../lib/cmMenuUndo.js";
+import { minimalChange } from "../../lib/minimalChange.js";
 
 // The page body editor: CodeMirror over plain markdown with a live preview.
 // The parent owns saving; it hears every user edit through onChange and pushes
@@ -30,6 +32,7 @@ export const PageEditor = forwardRef(function PageEditor({ initialDoc, onChange,
         doc: initialDoc,
         extensions: [
           history(),
+          menuUndo,
           markdown({ base: markdownLanguage }),
           keymap.of([
             { key: "Mod-Enter", run: toggleTaskCommand },
@@ -65,12 +68,8 @@ export const PageEditor = forwardRef(function PageEditor({ initialDoc, onChange,
       if (!view) return;
       const cur = view.state.doc.toString();
       if (cur === text) return;
-      let start = 0;
-      while (start < cur.length && start < text.length && cur[start] === text[start]) start += 1;
-      let end = 0;
-      while (end < cur.length - start && end < text.length - start && cur[cur.length - 1 - end] === text[text.length - 1 - end]) end += 1;
       view.dispatch({
-        changes: { from: start, to: cur.length - end, insert: text.slice(start, text.length - end) },
+        changes: minimalChange(cur, text),
         annotations: [remote.of(true), Transaction.addToHistory.of(false)],
       });
     },

@@ -5,6 +5,7 @@ import { findBranchTokens } from "../lib/branchTokens.js";
 import { findLabelRegions } from "../lib/attachmentTokens.js";
 import { listMarkers } from "../lib/markdownBlocks.js";
 import { initUndo, recordCoalescing, recordDiscrete, settle, undo as undoStack, redo as redoStack, bound } from "../lib/undoStack.js";
+import { registerUndoTarget } from "../lib/undoRouter.js";
 
 const SETTLE_MS = 300; // typing quiescence that seals an undo checkpoint
 
@@ -278,19 +279,6 @@ export function toHtml(text, scanners) {
   return html;
 }
 
-// Native ⌘Z/⌘⇧Z are forwarded through window globals. More than one editor can
-// be mounted (composer + an open template editor); this stack routes the globals
-// to the topmost (most recently mounted) so closing the modal restores the
-// composer's undo. One shared subscription, set up lazily, never torn down.
-const undoTargets = [];
-let undoWired = false;
-function ensureUndoDispatch() {
-  if (undoWired) return;
-  undoWired = true;
-  window.__eosUndo = () => undoTargets[undoTargets.length - 1]?.undo();
-  window.__eosRedo = () => undoTargets[undoTargets.length - 1]?.redo();
-}
-
 export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef, autoFocus = true, branchNames) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
@@ -404,20 +392,12 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
   // consumed before the WebView's keydown, so the native side forwards here.
   // Mirrors the window.__eosNativeDrop bridge; latest handler via a ref. When a
   // second editor mounts (template editor over the composer) it takes the globals
-  // via the stack and hands them back on unmount — never deletes them.
+  // via the router and hands them back on unmount — never deletes them.
   const undoFnRef = useRef(undo);
   const redoFnRef = useRef(redo);
   undoFnRef.current = undo;
   redoFnRef.current = redo;
-  useEffect(() => {
-    ensureUndoDispatch();
-    const entry = { undo: () => undoFnRef.current(), redo: () => redoFnRef.current() };
-    undoTargets.push(entry);
-    return () => {
-      const i = undoTargets.indexOf(entry);
-      if (i >= 0) undoTargets.splice(i, 1);
-    };
-  }, []);
+  useEffect(() => registerUndoTarget({ undo: () => undoFnRef.current(), redo: () => redoFnRef.current() }), []);
 
   const handleInput = () => {
     if (suppressInputRef.current) { suppressInputRef.current = false; return; }
