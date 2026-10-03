@@ -7,16 +7,22 @@
 //   - once replayed, every frame whose seq is already covered by the buffer
 //     (seq <= the buffer's seq) is dropped — the reattach contract in
 //     PtySessionService (replay buffer, then dedup live frames by seq).
+//   - a frame past the next seq means frames were never sent to this tab (its
+//     stream started carrying the terminal only after the buffer was read):
+//     `onGap` fires and the caller re-reads the screen.
 // `write(data)` is the sink (TerminalView's open-gated xterm writer). Pure and
 // DOM-free so the ordering/dedup is unit-tested without xterm.
-export function createReplayGate(write) {
+export function createReplayGate(write, onGap) {
   let replayed = false;
   let lastSeq = 0;
+  let gapped = false;
   const queued = [];
 
   // Write a frame's bytes unless the replayed buffer already covers its seq.
   const accept = (f) => {
+    if (gapped) return;
     if (f?.seq != null && f.seq <= lastSeq) return;
+    if (f?.seq != null && lastSeq > 0 && f.seq > lastSeq + 1 && onGap) { gapped = true; onGap(); return; }
     write(f?.data ?? "");
     if (f?.seq != null) lastSeq = f.seq;
   };

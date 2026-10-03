@@ -1,9 +1,9 @@
-// useLive — central live data hook. Subscribes to /stream SSE and refetches
-// workers, daemon health, recents, and per-selection diff. The SSE event is
-// only a "change" ping; clients must refetch /workers etc. to see deltas.
+// useLive — central live data hook. Subscribes to /stream SSE and keeps
+// workers, pending asks, daemon health, recents current. A daemon that offers
+// "state:patch" sends the changed rows themselves; an older one only pings, and
+// the lists are refetched (80ms debounce, one request at a time).
 //
-// Polling is the safety net (every 4s); SSE drives the fast path with an
-// 80ms debounce.
+// Polling is the safety net (every 4s, 30s while the stream is up).
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
@@ -31,6 +31,13 @@ import { emitFsChange } from "../state/fsChangeBus.js";
 import { notify } from "../lib/notify.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
 import { startPolling } from "../lib/pollInterval.js";
+import { isViewHidden, onViewVisibilityChange } from "../lib/viewVisibility.js";
+import { isRemoteView } from "../lib/host.js";
+import { focusQuery } from "../state/streamFocus.js";
+import { mergeRowChanges } from "../lib/rowPatches.js";
+import { refreshArchived } from "../state/archiveStore.js";
+import { setStreamLive } from "../state/streamStatus.js";
+import { notifyWorkerChanged, refreshAttached as refreshAttachedTranscripts } from "../state/eventsStore.js";
 import { refreshHosts } from "../state/hostsStore.js";
 import { applyPresence } from "../state/peerStore.js";
 import { applyChange as applyPageChange, resyncPages } from "../state/pagesStore.js";
@@ -40,6 +47,13 @@ const POLL_MS = 4000;
 // then only a safety net — and over a peer link each tick is a full list.
 const STREAM_LIVE_POLL_MS = 30_000;
 const SSE_DEBOUNCE_MS = 80;
+// Topics whose list changes arrive as state:patch rows — no refetch for them.
+// policy:decision changes neither list (an ask arrives as pending:created).
+const PATCHED_TOPICS = new Set([
+  "worker:change", "worker:spawn", "worker:exit", "worker:removed", "usage:recorded", "loop:change",
+  "pending:created", "pending:resolved", "pending:ttl_expired", "policy:decision",
+]);
+const HIDDEN_PAUSE_MS = 10_000;
 
 export function useLive() {
   const [workers, setWorkers] = useState([]);
@@ -75,9 +89,12 @@ export function useLive() {
   // with a pre-spawn snapshot — nulling the caller's fresh selection downstream.
   const workersSeqRef = useRef(0);
   const appliedWorkersSeqRef = useRef(0);
+  // The last applied list, synchronously — patches landing in one tick build on each other.
+  const latestWorkersRef = useRef([]);
   const applyWorkers = useCallback((seq, list) => {
     if (seq < appliedWorkersSeqRef.current) return false;
     appliedWorkersSeqRef.current = seq;
+    latestWorkersRef.current = list;
     // Keep the id -> parent_id session index (and id -> name, for session labels
     // like the present-fallback toast) in step with the snapshot, for non-React
     // consumers (browser session routing, pane transitions).
@@ -88,46 +105,79 @@ export function useLive() {
     return true;
   }, []);
 
+  // The interrupted agent left its turn: drop the optimistic IDLE mapping.
+  const settleInterrupted = useCallback((list) => {
+    const iid = localStorage.getItem("cm:interruptedId");
+    if (!iid) return;
+    const w = list.find((x) => x.id === iid);
+    // A busy worker on a NEWER turn than the one we interrupted means the
+    // queue drain restarted it before any refetch saw IDLE — the interrupt
+    // completed, so the optimistic mapping must clear or Esc goes dead.
+    const turn = localStorage.getItem("cm:interruptedTurn");
+    const newerTurn = turn != null && w?.turn_started_at != null && String(w.turn_started_at) !== turn;
+    if (!w || w.state === "DONE" || w.state === "IDLE" || newerTurn) setInterruptedId(null);
+  }, [setInterruptedId]);
+
   const setPendingPermissionsRef = useRef(null);
   const refetchTimer = useRef(null);
   const streamLiveRef = useRef(false);
   const lastRefetchAtRef = useRef(0);
+  // One list refetch at a time: over a slow link a burst of pings would stack
+  // requests whose answers are thrown away anyway. A ping during one queues one more.
+  const refetchInFlightRef = useRef(false);
+  const refetchAgainRef = useRef(false);
+  const scheduleRefetchRef = useRef(() => {});
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) return;
+    if (refetchInFlightRef.current) { refetchAgainRef.current = true; return; }
     refetchTimer.current = setTimeout(async () => {
       refetchTimer.current = null;
+      refetchInFlightRef.current = true;
       lastRefetchAtRef.current = Date.now();
       const seq = ++workersSeqRef.current;
       try {
         const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch(() => [])]);
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
-        if (Array.isArray(list) && applyWorkers(seq, list)) {
-          const iid = localStorage.getItem("cm:interruptedId");
-          if (iid) {
-            const w = list.find((x) => x.id === iid);
-            // A busy worker on a NEWER turn than the one we interrupted means the
-            // queue drain restarted it before any refetch saw IDLE — the interrupt
-            // completed, so the optimistic mapping must clear or Esc goes dead.
-            const turn = localStorage.getItem("cm:interruptedTurn");
-            const newerTurn = turn != null && w?.turn_started_at != null && String(w.turn_started_at) !== turn;
-            if (!w || w.state === "DONE" || w.state === "IDLE" || newerTurn) setInterruptedId(null);
-          }
-        }
+        if (Array.isArray(list) && applyWorkers(seq, list)) settleInterrupted(list);
       } catch { setHealth(false); }
+      finally {
+        refetchInFlightRef.current = false;
+        if (refetchAgainRef.current) { refetchAgainRef.current = false; scheduleRefetchRef.current(); }
+      }
     }, SSE_DEBOUNCE_MS);
-  }, [setInterruptedId, applyWorkers]);
+  }, [settleInterrupted, applyWorkers]);
+  scheduleRefetchRef.current = scheduleRefetch;
+
+  // Row changes pushed by the daemon (state:patch). Taking a fresh seq also
+  // discards an older full-list fetch still in flight.
+  const patchesRef = useRef(false);
+  const noteCaps = useCallback((d) => {
+    patchesRef.current = Array.isArray(d?.caps) && d.caps.includes("state:patch");
+  }, []);
+  const applyStatePatch = useCallback((changes) => {
+    if (!Array.isArray(changes)) return;
+    if (changes.some((c) => c?.resource === "workers")) {
+      const list = mergeRowChanges(latestWorkersRef.current, changes, "workers");
+      if (applyWorkers(++workersSeqRef.current, list)) settleInterrupted(list);
+    }
+    if (changes.some((c) => c?.resource === "pending")) {
+      setPendingPermissionsRef.current?.((prev) => mergeRowChanges(prev, changes, "pending"));
+    }
+  }, [applyWorkers, settleInterrupted]);
 
   // initial load
   useEffect(() => {
     (async () => {
       const seq = ++workersSeqRef.current;
       try {
-        const [list, rec, cfg] = await Promise.all([
+        const [list, rec, cfg, pend] = await Promise.all([
           api.listWorkers(),
           api.listRecents(),
           api.uiConfig(),
+          api.listPending().catch(() => null),
         ]);
         if (Array.isArray(list)) applyWorkers(seq, list);
+        if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         applyDescriptors(cfg?.backends);
@@ -151,11 +201,15 @@ export function useLive() {
   // SSE
   useEffect(() => {
     const s = createReconnectingStream({
-      onOpen: () => { streamLiveRef.current = true; setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
+      query: focusQuery,
+      onOpen: () => { streamLiveRef.current = true; setStreamLive(true); setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
+      onHello: noteCaps,
       // The daemon could not replay what this client missed (it restarted, or
       // the gap outgrew its buffer): refetch every live view from scratch.
-      onResync: () => {
+      onResync: (d) => {
+        noteCaps(d);
         scheduleRefetch();
+        refreshAttachedTranscripts();
         setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null }));
         emitPtyResync();
         resyncPages();
@@ -165,6 +219,7 @@ export function useLive() {
           const data = JSON.parse(e.data);
           // A newer build appeared — refresh the banner status (not a worker delta).
           if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
+          if (data.reason === "state:patch") { applyStatePatch(data.payload?.changes); return; }
           // Peering: a controlled computer's link changed (Machines menu), or a
           // computer connected to / left this Mac (the "… connected" chip).
           if (data.reason === "hosts:change") { if (!window.eosHosts) void refreshHosts(); return; }
@@ -221,18 +276,39 @@ export function useLive() {
             }
             return;
           }
-          scheduleRefetch();
+          if (!(patchesRef.current && PATCHED_TOPICS.has(data.reason))) scheduleRefetch();
           if (data.payload?.workerId) {
+            // Straight to the transcript store: the signal below is React state,
+            // and two workers' events in one render batch keep only the last.
+            notifyWorkerChanged(data.payload.workerId);
             setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
           }
         } catch {
           scheduleRefetch();
         }
       },
-      onClose: () => { streamLiveRef.current = false; setHealth(false); },
+      onClose: () => { streamLiveRef.current = false; setStreamLive(false); setHealth(false); },
+      onPause: () => { streamLiveRef.current = false; setStreamLive(false); },
     });
-    return () => s.close();
-  }, [scheduleRefetch]);
+    // A view of another computer streams over the link to it: off screen for a
+    // while (another machine shown, window minimized), it drops the stream;
+    // back on screen it resumes from where it stopped. Quick switches keep it.
+    let pauseTimer = null;
+    const offVisibility = isRemoteView() ? onViewVisibilityChange(() => {
+      if (!isViewHidden()) {
+        clearTimeout(pauseTimer);
+        pauseTimer = null;
+        s.resume();
+      } else if (!pauseTimer) {
+        pauseTimer = setTimeout(() => { pauseTimer = null; s.pause(); }, HIDDEN_PAUSE_MS);
+      }
+    }) : null;
+    return () => {
+      offVisibility?.();
+      clearTimeout(pauseTimer);
+      s.close();
+    };
+  }, [scheduleRefetch, noteCaps, applyStatePatch]);
 
   // Finalize live reasoning/text buffers when a worker leaves the busy set — its
   // turn ended (or was interrupted/errored) with no durable block coming for the
@@ -340,18 +416,21 @@ export function useLive() {
     const r = await api.archiveWorker(id);
     if (r?.ok) dropSubtree(id);
     scheduleRefetch();
+    void refreshArchived();
     return r;
   }, [scheduleRefetch, dropSubtree]);
 
   const restoreAgent = useCallback(async (id) => {
     const r = await api.restoreWorker(id);
     scheduleRefetch();
+    void refreshArchived();
     return r;
   }, [scheduleRefetch]);
 
   const purgeAgent = useCallback(async (id) => {
     const r = await api.purgeWorker(id);
     scheduleRefetch();
+    void refreshArchived();
     return r;
   }, [scheduleRefetch]);
 
@@ -367,11 +446,11 @@ export function useLive() {
   const renameAgent = useCallback(async (id, name) => {
     // Optimistic — avoid flashing the old name between input close and
     // the refetch landing.
-    setWorkers((prev) => prev.map((w) => w.id === id ? { ...w, name } : w));
+    applyWorkers(++workersSeqRef.current, latestWorkersRef.current.map((w) => w.id === id ? { ...w, name } : w));
     const r = await api.renameWorker(id, name || null);
     scheduleRefetch();
     return r;
-  }, [scheduleRefetch]);
+  }, [scheduleRefetch, applyWorkers]);
 
   const setPermissionMode = useCallback(async (id, mode) => {
     const r = await api.setWorkerPermission(id, mode);

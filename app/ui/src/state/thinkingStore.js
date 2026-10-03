@@ -12,7 +12,9 @@
 // structural=false, so list-level consumers (Messages) can ignore it and only
 // the streaming block component re-reads its text via getBlock().
 
-const blocks = new Map(); // `${workerId}:${blockId}` -> { workerId, blockId, channel, text, done, interrupted, ts }
+const blocks = new Map(); // `${workerId}:${blockId}` -> { workerId, blockId, channel, text, start, done, interrupted, ts }
+// `start` = where `text` begins in the block's full text (deltas carry `at`, their
+// offset). Null for a buffer built from offset-less deltas (older daemons).
 const subs = new Set();   // cb(workerId, structural)
 
 // The only channels the loop emits (ToolRuntime). An unknown/missing channel must
@@ -59,7 +61,7 @@ export function subscribe(cb) {
 
 const keyOf = (workerId, blockId) => `${workerId}:${blockId}`;
 
-export function applyDelta({ workerId, blockId, channel, phase, text }) {
+export function applyDelta({ workerId, blockId, channel, phase, text, at }) {
   if (!workerId || !blockId) return;
   const k = keyOf(workerId, blockId);
   if (phase === "stop") {
@@ -76,7 +78,7 @@ export function applyDelta({ workerId, blockId, channel, phase, text }) {
     // finalized (interrupted) buffers now. This covers turns that start on the
     // agent plane (queue drain, directives) and never pass through sendToAgent.
     removeInterrupted(workerId);
-    b = { workerId, blockId, channel: KNOWN_CHANNELS.has(channel) ? channel : "text", text: "", done: false, interrupted: false, ts: Date.now() };
+    b = { workerId, blockId, channel: KNOWN_CHANNELS.has(channel) ? channel : "text", text: "", start: typeof at === "number" ? at : null, done: false, interrupted: false, ts: Date.now() };
     blocks.set(k, b);
     structural = true;
   }
@@ -86,8 +88,43 @@ export function applyDelta({ workerId, blockId, channel, phase, text }) {
     b.channel = channel;
     structural = true;
   }
-  b.text += text ?? "";
+  b.text += unseen(b, at, text ?? "");
   scheduleEmit(workerId, structural);
+}
+
+// The part of a delta the buffer doesn't hold yet: a seed may already carry it.
+function unseen(b, at, text) {
+  if (typeof at !== "number" || b.start == null) return text;
+  const held = b.start + b.text.length - at;
+  return held > 0 ? text.slice(held) : text;
+}
+
+// A pane came into view mid-stream: the daemon's text so far for the worker's
+// in-flight blocks (POST /stream/focus). Deltas that arrived before or after it
+// overlap it by offset; a buffer from offset-less deltas just gets it prepended.
+export function seedLive(workerId, seeds) {
+  let changed = false;
+  for (const seed of seeds ?? []) {
+    if (!seed?.blockId || typeof seed.text !== "string") continue;
+    const k = keyOf(workerId, seed.blockId);
+    const b = blocks.get(k);
+    if (!b) {
+      blocks.set(k, {
+        workerId, blockId: seed.blockId, channel: KNOWN_CHANNELS.has(seed.channel) ? seed.channel : "text",
+        text: seed.text, start: 0, done: seed.done === true, interrupted: false, ts: Date.now(),
+      });
+      changed = true;
+      continue;
+    }
+    const covered = seed.text.length;
+    if (b.start == null) b.text = seed.text + b.text;
+    else if (b.start + b.text.length <= covered) b.text = seed.text;
+    else b.text = seed.text + b.text.slice(Math.max(0, covered - b.start));
+    b.start = 0;
+    if (seed.done) b.done = true;
+    changed = true;
+  }
+  if (changed) scheduleEmit(workerId, true);
 }
 
 // The durable message for this block has landed — drop the live buffer so the

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { applyDelta, liveBlocksFor, dropBlock, dropWorker, dropInterrupted, finalizeWorker, pruneExcept, subscribe, getBlock } from "./thinkingStore.js";
+import { applyDelta, liveBlocksFor, dropBlock, dropWorker, dropInterrupted, finalizeWorker, pruneExcept, subscribe, getBlock, seedLive } from "./thinkingStore.js";
 
 // Module-level state — keep worker ids unique per assertion to avoid bleed.
 let n = 0;
@@ -225,5 +225,39 @@ describe("thinkingStore coalesced emit", () => {
     flushAll();
     expect(calls).toEqual([true, true]);
     unsub();
+  });
+
+  describe("seedLive (a pane coming into view mid-stream)", () => {
+    const d = (w, at, text, phase = "append") => applyDelta({ workerId: w, blockId: "b", channel: "reasoning", phase, text, at });
+
+    it("creates the buffer from the seed", () => {
+      const w = wid();
+      seedLive(w, [{ workerId: w, blockId: "b", channel: "reasoning", text: "so far", done: true }]);
+      expect(liveBlocksFor(w)[0]).toMatchObject({ text: "so far", done: true });
+    });
+
+    it("merges deltas that arrived before the seed by offset", () => {
+      const w = wid();
+      d(w, 6, " and");   // after the seed's text
+      d(w, 10, " more");
+      seedLive(w, [{ workerId: w, blockId: "b", channel: "reasoning", text: "so far and" }]);
+      expect(getBlock(w, "b").text).toBe("so far and more");
+    });
+
+    it("skips the part of a later delta the seed already holds", () => {
+      const w = wid();
+      seedLive(w, [{ workerId: w, blockId: "b", channel: "reasoning", text: "abcdef" }]);
+      d(w, 4, "efgh");
+      d(w, 8, "ij");
+      d(w, 2, "cd"); // already held — dropped
+      expect(getBlock(w, "b").text).toBe("abcdefghij");
+    });
+
+    it("prepends to a buffer built from offset-less deltas", () => {
+      const w = wid();
+      applyDelta({ workerId: w, blockId: "b", channel: "reasoning", phase: "append", text: "tail" });
+      seedLive(w, [{ workerId: w, blockId: "b", channel: "reasoning", text: "head " }]);
+      expect(getBlock(w, "b").text).toBe("head tail");
+    });
   });
 });

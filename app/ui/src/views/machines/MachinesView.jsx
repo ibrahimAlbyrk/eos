@@ -3,6 +3,7 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { useUi } from "../../state/ui.jsx";
 import { useNavigation } from "../../state/navigation.jsx";
 import { api } from "../../api/client.js";
+import { startPolling } from "../../lib/pollInterval.js";
 import {
   useHosts, ensureHostsLoaded, switchMachine, reconnectMachine, hostLabel, linkTone, routeLabel, latencyLabel, canSwitchMachines,
 } from "../../state/hostsStore.js";
@@ -75,8 +76,7 @@ export function MachinesView({ live, hidden }) {
   useEffect(() => {
     if (hidden) return;
     void load();
-    const t = setInterval(() => void load(), POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(() => void load(), POLL_MS);
   }, [hidden, load]);
 
   const localPending = (live.pendingPermissions ?? []).filter((p) => !p.resolved);

@@ -15,6 +15,7 @@ import { SpawnLoopSchema } from "./loop.ts";
 import { BackendKindSchema } from "./canonical.ts";
 import { AuthRefSchema } from "./backend.ts";
 import { ProviderCapabilitiesSchema } from "./provider-capabilities.ts";
+import { LiveBlockSchema } from "./remote.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -387,7 +388,15 @@ export type PtyCreateResponse = z.infer<typeof PtyCreateResponseSchema>;
 export const PtyListResponseSchema = z.object({ sessions: z.array(PtySessionSchema) });
 export type PtyListResponse = z.infer<typeof PtyListResponseSchema>;
 
-export const PtyInputRequestSchema = z.object({ data: z.string() });
+// `stream` + `seq` let a client keep several inputs in flight: requests can
+// overtake each other on the way (parallel connections, a peer link), so the
+// daemon writes one stream's inputs in seq order. Without them each input is
+// written on arrival.
+export const PtyInputRequestSchema = z.object({
+  data: z.string(),
+  stream: z.string().min(1).max(64).optional(),
+  seq: z.number().int().positive().optional(),
+});
 export type PtyInputRequest = z.infer<typeof PtyInputRequestSchema>;
 
 export const PtyResizeRequestSchema = z.object({
@@ -2254,9 +2263,25 @@ export const CurrentDateTimeResponseSchema = z.object({
 });
 export type CurrentDateTimeResponse = z.infer<typeof CurrentDateTimeResponseSchema>;
 
+// POST /stream/focus — what a dashboard tab (its /stream `clientId`) has on
+// screen. Its stream then carries the high-volume live topics (agent:delta,
+// pty:data) only for these workers / PTY sessions. The answer is the text
+// already streamed for the workers' in-flight blocks, so a pane that just came
+// into view starts without a hole.
+export const StreamFocusRequestSchema = z.object({
+  clientId: z.string().min(1).max(128),
+  workers: z.array(z.string()).max(64),
+  ptys: z.array(z.string()).max(64),
+});
+export type StreamFocusRequest = z.infer<typeof StreamFocusRequestSchema>;
+
+export const StreamFocusResponseSchema = z.object({ live: z.array(LiveBlockSchema) });
+export type StreamFocusResponse = z.infer<typeof StreamFocusResponseSchema>;
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
+  streamFocus: "/stream/focus",
   // Unconditionally excludes archived rows — NO archived query param exists
   // (ADR-3 amendment: archived workers are invisible to agents).
   workers: "/workers",

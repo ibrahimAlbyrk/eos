@@ -50,6 +50,15 @@ export async function refreshArchived() {
   emit();
 }
 
+// A change ping: the list may have moved (archive / restore / purge all ping),
+// but most pings are some agent working — re-read once the burst settles.
+const REFRESH_DEBOUNCE_MS = 1000;
+let refreshTimer = null;
+export function scheduleArchivedRefresh() {
+  if (refreshTimer) return;
+  refreshTimer = setTimeout(() => { refreshTimer = null; void refreshArchived(); }, REFRESH_DEBOUNCE_MS);
+}
+
 export function selectArchived(id) {
   // Selecting an archived row means the user wants archived work in the main
   // area (AgentsView gates on archiveMode). Picking a live agent flips it back off
@@ -83,6 +92,8 @@ export function _resetArchive() {
   loaded = false;
   selectedId = null;
   fetchSeq = 0;
+  clearTimeout(refreshTimer);
+  refreshTimer = null;
   subs.clear();
   snapshot = { archiveMode, rows, loaded, selectedId };
 }

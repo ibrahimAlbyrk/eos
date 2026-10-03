@@ -10,6 +10,7 @@
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
+  streamFocus: "/stream/focus",
   workers: "/workers",
   // Dedicated archived-only listing (dashboard-only). GET /workers takes NO
   // archived param — archived rows are unconditionally excluded there.

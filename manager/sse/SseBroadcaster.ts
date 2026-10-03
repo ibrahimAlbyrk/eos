@@ -18,6 +18,9 @@ import { sanitizeForDisplay } from "../shared/display-sanitize.ts";
 export interface SseBroadcasterOptions {
   bus: EventBus;
   keepaliveMs: number;
+  // What this daemon's stream offers beyond plain change pings, in hello/resync
+  // ("state:patch": row patches, so a client may stop re-reading the lists).
+  caps?: readonly string[];
   ringMaxEvents?: number;
   ringMaxBytes?: number;
 }
@@ -27,7 +30,29 @@ export interface SseAttachOptions {
   since?: string | null;
   // Only these topics ("worker:change") or families ("worker:*"). Absent ⇒ all.
   topics?: readonly string[] | null;
+  // The dashboard tab this stream belongs to, and what it has on screen (see
+  // StreamFocus). No focus ⇒ every scoped event too.
+  clientId?: string | null;
+  focus?: StreamFocus | null;
 }
+
+// What a dashboard tab has on screen. Its streams then carry the high-volume
+// live topics only for these: agent:delta for `workers`, pty:data for `ptys`.
+export interface StreamFocus {
+  workers: readonly string[];
+  ptys: readonly string[];
+}
+
+// Scoped topic → the payload field naming what it is for.
+const SCOPE_FIELD: Record<string, "workerId" | "sessionId"> = {
+  "agent:delta": "workerId",
+  "pty:data": "sessionId",
+};
+// Focus of tabs whose stream is gone — a reconnect re-sends it; this only bounds
+// what a late POST /stream/focus can leave behind.
+const MAX_FOCUSED_CLIENTS = 256;
+
+interface Focus { workers: Set<string>; ptys: Set<string> }
 
 // Per-client backpressure state. Once res.write() reports a full socket buffer
 // (`saturated`), further events are skipped rather than queued. A client that
@@ -38,12 +63,15 @@ interface ClientState {
   saturated: boolean;
   dropped: number;
   wants: (reason: string) => boolean;
+  clientId: string | null;
   onDrain: () => void;
 }
 
 interface RingEntry {
   seq: number;
   reason: string;
+  // The worker / PTY session a scoped topic is for.
+  scope: string | null;
   frame: string;
 }
 
@@ -65,6 +93,7 @@ export class SseBroadcaster {
   private ringBytes = 0;
   private readonly ringMaxEvents: number;
   private readonly ringMaxBytes: number;
+  private readonly focusByClient = new Map<string, Focus>();
 
   constructor(opts: SseBroadcasterOptions) {
     this.opts = opts;
@@ -89,10 +118,13 @@ export class SseBroadcaster {
     res.write("retry: 2000\n\n");
     res.write(":connected\n\n");
     const wants = topicFilter(opts.topics);
+    const clientId = opts.clientId ?? null;
+    if (clientId && opts.focus) this.setFocus(clientId, opts.focus);
     const state: ClientState = {
       saturated: false,
       dropped: 0,
       wants,
+      clientId,
       onDrain: (): void => {
         if (state.dropped > 0) { this.endClient(res); return; }
         state.saturated = false;
@@ -100,7 +132,7 @@ export class SseBroadcaster {
     };
     // Replay (or resync) before registering for live events: both run
     // synchronously, so no live event can slip in between.
-    if (opts.since) this.catchUp(res, opts.since, wants);
+    if (opts.since) this.catchUp(res, opts.since, state);
     else res.write(this.helloFrame());
     res.on("drain", state.onDrain);
     this.clients.set(res, state);
@@ -114,8 +146,26 @@ export class SseBroadcaster {
       detach: (): void => {
         clearInterval(ka);
         this.removeClient(res);
+        if (clientId && ![...this.clients.values()].some((c) => c.clientId === clientId)) this.focusByClient.delete(clientId);
       },
     };
+  }
+
+  // A tab's new on-screen set; applies to its streams from the next event on.
+  setFocus(clientId: string, focus: StreamFocus): void {
+    this.focusByClient.delete(clientId); // re-insert = most recent
+    this.focusByClient.set(clientId, { workers: new Set(focus.workers), ptys: new Set(focus.ptys) });
+    while (this.focusByClient.size > MAX_FOCUSED_CLIENTS) {
+      this.focusByClient.delete(this.focusByClient.keys().next().value as string);
+    }
+  }
+
+  private delivers(state: ClientState, reason: string, scope: string | null): boolean {
+    if (!state.wants(reason)) return false;
+    const field = SCOPE_FIELD[reason];
+    const focus = field && state.clientId ? this.focusByClient.get(state.clientId) : undefined;
+    if (!focus || scope == null) return true;
+    return field === "workerId" ? focus.workers.has(scope) : focus.ptys.has(scope);
   }
 
   broadcast(reason: string, payload?: unknown): void {
@@ -123,9 +173,12 @@ export class SseBroadcaster {
     // Sanitize a display copy — live text payloads (agent:delta, model echoes)
     // must never stream a sender-tag wrapper to a connected client.
     const frame = `id: ${this.epoch}-${seq}\nevent: change\ndata: ${JSON.stringify({ reason, ts: Date.now(), payload: sanitizeForDisplay(payload) })}\n\n`;
-    this.remember({ seq, reason, frame });
+    const field = SCOPE_FIELD[reason];
+    const scoped = field ? (payload as Record<string, unknown> | null)?.[field] : undefined;
+    const scope = typeof scoped === "string" ? scoped : null;
+    this.remember({ seq, reason, scope, frame });
     for (const [res, state] of this.clients) {
-      if (!state.wants(reason)) continue;
+      if (!this.delivers(state, reason, scope)) continue;
       if (state.saturated) {
         if (++state.dropped >= SseBroadcaster.MAX_DROPPED_EVENTS) this.endClient(res);
         continue;
@@ -137,20 +190,20 @@ export class SseBroadcaster {
   }
 
   private helloFrame(): string {
-    return `id: ${this.currentId()}\nevent: hello\ndata: ${JSON.stringify({ epoch: this.epoch, seq: this.seq })}\n\n`;
+    return `id: ${this.currentId()}\nevent: hello\ndata: ${JSON.stringify({ epoch: this.epoch, seq: this.seq, caps: this.opts.caps ?? [] })}\n\n`;
   }
 
-  private catchUp(res: ServerResponse, since: string, wants: (reason: string) => boolean): void {
+  private catchUp(res: ServerResponse, since: string, state: ClientState): void {
     const m = /^([0-9a-f]+)-(\d+)$/.exec(since);
     const lastSeq = m ? Number(m[2]) : NaN;
     const oldest = this.ring.length ? this.ring[0].seq : this.seq + 1;
     const replayable = m != null && m[1] === this.epoch && lastSeq <= this.seq && lastSeq >= oldest - 1;
     if (!replayable) {
-      res.write(`id: ${this.currentId()}\nevent: resync\ndata: ${JSON.stringify({ epoch: this.epoch, seq: this.seq })}\n\n`);
+      res.write(`id: ${this.currentId()}\nevent: resync\ndata: ${JSON.stringify({ epoch: this.epoch, seq: this.seq, caps: this.opts.caps ?? [] })}\n\n`);
       return;
     }
     for (const e of this.ring) {
-      if (e.seq > lastSeq && wants(e.reason)) res.write(e.frame);
+      if (e.seq > lastSeq && this.delivers(state, e.reason, e.scope)) res.write(e.frame);
     }
   }
 

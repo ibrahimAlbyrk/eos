@@ -44,15 +44,17 @@ export class LiveText {
   }
 
   snapshot(): LiveBlock[] {
+    return [...this.byWorker.keys()].flatMap((id) => this.blocksFor(id));
+  }
+
+  blocksFor(workerId: string): LiveBlock[] {
+    const blocks = this.byWorker.get(workerId);
+    if (!blocks) return [];
     const cutoff = this.now() - STOPPED_BLOCK_TTL_MS;
-    const out: LiveBlock[] = [];
-    for (const [workerId, blocks] of this.byWorker) {
-      const kept = blocks.filter((b) => b.stoppedAt === undefined || b.stoppedAt > cutoff);
-      if (kept.length === 0) this.byWorker.delete(workerId);
-      else this.byWorker.set(workerId, kept);
-      for (const { stoppedAt: _, ...b } of kept) out.push(b);
-    }
-    return out;
+    const kept = blocks.filter((b) => b.stoppedAt === undefined || b.stoppedAt > cutoff);
+    if (kept.length === 0) this.byWorker.delete(workerId);
+    else this.byWorker.set(workerId, kept);
+    return kept.map(({ stoppedAt, ...b }) => (stoppedAt === undefined ? b : { ...b, done: true }));
   }
 
   private onDelta(p: DeltaPayload): void {

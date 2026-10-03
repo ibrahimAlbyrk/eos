@@ -8,10 +8,11 @@ import {
   attach, fetchDelta as storeFetchDelta, getSnapshot, loadOlder as storeLoadOlder,
   refetchNewest as storeRefetchNewest, setFollowing as storeSetFollowing, subscribe,
 } from "../state/eventsStore.js";
+import { retainWorker } from "../state/streamFocus.js";
 
 const noopSubscribe = () => () => {};
 
-export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
+export function useWorkerEvents(workerId, { onNewest } = {}) {
   const onNewestRef = useRef(onNewest);
   onNewestRef.current = onNewest;
 
@@ -24,19 +25,11 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
 
   useEffect(() => {
     if (!workerId) return;
-    return attach(workerId, { onNewest: (id, rows) => onNewestRef.current?.(id, rows) });
+    const detach = attach(workerId, { onNewest: (id, rows) => onNewestRef.current?.(id, rows) });
+    // On screen: its live tokens stream to this tab.
+    const release = retainWorker(workerId);
+    return () => { release(); detach(); };
   }, [workerId]);
-
-  // restartKey (workers-list shape) → immediate newest refetch. attach()
-  // already fetched on mount, so the first run is skipped.
-  const restartSeen = useRef(false);
-  useEffect(() => {
-    if (!restartSeen.current) {
-      restartSeen.current = true;
-      return;
-    }
-    if (workerId) storeRefetchNewest(workerId);
-  }, [restartKey]);
 
   const loadOlder = useCallback(() => storeLoadOlder(workerId), [workerId]);
   const fetchDelta = useCallback(() => storeFetchDelta(workerId), [workerId]);

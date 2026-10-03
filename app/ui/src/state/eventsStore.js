@@ -1,7 +1,11 @@
 // eventsStore — per-agent event window cache with backward pagination and
 // read-ahead prefetch. Windows live here (module scope), not in the hook, so
 // a loaded transcript survives agent switches: switching back renders the
-// cached window synchronously and the poll/delta merge catches it up.
+// cached window synchronously and a tail fetch catches it up.
+//
+// Live updates: every change event for a worker (useLive → notifyWorkerChanged)
+// pulls the rows after the newest one held. The poll only stands in while the
+// stream is down.
 //
 // Read-ahead: after a page renders, the next older page is fetched during
 // idle and parked in `prefetched`. The scroll-up sentinel's loadOlder then
@@ -13,6 +17,7 @@
 
 import { api } from "../api/client.js";
 import { startPolling } from "../lib/pollInterval.js";
+import { isStreamLive } from "./streamStatus.js";
 
 export const PAGE_SIZE = 500;
 const POLL_MS = 5000;
@@ -30,6 +35,8 @@ const MAX_DETACHED_EVENTS = 3 * PAGE_SIZE;
 const MAX_ATTACHED_EVENTS = 4 * PAGE_SIZE;
 const HARD_MAX_EVENTS = 12 * PAGE_SIZE;
 const PREFETCH_IDLE_MS = 200;
+// Rows of one turn land in bursts; one tail fetch per burst.
+const CHANGE_DEBOUNCE_MS = 50;
 
 // WKWebView has no requestIdleCallback; a short timeout approximates "after
 // the current interaction settles".
@@ -91,6 +98,11 @@ function entryOf(workerId) {
       newestListeners: new Set(),
       pollStop: null,
       pollAbort: null,
+      changeTimer: null,
+      // Tail fetch single-flight: a change during one asks for one more (a
+      // joined in-flight request may predate the new row).
+      tailInFlight: false,
+      tailAgain: false,
       snapshot: EMPTY_SNAPSHOT,
     };
     entries.set(workerId, e);
@@ -244,7 +256,32 @@ export function fetchDelta(workerId) {
     refetchNewest(workerId);
     return;
   }
-  void fetchAfter(e, undefined);
+  void fetchTail(e);
+}
+
+async function fetchTail(e) {
+  if (e.tailInFlight) { e.tailAgain = true; return; }
+  e.tailInFlight = true;
+  try {
+    do {
+      e.tailAgain = false;
+      await fetchAfter(e, undefined);
+    } while (e.tailAgain && e.attachers > 0);
+  } finally {
+    e.tailInFlight = false;
+  }
+}
+
+// The stream lost events it could not replay: every shown transcript pulls its tail.
+export function refreshAttached() {
+  for (const e of entries.values()) if (e.attachers > 0) fetchDelta(e.workerId);
+}
+
+// A change event for this worker (its rows grew): pull the tail while a pane shows it.
+export function notifyWorkerChanged(workerId) {
+  const e = entries.get(workerId);
+  if (!e || e.attachers === 0 || e.changeTimer) return;
+  e.changeTimer = setTimeout(() => { e.changeTimer = null; fetchDelta(workerId); }, CHANGE_DEBOUNCE_MS);
 }
 
 export function refetchNewest(workerId) {
@@ -253,15 +290,18 @@ export function refetchNewest(workerId) {
   void fetchNewest(e, e.pollAbort?.signal);
 }
 
-// The newest FULL page is fetched once here as the attach/restart baseline;
-// re-fetching it every 5s re-downloaded the entire window (tens of MB once a
+// The newest FULL page is fetched once as the attach baseline — only when no
+// window is cached: a cached one (switching back) just pulls its tail.
+// Re-fetching it every 5s re-downloaded the entire window (tens of MB once a
 // session accumulates thinking rows, each re-read/sanitized/serialized daemon
-// side). The recurring tick pulls only the tail via afterId — see pollNewer.
+// side). The recurring tick pulls only the tail via afterId — see pollNewer —
+// and only while the stream is down.
 function startPoll(e) {
   stopPoll(e);
   e.pollAbort = new AbortController();
-  void fetchNewest(e, e.pollAbort.signal);
-  e.pollStop = startPolling(() => { pollNewer(e); }, POLL_MS);
+  if (e.loaded && e.events.length > 0) void fetchAfter(e, e.pollAbort.signal);
+  else void fetchNewest(e, e.pollAbort.signal);
+  e.pollStop = startPolling(() => { if (!isStreamLive()) pollNewer(e); }, POLL_MS);
 }
 
 // Recurring poll tick. Incremental (afterId) once a baseline window exists;
@@ -281,6 +321,8 @@ function stopPoll(e) {
   e.pollStop = null;
   e.pollAbort?.abort();
   e.pollAbort = null;
+  clearTimeout(e.changeTimer);
+  e.changeTimer = null;
 }
 
 // Live-window bound (attached panes). Mirrors trimDetached but runs while the

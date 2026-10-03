@@ -5,6 +5,7 @@ import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
 import { DELETED, removePage, savePage, usePage } from "../../state/pagesStore.js";
 import { pageIdOf } from "../../lib/panelTabs.js";
 import { mergePageBody } from "../../lib/pageMerge.js";
+import { countTasks } from "../../lib/pageTasks.js";
 import { fmtTimeAgo } from "../../lib/format.js";
 import { notify } from "../../lib/notify.js";
 import { nameOf } from "../../lib/agentName.js";
@@ -213,20 +214,6 @@ function PageMeta({ page, agent, status, body }) {
       )}
     </div>
   );
-}
-
-function countTasks(body) {
-  let total = 0;
-  let done = 0;
-  let fenced = false;
-  for (const line of body.split("\n")) {
-    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
-    const m = !fenced && line.match(/^\s*[-*+]\s+\[([ xX])\]\s/);
-    if (!m) continue;
-    total += 1;
-    if (m[1] !== " ") done += 1;
-  }
-  return { total, done };
 }
 
 const TOOL_BLOCKS = [

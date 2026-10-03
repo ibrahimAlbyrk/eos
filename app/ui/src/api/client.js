@@ -223,8 +223,9 @@ export const api = {
   async restoreWorker(id) { return postJson(ROUTES.workerRestore(id)); },
   async purgeWorker(id) { return del(ROUTES.workerPurge(id)); },
   async killWorker(id) { return del(ROUTES.worker(id)); },
+  // Brief rows like listWorkers — the Archive view reads a full prompt per worker.
   async listArchivedWorkers() {
-    const r = await getJson(ROUTES.workersArchived);
+    const r = await getJson(`${ROUTES.workersArchived}?brief=1`);
     if (!r.ok) throw new Error(`listArchivedWorkers → ${r.status}`);
     return r.body;
   },
@@ -946,8 +947,10 @@ export const api = {
   async getPtyBuffer(id) {
     return getJson(ROUTES.ptyBuffer(id), { headers: uiTokenHeader() });
   },
-  async sendPtyInput(id, data) {
-    return postJson(ROUTES.ptyInput(id), { data }, uiTokenHeader());
+  // `order` ({ stream, seq }): the daemon writes one stream's inputs in seq
+  // order, so several can be in flight.
+  async sendPtyInput(id, data, order) {
+    return postJson(ROUTES.ptyInput(id), { data, ...order }, uiTokenHeader());
   },
   async resizePty(id, cols, rows) {
     return postJson(ROUTES.ptyResize(id), { cols, rows }, uiTokenHeader());
@@ -1014,8 +1017,13 @@ export const api = {
   // SSE — returns the EventSource so the caller can attach listeners. The
   // reconnect logic in api/sse.js wraps this; `since` (the last event id seen)
   // makes the daemon replay whatever this client missed while disconnected.
-  newEventStream(since) {
+  // `extra`: more query (the tab's on-screen focus, state/streamFocus.js).
+  newEventStream(since, extra = "") {
     const resume = since ? `&since=${encodeURIComponent(since)}` : "";
-    return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}${resume}`);
+    return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}${resume}${extra}`);
+  },
+  // What this tab has on screen — its stream's agent:delta / pty:data follow it.
+  async setStreamFocus({ workers, ptys }) {
+    return postJson(ROUTES.streamFocus, { clientId: CLIENT_ID, workers, ptys });
   },
 };

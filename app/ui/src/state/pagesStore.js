@@ -105,19 +105,21 @@ export function resyncPages() {
 
 export function usePageList(project) {
   const key = keyOf(project);
-  const list = useSyncExternalStore(subscribe, () => lists.get(key) ?? null);
+  const get = () => lists.get(key) ?? null;
+  const list = useSyncExternalStore(subscribe, get, get);
   useEffect(() => { void refreshList(project); }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return list;
 }
 
 export function usePage(id) {
-  const page = useSyncExternalStore(subscribe, () => (id ? pages.get(id) ?? null : null));
+  const get = () => (id ? pages.get(id) ?? null : null);
+  const page = useSyncExternalStore(subscribe, get, get);
   useEffect(() => { if (id && !pages.has(id)) void loadPage(id); }, [id]);
   return page;
 }
 
 // Re-render on any page change (tab labels read titles via getPage).
-export const usePagesVersion = () => useSyncExternalStore(subscribe, getVersion);
+export const usePagesVersion = () => useSyncExternalStore(subscribe, getVersion, getVersion);
 
 // Test-only: reset the module singleton between cases.
 export function _reset() {

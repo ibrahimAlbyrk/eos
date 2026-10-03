@@ -8,7 +8,9 @@ import { api } from "../api/client.js";
 import {
   PAGE_SIZE, mergeEvents, filterOwnRows,
   attach, fetchDelta, getSnapshot, loadOlder, refetchNewest, subscribe, setFollowing,
+  notifyWorkerChanged, refreshAttached,
 } from "./eventsStore.js";
+import { setStreamLive } from "./streamStatus.js";
 
 const ev = (id, ts, type = "jsonl") => ({ id, ts, type });
 const row = (id, workerId, ts = id * 10) => ({ id, worker_id: workerId, ts, type: "jsonl" });
@@ -329,5 +331,76 @@ describe("eventsStore", () => {
     fetchDelta(id);
     await tick();
     expect(cb).not.toHaveBeenCalled();
+  });
+
+  describe("live updates with the stream up", () => {
+    afterEach(() => setStreamLive(false));
+
+    it("switching back to a cached window pulls only its tail", async () => {
+      const id = freshId();
+      const all = rows(id, 1, 3);
+      api.getWorkerEvents.mockImplementation(pageServer(all));
+      attach(id)();
+      await tick();
+      all.push(row(4, id));
+      api.getWorkerEvents.mockClear();
+      const detach = attach(id);
+      await tick();
+      expect(api.getWorkerEvents.mock.calls.map(([, o]) => o.afterId)).toEqual([3]);
+      expect(getSnapshot(id).events.map((e) => e.id)).toEqual([1, 2, 3, 4]);
+      detach();
+    });
+
+    it("a change event pulls the tail; the poll stays quiet while the stream is live", async () => {
+      const id = freshId();
+      const all = rows(id, 1, 2);
+      api.getWorkerEvents.mockImplementation(pageServer(all));
+      setStreamLive(true);
+      const detach = attach(id);
+      await tick();
+      api.getWorkerEvents.mockClear();
+      await tick(12_000);
+      expect(api.getWorkerEvents).not.toHaveBeenCalled();
+      all.push(row(3, id));
+      notifyWorkerChanged(id);
+      notifyWorkerChanged(id); // same burst
+      await tick(60);
+      expect(api.getWorkerEvents).toHaveBeenCalledTimes(1);
+      expect(getSnapshot(id).events.map((e) => e.id)).toEqual([1, 2, 3]);
+      detach();
+    });
+
+    it("a change during a tail fetch asks for one more (the first may predate the row)", async () => {
+      const id = freshId();
+      const all = rows(id, 1, 1);
+      let release;
+      api.getWorkerEvents.mockImplementation(pageServer(all));
+      const detach = attach(id);
+      await tick();
+      api.getWorkerEvents.mockImplementation((w, o) => new Promise((r) => { release = () => r(pageServer(all)(w, o)); }));
+      fetchDelta(id);
+      all.push(row(2, id));
+      fetchDelta(id); // lands while the first is in flight
+      release();
+      await tick();
+      release();
+      await tick();
+      expect(getSnapshot(id).events.map((e) => e.id)).toEqual([1, 2]);
+      detach();
+    });
+
+    it("refreshAttached pulls every shown transcript's tail", async () => {
+      const a = freshId();
+      const b = freshId();
+      api.getWorkerEvents.mockImplementation(pageServer([...rows(a, 1, 1), ...rows(b, 10, 1)]));
+      const da = attach(a);
+      const db = attach(b);
+      await tick();
+      api.getWorkerEvents.mockClear();
+      refreshAttached();
+      await tick();
+      expect(api.getWorkerEvents.mock.calls.map(([w]) => w).sort()).toEqual([a, b].sort());
+      da(); db();
+    });
   });
 });

@@ -6,6 +6,8 @@
 // Distinct from ptyPanelStore (tab/panel state, useSyncExternalStore-driven):
 // this is a raw fan-out for high-frequency terminal bytes.
 
+import { retainPty } from "./streamFocus.js";
+
 const dataSubs = new Map(); // sessionId -> Set<cb({sessionId,number,seq,data})>
 const exitSubs = new Map(); // sessionId -> Set<cb({sessionId,number,exitCode})>
 
@@ -21,8 +23,11 @@ function add(map, sessionId, cb) {
   };
 }
 
+// An attached xterm: this terminal's output now streams to this tab.
 export function onPtyData(sessionId, cb) {
-  return add(dataSubs, sessionId, cb);
+  const off = add(dataSubs, sessionId, cb);
+  const release = retainPty(sessionId);
+  return () => { off(); release(); };
 }
 
 export function onPtyExit(sessionId, cb) {

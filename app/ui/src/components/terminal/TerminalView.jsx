@@ -50,6 +50,11 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 // queue past PAUSED_QUEUE_CAP is dropped and the terminal re-syncs from the
 // server's screen snapshot instead — the same screen a reattach would show.
 const PAUSED_QUEUE_CAP = 512 * 1024;
+const MAX_INPUTS_IN_FLIGHT = 4;
+
+const newInputStreamId = () => {
+  try { return crypto.randomUUID(); } catch { return `in-${Date.now()}-${Math.random().toString(36).slice(2)}`; }
+};
 
 export function TerminalView({
   sessionId, active, visible = active, paused = false, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter, cwd,
@@ -212,18 +217,21 @@ export function TerminalView({
       fitTimer = setTimeout(() => { fitTimer = null; settleFit(); }, 100);
     };
 
-    // Coalescing input queue: one POST in flight; keys typed meanwhile batch into
-    // the next payload (ordered, no per-key round-trip pile-up).
+    // Input goes out as typed: a few POSTs in flight, numbered so the daemon
+    // writes them in order even when they overtake each other on the way. Past
+    // the cap, keys batch into the next payload (no per-key round-trip pile-up).
+    const inputStream = newInputStreamId();
+    let inputSeq = 0;
+    let inFlight = 0;
     let inputBuf = "";
-    let sending = false;
     const flushInput = () => {
-      if (sending || !inputBuf) return;
+      if (inFlight >= MAX_INPUTS_IN_FLIGHT || !inputBuf) return;
       const payload = inputBuf;
       inputBuf = "";
-      sending = true;
-      api.sendPtyInput(sessionId, payload)
+      inFlight++;
+      api.sendPtyInput(sessionId, payload, { stream: inputStream, seq: ++inputSeq })
         .catch(() => {})
-        .finally(() => { sending = false; flushInput(); });
+        .finally(() => { inFlight--; flushInput(); });
     };
     let onDataDisposable = null;
 
@@ -239,7 +247,11 @@ export function TerminalView({
     // re-sync swaps in a fresh gate; the old one's late replay is ignored.
     let gate = null;
     const attach = () => {
-      const g = createReplayGate((data) => { if (gate === g) writeBytes(data); });
+      const g = createReplayGate(
+        (data) => { if (gate === g) writeBytes(data); },
+        // Output this tab never got (it came into the stream's focus late).
+        () => { if (gate === g && !disposed) { term.reset(); attach(); } },
+      );
       gate = g;
       api.getPtyBuffer(sessionId)
         .then((r) => g.replay(r?.ok ? r.body : null))

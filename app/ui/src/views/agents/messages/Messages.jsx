@@ -199,11 +199,8 @@ export function Messages({ live, agentId, isActive = true }) {
   // restoring a saved position.
   const {
     events: windowEvents, eventsFor, hasOlder: windowHasOlder,
-    loadingOlder, loadOlder, fetchDelta, setFollowing,
-  } = useWorkerEvents(
-    selectedId,
-    { restartKey: live.workers.length, onNewest: reconcileFromNewest },
-  );
+    loadingOlder, loadOlder, setFollowing,
+  } = useWorkerEvents(selectedId, { onNewest: reconcileFromNewest });
   const owned = eventsFor === selectedId;
   const events = owned ? windowEvents : NO_EVENTS;
 
@@ -223,10 +220,6 @@ export function Messages({ live, agentId, isActive = true }) {
     if (selectedId) setCompacting(selectedId, compaction.pending != null);
   }, [selectedId, compaction.pending]);
 
-  useEffect(() => {
-    if (live.eventSignal.workerId !== selectedId) return;
-    fetchDelta();
-  }, [live.eventSignal.tick]);
 
   // Tell the store whether we're following the tail (pinned to bottom) so it
   // only trims the live window when the user is at the bottom — never while

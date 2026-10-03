@@ -8,7 +8,7 @@
 import { randomBytes } from "node:crypto";
 
 import type { EventBus, EventBusMessage } from "../../core/src/ports/EventBus.ts";
-import type { AssetFrame, EventFrame, PatchFrame, RemoteErrorCode, SnapshotFrame } from "../../contracts/src/remote.ts";
+import type { AssetFrame, EventFrame, PatchFrame, RemoteErrorCode, RowsFrame, SnapshotFrame } from "../../contracts/src/remote.ts";
 
 // One server→client inner frame (§5.4), plaintext. `seq` is stamped by the
 // bridge; the session wraps it in the outer envelope. `asset` carries binary
@@ -19,6 +19,7 @@ export type ServerFrame =
   | EventFrame
   | PatchFrame
   | SnapshotFrame
+  | RowsFrame
   | { t: "reply"; correlationId: string; status: number; body: unknown }
   | AssetFrame
   | { t: "error"; code: RemoteErrorCode; message?: string; correlationId?: string }
@@ -32,7 +33,13 @@ export interface RemoteSession {
   close(reason?: string): void;
   // Whether this device is showing that PTY (its `sub` frame) and wants its raw output.
   wantsPty?(ptySessionId: string): boolean;
+  // Whether this device wants this bus event at all (what it has on screen).
+  // Absent ⇒ every event.
+  wants?(topic: string, payload: unknown): boolean;
 }
+
+// The dashboard's own row patches: a phone gets its rows as `patch` frames.
+const NEVER_FORWARDED = new Set(["state:patch"]);
 
 export interface WsBridgeOptions {
   bus: EventBus;
@@ -89,26 +96,28 @@ export class WsBridge {
 
   private onBusMessage(msg: EventBusMessage): void {
     if (this.sessions.size === 0) return; // nothing to fan out to
-    // Raw terminal output goes only to devices showing that terminal. It carries
-    // the current seq without taking a new one, so devices that never see it
-    // don't read a gap.
-    if (msg.topic === "pty:data") {
-      const ptyId = (msg.payload as { sessionId?: string }).sessionId ?? "";
-      const frame: ServerFrame = { t: "event", seq: this.seq, reason: msg.topic, ts: this.opts.now(), payload: msg.payload };
-      for (const s of this.sessions.values()) {
-        if (!s.wantsPty?.(ptyId)) continue;
-        try { s.send(frame); } catch { this.sessions.delete(s.id); }
-      }
-      return;
+    if (NEVER_FORWARDED.has(msg.topic)) return;
+    const pty = msg.topic === "pty:data";
+    const ptyId = pty ? (msg.payload as { sessionId?: string }).sessionId ?? "" : "";
+    const targets: RemoteSession[] = [];
+    for (const s of this.sessions.values()) {
+      // Raw terminal output goes only to devices showing that terminal.
+      if (pty ? s.wantsPty?.(ptyId) : (s.wants?.(msg.topic, msg.payload) ?? true)) targets.push(s);
     }
+    if (targets.length === 0) return;
+    // A frame some devices don't get carries the current seq without taking a
+    // new one, so those devices don't read a gap.
+    const scoped = pty || targets.length < this.sessions.size;
     const frame: ServerFrame = {
       t: "event",
-      seq: this.nextSeq(),
+      seq: scoped ? this.seq : this.nextSeq(),
       reason: msg.topic,
       ts: this.opts.now(),
       payload: msg.payload,
     };
-    this.broadcast(frame);
+    for (const s of targets) {
+      try { s.send(frame); } catch { this.sessions.delete(s.id); }
+    }
   }
 
   private broadcast(frame: ServerFrame): void {

@@ -51,6 +51,13 @@ contextBridge.exposeInMainWorld("eosHosts", {
     ipcRenderer.on("eosHosts:changed", h);
     return () => ipcRenderer.removeListener("eosHosts:changed", h);
   },
+  // Whether this view is on screen (a controlled computer's view is detached
+  // while another machine is shown, and hidden with a minimized window).
+  onVisibility: (cb: (visible: boolean) => void) => {
+    const h = (_e: unknown, visible: boolean) => cb(visible === true);
+    ipcRenderer.on("eosHosts:visibility", h);
+    return () => ipcRenderer.removeListener("eosHosts:visibility", h);
+  },
   // Shell → UI commands (the Machines menu's "Connect a Machine…").
   onCommand: (cb: (cmd: { type: string }) => void) => {
     const h = (_e: unknown, cmd: { type: string }) => cb(cmd);

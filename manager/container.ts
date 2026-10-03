@@ -18,6 +18,7 @@ import { systemTimeZone } from "../infra/src/time/SystemTimeZone.ts";
 import { randomIdGenerator } from "../infra/src/id/RandomIdGenerator.ts";
 import { createLogger } from "../infra/src/observability/StructLogger.ts";
 import { createInMemoryEventBus } from "../infra/src/eventbus/InMemoryEventBus.ts";
+import { withCoalescedDeltas } from "../infra/src/eventbus/DeltaCoalescingEventBus.ts";
 import { createPortAllocator } from "../infra/src/net/PortAllocator.ts";
 import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProcessSupervisor.ts";
 import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
@@ -163,6 +164,8 @@ import { resolveProviderIdentity } from "./shared/provider-identity.ts";
 import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "./shared/tier-prompt-render.ts";
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
+import { LiveText } from "./remote/LiveText.ts";
+import { DeltaOffsets } from "./shared/delta-offsets.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { SuspendGuardService } from "./services/SuspendGuardService.ts";
 import { TurnOutputTrackerService } from "./services/TurnOutputTracker.ts";
@@ -269,8 +272,16 @@ export function buildContainer() {
     .catch((e) => log.warn("worktree prune failed", { error: e instanceof Error ? e.message : String(e) }));
 
   // Bus + SSE ---------------------------------------------------------------
-  const bus = createInMemoryEventBus();
-  const sse = new SseBroadcaster({ bus, keepaliveMs: config.daemon.sseKeepaliveMs });
+  // Token deltas leave the bus merged per 50ms window (a block's first one at
+  // once) — ~20 frames a second per streaming block still reads as live typing.
+  const bus = withCoalescedDeltas(createInMemoryEventBus(), { windowMs: 50 });
+  // daemon.ts runs the patcher behind "state:patch".
+  const sse = new SseBroadcaster({ bus, keepaliveMs: config.daemon.sseKeepaliveMs, caps: ["state:patch"] });
+  // Text streamed so far for in-flight blocks: a client that starts watching a
+  // worker mid-stream (a dashboard pane coming into view, a phone resuming)
+  // only receives the deltas from then on.
+  const liveText = new LiveText(bus, () => Date.now());
+  liveText.start();
 
   // Stale-worker reconcile — the supervisor map starts empty, so every non-DONE
   // row's process is gone. Resumable rows (session_id + cwd on disk) park as
@@ -1380,6 +1391,7 @@ export function buildContainer() {
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
+  const deltaOffsets = new DeltaOffsets();
   const onAgentEvent = (workerId: string, event: AgentEvent): void => {
     // Live deltas are ephemeral: relayed to the UI over SSE (the SseBroadcaster
     // rebroadcasts every bus topic), never persisted as an event row and never
@@ -1389,7 +1401,10 @@ export function buildContainer() {
       // responded → an interrupt past this point is a normal interrupt, not a
       // recall. Earliest, fullest proof of output (deltas never reach the log).
       turnOutput.markSeen(workerId);
-      bus.publish("agent:delta", { workerId, channel: event.channel, phase: event.phase, blockId: event.blockId, text: event.text });
+      bus.publish("agent:delta", {
+        workerId, channel: event.channel, phase: event.phase, blockId: event.blockId, text: event.text,
+        at: deltaOffsets.next(workerId, event.blockId, event.phase, event.text.length),
+      });
       return;
     }
     // Fallback for backends with deltas off: a durable assistant message also
@@ -1398,7 +1413,7 @@ export function buildContainer() {
       turnOutput.markSeen(workerId);
     }
     processAgentSignal(
-      { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
+      { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id), isInterruptPending: (id) => turnSettle.isInterruptPending(id) },
       workerId,
       event,
     );
@@ -1445,6 +1460,7 @@ export function buildContainer() {
     db,
     bus,
     sse,
+    liveText,
     clock: systemClock,
     timeZone: systemTimeZone,
     ids: randomIdGenerator,

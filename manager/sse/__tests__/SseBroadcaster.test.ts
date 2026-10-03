@@ -202,3 +202,39 @@ describe("SseBroadcaster — resume", () => {
     assert.deepEqual(changePayloads(res), [{ a: 1 }, { a: 3 }]);
   });
 });
+
+describe("SseBroadcaster — a tab's on-screen focus", () => {
+  const reasons = (res: FakeRes): string[] => res.writes
+    .filter((w) => w.includes("\nevent: change\n"))
+    .map((w) => { const d = JSON.parse(w.split("data: ")[1]); return `${d.reason}:${d.payload?.workerId ?? d.payload?.sessionId ?? ""}`; });
+
+  it("streams agent:delta and pty:data only for what the tab shows; other topics as before", () => {
+    const b = new SseBroadcaster({ bus: fakeBus(), keepaliveMs: 60_000 });
+    const focused = new FakeRes();
+    const unfocused = new FakeRes();
+    attachFake(b, focused, { clientId: "tab", focus: { workers: ["w1"], ptys: ["p1"] } });
+    attachFake(b, unfocused);
+    b.broadcast("agent:delta", { workerId: "w1" });
+    b.broadcast("agent:delta", { workerId: "w2" });
+    b.broadcast("pty:data", { sessionId: "p2" });
+    b.broadcast("pty:data", { sessionId: "p1" });
+    b.broadcast("worker:change", { workerId: "w2" });
+    assert.deepEqual(reasons(focused), ["agent:delta:w1", "pty:data:p1", "worker:change:w2"]);
+    assert.equal(changeWrites(unfocused), 5, "a tab that declared nothing gets everything");
+  });
+
+  it("setFocus applies from the next event, and the replay follows the focus too", () => {
+    const b = new SseBroadcaster({ bus: fakeBus(), keepaliveMs: 60_000 });
+    const res = new FakeRes();
+    attachFake(b, res, { clientId: "tab", focus: { workers: [], ptys: [] } });
+    const since = b.currentId();
+    b.broadcast("agent:delta", { workerId: "w1" });
+    b.setFocus("tab", { workers: ["w1"], ptys: [] });
+    b.broadcast("agent:delta", { workerId: "w1" });
+    assert.equal(changeWrites(res), 1);
+
+    const again = new FakeRes();
+    attachFake(b, again, { since, clientId: "tab", focus: { workers: ["w2"], ptys: [] } });
+    assert.equal(changeWrites(again), 0, "w1's deltas are not replayed to a tab now showing w2");
+  });
+});

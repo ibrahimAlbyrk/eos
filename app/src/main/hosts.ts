@@ -86,6 +86,13 @@ export class HostViews {
     // A reactivated window hands focus to its own page, hidden under the host
     // view — then ⌘V lands nowhere and copy buttons fail ("not focused").
     deps.win.on("focus", () => { if (this.active) this.views.get(this.active)?.webContents.focus(); });
+    // A view off screen pauses its live stream (it runs over the link to the
+    // other computer); Chromium doesn't report a detached view as hidden.
+    const tell = (): void => this.tellActiveVisibility();
+    deps.win.on("minimize", tell);
+    deps.win.on("restore", tell);
+    deps.win.on("hide", tell);
+    deps.win.on("show", tell);
     ipcMain.handle("eosHosts:list", () => this.snapshot());
     ipcMain.on("eosHosts:switch", (_e, id: unknown) => void this.switchTo(typeof id === "string" ? id : null));
     ipcMain.on("eosHosts:openWindow", (_e, id: unknown) => { if (typeof id === "string") void this.openInWindow(id); });
@@ -137,7 +144,10 @@ export class HostViews {
     if (id && !this.hosts.some((h) => h.id === id)) return;
     if (this.active === id) return;
     const prev = this.active ? this.views.get(this.active) : null;
-    if (prev) win.contentView.removeChildView(prev);
+    if (prev) {
+      win.contentView.removeChildView(prev);
+      tellVisibility(prev, false);
+    }
     this.active = id;
     this.broadcast();
     this.deps.onChange?.();
@@ -146,8 +156,19 @@ export class HostViews {
     // The user may have switched again while the view was being built.
     if (this.active !== id || win.isDestroyed()) return;
     win.contentView.addChildView(view);
+    tellVisibility(view, this.windowShown());
     this.layout();
     view.webContents.focus();
+  }
+
+  private windowShown(): boolean {
+    const { win } = this.deps;
+    return !win.isDestroyed() && win.isVisible() && !win.isMinimized();
+  }
+
+  private tellActiveVisibility(): void {
+    const view = this.active ? this.views.get(this.active) : null;
+    if (view) tellVisibility(view, this.windowShown());
   }
 
   // The web contents that has the user's attention — the menu's edit commands
@@ -337,6 +358,10 @@ export class HostViews {
       if (!wc.isDestroyed()) wc.send("eosHosts:changed", snap);
     }
   }
+}
+
+function tellVisibility(view: WebContentsView, visible: boolean): void {
+  if (!view.webContents.isDestroyed()) view.webContents.send("eosHosts:visibility", visible);
 }
 
 function notFound(): Response {

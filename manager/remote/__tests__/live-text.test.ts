@@ -30,9 +30,20 @@ describe("LiveText (in-flight streaming text for the resume snapshot)", () => {
     delta(bus, "w1", "b1", "stop");
     delta(bus, "w1", "b2", "start", "think", "reasoning");
     assert.deepEqual(live.snapshot(), [
-      { workerId: "w1", blockId: "b1", channel: "text", text: "Hello" },
+      { workerId: "w1", blockId: "b1", channel: "text", text: "Hello", done: true },
       { workerId: "w1", blockId: "b2", channel: "reasoning", text: "think" },
     ]);
+    live.stop();
+  });
+
+  it("blocksFor returns one worker's blocks", () => {
+    const bus = new TopicBus();
+    const live = new LiveText(bus, () => clock);
+    live.start();
+    delta(bus, "w1", "b1", "start", "a");
+    delta(bus, "w2", "b2", "start", "b");
+    assert.deepEqual(live.blocksFor("w2"), [{ workerId: "w2", blockId: "b2", channel: "text", text: "b" }]);
+    assert.deepEqual(live.blocksFor("nobody"), []);
     live.stop();
   });
 

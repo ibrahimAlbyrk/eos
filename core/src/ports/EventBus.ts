@@ -54,7 +54,11 @@ export type EventBusTopic =
   | "hosts:change"
   // A page was created, edited or deleted (payload PageChangeEvent) — open
   // editors and page lists refetch.
-  | "pages:change";
+  | "pages:change"
+  // The dashboard's changed worker/pending rows after a burst of the topics
+  // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
+  // merge them instead of re-reading the lists.
+  | "state:patch";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;

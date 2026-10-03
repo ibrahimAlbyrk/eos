@@ -14,7 +14,7 @@ import { generatePairing } from "./qr.ts";
 import { makeRouteDispatch } from "./virtual-dispatch.ts";
 import { GatewayConnection, type GatewayDeps } from "./gateway.ts";
 import { WsBridge } from "./WsBridge.ts";
-import { StatePatcher } from "./patcher.ts";
+import { StatePatcher, bridgeSink } from "./patcher.ts";
 import { LiveText } from "./LiveText.ts";
 import { RelayConnector } from "./RelayConnector.ts";
 import { startKeepAwake } from "./keepAwake.ts";
@@ -29,6 +29,8 @@ export interface RemoteWiringDeps {
   uiToken: string;
   bus: EventBus;
   log: { info(msg: string, fields?: Record<string, unknown>): void; warn(msg: string, fields?: Record<string, unknown>): void };
+  // The daemon's own (always running); absent ⇒ the gateway keeps one while armed.
+  liveText?: LiveText;
 }
 
 export interface PairArmOptions {
@@ -94,8 +96,9 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   const now = (): number => Date.now();
   const room = secrets.room;
 
-  const liveText = new LiveText(c.bus, now);
-  liveText.start();
+  const ownLiveText = c.liveText ? null : new LiveText(c.bus, now);
+  ownLiveText?.start();
+  const liveText = c.liveText ?? ownLiveText!;
   const deps: GatewayDeps = {
     audit, uiToken: c.uiToken, routeDispatch: makeRouteDispatch(router),
     bus: c.bus, room, now,
@@ -108,7 +111,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   // §5.4.2: worker/pending change topics → per-row patch frames (the phone's
   // live list state; `event` frames alone carry only ids).
   const patcher = new StatePatcher({
-    bus: c.bus, bridge, routeDispatch: deps.routeDispatch,
+    bus: c.bus, sink: bridgeSink(bridge), routeDispatch: deps.routeDispatch,
     log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
   });
   patcher.start();
@@ -148,7 +151,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   sweeper.unref?.();
   c.log.info("remote gateway armed", { relayUrl, room });
   return {
-    stop: () => { clearInterval(sweeper); releaseKeepAwake(); connector.stop(); patcher.stop(); liveText.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
+    stop: () => { clearInterval(sweeper); releaseKeepAwake(); connector.stop(); patcher.stop(); ownLiveText?.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
     // mutation (the bearer hash is already in the room's allow from register).
     armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),

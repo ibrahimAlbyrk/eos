@@ -21,6 +21,8 @@ import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
 import { RemoteController } from "./remote/controller.ts";
+import { StatePatcher } from "./remote/patcher.ts";
+import { makeRouteDispatch } from "./remote/virtual-dispatch.ts";
 import { registerRemoteRoutes } from "./routes/remote.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
@@ -558,6 +560,18 @@ server.on("upgrade", makeBrowserHostUpgradeHandler({ host: c.appHost, uiToken: c
 // LAN /ws surface, so nothing is bound on the HTTP server here.
 remoteController = new RemoteController(c, router);
 remoteController.reconcile();
+
+// The dashboard's row patches: a change burst becomes one `state:patch` stream
+// event carrying just the changed (brief) rows, so a tab no longer re-reads the
+// whole worker list + pending on every state ping.
+const dashboardPatcher = new StatePatcher({
+  bus: c.bus,
+  sink: { active: () => c.sse.size() > 0, push: (changes) => c.bus.publish("state:patch", { changes }) },
+  routeDispatch: makeRouteDispatch(router),
+  paths: { workers: "/workers?brief=1", pending: "/pending" },
+  log: (m, x) => c.log.info(`[patches] ${m}`, x ?? {}),
+});
+dashboardPatcher.start();
 
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
 // separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,

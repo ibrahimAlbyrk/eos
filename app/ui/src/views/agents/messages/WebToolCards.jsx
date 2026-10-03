@@ -49,7 +49,7 @@ function SiteTile({ name }) {
   return <span className="web-tile" style={{ "--h": siteHue(name) }}>{name[0]}</span>;
 }
 
-function ClampedMarkdown({ text, moreLabel }) {
+export function ClampedMarkdown({ text, moreLabel }) {
   const ref = useRef(null);
   const html = useMemo(() => renderMarkdown(text), [text]);
   const [tall, setTall] = useState(false);

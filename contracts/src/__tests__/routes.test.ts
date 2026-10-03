@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
-  "health", "stream", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerAttachments", "workerPromptEvents", "workerSubagentEvents", "workerMessage",
+  "health", "stream", "streamFocus", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerAttachments", "workerPromptEvents", "workerSubagentEvents", "workerMessage",
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
   "orchestrators", "orchestratorMessage", "orchestratorIntegrate",

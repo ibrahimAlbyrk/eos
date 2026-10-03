@@ -14,19 +14,24 @@ import { api } from "./client.js";
 const INITIAL_BACKOFF_MS = 250;
 const MAX_BACKOFF_MS = 5_000;
 
+function parseData(e) {
+  try { return JSON.parse(e.data); } catch { return null; }
+}
+
 export function createReconnectingStream(handlers) {
   let es = null;
   let reconnectTimer = null;
   let closed = false;
+  let paused = false;
   let backoffMs = INITIAL_BACKOFF_MS;
   let lastEventId = null;
 
   const track = (e) => { if (e.lastEventId) lastEventId = e.lastEventId; };
 
   function attach() {
-    if (closed) return;
+    if (closed || paused) return;
     try {
-      es = api.newEventStream(lastEventId);
+      es = api.newEventStream(lastEventId, handlers.query?.() ?? "");
     } catch {
       schedule();
       return;
@@ -35,8 +40,8 @@ export function createReconnectingStream(handlers) {
       backoffMs = INITIAL_BACKOFF_MS;
       handlers.onOpen?.();
     };
-    es.addEventListener("hello", track);
-    es.addEventListener("resync", (e) => { track(e); handlers.onResync?.(); });
+    es.addEventListener("hello", (e) => { track(e); handlers.onHello?.(parseData(e)); });
+    es.addEventListener("resync", (e) => { track(e); handlers.onResync?.(parseData(e)); });
     es.addEventListener("change", (e) => { track(e); handlers.onChange?.(e); });
     es.onmessage = (e) => handlers.onMessage?.(e);
     es.onerror = () => {
@@ -51,7 +56,7 @@ export function createReconnectingStream(handlers) {
   }
 
   function schedule() {
-    if (closed || reconnectTimer) return;
+    if (closed || paused || reconnectTimer) return;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
@@ -62,6 +67,22 @@ export function createReconnectingStream(handlers) {
   attach();
 
   return {
+    // Off screen: drop the connection but keep the resume point — resume()
+    // reconnects from it, so the daemon replays (or resyncs) what was missed.
+    pause() {
+      if (closed || paused) return;
+      paused = true;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      try { es?.close(); } catch {}
+      es = null;
+      handlers.onPause?.();
+    },
+    resume() {
+      if (closed || !paused) return;
+      paused = false;
+      backoffMs = INITIAL_BACKOFF_MS;
+      attach();
+    },
     close() {
       closed = true;
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }

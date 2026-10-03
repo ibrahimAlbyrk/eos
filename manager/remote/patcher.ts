@@ -1,25 +1,48 @@
-// StatePatcher — the remote edge's §5.4.2 emitter. The bus's worker/pending
-// change topics carry only ids ({ workerId } / { id }), so the phone could never
-// keep its list state live from `event` frames alone (that gap is what froze
-// worker state at bootstrap on the device). This folds those topics into per-row
-// `patch` frames: debounce a change burst, re-read the authoritative list route
-// once, then push one upsert/remove per dirty row through the bridge.
+// StatePatcher — folds the bus's worker/pending change topics (they carry only
+// ids: { workerId } / { id }) into row changes: debounce a change burst, re-read
+// the authoritative list route once, then hand one upsert/remove per dirty row
+// to a sink. The phone's sink is the §5.4.2 `patch` frame (an `event` alone left
+// its list frozen at bootstrap); the dashboard's is the `state:patch` SSE event,
+// so it never re-downloads the whole list on a state ping.
 //
-// The row payload is EXACTLY the GET /workers (or GET /pending) list shape — the
-// same JSON the phone's bootstrap parses — so a patch and a bootstrap row are
-// interchangeable on the consumer side.
+// The row payload is EXACTLY the list route's row shape (GET /workers, or the
+// sink's own list path) — the same JSON the consumer's bootstrap parses — so a
+// patch and a bootstrap row are interchangeable on the consumer side.
 
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { RouteDispatch } from "./dispatch.ts";
 import type { WsBridge } from "./WsBridge.ts";
 
-const WORKER_TOPICS = ["worker:spawn", "worker:change", "worker:exit", "worker:removed"] as const;
-const PENDING_TOPICS = ["pending:created", "pending:resolved", "pending:ttl_expired"] as const;
+// usage:recorded (cost) and loop:change (the row's loop) change a row without a worker:change.
+export const WORKER_TOPICS = ["worker:spawn", "worker:change", "worker:exit", "worker:removed", "usage:recorded", "loop:change"] as const;
+export const PENDING_TOPICS = ["pending:created", "pending:resolved", "pending:ttl_expired"] as const;
+
+export interface RowChange {
+  resource: "workers" | "pending";
+  op: "upsert" | "remove";
+  data: unknown; // the list row, or { id } for a remove
+}
+
+export interface PatchSink {
+  // Anyone to push to? No ⇒ a burst is dropped unread.
+  active(): boolean;
+  push(changes: RowChange[]): void;
+}
+
+// The phone: one `patch` frame per change.
+export function bridgeSink(bridge: WsBridge): PatchSink {
+  return {
+    active: () => bridge.size() > 0,
+    push: (changes) => { for (const c of changes) bridge.pushPatch(c.resource, c.op, c.data); },
+  };
+}
 
 export interface StatePatcherDeps {
   bus: EventBus;
-  bridge: WsBridge;
+  sink: PatchSink;
   routeDispatch: RouteDispatch;
+  // The list routes the rows come from (the dashboard reads brief rows).
+  paths?: { workers: string; pending: string };
   debounceMs?: number; // trailing collect window for a change burst (default 150)
   log?: (msg: string, extra?: Record<string, unknown>) => void;
 }
@@ -80,9 +103,13 @@ export class StatePatcher {
     this.dirtyWorkers.clear();
     this.dirtyPending.clear();
     try {
-      if (this.deps.bridge.size() === 0) return; // nobody to push to
-      if (workers.length > 0) await this.emit("workers", "/workers", workers);
-      if (pending.length > 0) await this.emit("pending", "/pending", pending);
+      if (!this.deps.sink.active()) return; // nobody to push to
+      const paths = this.deps.paths ?? { workers: "/workers", pending: "/pending" };
+      const changes = [
+        ...(workers.length > 0 ? await this.read("workers", paths.workers, workers) : []),
+        ...(pending.length > 0 ? await this.read("pending", paths.pending, pending) : []),
+      ];
+      if (changes.length > 0) this.deps.sink.push(changes);
     } catch (e) {
       this.deps.log?.("state patch flush failed", { error: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -91,14 +118,13 @@ export class StatePatcher {
     }
   }
 
-  private async emit(resource: "workers" | "pending", path: string, ids: string[]): Promise<void> {
+  private async read(resource: RowChange["resource"], path: string, ids: string[]): Promise<RowChange[]> {
     const result = await this.deps.routeDispatch({ method: "GET", path, body: {} });
     const rows = "body" in result && Array.isArray(result.body) ? (result.body as Array<Record<string, unknown>>) : [];
     const byId = new Map(rows.filter((r) => typeof r.id === "string").map((r) => [r.id as string, r]));
-    for (const id of ids) {
+    return ids.map((id) => {
       const row = byId.get(id);
-      if (row) this.deps.bridge.pushPatch(resource, "upsert", row);
-      else this.deps.bridge.pushPatch(resource, "remove", { id });
-    }
+      return row ? { resource, op: "upsert", data: row } : { resource, op: "remove", data: { id } };
+    });
   }
 }

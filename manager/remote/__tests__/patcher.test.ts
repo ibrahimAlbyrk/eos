@@ -6,7 +6,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { StatePatcher } from "../patcher.ts";
+import { StatePatcher, bridgeSink } from "../patcher.ts";
 import { WsBridge, type RemoteSession, type ServerFrame } from "../WsBridge.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
 
@@ -30,7 +30,7 @@ function harness(routes: Record<string, unknown[]>) {
   const session: RemoteSession = { id: "dev-1", send: (f) => sent.push(f), close: () => {} };
   bridge.add(session);
   const patcher = new StatePatcher({
-    bus, bridge, debounceMs: 5,
+    bus, sink: bridgeSink(bridge), debounceMs: 5,
     routeDispatch: async ({ path }) => ({ status: 200, body: routes[path] ?? [] }),
   });
   patcher.start();
@@ -94,13 +94,35 @@ describe("StatePatcher (workers/pending patch emission)", () => {
     const bridge = new WsBridge({ bus, now: () => 0 });
     let dispatched = 0;
     const patcher = new StatePatcher({
-      bus, bridge, debounceMs: 5,
+      bus, sink: bridgeSink(bridge), debounceMs: 5,
       routeDispatch: async () => { dispatched++; return { status: 200, body: [] }; },
     });
     patcher.start();
     bus.publish("worker:change", { workerId: "w-1" });
     await settle();
     assert.equal(dispatched, 0, "no list read when nobody is connected");
+    patcher.stop();
+  });
+
+  it("hands a burst to the sink as one batch, read from the sink's own list paths", async () => {
+    const bus = new FakeBus();
+    const batches: unknown[] = [];
+    const read: string[] = [];
+    const patcher = new StatePatcher({
+      bus, debounceMs: 5,
+      sink: { active: () => true, push: (changes) => batches.push(changes) },
+      paths: { workers: "/workers?brief=1", pending: "/pending" },
+      routeDispatch: async ({ path }) => { read.push(path); return { status: 200, body: path.startsWith("/workers") ? [{ id: "w-1", cost: 2 }] : [] }; },
+    });
+    patcher.start();
+    bus.publish("usage:recorded", { workerId: "w-1" });
+    bus.publish("pending:resolved", { id: "p-1" });
+    await settle();
+    assert.deepEqual(read, ["/workers?brief=1", "/pending"]);
+    assert.deepEqual(batches, [[
+      { resource: "workers", op: "upsert", data: { id: "w-1", cost: 2 } },
+      { resource: "pending", op: "remove", data: { id: "p-1" } },
+    ]]);
     patcher.stop();
   });
 });

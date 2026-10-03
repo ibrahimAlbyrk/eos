@@ -68,4 +68,16 @@ describe("replayGate (reattach ordering + seq dedup)", () => {
     gate.replay({ seq: 9, data: "AGAIN" });
     expect(out).toEqual(["BUF"]);
   });
+
+  it("reports a gap past the buffer once and writes nothing after it", () => {
+    const out = [];
+    let gaps = 0;
+    const gate = createReplayGate((d) => out.push(d), () => { gaps++; });
+    gate.replay({ seq: 5, data: "BUF" });
+    gate.frame({ seq: 6, data: "f" });
+    gate.frame({ seq: 9, data: "x" });
+    gate.frame({ seq: 10, data: "y" });
+    expect(out).toEqual(["BUF", "f"]);
+    expect(gaps).toBe(1);
+  });
 });

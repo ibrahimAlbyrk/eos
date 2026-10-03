@@ -305,20 +305,175 @@
 }
 .pg-selbar__btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
 
-/* ── page tool rows in the transcript (PageToolDetail) ──────────────────── */
-.pg-tooldetail { padding: 6px 0 4px 22px; }
-.pg-tooldetail--error { font-size: var(--text-sm); color: var(--err); white-space: pre-wrap; }
-.pg-tooldetail__open {
+/* ── page tools in the transcript (messages/PageToolViews.jsx) ───────────
+   Quick actions are one rich line (task + page chips, progress dots, compact
+   list rows); reads and writes open to a page card — the .web-card recipe
+   with the page header and the change drawn in place. */
+.ptl-chip,
+.ptl-task {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
+  max-width: 280px;
+  height: 24px;
+  padding: 0 10px 0 7px;
+  border-radius: var(--r-pill);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.ptl-chip {
+  color: var(--fg);
+  cursor: pointer;
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.ptl-chip > svg { flex-shrink: 0; color: color-mix(in srgb, var(--accent) 75%, white); }
+.ptl-chip:hover {
+  color: var(--fg-strong);
+  background: linear-gradient(180deg, rgba(var(--tint), 0.1), rgba(var(--tint), 0.03) 60%, rgba(var(--tint), 0.05));
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.26), inset 0 0 0 0.5px rgba(var(--tint), 0.1), 0 4px 12px -4px rgba(var(--ink), 0.45);
+}
+.ptl-chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ptl-task { color: var(--fg-mid); background: rgba(var(--tint), 0.05); }
+.ptl-task.is-done { color: var(--bubble-fg); background: color-mix(in srgb, var(--accent) 13%, transparent); }
+.ptl-cb {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px var(--fg-dim2);
+}
+.ptl-cb.on { color: var(--accent-fg); background: var(--accent); box-shadow: none; }
+.ptl-on { color: var(--fg-dim); }
+.ptl-dots { display: inline-flex; align-items: center; gap: 4px; margin-left: 2px; }
+.ptl-dot { width: 6px; height: 6px; border-radius: var(--r-pill); background: rgba(var(--tint), 0.16); }
+.ptl-dot.on { background: var(--accent); }
+.ptl-count { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim2); }
+
+.ptl-list {
+  display: flex;
+  flex-direction: column;
+  margin: 4px 0 8px;
+  padding: 5px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(var(--tint), 0.035), rgba(var(--tint), 0.012));
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.05);
+}
+.ptl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: var(--text-base);
+  color: var(--fg);
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.ptl-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.ptl-row > svg { flex-shrink: 0; color: color-mix(in srgb, var(--accent) 75%, white); }
+.ptl-row__title { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ptl-row__excerpt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); color: var(--fg-dim2); }
+.ptl-row__meta { margin-left: auto; flex-shrink: 0; font-size: var(--text-xs); color: var(--fg-dim2); }
+
+/* page card */
+.pgc--new { background:
+  radial-gradient(560px 150px at 0% 0%, color-mix(in srgb, var(--ok) 9%, transparent), transparent 70%),
+  linear-gradient(180deg, rgba(var(--tint), 0.045), rgba(var(--tint), 0.016) 38%, rgba(var(--tint), 0.026)); }
+.pgc--failed { background:
+  radial-gradient(560px 150px at 0% 0%, color-mix(in srgb, var(--err) 8%, transparent), transparent 70%),
+  linear-gradient(180deg, rgba(var(--tint), 0.04), rgba(var(--tint), 0.014)); }
+.pgc-head { display: flex; align-items: center; gap: 12px; padding: 13px 13px 12px 16px; min-width: 0; }
+.pgc-tile {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--accent) 70%, white);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: inset 0 0.5px 0 rgba(var(--tint), 0.14);
+}
+.pgc--new .pgc-tile { color: color-mix(in srgb, var(--ok) 70%, white); background: color-mix(in srgb, var(--ok) 14%, transparent); }
+.pgc-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.pgc-title { font-size: var(--text-md); font-weight: 600; letter-spacing: -0.005em; color: var(--fg-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pgc-meta { font-size: var(--text-xs); color: var(--fg-dim2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pgc-badge {
+  flex-shrink: 0;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 9px;
+  border-radius: var(--r-pill);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--ok) 70%, white);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.pgc-open {
+  flex-shrink: 0;
   height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 0 12px 0 10px;
   border-radius: var(--r-pill);
   font-size: var(--text-sm);
   color: var(--fg-mid);
-  background: rgba(var(--tint), 0.04);
-  box-shadow: inset 0 0 0 0.5px rgba(var(--tint), 0.08);
-  transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease;
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
-.pg-tooldetail__open:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); color: var(--fg); }
+.pgc-open:hover { color: var(--fg-strong); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
+.pgc-body { display: flex; flex-direction: column; gap: 10px; padding: 14px 18px 16px; min-width: 0; font-size: var(--text-base); line-height: 1.7; color: var(--fg-mid); }
+.pgc-body > .tool-failure-banner { margin: 0; }
+.pgc-empty { font-size: var(--text-sm); color: var(--fg-dim2); }
+.pgc .md-prose li:has(> input[type="checkbox"]) { list-style: none; margin-left: -1.3em; }
+.pgc .md-prose input[type="checkbox"] {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  margin: 0 9px 0 0;
+  vertical-align: -2px;
+  border-radius: 4.5px;
+  box-shadow: inset 0 0 0 1.5px var(--fg-dim2);
+}
+.pgc .md-prose input[type="checkbox"]:checked {
+  background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3.5 8.5 3 3 6-7' fill='none' stroke='%230b1018' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 10px no-repeat;
+  box-shadow: none;
+}
+.pgc-added {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -2px -8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--hl-ins-bg);
+  color: var(--fg);
+}
+.pgc-add { display: flex; align-items: baseline; gap: 9px; min-width: 0; }
+.pgc-add > .ptl-cb, .pgc-add > .pgc-bullet { align-self: center; }
+.pgc-add__sign { flex-shrink: 0; width: 10px; font-family: var(--font-mono); color: var(--ok); }
+.pgc-add__heading { font-weight: 600; color: var(--fg-strong); }
+.pgc-bullet { width: 5px; height: 5px; flex-shrink: 0; border-radius: var(--r-pill); background: var(--fg-dim2); }
+.pgc-diff { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pgc-diff del,
+.pgc-diff ins { padding: 1px 3px; border-radius: 4px; text-decoration-thickness: 1px; }
+.pgc-diff del { color: var(--hl-del-fg); background: var(--hl-del-bg); text-decoration-color: color-mix(in srgb, var(--hl-del-fg) 60%, transparent); }
+.pgc-diff ins { color: var(--hl-ins-fg); background: var(--hl-ins-bg); text-decoration: none; }
+.pgc-tried { display: flex; flex-direction: column; gap: 6px; }
+.pgc-tried code {
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  color: var(--fg-dim);
+  background: var(--bg);
+}

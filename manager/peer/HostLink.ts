@@ -99,6 +99,8 @@ export class HostLink {
   private upgrading = false;
   private waiters: Waiter[] = [];
   private lastFailure: string | null = null;
+  // The route the last live session ran on.
+  private lastRoute: LinkRoute | null = null;
   // A tunnel the host opened back to this Mac, kept ready as a way in.
   private reverse: Duplex | null = null;
   // The tunnel this Mac offered the host through the live session.
@@ -264,7 +266,9 @@ export class HostLink {
     const relayPipe = this.deps.dialRelay;
     if (relayPipe && host.relay) {
       attempts.push({
-        delay: attempts.length ? RELAY_DELAY_MS : 0, route: "relay",
+        // The relay is where the last link lived (the direct addresses didn't
+        // answer then): dial it at once instead of after the direct head start.
+        delay: attempts.length && this.lastRoute !== "relay" ? RELAY_DELAY_MS : 0, route: "relay",
         open: async () => {
           const pipe = await relayPipe(host);
           if (!pipe) throw new LinkUnavailableError(LINK_ERROR.noRoute, "relay unavailable");
@@ -330,6 +334,7 @@ export class HostLink {
       else this.scheduleRetry(0);
     });
     this.session = session;
+    this.lastRoute = route;
     this.lastFailure = null;
     // An offer made through the previous session dies with it.
     this.offered = null;

@@ -31,7 +31,7 @@ import { artifactFromTool } from "../../../lib/artifactLink.js";
 import { ArtifactChip } from "./ArtifactChip.jsx";
 import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
 import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
-import { PageToolDetail, pageToolId, pageToolTitle } from "./PageToolDetail.jsx";
+import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -315,33 +315,9 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
   });
 }
 
-// Page tools — same tools on both lanes. The row names the page (or the task
-// ticked); writes open to a button that brings the page up in the side panel.
-const PAGE_VIEWS = {
-  list_pages: {
-    label: (t) => ({ verb: "Listed", file: t.input?.query ? `pages matching “${t.input.query}”` : "pages" }),
-    runningLabel: () => ({ verb: "Listing", file: "pages" }),
-  },
-  read_page: {
-    label: (t) => ({ verb: "Read", file: pageToolTitle(t) }),
-    runningLabel: (t) => ({ verb: "Reading", file: pageToolTitle(t) }),
-  },
-  create_page: { label: (t) => ({ verb: "Created page", file: pageToolTitle(t) }), runningLabel: (t) => ({ verb: "Creating page", file: pageToolTitle(t) }) },
-  append_to_page: { label: (t) => ({ verb: "Added to", file: pageToolTitle(t) }), runningLabel: (t) => ({ verb: "Adding to", file: pageToolTitle(t) }) },
-  edit_page: { label: (t) => ({ verb: "Edited", file: pageToolTitle(t) }), runningLabel: (t) => ({ verb: "Editing", file: pageToolTitle(t) }) },
-  set_page_task: {
-    label: (t) => ({ verb: t.input?.done === false ? "Reopened" : "Ticked", file: t.input?.task ?? "a task" }),
-    runningLabel: (t) => ({ verb: "Updating", file: t.input?.task ?? "a task" }),
-  },
-};
-for (const [tool, view] of Object.entries(PAGE_VIEWS)) {
-  const writes = tool !== "list_pages" && tool !== "read_page";
-  for (const server of ["orchestrator", "worker"]) {
-    register(`mcp__${server}__${tool}`, {
-      ...view,
-      ...(writes ? { expandable: (t) => failed(t) || Boolean(pageToolId(t)), Detail: PageToolDetail } : { expandable: genericExpandable }),
-    });
-  }
+// Page tools — same tools on both lanes; views in ./PageToolViews.jsx.
+for (const [tool, view] of Object.entries(PAGE_TOOL_VIEWS)) {
+  for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, view);
 }
 
 // Task-management tools (harness built-ins) — the collapsed row says what

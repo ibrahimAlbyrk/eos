@@ -7,7 +7,7 @@ import { LayoutGroups } from "./LayoutGroups.jsx";
 import { buildAgentTree } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
-import { subscribe, getArchive, refreshArchived } from "../../../state/archiveStore.js";
+import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../../state/archiveStore.js";
 import { useProjects } from "../../../state/projectsStore.js";
 
 // The dynamic section label mirrors the grouping (Projects / Recent / Groups),
@@ -68,6 +68,9 @@ export function AgentsSidebar({ live, variant = "full" }) {
   // so fetch them here whenever they're shown — mount + each SSE change ping.
   useEffect(() => {
     if (showArchived) refreshArchived();
+  }, [showArchived]);
+  useEffect(() => {
+    if (showArchived && live.eventSignal.tick) scheduleArchivedRefresh();
   }, [showArchived, live.eventSignal.tick]);
 
   const sectionLabel = status === "archived"

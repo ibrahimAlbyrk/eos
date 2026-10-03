@@ -10,16 +10,30 @@
 //
 // Transport (relay) is elsewhere; this is pure bytes in / bytes out.
 
+import { deflateRawSync } from "node:zlib";
 import { Dir, FrameType, encodeEnvelope, type Envelope } from "./envelope.ts";
-import { ClientFrameSchema, type ClientFrame } from "../../contracts/src/remote.ts";
+import { ClientFrameSchema, DEFLATE_MARK, type ClientFrame } from "../../contracts/src/remote.ts";
+
+// Small frames (ka, short events) gain nothing; very large ones (an asset's
+// base64, a big file read) would stall the event loop on a sync deflate.
+const DEFLATE_MIN_BYTES = 512;
+const DEFLATE_MAX_BYTES = 256 * 1024;
 
 // Seal one server→client inner frame into its on-wire outer envelope (plaintext).
-export function encodeServerFrame(args: { room: string; clientId: Buffer; frame: object }): Buffer {
+// `compress` (the device listed cap "deflate"): a frame worth it goes as
+// DEFLATE_MARK + raw DEFLATE of its JSON; JSON never starts with that byte.
+export function encodeServerFrame(args: { room: string; clientId: Buffer; frame: object; compress?: boolean }): Buffer {
   return encodeEnvelope({
     type: FrameType.data, dir: Dir.s2c, epoch: 0, seq: 0n,
     room: args.room, clientId: args.clientId,
-    payload: Buffer.from(JSON.stringify(args.frame), "utf8"),
+    payload: framePayload(Buffer.from(JSON.stringify(args.frame), "utf8"), args.compress === true),
   });
+}
+
+function framePayload(json: Buffer, compress: boolean): Buffer {
+  if (!compress || json.length < DEFLATE_MIN_BYTES || json.length > DEFLATE_MAX_BYTES) return json;
+  const packed = deflateRawSync(json);
+  return packed.length + 1 < json.length ? Buffer.concat([Buffer.from([DEFLATE_MARK]), packed]) : json;
 }
 
 // Parse one client→server data envelope's plaintext payload into a validated

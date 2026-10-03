@@ -19,6 +19,8 @@ import type { Logger } from "../../core/src/ports/Logger.ts";
 
 const JOIN_TIMEOUT_MS = 8_000;
 const MAX_PAYLOAD_BYTES = 5 * 1024 * 1024 + 1024;
+// One relay frame carries at most this much of a write burst.
+const BATCH_BYTES = 256 * 1024;
 // Keeps a relay leg's NAT mapping warm and notices a half-open socket.
 const PING_INTERVAL_MS = 20_000;
 
@@ -59,6 +61,25 @@ export class RelayPipe extends Duplex {
 
   override _write(chunk: Buffer, _enc: string, cb: (err?: Error | null) => void): void {
     this.sendChunk(chunk, (err) => cb(err ?? null));
+  }
+
+  // The TLS records queued behind the frame on the wire leave together: one
+  // envelope and one WebSocket frame for a burst instead of one per record.
+  override _writev(chunks: Array<{ chunk: Buffer }>, cb: (err?: Error | null) => void): void {
+    const batches: Buffer[] = [];
+    let group: Buffer[] = [];
+    let size = 0;
+    for (const { chunk } of chunks) {
+      if (size > 0 && size + chunk.length > BATCH_BYTES) { batches.push(Buffer.concat(group)); group = []; size = 0; }
+      group.push(chunk);
+      size += chunk.length;
+    }
+    if (group.length > 0) batches.push(Buffer.concat(group));
+    const next = (i: number): void => {
+      if (i === batches.length) { cb(null); return; }
+      this.sendChunk(batches[i], (err) => (err ? cb(err) : next(i + 1)));
+    };
+    next(0);
   }
 
   override _destroy(err: Error | null, cb: (err: Error | null) => void): void {

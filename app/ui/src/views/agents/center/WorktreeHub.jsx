@@ -40,7 +40,8 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
   // Verdict from the child's OWN transcript (same selector as its own view —
   // covers a user-clicked /verify that produced no parent report); the
   // report-parsed Handover stays as fallback.
-  const derived = useWorkerVerdict(child.id, live);
+  // Polled only while there is something to apply.
+  const derived = useWorkerVerdict(child.id, live, { enabled: dirty });
   const reported = ui.verdict?.children?.[child.id] ?? null;
   const verdict = derived && derived.verdict !== "unverified" ? derived : reported;
   const applied = appliedHere || kept;

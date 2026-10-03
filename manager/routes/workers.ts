@@ -198,8 +198,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // Dedicated archived-only listing, consumed ONLY by the dashboard Archive
   // view. Registered BEFORE the /workers/:id detail pattern so the literal
   // "archived" segment is never parsed as a worker id.
-  r.get("/workers/archived", ({ res }) => {
-    writeJson(res, 200, c.workers.listArchived());
+  r.get("/workers/archived", ({ url, res }) => {
+    const rows = c.workers.listArchived();
+    writeJson(res, 200, url.searchParams.get("brief") === "1" ? withBriefPrompt(rows) : rows);
   });
 
   // App-termination purge hook (operator surface, never an MCP tool): the

@@ -32,10 +32,40 @@ export type RemoteConfig = z.infer<typeof RemoteConfigSchema>;
 // validates it here before dispatch. Server→client frames (event/patch/snapshot/
 // reply/asset/ka/error) are daemon-produced and typed below for the emitter.
 
+// What one side of a phone link understands beyond the base protocol. The phone
+// lists its own in `hello`, the Mac its own in `snapshot`; either side uses a
+// feature only once the other has listed it, so old apps and old daemons keep
+// the base behaviour.
+//   focus   — the phone says what it shows (`focus` frame); the Mac then sends
+//             live events only for that, and nothing but state patches while
+//             the phone shows another Mac.
+//   rows    — the Mac pushes new transcript rows of the focused worker (`rows`
+//             frame) instead of a worker:change nudge the phone answers with a fetch.
+//   deflate — a server frame may arrive compressed: DEFLATE_MARK + raw DEFLATE
+//             of the frame's JSON.
+export const REMOTE_CAPS = ["focus", "rows", "deflate"] as const;
+export type RemoteCap = (typeof REMOTE_CAPS)[number];
+export const DEFLATE_MARK = 0x01;
+
 export const HelloFrameSchema = z.object({
   t: z.literal("hello"),
   lastContentId: z.number().int().nonnegative().nullable().optional(),
+  caps: z.array(z.string()).max(16).optional(),
 });
+
+// What the phone shows for this Mac. `active` false = another Mac is on screen.
+// `worker` = the open conversation; `afterId` = the newest row the phone holds
+// for it (null/absent while it still loads its first page — no row push yet).
+// `pty` = the open terminal screen (its pty:conversation nudges; raw output
+// still follows `sub`).
+export const FocusFrameSchema = z.object({
+  t: z.literal("focus"),
+  active: z.boolean(),
+  worker: z.string().nullable().optional(),
+  afterId: z.number().int().nonnegative().nullable().optional(),
+  pty: z.string().nullable().optional(),
+});
+export type FocusFrame = z.infer<typeof FocusFrameSchema>;
 
 export const ControlFrameSchema = z.object({
   t: z.literal("control"),
@@ -64,6 +94,7 @@ export const ClientFrameSchema = z.discriminatedUnion("t", [
   ControlFrameSchema,
   KaFrameSchema,
   SubFrameSchema,
+  FocusFrameSchema,
 ]);
 export type ClientFrame = z.infer<typeof ClientFrameSchema>;
 
@@ -102,6 +133,8 @@ export const LiveBlockSchema = z.object({
   blockId: z.string(),
   channel: z.enum(["reasoning", "text"]),
   text: z.string(),
+  // Finished streaming; its durable row is on the way.
+  done: z.boolean().optional(),
 });
 export type LiveBlock = z.infer<typeof LiveBlockSchema>;
 
@@ -116,8 +149,28 @@ export const SnapshotFrameSchema = z.object({
   workers: z.array(z.unknown()),
   pending: z.array(z.unknown()),
   live: z.array(LiveBlockSchema).optional(),
+  caps: z.array(z.string()).optional(),
+  // Only on the snapshot the Mac sends as soon as a phone joins: the GET /pty
+  // sessions and GET /api/ui-config bodies, which the phone would otherwise
+  // fetch one after the other before it shows anything.
+  ptys: z.array(z.unknown()).optional(),
+  uiConfig: z.unknown().optional(),
 });
 export type SnapshotFrame = z.infer<typeof SnapshotFrameSchema>;
+
+// New transcript rows of the worker the phone has open (cap "rows"), in the
+// GET /workers/:id/events row shape, oldest first. Right after a focus change a
+// frame with no rows carries `live`: the text already streamed for the worker's
+// in-flight blocks. Every later delta follows it, so it replaces what the
+// phone's buffers hold for those blocks.
+export const RowsFrameSchema = z.object({
+  t: z.literal("rows"),
+  seq: z.number().int(),
+  workerId: z.string(),
+  rows: z.array(z.unknown()),
+  live: z.array(LiveBlockSchema).optional(),
+});
+export type RowsFrame = z.infer<typeof RowsFrameSchema>;
 
 // ---- Server→client asset frame (binary out-of-band, §5.4.5) ----------------
 // A binary route read (GET /fs/raw, /fs/image, /pdfjs) cannot ride the JSON

@@ -4,7 +4,7 @@ import { Composer } from "../agents/center/Composer.jsx";
 import { breadcrumbFor } from "../../lib/breadcrumb.js";
 import { nameOf } from "../../lib/agentName.js";
 import { fmtTimeAgo } from "../../lib/format.js";
-import { subscribe, getArchive, refreshArchived } from "../../state/archiveStore.js";
+import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../state/archiveStore.js";
 
 // The archive title bar: same .pane-head strip the live single pane uses (32px
 // inset, native drag strip, bottom rule). Shows the archived agent's name + a
@@ -47,7 +47,8 @@ export function ArchiveView({ live }) {
   // every SSE change ping — the same generic-ping semantics as the /workers
   // refetch in useLive. Archive, restore, and purge all emit a ping, so the
   // list self-heals after every mutation.
-  useEffect(() => { refreshArchived(); }, [live.eventSignal.tick]);
+  useEffect(() => { refreshArchived(); }, []);
+  useEffect(() => { if (live.eventSignal.tick) scheduleArchivedRefresh(); }, [live.eventSignal.tick]);
 
   const archLive = useMemo(() => ({ ...live, workers: rows }), [live, rows]);
   const selected = rows.find((w) => w.id === selectedId) ?? null;
