@@ -13,7 +13,7 @@ const MAX_FAVICON = 8000; // data-URI chars; bigger icons fall back to a monogra
 
 let entries = null; // key -> { url, title, favicon, count, last }
 const subs = new Set();
-let snapshot = [];
+let snapshot = null; // cached suggestions; null = recompute (an empty list is a valid result)
 
 function load() {
   if (entries) return entries;
@@ -38,7 +38,7 @@ function save() {
 }
 
 function emit() {
-  snapshot = [];
+  snapshot = null;
   for (const cb of subs) cb();
 }
 
@@ -102,8 +102,8 @@ export function subscribe(cb) {
   return () => subs.delete(cb);
 }
 
-function getSnapshot() {
-  if (!snapshot.length) snapshot = suggestions();
+export function getSnapshot() {
+  snapshot ??= suggestions();
   return snapshot;
 }
 
@@ -112,6 +112,6 @@ export const useSuggestions = () => useSyncExternalStore(subscribe, getSnapshot)
 // Test-only: reset the module singleton between cases.
 export function _reset() {
   entries = null;
-  snapshot = [];
+  snapshot = null;
   subs.clear();
 }

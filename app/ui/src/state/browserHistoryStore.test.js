@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { recordVisit, updateMeta, suggestions, _reset } from "./browserHistoryStore.js";
+import { recordVisit, updateMeta, suggestions, getSnapshot, _reset } from "./browserHistoryStore.js";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -27,5 +27,11 @@ describe("browserHistoryStore", () => {
     const [e] = suggestions(1, 1);
     expect(e.local).toBe(true);
     expect(e.title).toBe("Vite App");
+  });
+
+  it("returns the same snapshot while unchanged, even with no history", () => {
+    expect(getSnapshot()).toBe(getSnapshot());
+    recordVisit({ url: "https://a.example/" });
+    expect(getSnapshot()).toBe(getSnapshot());
   });
 });
