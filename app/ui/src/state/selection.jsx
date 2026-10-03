@@ -33,8 +33,9 @@ function loadPanels() {
         const openTabs = v.openTabs.filter((t) => typeof t === "string");
         const activeTab = openTabs.includes(v.activeTab) ? v.activeTab : (openTabs[openTabs.length - 1] ?? null);
         const tabHistory = Array.isArray(v.tabHistory) ? v.tabHistory.filter((t) => openTabs.includes(t)) : [];
-        // Width is a fraction of the pane; legacy px values (>1) fall back to default.
-        const width = Number.isFinite(v.width) && v.width > 0 && v.width < 1 ? v.width : null;
+        // Width is a fraction of the window (`windowWidth`); older entries kept a
+        // pane fraction or px in `width` and fall back to the default.
+        const width = Number.isFinite(v.windowWidth) && v.windowWidth > 0 && v.windowWidth < 1 ? v.windowWidth : null;
         out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, tabHistory, width, dock: restoreDock(v.dock) };
       }
       return out;
@@ -50,7 +51,7 @@ function savePanels(map) {
     for (const [id, s] of Object.entries(map)) {
       const hasDock = s.dock.history.length > 0;
       if (!s.open && !s.openTabs.length && !s.width && !hasDock) continue;
-      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, tabHistory: s.tabHistory, width: s.width, dock: hasDock ? s.dock : undefined };
+      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, tabHistory: s.tabHistory, windowWidth: s.width, dock: hasDock ? s.dock : undefined };
     }
     if (Object.keys(out).length) localStorage.setItem("cm:sidePanels", JSON.stringify(out));
     else localStorage.removeItem("cm:sidePanels");

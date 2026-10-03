@@ -628,7 +628,9 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
    ============================================================================ */
 .side-panel {
   flex: 0 0 auto;
-  width: var(--sp-w, 40%);
+  /* --sp-w is a share of the window; the cap keeps the transcript ≥ 320px
+     (SidePanel MIN_TX_W) in a narrow or split pane. */
+  width: min(var(--sp-w, 40vw), calc(100% - 320px));
   position: relative;
   display: flex;
   flex-direction: column;

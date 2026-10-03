@@ -23,15 +23,15 @@ import "./registerPanels.js";
 // outside, or pinned, gets its own pill); the active pill's × closes just that
 // tab. The panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned
 // to the header's top-right, so it stays put while the panel slides open/closed
-// under it. Width is that pane's own --sp-w, stored as a fraction of the pane so
-// it keeps the same proportion at any window size; double-click the edge resets
-// to default.
+// under it. Width is that pane's own --sp-w, stored as a fraction of the WINDOW
+// (default 40%) so it keeps its proportion at any window size, and capped so the
+// transcript keeps MIN_TX_W; double-click the edge resets to default.
 
 // Resize bounds within the owning pane: the panel keeps ≥MIN_PANEL_W, the
 // transcript column keeps ≥MIN_TX_W.
 const MIN_PANEL_W = 280;
 const MIN_TX_W = 320;
-const DEFAULT_PANEL_FRAC = 0.4;
+const DEFAULT_PANEL_FRAC = 0.4; // of the window
 
 // The launcher's tools, in order. The Code view passes its own subset (no
 // agent-bound tabs).
@@ -111,11 +111,11 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   usePagesVersion();
 
   // Width fraction = distance from pointer to the OWNING pane's right edge over
-  // the pane width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
+  // the window width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
   // always keeps a usable minimum.
   const fracFor = useCallback((pane, clientX) => {
     const R = pane.getBoundingClientRect();
-    return Math.max(MIN_PANEL_W, Math.min(R.right - clientX, R.width - MIN_TX_W)) / R.width;
+    return Math.max(MIN_PANEL_W, Math.min(R.right - clientX, R.width - MIN_TX_W)) / window.innerWidth;
   }, []);
 
   const onDragStart = useCallback((e) => {
@@ -126,7 +126,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     if (!pane || !aside) return;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    const move = (ev) => { aside.style.setProperty("--sp-w", fracFor(pane, ev.clientX) * 100 + "%"); };
+    const move = (ev) => { aside.style.setProperty("--sp-w", fracFor(pane, ev.clientX) * 100 + "vw"); };
     const up = (ev) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -165,7 +165,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     const pane = aside?.closest(".pane, .single-pane, .sp-host");
     if (!slide || !pane) return;
     const frac = ui.sidePanelWidth || DEFAULT_PANEL_FRAC;
-    aside.style.setProperty("--sp-final", frac * pane.clientWidth + "px");
+    const width = Math.max(0, Math.min(frac * window.innerWidth, pane.clientWidth - MIN_TX_W));
+    aside.style.setProperty("--sp-final", width + "px");
   }, [slide, ui.sidePanelWidth]);
 
   const toggle = <SidePanelToggle open={open} onToggle={ui.toggleSidePanel} />;
@@ -182,7 +183,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
       <aside
         className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "") + (slide ? ` side-panel--${slide}` : "")}
         ref={asideRef}
-        style={{ "--sp-w": (ui.sidePanelWidth || DEFAULT_PANEL_FRAC) * 100 + "%" }}
+        style={{ "--sp-w": (ui.sidePanelWidth || DEFAULT_PANEL_FRAC) * 100 + "vw" }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setSlide(null); }}
       >
