@@ -25,6 +25,7 @@
 }
 .fv-path-dir { color: var(--fg-faint); }
 .fv-path-dirty { color: var(--warn); }
+.fv-path-saved { margin-left: 8px; font-family: var(--font-ui); color: var(--ok); }
 .fv-actions {
   display: flex;
   align-items: center;
@@ -58,6 +59,7 @@
   font-weight: 500;
 }
 .fv-btn--save:hover { background: var(--accent); filter: brightness(1.06); }
+.fv-btn-kbd { margin-left: 6px; font-family: var(--font-mono); font-size: 11px; font-weight: 400; opacity: 0.65; }
 .fv-icon-btn.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
 
 /* ---- Memory viewer (project Claude file-based memory) -------------------- */
@@ -177,54 +179,20 @@
 /* Composer memory button: greyed when no agent is selected */
 .mem-wrap .iconbtn:disabled { opacity: 0.4; cursor: default; }
 
-/* Find bar — a raised inset well (matches the file-viewer find row) */
-.fv-find-bar {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  height: 30px;
-  margin: 0 8px 8px;
-  padding: 0 4px 0 10px;
-  border-radius: 7px;
-  background: var(--raised);
-  flex-shrink: 0;
-}
-.fv-find-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0;
-  font-family: inherit;
-  font-size: var(--text-sm);
-  color: var(--fg);
-  background: transparent;
-  border: 0;
-}
-.fv-find-count {
-  font-size: var(--text-xs);
-  color: var(--fg-faint);
-  white-space: nowrap;
-  padding: 0 4px;
-  font-family: var(--font-mono);
-}
-.fv-find-nav {
-  width: 22px; height: 22px;
-  border-radius: var(--r-icon);
-  color: var(--fg-dim2);
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.fv-find-nav:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
-
-/* Find match highlights */
+/* Find match highlights — the chat's find colors (transcript.css ::highlight(page-find)).
+   Editor source: CodeMirror marks; markdown preview: CSS highlights (usePageFind). */
 .fv-match {
-  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  background: color-mix(in srgb, var(--warn) 32%, transparent);
   color: inherit;
   border-radius: 2px;
 }
-.fv-match.current {
-  background: color-mix(in srgb, var(--accent) 50%, transparent);
-  outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
+.fv-match.current,
+.fv-match.current span {
+  background: var(--warn);
+  color: var(--bg);
 }
+::highlight(fv-find) { background-color: color-mix(in srgb, var(--warn) 32%, transparent); }
+::highlight(fv-find-current) { background-color: var(--warn); color: var(--bg); }
 
 /* CodeLens — a reference-count chip block-rendered above each definition.
    Block widget: must be block-level with NO vertical margins — CodeMirror
@@ -469,8 +437,9 @@
 .fv-markdown del { color: var(--fg-faint); }
 .fv-markdown pre code { padding: 0; background: none; font-size: inherit; }
 
-/* Editor (edit mode) */
-.fv-editor { height: 100%; }
+/* Editor (edit mode). isolation: CodeMirror's sticky gutter (z-index 200) stays
+   under the floating find bar. */
+.fv-editor { height: 100%; isolation: isolate; }
 /* Markdown source — MarkEdit-like bright palette; element-scoped vars beat the
    token defaults for the .fv-editor--md subtree (dark only). */
 .fv-editor--md {

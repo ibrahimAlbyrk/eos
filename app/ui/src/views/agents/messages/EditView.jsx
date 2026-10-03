@@ -10,6 +10,8 @@ import { cmLanguageFor } from "../../../lib/cmLang.js";
 import { detectIndentUnit } from "../../../lib/indentDetect.js";
 import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
 import { setCodeLensDeco, codeLensField, buildCodeLensDeco, visibleDefNames } from "../../../lib/cmCodeLens.js";
+import { menuUndo } from "../../../lib/cmMenuUndo.js";
+import { minimalChange } from "../../../lib/minimalChange.js";
 
 const setFindDeco = StateEffect.define();
 const findDecoField = StateField.define({
@@ -34,7 +36,17 @@ function wordAtEvent(view, e) {
   return view.state.sliceDoc(range.from, range.to);
 }
 
-export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealSeq, codeLens = null, onCodeLensClick = null, onVisibleDefs = null }) {
+function isOnScreen(view, pos) {
+  const at = view.coordsAtPos(pos);
+  if (!at) return false;
+  const box = view.scrollDOM.getBoundingClientRect();
+  return at.top >= box.top && at.bottom <= box.bottom;
+}
+
+// `onPlaceMatch(i)`: a new find query (or a fresh ⌘F, `findSeed`) starts at
+// match i — the first one at or after the cursor/selection — instead of the top
+// of the file.
+export function EditView({ editContent, setEditContent, findQuery, findSeed = null, currentMatch, matches, onPlaceMatch = null, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealSeq, codeLens = null, onCodeLensClick = null, onVisibleDefs = null }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const docRef = useRef(editContent);
@@ -43,6 +55,10 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
   const setEditContentRef = useRef(setEditContent);
   setEditContentRef.current = setEditContent;
   const hadFindRef = useRef(false);
+  const placedRef = useRef(null);
+  const scrolledKeyRef = useRef(null);
+  const onPlaceMatchRef = useRef(onPlaceMatch);
+  onPlaceMatchRef.current = onPlaceMatch;
   // Read symbol-nav callbacks through a ref so the extension closure stays stable
   // (no editor remount when the parent passes a fresh object each render).
   const symbolNavRef = useRef(symbolNav);
@@ -123,7 +139,9 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
         lineNumbers(),
         highlightActiveLineGutter(),
         highlightActiveLine(),
+        EditorView.lineWrapping,
         history(),
+        menuUndo,
         bracketMatching(),
         closeBrackets(),
         autocompletion(),
@@ -172,18 +190,27 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
     view.focus();
   }, [revealLine, revealColumn, revealSeq]);
 
-  // External resets (e.g. Cancel) — doc edits flow through updateListener, so
-  // docRef only diverges from editContent when the change came from outside.
+  // External resets (e.g. Cancel, a change on disk) — doc edits flow through
+  // updateListener, so docRef only diverges from editContent when the change
+  // came from outside. A minimal change keeps the caret and scroll in place.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || docRef.current === editContent) return;
-    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: editContent } });
+    view.dispatch({ changes: minimalChange(view.state.doc.toString(), editContent) });
   }, [editContent]);
 
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
     const qLen = findQuery.length;
+    const placed = placedRef.current;
+    if (qLen && onPlaceMatchRef.current && (placed?.query !== findQuery || placed.seed !== findSeed)) {
+      placedRef.current = { query: findQuery, seed: findSeed };
+      const from = view.state.selection.main.from;
+      const at = Math.max(matches.findIndex((m) => m >= from), 0);
+      if (at !== currentMatch) { onPlaceMatchRef.current(at); return; }
+    }
+    if (!qLen) placedRef.current = null;
     if (!qLen && !hadFindRef.current) return;
     hadFindRef.current = qLen > 0;
     const docLen = view.state.doc.length;
@@ -194,12 +221,16 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
       ranges.push((i === currentMatch ? findMarkCurrent : findMark).range(from, from + qLen));
     }
     const effects = [setFindDeco.of(Decoration.set(ranges))];
+    // Scroll only when the target moved (new query, prev/next) and is off
+    // screen — typing in the file must not yank the view back to the match.
     const cur = matches[currentMatch];
-    if (cur != null && cur + qLen <= docLen) {
+    const key = qLen ? findQuery + ":" + currentMatch : null;
+    if (cur != null && cur + qLen <= docLen && key !== scrolledKeyRef.current && !isOnScreen(view, cur)) {
       effects.push(EditorView.scrollIntoView(cur, { y: "center" }));
     }
+    scrolledKeyRef.current = key;
     view.dispatch({ effects });
-  }, [findQuery, currentMatch, matches]);
+  }, [findQuery, findSeed, currentMatch, matches]);
 
   // Re-render chips whenever the def list or a resolved count changes, then ask
   // for counts of any defs currently on screen (covers the first load, where

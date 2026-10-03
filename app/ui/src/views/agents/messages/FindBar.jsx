@@ -1,4 +1,5 @@
-// Floating ⌘F find bar — pinned to the top-right of the messages scroll area.
+// Floating ⌘F find bar — pinned to the top-right of its scroll area (the
+// transcript, a file viewer) over the content, never pushing it down.
 export function FindBar({ find }) {
   const onKeyDown = (e) => {
     if (e.key === "Enter") {

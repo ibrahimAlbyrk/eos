@@ -9,7 +9,10 @@ import { fileKind } from "../../../lib/fileKind.js";
 import { isMarkdownPath } from "../../../lib/markdownPreview.js";
 import { repoRootForPath } from "../../../lib/symbolRoot.js";
 import { useCodeLens } from "../../../hooks/useCodeLens.js";
+import { useFind } from "../../../hooks/useFind.js";
+import { useDomFind } from "../../../hooks/usePageFind.js";
 import { EditView } from "./EditViewLazy.jsx";
+import { FindBar } from "./FindBar.jsx";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
@@ -38,7 +41,7 @@ export function FileViewer({ live, tabId }) {
 }
 
 // One file, shown by a pinned tab or the panel's dock. `findActive` says when
-// ⌘F belongs to this viewer (`findPriority` breaks a tie with another viewer);
+// ⌘F and ⌘S belong to this viewer (`findPriority` breaks a tie with another viewer);
 // `onRemove` runs when the file is deleted on disk; `lead`/`trail` are the
 // host's own controls around the path row.
 export function FileView({ path, live, reveal, findActive, findPriority = 10, onRemove, lead, trail }) {
@@ -47,17 +50,21 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
   const [editContent, setEditContent] = useState("");
   const [binaryMeta, setBinaryMeta] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
-  const [showFind, setShowFind] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
-  const [findIdx, setFindIdx] = useState(0);
   const [showOpenWith, setShowOpenWith] = useState(false);
   const [defaultApp, setDefaultApp] = useState(null);
   const [viewMode, setViewMode] = useState("source");
   const [frameGen, setFrameGen] = useState(0);
   const [reloadTick, setReloadTick] = useState(0);
-  const findRef = useRef(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  const editContentRef = useRef(editContent);
+  editContentRef.current = editContent;
+  const loadedPathRef = useRef(null);
+  const bodyRef = useRef(null);
+  const previewRef = useRef(null);
 
   const baseKind = fileKind(path);
   const isMarkdown = baseKind === "text" && isMarkdownPath(path);
@@ -77,11 +84,17 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
     setBinaryMeta(null);
   }, [path]);
 
+  // The first load of a path shows Loading…; a later disk refresh (our own save
+  // included) keeps the editor mounted — scroll, cursor and undo history survive
+  // — and swaps in only a real change, never over unsaved edits.
   useEffect(() => {
     if (!wantsText) return;
     let cancelled = false;
-    setContent(null);
-    setError(null);
+    const refresh = loadedPathRef.current === path;
+    if (!refresh) {
+      setContent(null);
+      setError(null);
+    }
     api.readFile(path)
       .then((data) => {
         if (cancelled) return;
@@ -89,8 +102,10 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
           setBinaryMeta({ size: data.size, large: Boolean(data.large) });
           return;
         }
+        loadedPathRef.current = path;
+        if (refresh && data.content === contentRef.current) return;
+        if (!refresh || editContentRef.current === contentRef.current) setEditContent(data.content);
         setContent(data.content);
-        setEditContent(data.content);
       })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
@@ -152,6 +167,8 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
     try {
       await api.writeFile(path, editContent);
       setContent(editContent);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
     } catch (e) {
       setError(e.message);
     }
@@ -162,40 +179,44 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
     setEditContent(content ?? "");
   };
 
-  const findMatches = useMemo(
-    () => (findQuery.length > 0 ? findAll(editContent, findQuery) : []),
-    [editContent, findQuery],
-  );
-  const matchCount = findMatches.length;
-  const safeIdx = matchCount > 0 ? ((findIdx % matchCount) + matchCount) % matchCount : 0;
-
-  const toggleFind = () => {
-    setShowFind((v) => !v);
-    setShowOpenWith(false);
-    if (!showFind) {
-      setTimeout(() => findRef.current?.focus(), 50);
-    }
-  };
-
   // ⌘F while this viewer is the focused side panel's find target
   // → this find bar outranks the chat's (priority 10 vs 0). Unlike the button's
   // toggle, a repeat ⌘F re-opens + selects the query (chat semantics). Non-text
   // files have no find bar, so their `when` fails and ⌘F falls through to chat.
-  useKeybinding({
-    match: combo("mod+f"),
-    priority: findPriority,
-    when: () => isText && findActive,
-    run: (ctx, e) => {
-      e.preventDefault();
-      setShowOpenWith(false);
-      setShowFind(true);
-      requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
-    },
-  }, [isText, findActive, findPriority]);
+  const find = useFind({ priority: findPriority, when: () => isText && findActive }, [isText, findActive, findPriority]);
+  useEffect(() => { if (find.open) setShowOpenWith(false); }, [find.open]);
+
+  // Source matches are offsets in the text; the rendered markdown preview is
+  // searched as DOM, like the chat.
+  const findMatches = useMemo(
+    () => (find.open && find.query && !showMarkdownPreview ? findAll(editContent, find.query) : []),
+    [find.open, find.query, showMarkdownPreview, editContent],
+  );
+  const previewMatchCount = useDomFind({
+    contentRef: previewRef,
+    wrapRef: bodyRef,
+    deps: [content],
+    enabled: showMarkdownPreview && findActive,
+    open: find.open,
+    query: find.query,
+    idx: find.idx,
+    setIdx: find.setIdx,
+    seed: find.seed,
+    name: "fv-find",
+  });
+  const matchCount = showMarkdownPreview ? previewMatchCount : findMatches.length;
+  const safeIdx = matchCount > 0 ? ((find.idx % matchCount) + matchCount) % matchCount : 0;
+  const findBar = {
+    ...find,
+    matchCount,
+    idx: safeIdx,
+    next: () => find.move(1, matchCount),
+    prev: () => find.move(-1, matchCount),
+  };
+  const toggleFind = () => (find.open ? find.close() : find.show());
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));
-    setShowFind(false);
     setShowOpenWith(false);
   };
 
@@ -212,6 +233,22 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
     onRemove,
   });
 
+  const saveRef = useRef(null);
+  saveRef.current = dirty && !saving ? handleSave : null;
+  useKeybinding({
+    match: combo("mod+s"),
+    priority: findPriority,
+    when: () => isText && findActive,
+    run: (ctx, e) => {
+      e.preventDefault();
+      saveRef.current?.();
+    },
+  }, [isText, findActive, findPriority]);
+
+  // Save/Cancel must not steal focus from the editor, or ⌘Z after a click
+  // would no longer reach the file's undo history.
+  const keepFocus = (e) => e.preventDefault();
+
   return (
     <div className="panel-shell panel-shell--file">
       <div className="fv-row2">
@@ -220,6 +257,7 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
           {pathDir && <span className="fv-path-dir">{pathDir}</span>}
           {pathBase}
           {dirty && <span className="fv-path-dirty"> ●</span>}
+          {saved && !dirty && <span className="fv-path-saved">Saved</span>}
         </span>
         {(isText || baseKind === "html") && (
           <div className="fv-actions">
@@ -231,22 +269,26 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
                 </svg>
               </button>
             )}
+            {isText && (
+              <button className={"fv-icon-btn" + (find.open ? " on" : "")} onClick={toggleFind} title="Find">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                  <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
+                </svg>
+              </button>
+            )}
             {isText && (dirty ? (
               <>
-                <button className="fv-btn" onClick={handleCancel}>Cancel</button>
-                <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
+                <button className="fv-btn" onMouseDown={keepFocus} onClick={handleCancel}>Cancel</button>
+                <button className="fv-btn fv-btn--save" onMouseDown={keepFocus} onClick={handleSave} disabled={saving} title="Save (⌘S)">
+                  Save<span className="fv-btn-kbd">⌘S</span>
+                </button>
               </>
             ) : (
               <>
-                <button className={"fv-icon-btn" + (showFind ? " on" : "")} onClick={toggleFind} title="Find">
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                    <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
-                  </svg>
-                </button>
                 {/* The menu sits beside the button, not inside it: the button's
                     hover glass is a backdrop-filter, which would blank the menu's. */}
                 <span style={{ position: "relative", display: "inline-flex" }}>
-                  <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); setShowFind(false); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with">
+                  <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); find.close(); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with">
                     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H6l1.5 2H12.5A1.5 1.5 0 0 1 14 5.5V12.5A1.5 1.5 0 0 1 12.5 14H3.5A1.5 1.5 0 0 1 2 12.5V5Z" />
                     </svg>
@@ -281,30 +323,8 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
         )}
         {trail}
       </div>
-      {showFind && (
-        <div className="fv-find-bar">
-          <input
-            ref={findRef}
-            className="fv-find-input"
-            value={findQuery}
-            onChange={(e) => { setFindQuery(e.target.value); setFindIdx(0); }}
-            onKeyDown={(e) => { if (e.key === "Enter") setFindIdx((i) => i + (e.shiftKey ? -1 : 1)); if (e.key === "Escape") setShowFind(false); }}
-            placeholder="Find..."
-            spellCheck={false}
-          />
-          {findQuery && <span className="fv-find-count">{matchCount > 0 ? `${safeIdx + 1} of ${matchCount}` : "No results"}</span>}
-          <button className="fv-find-nav" onClick={() => setFindIdx((i) => i - 1)} title="Previous">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 10 4-4 4 4" /></svg>
-          </button>
-          <button className="fv-find-nav" onClick={() => setFindIdx((i) => i + 1)} title="Next">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 6 4 4 4-4" /></svg>
-          </button>
-          <button className="fv-find-nav" onClick={() => { setShowFind(false); setFindQuery(""); }} title="Close">
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 4 8 8M12 4l-8 8" /></svg>
-          </button>
-        </div>
-      )}
-      <div className="fv-body">
+      <div className="fv-body" ref={bodyRef}>
+        {isText && find.open && <FindBar find={findBar} />}
         {viewer ? (
           <viewer.Body path={path} frameGen={frameGen} size={binaryMeta?.size} large={binaryMeta?.large} />
         ) : (
@@ -313,14 +333,18 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
             {content === null && !error && <div className="fv-loading">Loading...</div>}
             {content !== null && (
               showMarkdownPreview ? (
-                <MarkdownPreview content={content} path={path} onOpenPath={ui.openFile} />
+                <div ref={previewRef}>
+                  <MarkdownPreview content={content} path={path} onOpenPath={ui.openFile} />
+                </div>
               ) : (
                 <EditView
                   editContent={editContent}
                   setEditContent={setEditContent}
-                  findQuery={findQuery}
+                  findQuery={find.open ? find.query : ""}
+                  findSeed={find.seed}
                   currentMatch={safeIdx}
                   matches={findMatches}
+                  onPlaceMatch={find.setIdx}
                   filePath={path}
                   readOnly={content.length > HEAVY_TEXT_CHARS}
                   symbolNav={symbolNav}

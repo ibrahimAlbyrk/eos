@@ -1,26 +1,25 @@
-// Find-in-page (⌘F) over the rendered transcript. Highlights use the CSS
-// Custom Highlight API (Safari 17.2+) so the DOM is never mutated — React
-// re-renders and dangerouslySetInnerHTML blocks stay untouched; ranges are
-// simply rebuilt whenever content changes.
+// Find-in-page (⌘F) over rendered DOM — the transcript, a markdown preview.
+// Highlights use the CSS Custom Highlight API (Safari 17.2+) so the DOM is never
+// mutated — React re-renders and dangerouslySetInnerHTML blocks stay untouched;
+// ranges are simply rebuilt whenever content changes.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { findAll } from "../lib/fileUtils.jsx";
-import { combo } from "../keymap/index.js";
-import { useKeybinding } from "../keymap/useKeymap.js";
 import { glideToBlock } from "../lib/glideTo.js";
+import { useFind } from "./useFind.js";
 
 const highlights = typeof CSS !== "undefined" ? CSS.highlights : null;
 
-function clearHighlights() {
+function clearHighlights(name) {
   if (!highlights) return;
-  highlights.delete("page-find");
-  highlights.delete("page-find-current");
+  highlights.delete(name);
+  highlights.delete(name + "-current");
 }
 
-function applyHighlights(ranges, current) {
+function applyHighlights(name, ranges, current) {
   if (!highlights) return;
-  highlights.set("page-find", new Highlight(...ranges.filter((_, i) => i !== current)));
-  if (ranges[current]) highlights.set("page-find-current", new Highlight(ranges[current]));
-  else highlights.delete("page-find-current");
+  highlights.set(name, new Highlight(...ranges.filter((_, i) => i !== current)));
+  if (ranges[current]) highlights.set(name + "-current", new Highlight(ranges[current]));
+  else highlights.delete(name + "-current");
 }
 
 // WKWebView never invalidates the paint of off-screen ::highlight tiles when the
@@ -52,32 +51,26 @@ function collectRanges(root, query) {
   return ranges;
 }
 
+// Index of the first range starting at or after `from`; 0 when there is none.
+function firstAtOrAfter(ranges, from) {
+  const i = ranges.findIndex((r) => {
+    try { return r.compareBoundaryPoints(Range.START_TO_START, from) >= 0; } catch { return false; }
+  });
+  return Math.max(i, 0);
+}
+
+// The highlight + scroll half of a DOM find: marks every `query` match under
+// contentRef (registered as `name` and `name`-current) and glides wrapRef to
+// match `idx`. A new query or `seed` (see useFind) starts at the first match at
+// or after the seeded selection. Returns the match count.
 // `hold` unpins the scroller's stick-to-bottom before a jump; without it the
 // follow loop drags a pinned view straight back to the bottom.
-export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = null) {
-  const [open, setOpen] = useState(false);
-  const [query, setQueryRaw] = useState("");
-  const [idx, setIdx] = useState(0);
+export function useDomFind({ contentRef, wrapRef, deps, enabled, open, query, idx, setIdx, seed = null, hold = null, name = "page-find" }) {
   const [matchCount, setMatchCount] = useState(0);
-  const rangesRef = useRef([]);
   const lastScrollKeyRef = useRef(null);
+  const placedRef = useRef(null);
   const paintedRef = useRef(0);
-  const inputRef = useRef(null);
   const cancelGlideRef = useRef(null);
-
-  // Only the active transcript pane owns ⌘F (parked keep-alive panes stay
-  // mounted, so without the `when` gate every pane would grab it at once).
-  // Priority 0 = the DEFAULT owner: a focused docked panel with its own find
-  // (FileViewer, priority 10) outranks it; panels without one fall through here.
-  useKeybinding({
-    match: combo("mod+f"),
-    when: () => enabled,
-    run: (ctx, e) => {
-      e.preventDefault();
-      setOpen(true);
-      requestAnimationFrame(() => { inputRef.current?.focus({ preventScroll: true }); inputRef.current?.select(); });
-    },
-  }, [enabled]);
 
   const scrollToRange = useCallback((range) => {
     const wrap = wrapRef.current;
@@ -102,10 +95,9 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = nu
     // would wipe the active pane's matches.
     if (!enabled) return;
     if (!open || !query) {
-      rangesRef.current = [];
       setMatchCount(0);
       lastScrollKeyRef.current = null;
-      clearHighlights();
+      clearHighlights(name);
       if (paintedRef.current > 0) evictStaleHighlightPaint(contentRef.current, wrapRef.current);
       paintedRef.current = 0;
       return;
@@ -113,11 +105,15 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = nu
     const root = contentRef.current;
     if (!root) return;
     const ranges = collectRanges(root, query);
-    rangesRef.current = ranges;
     setMatchCount(ranges.length);
+    if (seed?.range && (placedRef.current?.seed !== seed || placedRef.current.query !== query)) {
+      placedRef.current = { seed, query };
+      const at = firstAtOrAfter(ranges, seed.range);
+      if (at !== idx) { setIdx(at); return; }
+    }
     const cur = ranges.length ? Math.min(idx, ranges.length - 1) : 0;
     if (cur !== idx) { setIdx(cur); return; }
-    applyHighlights(ranges, cur);
+    applyHighlights(name, ranges, cur);
     // Shrinking match set leaves stale paint on the dropped (possibly off-screen) ranges.
     if (ranges.length < paintedRef.current) evictStaleHighlightPaint(contentRef.current, wrapRef.current);
     paintedRef.current = ranges.length;
@@ -128,19 +124,22 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = nu
       lastScrollKeyRef.current = key;
       if (ranges[cur]) scrollToRange(ranges[cur]);
     }
-  }, [enabled, open, query, idx, contentRef, scrollToRange, ...deps]);
+  }, [enabled, open, query, idx, setIdx, seed, name, contentRef, scrollToRange, ...deps]);
 
-  useEffect(() => () => { clearHighlights(); cancelGlideRef.current?.(); }, []);
+  useEffect(() => () => { clearHighlights(name); cancelGlideRef.current?.(); }, [name]);
 
-  const move = useCallback((d) => {
-    const n = rangesRef.current.length;
-    if (n) setIdx((i) => (((i + d) % n) + n) % n);
-  }, []);
+  return matchCount;
+}
 
-  const setQuery = useCallback((q) => { setQueryRaw(q); setIdx(0); }, []);
-  const next = useCallback(() => move(1), [move]);
-  const prev = useCallback(() => move(-1), [move]);
-  const close = useCallback(() => setOpen(false), []);
-
+// The transcript's find. Only the active transcript pane owns ⌘F (parked
+// keep-alive panes stay mounted, so without the `when` gate every pane would
+// grab it at once). Priority 0 = the DEFAULT owner: a focused docked panel with
+// its own find (FileViewer, priority 10) outranks it; panels without one fall
+// through here.
+export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = null) {
+  const { open, query, idx, seed, inputRef, setIdx, setQuery, close, move } = useFind({ when: () => enabled }, [enabled]);
+  const matchCount = useDomFind({ contentRef, wrapRef, deps, enabled, open, query, idx, setIdx, seed, hold });
+  const next = useCallback(() => move(1, matchCount), [move, matchCount]);
+  const prev = useCallback(() => move(-1, matchCount), [move, matchCount]);
   return { open, query, idx, matchCount, inputRef, setQuery, next, prev, close };
 }
