@@ -13,7 +13,7 @@
 }
 .nt-inner {
   width: 100%;
-  max-width: 520px;
+  max-width: 880px;
   display: flex;
   flex-direction: column;
   gap: 40px;
@@ -151,7 +151,8 @@ button.nt-result:hover,
 
 .nt-tools {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(210px, 100%), 1fr));
+  /* at most 3 columns: past that, tiles turn into long empty bars */
+  grid-template-columns: repeat(auto-fill, minmax(max(min(210px, 100%), calc(100% / 3 - 8px)), 1fr));
   gap: 8px;
 }
 .nt-tool {
