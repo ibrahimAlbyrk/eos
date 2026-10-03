@@ -1368,6 +1368,14 @@
   border-top: 1px solid var(--line);
 }
 
+.msg-day-divider {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+  padding: 16px 0 8px;
+}
+.msg-day-divider b { font-weight: 500; color: var(--fg-dim); }
+
 .worktree-preserved {
   display: flex;
   align-items: center;

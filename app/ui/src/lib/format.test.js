@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtTimeAgo, statusFromState } from "./format.js";
+import { fmtTimeAgo, fmtDayStamp, statusFromState } from "./format.js";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
@@ -54,5 +54,20 @@ describe("statusFromState", () => {
   it("falls back to lowercased state", () => {
     expect(statusFromState("KILLING")).toEqual({ dot: "queue", label: "killing" });
     expect(statusFromState(undefined)).toEqual({ dot: "wait", label: "idle" });
+  });
+});
+
+describe("fmtDayStamp", () => {
+  const ts = new Date(2026, 8, 24, 19, 53).getTime();
+
+  it("splits weekday/date from local time", () => {
+    const { day, time } = fmtDayStamp(ts, new Date(2026, 9, 3).getTime());
+    expect(day).toMatch(/24/);
+    expect(day).not.toMatch(/2026/);
+    expect(time).toMatch(/53/);
+  });
+
+  it("adds the year only outside the current one", () => {
+    expect(fmtDayStamp(ts, new Date(2027, 0, 1).getTime()).day).toMatch(/2026/);
   });
 });

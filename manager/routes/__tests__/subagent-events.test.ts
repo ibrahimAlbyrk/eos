@@ -41,6 +41,17 @@ describe("selectSubagentRows", () => {
     assert.deepEqual(ids(selectSubagentRows([both, doneB])), ids([both, doneB]));
   });
 
+  it("keeps Artifact calls and their results", () => {
+    nextId = 1;
+    const publish = toolCall("AR", "Artifact");
+    const other = toolCall("T1");
+    const published = toolResult("AR");
+    const legacy = row("tool_running", { toolName: "Artifact", toolUseId: "AR2", input: {} });
+    const legacyDone = row("tool_done", { toolName: "Artifact", toolUseId: "AR2", result: "x" });
+    const out = selectSubagentRows([publish, other, published, toolResult("T1"), legacy, legacyDone]);
+    assert.deepEqual(ids(out), ids([publish, published, legacy, legacyDone]));
+  });
+
   it("understands the legacy jsonl / tool_running / tool_done rows", () => {
     nextId = 1;
     const launch = row("jsonl", { kind: "tool_use", id: "AG", name: "Agent", input: {} });

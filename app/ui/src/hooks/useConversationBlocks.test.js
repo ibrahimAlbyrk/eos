@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { subagentsAcrossConversation } from "./useConversationSubagents.js";
+import { blocksAcrossConversation } from "./useConversationBlocks.js";
+import { collectSubagents } from "../lib/subagentRuns.js";
+import { collectArtifacts } from "../lib/artifactLink.js";
 
 let id = 0;
 const ev = (type, payload) => ({ id: ++id, ts: id * 10, type, payload });
@@ -8,8 +10,11 @@ const launch = (callId, description) =>
   agent("message", { role: "assistant", blocks: [{ type: "tool_call", callId, name: "Agent", spawnsSubagent: true, input: { description } }] });
 const finish = (callId, content = "done") =>
   agent("message", { role: "tool", blocks: [{ type: "tool_result", callId, content }] });
+const publish = (callId, title) =>
+  agent("message", { role: "assistant", blocks: [{ type: "tool_call", callId, name: "Artifact", input: { title, file_path: "x.html" } }] });
+const subagentsAcrossConversation = (...args) => collectSubagents(blocksAcrossConversation(...args));
 
-describe("subagentsAcrossConversation", () => {
+describe("blocksAcrossConversation", () => {
   it("lists subagents from the fetched older rows alongside the window's", () => {
     id = 0;
     const olderLaunch = launch("OLD", "old one");
@@ -44,5 +49,14 @@ describe("subagentsAcrossConversation", () => {
     const kept = launch("KEPT", "after");
     const runs = subagentsAcrossConversation([gone, cleared], [kept], 0);
     expect(runs.map((r) => r.toolUseId)).toEqual(["KEPT"]);
+  });
+
+  it("lists artifacts published before the window", () => {
+    id = 0;
+    const older = publish("AR", "Old page");
+    const olderDone = finish("AR", "Published https://claude.ai/code/artifact/abc-123");
+    const windowRow = launch("AG", "later");
+    const artifacts = collectArtifacts(blocksAcrossConversation([older, olderDone], [windowRow], 0));
+    expect(artifacts.map((a) => [a.url, a.title])).toEqual([["https://claude.ai/code/artifact/abc-123", "Old page"]]);
   });
 });

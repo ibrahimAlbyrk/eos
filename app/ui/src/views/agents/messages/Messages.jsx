@@ -5,11 +5,11 @@
 // This is the initial render layer; refinement (tool-group collapse, file
 // chips, table rendering) lives in dedicated sub-components.
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
-import { fmtElapsedShort } from "../../../lib/format.js";
+import { fmtElapsedShort, fmtDayStamp } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, applyRewinds, applyClears, applyRecalls, splitAtCompaction, compactionStatus, sortBlocksByTs } from "../../../lib/messageParser.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
@@ -51,7 +51,7 @@ import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
-import { useConversationSubagents } from "../../../hooks/useConversationSubagents.js";
+import { useConversationBlocks } from "../../../hooks/useConversationBlocks.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { useProjects } from "../../../state/projectsStore.js";
@@ -365,17 +365,17 @@ export function Messages({ live, agentId, isActive = true }) {
   // side panel's Subagents tab and the Environment popover. Only once the window
   // is this agent's own: mid-switch it is empty and would blank their lists.
   // All of the conversation's, not just the loaded window's or the unfolded part.
-  const windowSubagents = useMemo(() => collectSubagents(baseBlocks), [baseBlocks]);
-  const subagents = useConversationSubagents(selectedId, events, windowSubagents, {
+  const conversationBlocks = useConversationBlocks(selectedId, events, baseBlocks, {
     partial: owned && (windowHasOlder || folded),
     bootPromptOffset,
   });
+  const subagents = useMemo(() => collectSubagents(conversationBlocks), [conversationBlocks]);
   useEffect(() => {
     if (owned) publishSubagents(selectedId, subagents);
   }, [owned, selectedId, subagents]);
 
   // Same publish for the Environment popover's Artifacts section.
-  const artifacts = useMemo(() => collectArtifacts(baseBlocks), [baseBlocks]);
+  const artifacts = useMemo(() => collectArtifacts(conversationBlocks), [conversationBlocks]);
   useEffect(() => {
     if (owned) publishArtifacts(selectedId, artifacts);
   }, [owned, selectedId, artifacts]);
@@ -649,7 +649,10 @@ export function Messages({ live, agentId, isActive = true }) {
             isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
             MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
           ].filter(Boolean).join(" ") || undefined;
-          return <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
+          const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
+          const prevTs = blocks[i - 1]?.ts;
+          if (b.kind !== "user" || prevTs == null || sameDay(b.ts, prevTs)) return row;
+          return <Fragment key={key}><DayDivider ts={b.ts} />{row}</Fragment>;
         })}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
         {showAnchor && !showCheck && !compaction.pending && (
@@ -680,6 +683,16 @@ function blockKey(b, i) {
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
     default:          return b.blockId ? b.kind + "-" + b.blockId : b.kind + "-" + (b.ts ?? i);
   }
+}
+
+// A user message sent on a later local day than the previous block gets a date divider.
+function sameDay(a, b) {
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+function DayDivider({ ts }) {
+  const { day, time } = fmtDayStamp(ts);
+  return <div className="msg-day-divider"><b>{day}</b> at <b>{time}</b></div>;
 }
 
 // Block kinds rendered via MessageRow — they carry a right-click action bar

@@ -7,7 +7,8 @@ import { PROMPT_EVENT_TYPES } from "./prompt-events.ts";
 
 type Payload = Record<string, any>;
 // One tool call a row is about; `parent` is the subagent call an inner tool runs under.
-type CallRef = { id?: string; parent?: string; launchesSubagent?: boolean };
+// `name` is set on the row that starts the call.
+type CallRef = { id?: string; parent?: string; name?: string; launchesSubagent?: boolean };
 
 const parse = (row: WorkerEventRow): Payload => {
   try { return row.payload ? JSON.parse(row.payload) : {}; } catch { return {}; }
@@ -21,20 +22,24 @@ function callRefs(row: WorkerEventRow, p: Payload): CallRef[] {
     if (p.type === "message") {
       return (p.blocks ?? [])
         .filter((b: Payload) => b.type === "tool_call" || b.type === "tool_result")
-        .map((b: Payload) => ({ id: b.callId, launchesSubagent: b.type === "tool_call" && (b.spawnsSubagent === true || b.name === "Agent") }));
+        .map((b: Payload) => b.type === "tool_call"
+          ? { id: b.callId, name: b.name, launchesSubagent: b.spawnsSubagent === true || b.name === "Agent" }
+          : { id: b.callId });
     }
     if (p.type === "activity") {
-      return [{ id: p.callId, parent: p.parentCallId, launchesSubagent: p.kind === "tool_started" && p.toolName === "Agent" && !p.parentCallId }];
+      const started = p.kind === "tool_started";
+      return [{ id: p.callId, parent: p.parentCallId, name: started ? p.toolName : undefined, launchesSubagent: started && p.toolName === "Agent" && !p.parentCallId }];
     }
     return [];
   }
   if (row.type === "jsonl") {
-    if (p.kind === "tool_use") return [{ id: p.id, launchesSubagent: p.spawnsSubagent === true || p.name === "Agent" }];
+    if (p.kind === "tool_use") return [{ id: p.id, name: p.name, launchesSubagent: p.spawnsSubagent === true || p.name === "Agent" }];
     if (p.kind === "tool_result") return [{ id: p.toolUseId }];
     return [];
   }
   if (row.type === "tool_running" || row.type === "tool_done") {
-    return [{ id: p.toolUseId, parent: p.parentAgentToolUseId, launchesSubagent: row.type === "tool_running" && p.toolName === "Agent" && !p.parentAgentToolUseId }];
+    const started = row.type === "tool_running";
+    return [{ id: p.toolUseId, parent: p.parentAgentToolUseId, name: started ? p.toolName : undefined, launchesSubagent: started && p.toolName === "Agent" && !p.parentAgentToolUseId }];
   }
   return [];
 }
@@ -59,9 +64,10 @@ const isSubagentLifecycle = (row: WorkerEventRow, p: Payload): boolean =>
   row.type === "agent_event" && (p.type === "subagent_started" || p.type === "subagent_completed" || p.type === "subagent_profile");
 
 // Every row the web needs to rebuild each subagent of the whole conversation —
-// its launch, inner tools, result and lifecycle — plus the prompt/marker rows
-// (clear, rewind, recall act on them) and the turn barriers. The transcript
-// window pages lazily; the Subagents panel must not.
+// its launch, inner tools, result and lifecycle — and each Artifact call with
+// its result, plus the prompt/marker rows (clear, rewind, recall act on them)
+// and the turn barriers. The transcript window pages lazily; the Subagents
+// panel and the Environment popover's Artifacts section must not.
 export function selectSubagentRows(rows: WorkerEventRow[]): WorkerEventRow[] {
   const parsed = rows.map((r) => (r.payload ? parse(r) : {}));
   const refs = rows.map((r, i) => callRefs(r, parsed[i]));
@@ -70,7 +76,11 @@ export function selectSubagentRows(rows: WorkerEventRow[]): WorkerEventRow[] {
   for (const rowRefs of refs) for (const ref of rowRefs) if (ref.launchesSubagent && ref.id) agentIds.add(ref.id);
 
   const wanted = new Set(agentIds);
-  for (const rowRefs of refs) for (const ref of rowRefs) if (ref.id && ref.parent && agentIds.has(ref.parent)) wanted.add(ref.id);
+  for (const rowRefs of refs) {
+    for (const ref of rowRefs) {
+      if (ref.id && ((ref.parent && agentIds.has(ref.parent)) || ref.name === "Artifact")) wanted.add(ref.id);
+    }
+  }
 
   return rows.filter((r, i) =>
     ALWAYS_KEPT.has(r.type)

@@ -45,6 +45,17 @@ export function fmtTimeAgo(ts, now = Date.now()) {
   return `${Math.floor(d / 365)}y ago`;
 }
 
+// Transcript date divider: { day: "Thu, Sep 24", time: "7:53 PM" }; the year
+// joins the day only when it isn't the current one.
+export function fmtDayStamp(ts, now = Date.now()) {
+  const d = new Date(ts);
+  const year = d.getFullYear() !== new Date(now).getFullYear() ? "numeric" : undefined;
+  return {
+    day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year }),
+    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+  };
+}
+
 export function fmtTokens(n) {
   if (!n) return "0";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
