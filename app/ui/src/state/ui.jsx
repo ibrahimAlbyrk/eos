@@ -64,10 +64,11 @@ export function useUi() {
   // Scope-aware side-panel: resolve THIS consumer's pane state + wrap the raw
   // pane-explicit ops so every call site (ui.openPanel/ui.setTab/…) targets the
   // owning/focused pane with no prop-drilling.
-  const { openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn, panelsByPane } = selection;
+  const { openPanelIn, openNewTabIn, replaceTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn, panelsByPane } = selection;
   const panelState = panelsByPane[scopePane] ?? EMPTY_PANEL;
   const openPanel = useCallback((tab, data) => openPanelIn(scopeRef.current, tab, data), [openPanelIn]);
   const openNewTab = useCallback((type) => openNewTabIn(scopeRef.current, type), [openNewTabIn]);
+  const replaceTab = useCallback((oldId, type) => replaceTabIn(scopeRef.current, oldId, type), [replaceTabIn]);
   const setTab = useCallback((id) => setTabIn(scopeRef.current, id), [setTabIn]);
   const closeTab = useCallback((tab) => closeTabIn(scopeRef.current, tab), [closeTabIn]);
   const closePanel = useCallback(() => closePanelIn(scopeRef.current), [closePanelIn]);
@@ -108,10 +109,10 @@ export function useUi() {
     panelFullscreen: panelState.fullscreen,
     panelData: panelState.data,
     fileDock: panelState.dock,
-    openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
+    openPanel, openNewTab, replaceTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
   }), [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
     openPopoverIn, openPop, closeAllPops,
-    panelState, openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
+    panelState, openPanel, openNewTab, replaceTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, openFileTab, updateDock,
   ]);
 }

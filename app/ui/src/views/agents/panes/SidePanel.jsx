@@ -1,37 +1,31 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { SidePanelScopeContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType, filePathOf } from "../../../lib/panelTabs.js";
+import { tabType, filePathOf, pageIdOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
-import { SubagentsIcon } from "../subagents/SubagentsIcon.jsx";
+import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js";
+import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
+import { TAB_ICONS, TAB_LABELS } from "./panelTabMeta.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area and the file
 // dock under it, plus a 6px invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
 // via PaneScopeContext), so every read/action here resolves to that pane; it
-// returns null when that pane's panel is closed. Pills render ONLY the open tabs
-// (default: none — a quiet empty state); the + menu opens Review / Terminal / Files /
-// Chat files, a file opened from inside the panel shows in the dock (one opened
-// from outside, or pinned, gets its own pill),
-// the active pill's × closes just that tab. The
-// panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
-// header's top-right, so it stays put while the panel slides open/closed under
-// it. Width is that pane's own --sp-w, stored as a fraction of the pane so it keeps
-// the same proportion at any window size; double-click the edge resets to default.
-
-const ICONS = {
-  review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
-  files: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="M2 4.4a1 1 0 0 1 1-1h2.8l1.3 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.4Z" /></svg>,
-  terminal: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5" /><path d="M4 6l2.5 2L4 10" /><line x1="8" y1="10.5" x2="11" y2="10.5" /></svg>,
-  browser: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="8" cy="8" r="6" /><ellipse cx="8" cy="8" rx="2.6" ry="6" /><path d="M2.4 6h11.2M2.4 10h11.2" /></svg>,
-  chatfiles: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4L13 10.6" /></svg>,
-  subagents: <SubagentsIcon />,
-};
+// returns null when that pane's panel is closed. Pills render ONLY the open tabs;
+// + opens a new-tab launcher (search, tools, pages, suggested sites) that turns
+// into whatever it opens, and an open panel with no tabs shows that launcher.
+// A file opened from inside the panel shows in the dock (one opened from
+// outside, or pinned, gets its own pill); the active pill's × closes just that
+// tab. The panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned
+// to the header's top-right, so it stays put while the panel slides open/closed
+// under it. Width is that pane's own --sp-w, stored as a fraction of the pane so
+// it keeps the same proportion at any window size; double-click the edge resets
+// to default.
 
 // Resize bounds within the owning pane: the panel keeps ≥MIN_PANEL_W, the
 // transcript column keeps ≥MIN_TX_W.
@@ -39,30 +33,26 @@ const MIN_PANEL_W = 280;
 const MIN_TX_W = 320;
 const DEFAULT_PANEL_FRAC = 0.4;
 
-// Tab labels for every openable panel type. Pills render only the currently
-// open tabs (ui.openTabs), in the order they were opened.
-const TAB_LABELS = {
-  review: "Review",
-  files: "Files",
-  terminal: "Terminal",
-  browser: "Browser",
-  chatfiles: "Chat files",
-  subagents: "Subagents",
-};
-
-// + menu entries, in order. The Code view passes its own subset (no agent-bound
-// tabs); menu shortcut hints per type.
-const AGENT_TABS = ["review", "terminal", "files", "browser", "chatfiles", "subagents"];
-const TAB_KBD = { terminal: "⌃`", files: "⌘P" };
+// The launcher's tools, in order. The Code view passes its own subset (no
+// agent-bound tabs).
+const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents"];
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
 
-// Pill label for a tab id. A file tab shows its file name. Multi-instance types are numbered ("Terminal 1",
-// "Terminal 2") only when more than one is open; a lone one keeps the bare name.
+// Pill label for a tab id. A file tab shows its file name, a page its title.
+// Terminals are numbered ("Terminal 1", "Terminal 2") only when more than one is
+// open; a lone one keeps the bare name.
 function labelFor(id, openTabs) {
   const filePath = filePathOf(id);
   if (filePath) return baseName(filePath);
+  const pageId = pageIdOf(id);
+  if (pageId) {
+    const page = getPage(pageId);
+    if (!page) return "Page";
+    return page === DELETED ? "Deleted page" : page.title || "Untitled";
+  }
   const type = tabType(id);
+  if (type === "newtab") return TAB_LABELS.newtab;
   const base = TAB_LABELS[type] ?? type;
   const sameType = openTabs.filter((t) => tabType(t) === type);
   return sameType.length > 1 ? `${base} ${sameType.indexOf(id) + 1}` : base;
@@ -70,7 +60,7 @@ function labelFor(id, openTabs) {
 
 function TabPill({ id, label, active, onSelect, onClose }) {
   const filePath = filePathOf(id);
-  const icon = filePath ? <FileIcon type="file" name={baseName(filePath)} /> : ICONS[tabType(id)];
+  const icon = filePath ? <FileIcon type="file" name={baseName(filePath)} /> : TAB_ICONS[tabType(id)];
   const title = filePath ? shortenHome(filePath) : undefined;
   // Every pill carries its ×: always shown on the active pill, revealed on hover
   // for inactive ones (CSS-gated) so any open tab is closable. stopPropagation
@@ -110,42 +100,6 @@ function TabPill({ id, label, active, onSelect, onClose }) {
   );
 }
 
-function PlusMenu({ tabs, onPick }) {
-  const ref = useRef(null);
-  // The + drifts right as tabs open; shift the menu left so it stays inside the
-  // window. Measured from the anchor, not the menu: its open animation scales it.
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const over = el.offsetParent.getBoundingClientRect().left + el.offsetWidth - (window.innerWidth - 8);
-    if (over > 0) el.style.left = `${-over}px`;
-  }, []);
-  return (
-    <div className="sp-plus-menu" data-pop="sidepanel-plus" ref={ref}>
-      {tabs.map((type) => (
-        <div key={type} className="sp-plus-item" onClick={(e) => { e.stopPropagation(); onPick(type); }}>
-          <span className="sp-tab-icon">{ICONS[type]}</span>
-          <span className="sp-plus-label">{TAB_LABELS[type]}</span>
-          {TAB_KBD[type] && <span className="sp-plus-kbd">{TAB_KBD[type]}</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// Quiet resting state when the panel is open with no tabs (the last one was
-// closed, or a fresh session). Points at the + menu, the way tabs are opened.
-function EmptyPanel() {
-  return (
-    <div className="empty-state">
-      <span className="empty-state__icon">
-        <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="12" height="10" rx="2" /><line x1="10.5" y1="3" x2="10.5" y2="13" /></svg>
-      </span>
-      <span className="empty-state__title">No panel open</span>
-      <span className="empty-state__subtitle">Open a tab from the + menu.</span>
-    </div>
-  );
-}
-
 export function SidePanel({ live, tabs = AGENT_TABS }) {
   const ui = useUi();
   const terminalRoot = useTerminalRoot();
@@ -153,17 +107,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   const activeTab = ui.activeTab ?? null;
   const panel = activeTab ? getPanel(tabType(activeTab)) : null;
   const asideRef = useRef(null);
-  const [plusOpen, setPlusOpen] = useState(false);
-
-  // Close the + menu on any outside pointerdown.
-  useEffect(() => {
-    if (!plusOpen) return;
-    const onDown = (e) => {
-      if (!e.target.closest?.(".sp-plus-menu") && !e.target.closest?.(".sp-plus")) setPlusOpen(false);
-    };
-    window.addEventListener("pointerdown", onDown);
-    return () => window.removeEventListener("pointerdown", onDown);
-  }, [plusOpen]);
+  // Page tab labels are page titles — re-render when one changes.
+  usePagesVersion();
 
   // Width fraction = distance from pointer to the OWNING pane's right edge over
   // the pane width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
@@ -192,8 +137,6 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }, [fracFor, ui]);
-
-  const pickTab = (t) => { ui.openNewTab(t); setPlusOpen(false); };
 
   // Closing a Terminal pill kills its PTY session (one session per top-level tab);
   // other panel types have nothing session-bound to tear down here.
@@ -255,12 +198,9 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
               onClose={() => closeTabById(id)}
             />
           ))}
-          <span className="sp-plus-wrap">
-            <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
-            </span>
-            {plusOpen && <PlusMenu tabs={tabs} onPick={pickTab} />}
-          </span>
+          <button className="sp-plus" onClick={() => ui.openNewTab("newtab")} title="New tab" aria-label="New tab">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+          </button>
           <span className="sp-spacer" />
           <span className={"sp-chrome-btn" + (fullscreen ? " on" : "")} onClick={ui.toggleFullscreen} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} role="button">
             {fullscreen ? (
@@ -274,7 +214,9 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
           <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
             {(panel || !dockOpen) && (
               <div className="sp-content">
-                {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
+                {panel
+                  ? <panel.Component key={activeTab} live={live} tabId={activeTab} tools={tabs} />
+                  : <NewTabPanel live={live} tools={tabs} />}
               </div>
             )}
             {dockOpen && <FileDock live={live} fill={!panel} />}

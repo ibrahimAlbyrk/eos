@@ -5,12 +5,11 @@ import { notify } from "../../lib/notify.js";
 import {
   subscribe, getBrowserPanel, patchBrowserPanel, resetPanelView,
   browserFetch, withSession, refreshTabs, openTab, isBlankUrl,
-  bindPaneSession, declareActiveTab,
+  bindPaneSession, declareActiveTab, takeQueuedUrl, navigate, normalizeUrl,
 } from "../../state/browserPanelStore.js";
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
-import { sessionRootOf } from "../../lib/agentIndex.js";
-import { usePanelHost } from "../../state/panelHost.js";
 import { useOriginPane } from "../../state/paneScope.js";
+import { useBrowserSessionKey } from "./useBrowserSessionKey.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
@@ -35,15 +34,13 @@ const EMBEDDED = typeof window !== "undefined" && Boolean(window.eosBrowserView)
 const LIVE_BLOCK = { disabled: "disabled", absent: "absent", crashed: "crashed" };
 
 // The single side panel hosts ONE browser view, so its geometry key is a
-// constant; the browser STATE (tabs/url) is still keyed per session, derived
-// from the panel's `browser` data or the selected agent's session root. A Code
-// view pane has no agent session, so it uses the global (human) browser.
+// constant; the browser STATE (tabs/url) is still keyed per session
+// (useBrowserSessionKey).
 const PANEL_ID = "sidepanel";
 
 export function BrowserPanel() {
   const ui = useUi();
-  const host = usePanelHost();
-  const sessionKey = ui.panelData?.browser?.sessionKey ?? (host ? null : sessionRootOf(ui.selectedId));
+  const sessionKey = useBrowserSessionKey();
   // Annotate/pick results go to the composer of the pane this panel lives in,
   // which listens on that pane's leaf id — not the constant geometry key.
   const composerPane = useOriginPane();
@@ -99,10 +96,18 @@ function BrowserPanelInner({ paneId, sessionKey, composerPane, closing }) {
       }
       const tabs = await refreshTabs(sessionKey);
       if (cancelled) return;
-      if (tabs && tabs.length === 0) {
+      // A URL from the new-tab launcher lands in the blank tab, else a new one.
+      const queuedUrl = takeQueuedUrl(sessionKey);
+      const shown = getBrowserPanel(sessionKey);
+      const active = shown.tabs.find((t) => t.tabId === shown.activeTabId);
+      if (queuedUrl && active && isBlankUrl(active.url)) {
+        await navigate(sessionKey, { action: "url", url: queuedUrl });
+      } else if (queuedUrl) {
+        await openTab(sessionKey, normalizeUrl(queuedUrl));
+      } else if (tabs && tabs.length === 0) {
         await openTab(sessionKey);
-        if (cancelled) return;
       }
+      if (cancelled) return;
       if (!getBrowserPanel(sessionKey).activeTabId) { setBlocked("error"); return; }
       patchBrowserPanel(sessionKey, { connState: "open" });
     })().catch((e) => {

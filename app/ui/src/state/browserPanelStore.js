@@ -15,6 +15,7 @@
 import { api } from "../api/client.js";
 import { notify } from "../lib/notify.js";
 import { GLOBAL_SESSION } from "../lib/agentIndex.js";
+import { recordVisit, updateMeta } from "./browserHistoryStore.js";
 
 const EMPTY = {
   tabs: [],
@@ -143,6 +144,7 @@ function selectTab(sessionKey, tabId, url = "") {
 // active tab only when the PAGE moved it (a link click, a redirect) — a list
 // that lands mid-typing leaves the draft alone.
 function applyTabsToSession(p, tabs) {
+  noteVisits(p.state.tabs, tabs);
   const activeTabId = tabs.some((t) => t.tabId === p.state.activeTabId)
     ? p.state.activeTabId
     : tabs[0]?.tabId ?? null;
@@ -152,6 +154,18 @@ function applyTabsToSession(p, tabs) {
   p.lastUrl = url;
   p.state = { ...p.state, ...patch };
   emit(p);
+}
+
+// Feed the launcher's Suggested row: a tab that moved to a new URL is a visit;
+// the same URL with a fresh title/favicon only refreshes that entry.
+function noteVisits(prev, tabs) {
+  const before = new Map(prev.map((t) => [t.tabId, t.url]));
+  for (const t of tabs) {
+    if (isBlankUrl(t.url)) continue;
+    const meta = { url: t.url, title: t.title, favicon: t.faviconDataUri };
+    if (before.get(t.tabId) === t.url) updateMeta(meta);
+    else recordVisit(meta);
+  }
 }
 
 export async function refreshTabs(sessionKey) {
@@ -182,6 +196,21 @@ export function applyStatus(status) {
     p.state = { ...p.state, engineState };
     emit(p);
   }
+}
+
+// A URL the new-tab launcher asked for: the browser panel opens it once its
+// engine is up (in the blank tab it would otherwise show, else a new one).
+const queued = new Map(); // sessionKey -> url
+
+export function queueUrl(sessionKey, url) {
+  queued.set(keyOf(sessionKey), url);
+}
+
+export function takeQueuedUrl(sessionKey) {
+  const k = keyOf(sessionKey);
+  const url = queued.get(k) ?? null;
+  queued.delete(k);
+  return url;
 }
 
 export async function openTab(sessionKey, url) {
@@ -341,4 +370,5 @@ export function resetPanelView(sessionKey) {
 export function _resetBrowserPanel() {
   sessions.clear();
   paneSessions.clear();
+  queued.clear();
 }

@@ -36,7 +36,7 @@ function ReviewEmpty({ title }) {
 // untracked vs HEAD) or one commit's scope, with a file-tree + commit-history
 // sidebar. Read-only; worker-specific actions
 // (discard/Try/Apply/verdict) live in the DiffViewer.
-// Review tab — the selected agent's working-tree diff (summary + conflicts +
+// Changes tab — the selected agent's working-tree diff (summary + conflicts +
 // history + stashes + file cards), or an explicit {cwd, workerId} when opened
 // from a specific worktree (e.g. a WorktreeHub child). Falls back to deriving
 // the repo dir from the selected worker.

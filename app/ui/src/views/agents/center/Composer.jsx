@@ -342,6 +342,13 @@ export function Composer({ live, worker, paneId, focused }) {
     // payload — addAttachments/addPath would mint a path-basename label, so they
     // seat via addResolved (custom label + "element" kind) and insert their own
     // token. Image/file hand-offs (P6) still ride the addAttachments path.
+    if (h.text) {
+      let before = text.slice(0, cursorPos);
+      const after = text.slice(cursorPos);
+      if (before && !/\s$/.test(before)) before += " ";
+      setTextAndSync(before + h.text + after, before.length + h.text.length);
+      editorRef.current?.focus();
+    }
     const media = h.attachments.filter((a) => a.type !== "element");
     if (media.length) addAttachments(media);
     for (const a of h.attachments) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_TABS, openTab, openNewTab, closeTab, activateTab, tabType, fileTabId, filePathOf } from "./panelTabs.js";
+import { EMPTY_TABS, openTab, openNewTab, closeTab, activateTab, tabType, fileTabId, filePathOf, replaceTab, newTabId, pageTabId, pageIdOf } from "./panelTabs.js";
 
 describe("panelTabs", () => {
   it("opens tabs in order and activates the opened one", () => {
@@ -95,5 +95,39 @@ describe("panelTabs instances", () => {
     expect(filePathOf("file:/a/b:c.md")).toBe("/a/b:c.md");
     expect(filePathOf("files")).toBe(null);
     expect(filePathOf(null)).toBe(null);
+  });
+});
+
+describe("panelTabs replace (new-tab launcher)", () => {
+  it("each + opens a fresh launcher instance", () => {
+    let s = openNewTab(EMPTY_TABS, "newtab");
+    s = openNewTab(s, "newtab");
+    expect(s.openTabs).toEqual(["newtab:1", "newtab:2"]);
+  });
+
+  it("a launcher becomes what it opened, in the same slot", () => {
+    let s = openTab(EMPTY_TABS, "review");
+    s = openNewTab(s, "newtab");
+    s = openTab(s, "files");
+    s = activateTab(s, "newtab:1");
+    s = replaceTab(s, "newtab:1", newTabId(s, "terminal"));
+    expect(s.openTabs).toEqual(["review", "terminal:1", "files"]);
+    expect(s.activeTab).toBe("terminal:1");
+    expect(s.tabHistory).not.toContain("newtab:1");
+  });
+
+  it("opening an already-open tab from a launcher closes the launcher and activates it", () => {
+    let s = openTab(EMPTY_TABS, "review");
+    s = openNewTab(s, "newtab");
+    s = replaceTab(s, "newtab:1", "review");
+    expect(s.openTabs).toEqual(["review"]);
+    expect(s.activeTab).toBe("review");
+  });
+
+  it("without an open launcher it is a plain open", () => {
+    const s = replaceTab(EMPTY_TABS, "newtab:9", pageTabId("pg-1"));
+    expect(s.openTabs).toEqual(["page:pg-1"]);
+    expect(pageIdOf(s.activeTab)).toBe("pg-1");
+    expect(pageIdOf("files")).toBe(null);
   });
 });

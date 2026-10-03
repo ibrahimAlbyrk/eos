@@ -48,7 +48,7 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
   const passed = verdict?.verdict === "passed";
   if (!dirty) return null;
 
-  // The Review tab is "viewing" this child when it's open for that worker.
+  // The Changes tab is "viewing" this child when it's open for that worker.
   const viewing = ui.showSidePanel && ui.activeTab === "review" && ui.panelData?.review?.workerId === child.id;
   return (
     <div className="child-int-row">

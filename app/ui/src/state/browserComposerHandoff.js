@@ -1,5 +1,5 @@
-// browserComposerHandoff — a pane-keyed one-shot hand-off from the browser
-// panel's annotation overlay to that pane's message composer. The overlay's
+// browserComposerHandoff — a pane-keyed one-shot hand-off from a side-panel tab
+// (the browser's annotation overlay, a page) to that pane's message composer. The overlay's
 // "Add to chat" uploads the composited image, then pushes the resulting
 // attachment here keyed by PANE id; the composer that owns that pane consumes
 // it exactly once (subscribe → intake.addAttachments → consume). Module
@@ -32,6 +32,14 @@ export function getHandoff(paneId) {
 export function pushHandoff(paneId, attachments) {
   if (!paneId || !attachments?.length) return;
   entries.set(paneId, { token: `bh-${++seq}`, attachments });
+  emit();
+}
+
+// Text for the composer (a page's "Add to chat", the launcher's "?" ask),
+// inserted at the caret like a typed mention.
+export function pushTextHandoff(paneId, text) {
+  if (!paneId || !text) return;
+  entries.set(paneId, { token: `bh-${++seq}`, attachments: [], text });
   emit();
 }
 

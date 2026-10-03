@@ -9,7 +9,7 @@ export const EMPTY_TABS = { openTabs: [], activeTab: null, tabHistory: [] };
 // Types that can have MULTIPLE independent instances open at once (each its own
 // session). Their tab id is `${type}:${n}`; every other type is a singleton
 // whose id IS its type. Kept here so the id scheme lives with the reducers.
-export const MULTI_TAB_TYPES = new Set(["terminal"]);
+export const MULTI_TAB_TYPES = new Set(["terminal", "newtab"]);
 
 // The panel type behind a tab id ("terminal:2" -> "terminal", "files" -> "files").
 export function tabType(id) {
@@ -26,6 +26,15 @@ export function fileTabId(path) {
 // The file path behind a file tab id, or null for any other tab (or none).
 export function filePathOf(id) {
   return id && tabType(id) === "file" ? id.slice("file:".length) : null;
+}
+
+// A page gets its own tab keyed by the page id, like a file tab.
+export function pageTabId(id) {
+  return `page:${id}`;
+}
+
+export function pageIdOf(id) {
+  return id && tabType(id) === "page" ? id.slice("page:".length) : null;
 }
 
 // The instance number in a tab id, or 1 for a bare/singleton id.
@@ -54,11 +63,31 @@ export function openTab(state, tab) {
 // lowest free number among their open tabs), so each + click adds a tab; every
 // other type is a singleton, so this just re-activates the one that's open.
 export function openNewTab(state, type) {
-  if (!MULTI_TAB_TYPES.has(type)) return openTab(state, type);
+  return openTab(state, newTabId(state, type));
+}
+
+// The id a NEW tab of `type` gets: a multi type's lowest free instance number,
+// anything else (a singleton type, or a full id like a page tab) as given.
+export function newTabId(state, type) {
+  if (!MULTI_TAB_TYPES.has(type)) return type;
   const used = new Set(state.openTabs.filter((t) => tabType(t) === type).map(tabNumber));
   let n = 1;
   while (used.has(n)) n += 1;
-  return openTab(state, `${type}:${n}`);
+  return `${type}:${n}`;
+}
+
+// Turn one tab into another in place (a new-tab launcher becoming what it
+// opened): same slot, now active. When the target is already open elsewhere the
+// old tab just closes and the target activates; an old tab that isn't open
+// degrades to a plain open.
+export function replaceTab(state, oldId, newId) {
+  const i = state.openTabs.indexOf(oldId);
+  if (i === -1) return openTab(state, newId);
+  if (oldId === newId) return activateTab(state, newId);
+  if (state.openTabs.includes(newId)) return activateTab(closeTab(state, oldId), newId);
+  const openTabs = state.openTabs.map((t) => (t === oldId ? newId : t));
+  const history = (state.tabHistory ?? []).filter((t) => t !== oldId);
+  return { openTabs, activeTab: newId, tabHistory: pushHistory(history, newId) };
 }
 
 // Close a tab: drop it. When it was the active one, activate the most recently
