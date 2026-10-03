@@ -4,6 +4,7 @@
 
 import type { ServerResponse } from "node:http";
 import { gzip } from "node:zlib";
+import { createHash } from "node:crypto";
 import {
   DomainError,
   NotFoundError,
@@ -30,27 +31,44 @@ function fdErrno(e: unknown): string | null {
   return /too many open files/i.test(msg) ? "EMFILE" : null;
 }
 
-// Below this size gzip overhead beats the savings; above it, large payloads
-// (whole-tree diffs, file contents) shrink ~5-10x. Compression is async so a
-// multi-MB body never blocks the event loop.
-const GZIP_MIN_BYTES = 8 * 1024;
+// Below this size gzip overhead beats the savings; above it, JSON shrinks
+// several times (lists, diffs, file contents) — over a peer link every KB is
+// relay time. Compression is async so a multi-MB body never blocks the event loop.
+const GZIP_MIN_BYTES = 1024;
+// A GET answer worth tagging: the client's HTTP cache revalidates it, and an
+// unchanged one (the same list read again) costs a 304 instead of the body.
+const ETAG_MIN_BYTES = 512;
 
 export function writeJson(res: ServerResponse, status: number, body: unknown): void {
   const json = JSON.stringify(body);
-  const accept = String(res.req?.headers["accept-encoding"] ?? "");
-  if (Buffer.byteLength(json, "utf8") >= GZIP_MIN_BYTES && /\bgzip\b/.test(accept)) {
+  const req = res.req;
+  const bytes = Buffer.byteLength(json, "utf8");
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (status === 200 && req?.method === "GET" && bytes >= ETAG_MIN_BYTES) {
+    const etag = `W/"${createHash("sha1").update(json).digest("base64url")}"`;
+    headers.etag = etag;
+    // Revalidate every time: the tag, not an age, says whether it changed.
+    if (!res.getHeader?.("cache-control")) headers["cache-control"] = "no-cache";
+    if (req.headers?.["if-none-match"] === etag) {
+      res.writeHead(304, { etag, ...(headers["cache-control"] ? { "cache-control": headers["cache-control"] } : {}) });
+      res.end();
+      return;
+    }
+  }
+  const accept = String(req?.headers["accept-encoding"] ?? "");
+  if (bytes >= GZIP_MIN_BYTES && /\bgzip\b/.test(accept)) {
     gzip(json, (err, buf) => {
       if (err) {
-        res.writeHead(status, { "content-type": "application/json" });
+        res.writeHead(status, headers);
         res.end(json);
         return;
       }
-      res.writeHead(status, { "content-type": "application/json", "content-encoding": "gzip" });
+      res.writeHead(status, { ...headers, "content-encoding": "gzip" });
       res.end(buf);
     });
     return;
   }
-  res.writeHead(status, { "content-type": "application/json" });
+  res.writeHead(status, headers);
   res.end(json);
 }
 
