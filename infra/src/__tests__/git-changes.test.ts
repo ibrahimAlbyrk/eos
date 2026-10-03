@@ -221,6 +221,14 @@ describe("base-aware diff (worktree fork point)", () => {
     assert.equal(base, git(src, "rev-parse", "HEAD").out.trim());
   });
 
+  it("mergeBaseRef finds the fork point against a ref; defaultBaseRef falls back to main", async () => {
+    assert.equal(await gitInfo.defaultBaseRef(wt), "main"); // no remote here
+    assert.equal(await gitInfo.mergeBaseRef(wt, "main"), git(src, "rev-parse", "HEAD").out.trim());
+    assert.equal(await gitInfo.mergeBaseRef(wt, "no-such-branch"), null);
+    const files = await gitInfo.changedFiles(wt, (await gitInfo.mergeBaseRef(wt, "main"))!);
+    assert.deepEqual(files.map((f) => f.path).sort(), ["a.txt", "b.txt", "untracked.txt"]);
+  });
+
   it("HEAD-only diff misses committed work; base diff includes it; untracked always counts", async () => {
     const headOnly = await gitInfo.diffShortStat(wt);
     assert.equal(headOnly.files, 2); // uncommitted edit to b.txt + untracked.txt

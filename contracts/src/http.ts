@@ -202,7 +202,7 @@ export type WorkerQueueResponse = z.infer<typeof WorkerQueueResponseSchema>;
 // (manager/prompts/) and sends it to the PTY, while the chat shows only the
 // short display label.
 
-export const WorkerActionSchema = z.enum(["commit", "commit-push", "pr", "draft-pr", "verify"]);
+export const WorkerActionSchema = z.enum(["commit", "commit-push", "pr", "draft-pr", "verify", "review"]);
 export type WorkerAction = z.infer<typeof WorkerActionSchema>;
 
 export const WorkerActionRequestSchema = z.object({ action: WorkerActionSchema });
@@ -826,9 +826,24 @@ const HexShaSchema = z.string().regex(/^[0-9a-f]{4,40}$/i);
 // commit's changes when ?sha= is given. Response schema lives after
 // WorkerChangesResponseSchema (it extends it).
 
+// A git ref as typed by a user (branch, remote branch, sha). Never starts with
+// "-" (it is handed to git as an argument) and never walks a range ("..").
+export const GitRefSchema = z
+  .string()
+  .min(1)
+  .max(256)
+  .regex(/^[A-Za-z0-9_][A-Za-z0-9._/@-]*$/, "invalid ref")
+  .refine((r) => !r.includes(".."), "invalid ref");
+
+// `base` = the branch scope: the working tree against its fork point
+// (merge-base of HEAD and that ref) — everything the branch changed, committed
+// or not. "auto" picks the repo's default base (origin/HEAD, else main/master).
+// The response's baseLabel names the ref used; null means no base resolved and
+// the diff fell back to HEAD.
 export const FsChangesQuerySchema = z.object({
   cwd: z.string().min(1),
   sha: HexShaSchema.optional(),
+  base: GitRefSchema.optional(),
 });
 export type FsChangesQuery = z.infer<typeof FsChangesQuerySchema>;
 
@@ -841,6 +856,7 @@ export const FsChangesFileQuerySchema = z.object({
   path: z.string().min(1),
   oldPath: z.string().optional(),
   sha: HexShaSchema.optional(),
+  base: GitRefSchema.optional(),
 });
 export type FsChangesFileQuery = z.infer<typeof FsChangesFileQuerySchema>;
 

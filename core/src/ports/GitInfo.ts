@@ -131,6 +131,13 @@ export interface GitInfo {
    *  object store assumed — a worktree vs its source checkout). Null when
    *  either side can't resolve. */
   mergeBase(cwd: string, otherRepoRoot: string): Promise<string | null>;
+  /** Fork point of cwd's HEAD and a ref (`git merge-base HEAD <ref>`). Null
+   *  when the ref doesn't resolve or the histories share nothing. */
+  mergeBaseRef(cwd: string, ref: string): Promise<string | null>;
+  /** The ref a branch is usually compared against: the remote's default branch
+   *  (origin/HEAD), else origin/main, origin/master, main, master — the first
+   *  that resolves. Null when none does. */
+  defaultBaseRef(cwd: string): Promise<string | null>;
   /** Branch + remote + upstream presence + ahead/behind, bundled — the input to
    *  the pure push decision. Collapses to a benign all-null/zero state on error. */
   pushState(cwd: string): Promise<PushState>;

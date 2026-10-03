@@ -34,6 +34,15 @@ import { orderBranches } from "../../core/src/domain/branch-order.ts";
 const BLOB_MAX_BYTES = 20 * 1024 * 1024;
 
 export function registerFsGitRoutes(r: Router, c: Container): void {
+  // The branch scope's fork point: `base` ("auto" = the repo's default base)
+  // resolved to a ref, then to its merge-base with HEAD. Null = no base resolved.
+  const resolveBase = async (cwd: string, base: string): Promise<{ ref: string; sha: string } | null> => {
+    const ref = base === "auto" ? await c.git.defaultBaseRef(cwd) : base;
+    if (!ref) return null;
+    const sha = await c.git.mergeBaseRef(cwd, ref);
+    return sha ? { ref, sha } : null;
+  };
+
   // Mutating git routes operate on an arbitrary cwd, so they require both a safe
   // absolute path and the UI token (guardMutation, shared with fs-mutate) — an
   // agent holding EOS_DAEMON_URL must not mutate the user's repo via the daemon.
@@ -125,6 +134,7 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     const q = validate(FsChangesQuerySchema, {
       cwd: url.searchParams.get("cwd") ?? undefined,
       sha: url.searchParams.get("sha") ?? undefined,
+      base: url.searchParams.get("base") ?? undefined,
     });
     if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
     const wantPatches = url.searchParams.get("patches") === "1";
@@ -153,10 +163,12 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       return;
     }
 
+    const base = q.base ? await resolveBase(q.cwd, q.base) : null;
+    const against = base ? [base.sha] : [];
     const [files, full, baseSha, head, repoLabel] = await Promise.all([
-      c.git.changedFiles(q.cwd),
-      wantPatches ? c.git.fullDiff(q.cwd) : Promise.resolve(null),
-      c.git.revParse(q.cwd, "HEAD"),
+      c.git.changedFiles(q.cwd, ...against),
+      wantPatches ? c.git.fullDiff(q.cwd, ...against) : Promise.resolve(null),
+      c.git.revParse(q.cwd, base?.sha ?? "HEAD"),
       c.git.currentBranch(q.cwd),
       repoLabelOf(q.cwd),
     ]);
@@ -167,7 +179,7 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
       baseSha,
       headSha: null, // working tree, not a commit
-      baseLabel: null,
+      baseLabel: base?.ref ?? null,
       // Detached HEAD has no branch name — fall back to the short HEAD sha.
       headLabel: head ?? baseSha ?? "HEAD",
       repoLabel,
@@ -180,14 +192,17 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       path: url.searchParams.get("path") ?? undefined,
       oldPath: url.searchParams.get("oldPath") ?? undefined,
       sha: url.searchParams.get("sha") ?? undefined,
+      base: url.searchParams.get("base") ?? undefined,
     });
     if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
     if (q.sha) {
       writeJson(res, 200, await c.git.commitFileDiff(q.cwd, q.sha, q.path, q.oldPath));
       return;
     }
-    // Same local-changes-only scope as /fs/changes: no base ref → diff vs HEAD.
-    writeJson(res, 200, await c.git.fileDiff(q.cwd, q.path, q.oldPath));
+    // Same scope as /fs/changes: the branch's fork point when `base` is given,
+    // else local changes vs HEAD.
+    const base = q.base ? await resolveBase(q.cwd, q.base) : null;
+    writeJson(res, 200, await (base ? c.git.fileDiff(q.cwd, q.path, q.oldPath, base.sha) : c.git.fileDiff(q.cwd, q.path, q.oldPath)));
   });
 
   r.get("/fs/blob", async ({ url, res }) => {

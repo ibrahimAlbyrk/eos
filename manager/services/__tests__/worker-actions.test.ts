@@ -49,7 +49,7 @@ describe("resolveWorkerAction (action templates via Layer 1)", () => {
   });
 
   it("leaves no unresolved placeholders and no frontmatter for any action", async () => {
-    for (const action of ["commit", "commit-push", "pr", "draft-pr", "verify"] as const) {
+    for (const action of ["commit", "commit-push", "pr", "draft-pr", "verify", "review"] as const) {
       const { prompt } = await resolveWorkerAction(prompts, action);
       assert.doesNotMatch(prompt, /\{\{/, `${action} has an unresolved {{var}}`);
       assert.doesNotMatch(prompt, /^---/, `${action} leaked frontmatter`);

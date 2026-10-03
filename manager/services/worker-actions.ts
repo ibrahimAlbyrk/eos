@@ -20,6 +20,7 @@ const ACTIONS: Record<WorkerAction, ActionSpec> = {
   "pr":          { prompt: "create-pr", display: "/create-pr",       vars: { DRAFT: "false" } },
   "draft-pr":    { prompt: "create-pr", display: "/create-pr draft", vars: { DRAFT: "true" } },
   "verify":      { prompt: "verify",    display: "/verify",          vars: {} },
+  "review":      { prompt: "review",    display: "/review",          vars: {} },
 };
 
 export interface ResolvedAction {

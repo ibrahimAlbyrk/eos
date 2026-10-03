@@ -71,6 +71,7 @@ interface FakeGitOpts {
   stashes?: FsStashEntry[];
   stashApplyResult?: { ok: boolean; error?: string };
   stashDropResult?: { ok: boolean; error?: string };
+  defaultBase?: string | null;
 }
 
 function fakeContainer(opts: FakeGitOpts = {}) {
@@ -96,6 +97,8 @@ function fakeContainer(opts: FakeGitOpts = {}) {
     stashList: async (...a: unknown[]) => { rec("stashList", a); return (opts.stashes ?? []).map((s) => ({ ...s })); },
     stashApply: async (...a: unknown[]) => { rec("stashApply", a); return opts.stashApplyResult ?? { ok: true }; },
     stashDrop: async (...a: unknown[]) => { rec("stashDrop", a); return opts.stashDropResult ?? { ok: true }; },
+    defaultBaseRef: async (...a: unknown[]) => { rec("defaultBaseRef", a); return opts.defaultBase === undefined ? "origin/main" : opts.defaultBase; },
+    mergeBaseRef: async (...a: unknown[]) => { rec("mergeBaseRef", a); return a[1] === "gone" ? null : `fork-of-${a[1]}`; },
   };
   const c = { git, uiToken: "tok" } as unknown as Container;
   return { c, calls };
@@ -316,6 +319,41 @@ describe("GET /fs/changes (local-changes-only scope)", () => {
     assert.match(body.files[0].patch ?? "", /\+alpha changed/);
     assert.match(body.files[1].patch ?? "", /\+bravo changed/);
     assert.doesNotMatch(body.files[0].patch ?? "", /bravo/);
+  });
+});
+
+describe("GET /fs/changes?base= (branch scope)", () => {
+  it("auto resolves the default base and diffs against its fork point", async () => {
+    const { c, calls } = fakeContainer();
+    const body = FsChangesResponseSchema.parse((await get(c, "/fs/changes?cwd=/repo&base=auto&patches=1")).payload);
+    assert.deepEqual(calls.find((x) => x.fn === "mergeBaseRef")?.args, ["/repo", "origin/main"]);
+    assert.deepEqual(calls.find((x) => x.fn === "changedFiles")?.args, ["/repo", "fork-of-origin/main"]);
+    assert.deepEqual(calls.find((x) => x.fn === "fullDiff")?.args, ["/repo", "fork-of-origin/main"]);
+    assert.equal(body.baseLabel, "origin/main");
+    assert.equal(body.baseSha, "short:fork-of-origin/main");
+  });
+
+  it("an explicit base is used as given; an unresolvable one falls back to HEAD", async () => {
+    const { c, calls } = fakeContainer();
+    await get(c, "/fs/changes?cwd=/repo&base=develop");
+    assert.equal(calls.some((x) => x.fn === "defaultBaseRef"), false);
+    assert.deepEqual(calls.find((x) => x.fn === "changedFiles")?.args, ["/repo", "fork-of-develop"]);
+    const gone = fakeContainer();
+    const body = FsChangesResponseSchema.parse((await get(gone.c, "/fs/changes?cwd=/repo&base=gone")).payload);
+    assert.deepEqual(gone.calls.find((x) => x.fn === "changedFiles")?.args, ["/repo"]);
+    assert.equal(body.baseLabel, null);
+  });
+
+  it("refuses refs that could pass as options or ranges", async () => {
+    const { c } = fakeContainer();
+    await assert.rejects(get(c, "/fs/changes?cwd=/repo&base=--output=x"));
+    await assert.rejects(get(c, "/fs/changes?cwd=/repo&base=main..HEAD"));
+  });
+
+  it("the per-file diff uses the same fork point", async () => {
+    const { c, calls } = fakeContainer();
+    await get(c, "/fs/changes/file?cwd=/repo&path=a.txt&base=auto");
+    assert.deepEqual(calls.find((x) => x.fn === "fileDiff")?.args, ["/repo", "a.txt", undefined, "fork-of-origin/main"]);
   });
 });
 

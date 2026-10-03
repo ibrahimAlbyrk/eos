@@ -255,6 +255,33 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
+  async mergeBaseRef(cwd: string, ref: string): Promise<string | null> {
+    try {
+      const base = (await runGit(cwd, ["merge-base", "HEAD", "--end-of-options", ref])).trim();
+      return base || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async defaultBaseRef(cwd: string): Promise<string | null> {
+    try {
+      const head = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "origin/HEAD"])).trim();
+      if (head && head !== "origin/HEAD") return head;
+    } catch {
+      // the remote advertises no default branch
+    }
+    for (const ref of ["origin/main", "origin/master", "main", "master"]) {
+      try {
+        await runGit(cwd, ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`]);
+        return ref;
+      } catch {
+        // not here — try the next name
+      }
+    }
+    return null;
+  },
+
   async syncStatus(cwd: string): Promise<SyncStatus | null> {
     try {
       // `--left-right --count A...B` prints "<behind>\t<ahead>" when A=@{u}, B=HEAD.
