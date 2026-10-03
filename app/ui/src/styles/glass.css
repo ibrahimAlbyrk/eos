@@ -114,7 +114,10 @@
   transform-origin: 12% 0;
   animation: lg-pop-rise 280ms var(--lg-ease) both;
 
-  & > * { animation: lg-fade-in 200ms ease both; }
+  /* backwards, never both: an opacity animation that keeps filling once done
+     still cuts every glass layer inside it off from the backdrop (no blur) —
+     e.g. the branch manager nested in the environment panel */
+  & > * { animation: lg-fade-in 200ms ease backwards; }
 
   @media (prefers-reduced-motion: reduce) {
     &, & > * { animation: none; }
