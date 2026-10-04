@@ -6,8 +6,9 @@
 // Attribution: every own write records its value+time; a scroll event matching
 // the last write (±2px, fresh) is "self". User intent comes from input
 // direction (wheel-up unpins) plus a non-self upward move as the scrollbar
-// fallback — never from time-based guards, which WKWebView's missing
-// `scrollend` made unreliable.
+// fallback (only while the scroll range held still — otherwise layout moved
+// it) — never from time-based guards, which WKWebView's missing `scrollend`
+// made unreliable.
 //
 // Growth detection is a ResizeObserver on the scroller AND the content
 // element, so anything that changes height (new blocks, ProcessingLine,
@@ -42,6 +43,11 @@ export function useStickToBottom({
   const contentRef = useRef(null);
   const pinnedRef = useRef(true);
   const prevTopRef = useRef(0);
+  // scrollHeight - clientHeight as of the last scroll event or own write, so a
+  // scroll event can tell whether layout moved under it. Not refreshed on
+  // resize: Chromium delivers a clamp's scroll event a frame after the
+  // ResizeObserver, which would already have absorbed the change.
+  const rangeRef = useRef(0);
   const ledgerRef = useRef(null);
   const rafRef = useRef(0);
   const lastFrameTsRef = useRef(0);
@@ -63,10 +69,12 @@ export function useStickToBottom({
   }
 
   const ownWrite = useCallback((el, top) => {
-    const clamped = Math.max(0, Math.min(top, el.scrollHeight - el.clientHeight));
+    const range = el.scrollHeight - el.clientHeight;
+    const clamped = Math.max(0, Math.min(top, range));
     ledgerRef.current = { top: clamped, t: performance.now() };
     el.scrollTop = clamped;
     prevTopRef.current = el.scrollTop;
+    rangeRef.current = range;
   }, []);
 
   // Chromium's native scroll anchoring is off while pinned — the follow loop
@@ -164,15 +172,18 @@ export function useStickToBottom({
 
     const handleScroll = () => {
       const top = el.scrollTop;
-      const distance = el.scrollHeight - top - el.clientHeight;
+      const range = el.scrollHeight - el.clientHeight;
+      const distance = range - top;
       const deltaTop = top - prevTopRef.current;
+      const rangeChanged = range !== rangeRef.current;
       prevTopRef.current = top;
+      rangeRef.current = range;
       const ledger = ledgerRef.current;
       const isSelf = ledger != null
         && Math.abs(top - ledger.top) <= SELF_MATCH_PX
         && performance.now() - ledger.t < SELF_FRESH_MS;
       const was = pinnedRef.current;
-      const now = nextPinned(was, { distance, deltaTop, isSelf, threshold });
+      const now = nextPinned(was, { distance, deltaTop, isSelf, rangeChanged, threshold });
       if (now !== was) setPinned(now);
       if (now && !was) cbRef.current.onPinned?.();
       if (!now && !isSelf) { endSettle(); cbRef.current.onUserAway?.(top); }
@@ -201,6 +212,7 @@ export function useStickToBottom({
     el.addEventListener("scroll", handleScroll, { passive: true });
     el.addEventListener("wheel", handleWheel, { passive: true });
     lastWidthRef.current = el.clientWidth;
+    rangeRef.current = el.scrollHeight - el.clientHeight;
     const ro = new ResizeObserver(() => {
       const w = el.clientWidth;
       // Ignore park/unpark (content-visibility:hidden toggles width to/from 0) —

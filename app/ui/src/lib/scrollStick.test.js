@@ -39,6 +39,10 @@ describe("nextPinned", () => {
     expect(nextPinned(true, { distance: 200, deltaTop: -80, isSelf: false })).toBe(false);
   });
 
+  it("keeps the pin when a shrink clamp and later growth coalesce into one event (background window)", () => {
+    expect(nextPinned(true, { distance: 150, deltaTop: -200, isSelf: false, rangeChanged: true })).toBe(true);
+  });
+
   it("stays pinned on a downward user move even while content outruns the viewport", () => {
     expect(nextPinned(true, { distance: 90, deltaTop: 30, isSelf: false })).toBe(true);
   });
@@ -90,6 +94,12 @@ describe("followStep", () => {
   it("converges to the target over successive frames", () => {
     let pos = 0;
     for (let i = 0; i < 120; i++) pos = followStep(pos, 1000, 16);
+    expect(pos).toBe(1000);
+  });
+
+  it("reaches the target when scrollTop rounds to whole pixels at 120Hz", () => {
+    let pos = 0;
+    for (let i = 0; i < 240; i++) pos = Math.round(followStep(pos, 1000, 8.3));
     expect(pos).toBe(1000);
   });
 

@@ -12,19 +12,25 @@ export function shouldStick({ scrollHeight, scrollTop, clientHeight }, threshold
 // ends beyond the threshold unpins. Re-pinning, however, requires a downward
 // move, otherwise a gentle wheel-up that stays inside the threshold band would
 // re-pin instantly and the follow loop would fight the user.
-export function nextPinned(prev, { distance, deltaTop, isSelf, threshold = 40 }) {
+// An upward move that arrives with a changed scroll range is layout, not the
+// user: when frames are sparse (window in the background) a shrink clamp and
+// the growth after it reach us as ONE scroll event — up AND far from bottom.
+export function nextPinned(prev, { distance, deltaTop, isSelf, rangeChanged = false, threshold = 40 }) {
   if (isSelf) return prev;
-  if (prev) return !(deltaTop < 0 && distance >= threshold);
+  if (prev) return rangeChanged || !(deltaTop < 0 && distance >= threshold);
   return distance < threshold && deltaTop >= 0;
 }
 
 // One frame of the follow glide: exponential approach with dt-correction so
 // speed is frame-rate independent. Never overshoots; snaps within snapPx so
-// the tail doesn't crawl forever.
+// the tail doesn't crawl forever, and never steps less than snapPx: scrollTop
+// rounds to whole pixels, so at 120Hz the last few px of the tail stepped
+// <0.5px, rounded back to where they were, and the glide stalled short.
 export function followStep(current, target, dtMs, { tau = 100, snapPx = 1 } = {}) {
   const dist = target - current;
   if (Math.abs(dist) <= snapPx) return target;
-  return current + dist * (1 - Math.exp(-dtMs / tau));
+  const step = dist * (1 - Math.exp(-dtMs / tau));
+  return current + Math.sign(dist) * Math.max(Math.abs(step), snapPx);
 }
 
 // What a height change does to a pinned view. While SETTLING (right after a
