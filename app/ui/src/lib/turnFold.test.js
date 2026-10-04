@@ -21,27 +21,41 @@ const kinds = (items) => items.map((it) => (it.kind === "fold" ? "fold" : it.blo
 
 describe("foldTurns", () => {
   it("folds a finished turn's work and keeps the prompt and final reply", () => {
-    const { items, liveRunKey } = foldTurns(turn, keyOf);
+    const { items, liveRunKeys } = foldTurns(turn, keyOf);
     expect(kinds(items)).toEqual(["user", "fold", "assistant"]);
     const fold = items[1];
     expect(fold.key).toBe("fold-thinking-1");
     expect(fold.work).toEqual(turn.slice(1, 6));
     expect(fold.durationMs).toBe(252000);
     expect(items[2]).toEqual({ kind: "block", block: turn[6], index: 6 });
-    expect(liveRunKey).toBeNull();
+    expect(liveRunKeys).toEqual([]);
   });
 
   it("never folds the run still streaming at the tail, and names it", () => {
-    const { items, liveRunKey } = foldTurns(turn, keyOf, { live: true });
+    const { items, liveRunKeys } = foldTurns(turn, keyOf, { live: true });
     expect(kinds(items)).toEqual(turn.map((b) => b.kind));
-    expect(liveRunKey).toBe("thinking-1");
+    expect(liveRunKeys).toEqual(["thinking-1"]);
   });
 
   it("folds earlier turns while the agent works on the next one", () => {
     const blocks = [...turn, { kind: "user", text: "next", ts: 300000 }, { kind: "tool", tool: read("/b"), ts: 301000 }];
-    const { items, liveRunKey } = foldTurns(blocks, keyOf, { live: true });
+    const { items, liveRunKeys } = foldTurns(blocks, keyOf, { live: true });
     expect(kinds(items)).toEqual(["user", "fold", "assistant", "user", "tool"]);
-    expect(liveRunKey).toBe("tool-8");
+    expect(liveRunKeys).toEqual(["tool-8"]);
+  });
+
+  it("keeps a turn open while its background subagents still work, then folds it", () => {
+    const blocks = (status) => [
+      { kind: "user", text: "research", ts: 1 },
+      { kind: "subagents", runs: [{ toolUseId: "a", status: "completed" }, { toolUseId: "b", status }], ts: 2 },
+      { kind: "assistant", text: "Started two agents.", ts: 3 },
+    ];
+    const waiting = foldTurns(blocks("running"), keyOf);
+    expect(kinds(waiting.items)).toEqual(["user", "subagents", "assistant"]);
+    expect(waiting.liveRunKeys).toEqual(["subagents-1"]);
+    const done = foldTurns(blocks("completed"), keyOf);
+    expect(kinds(done.items)).toEqual(["user", "fold", "assistant"]);
+    expect(done.liveRunKeys).toEqual([]);
   });
 
   it("leaves a turn alone when it did not end on a reply or did no work", () => {

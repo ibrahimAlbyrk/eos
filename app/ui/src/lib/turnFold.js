@@ -1,6 +1,8 @@
 // turnFold — folds the work of a finished turn (reasoning, tool calls, interim
 // replies) behind one "Worked for …" row so only the final reply stays in view.
 
+import { isRunning } from "./subagentRuns.js";
+
 // The agent's own output between two prompts. Anything else (a prompt, a
 // worker report, a terminal run, an error line) ends the run and stays visible.
 const WORK_KINDS = new Set(["thinking", "assistant", "toolGroup", "tool", "subagents", "agentRun"]);
@@ -18,13 +20,17 @@ const PINNED_TOOLS = new Set([
 
 const isPinned = (b) => b.kind === "tool" && PINNED_TOOLS.has(b.tool?.name);
 const isAction = (b) => b.kind === "toolGroup" || b.kind === "tool" || b.kind === "subagents" || b.kind === "agentRun";
+const hasRunningSubagent = (b) =>
+  (b.kind === "subagents" && b.runs.some(isRunning)) || (b.kind === "agentRun" && isRunning(b));
 
 // blocks → render items: { kind: "block", block, index } | { kind: "fold", … }.
-// The run still streaming at the tail while `live` never folds; its key is
-// returned so the view can play the settle when that same run folds later.
+// A run that isn't over never folds: the one still streaming at the tail while
+// `live`, and one whose background subagents still work — their reports wake
+// the agent, which carries on in that same run. Their keys are returned so the
+// view can play the settle when that same run folds later.
 export function foldTurns(blocks, keyOf, { live = false } = {}) {
   const items = [];
-  let liveRunKey = null;
+  const liveRunKeys = [];
   let i = 0;
   while (i < blocks.length) {
     if (!WORK_KINDS.has(blocks[i].kind)) {
@@ -37,16 +43,16 @@ export function foldTurns(blocks, keyOf, { live = false } = {}) {
     const runKey = keyOf(blocks[i], i);
     const finalIdx = end - 1;
     const final = blocks[finalIdx];
-    const streaming = live && end === blocks.length;
     const work = [];
     const pinned = [];
     for (let k = i; k < finalIdx; k++) {
       if (isPinned(blocks[k])) pinned.push({ kind: "block", block: blocks[k], index: k });
       else work.push(blocks[k]);
     }
-    const foldable = !streaming && final.kind === "assistant" && work.some(isAction);
+    const ongoing = (live && end === blocks.length) || work.some(hasRunningSubagent);
+    const foldable = !ongoing && final.kind === "assistant" && work.some(isAction);
     if (!foldable) {
-      if (streaming) liveRunKey = runKey;
+      if (ongoing) liveRunKeys.push(runKey);
       for (let k = i; k < end; k++) items.push({ kind: "block", block: blocks[k], index: k });
       i = end;
       continue;
@@ -62,7 +68,7 @@ export function foldTurns(blocks, keyOf, { live = false } = {}) {
     items.push({ kind: "block", block: final, index: finalIdx });
     i = end;
   }
-  return { items, liveRunKey };
+  return { items, liveRunKeys };
 }
 
 function spanMs(start, end) {

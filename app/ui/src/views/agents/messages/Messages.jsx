@@ -505,20 +505,20 @@ export function Messages({ live, agentId, isActive = true }) {
   const lastBlock = blocks[blocks.length - 1];
 
   // Finished turns fold their work behind "Worked for …" (Settings › Code ›
-  // Transcript); the turn still streaming stays open.
+  // Transcript); the turn still streaming or waiting on its subagents stays open.
   const foldOn = ui.settings["transcript.foldWork"] !== false;
-  const { items, liveRunKey } = useMemo(
+  const { items, liveRunKeys } = useMemo(
     () => (foldOn
       ? foldTurns(blocks, blockKey, { live: agentBusy })
-      : { items: blocks.map((block, index) => ({ kind: "block", block, index })), liveRunKey: null }),
+      : { items: blocks.map((block, index) => ({ kind: "block", block, index })), liveRunKeys: [] }),
     [blocks, foldOn, agentBusy],
   );
   // Runs this pane watched stream in: when one of them folds it settles in
   // place, once — any later mount of that fold lands closed.
   const watchedRunsRef = useRef(new Set());
   useEffect(() => {
-    if (liveRunKey && isActive) watchedRunsRef.current.add(liveRunKey);
-  }, [liveRunKey, isActive]);
+    if (isActive) for (const k of liveRunKeys) watchedRunsRef.current.add(k);
+  }, [liveRunKeys, isActive]);
   useEffect(() => {
     for (const it of items) if (it.kind === "fold") watchedRunsRef.current.delete(it.runKey);
   }, [items]);
