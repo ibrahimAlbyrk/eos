@@ -64,6 +64,7 @@ import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerPageRoutes } from "./routes/pages.ts";
 import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
+import { registerDreamRoutes } from "./routes/dreams.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
 import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
@@ -125,6 +126,7 @@ registerTemplateRoutes(router, c);
 registerPageRoutes(router, c);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
+registerDreamRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
@@ -428,9 +430,16 @@ const turnEndNotify = makeTurnEndNotify({
 c.bus.subscribe("worker:change", (msg) =>
   turnEndNotify(msg.payload as { workerId?: string; from?: string; state?: string }),
 );
+// Dreaming: a top-level chat starting work means the user is here — a scheduled
+// dream stops after its current chat, and "away" restarts its clock.
+c.bus.subscribe("worker:change", (msg) => {
+  const p = msg.payload as { workerId?: string; state?: string };
+  if (p?.state === "WORKING" && p.workerId && !c.workers.findById(p.workerId)?.parent_id) c.dreams.noteUserActivity();
+});
+c.dreams.start();
 // Agents suggested memories → one batched banner a little later.
 const memorySuggestNotify = makeMemorySuggestNotify({
-  pendingCount: () => c.userMemories.list().filter((m) => m.status === "suggested").length,
+  pendingCount: () => c.userMemories.list().filter((m) => m.status === "suggested" && m.source.kind !== "dream").length,
   fire: (n) => c.bus.publish("notification:fire", n),
   now: () => c.clock.now(),
   schedule: (fn, ms) => { setTimeout(fn, ms).unref(); },

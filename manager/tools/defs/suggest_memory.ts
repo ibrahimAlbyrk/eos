@@ -15,6 +15,7 @@ export const suggestMemoryDef: ToolDefinition = {
   handler: async (ctx, args) => {
     // The id lets the transcript card follow the suggestion live (kept / dismissed).
     const r = (await ctx.api("POST", ROUTES.userMemorySuggest, args)) as UserMemorySuggestResponse;
+    if (r.declined) return `Declined before (${r.memory.id}): the user dismissed this idea. Don't suggest it again.`;
     if (r.duplicate) return `Already known (${r.memory.id}): "${r.memory.text}". Nothing to do.`;
     return `Suggested (${r.memory.id}). The user reviews it in Eos before it is remembered — no need to mention it.`;
   },

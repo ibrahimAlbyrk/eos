@@ -88,6 +88,11 @@ import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
+import { SqliteDreamRepo } from "../infra/src/persistence/SqliteDreamRepo.ts";
+import { DreamService } from "./services/DreamService.ts";
+import { dreamOverChats } from "../core/src/use-cases/DreamOverChats.ts";
+import { normalizeEventRow } from "../core/src/domain/message-normalize.ts";
+import type { DreamLine, DreamSession } from "../core/src/domain/dream.ts";
 import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
@@ -259,6 +264,7 @@ export function buildContainer() {
   const loops = new SqliteLoopStateRepo(db);
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
   const messageIds = new SqliteMessageIdRepo(db);
+  const dreamRepo = new SqliteDreamRepo(db);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -1441,6 +1447,68 @@ export function buildContainer() {
     }, input),
     log,
   });
+  // Dreaming — rereads finished top-level chats (where the user talks) on the same
+  // tool-less summarizer, on the model the user picked, and files memory proposals.
+  const DREAM_ROWS_PER_CHAT = 3000;
+  const dreamSessions = (): DreamSession[] => workers.listAll()
+    .filter((w) => !w.parent_id)
+    .map((w) => ({
+      workerId: w.id,
+      name: w.name ?? w.id,
+      project: w.cwd ?? w.worktree_from ?? null,
+      noFolder: Boolean(w.scratch),
+      working: w.state === "WORKING",
+      lastEventId: events.list({ workerId: w.id, since: 0, limit: 1, order: "desc" })[0]?.id ?? 0,
+    }));
+  // Newest rows first, so a long chat keeps its latest turns; only what follows the
+  // chat's watermark.
+  const dreamLines = (workerId: string, afterId: number): DreamLine[] => events
+    .list({ workerId, since: 0, limit: DREAM_ROWS_PER_CHAT, order: "desc" })
+    .filter((row) => row.id > afterId)
+    .reverse()
+    .flatMap((row) => {
+      const m = normalizeEventRow(row);
+      return m ? [{ id: row.id, role: m.role, text: m.text }] : [];
+    });
+  const dreams = new DreamService({
+    run: ({ trigger, onProgress, shouldStop }) => dreamOverChats({
+      repo: dreamRepo,
+      summarizer,
+      prompts,
+      sessions: dreamSessions,
+      lines: dreamLines,
+      memories: userMemories,
+      profile,
+      profileDigest: () => userProfilePreview("claude", null).text,
+      clock: systemClock,
+      newId: () => `dr-${randomBytes(6).toString("hex")}`,
+      timeoutMs: config.compaction.timeoutMs,
+      shouldStop,
+      onProgress,
+    }, { trigger }),
+    repo: dreamRepo,
+    settings: () => profile.get().dreaming,
+    clock: systemClock,
+    bus,
+    signedIn: () => readEosClaudeLogin().present || Boolean(config.anthropic?.authToken?.trim()),
+    usage: async () => {
+      const claude = (await usage.getUsage()).providers.find((p) => p.provider === "claude");
+      const used = [claude?.windows.fiveHour?.utilization, claude?.windows.sevenDay?.utilization]
+        .filter((n): n is number => typeof n === "number");
+      return used.length ? Math.max(...used) / 100 : null;
+    },
+    anyWorking: () => workers.listAll().some((w) => w.state === "WORKING"),
+    newId: () => `dr-${randomBytes(6).toString("hex")}`,
+    notify: (run) => bus.publish("notification:fire", {
+      title: `Eos dreamt · ${run.proposed} to review`,
+      body: run.narrative ?? "Review what it noticed while you were away.",
+      workerId: "",
+      route: "memory",
+      ts: systemClock.now(),
+    }),
+    log,
+  });
+
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
@@ -1570,6 +1638,8 @@ export function buildContainer() {
     backends,
     slashCommands,
     compaction,
+    dreams,
+    dreamRepo,
     expandSlashTemplate,
     onAgentEvent,
     backendResolver,

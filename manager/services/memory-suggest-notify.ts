@@ -9,6 +9,7 @@ import type { NotificationFire } from "./permission-ask-notify.ts";
 export const MEMORY_NOTIFY_DELAY_MS = 30_000;
 
 export interface MemorySuggestNotifyDeps {
+  // Waiting agent suggestions (dream proposals excluded).
   pendingCount(): number;
   fire(notification: NotificationFire): void;
   now(): number;
@@ -18,7 +19,8 @@ export interface MemorySuggestNotifyDeps {
 export function makeMemorySuggestNotify(deps: MemorySuggestNotifyDeps): (evt: UserMemoryChangeEvent) => void {
   let armed = false;
   return (evt) => {
-    if (evt?.action !== "created" || evt.status !== "suggested" || armed) return;
+    // A dream announces its own morning note once it finishes.
+    if (evt?.action !== "created" || evt.status !== "suggested" || evt.by === "dream" || armed) return;
     armed = true;
     deps.schedule(() => {
       armed = false;

@@ -30,10 +30,11 @@ export function registerUserMemoryRoutes(r: Router, c: Container): void {
   const withheld = (agent: AgentCaller): boolean =>
     agent.kind !== null && c.profile.get().sharing.withholdFrom.includes(agent.kind);
 
-  // Every memory (?status=active|suggested narrows) — the Memory view groups them.
+  // Kept + waiting memories (?status= narrows; dismissed tombstones only on ask) —
+  // the Memory view groups them.
   r.get(ROUTES.userMemories, ({ url, res }) => {
     const status = url.searchParams.get("status");
-    const memories = c.userMemories.list().filter((m) => !status || m.status === status);
+    const memories = c.userMemories.list().filter((m) => (status ? m.status === status : m.status !== "dismissed"));
     writeJson(res, 200, { memories });
   });
 
