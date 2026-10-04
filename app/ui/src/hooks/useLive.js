@@ -43,6 +43,7 @@ import { applyPresence } from "../state/peerStore.js";
 import { applyChange as applyPageChange, resyncPages } from "../state/pagesStore.js";
 import { applyProfileChange, resyncProfile } from "../state/profileStore.js";
 import { applyUserMemoryChange, resyncUserMemories } from "../state/userMemoryStore.js";
+import { applyDreamChange, resyncDreams } from "../state/dreamStore.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -217,6 +218,7 @@ export function useLive() {
         resyncPages();
         resyncProfile();
         resyncUserMemories();
+        resyncDreams();
       },
       onChange: (e) => {
         try {
@@ -236,6 +238,8 @@ export function useLive() {
           if (data.reason === "profile:change") { applyProfileChange(data.payload); return; }
           // A memory was suggested or changed — Memory view + pending dot refetch.
           if (data.reason === "user-memory:change") { applyUserMemoryChange(); return; }
+          // A dream started, moved on or finished — status, rail and log refetch.
+          if (data.reason === "dream:change") { applyDreamChange(data.payload); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
           if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }

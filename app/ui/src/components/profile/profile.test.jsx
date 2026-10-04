@@ -2,7 +2,6 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProfileAvatar } from "./ProfileAvatar.jsx";
 import { ProfileMenuHeader } from "./ProfileMenuHeader.jsx";
-import { DreamingRow } from "./DreamingRow.jsx";
 import { ProfileInterview } from "./ProfileInterview.jsx";
 import { mergeProfilePatch } from "../../lib/profileText.js";
 
@@ -55,11 +54,3 @@ describe("ProfileInterview", () => {
   });
 });
 
-describe("DreamingRow", () => {
-  it("announces the feature with a disabled, off switch", () => {
-    const html = renderToStaticMarkup(<DreamingRow />);
-    expect(html).toContain("Dreaming");
-    expect(html).toContain(">Soon<");
-    expect(html).toMatch(/role="switch" aria-checked="false"[^>]*disabled/);
-  });
-});

@@ -3,13 +3,18 @@ import { useSettings } from "../../state/settings.jsx";
 import { useProfile, ensureProfileLoaded } from "../../state/profileStore.js";
 import { useProjects, refreshProjects } from "../../state/projectsStore.js";
 import { useUserMemories, ensureUserMemoriesLoaded, pendingMemories } from "../../state/userMemoryStore.js";
-import { setMemoryViewing } from "../../state/memoryViewStore.js";
+import { setMemoryViewing, setMemoryPage, useMemoryPage } from "../../state/memoryViewStore.js";
+import { useDreams, ensureDreamStatusLoaded } from "../../state/dreamStore.js";
 import { memoryFilters, memoryGroups, projectLabel } from "../../lib/memoryGroups.js";
+import { dreamProposals, isAgentSuggestion } from "../../lib/dreamProposals.js";
 import { ProfileAvatar } from "../../components/profile/ProfileAvatar.jsx";
 import { SuggestionInbox } from "./SuggestionInbox.jsx";
 import { MemoryItem } from "./MemoryItem.jsx";
 import { MemoryComposer } from "./MemoryComposer.jsx";
 import { MemoryRail } from "./MemoryRail.jsx";
+import { DreamJournal } from "./DreamJournal.jsx";
+import { DreamingNow } from "./DreamingCard.jsx";
+import { DreamLog } from "./DreamLog.jsx";
 
 const CloseIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
@@ -28,11 +33,15 @@ export function MemoryView() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const [adding, setAdding] = useState(false);
+  const page = useMemoryPage();
+  const { status: dreamStatus } = useDreams();
 
-  useEffect(() => { ensureUserMemoriesLoaded(); ensureProfileLoaded(); }, []);
+  useEffect(() => { ensureUserMemoriesLoaded(); ensureProfileLoaded(); ensureDreamStatusLoaded(); }, []);
   useEffect(() => { if (!projectsLoaded) void refreshProjects(); }, [projectsLoaded]);
 
   const pending = pendingMemories(memState);
+  const proposals = useMemo(() => dreamProposals(memories), [memories]);
+  const suggestions = useMemo(() => pending.filter(isAgentSuggestion), [pending]);
   const groups = useMemo(() => memoryGroups(memories, { query, filter }), [memories, query, filter]);
   const filters = useMemo(() => memoryFilters(memories), [memories]);
   const keptCount = filters[0].count;
@@ -49,13 +58,20 @@ export function MemoryView() {
     <div className="mem-view">
       <div className="pane-head pane-head--topleft">
         <span className="pane-head-inset" aria-hidden="true" />
-        <div className="crumb"><span className="cur">Memory</span></div>
+        <div className="crumb">
+          {page === "log"
+            ? <><button type="button" className="mem-crumb-link" onClick={() => setMemoryPage("memory")}>Memory</button><span className="scope">/</span><span className="cur">Dream log</span></>
+            : <span className="cur">Memory</span>}
+        </div>
         <button type="button" className="pane-close mem-view__close" aria-label="Close memory" title="Close" onClick={() => setMemoryViewing(false)}>
           <CloseIcon />
         </button>
       </div>
 
       <div className="mem-view__scroll">
+        {page === "log" ? (
+          <div className="mem-view__inner"><h1 className="mem-head__title">Dream log</h1><DreamLog /></div>
+        ) : (
         <div className="mem-view__inner">
           <header className="mem-head">
             <div className="mem-head__text">
@@ -77,7 +93,9 @@ export function MemoryView() {
 
           {error && <div className="mem-error">{error}</div>}
           {adding && <MemoryComposer projects={projectChoices} onDone={() => setAdding(false)} />}
-          <SuggestionInbox pending={pending} />
+          <DreamingNow />
+          <DreamJournal proposals={proposals} memories={memories} lastRun={dreamStatus?.lastRun} />
+          <SuggestionInbox pending={suggestions} />
 
           {keptCount > 0 && (
             <nav className="stg-chips mem-filters" aria-label="Filter">
@@ -113,6 +131,7 @@ export function MemoryView() {
             <MemoryRail rev={stamp} onOpenProfile={() => openSettings("profile")} />
           </div>
         </div>
+        )}
       </div>
     </div>
   );

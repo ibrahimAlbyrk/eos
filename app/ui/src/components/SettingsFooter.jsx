@@ -10,6 +10,8 @@ import { useProfile, ensureProfileLoaded } from "../state/profileStore.js";
 import { useUserMemories, ensureUserMemoriesLoaded, pendingMemories } from "../state/userMemoryStore.js";
 import { useOpenMemory } from "../hooks/useOpenMemory.js";
 import { openProfileInterview } from "../state/interviewStore.js";
+import { openDreamReview } from "../state/dreamReviewStore.js";
+import { isDreamProposal } from "../lib/dreamProposals.js";
 import { displayName } from "../lib/profileText.js";
 
 // The plans you're signed in to, for the avatar's tooltip, and whether any
@@ -31,12 +33,18 @@ export function SettingsFooter({ live }) {
   const ref = useRef(null);
   const summary = useAccountSummary();
   const { profile } = useProfile();
-  const pending = pendingMemories(useUserMemories()).length;
+  const pendingAll = pendingMemories(useUserMemories());
+  const dreamt = pendingAll.filter(isDreamProposal).length;
+  const pending = pendingAll.length - dreamt;
   const openMemory = useOpenMemory();
   useEffect(() => { ensureProfileLoaded(); ensureUserMemoriesLoaded(); }, []);
   const name = displayName(profile);
-  const tooltip = [name, summary.label, pending ? `${pending} ${pending === 1 ? "memory" : "memories"} to review` : null]
-    .filter(Boolean).join(" — ");
+  const tooltip = [
+    name,
+    summary.label,
+    dreamt ? `Dreamt · ${dreamt} to review` : null,
+    pending ? `${pending} ${pending === 1 ? "memory" : "memories"} to review` : null,
+  ].filter(Boolean).join(" — ");
   const open = ui.openPopover === "account-menu";
 
   const toggle = (e) => {
@@ -67,13 +75,17 @@ export function SettingsFooter({ live }) {
         <ProfileAvatar profile={profile} size={24} className="sb-settings__avatar" />
         {summary.expired
           ? <span className="sb-settings__alert" aria-hidden="true" />
-          : pending > 0 && <span className="sb-settings__alert sb-settings__alert--pending" aria-hidden="true" />}
+          : dreamt > 0
+            ? <span className="sb-settings__alert sb-settings__alert--dream" aria-hidden="true" />
+            : pending > 0 && <span className="sb-settings__alert sb-settings__alert--pending" aria-hidden="true" />}
       </button>
       {anchor && (
         <AccountMenu
           anchor={anchor}
           totalCostUsd={totalCostUsd}
           pendingMemories={pending}
+          dreamProposals={dreamt}
+          onReviewDream={() => { ui.closeAllPops(); openDreamReview(); }}
           onOpenSettings={openFromMenu}
           onOpenMemory={openMemory}
           onSetUpProfile={() => { ui.closeAllPops(); openProfileInterview(); }}

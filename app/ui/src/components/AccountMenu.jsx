@@ -10,7 +10,7 @@ import { ProviderGlyph } from "./accounts/ProviderGlyph.jsx";
 import { metaFor, planName } from "./accounts/providerMeta.js";
 import { GeneralIcon } from "../settings/registry.jsx";
 import { useProfile } from "../state/profileStore.js";
-import { ProfileMenuHeader, MemoryReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
+import { ProfileMenuHeader, MemoryReviewRow, DreamReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
@@ -92,7 +92,9 @@ export function PlanCards({ accounts, usage }) {
 // and portal'd to <body>; data-popover keeps clicks inside it "inside" for the
 // outside-click handler. Mounted only while open, so usage is fetched per open
 // (the daemon caches upstream with a 180s floor).
-export function AccountMenu({ anchor, totalCostUsd, pendingMemories = 0, onOpenSettings, onOpenMemory, onSetUpProfile }) {
+export function AccountMenu({
+  anchor, totalCostUsd, pendingMemories = 0, dreamProposals = 0, onReviewDream, onOpenSettings, onOpenMemory, onSetUpProfile,
+}) {
   const { accounts } = useAccounts();
   const { profile } = useProfile();
   const [usage, setUsage] = useState(undefined); // undefined = loading, null = none/error
@@ -112,6 +114,7 @@ export function AccountMenu({ anchor, totalCostUsd, pendingMemories = 0, onOpenS
   return createPortal(
     <div className="acct-menu" data-popover="account-menu" role="menu" aria-label="Account" style={pos}>
       <ProfileMenuHeader profile={profile} onOpen={() => onOpenSettings("profile")} onSetUp={onSetUpProfile} />
+      {dreamProposals > 0 && <DreamReviewRow count={dreamProposals} onOpen={onReviewDream} />}
       {pendingMemories > 0 && <MemoryReviewRow count={pendingMemories} onOpen={onOpenMemory} />}
       <PlanCards accounts={accounts} usage={usage} />
       <div

@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../../api/client.js";
-import { DreamingRow } from "../../components/profile/DreamingRow.jsx";
+import { DreamingCard } from "./DreamingCard.jsx";
 
 // The side column: how much of the prompt the always-on memories take (the real
-// rendered block, via the profile preview) and what's coming.
+// rendered block, via the profile preview) and where Dreaming stands.
 export function MemoryRail({ rev, onOpenProfile }) {
   const [preview, setPreview] = useState(null);
   useEffect(() => {
@@ -28,10 +28,7 @@ export function MemoryRail({ rev, onOpenProfile }) {
           {preview?.overflow ? ` — ${preview.overflow} didn't fit and wait to be looked up.` : "."} The rest stay on demand.
         </p>
       </section>
-      <section className="mem-card">
-        <span className="mem-card__title">Learning</span>
-        <DreamingRow compact />
-      </section>
+      <DreamingCard onOpenSettings={onOpenProfile} />
     </aside>
   );
 }

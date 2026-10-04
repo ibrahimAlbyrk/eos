@@ -22,6 +22,7 @@ const OPEN = <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke=
 export function parseSuggestResult(text) {
   const t = text ?? "";
   const id = /\b(um-[a-z0-9]+)\b/.exec(t)?.[1] ?? null;
+  if (t.startsWith("Declined before")) return { id, duplicate: true, declined: true, knownText: null };
   if (t.startsWith("Already known")) return { id, duplicate: true, knownText: /: "([\s\S]*)"\. Nothing to do\.$/.exec(t)?.[1] ?? null };
   if (t.startsWith("Suggested")) return { id, duplicate: false, knownText: null };
   return null;
@@ -45,17 +46,18 @@ function useMemory(id) {
   return memories.find((m) => m.id === id) ?? null; // null = gone (dismissed / deleted)
 }
 
-// waiting | kept | gone | known — what became of the suggestion.
+// waiting | kept | gone | known | declined — what became of the suggestion.
 function suggestionState(tool, memory) {
   const r = parseSuggestResult(tool.result?.text);
   if (!r) return null;
+  if (r.declined) return "declined";
   if (r.duplicate) return "known";
   if (memory === undefined) return null;
-  if (memory === null) return "gone";
+  if (memory === null || memory.status === "dismissed") return "gone";
   return memory.status === "active" ? "kept" : "waiting";
 }
 
-const STATE_LABEL = { waiting: "Waiting for you", kept: "Kept", gone: "Dismissed", known: "Already known" };
+const STATE_LABEL = { waiting: "Waiting for you", kept: "Kept", gone: "Dismissed", known: "Already known", declined: "Declined before" };
 
 function StatusPill({ tool }) {
   const memory = useMemory(parseSuggestResult(tool.result?.text)?.id);
@@ -82,7 +84,7 @@ function SuggestDetail({ tool }) {
         <div className="pgc-head">
           <span className="pgc-tile mtl-tile">{SPARK}</span>
           <span className="pgc-titles">
-            <span className="pgc-title">{state === "known" ? "Already remembered" : "Memory suggestion"}</span>
+            <span className="pgc-title">{state === "known" ? "Already remembered" : state === "declined" ? "You declined this before" : "Memory suggestion"}</span>
             <span className="pgc-meta">{meta}</span>
           </span>
           <button type="button" className="pgc-open" onClick={openMemory}>{OPEN}Memory</button>
@@ -90,7 +92,7 @@ function SuggestDetail({ tool }) {
         <div className="web-sep" />
         <div className="pgc-body">
           <p className="mtl-quote">{state === "known" && r?.knownText ? r.knownText : (memory?.text ?? tool.input?.text)}</p>
-          {tool.input?.why && state !== "known" && <p className="mtl-why">{tool.input.why}</p>}
+          {tool.input?.why && state !== "known" && state !== "declined" && <p className="mtl-why">{tool.input.why}</p>}
           {state === "waiting" && memory && (
             <div className="mtl-actions">
               <button type="button" className="mem-btn mem-btn--primary" onClick={() => void approveMemory(memory.id)}>Keep</button>

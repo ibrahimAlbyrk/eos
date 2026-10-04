@@ -4,8 +4,8 @@ import { ProfileHeader } from "./profile/ProfileHeader.jsx";
 import { IdentityGroup, LanguageGroup, StyleGroup, WorkGroup } from "./profile/ProfileGroups.jsx";
 import { InstructionsGroup } from "./profile/InstructionsGroup.jsx";
 import { AgentPreview } from "./profile/AgentPreview.jsx";
-import { DreamingRow } from "../components/profile/DreamingRow.jsx";
 import { MemoryGroup } from "./profile/MemoryGroup.jsx";
+import { DreamingGroup } from "./profile/DreamingGroup.jsx";
 
 // Settings › Profile — who the user is, as every agent sees it. Edit shows the
 // form; "Preview as agent" swaps in the exact block a new agent gets, plus who
@@ -30,10 +30,7 @@ export function ProfileSettings() {
           <StyleGroup profile={profile} onSave={saveProfile} />
           <InstructionsGroup profile={profile} onSave={saveProfile} />
           <MemoryGroup />
-          <div className="stg-group">
-            <div className="stg-group__title">Learning</div>
-            <DreamingRow />
-          </div>
+          <DreamingGroup profile={profile} onSave={saveProfile} />
         </>
       )}
     </div>

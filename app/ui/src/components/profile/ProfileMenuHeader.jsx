@@ -28,6 +28,26 @@ export function MemoryReviewRow({ count, onOpen }) {
   );
 }
 
+const MoonIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" />
+  </svg>
+);
+
+// A dream filed proposals — straight into the one-at-a-time review.
+export function DreamReviewRow({ count, onOpen }) {
+  return (
+    <button type="button" className="prof-menu-review prof-menu-review--dream" role="menuitem" onClick={onOpen}>
+      <span className="prof-menu-review__icon"><MoonIcon /></span>
+      <span className="prof-menu-review__text">
+        <span>Dreamt · {count} to review</span>
+        <span className="prof-menu-review__sub">New memories and fixes to old ones</span>
+      </span>
+      <span className="prof-menu-review__cta">Review</span>
+    </button>
+  );
+}
+
 // Top of the account menu: who the user is (opens Settings › Profile), or — while
 // the profile is empty — an invitation to set it up.
 export function ProfileMenuHeader({ profile, onOpen, onSetUp = onOpen }) {

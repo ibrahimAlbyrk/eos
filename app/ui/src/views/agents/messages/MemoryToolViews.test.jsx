@@ -105,6 +105,13 @@ describe("suggest_memory view", () => {
     expect(render(v.headerBadge(suggestion))).toContain("Dismissed");
   });
 
+  it("a declined idea says so", async () => {
+    await withMemories([]);
+    const dec = { ...suggestion, result: text("Declined before (um-old00000): the user dismissed this idea. Don't suggest it again.") };
+    expect(render(v.headerBadge(dec))).toContain("Declined before");
+    expect(render(<v.Detail tool={dec} />)).toContain("You declined this before");
+  });
+
   it("a duplicate shows what was already remembered", async () => {
     await withMemories([]);
     const dup = { ...suggestion, result: text('Already known (um-old00000): "Use pnpm, not npm.". Nothing to do.') };

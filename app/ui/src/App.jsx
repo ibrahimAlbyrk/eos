@@ -22,6 +22,8 @@ import { ProfileInterview } from "./components/profile/ProfileInterview.jsx";
 import { useProfile, ensureProfileLoaded } from "./state/profileStore.js";
 import { useInterviewOpen, openProfileInterview, closeProfileInterview } from "./state/interviewStore.js";
 import { shouldOfferInterview } from "./lib/profileInterview.js";
+import { DreamReview } from "./components/profile/DreamReview.jsx";
+import { useDreamReviewOpen, closeDreamReview } from "./state/dreamReviewStore.js";
 import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
 import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.jsx";
 import { LinkBanner } from "./components/machines/LinkBanner.jsx";
@@ -56,6 +58,7 @@ function Shell() {
   const { accounts } = useAccounts();
   const { profile, loaded: profileLoaded } = useProfile();
   const interviewOpen = useInterviewOpen();
+  const dreamReviewOpen = useDreamReviewOpen();
   const [welcome, setWelcome] = useState("pending"); // pending → open | closed
   useEffect(() => { ensureAccountsLoaded(); ensureProfileLoaded(); }, []);
   useEffect(() => {
@@ -126,6 +129,7 @@ function Shell() {
           onUseKeys={() => { setWelcome("closed"); openSettings("accounts"); }}
         />
       )}
+      {dreamReviewOpen && <DreamReview onClose={closeDreamReview} />}
       {interviewOpen && profile && (
         <ProfileInterview
           profile={profile}

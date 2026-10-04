@@ -140,7 +140,7 @@
 }
 .prof-preview__note { font-size: var(--text-sm); color: var(--warn); }
 
-/* ── Dreaming (coming soon) ───────────────────────────────────────────────── */
+/* ── Dreaming header row (settings/profile/DreamingGroup.jsx; rest in dream.css) */
 .prof-dream { display: flex; align-items: center; gap: 14px; padding: 13px 0; }
 .prof-dream__icon {
   flex-shrink: 0;
@@ -150,24 +150,10 @@
   background: rgba(var(--tint), 0.04);
   color: var(--fg-dim2);
 }
+.prof-dream__icon.is-on { color: color-mix(in srgb, var(--violet) 80%, white); background: color-mix(in srgb, var(--violet) 13%, transparent); }
 .prof-dream__text { flex: 1; min-width: 0; }
-.prof-dream__label { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); color: var(--fg-dim); }
+.prof-dream__label { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); color: var(--fg); }
 .prof-dream__desc { margin-top: 3px; font-size: var(--text-sm); color: var(--fg-faint); text-wrap: pretty; }
-.prof-dream--compact { padding: 0; gap: 10px; }
-.prof-dream--compact .prof-dream__label { font-size: var(--text-sm); }
-.prof-dream--compact .prof-dream__desc { font-size: var(--text-xs); margin-top: 1px; }
-.prof-dream__toggle[disabled] { opacity: 0.5; cursor: not-allowed; }
-.prof-soon {
-  padding: 1px 7px;
-  border-radius: var(--r-pill);
-  background: color-mix(in srgb, var(--violet) 12%, transparent);
-  color: var(--violet);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
 
 /* ── First-run interview (rides the .acc-welcome full-window shell) ───────── */
 .intv__main {

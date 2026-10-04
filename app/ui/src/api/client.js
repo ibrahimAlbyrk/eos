@@ -756,6 +756,28 @@ export const api = {
     return postJson(ROUTES.userMemoriesApproveAll, {}, uiTokenHeader());
   },
 
+  // Dreaming — status/runs are open; dream now, stop and chat exclusions carry the
+  // UI token. Dream now answers 202 and reports progress over dream:change.
+  async getDreamStatus() {
+    const r = await getJson(ROUTES.dreamStatus);
+    if (!r.ok) throw new Error(`getDreamStatus → ${r.status}`);
+    return r.body;
+  },
+  async listDreams() {
+    const r = await getJson(ROUTES.dreams);
+    if (!r.ok) throw new Error(`listDreams → ${r.status}`);
+    return r.body;
+  },
+  async dreamNow() {
+    return postJson(ROUTES.dreams, {}, uiTokenHeader());
+  },
+  async stopDream() {
+    return postJson(ROUTES.dreamStop, {}, uiTokenHeader());
+  },
+  async setDreamExclusion(workerId, excluded) {
+    return postJson(ROUTES.dreamExclusions, { workerId, excluded }, uiTokenHeader());
+  },
+
   // User settings — flat key→value map persisted daemon-side (localStorage
   // is wiped on every Eos.app launch, so it can't hold durable settings).
   async getSettings() {
