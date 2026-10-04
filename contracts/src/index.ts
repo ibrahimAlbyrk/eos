@@ -17,4 +17,5 @@ export * from "./route-planes.ts";
 export * from "./anthropic.ts";
 export * from "./accounts.ts";
 export * from "./usage.ts";
+export * from "./profile.ts";
 export * from "./util.ts";
