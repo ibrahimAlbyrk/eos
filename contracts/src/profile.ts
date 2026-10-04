@@ -51,6 +51,60 @@ export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
 
 const StackItemSchema = z.string().trim().min(1).max(PROFILE_STACK_MAX);
 
+// ---- dreaming settings + proposal primitives ----------------------------------
+// Dreaming: while the user is away, Eos rereads finished chats and files memory
+// proposals for the morning review (contracts/src/dream.ts holds the runs). The
+// settings ride on the profile so they share its one write path and SSE.
+
+export const DreamScheduleSchema = z.enum(["nightly", "away", "manual"]);
+export type DreamSchedule = z.infer<typeof DreamScheduleSchema>;
+
+export const DreamModelSchema = z.enum(["opus", "sonnet", "haiku"]);
+export type DreamModel = z.infer<typeof DreamModelSchema>;
+
+export const DreamingSettingsSchema = z.object({
+  enabled: z.boolean(),
+  schedule: DreamScheduleSchema,
+  nightlyAt: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "HH:MM"),
+  awayMinutes: z.number().int().min(5).max(240),
+  model: DreamModelSchema,
+  maxChats: z.number().int().min(1).max(60),
+  // Plan usage (0–1) at or above which a dream holds off until the next night.
+  usageCeiling: z.number().min(0.1).max(1),
+  excludedProjects: z.array(z.string().min(1)).max(200),
+  includeNoFolder: z.boolean(),
+  morningNote: z.boolean(),
+});
+export type DreamingSettings = z.infer<typeof DreamingSettingsSchema>;
+
+export const DEFAULT_DREAMING: DreamingSettings = {
+  enabled: false,
+  schedule: "nightly",
+  nightlyAt: "03:00",
+  awayMinutes: 20,
+  model: "opus",
+  maxChats: 20,
+  usageCeiling: 0.7,
+  excludedProjects: [],
+  includeNoFolder: true,
+  morningNote: true,
+};
+
+// new = a memory agents don't have · update = a kept memory drifted · merge = kept
+// memories overlap · promote = a project memory holds everywhere · retire = no longer true.
+export const DreamProposalKindSchema = z.enum(["new", "update", "merge", "promote", "retire"]);
+export type DreamProposalKind = z.infer<typeof DreamProposalKindSchema>;
+
+// The exact message a proposal rests on, so the review can quote and link to it.
+export const DreamEvidenceSchema = z.object({
+  quote: z.string().max(400),
+  workerId: z.string().min(1),
+  chat: z.string(),
+  eventId: z.number().int().nullable(),
+  by: z.enum(["user", "agent"]),
+});
+export type DreamEvidence = z.infer<typeof DreamEvidenceSchema>;
+
 // Every preference is nullable: null = not set, so the renderer leaves that line out
 // instead of asserting a default the user never chose.
 export const UserProfileSchema = z.object({
@@ -86,6 +140,8 @@ export const UserProfileSchema = z.object({
   // Token budget of the rendered block; memories past it overflow to on-demand.
   budgetTokens: z.number().int().min(PROFILE_BUDGET_MIN).max(PROFILE_BUDGET_MAX),
   onboardedAt: z.number().nullable(),
+  // Defaulted so a profile.json written before Dreaming still loads.
+  dreaming: DreamingSettingsSchema.default(DEFAULT_DREAMING),
 });
 export type UserProfile = z.infer<typeof UserProfileSchema>;
 
@@ -102,6 +158,7 @@ export const UserProfilePatchSchema = z.object({
   sharing: P.sharing.partial().strict().optional(),
   budgetTokens: P.budgetTokens.optional(),
   onboardedAt: P.onboardedAt.optional(),
+  dreaming: DreamingSettingsSchema.partial().strict().optional(),
 }).strict();
 export type UserProfilePatch = z.infer<typeof UserProfilePatchSchema>;
 
@@ -159,8 +216,9 @@ export type UserMemoryScope = z.infer<typeof UserMemoryScopeSchema>;
 export const UserMemoryTierSchema = z.enum(["always", "on-demand"]);
 export type UserMemoryTier = z.infer<typeof UserMemoryTierSchema>;
 
-// suggested = waiting for the user; dismissing deletes it.
-export const UserMemoryStatusSchema = z.enum(["active", "suggested"]);
+// suggested = waiting for the user · dismissed = a tombstone: never rendered or
+// listed, kept only so the same idea is never suggested again.
+export const UserMemoryStatusSchema = z.enum(["active", "suggested", "dismissed"]);
 export type UserMemoryStatus = z.infer<typeof UserMemoryStatusSchema>;
 
 // Who produced the memory. Open for new producers: a background reviewer adds its own
@@ -174,8 +232,17 @@ export const UserMemorySourceSchema = z.discriminatedUnion("kind", [
     why: z.string().max(USER_MEMORY_WHY_MAX).optional(),
   }),
   z.object({ kind: z.literal("import"), from: z.string().min(1) }),
+  z.object({ kind: z.literal("dream"), dreamId: z.string().min(1), evidence: z.array(DreamEvidenceSchema).max(8) }),
 ]);
 export type UserMemorySource = z.infer<typeof UserMemorySourceSchema>;
+
+// What keeping a suggestion does (a dream's proposal). Absent = a plain new memory.
+export const UserMemoryProposalSchema = z.object({
+  kind: DreamProposalKindSchema,
+  targets: z.array(UserMemoryIdSchema).max(6),
+  confidence: z.number().int().min(1).max(3),
+});
+export type UserMemoryProposal = z.infer<typeof UserMemoryProposalSchema>;
 
 const MemoryTextSchema = z.string().trim().min(1).max(USER_MEMORY_TEXT_MAX);
 
@@ -187,6 +254,7 @@ export const UserMemorySchema = z.object({
   tier: UserMemoryTierSchema,
   status: UserMemoryStatusSchema,
   source: UserMemorySourceSchema,
+  proposal: UserMemoryProposalSchema.optional(),
   rev: z.number().int().nonnegative(),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -227,10 +295,12 @@ export const UserMemorySuggestRequestSchema = z.object({
 });
 export type UserMemorySuggestRequest = z.infer<typeof UserMemorySuggestRequestSchema>;
 
-// duplicate: an equivalent memory (kept or pending) already existed and is returned instead.
+// duplicate: an equivalent memory already existed and is returned instead ·
+// declined: that memory is one the user dismissed — don't suggest it again.
 export const UserMemorySuggestResponseSchema = z.object({
   memory: UserMemorySchema,
   duplicate: z.boolean(),
+  declined: z.boolean(),
 });
 export type UserMemorySuggestResponse = z.infer<typeof UserMemorySuggestResponseSchema>;
 
@@ -239,6 +309,6 @@ export const UserMemoryChangeEventSchema = z.object({
   id: UserMemoryIdSchema,
   action: z.enum(["created", "updated", "approved", "dismissed", "deleted"]),
   status: UserMemoryStatusSchema,
-  by: z.enum(["user", "agent"]),
+  by: z.enum(["user", "agent", "dream"]),
 });
 export type UserMemoryChangeEvent = z.infer<typeof UserMemoryChangeEventSchema>;

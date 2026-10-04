@@ -2434,6 +2434,12 @@ export const ROUTES = {
   userMemoriesApproveAll: "/api/user-memories/approve-all",
   userMemorySuggest: "/api/user-memories/suggest",
   userMemorySearch: "/api/user-memories/search",
+  // Dreaming (contracts/src/dream.ts). GET runs · POST = dream now (ui-token).
+  dreams: "/api/dreams",
+  dream: (id: string): string => `/api/dreams/${id}`,
+  dreamStatus: "/api/dreams/status",
+  dreamStop: "/api/dreams/stop",
+  dreamExclusions: "/api/dreams/exclusions",
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   workerExport: (id: string): string => `/workers/${id}/export`,

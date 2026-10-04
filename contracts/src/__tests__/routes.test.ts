@@ -33,6 +33,7 @@ const EXPECTED_KEYS = [
   "profile", "profilePreview", "profileAvatar", "profileImportClaudeMd",
   "userMemories", "userMemory", "userMemoryApprove", "userMemoryDismiss", "userMemoriesApproveAll",
   "userMemorySuggest", "userMemorySearch",
+  "dreams", "dream", "dreamStatus", "dreamStop", "dreamExclusions",
   "prompts", "promptPreview", "workerDefinitions",
   "settings", "settingsArchive", "settingsCompaction",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
