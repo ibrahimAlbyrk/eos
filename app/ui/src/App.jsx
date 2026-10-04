@@ -57,11 +57,12 @@ function Shell() {
   // Panel-level attention for the collapsed-sidebar expand button pip.
   const hasAttention = ui.anyNeedsAttention(live.workers);
 
-  // Native app notification tap → jump to the Code tab and select the worker.
+  // Native app notification tap → jump to the Code tab and select the worker
+  // (focuses its pane when a split already shows it, instead of duplicating it).
   useEffect(() => {
-    window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.setSelectedId(id); };
+    window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.selectAgent(id); };
     return () => { delete window.__nativeNavigate; };
-  }, [ui.setActiveView, ui.setSelectedId]);
+  }, [ui.setActiveView, ui.selectAgent]);
 
   // Recall (interrupt before the agent responded) is consumed directly by the
   // pane's Composer that owns recall.workerId (recallStore) — no selectedId-keyed
