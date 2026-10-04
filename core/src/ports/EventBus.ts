@@ -55,6 +55,12 @@ export type EventBusTopic =
   // A page was created, edited or deleted (payload PageChangeEvent) — open
   // editors and page lists refetch.
   | "pages:change"
+  // The user's profile changed (payload UserProfileChangeEvent) — Settings ›
+  // Profile, the sidebar avatar and the account menu refetch.
+  | "profile:change"
+  // A memory was suggested, kept, edited, dismissed or deleted (payload
+  // UserMemoryChangeEvent) — the Memory view and the pending badge refetch.
+  | "user-memory:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

@@ -16,6 +16,7 @@ import type { PromptRegistry } from "../services/PromptRegistry.ts";
 import type { PromptService } from "../services/PromptService.ts";
 import { composePrompt } from "../services/prompt-compose.ts";
 import { selectFragments } from "../services/fragment-select.ts";
+import { DEFAULT_USER_PREFERENCES } from "../services/render-user-profile.ts";
 
 // What the daemon already knows about a spawn — the assembler's only input.
 export interface SessionSpawnContext {
@@ -47,6 +48,10 @@ export interface SessionSpawnContext {
   effortSection?: string;
   defaultEffort?: string;
   effortSupported?: boolean;
+  // The user's profile block, pre-rendered by renderUserProfile (USER_PROFILE in both
+  // preambles). Absent → the stock preferences, so callers that know no profile
+  // (offline preview, tests) render exactly what an empty profile would.
+  userProfile?: string;
 }
 
 export interface AssembleDeps {
@@ -123,5 +128,6 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     EFFORT_SECTION: ctx.effortSection ?? "",
     DEFAULT_EFFORT: ctx.defaultEffort ?? "",
     EFFORT_SUPPORTED: ctx.effortSupported ?? false,
+    USER_PROFILE: ctx.userProfile ?? DEFAULT_USER_PREFERENCES,
   };
 }
