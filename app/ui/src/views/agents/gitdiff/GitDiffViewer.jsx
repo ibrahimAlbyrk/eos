@@ -18,6 +18,7 @@ import { GitDiffFileMenu } from "./GitDiffFileMenu.jsx";
 // through it one file at a time.
 const LARGE_DIFF_LINES = 1000;
 const VIEW_KEY = "cm:changesView";
+const DEFAULT_SCOPE = { kind: "all" };
 
 function loadView() {
   try {
@@ -46,8 +47,8 @@ function ChangesEmpty({ title, hint }) {
 }
 
 // Changes tab — the selected agent's repo (or an explicit {cwd, workerId} when
-// opened from a specific worktree, e.g. a WorktreeHub child): the branch
-// against its base by default, or the uncommitted work, a commit, a stash.
+// opened from a specific worktree, e.g. a WorktreeHub child): the uncommitted
+// work by default, or the branch against its base, a commit, a stash.
 // Header (scope + view tools, refs + agent actions), the diff with folds, split
 // view and line comments that go to the agent, and a filterable file tree.
 export function GitDiffViewer({ live }) {
@@ -69,7 +70,7 @@ export function GitDiffViewer({ live }) {
 function GitDiffViewerInner({ cwd, worker, live }) {
   const ui = useUi();
   const workerId = worker?.id ?? null;
-  const [scope, setScope] = useState({ kind: "branch", base: null });
+  const [scope, setScope] = useState(DEFAULT_SCOPE);
   const [view, setView] = useState(loadView);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [viewed, setViewed] = useState(() => new Set());
@@ -85,7 +86,7 @@ function GitDiffViewerInner({ cwd, worker, live }) {
     setViewed(new Set());
     setCollapsed(new Set());
   }, []);
-  useEffect(() => { resetFor({ kind: "branch", base: null }); }, [cwd, resetFor]);
+  useEffect(() => { resetFor(DEFAULT_SCOPE); }, [cwd, resetFor]);
 
   // Opened via the composer stash chip: show the newest stash.
   const stashFocus = useRef(consumeStashFocus());
@@ -170,7 +171,7 @@ function GitDiffViewerInner({ cwd, worker, live }) {
   const drop = async () => {
     const r = await api.stashDrop(cwd, dropping.index);
     if (!r.ok) notify.error(r.body?.error ?? "Delete failed");
-    if (scope.kind === "commit" && scope.sha === dropping.sha) resetFor({ kind: "branch", base: null });
+    if (scope.kind === "commit" && scope.sha === dropping.sha) resetFor(DEFAULT_SCOPE);
     setDropping(null);
   };
 
