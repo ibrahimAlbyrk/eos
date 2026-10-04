@@ -42,7 +42,9 @@ export const MAX_TOPIC_WORDS = 6;
 // are already rejected separately) is subject to the common-prefix check.
 export const ECHO_CHECK_MIN_WORDS = 5;
 
-const SUFFIX = "Orchestrator";
+// A role word the model may still tack on out of habit; the name is the topic
+// alone, so a trailing one is dropped.
+const ROLE_WORD = "orchestrator";
 const MAX_TOPIC_CHARS = 48;
 // First-turn events are few; cap the scan so a long-lived orchestrator's history
 // is never fully loaded just to read its opening request.
@@ -134,12 +136,12 @@ function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n);
 }
 
-// Validate an untrusted model line into a safe "<Topic> Orchestrator" name, or
-// null when it isn't a real topic. Layers, in order: (1) first non-empty line +
+// Validate an untrusted model line into a safe "<Topic>" name, or null when it
+// isn't a real topic. Layers, in order: (1) first non-empty line +
 // control/quote/markdown scrub; (2) the NO_TITLE sentinel; (3) a refusal/preamble
 // opener; (4) for lines at/above ECHO_CHECK_MIN_WORDS, a near-verbatim echo of
 // the request; (5) an answer-shaped (too many words) line; (6) the structural
-// title-case + suffix + clamp step.
+// title-case + role-word drop + clamp step.
 export function interpretModelOutput(raw: string, userInput: string): string | null {
   const line = firstScrubbedLine(raw);
   if (!line) return null;
@@ -165,20 +167,13 @@ function firstScrubbedLine(raw: string): string {
   return s.replace(/\s+/g, " ").replace(/[.,;:!?]+$/, "").trim();
 }
 
-// Structural step: title-case the scrubbed line, clamp to 48 chars on a word
-// boundary, and guarantee exactly one trailing "Orchestrator". "" if the line
-// carries no real topic (e.g. the bare suffix).
+// Structural step: title-case the scrubbed line, drop a trailing role word, and
+// clamp to 48 chars on a word boundary. "" if the line carries no real topic
+// (e.g. the bare role word).
 function structureName(s: string): string {
-  const words = clampWords(s.split(" ").filter(Boolean).map(titleCaseWord), MAX_TOPIC_CHARS);
-  if (words.length === 0) return "";
-  if (words[words.length - 1].toLowerCase() === SUFFIX.toLowerCase()) {
-    words[words.length - 1] = SUFFIX;
-  } else {
-    words.push(SUFFIX);
-  }
-  const name = words.join(" ");
-  // The model gave nothing but the suffix → not a real name.
-  return name === SUFFIX ? "" : name;
+  const words = s.split(" ").filter(Boolean).map(titleCaseWord);
+  if (words.length && words[words.length - 1].toLowerCase() === ROLE_WORD) words.pop();
+  return clampWords(words, MAX_TOPIC_CHARS).join(" ");
 }
 
 // True when the model line is a near-verbatim echo of the request rather than a

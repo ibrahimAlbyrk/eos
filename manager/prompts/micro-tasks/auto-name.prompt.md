@@ -1,5 +1,5 @@
 ---
-description: Name a freshly-spawned orchestrator from its first request — a distinguishing "<Topic> Orchestrator", or the NO_TITLE sentinel when the request can't be named (micro-task)
+description: Name a freshly-spawned orchestrator from its first request — a distinguishing "<Topic>", or the NO_TITLE sentinel when the request can't be named (micro-task)
 variables:
   - USER_INPUT
 ---
@@ -12,8 +12,8 @@ The topic is the specific subject the request is about — the feature, componen
 file, product, or proper noun a human would use to pick this task out of a
 hundred others. 2–4 Title-Case words, max 48 characters. Drop filler verbs (fix,
 update, add, build) and vague categories (bug, performance, refactor) unless one
-is the only distinguishing thing. Do NOT append the word "Orchestrator" — that is
-added automatically.
+is the only distinguishing thing. Do NOT add the word "Orchestrator" or any other
+role word — the label is the topic alone.
 
 Output NO_TITLE — the sentinel, alone, on its own line — whenever the request
 cannot be turned into a distinguishing topic: it is a greeting or small talk, too

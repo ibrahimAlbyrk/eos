@@ -127,7 +127,7 @@ describe("auto-name interpretModelOutput", () => {
         "Pending Permission Tool",
         "pending permission tool'u anlamsız: pending permission varsa agent'a bildirim gönderilmediği için bu tool'u kullanmaya karar bile vermez.",
       ),
-      "Pending Permission Tool Orchestrator",
+      "Pending Permission Tool",
     );
   });
 
@@ -135,37 +135,37 @@ describe("auto-name interpretModelOutput", () => {
     assert.equal(interpretModelOutput("This line has far too many words to be a topic", ""), null);
   });
 
-  it("a real topic → '<Topic> Orchestrator' (appears verbatim in request, not echo)", () => {
-    assert.equal(interpretModelOutput("Kafka Consumer", "rewrite the Kafka consumer"), "Kafka Consumer Orchestrator");
+  it("a real topic → '<Topic>' (appears verbatim in request, not echo)", () => {
+    assert.equal(interpretModelOutput("Kafka Consumer", "rewrite the Kafka consumer"), "Kafka Consumer");
   });
 });
 
 describe("auto-name apply", () => {
-  it("'game fix' → 'Game Fix Orchestrator', CAS-written + publishes", async () => {
+  it("'game fix' → 'Game Fix', CAS-written + publishes", async () => {
     const s = setup({ row: { is_orchestrator: 1, name_source: "default", name: "rnd" } });
     await s.task.apply(ctx, "game fix");
-    assert.equal(s.store.w1.name, "Game Fix Orchestrator");
+    assert.equal(s.store.w1.name, "Game Fix");
     assert.equal(s.store.w1.name_source, "auto");
     assert.deepEqual(s.published, [{ workerId: "w1" }]);
   });
 
-  it("does NOT double the suffix when the model already ended in Orchestrator", async () => {
+  it("drops a trailing Orchestrator the model added anyway", async () => {
     const s1 = setup({ row: { is_orchestrator: 1, name_source: "default" } });
     await s1.task.apply(ctx, "Auth Refactor Orchestrator");
-    assert.equal(s1.store.w1.name, "Auth Refactor Orchestrator");
+    assert.equal(s1.store.w1.name, "Auth Refactor");
 
     const s2 = setup({ row: { is_orchestrator: 1, name_source: "default" } });
-    await s2.task.apply(ctx, "game fix orchestrator"); // lowercase suffix normalized
-    assert.equal(s2.store.w1.name, "Game Fix Orchestrator");
+    await s2.task.apply(ctx, "game fix orchestrator"); // any case
+    assert.equal(s2.store.w1.name, "Game Fix");
   });
 
   it("strips wrapping quotes/markdown and trailing punctuation", async () => {
     const s = setup({ row: { is_orchestrator: 1, name_source: "default" } });
     await s.task.apply(ctx, "**\"game fix.\"**");
-    assert.equal(s.store.w1.name, "Game Fix Orchestrator");
+    assert.equal(s.store.w1.name, "Game Fix");
   });
 
-  it("empty / whitespace / punctuation-only / bare-suffix output aborts (no write)", async () => {
+  it("empty / whitespace / punctuation-only / bare role-word output aborts (no write)", async () => {
     for (const bad of ["", "   ", "...", "!!!", '""', "``", "Orchestrator"]) {
       const s = setup({ row: { is_orchestrator: 1, name_source: "default", name: "kept" } });
       await s.task.apply(ctx, bad);
@@ -185,11 +185,11 @@ describe("auto-name apply", () => {
 });
 
 describe("auto-name end-to-end", () => {
-  it("a 'default' orchestrator becomes '<Topic> Orchestrator'; a 'user' one is never touched", async () => {
+  it("a 'default' orchestrator becomes '<Topic>'; a 'user' one is never touched", async () => {
     const d = setup({ row: { is_orchestrator: 1, name_source: "default", name: "rnd" } });
     assert.equal(await d.task.gate(ctx), true);
     await d.task.apply(ctx, "game fix");
-    assert.equal(d.store.w1.name, "Game Fix Orchestrator");
+    assert.equal(d.store.w1.name, "Game Fix");
     assert.equal(d.store.w1.name_source, "auto");
 
     const u = setup({ row: { is_orchestrator: 1, name_source: "user", name: "Mine" } });
