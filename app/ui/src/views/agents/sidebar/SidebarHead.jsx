@@ -3,6 +3,7 @@ import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { EosSwitcher } from "../../../components/EosSwitcher.jsx";
 import { setArchiveViewing } from "../../../state/archiveStore.js";
+import { setMemoryViewing } from "../../../state/memoryViewStore.js";
 import { setPref } from "../../../state/sidebarPrefsStore.js";
 import { HostChip } from "../../../components/machines/HostChip.jsx";
 import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
@@ -68,7 +69,7 @@ export function SidebarHead({ live, variant, archiveMode = false }) {
   const { status: gs } = useGitStatus(selected?.id, { gitDir });
   const changeCount = gs?.diff?.files ?? 0;
 
-  const newTask = () => ui.setSelectedId(null);
+  const newTask = () => { setMemoryViewing(false); ui.setSelectedId(null); };
 
   const openChanges = () => {
     const dir = gitDir ?? ui.composer.cwd;
@@ -77,6 +78,7 @@ export function SidebarHead({ live, variant, archiveMode = false }) {
 
   const toggleArchive = () => {
     const next = !archiveMode;
+    setMemoryViewing(false);
     setArchiveViewing(next);
     // Drive the sidebar list too, so Archive shows the archived groups.
     setPref("status", next ? "archived" : "active");

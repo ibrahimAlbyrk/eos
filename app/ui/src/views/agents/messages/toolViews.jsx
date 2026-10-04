@@ -32,6 +32,7 @@ import { ArtifactChip } from "./ArtifactChip.jsx";
 import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
 import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
 import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
+import { MEMORY_TOOL_VIEWS } from "./MemoryToolViews.jsx";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -315,8 +316,9 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
   });
 }
 
-// Page tools — same tools on both lanes; views in ./PageToolViews.jsx.
-for (const [tool, view] of Object.entries(PAGE_TOOL_VIEWS)) {
+// Page and memory tools — same tools on both lanes; views in ./PageToolViews.jsx
+// and ./MemoryToolViews.jsx.
+for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) {
   for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, view);
 }
 

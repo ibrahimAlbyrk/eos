@@ -41,6 +41,8 @@ import { notifyWorkerChanged, refreshAttached as refreshAttachedTranscripts } fr
 import { refreshHosts } from "../state/hostsStore.js";
 import { applyPresence } from "../state/peerStore.js";
 import { applyChange as applyPageChange, resyncPages } from "../state/pagesStore.js";
+import { applyProfileChange, resyncProfile } from "../state/profileStore.js";
+import { applyUserMemoryChange, resyncUserMemories } from "../state/userMemoryStore.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -213,6 +215,8 @@ export function useLive() {
         setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null }));
         emitPtyResync();
         resyncPages();
+        resyncProfile();
+        resyncUserMemories();
       },
       onChange: (e) => {
         try {
@@ -227,6 +231,11 @@ export function useLive() {
           // A page was written (by the user elsewhere or an agent) — open editors
           // and page lists refetch; not a worker delta.
           if (data.reason === "pages:change") { applyPageChange(data.payload); return; }
+          // The profile changed (another window, the interview) — avatar, menu
+          // and Settings › Profile refetch; not a worker delta.
+          if (data.reason === "profile:change") { applyProfileChange(data.payload); return; }
+          // A memory was suggested or changed — Memory view + pending dot refetch.
+          if (data.reason === "user-memory:change") { applyUserMemoryChange(); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
           if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }

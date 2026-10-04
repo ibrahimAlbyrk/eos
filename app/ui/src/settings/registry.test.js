@@ -44,6 +44,14 @@ describe("settings registry", () => {
     expect(SETTING_DEFAULTS["onboarding.dismissed"]).toBe(false);
   });
 
+  it("profile comes first, renders a custom Component and owns no settings.json keys", () => {
+    const profile = section("profile");
+    expect(SETTINGS_SECTIONS[0].id).toBe("profile");
+    expect(profile.groups).toBeUndefined();
+    expect(typeof profile.Component).toBe("function"); // ProfileSettings — ~/.eos/profile via /api/profile
+    expect(keysOf(profile)).toEqual([]);
+  });
+
   it("usage section renders a custom Component and owns no settings.json keys", () => {
     const usage = section("usage");
     expect(usage.groups).toBeUndefined();

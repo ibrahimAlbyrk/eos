@@ -944,6 +944,51 @@
 }
 .stg-seg__btn:hover { color: var(--fg); }
 .stg-seg__btn.is-active { color: var(--fg); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
+/* Text segments (no icon) size to their label */
+.stg-seg__btn--text { width: auto; height: 26px; padding: 0 11px; font-size: var(--text-sm); white-space: nowrap; }
+
+/* Pill choices (chips control) — accent-tinted when picked */
+.stg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.stg-chip {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--fg-mid);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.stg-chip:hover { background: rgba(255, 255, 255, 0.09); color: var(--fg); }
+.stg-chip.is-on {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent);
+  color: var(--bubble-fg);
+}
+
+/* Free-text tags (tags control) — toolpick chips + an inline input */
+.stg-tags__input {
+  flex: 1;
+  min-width: 120px;
+  height: 26px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+/* Multi-line text (textarea control) */
+.stg-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 11px 13px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  color: var(--fg);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  resize: vertical;
+  transition: box-shadow 120ms ease;
+}
+.stg-textarea:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* Select — a compact --chip pill (radius 7), open menu is a flat --pop popover */
 .stg-dd { position: relative; flex-shrink: 0; }

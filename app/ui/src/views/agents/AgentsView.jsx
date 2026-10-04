@@ -17,11 +17,14 @@ import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 import { SubagentStopDialog } from "./center/SubagentStopDialog.jsx";
 import { ArchiveView } from "../archive/ArchiveView.jsx";
+import { MemoryView } from "../memory/MemoryView.jsx";
+import { useMemoryViewing } from "../../state/memoryViewStore.js";
 import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
 
 export function AgentsView({ live }) {
   const ui = useUi();
   const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
+  const memoryViewing = useMemoryViewing();
 
   // One capture-phase window listener for every keymap binding below (and any
   // future view binding) — replaces the per-hook listeners one at a time. The
@@ -108,7 +111,10 @@ export function AgentsView({ live }) {
       gridClass={gridClass}
       sidebar={(variant) => <AgentsSidebar live={live} variant={variant} />}
       main={
-        archiveMode ? (
+        memoryViewing ? (
+          // Memory takes over the main area the same way Archive does.
+          <MemoryView />
+        ) : archiveMode ? (
           // Archive mode replaces the main area with the archive panel; the
           // pane tree below stays untouched in ui state, so toggling off
           // remounts the exact layout/selection the user left.

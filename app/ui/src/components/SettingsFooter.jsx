@@ -5,6 +5,12 @@ import { AccountMenu } from "./AccountMenu.jsx";
 import { useAccounts, ensureAccountsLoaded, accountTone, isSignedIn } from "../state/accountsStore.js";
 import { metaFor } from "./accounts/providerMeta.js";
 import { MachineRow } from "./machines/MachineRow.jsx";
+import { ProfileAvatar } from "./profile/ProfileAvatar.jsx";
+import { useProfile, ensureProfileLoaded } from "../state/profileStore.js";
+import { useUserMemories, ensureUserMemoriesLoaded, pendingMemories } from "../state/userMemoryStore.js";
+import { useOpenMemory } from "../hooks/useOpenMemory.js";
+import { openProfileInterview } from "../state/interviewStore.js";
+import { displayName } from "../lib/profileText.js";
 
 // The plans you're signed in to, for the avatar's tooltip, and whether any
 // sign-in expired (the avatar then wears a red dot; the menu has the detail).
@@ -24,6 +30,13 @@ export function SettingsFooter({ live }) {
   const ui = useUi();
   const ref = useRef(null);
   const summary = useAccountSummary();
+  const { profile } = useProfile();
+  const pending = pendingMemories(useUserMemories()).length;
+  const openMemory = useOpenMemory();
+  useEffect(() => { ensureProfileLoaded(); ensureUserMemoriesLoaded(); }, []);
+  const name = displayName(profile);
+  const tooltip = [name, summary.label, pending ? `${pending} ${pending === 1 ? "memory" : "memories"} to review` : null]
+    .filter(Boolean).join(" — ");
   const open = ui.openPopover === "account-menu";
 
   const toggle = (e) => {
@@ -49,12 +62,23 @@ export function SettingsFooter({ live }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="Account"
-        title={summary.label}
+        title={tooltip}
       >
-        <span className="sb-settings__avatar" aria-hidden="true" />
-        {summary.expired && <span className="sb-settings__alert" aria-hidden="true" />}
+        <ProfileAvatar profile={profile} size={24} className="sb-settings__avatar" />
+        {summary.expired
+          ? <span className="sb-settings__alert" aria-hidden="true" />
+          : pending > 0 && <span className="sb-settings__alert sb-settings__alert--pending" aria-hidden="true" />}
       </button>
-      {anchor && <AccountMenu anchor={anchor} totalCostUsd={totalCostUsd} onOpenSettings={openFromMenu} />}
+      {anchor && (
+        <AccountMenu
+          anchor={anchor}
+          totalCostUsd={totalCostUsd}
+          pendingMemories={pending}
+          onOpenSettings={openFromMenu}
+          onOpenMemory={openMemory}
+          onSetUpProfile={() => { ui.closeAllPops(); openProfileInterview(); }}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,7 @@
 // of `groups` to render fully custom content.
 
 import { AccountsSettings } from "./AccountsSettings.jsx";
+import { ProfileSettings } from "./ProfileSettings.jsx";
 import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
 import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
@@ -27,6 +28,14 @@ const CodeIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="m16 18 6-6-6-6" />
     <path d="m8 6-6 6 6 6" />
+  </svg>
+);
+
+const ProfileIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <circle cx="9" cy="11" r="2.2" />
+    <path d="M5.8 16c.6-1.6 1.8-2.4 3.2-2.4s2.6.8 3.2 2.4M15 10h3M15 13.5h3" />
   </svg>
 );
 
@@ -59,6 +68,14 @@ const RemoteIcon = () => (
 );
 
 export const SETTINGS_SECTIONS = [
+  {
+    id: "profile",
+    label: "Profile",
+    Icon: ProfileIcon,
+    // Custom Component: who the user is, as every agent sees it. Owns no
+    // settings.json keys — the profile lives in ~/.eos/profile behind /api/profile.
+    Component: ProfileSettings,
+  },
   {
     id: "general",
     label: "General",
@@ -303,6 +320,8 @@ export const SETTING_DEFAULTS = {
   "model.default": "opus",
   // The first-run welcome was skipped — don't show it again (App.jsx).
   "onboarding.dismissed": false,
+  // The first-run profile interview was skipped — don't offer it again.
+  "onboarding.profileDismissed": false,
   // The usage + remote sections are custom Components (they own no settings.json
   // keys — their state lives in config.json).
   ...USAGE_SETTING_DEFAULTS,

@@ -17,6 +17,11 @@ import { getViewComponent, getViewSidebar, keepsMounted } from "./views/registry
 import { useSettings } from "./state/settings.jsx";
 import { useAccounts, ensureAccountsLoaded, noAccountConnected } from "./state/accountsStore.js";
 import { WelcomeScreen } from "./components/accounts/WelcomeScreen.jsx";
+import { useOpenMemory } from "./hooks/useOpenMemory.js";
+import { ProfileInterview } from "./components/profile/ProfileInterview.jsx";
+import { useProfile, ensureProfileLoaded } from "./state/profileStore.js";
+import { useInterviewOpen, openProfileInterview, closeProfileInterview } from "./state/interviewStore.js";
+import { shouldOfferInterview } from "./lib/profileInterview.js";
 import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
 import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.jsx";
 import { LinkBanner } from "./components/machines/LinkBanner.jsx";
@@ -45,14 +50,20 @@ function Shell() {
   // accounts have loaded — shown only when nothing is connected at all and the
   // user never skipped it. It then stays up through the sign-ins it starts (an
   // account turning connected must not yank it away) until Continue / Skip.
+  // The profile interview follows it (or opens alone for an existing user) while
+  // the profile was never set up and the interview never skipped.
   const { settings, settingsLoaded, setSetting, openSettings } = useSettings();
   const { accounts } = useAccounts();
+  const { profile, loaded: profileLoaded } = useProfile();
+  const interviewOpen = useInterviewOpen();
   const [welcome, setWelcome] = useState("pending"); // pending → open | closed
-  useEffect(() => { ensureAccountsLoaded(); }, []);
+  useEffect(() => { ensureAccountsLoaded(); ensureProfileLoaded(); }, []);
   useEffect(() => {
-    if (welcome !== "pending" || !settingsLoaded || !accounts) return;
-    setWelcome(!settings["onboarding.dismissed"] && noAccountConnected(accounts) ? "open" : "closed");
-  }, [welcome, settingsLoaded, accounts, settings]);
+    if (welcome !== "pending" || !settingsLoaded || !accounts || !profileLoaded) return;
+    const showWelcome = !settings["onboarding.dismissed"] && noAccountConnected(accounts);
+    setWelcome(showWelcome ? "open" : "closed");
+    if (!showWelcome && shouldOfferInterview(profile, settings)) openProfileInterview();
+  }, [welcome, settingsLoaded, accounts, profileLoaded, profile, settings]);
 
   // Panel-level attention for the collapsed-sidebar expand button pip.
   const hasAttention = ui.anyNeedsAttention(live.workers);
@@ -63,6 +74,13 @@ function Shell() {
     window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.selectAgent(id); };
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.selectAgent]);
+
+  // A notification about the user rather than a worker (e.g. memory suggestions).
+  const openMemory = useOpenMemory();
+  useEffect(() => {
+    window.__nativeOpenRoute = (route) => { if (route === "memory") openMemory(); };
+    return () => { delete window.__nativeOpenRoute; };
+  }, [openMemory]);
 
   // Recall (interrupt before the agent responded) is consumed directly by the
   // pane's Composer that owns recall.workerId (recallStore) — no selectedId-keyed
@@ -103,9 +121,17 @@ function Shell() {
       <RemotePicker />
       {welcome === "open" && (
         <WelcomeScreen
-          onContinue={() => setWelcome("closed")}
+          onContinue={() => { setWelcome("closed"); if (shouldOfferInterview(profile, settings)) openProfileInterview(); }}
           onSkip={() => { setSetting("onboarding.dismissed", true); setWelcome("closed"); }}
           onUseKeys={() => { setWelcome("closed"); openSettings("accounts"); }}
+        />
+      )}
+      {interviewOpen && profile && (
+        <ProfileInterview
+          profile={profile}
+          onClose={closeProfileInterview}
+          onSkip={() => { setSetting("onboarding.profileDismissed", true); closeProfileInterview(); }}
+          onOpenProfile={() => { closeProfileInterview(); openSettings("profile"); }}
         />
       )}
     </>

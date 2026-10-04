@@ -74,8 +74,9 @@ function ToggleControl({ value, onChange }) {
   );
 }
 
-// Icon segmented control — options: [{ value, label, Icon }]. Label becomes
-// the tooltip; the active segment gets a raised glass pill.
+// Segmented control — options: [{ value, label, Icon? }]. With an Icon the label
+// becomes the tooltip; without one the segment shows the label as text. The
+// active segment gets a raised glass pill.
 function SegmentedControl({ value, onChange, options }) {
   return (
     <div className="stg-seg" role="radiogroup">
@@ -85,14 +86,100 @@ function SegmentedControl({ value, onChange, options }) {
           key={o.value}
           role="radio"
           aria-checked={value === o.value}
-          title={o.label}
-          className={`stg-seg__btn${value === o.value ? " is-active" : ""}`}
+          title={o.Icon ? o.label : undefined}
+          className={`stg-seg__btn${o.Icon ? "" : " stg-seg__btn--text"}${value === o.value ? " is-active" : ""}`}
           onClick={() => onChange(o.value)}
         >
           {o.Icon ? <o.Icon /> : o.label}
         </button>
       ))}
     </div>
+  );
+}
+
+// Pill choices — options: [{ value, label }]. `multiple`: value is an array and
+// each pill toggles; otherwise value is one option or null, and picking the
+// selected pill again clears it (an unset preference, not a forced default).
+function ChipsControl({ value, onChange, options, multiple = false }) {
+  const picked = multiple ? (Array.isArray(value) ? value : []) : [value];
+  const toggle = (v) => {
+    if (!multiple) return onChange(value === v ? null : v);
+    onChange(picked.includes(v) ? picked.filter((x) => x !== v) : [...picked, v]);
+  };
+  return (
+    <div className="stg-chips" role={multiple ? "group" : "radiogroup"}>
+      {(options ?? []).map((o) => {
+        const on = picked.includes(o.value);
+        return (
+          <button
+            type="button"
+            key={o.value}
+            role={multiple ? "checkbox" : "radio"}
+            aria-checked={on}
+            className={`stg-chip${on ? " is-on" : ""}`}
+            onClick={() => toggle(o.value)}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Free-text tags — Enter or comma adds, × removes, Backspace on an empty draft
+// drops the last one. Duplicates (any case) are ignored.
+function TagsControl({ value, onChange, placeholder = "Add…", max = 40 }) {
+  const tags = Array.isArray(value) ? value : [];
+  const [draft, setDraft] = useState("");
+  const add = () => {
+    const t = draft.trim().replace(/,$/, "").trim();
+    setDraft("");
+    if (!t || tags.length >= max || tags.some((x) => x.toLowerCase() === t.toLowerCase())) return;
+    onChange([...tags, t]);
+  };
+  return (
+    <div className="stg-toolpick stg-tags">
+      {tags.map((t) => (
+        <span className="stg-toolpick__chip" key={t}>
+          {t}
+          <button type="button" className="stg-toolpick__rm" aria-label={`Remove ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>
+            <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 4l8 8M12 4l-8 8" />
+            </svg>
+          </button>
+        </span>
+      ))}
+      <input
+        className="stg-tags__input"
+        value={draft}
+        placeholder={placeholder}
+        spellCheck={false}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={add}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") { e.preventDefault(); add(); }
+          else if (e.key === "Backspace" && !draft && tags.length) onChange(tags.slice(0, -1));
+        }}
+      />
+    </div>
+  );
+}
+
+// Multi-line text committing on blur, like TextControl (every change is a PUT).
+function TextareaControl({ value, onChange, placeholder, rows = 6, maxLength }) {
+  const [draft, setDraft] = useState(value ?? "");
+  useEffect(() => { setDraft(value ?? ""); }, [value]);
+  return (
+    <textarea
+      className="stg-textarea"
+      value={draft}
+      rows={rows}
+      maxLength={maxLength}
+      placeholder={placeholder}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => { if (draft !== (value ?? "")) onChange(draft); }}
+    />
   );
 }
 
@@ -267,6 +354,9 @@ export const CONTROLS = {
   slider: SliderControl,
   select: SelectControl,
   segmented: SegmentedControl,
+  chips: ChipsControl,
   toolPicker: ToolPickerControl,
+  tags: TagsControl,
   text: TextControl,
+  textarea: TextareaControl,
 };

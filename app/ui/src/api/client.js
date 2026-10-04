@@ -691,6 +691,71 @@ export const api = {
     return del(ROUTES.page(id), uiTokenHeader());
   },
 
+  // Profile (Settings › Profile) — reads are open, every write carries the UI
+  // token. A save with a stale baseRev answers 409 + the current profile.
+  async getProfile() {
+    const r = await getJson(ROUTES.profile);
+    if (!r.ok) throw new Error(`getProfile → ${r.status}`);
+    return r.body.profile;
+  },
+  async updateProfile(patch, baseRev) {
+    return putJson(ROUTES.profile, { patch, baseRev }, uiTokenHeader());
+  },
+  // Exactly what a spawn of `kind` in `project` gets ({ text, tokens, … }).
+  async getProfilePreview({ kind = "claude", project = null } = {}) {
+    const params = new URLSearchParams({ kind });
+    if (project) params.set("project", project);
+    const r = await getJson(`${ROUTES.profilePreview}?${params}`);
+    if (!r.ok) throw new Error(`getProfilePreview → ${r.status}`);
+    return r.body;
+  },
+  // The daemon caches avatars for a day — `rev` busts it after a change.
+  profileAvatarUrl(rev) { return `${DAEMON}${ROUTES.profileAvatar}?v=${rev}`; },
+  async uploadProfileAvatar(blob) {
+    const r = await fetch(`${DAEMON}${ROUTES.profileAvatar}`, {
+      method: "PUT",
+      headers: { "content-type": "application/octet-stream", ...uiTokenHeader() },
+      body: await blob.arrayBuffer(),
+    });
+    let parsed = null;
+    try { parsed = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, body: parsed };
+  },
+  async deleteProfileAvatar() {
+    return del(ROUTES.profileAvatar, uiTokenHeader());
+  },
+  // The user-level CLAUDE.md, read-only ({ path, text }); null when unreadable.
+  async importClaudeMd() {
+    const r = await getJson(ROUTES.profileImportClaudeMd, { headers: uiTokenHeader() });
+    return r.ok ? r.body : null;
+  },
+
+  // Memories (the Memory view). Agents only suggest; every change here is the
+  // user's and carries the UI token.
+  async listUserMemories() {
+    const r = await getJson(ROUTES.userMemories);
+    if (!r.ok) throw new Error(`listUserMemories → ${r.status}`);
+    return r.body.memories;
+  },
+  async createUserMemory(input) {
+    return postJson(ROUTES.userMemories, input, uiTokenHeader());
+  },
+  async updateUserMemory(id, patch) {
+    return putJson(ROUTES.userMemory(id), patch, uiTokenHeader());
+  },
+  async deleteUserMemory(id) {
+    return del(ROUTES.userMemory(id), uiTokenHeader());
+  },
+  async approveUserMemory(id) {
+    return postJson(ROUTES.userMemoryApprove(id), {}, uiTokenHeader());
+  },
+  async dismissUserMemory(id) {
+    return postJson(ROUTES.userMemoryDismiss(id), {}, uiTokenHeader());
+  },
+  async approveAllUserMemories() {
+    return postJson(ROUTES.userMemoriesApproveAll, {}, uiTokenHeader());
+  },
+
   // User settings — flat key→value map persisted daemon-side (localStorage
   // is wiped on every Eos.app launch, so it can't hold durable settings).
   async getSettings() {

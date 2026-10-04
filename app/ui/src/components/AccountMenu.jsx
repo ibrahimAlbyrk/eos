@@ -9,6 +9,8 @@ import { useAccounts, refreshAccounts, accountTone, isSignedIn } from "../state/
 import { ProviderGlyph } from "./accounts/ProviderGlyph.jsx";
 import { metaFor, planName } from "./accounts/providerMeta.js";
 import { GeneralIcon } from "../settings/registry.jsx";
+import { useProfile } from "../state/profileStore.js";
+import { ProfileMenuHeader, MemoryReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
@@ -90,8 +92,9 @@ export function PlanCards({ accounts, usage }) {
 // and portal'd to <body>; data-popover keeps clicks inside it "inside" for the
 // outside-click handler. Mounted only while open, so usage is fetched per open
 // (the daemon caches upstream with a 180s floor).
-export function AccountMenu({ anchor, totalCostUsd, onOpenSettings }) {
+export function AccountMenu({ anchor, totalCostUsd, pendingMemories = 0, onOpenSettings, onOpenMemory, onSetUpProfile }) {
   const { accounts } = useAccounts();
+  const { profile } = useProfile();
   const [usage, setUsage] = useState(undefined); // undefined = loading, null = none/error
 
   useEffect(() => { refreshAccounts(); }, []);
@@ -108,6 +111,8 @@ export function AccountMenu({ anchor, totalCostUsd, onOpenSettings }) {
 
   return createPortal(
     <div className="acct-menu" data-popover="account-menu" role="menu" aria-label="Account" style={pos}>
+      <ProfileMenuHeader profile={profile} onOpen={() => onOpenSettings("profile")} onSetUp={onSetUpProfile} />
+      {pendingMemories > 0 && <MemoryReviewRow count={pendingMemories} onOpen={onOpenMemory} />}
       <PlanCards accounts={accounts} usage={usage} />
       <div
         className="acct-total"
@@ -117,6 +122,9 @@ export function AccountMenu({ anchor, totalCostUsd, onOpenSettings }) {
         <b>{fmtCost(totalCostUsd)}</b>
       </div>
       <div className="acct-sep" />
+      <button className="acct-action" role="menuitem" onClick={() => onOpenMemory?.()}>
+        <MemoryIcon />Memory
+      </button>
       <button className="acct-action" role="menuitem" onClick={() => onOpenSettings()}>
         <GeneralIcon />Settings<span className="acct-kbd">⌘,</span>
       </button>
