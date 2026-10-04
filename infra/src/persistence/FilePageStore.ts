@@ -4,14 +4,13 @@
 // the only writer); writes are atomic tmp → rename; remove() moves the file to
 // .trash/ so a deleted page is recoverable by hand.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import { PageSchema, type Page } from "../../../contracts/src/http.ts";
 import type { PageStore } from "../../../core/src/ports/PageStore.ts";
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
+import { moveToTrash, writeFileAtomic } from "./atomic-file.ts";
+import { joinFrontmatter, splitFrontmatter } from "./frontmatter.ts";
 
 export class FilePageStore implements PageStore {
   private readonly dir: string;
@@ -32,23 +31,13 @@ export class FilePageStore implements PageStore {
 
   put(page: Page): void {
     const parsed = PageSchema.parse(page);
-    mkdirSync(this.dir, { recursive: true });
-    const path = this.fileOf(parsed.id);
-    const tmp = `${path}.tmp`;
-    writeFileSync(tmp, serializePage(parsed));
-    renameSync(tmp, path);
+    writeFileAtomic(this.fileOf(parsed.id), serializePage(parsed));
     this.pages.set(parsed.id, parsed);
   }
 
   remove(id: string): boolean {
     if (!this.pages.has(id)) return false;
-    const path = this.fileOf(id);
-    if (existsSync(path)) {
-      const trash = join(this.dir, ".trash");
-      mkdirSync(trash, { recursive: true });
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
-      renameSync(path, join(trash, `${id}.${stamp}.md`));
-    }
+    moveToTrash(this.dir, PageSchema.shape.id.parse(id), "md");
     this.pages.delete(id);
     return true;
   }
@@ -75,14 +64,12 @@ export class FilePageStore implements PageStore {
 
 export function serializePage(page: Page): string {
   const { body, ...meta } = page;
-  return `---\n${stringifyYaml(meta).trimEnd()}\n---\n${body}`;
+  return joinFrontmatter(meta, body);
 }
 
 export function parsePage(raw: string): Page | null {
-  const m = raw.match(FRONTMATTER_RE);
-  if (!m) return null;
-  const meta: unknown = parseYaml(m[1]!);
-  if (!meta || typeof meta !== "object") return null;
-  const r = PageSchema.safeParse({ ...meta, body: raw.slice(m[0].length) });
+  const split = splitFrontmatter(raw);
+  if (!split) return null;
+  const r = PageSchema.safeParse({ ...split.meta, body: split.body });
   return r.success ? r.data : null;
 }
