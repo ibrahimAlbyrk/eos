@@ -2,7 +2,7 @@
 // memories say the same thing (so a suggestion never piles up a duplicate), and
 // keyword search for the on-demand tier.
 
-import type { UserMemory, UserMemoryScope } from "../../../contracts/src/profile.ts";
+import type { UserMemory, UserMemoryProposal, UserMemoryScope } from "../../../contracts/src/profile.ts";
 
 export const DUPLICATE_SIMILARITY = 0.8;
 
@@ -49,6 +49,23 @@ export function findDuplicateMemory(
     }
   }
   return best;
+}
+
+// A change-proposal (update/merge/promote/retire) already pending or declined for the
+// same targets — or an update that wouldn't change its target's text.
+export function findDuplicateProposal(
+  text: string, proposal: UserMemoryProposal, pool: readonly UserMemory[],
+): UserMemory | null {
+  const key = [...proposal.targets].sort().join(",");
+  const same = pool.find((m) => m.status !== "active" && m.proposal?.kind === proposal.kind
+    && [...m.proposal.targets].sort().join(",") === key
+    && (proposal.kind === "retire" || memorySimilarity(text, m.text) >= DUPLICATE_SIMILARITY));
+  if (same) return same;
+  if (proposal.kind === "update") {
+    const target = pool.find((m) => m.id === proposal.targets[0]);
+    if (target && memorySimilarity(text, target.text) >= DUPLICATE_SIMILARITY) return target;
+  }
+  return null;
 }
 
 // Kept memories in scope ranked by how many query words they contain; an empty query

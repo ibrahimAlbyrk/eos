@@ -61,6 +61,9 @@ export type EventBusTopic =
   // A memory was suggested, kept, edited, dismissed or deleted (payload
   // UserMemoryChangeEvent) — the Memory view and the pending badge refetch.
   | "user-memory:change"
+  // A dream started, moved on, or finished (payload DreamChangeEvent) — the
+  // Memory view, Settings › Dreaming and the dream log refetch its status.
+  | "dream:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

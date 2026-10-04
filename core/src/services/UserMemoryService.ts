@@ -1,22 +1,28 @@
 // UserMemoryService — the one write path for the user's memories. Callers depend on
 // the narrow face they need:
 //   - UserMemoryReader         prompt assembly + search (agents and the UI)
-//   - UserMemorySuggestionSink any producer proposing a memory (agents today; a
-//                              background reviewer later) — dedupe, cap, events
-//                              and notification live here once, for all of them
+//   - UserMemorySuggestionSink any producer proposing a memory (agents, dreams) —
+//                              dedupe, declined ideas, cap and events live here
+//                              once, for all of them
 //   - UserMemoryEditor         the user (ui-token routes): keep, edit, delete
-// Every change publishes `user-memory:change`.
+// Dismissing keeps a `dismissed` tombstone so the same idea is never suggested
+// again. Every change publishes `user-memory:change`.
 
 import { ConflictError, LimitExceededError, NotFoundError, ValidationError } from "../errors/index.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { UserMemoryStore } from "../ports/UserMemoryStore.ts";
-import { findDuplicateMemory, normalizeMemoryText, searchMemories } from "../domain/user-memory.ts";
+import {
+  findDuplicateMemory, findDuplicateProposal, normalizeMemoryText, searchMemories,
+} from "../domain/user-memory.ts";
 import type {
-  UserMemory, UserMemoryCategory, UserMemoryChangeEvent, UserMemoryScope, UserMemorySource, UserMemoryTier,
+  UserMemory, UserMemoryCategory, UserMemoryChangeEvent, UserMemoryProposal, UserMemoryScope,
+  UserMemorySource, UserMemoryTier,
 } from "../../../contracts/src/profile.ts";
 
 export const DEFAULT_PENDING_PER_PRODUCER = 5;
+// One dream files up to this many proposals for a single morning review.
+export const DREAM_PENDING_CAP = 12;
 
 export class StaleMemoryError extends ConflictError {
   readonly memory: UserMemory;
@@ -40,22 +46,35 @@ export interface UserMemoryPatch {
   readonly tier?: UserMemoryTier;
 }
 
+// A producer's suggestion; `proposal` = what keeping it changes (absent = a new memory).
+export interface UserMemorySuggestion extends Omit<UserMemoryInput, "tier"> {
+  readonly proposal?: UserMemoryProposal;
+}
+
+export interface UserMemorySuggestResult {
+  readonly memory: UserMemory;
+  readonly duplicate: boolean;
+  // The match is one the user dismissed — the producer shouldn't try again.
+  readonly declined: boolean;
+}
+
 export interface UserMemoryReader {
   list(): readonly UserMemory[];
   search(query: string, project: string | null, limit: number): UserMemory[];
 }
 
 export interface UserMemorySuggestionSink {
-  suggest(input: Omit<UserMemoryInput, "tier">, source: UserMemorySource): { memory: UserMemory; duplicate: boolean };
+  suggest(input: UserMemorySuggestion, source: UserMemorySource): UserMemorySuggestResult;
 }
 
 export interface UserMemoryEditor {
   create(input: UserMemoryInput): UserMemory;
   update(id: string, patch: UserMemoryPatch, baseRev?: number): UserMemory;
   remove(id: string): void;
-  approve(id: string): UserMemory;
+  // The memory the user ends up with (null when the proposal retired one).
+  approve(id: string): UserMemory | null;
   dismiss(id: string): void;
-  approveAll(): UserMemory[];
+  approveAll(): (UserMemory | null)[];
 }
 
 export interface UserMemoryServiceDeps {
@@ -73,6 +92,7 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     this.deps = deps;
   }
 
+  // Every memory, tombstones included — readers filter by status.
   list(): readonly UserMemory[] {
     return this.deps.store.list();
   }
@@ -87,18 +107,20 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     return searchMemories(this.deps.store.list(), query, project, limit);
   }
 
-  suggest(input: Omit<UserMemoryInput, "tier">, source: UserMemorySource): { memory: UserMemory; duplicate: boolean } {
+  suggest(input: UserMemorySuggestion, source: UserMemorySource): UserMemorySuggestResult {
     const text = normalizeMemoryText(input.text);
     const all = this.deps.store.list();
-    const dup = findDuplicateMemory(text, input.scope, all);
-    if (dup) return { memory: dup, duplicate: true };
-    const cap = this.deps.maxPendingPerProducer ?? DEFAULT_PENDING_PER_PRODUCER;
+    const p = input.proposal;
+    if (p && p.kind !== "new") this.requireKept(p.targets);
+    const dup = p && p.kind !== "new" ? findDuplicateProposal(text, p, all) : findDuplicateMemory(text, input.scope, all);
+    if (dup) return { memory: dup, duplicate: true, declined: dup.status === "dismissed" };
+    const cap = source.kind === "dream" ? DREAM_PENDING_CAP : (this.deps.maxPendingPerProducer ?? DEFAULT_PENDING_PER_PRODUCER);
     const key = producerKey(source);
     if (all.filter((m) => m.status === "suggested" && producerKey(m.source) === key).length >= cap) {
       throw new LimitExceededError(`${cap} suggestions are already waiting for the user's review`);
     }
-    const memory = this.insert({ ...input, text, tier: "always" }, "suggested", source);
-    return { memory, duplicate: false };
+    const memory = this.insert({ text, category: input.category, scope: input.scope, tier: "always" }, "suggested", source, p);
+    return { memory, duplicate: false, declined: false };
   }
 
   create(input: UserMemoryInput): UserMemory {
@@ -125,30 +147,66 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     this.emit(cur, "deleted", "user");
   }
 
-  approve(id: string): UserMemory {
+  approve(id: string): UserMemory | null {
     const cur = this.get(id);
     if (cur.status === "active") return cur;
-    return this.commit({ ...cur, status: "active" }, "approved", "user");
+    if (cur.status === "dismissed") throw new ValidationError(`memory ${id} was dismissed`);
+    const p = cur.proposal;
+    if (!p || p.kind === "new") return this.commit({ ...withoutProposal(cur), status: "active" }, "approved", "user");
+    const targets = this.requireKept(p.targets);
+    switch (p.kind) {
+      case "update":
+        this.consume(cur);
+        return this.commit({ ...targets[0]!, text: cur.text }, "updated", "user");
+      case "promote":
+        this.consume(cur);
+        return this.commit({ ...targets[0]!, scope: { kind: "global" } }, "updated", "user");
+      case "retire":
+        this.consume(cur);
+        this.drop(targets[0]!);
+        return null;
+      case "merge":
+        for (const t of targets) this.drop(t);
+        return this.commit({ ...withoutProposal(cur), status: "active" }, "approved", "user");
+    }
   }
 
   dismiss(id: string): void {
     const cur = this.get(id);
-    if (cur.status !== "suggested") throw new ValidationError(`memory ${id} is kept — delete it instead`);
-    this.deps.store.remove(id);
-    this.emit(cur, "dismissed", "user");
+    if (cur.status !== "suggested") throw new ValidationError(`memory ${id} is not waiting for review`);
+    this.commit({ ...cur, status: "dismissed" }, "dismissed", "user");
   }
 
-  approveAll(): UserMemory[] {
-    return this.deps.store.list().filter((m) => m.status === "suggested").map((m) => this.approve(m.id));
+  // Keeps what still applies — a proposal whose target an earlier one removed is left.
+  approveAll(): (UserMemory | null)[] {
+    const out: (UserMemory | null)[] = [];
+    for (const m of this.deps.store.list().filter((x) => x.status === "suggested")) {
+      try {
+        out.push(this.approve(m.id));
+      } catch (e) {
+        if (!(e instanceof ConflictError)) throw e;
+      }
+    }
+    return out;
   }
 
-  private insert(input: UserMemoryInput, status: UserMemory["status"], source: UserMemorySource): UserMemory {
+  private requireKept(ids: readonly string[]): UserMemory[] {
+    return ids.map((id) => {
+      const t = this.deps.store.get(id);
+      if (!t || t.status !== "active") throw new ConflictError(`the memory this changes is gone (${id})`);
+      return t;
+    });
+  }
+
+  private insert(
+    input: UserMemoryInput, status: UserMemory["status"], source: UserMemorySource, proposal?: UserMemoryProposal,
+  ): UserMemory {
     const now = this.deps.clock.now();
     const memory: UserMemory = {
-      id: this.deps.newId(), ...input, status, source, rev: 0, createdAt: now, updatedAt: now,
+      id: this.deps.newId(), ...input, status, source, ...(proposal ? { proposal } : {}), rev: 0, createdAt: now, updatedAt: now,
     };
     this.deps.store.put(memory);
-    this.emit(memory, "created", source.kind === "agent" ? "agent" : "user");
+    this.emit(memory, "created", source.kind === "agent" ? "agent" : source.kind === "dream" ? "dream" : "user");
     return memory;
   }
 
@@ -159,15 +217,34 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     return saved;
   }
 
+  // A kept proposal is spent once applied to its target.
+  private consume(suggestion: UserMemory): void {
+    this.deps.store.remove(suggestion.id);
+    this.emit(suggestion, "approved", "user");
+  }
+
+  private drop(memory: UserMemory): void {
+    this.deps.store.remove(memory.id);
+    this.emit(memory, "deleted", "user");
+  }
+
   private emit(m: UserMemory, action: UserMemoryChangeEvent["action"], by: UserMemoryChangeEvent["by"]): void {
     const evt: UserMemoryChangeEvent = { id: m.id, action, status: m.status, by };
     this.deps.bus.publish("user-memory:change", evt);
   }
 }
 
-// One pending-suggestion budget per producer: an agent can't crowd out the others.
+function withoutProposal(m: UserMemory): UserMemory {
+  const copy = { ...m };
+  delete copy.proposal;
+  return copy;
+}
+
+// One pending budget per producer: an agent can't crowd out the others, and each
+// dream gets its own morning's worth.
 function producerKey(source: UserMemorySource): string {
   if (source.kind === "agent") return `agent:${source.agentId}`;
   if (source.kind === "import") return `import:${source.from}`;
+  if (source.kind === "dream") return `dream:${source.dreamId}`;
   return "user";
 }

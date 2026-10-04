@@ -3,7 +3,7 @@
 // preferences, so a user who never opens Profile gets byte-identical prompts).
 
 import {
-  PROFILE_BUDGET_DEFAULT, type AvatarExt, type UserProfile, type UserProfilePatch,
+  DEFAULT_DREAMING, PROFILE_BUDGET_DEFAULT, type AvatarExt, type UserProfile, type UserProfilePatch,
 } from "../../../contracts/src/profile.ts";
 
 export function emptyUserProfile(): UserProfile {
@@ -18,6 +18,7 @@ export function emptyUserProfile(): UserProfile {
     sharing: { withholdFrom: [] },
     budgetTokens: PROFILE_BUDGET_DEFAULT,
     onboardedAt: null,
+    dreaming: { ...DEFAULT_DREAMING, excludedProjects: [] },
   };
 }
 
@@ -44,6 +45,7 @@ export function applyProfilePatch(cur: UserProfile, patch: UserProfilePatch): Us
     sharing: { ...cur.sharing, ...patch.sharing },
     budgetTokens: patch.budgetTokens ?? cur.budgetTokens,
     onboardedAt: patch.onboardedAt !== undefined ? patch.onboardedAt : cur.onboardedAt,
+    dreaming: { ...cur.dreaming, ...patch.dreaming },
   });
 }
 
@@ -72,6 +74,7 @@ function normalizeProfile(p: UserProfile): UserProfile {
     },
     work: { ...p.work, roles: unique(p.work.roles), stack: uniqueCaseless(p.work.stack.map((s) => s.trim()).filter(Boolean)) },
     sharing: { withholdFrom: unique(p.sharing.withholdFrom) },
+    dreaming: { ...p.dreaming, excludedProjects: unique(p.dreaming.excludedProjects) },
   };
 }
 

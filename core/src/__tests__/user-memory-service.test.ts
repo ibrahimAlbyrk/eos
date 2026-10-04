@@ -2,10 +2,11 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { StaleMemoryError, UserMemoryService } from "../services/UserMemoryService.ts";
-import { LimitExceededError, NotFoundError, ValidationError } from "../errors/index.ts";
+import { ConflictError, LimitExceededError, NotFoundError, ValidationError } from "../errors/index.ts";
 import type { UserMemory, UserMemorySource } from "../../../contracts/src/profile.ts";
 
 const AGENT: UserMemorySource = { kind: "agent", agentId: "w-1", agentName: "find-bar" };
+const DREAM: UserMemorySource = { kind: "dream", dreamId: "dr-1", evidence: [] };
 const OTHER: UserMemorySource = { kind: "agent", agentId: "w-2", agentName: "stream" };
 
 function make(maxPendingPerProducer?: number) {
@@ -65,7 +66,7 @@ describe("UserMemoryService", () => {
     assert.equal(kept.rev, 1);
     assert.equal(svc.approve(a.id).rev, 1); // idempotent
     svc.dismiss(b.id);
-    assert.ok(!store.has(b.id));
+    assert.equal(store.get(b.id)?.status, "dismissed"); // a tombstone, not gone
     assert.throws(() => svc.dismiss(a.id), ValidationError);
     assert.deepEqual(events.slice(-2).map((e) => e.action), ["approved", "dismissed"]);
   });
@@ -92,6 +93,75 @@ describe("UserMemoryService", () => {
     const { svc } = make();
     assert.throws(() => svc.approve("um-nope0000"), NotFoundError);
     assert.throws(() => svc.remove("um-nope0000"), NotFoundError);
+  });
+
+  it("a dismissed idea is declined, by agents and dreams alike", () => {
+    const { svc } = make();
+    const m = svc.suggest({ text: "Prefers tabs over spaces.", category: "work-style", scope: { kind: "global" } }, AGENT).memory;
+    svc.dismiss(m.id);
+    const again = svc.suggest({ text: "prefers tabs over spaces", category: "work-style", scope: { kind: "global" } }, DREAM);
+    assert.deepEqual([again.duplicate, again.declined, again.memory.id], [true, true, m.id]);
+    assert.equal(svc.search("tabs", null, 5).length, 0);
+  });
+
+  it("each dream gets its own morning's budget", () => {
+    const { svc } = make(2);
+    for (let i = 0; i < 6; i++) svc.suggest({ text: `distinct idea number ${i} about ${"xyz".repeat(i + 1)}`, category: "other", scope: { kind: "global" } }, DREAM);
+    assert.equal(svc.list().filter((m) => m.status === "suggested").length, 6);
+  });
+
+  describe("proposals", () => {
+    function kept(svc: UserMemoryService, text: string, scope: UserMemory["scope"] = { kind: "global" }) {
+      return svc.create({ text, category: "work-style", scope, tier: "always" });
+    }
+    const propose = (svc: UserMemoryService, text: string, kind: "update" | "merge" | "promote" | "retire", targets: string[]) =>
+      svc.suggest({ text, category: "work-style", scope: { kind: "global" }, proposal: { kind, targets, confidence: 3 } }, DREAM);
+
+    it("update rewrites the target and spends the suggestion", () => {
+      const { svc, store } = make();
+      const t = kept(svc, "Verify with lint and tests.");
+      const p = propose(svc, "Verify with lint and tests; never restart Eos.", "update", [t.id]).memory;
+      const out = svc.approve(p.id);
+      assert.equal(out?.id, t.id);
+      assert.equal(store.get(t.id)?.text, "Verify with lint and tests; never restart Eos.");
+      assert.ok(!store.has(p.id));
+    });
+
+    it("an update that changes nothing is a duplicate of its target", () => {
+      const { svc } = make();
+      const t = kept(svc, "Verify with lint and tests.");
+      assert.equal(propose(svc, "verify with lint and tests", "update", [t.id]).memory.id, t.id);
+    });
+
+    it("merge keeps the merged text and removes the parts", () => {
+      const { svc, store } = make();
+      const a = kept(svc, "Chat in Turkish.");
+      const b = kept(svc, "Commits in English.");
+      const p = propose(svc, "Chat in Turkish; ship everything in English.", "merge", [a.id, b.id]).memory;
+      assert.equal(svc.approve(p.id)?.status, "active");
+      assert.ok(!store.has(a.id) && !store.has(b.id));
+      assert.equal(store.get(p.id)?.proposal, undefined);
+    });
+
+    it("promote makes a project memory global; retire removes it", () => {
+      const { svc, store } = make();
+      const t = kept(svc, "Keep diffs surgical.", { kind: "project", path: "/eos" });
+      svc.approve(propose(svc, "Keep diffs surgical.", "promote", [t.id]).memory.id);
+      assert.deepEqual(store.get(t.id)?.scope, { kind: "global" });
+      const old = kept(svc, "claude-cli is the fallback lane.");
+      assert.equal(svc.approve(propose(svc, "Removed in 368cc14f.", "retire", [old.id]).memory.id), null);
+      assert.ok(!store.has(old.id));
+    });
+
+    it("a proposal whose target is gone can't be filed or kept", () => {
+      const { svc } = make();
+      assert.throws(() => propose(svc, "x y z", "retire", ["um-gone0000"]), ConflictError);
+      const t = kept(svc, "Something kept here.");
+      const p = propose(svc, "Something kept here, updated text.", "update", [t.id]).memory;
+      svc.remove(t.id);
+      assert.throws(() => svc.approve(p.id), ConflictError);
+      assert.deepEqual(svc.approveAll(), []); // skipped, not thrown
+    });
   });
 
   it("search sees only kept memories in scope", () => {

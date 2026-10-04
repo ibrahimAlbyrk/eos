@@ -48,7 +48,8 @@ function assistantFromAgentEvent(ts: number, payload: Record<string, unknown>): 
   return message(ts, "assistant", text);
 }
 
-function rowToMessage(row: WorkerEventRow): NormalizedMessage | null {
+// One row → message (or null). Exported for callers that keep each row's id.
+export function normalizeEventRow(row: WorkerEventRow): NormalizedMessage | null {
   const payload = parsePayload(row.payload);
   if (!payload) return null;
   switch (row.type) {
@@ -81,7 +82,7 @@ export function normalizeEventRows(rows: WorkerEventRow[], n: number): Normalize
   if (take <= 0) return [];
   const messages: NormalizedMessage[] = [];
   for (const row of rows) {
-    const m = rowToMessage(row);
+    const m = normalizeEventRow(row);
     if (m) messages.push(m);
   }
   return messages.length > take ? messages.slice(messages.length - take) : messages;
