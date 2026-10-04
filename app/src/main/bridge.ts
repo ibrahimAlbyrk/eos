@@ -138,3 +138,8 @@ export function registerBridge(win: BrowserWindow): void {
 export function navigateToWorker(wc: WebContents, workerId: string): void {
   driveJs(wc, `window.__nativeNavigate && window.__nativeNavigate(${JSON.stringify(workerId)})`);
 }
+
+// Open a named view (e.g. "memory") — a notification about the user, not a worker.
+export function navigateToRoute(wc: WebContents, route: string): void {
+  driveJs(wc, `window.__nativeOpenRoute && window.__nativeOpenRoute(${JSON.stringify(route)})`);
+}

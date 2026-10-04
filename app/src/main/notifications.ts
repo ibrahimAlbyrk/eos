@@ -1,6 +1,6 @@
 import { app, Notification, BrowserWindow } from "electron";
 import type { WebContents } from "electron";
-import { navigateToWorker } from "./bridge";
+import { navigateToRoute, navigateToWorker } from "./bridge";
 
 // Eos's own notification sound, shipped in Contents/Resources (forge.config.js
 // extraResource). A dev run (`npm start`) is the stock Electron.app, which lacks
@@ -25,11 +25,12 @@ export function makeNotifier(
 ): (payload: unknown) => "fired" | "suppressed" | "unsupported" | "invalid" {
   return (payload) => {
     if (!Notification.isSupported()) return "unsupported";
-    const p = payload as { title?: unknown; body?: unknown; workerId?: unknown; host?: { id?: unknown } };
+    const p = payload as { title?: unknown; body?: unknown; workerId?: unknown; route?: unknown; host?: { id?: unknown } };
     if (typeof p?.title !== "string" || typeof p?.body !== "string") return "invalid";
     const win = getWindow();
     if (win && win.isFocused()) return "suppressed"; // app active — no banner
     const workerId = typeof p.workerId === "string" ? p.workerId : "";
+    const route = typeof p.route === "string" ? p.route : "";
     const n = new Notification({ title: p.title, body: p.body, sound: NOTIFICATION_SOUND });
     // Electron 42's UNNotification path refuses unsigned builds with this event instead of a banner.
     n.on("failed", (_e, error) => {
@@ -43,7 +44,8 @@ export function makeNotifier(
       app.focus({ steal: true });
       showWindow();
       const wc = hostId && openHost ? await openHost(hostId) : getWindow()?.webContents;
-      if (wc && workerId) navigateToWorker(wc, workerId);
+      if (wc && route) navigateToRoute(wc, route);
+      else if (wc && workerId) navigateToWorker(wc, workerId);
     });
     live.add(n);
     n.show();

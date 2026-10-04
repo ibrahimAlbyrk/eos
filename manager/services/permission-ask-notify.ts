@@ -11,6 +11,8 @@ export interface NotificationFire {
   title: string;
   body: string;
   workerId: string;
+  // A view to open on click instead of a worker (e.g. "memory").
+  route?: string;
   ts: number;
 }
 
