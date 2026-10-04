@@ -15,6 +15,28 @@ export class BodyTooLargeError extends Error {
   }
 }
 
+// The raw bytes of an octet-stream body (pasted files, avatar images).
+export function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let aborted = false;
+    req.on("data", (c: Buffer) => {
+      if (aborted) return;
+      size += c.length;
+      if (size > maxBytes) {
+        aborted = true;
+        try { req.destroy(); } catch {}
+        reject(new BodyTooLargeError(maxBytes));
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => { if (!aborted) resolve(Buffer.concat(chunks)); });
+    req.on("error", reject);
+  });
+}
+
 export async function readBody(
   req: IncomingMessage,
   maxBytes: number = DEFAULT_MAX_BODY_BYTES,

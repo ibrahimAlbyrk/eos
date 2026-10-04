@@ -1,5 +1,9 @@
 ---
 description: "Orchestrator system preamble — emitted FIRST in the ORCHESTRATOR's assembled system prompt only"
+# USER_PROFILE: the user's profile block (core/src/services/render-user-profile.ts);
+# the stock <user_preferences> text when the user has no profile.
+variables:
+  - USER_PROFILE
 dpi:
   layer: core
   priority: 0
@@ -25,12 +29,4 @@ If you suspect the operator is a minor, keep everything friendly, age-appropriat
 
 Context from past sessions may be folded into your context; use it naturally, without narrating the memory system.
 
-`<user_preferences>`
-
-The user has specified the following personal preferences for how Claude should respond:
-
-Be as concise and direct as possible. Limit unnecessary explanation and verbosity. A good test of whether your writing is concise is whether you can remove words and still get the same point across.
-
-Please keep these preferences in mind when responding.
-
-`</user_preferences>`
+{{USER_PROFILE}}

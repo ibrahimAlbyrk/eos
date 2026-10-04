@@ -27,6 +27,8 @@ const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration
 // surfaces in this order (registry.ts browserDefs).
 // Page tools — on BOTH surfaces, just before the browser verbs (registry.ts pageDefs).
 const PAGE_TOOLS = ["list_pages", "read_page", "create_page", "append_to_page", "edit_page", "set_page_task"];
+// The user's memory — right after the page tools on both surfaces (registry.ts memoryDefs).
+const MEMORY_TOOLS = ["search_memory", "suggest_memory"];
 
 const BROWSER_TOOLS = [
   "browser_navigate", "browser_snapshot", "browser_find", "browser_act",
@@ -46,6 +48,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       "list_available_workers", "create_worker", "integrate_workers",
       "current_datetime", "get_worker_messages",
       ...PAGE_TOOLS,
+      ...MEMORY_TOOLS,
       ...BROWSER_TOOLS,
     ]);
   });
@@ -53,7 +56,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...PAGE_TOOLS, ...BROWSER_TOOLS]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...PAGE_TOOLS, ...MEMORY_TOOLS, ...BROWSER_TOOLS]);
   });
 
   it("peer (collaborate-only) tools match", () => {

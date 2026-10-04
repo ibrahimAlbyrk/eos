@@ -62,6 +62,10 @@ import { registerProjectRoutes } from "./routes/projects.ts";
 import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerPageRoutes } from "./routes/pages.ts";
+import { registerProfileRoutes } from "./routes/profile.ts";
+import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
+import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
+import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
 import { registerPromptRoutes } from "./routes/prompts.ts";
 import { registerWorkerDefinitionRoutes } from "./routes/worker-definitions.ts";
@@ -119,6 +123,8 @@ registerProjectRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
 registerPageRoutes(router, c);
+registerProfileRoutes(router, c);
+registerUserMemoryRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
@@ -422,6 +428,14 @@ const turnEndNotify = makeTurnEndNotify({
 c.bus.subscribe("worker:change", (msg) =>
   turnEndNotify(msg.payload as { workerId?: string; from?: string; state?: string }),
 );
+// Agents suggested memories → one batched banner a little later.
+const memorySuggestNotify = makeMemorySuggestNotify({
+  pendingCount: () => c.userMemories.list().filter((m) => m.status === "suggested").length,
+  fire: (n) => c.bus.publish("notification:fire", n),
+  now: () => c.clock.now(),
+  schedule: (fn, ms) => { setTimeout(fn, ms).unref(); },
+});
+c.bus.subscribe("user-memory:change", (msg) => memorySuggestNotify(msg.payload as UserMemoryChangeEvent));
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an
 // orchestrator's first WORKING transition). Mirrors the goal-loop bus wiring.

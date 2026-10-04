@@ -36,7 +36,7 @@ export function registerPromptRoutes(r: Router, c: Container): void {
     const body = validate(PromptPreviewRequestSchema, await readBody(req));
     const result = assembleSystemPrompt(
       { registry: c.promptRegistry, prompts: c.prompts },
-      body,
+      { ...body, userProfile: c.userProfilePreview("claude", body.cwd ?? null).text },
     );
     writeJson(res, 200, result);
   });

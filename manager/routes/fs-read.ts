@@ -1,12 +1,11 @@
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
-import type { IncomingMessage } from "node:http";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
+import { readBody, readRawBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { IMAGE_MIME, isSafeAbsPath, resolveWithinRoot, searchProject, uiTokenOk } from "./fs-shared.ts";
 import { FsPasteB64RequestSchema, FsWriteRequestSchema } from "../../contracts/src/http.ts";
@@ -22,27 +21,6 @@ const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 // name that isn't valid encoding ("100%.png") is kept as sent.
 function decodeFilename(name: string): string {
   try { return decodeURIComponent(name); } catch { return name; }
-}
-
-function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    let aborted = false;
-    req.on("data", (c: Buffer) => {
-      if (aborted) return;
-      size += c.length;
-      if (size > maxBytes) {
-        aborted = true;
-        try { req.destroy(); } catch {}
-        reject(new Error(`body too large (limit ${maxBytes})`));
-        return;
-      }
-      chunks.push(c);
-    });
-    req.on("end", () => { if (!aborted) resolve(Buffer.concat(chunks)); });
-    req.on("error", reject);
-  });
 }
 
 export function registerFsReadRoutes(r: Router, c: Container): void {

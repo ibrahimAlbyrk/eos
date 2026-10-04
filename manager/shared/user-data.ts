@@ -15,6 +15,9 @@ export const USER_DATA_ENTRIES = [
   // Pages (~/.eos/pages/*.md) — notes the user and agents write together.
   // Non-regenerable: kept out of state.db so a --db wipe never takes them.
   "pages",
+  // The user's profile, avatar and memories (~/.eos/profile/) — what every agent is
+  // told about the user. Non-regenerable, kept out of state.db for the same reason.
+  "profile",
   // Durable in-process conversations (~/.eos/conversations/<sessionId>.jsonl) — a
   // metered/API worker's transcript, replayed on resume. Non-regenerable: losing
   // it closes a SUSPENDED worker that could have resumed (M3 durability).

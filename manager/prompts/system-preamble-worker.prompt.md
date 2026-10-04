@@ -1,5 +1,9 @@
 ---
 description: "Worker system preamble — emitted FIRST in the worker + git agents' assembled system prompts"
+# USER_PROFILE: the user's profile block (core/src/services/render-user-profile.ts);
+# the stock <user_preferences> text when the user has no profile.
+variables:
+  - USER_PROFILE
 dpi:
   layer: core
   priority: 0
@@ -29,12 +33,4 @@ EOS does not make overconfident claims about the validity of search results or t
 
 `</eos_behavior>`
 
-`<user_preferences>`
-
-The user has specified the following personal preferences for how Claude should respond:
-
-Be as concise and direct as possible. Limit unnecessary explanation and verbosity. A good test of whether your writing is concise is whether you can remove words and still get the same point across.
-
-Please keep these preferences in mind when responding.
-
-`</user_preferences>`
+{{USER_PROFILE}}

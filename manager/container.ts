@@ -125,6 +125,14 @@ import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
 import { FilePageStore } from "../infra/src/persistence/FilePageStore.ts";
 import { PageService } from "../core/src/services/PageService.ts";
+import { FileUserAvatarStore, FileUserProfileStore } from "../infra/src/persistence/FileUserProfileStore.ts";
+import { UserProfileService } from "../core/src/services/UserProfileService.ts";
+import { FileUserMemoryStore } from "../infra/src/persistence/FileUserMemoryStore.ts";
+import { UserMemoryService } from "../core/src/services/UserMemoryService.ts";
+import {
+  buildUserProfileBlock, receivedMemoryLines, type UserProfileBlock,
+} from "../core/src/use-cases/BuildUserProfileBlock.ts";
+import type { MemorySnapshot } from "../core/src/ports/MemoryProvider.ts";
 import { createFsScratchWorkspaces } from "../infra/src/filesystem/FsScratchWorkspaces.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { createRuntimeMcpClient } from "../infra/src/mcp/RuntimeMcpClient.ts";
@@ -505,6 +513,22 @@ export function buildContainer() {
     newId: () => `pg-${randomBytes(6).toString("hex")}`,
   });
   bus.subscribe("worker:removed", (msg) => pages.unlinkAgent((msg.payload as { workerId: string }).workerId));
+  // Profile: who the user is, as every agent sees it (~/.eos/profile, user data —
+  // survives `restart --db`). Rendered into {{USER_PROFILE}} at spawn.
+  const profileDir = join(config.daemon.home, "profile");
+  const profile = new UserProfileService({
+    store: new FileUserProfileStore(profileDir),
+    avatars: new FileUserAvatarStore(profileDir),
+    clock: systemClock,
+    bus,
+  });
+  // Memories: discrete facts about the user. Agents suggest, only the user keeps.
+  const userMemories = new UserMemoryService({
+    store: new FileUserMemoryStore(join(profileDir, "memories")),
+    clock: systemClock,
+    bus,
+    newId: () => `um-${randomBytes(6).toString("hex")}`,
+  });
 
   // "No folder" agents: each gets ~/.eos/scratch/<id>, deleted with the agent.
   // Not in the user-data backup manifest — it is throwaway by design.
@@ -686,6 +710,28 @@ export function buildContainer() {
   // natively (assumeNativeFor): the claude-cli binary auto-loads CLAUDE.md, the
   // claude lane (settingSources:[]) loads nothing.
   const memoryProvider = new FileMemoryProvider(resolveMemorySources(config.memory.sources));
+  // {{USER_PROFILE}} for one session — shared by the spawn path and the Profile
+  // preview so "What agents see" is the real text. `memory` = the session's CLAUDE.md
+  // snapshot, so lines it already receives aren't repeated.
+  const userProfileBlock = (kind: string, project: string | null, memory: MemorySnapshot | null): UserProfileBlock =>
+    buildUserProfileBlock({ profile, memories: () => userMemories.list() }, {
+      kind,
+      project,
+      knownLines: memory ? receivedMemoryLines(memory, kind, config.memory.enabled) : [],
+      searchToolName: TOOL_NAME_VARS.SEARCH_MEMORY_TOOL,
+    });
+  // No project still loads the user-level CLAUDE.md (every spawn gets it), so the
+  // preview drops the same lines a real spawn does.
+  const userProfilePreview = (kind: string, project: string | null): UserProfileBlock =>
+    userProfileBlock(kind, project, memoryProvider.load(
+      project ? { cwd: project, repoRoot: null } : { cwd: config.daemon.home, repoRoot: config.daemon.home },
+    ));
+  // The user-level CLAUDE.md, read-only, for "Import from CLAUDE.md".
+  const readUserClaudeMd = (): { path: string | null; text: string } => {
+    const doc = memoryProvider.load({ cwd: config.daemon.home, repoRoot: config.daemon.home }).docs
+      .find((d) => d.level === "user" && d.sourceId === "claude");
+    return doc ? { path: doc.path, text: doc.content } : { path: null, text: "" };
+  };
   // Agent Skills (§5c) — discovery + body load for the in-process lane. Skill
   // trigger metadata (name+description) is folded into the in-process DPI prompt
   // below (the §5h slot); the Skill RuntimeTool loads a body on manual invocation.
@@ -697,7 +743,9 @@ export function buildContainer() {
   // claude-cli writes it to a file for --append-system-prompt-file, claude
   // passes it as systemPrompt.append — so it is built in exactly one place here.
   // null → no append (a top-level worker with no role fragment).
-  const assembleAppendText = (spec: SpawnWorkerSpec, id: string, lane: string): string | null => {
+  const assembleAppendText = (
+    spec: SpawnWorkerSpec, id: string, lane: string, memory: MemorySnapshot | null,
+  ): string | null => {
     const role = spec.isOrchestrator ? "orchestrator"
       : spec.role === "git" || spec.role === FOCUSED_ROLE ? spec.role
       : "worker";
@@ -756,6 +804,9 @@ export function buildContainer() {
     // worker-default lookup: an unpinned worker inherits its parent's backend, so the
     // session's own resolved backend IS what its children run under.
     const identity = identityForSpec(spec);
+    // sharing.withholdFrom names real backend kinds; the in-process lane label isn't one.
+    const kind = lane === "in-process" ? (config.backends[spec.backendProfile ?? ""]?.kind ?? lane) : lane;
+    const project = spec.worktreeFrom ?? spec.cwd ?? spec.worktreeDir ?? null;
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -781,6 +832,7 @@ export function buildContainer() {
         effortSection: renderEffortSection(identity),
         defaultEffort: defaultEffortFor(identity),
         effortSupported: identity.effortSupported,
+        userProfile: userProfileBlock(kind, project, memory).text,
       },
       extra,
     );
@@ -799,11 +851,12 @@ export function buildContainer() {
   // Shared by both lanes: claude-cli writes it to the append file, claude
   // passes it inline. Memory disabled / no cwd → plain DPI text, verbatim.
   const assembleAppendFor = (spec: SpawnWorkerSpec, id: string, backendKind: string): string | null => {
-    const dpi = assembleAppendText(spec, id, backendKind);
-    if (!config.memory.enabled) return dpi;
     const cwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
-    if (!cwd) return dpi;
-    const snapshot = memoryProvider.load({ cwd, repoRoot: spec.worktreeFrom ?? null });
+    // Loaded even with injection off: the profile block skips lines this session
+    // already gets natively (the claude lane reads CLAUDE.md itself).
+    const snapshot = cwd ? memoryProvider.load({ cwd, repoRoot: spec.worktreeFrom ?? null }) : null;
+    const dpi = assembleAppendText(spec, id, backendKind, snapshot);
+    if (!config.memory.enabled || !snapshot) return dpi;
     return composeAppendedPrompt(dpi, selectInjectableMemory(snapshot, backendKind));
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
@@ -1506,6 +1559,10 @@ export function buildContainer() {
     recents,
     projects,
     pages,
+    profile,
+    userMemories,
+    userProfilePreview,
+    readUserClaudeMd,
     scratch,
     removeScratchWorkspace,
     resolveWorktreeDir,

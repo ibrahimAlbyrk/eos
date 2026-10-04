@@ -26,6 +26,8 @@ import { createPageDef } from "./defs/create_page.ts";
 import { appendToPageDef } from "./defs/append_to_page.ts";
 import { editPageDef } from "./defs/edit_page.ts";
 import { setPageTaskDef } from "./defs/set_page_task.ts";
+import { searchMemoryDef } from "./defs/search_memory.ts";
+import { suggestMemoryDef } from "./defs/suggest_memory.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
 import { browserFindDef } from "./defs/browser_find.ts";
@@ -78,6 +80,9 @@ const pageDefs: ToolDefinition[] = [
   setPageTaskDef,
 ];
 
+// The user's memory — on BOTH surfaces, right after the page tools.
+const memoryDefs: ToolDefinition[] = [searchMemoryDef, suggestMemoryDef];
+
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
 export const orchestratorDefs: ToolDefinition[] = [
@@ -98,11 +103,12 @@ export const orchestratorDefs: ToolDefinition[] = [
   currentDatetimeDef,
   getWorkerMessagesDef,
   ...pageDefs,
+  ...memoryDefs,
   ...browserDefs,
 ];
 
 // Always registered on a worker.
-export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...browserDefs];
+export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...memoryDefs, ...browserDefs];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

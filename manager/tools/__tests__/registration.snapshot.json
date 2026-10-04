@@ -454,6 +454,68 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "search_memory": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Words to look for, e.g. 'commit style' or 'testing'. Empty lists the newest memories."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Most results to return (default 8)."
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "suggest_memory": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "One self-contained sentence about the user, e.g. 'Prefers pnpm over npm.'"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "about",
+            "work-style",
+            "stack",
+            "other"
+          ],
+          "description": "about = who the user is; work-style = how they want work done; stack = tools and technologies."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "project"
+          ],
+          "description": "project = only true in the current project (its conventions); global = true everywhere."
+        },
+        "why": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "What the user said or did that shows it — shown to the user when they review."
+        }
+      },
+      "required": [
+        "text",
+        "category",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
     "browser_navigate": {
       "type": "object",
       "properties": {
@@ -949,6 +1011,68 @@
       "required": [
         "id",
         "task"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "search_memory": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Words to look for, e.g. 'commit style' or 'testing'. Empty lists the newest memories."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20,
+          "description": "Most results to return (default 8)."
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "suggest_memory": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "One self-contained sentence about the user, e.g. 'Prefers pnpm over npm.'"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "about",
+            "work-style",
+            "stack",
+            "other"
+          ],
+          "description": "about = who the user is; work-style = how they want work done; stack = tools and technologies."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "global",
+            "project"
+          ],
+          "description": "project = only true in the current project (its conventions); global = true everywhere."
+        },
+        "why": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "What the user said or did that shows it — shown to the user when they review."
+        }
+      },
+      "required": [
+        "text",
+        "category",
+        "scope"
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
