@@ -320,6 +320,17 @@ describe("getToolView", () => {
     expect(bash.expandable({ input: { command: "a &&\nb" }, result: { text: "" } })).toBe(true);
     expect(bash.expandable({ input: { command: "ls" }, running: true })).toBe(true);
 
+    const read = getToolView("Read");
+    const png = { file_path: "/tmp/a.png" };
+    expect(read.expandable({ input: png, result: { text: "" } })).toBe(false);
+    expect(read.expandable({ input: png, running: true })).toBe(false);
+    expect(read.expandable({ input: { file_path: "/a.ts" }, result: { text: "1\tconst a = 1;" } })).toBe(false);
+    expect(read.expandable({ input: png, result: { isError: true, text: "" } })).toBe(true);
+
+    const write = getToolView("Write");
+    expect(write.expandable({ input: { file_path: "/a/.keep", content: "" } })).toBe(false);
+    expect(write.expandable({ input: { file_path: "/a.ts", content: "x" } })).toBe(true);
+
     const create = getToolView("TaskCreate");
     expect(create.expandable({ input: { subject: "x" } })).toBe(false);
     expect(create.expandable({ input: { subject: "x", description: "why" } })).toBe(true);

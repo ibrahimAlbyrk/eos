@@ -92,6 +92,7 @@ register("Read", {
   },
   runningLabel: (t) => ({ verb: "Reading", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
+  expandable: failed,
   Detail: ReadDetail,
 });
 
@@ -115,6 +116,8 @@ register("Write", {
   label: (t) => ({ verb: "Write", file: fileName(t.input?.file_path) }),
   runningLabel: (t) => ({ verb: "Writing", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
+  // an empty write's body would only repeat the path the header already opens
+  expandable: (t) => failed(t) || (t.input?.content ?? "").trim() !== "",
   Detail: WriteDetail,
 });
 
