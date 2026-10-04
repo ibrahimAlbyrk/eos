@@ -38,6 +38,21 @@ describe("USER_PROFILE in the preambles", () => {
     });
   }
 
+  it("focused: the profile block and the memory tools, once", () => {
+    const block = "`<user_profile>`\n\n- Address the user as \"Ibrahim\".\n\n`</user_profile>`";
+    const text = assemble({ role: "focused", userProfile: block });
+    assert.equal(text.split(block).length, 2);
+    assert.match(text, /## The user's memory/);
+    assert.ok(text.includes(TOOL_NAME_VARS.SEARCH_MEMORY_TOOL));
+    assert.ok(text.includes(TOOL_NAME_VARS.SUGGEST_MEMORY_TOOL));
+  });
+
+  it("focused: an empty profile adds only the memory section", () => {
+    const text = assemble({ role: "focused", userProfile: "" });
+    assert.doesNotMatch(text, /user_preferences|user_profile>/);
+    assert.match(text, /## The user's memory/);
+  });
+
   it("profile text is never re-parsed as a template", () => {
     const text = assemble({ userProfile: "keep {{AGENT_NAME}} literal" });
     assert.ok(text.includes("keep {{AGENT_NAME}} literal"));

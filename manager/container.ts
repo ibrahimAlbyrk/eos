@@ -813,6 +813,10 @@ export function buildContainer() {
     // sharing.withholdFrom names real backend kinds; the in-process lane label isn't one.
     const kind = lane === "in-process" ? (config.backends[spec.backendProfile ?? ""]?.kind ?? lane) : lane;
     const project = spec.worktreeFrom ?? spec.cwd ?? spec.worktreeDir ?? null;
+    const profileBlock = userProfileBlock(kind, project, memory);
+    // A focused session is a plain Claude Code session that never carried the stock
+    // preferences, so an empty (or withheld) profile adds nothing there.
+    const userProfile = role === FOCUSED_ROLE && profileBlock.empty ? "" : profileBlock.text;
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -838,7 +842,7 @@ export function buildContainer() {
         effortSection: renderEffortSection(identity),
         defaultEffort: defaultEffortFor(identity),
         effortSupported: identity.effortSupported,
-        userProfile: userProfileBlock(kind, project, memory).text,
+        userProfile,
       },
       extra,
     );
