@@ -2990,7 +2990,8 @@
 /* the card is glass: cut the tab where it tucks under, or it shows through.
    The cut lives on this surface layer, not the strip: a clip-path on the strip
    would cut the project/branch pickers opening out of it off from the backdrop,
-   leaving their glass unblurred. */
+   leaving their glass unblurred. 9px, not the full 13px tuck: the tab stays
+   under the card's soft edge so the transcript never shows in the seam. */
 .c-strip::before {
   content: "";
   position: absolute;
@@ -2998,7 +2999,7 @@
   z-index: -1;
   background: var(--pop);
   border-radius: inherit;
-  clip-path: inset(0 0 13px);
+  clip-path: inset(0 0 9px);
   pointer-events: none;
 }
 .c-strip-wrap { position: relative; display: inline-flex; }
@@ -3046,7 +3047,9 @@
   position: relative; z-index: 1;
   margin: 0 14px -13px;
   padding: 5px 5px 18px;
-  clip-path: inset(-30px -30px 13px -30px); /* cut where it tucks under the glass card */
+  /* cut where it tucks under the glass card, 4px late: the card's soft edge and
+     rounded corners would otherwise show the transcript in the seam */
+  clip-path: inset(-30px -30px 9px -30px);
   animation: queue-tray-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 @keyframes queue-tray-in { from { transform: translateY(14px); opacity: 0; } }
