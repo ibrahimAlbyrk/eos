@@ -367,6 +367,24 @@ export const MIGRATIONS: Migration[] = [
   // "No folder" agents: 1 = cwd is a scratch dir the daemon created and deletes
   // with the row. DEFAULT 0 keeps every existing row a plain folder.
   { id: "060_workers_add_scratch", sql: "ALTER TABLE workers ADD COLUMN scratch INTEGER NOT NULL DEFAULT 0" },
+  // Dreaming (SqliteDreamRepo): each run as one JSON row, the last event a dream
+  // read per chat, and the chats the user turned off. A regenerable log — a wipe
+  // only means the next dream rereads chats.
+  { id: "061_dreams", sql: `
+    CREATE TABLE IF NOT EXISTS dream_runs (
+      id TEXT PRIMARY KEY,
+      started_at INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS dream_runs_started ON dream_runs (started_at DESC);
+    CREATE TABLE IF NOT EXISTS dream_watermarks (
+      worker_id TEXT PRIMARY KEY,
+      last_event_id INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS dream_exclusions (
+      worker_id TEXT PRIMARY KEY
+    );
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

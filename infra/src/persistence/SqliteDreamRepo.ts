@@ -1,0 +1,79 @@
+// SqliteDreamRepo — dream_runs (one JSON row per run, re-validated on read),
+// dream_watermarks and dream_exclusions (migration 061).
+
+import type { DatabaseSync } from "node:sqlite";
+import { DreamRunSchema, type DreamRun } from "../../../contracts/src/dream.ts";
+import type { DreamRepo } from "../../../core/src/ports/DreamRepo.ts";
+
+export class SqliteDreamRepo implements DreamRepo {
+  private readonly stmtSave;
+  private readonly stmtGet;
+  private readonly stmtList;
+  private readonly stmtWatermark;
+  private readonly stmtSetWatermark;
+  private readonly stmtExcluded;
+  private readonly stmtExclude;
+  private readonly stmtInclude;
+
+  constructor(db: DatabaseSync) {
+    this.stmtSave = db.prepare(
+      "INSERT INTO dream_runs (id, started_at, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
+    );
+    this.stmtGet = db.prepare("SELECT data FROM dream_runs WHERE id = ?");
+    this.stmtList = db.prepare("SELECT data FROM dream_runs ORDER BY started_at DESC LIMIT ?");
+    this.stmtWatermark = db.prepare("SELECT last_event_id AS id FROM dream_watermarks WHERE worker_id = ?");
+    this.stmtSetWatermark = db.prepare(
+      "INSERT INTO dream_watermarks (worker_id, last_event_id) VALUES (?, ?) ON CONFLICT(worker_id) DO UPDATE SET last_event_id = excluded.last_event_id",
+    );
+    this.stmtExcluded = db.prepare("SELECT worker_id AS id FROM dream_exclusions");
+    this.stmtExclude = db.prepare("INSERT INTO dream_exclusions (worker_id) VALUES (?) ON CONFLICT(worker_id) DO NOTHING");
+    this.stmtInclude = db.prepare("DELETE FROM dream_exclusions WHERE worker_id = ?");
+  }
+
+  save(run: DreamRun): void {
+    const parsed = DreamRunSchema.parse(run);
+    this.stmtSave.run(parsed.id, parsed.startedAt, JSON.stringify(parsed));
+  }
+
+  get(id: string): DreamRun | null {
+    return parseRun(this.stmtGet.get(id));
+  }
+
+  list(limit: number): DreamRun[] {
+    return this.stmtList.all(limit).map(parseRun).filter((r): r is DreamRun => r !== null);
+  }
+
+  latest(): DreamRun | null {
+    return this.list(1)[0] ?? null;
+  }
+
+  watermark(workerId: string): number {
+    const row = this.stmtWatermark.get(workerId) as { id: number } | undefined;
+    return row?.id ?? 0;
+  }
+
+  setWatermark(workerId: string, eventId: number): void {
+    this.stmtSetWatermark.run(workerId, eventId);
+  }
+
+  excluded(): string[] {
+    return (this.stmtExcluded.all() as { id: string }[]).map((r) => r.id);
+  }
+
+  setExcluded(workerId: string, excluded: boolean): void {
+    if (excluded) this.stmtExclude.run(workerId);
+    else this.stmtInclude.run(workerId);
+  }
+}
+
+// A row that no longer validates (an older shape) is skipped, never fatal.
+function parseRun(row: unknown): DreamRun | null {
+  const data = (row as { data?: string } | undefined)?.data;
+  if (!data) return null;
+  try {
+    const r = DreamRunSchema.safeParse(JSON.parse(data));
+    return r.success ? r.data : null;
+  } catch {
+    return null;
+  }
+}
