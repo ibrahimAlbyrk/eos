@@ -8,7 +8,7 @@ import { SpawnOrchestratorRequestSchema, MessageRequestSchema, IntegrateWorkersR
 import type { IntegrateWorkerResult, IntegrateWorkersResponse } from "../../contracts/src/http.ts";
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
-import { randomOrchestratorName } from "../shared/names.ts";
+import { randomOrchestratorName, promptSnippetName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
@@ -25,7 +25,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
 
   r.post("/orchestrators", async ({ req, res }) => {
     const body = validate(SpawnOrchestratorRequestSchema, await readBody(req));
-    const name = (body.name ?? "").trim() || randomOrchestratorName();
+    const name = (body.name ?? "").trim() || promptSnippetName(body.prompt ?? "") || randomOrchestratorName();
     // A focused session is the same top-level spawn minus the orchestration: it
     // works itself, always on the claude SDK lane (the operator's provider pick
     // doesn't apply).
@@ -66,8 +66,8 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         cwd,
         scratch,
         name,
-        // A human-supplied name is 'user' (never auto-renamed); the random default
-        // is 'default' — the auto-name micro-task's only eligible state.
+        // A human-supplied name is 'user' (never auto-renamed); the prompt-snippet /
+        // random default is 'default' — the auto-name micro-task's only eligible state.
         nameSource: body.name?.trim() ? "user" : "default",
         fixedId: id,
         persistent: true,
