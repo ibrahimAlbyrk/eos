@@ -94,6 +94,12 @@ export const WorkerRowSchema = z.object({
   // get_worker / list_active_workers can surface remaining budget. Absent on
   // rows that weren't HTTP-enriched.
   context: WorkerContextSchema.optional(),
+  // True while an ask_user question from this worker waits on the operator.
+  // NOT a DB column — route-enriched from the in-memory PendingQuestionService
+  // on the worker list, so the sidebar can flag a blocked agent whose
+  // transcript isn't open. Absent when nothing is pending / on rows that
+  // weren't HTTP-enriched.
+  awaiting_question: z.boolean().optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),

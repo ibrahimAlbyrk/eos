@@ -45,6 +45,7 @@ function containerWith(rows: Row[], opts: { purgeOnAppClose?: boolean } = {}) {
     },
     loops: { findActiveByWorker: () => null, deleteByWorker: () => {} },
     backgroundActivity: { forWorker: () => [] },
+    pendingQuestions: { hasPending: () => false },
     modelCatalog: { contextWindowFor: () => 200_000 },
     // Observability hook: resumeIfDead's first container touch is
     // supervisor.has — zero calls proves the 409 fired before lazy-resume.

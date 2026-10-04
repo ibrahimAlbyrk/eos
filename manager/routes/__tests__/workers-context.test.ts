@@ -12,7 +12,7 @@ import type { RouteContext } from "../Router.ts";
 
 type Row = { id: string; model: string | null; last_context_tokens: number | null; parent_id: string | null; state: string; archived_at: number | null; prompt?: string };
 
-function containerWith(rows: Row[], window: number | null) {
+function containerWith(rows: Row[], window: number | null, asking: string[] = []) {
   return {
     workers: {
       findById: (id: string) => rows.find((r) => r.id === id) ?? null,
@@ -21,6 +21,7 @@ function containerWith(rows: Row[], window: number | null) {
     },
     loops: { findActiveByWorker: () => null },
     backgroundActivity: { forWorker: () => [] },
+    pendingQuestions: { hasPending: (id: string) => asking.includes(id) },
     modelCatalog: { contextWindowFor: (_m: string | null) => window },
   } as unknown as Container;
 }
@@ -72,6 +73,15 @@ describe("worker routes — context enrichment", () => {
     const rows = out.payload as Array<{ id: string; context: { pct: number } }>;
     assert.equal(rows.find((r) => r.id === "w-1")?.context.pct, 50);
     assert.equal(rows.find((r) => r.id === "w-2")?.context.pct, 25);
+  });
+});
+
+describe("worker routes — open ask_user question", () => {
+  it("flags only the rows with a pending question, brief list included", async () => {
+    const c = containerWith([row({ prompt: "a" }), row({ id: "w-2", prompt: "b" })], 1_000_000, ["w-2"]);
+    const rows = (await dispatch(c, "/workers?brief=1")).payload as Array<{ id: string; awaiting_question?: boolean }>;
+    assert.equal(rows.find((r) => r.id === "w-1")?.awaiting_question, undefined);
+    assert.equal(rows.find((r) => r.id === "w-2")?.awaiting_question, true);
   });
 });
 

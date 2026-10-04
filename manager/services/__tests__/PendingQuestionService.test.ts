@@ -42,6 +42,17 @@ describe("PendingQuestionService", () => {
     assert.deepEqual(svc.poll(questionId), { status: "pending" });
   });
 
+  it("hasPending is true only while one of the worker's questions is unsettled", () => {
+    svc.register("w1", "tuA");
+    svc.register("w1", "tuB");
+    assert.equal(svc.hasPending("w1"), true);
+    assert.equal(svc.hasPending("w2"), false);
+    svc.resolveByToolUseId("w1", "tuA", {});
+    assert.equal(svc.hasPending("w1"), true);
+    svc.dismissByToolUseId("w1", "tuB");
+    assert.equal(svc.hasPending("w1"), false);
+  });
+
   it("poll(unknownId) reports gone", () => {
     assert.deepEqual(svc.poll("nope"), { status: "gone" });
   });

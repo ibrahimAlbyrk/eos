@@ -60,6 +60,13 @@ export class PendingQuestionService {
     return e ? this.store.settle(e.id, { status: "dismissed" }) : false;
   }
 
+  hasPending(workerId: string): boolean {
+    for (const e of this.store.all()) {
+      if (e.meta.workerId === workerId && this.store.isPending(e)) return true;
+    }
+    return false;
+  }
+
   cancelByWorker(workerId: string): void {
     for (const e of [...this.store.all()]) {
       if (e.meta.workerId === workerId) this.store.delete(e.id);

@@ -135,6 +135,13 @@ function withContext(c: Container, rows: WorkerRow[]): WorkerRow[] {
   });
 }
 
+// Flag a worker blocked on an open ask_user question, so the sidebar can show
+// it without the worker's transcript loaded. Register and answer both append a
+// synthesized event (worker:change), so the row re-reads when it flips.
+function withPendingQuestion(c: Container, rows: WorkerRow[]): WorkerRow[] {
+  return rows.map((w) => (c.pendingQuestions.hasPending(w.id) ? { ...w, awaiting_question: true } : w));
+}
+
 // The dashboard refetches the whole list on nearly every state ping — over a
 // peer link that is most of its traffic, and most of each row is the boot
 // prompt, which never changes after spawn. `?brief=1` rows carry a preview
@@ -191,7 +198,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const rows = parentId
       ? c.workers.listByParent(parentId).filter((w) => w.archived_at == null)
       : c.workers.listActive();
-    const enriched = withContext(c, withLoopState(c, withBackgroundActivity(c, rows)));
+    const enriched = withPendingQuestion(c, withContext(c, withLoopState(c, withBackgroundActivity(c, rows))));
     writeJson(res, 200, url.searchParams.get("brief") === "1" ? withBriefPrompt(enriched) : enriched);
   });
 
