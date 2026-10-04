@@ -651,6 +651,50 @@
   .ti-icon .ti-spin { animation-duration: 2.4s; }
 }
 
+/* ── turn fold — a finished turn's work behind "Worked for …" (TurnFold.jsx) ──
+   At rest: the row, a full-width rule, then the final reply; the steps open
+   below the rule as they streamed. Settle (the view watched the turn finish): the steps, still
+   laid out flat, glide up under a feathered edge while the row grows in and
+   brightens once as they land (the thinking line's absorb), then the rule draws
+   left to right. */
+.turn-fold { display: flex; flex-direction: column; }
+.turn-fold-head {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 300ms cubic-bezier(.32, .72, 0, 1);
+}
+.turn-fold-head > div { min-height: 0; overflow: clip; overflow-clip-margin: 8px; }
+.turn-fold.is-live .turn-fold-head { grid-template-rows: 0fr; }
+/* the chevron stays faintly visible — the only cue that the line opens */
+.turn-fold-row .ti-chev { opacity: 0.45; }
+.turn-fold-rule {
+  height: 1px;
+  margin: 8px 0 6px;
+  background: rgba(var(--tint), 0.08);
+  transform-origin: 0 50%;
+}
+.turn-fold.is-live .turn-fold-rule { transform: scaleX(0); }
+.turn-fold.is-settling .turn-fold-rule { transition: transform 720ms cubic-bezier(.32, .72, 0, 1) 420ms; }
+.turn-fold.is-settling .turn-fold-row { animation: thinking-absorb 1260ms ease; }
+.turn-fold-steps { display: flex; flex-direction: column; gap: 10px; }
+.turn-fold .collapse .turn-fold-steps { padding: 4px 0 2px; }
+
+@property --fold-feather { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.turn-fold-flat { display: grid; grid-template-rows: 1fr; }
+.turn-fold-flat-in { min-height: 0; overflow-x: visible; overflow-y: clip; display: flex; flex-direction: column; }
+.turn-fold.is-settling .turn-fold-flat {
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 760ms cubic-bezier(.7, 0, .2, 1) 80ms;
+}
+.turn-fold.is-settling .turn-fold-flat-in {
+  --fold-feather: 44px;
+  justify-content: flex-end;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fold-feather));
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--fold-feather));
+  transition: --fold-feather 260ms ease;
+}
+.turn-fold.is-settling .turn-fold-flat .turn-fold-steps { opacity: 0; transition: opacity 220ms ease 620ms; }
+
 /* diff stats on a write/edit row */
 .ti-stats { font-family: var(--font-mono); font-size: var(--text-xs); }
 .ti-add { color: var(--ok); }

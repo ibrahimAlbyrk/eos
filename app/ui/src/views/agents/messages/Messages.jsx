@@ -49,7 +49,9 @@ import { nameOf } from "../../../lib/agentName.js";
 import { setReplyTarget } from "../../../state/replyStore.js";
 import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
+import { TurnFold } from "./TurnFold.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
+import { foldTurns } from "../../../lib/turnFold.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
 import { useConversationBlocks } from "../../../hooks/useConversationBlocks.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
@@ -502,6 +504,26 @@ export function Messages({ live, agentId, isActive = true }) {
 
   const lastBlock = blocks[blocks.length - 1];
 
+  // Finished turns fold their work behind "Worked for …" (Settings › Code ›
+  // Transcript); the turn still streaming stays open.
+  const foldOn = ui.settings["transcript.foldWork"] !== false;
+  const { items, liveRunKey } = useMemo(
+    () => (foldOn
+      ? foldTurns(blocks, blockKey, { live: agentBusy })
+      : { items: blocks.map((block, index) => ({ kind: "block", block, index })), liveRunKey: null }),
+    [blocks, foldOn, agentBusy],
+  );
+  // Runs this pane watched stream in: when one of them folds it settles in
+  // place, once — any later mount of that fold lands closed.
+  const watchedRunsRef = useRef(new Set());
+  useEffect(() => {
+    if (liveRunKey && isActive) watchedRunsRef.current.add(liveRunKey);
+  }, [liveRunKey, isActive]);
+  useEffect(() => {
+    for (const it of items) if (it.kind === "fold") watchedRunsRef.current.delete(it.runKey);
+  }, [items]);
+  const blockIndex = useMemo(() => new Map(blocks.map((b, i) => [b, i])), [blocks]);
+
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
   // dispatches; see core/use-cases/DrainQueuedMessages.)
@@ -583,6 +605,69 @@ export function Messages({ live, agentId, isActive = true }) {
     return () => center?.classList.remove("msgs-at-top");
   }, []);
 
+  const renderRow = (b, i) => {
+    const isLast = i === blocks.length - 1;
+    const key = blockKey(b, i);
+    // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
+    // realizes it via PTY choreography, claude via a native fork) — gate
+    // it on the backend's `rewind` flag, never on keystroke or kind.
+    const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
+      ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
+      : null;
+    const replyTarget = selectedId ? replyTargetOf(b) : null;
+    const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
+    const block = b.kind === "compacted"
+      ? (
+        <CompactionCard
+          block={b}
+          workerId={selectedId}
+          hasHistory={b.id === boundaryId && compactionSplit.history.length > 0}
+          historyOpen={historyOpen}
+          onToggleHistory={() => setOpenHistoryAt(historyOpen ? null : b.id)}
+        />
+      )
+      : b.kind === "compactionFailed"
+        ? <CompactionFailedLine block={b} />
+        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow);
+    if (!block) return null;
+    // The wrapper carries the block's scroll-anchor identity
+    // (lib/scrollAnchor.js) so every block kind is anchorable without
+    // threading a prop through each component.
+    // `cv` opts a block into content-visibility (perf). MessageRow text
+    // blocks are excluded: paint containment (implied by content-visibility)
+    // would clip their right-click action bar, which overflows the
+    // wrapper. See styles.css.
+    const cls = [
+      isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
+      MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
+    ].filter(Boolean).join(" ") || undefined;
+    const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
+    const prevTs = blocks[i - 1]?.ts;
+    if (b.kind !== "user" || sameDay(b.ts, prevTs ?? Date.now())) return row;
+    return <Fragment key={key}><DayDivider ts={b.ts} />{row}</Fragment>;
+  };
+
+  // A step inside a fold renders exactly as it would in the stream. No `cv`: a
+  // fold can hold interim replies, whose action bar paint containment would clip.
+  const renderStep = (b) => {
+    const i = blockIndex.get(b) ?? -1;
+    const key = blockKey(b, i);
+    const replyTarget = selectedId ? replyTargetOf(b) : null;
+    const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
+    const prevTs = i > 0 ? blocks[i - 1].ts : undefined;
+    return (
+      <div key={key} data-rowid={b.rowId}>
+        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, prevTs, onReply, jumpToRow)}
+      </div>
+    );
+  };
+
+  const renderFold = (fold) => (
+    <div key={fold.key} data-bkey={fold.key}>
+      <TurnFold fold={fold} settle={isActive && watchedRunsRef.current.has(fold.runKey)} renderStep={renderStep} />
+    </div>
+  );
+
   return (
     <ScrollHoldContext.Provider value={stick.hold}>
     <div className="messages-frame">
@@ -606,47 +691,7 @@ export function Messages({ live, agentId, isActive = true }) {
           </div>
         )}
         {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} history={loopChecks} />}
-        {blocks.map((b, i) => {
-          const isLast = i === blocks.length - 1;
-          const key = blockKey(b, i);
-          // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
-          // realizes it via PTY choreography, claude via a native fork) — gate
-          // it on the backend's `rewind` flag, never on keystroke or kind.
-          const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
-            ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
-            : null;
-          const replyTarget = selectedId ? replyTargetOf(b) : null;
-          const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
-          const block = b.kind === "compacted"
-            ? (
-              <CompactionCard
-                block={b}
-                workerId={selectedId}
-                hasHistory={b.id === boundaryId && compactionSplit.history.length > 0}
-                historyOpen={historyOpen}
-                onToggleHistory={() => setOpenHistoryAt(historyOpen ? null : b.id)}
-              />
-            )
-            : b.kind === "compactionFailed"
-              ? <CompactionFailedLine block={b} />
-              : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow);
-          if (!block) return null;
-          // The wrapper carries the block's scroll-anchor identity
-          // (lib/scrollAnchor.js) so every block kind is anchorable without
-          // threading a prop through each component.
-          // `cv` opts a block into content-visibility (perf). MessageRow text
-          // blocks are excluded: paint containment (implied by content-visibility)
-          // would clip their right-click action bar, which overflows the
-          // wrapper. See styles.css.
-          const cls = [
-            isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
-            MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
-          ].filter(Boolean).join(" ") || undefined;
-          const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
-          const prevTs = blocks[i - 1]?.ts;
-          if (b.kind !== "user" || sameDay(b.ts, prevTs ?? Date.now())) return row;
-          return <Fragment key={key}><DayDivider ts={b.ts} />{row}</Fragment>;
-        })}
+        {items.map((it) => (it.kind === "fold" ? renderFold(it) : renderRow(it.block, it.index)))}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
         {showAnchor && !showCheck && !compaction.pending && (
           <ProcessingLine

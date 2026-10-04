@@ -258,6 +258,18 @@ export const SETTINGS_SECTIONS = [
         ],
       },
       {
+        title: "Transcript",
+        items: [
+          {
+            key: "transcript.foldWork",
+            label: "Fold finished work",
+            description: "When the agent finishes, its steps collapse under “Worked for …” and only the final reply stays open.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+        ],
+      },
+      {
         title: "Verbose",
         items: [
           {
