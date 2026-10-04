@@ -1371,7 +1371,7 @@ export function buildContainer() {
     hybrid: hybridStrategy,
   });
 
-  // Micro-task subsystem — small predetermined-prompt Haiku tasks off the bus.
+  // Micro-task subsystem — small predetermined-prompt one-shot tasks off the bus.
   // The OneShotClient is a thin reuse of the judge one-shot engine (judgeClient),
   // so there is ZERO new LLM infra; the per-call model comes from task config.
   // config is read live (it's a `let` reassigned by reloadConfig), so toggling

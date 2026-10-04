@@ -431,7 +431,7 @@ export function defaults(): DaemonConfig {
       enabled: true,
       pauseMaxMs: 10000,
       tasks: {
-        "auto-name": { enabled: true, delayMs: 5000, model: "haiku", charLimit: 280 },
+        "auto-name": { enabled: true, delayMs: 5000, model: "claude-sonnet-5-5", charLimit: 280 },
       },
     },
     archive: {

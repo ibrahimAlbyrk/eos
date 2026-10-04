@@ -1,5 +1,5 @@
 // auto-name MicroTask — names a freshly-spawned ORCHESTRATOR (or focused session)
-// once, from its first request, via the one-shot Haiku path. Fires on the
+// once, from its first request, via the one-shot LLM path. Fires on the
 // orchestrator's first WORKING transition (the runner's seen-guard keeps it to
 // once); gated to top-level rows whose name is still the random default (name_source=
 // 'default'); CAS-writes so it can NEVER clobber a human ('user') name —
