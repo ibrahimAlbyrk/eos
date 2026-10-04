@@ -190,7 +190,9 @@ const userProfile = withheld ? DEFAULT_USER_PREFERENCES
   : renderUserProfile(profile, userMemories.forPrompt(project), { project, budgetTokens, knownLines }).text;
 ```
 `SessionSpawnContext.userProfile` → `sessionVars.USER_PROFILE`; both preambles:
-`<user_preferences>…</user_preferences>` → `{{USER_PROFILE}}`.
+`<user_preferences>…</user_preferences>` → `{{USER_PROFILE}}`. A focused session (no preamble)
+gets it from `role/focused/01-user-profile` with the memory-tool section; an empty profile
+renders nothing there, since focused never carried the stock preferences.
 Also pass it in `scripts/preview-prompt.mts` and `POST /api/prompts/preview`.
 
 **Routes** — `manager/routes/profile.ts` (`registerProfileRoutes`), `manager/routes/user-memories.ts`
