@@ -29,14 +29,8 @@
 .mg__st--off { background: var(--fg-mute); }
 @media (prefers-reduced-motion: reduce) { .mg__st--warn { animation: none; } }
 
-/* ── sidebar footer: machine row above the account row ───────────────────── */
-.sb-settings--stack {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 4px;
-  padding: 10px 8px 12px;
-}
-.sb-settings--stack .sb-settings__account { margin: 0; flex: none; padding: 6px 8px; }
+/* ── sidebar footer: machine row beside the account avatar ───────────────── */
+.sb-settings .machine-row { flex: 1; min-width: 0; }
 .machine-row {
   display: flex; align-items: center; gap: 10px;
   height: 38px; padding: 0 8px;

@@ -1,5 +1,5 @@
 import { useUi } from "../../../state/ui.jsx";
-import { fmtTimeAgo } from "../../../lib/format.js";
+import { fmtTimeAgoShort } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { selectArchived } from "../../../state/archiveStore.js";
 
@@ -54,7 +54,7 @@ export function ArchiveNode({ node, selectedId, isRoot = false }) {
         )}
         <span className="ag-archive-icon"><ArchiveTrayIcon /></span>
         <span className={`ag-name ${node.is_orchestrator ? "main" : ""}`}>{nameOf(node)}</span>
-        <span className="ag-status">{node.archived_at ? fmtTimeAgo(node.archived_at) : ""}</span>
+        <span className="ag-status">{node.archived_at ? fmtTimeAgoShort(node.archived_at) : ""}</span>
       </div>
       {hasChildren && (
         <div className="tree-children">

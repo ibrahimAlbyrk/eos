@@ -32,15 +32,15 @@ const render = () =>
   );
 
 describe("LayoutGroups sidebar section", () => {
-  it("always renders the Layouts header with a save affordance", () => {
+  it("renders nothing with no saved layouts and a single pane", () => {
+    expect(render()).toBe("");
+  });
+
+  it("renders the Layouts header, save affordance and a row (name + leaf count) per saved group", () => {
+    addGroup("My Split", { t: "split", id: "S", dir: "row", ratio: 0.5, a: { t: "leaf", id: "L1", agentId: "a" }, b: { t: "leaf", id: "L2", agentId: "b" } });
     const html = render();
     expect(html).toContain("Layouts");
     expect(html).toContain("Save current layout as group");
-  });
-
-  it("renders a row (name + leaf count) for each saved group", () => {
-    addGroup("My Split", { t: "split", id: "S", dir: "row", ratio: 0.5, a: { t: "leaf", id: "L1", agentId: "a" }, b: { t: "leaf", id: "L2", agentId: "b" } });
-    const html = render();
     expect(html).toContain("My Split");
     expect(html).toContain(">2<"); // leafCount rendered in the row's status slot
   });

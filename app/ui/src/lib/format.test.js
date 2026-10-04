@@ -1,9 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { fmtTimeAgo, fmtDayStamp, statusFromState } from "./format.js";
+import { fmtTimeAgo, fmtTimeAgoShort, fmtDayStamp, statusFromState } from "./format.js";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
+
+describe("fmtTimeAgoShort", () => {
+  const now = 1_700_000_000_000;
+
+  it("drops the 'ago' and says 'now' under a minute", () => {
+    expect(fmtTimeAgoShort(now - 59_000, now)).toBe("now");
+    expect(fmtTimeAgoShort(now - 5 * MIN, now)).toBe("5m");
+    expect(fmtTimeAgoShort(now - 2 * HOUR, now)).toBe("2h");
+    expect(fmtTimeAgoShort(now - 3 * DAY, now)).toBe("3d");
+    expect(fmtTimeAgoShort(now - 14 * DAY, now)).toBe("2w");
+    expect(fmtTimeAgoShort(now - 60 * DAY, now)).toBe("2mo");
+    expect(fmtTimeAgoShort(now - 400 * DAY, now)).toBe("1y");
+  });
+});
 
 describe("fmtTimeAgo", () => {
   const now = 1_700_000_000_000;

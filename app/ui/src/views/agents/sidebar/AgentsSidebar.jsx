@@ -58,6 +58,10 @@ export function AgentsSidebar({ live, variant = "full" }) {
   // Live agent ids — layout restore keeps a dead agent's leaf empty (not stripped),
   // and the dirty indicator treats such an empty pane as non-divergent.
   const aliveIds = useMemo(() => new Set(live.workers.map((w) => w.id)), [live.workers]);
+  const waitingIds = useMemo(
+    () => new Set((live.pendingPermissions ?? []).map((p) => p.worker_id)),
+    [live.pendingPermissions],
+  );
 
   // Empty-state gating + label reflect what's actually being shown.
   const loaded = showActive && showArchived ? (live.loaded && archivedLoaded)
@@ -107,6 +111,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
         variant={variant}
         archivedSelectedId={archivedSelectedId}
         emptyLabel={emptyLabel}
+        waitingIds={waitingIds}
       />
       <SettingsFooter live={live} />
     </>

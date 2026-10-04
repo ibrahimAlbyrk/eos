@@ -30,19 +30,25 @@ export function fmtElapsedShort(ms) {
   return `${h}h ${m % 60}m`;
 }
 
+// Compact relative timestamp for tight rows (sidebar): "now", "5m", "1w".
+export function fmtTimeAgoShort(ts, now = Date.now()) {
+  const s = Math.floor((now - ts) / 1000);
+  if (s < 60) return "now";
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  if (d < 7) return `${d}d`;
+  if (d < 30) return `${Math.floor(d / 7)}w`;
+  if (d < 365) return `${Math.floor(d / 30)}mo`;
+  return `${Math.floor(d / 365)}y`;
+}
+
 // Relative timestamp for message hover rows: "just now", "5m ago", "1w ago".
 export function fmtTimeAgo(ts, now = Date.now()) {
-  const s = Math.floor((now - ts) / 1000);
-  if (s < 60) return "just now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d ago`;
-  if (d < 30) return `${Math.floor(d / 7)}w ago`;
-  if (d < 365) return `${Math.floor(d / 30)}mo ago`;
-  return `${Math.floor(d / 365)}y ago`;
+  const short = fmtTimeAgoShort(ts, now);
+  return short === "now" ? "just now" : `${short} ago`;
 }
 
 // Transcript date divider: { day: "Thu, Sep 24", time: "7:53 PM" }; the year

@@ -12,8 +12,10 @@
 .agents-group__head--toggle:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .agents-group__head--toggle.on { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
 .agents-group__head--toggle.on .agents-group__name { color: var(--fg-strong); }
-.agents-group__head--toggle .agents-group__add { opacity: 0; }
-.agents-group__head--toggle:hover .agents-group__add { opacity: 1; }
+/* Hover swaps the folded meta (count + signal) for the "+". */
+.agents-group__head--toggle .agents-group__add { display: none; }
+.agents-group__head--toggle:hover .agents-group__add { display: inline-flex; }
+.agents-group__head--toggle:hover .agents-group__meta { display: none; }
 
 /* Project picker (FolderDropdown) rows. */
 .ca-folder-dd .proj-icon { color: var(--fg-dim); }

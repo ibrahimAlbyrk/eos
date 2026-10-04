@@ -61,13 +61,17 @@ export function LayoutGroups({ aliveIds }) {
 
   const menuGroup = menu ? groups.find((g) => g.id === menu.id) ?? null : null;
 
+  // Nothing saved and nothing worth saving (one pane): stay out of the way.
+  // The agent context menu's "Save layout as group" still works from anywhere.
+  if (groups.length === 0 && ui.paneCount < 2 && !creating) return null;
+
   return (
     <div className="layout-groups">
       <div className="agents-group">
-        <div className="agents-group__head">
-          <span className="agents-group__name">Layouts</span>
+        <div className="sb-seclabel">
+          <span className="sb-seclabel__text">Layouts</span>
           <button
-            className="sb-iconbtn agents-group__add"
+            className="sb-seclabel__filter"
             title="Save current layout as group"
             onClick={() => setCreating(true)}
           >

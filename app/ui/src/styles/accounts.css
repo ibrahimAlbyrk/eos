@@ -294,9 +294,7 @@
 .acc-keyedit__head { display: flex; align-items: center; gap: 10px; }
 .acc-keyedit__head b { flex: 1; font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
 
-/* ---- sidebar row + provider picker ----------------------- */
-.sb-settings__accounts { flex-shrink: 0; display: inline-flex; gap: 6px; }
-
+/* ---- provider picker ------------------------------------- */
 .model-popover.mp-accounts { width: 260px; }
 .mp-row .mp-connect {
   margin-left: auto;

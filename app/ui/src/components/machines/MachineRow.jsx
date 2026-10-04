@@ -34,7 +34,8 @@ export function MachineRow({ live }) {
   const host = remote ? hosts.find((h) => h.id === currentHost()?.id) ?? null : null;
   const name = remote ? hostLabel(host ?? currentHost()) : local?.name ?? "This Mac";
   const tone = remote ? linkTone(host?.link) : "ok";
-  const meta = !remote ? "This Mac"
+  // Only a remote view needs a route label; the local machine is the default.
+  const meta = !remote ? null
     : host?.link?.state === "live" ? (host.link.route === "relay" ? "Relay" : host.link.route === "reverse" ? "Tunnel" : "LAN")
     : routeLabel(host?.link).toLowerCase();
 
@@ -55,7 +56,7 @@ export function MachineRow({ live }) {
       >
         <MachineGlyph name={remote ? host?.name ?? name : local?.name} platform={remote ? host?.platform : local?.platform} tone={tone} />
         <span className="machine-row__name">{name}</span>
-        <span className={"machine-row__meta" + (tone === "warn" ? " is-warn" : tone === "err" ? " is-err" : "")}>{meta}</span>
+        {meta && <span className={"machine-row__meta" + (tone === "warn" ? " is-warn" : tone === "err" ? " is-err" : "")}>{meta}</span>}
         <span className="machine-row__chev"><UpDownIcon /></span>
       </button>
       {anchor && (

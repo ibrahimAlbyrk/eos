@@ -222,7 +222,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 .eos-switch:hover, .eos-switch.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); }
 .eos-switch__mark {
-  font-size: var(--text-xl);
+  font-size: var(--text-md);
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--fg);
@@ -261,18 +261,20 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 .sb-nav-row.on .sb-nav-row__label { font-weight: 500; }
 .sb-nav-row__meta {
   margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   color: var(--fg-faint);
 }
 
-/* ── Section label (Projects / Recent / Groups) + view-options filter ─────── */
+/* ── Section label (Projects / Recents / Layouts …) + its trailing button ─── */
+/* The text lines up with the rows' content edge (list padding 8 + row 10). */
 .sb-seclabel {
   position: relative;
   display: flex; align-items: center;
-  padding: 0 4px 10px 10px;
+  padding: 0 12px 10px 18px;
   flex-shrink: 0;
 }
+.agents-section .sb-seclabel, .layout-groups .sb-seclabel { padding-left: 10px; padding-right: 4px; }
 .sb-seclabel__text { font-size: var(--text-xs); color: var(--fg-faint); }
 .sb-seclabel__filter {
   margin-left: auto; margin-top: -3px;
@@ -295,13 +297,13 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   overflow: visible;
 }
 
-/* Settings footer — profile row (avatar + name + gear), under a centered
+/* Settings footer — one row (machine + account avatar), under a centered
    hairline that fades out at both ends. */
 .sb-settings {
   position: relative;
   margin-top: auto;
-  display: flex; align-items: center; gap: 11px;
-  padding: 14px 16px 16px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 12px 12px 8px;
   color: var(--fg-mid);
   font-size: var(--text-base);
 }
@@ -318,21 +320,25 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   background: linear-gradient(140deg, var(--fg-mute), var(--chip));
   flex-shrink: 0;
 }
-.sb-settings__name {
-  flex: 1; min-width: 0;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-/* Avatar + name open the Account menu (AccountMenu.jsx). */
+/* The avatar opens the Account menu (AccountMenu.jsx). */
 .sb-settings__account {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 11px;
-  margin: -6px -8px;
-  padding: 6px 8px;
+  position: relative;
+  flex-shrink: 0;
+  width: 34px; height: 34px;
+  display: inline-flex; align-items: center; justify-content: center;
   border-radius: var(--r-row);
-  text-align: left;
 }
 .sb-settings__account:hover,
 .sb-settings__account.on { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
+/* An expired plan sign-in. */
+.sb-settings__alert {
+  position: absolute;
+  right: 5px; bottom: 5px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--err);
+  box-shadow: 0 0 0 2px var(--side-surface);
+}
 
 /* ============================================================================
    SIDEBAR · AGENTS SECTION
@@ -415,16 +421,19 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 /* Project group: a folder header (folder icon + name) above that project's rows. */
 .agents-group { display: flex; flex-direction: column; gap: 1px; }
 .agents-group + .agents-group { margin-top: 12px; }
+.agents-group + .agents-group--recents { margin-top: 20px; }
 .agents-group__head {
   display: flex; align-items: center;
   gap: 9px;
+  min-height: 28px;
+  box-sizing: border-box;
   padding: 5px 8px 3px 10px;
 }
 .agents-group__icon { display: inline-flex; color: var(--fg-dim2); flex-shrink: 0; }
 .agents-group__name {
   flex: 1; min-width: 0;
   font-size: var(--text-sm); font-weight: 500;
-  color: var(--fg-dim);
+  color: var(--fg-mid);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .agents-group__add {
@@ -432,11 +441,22 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex-shrink: 0;
   color: var(--fg-faint);
 }
+/* Folded project: row count + the strongest signal inside. */
+.agents-group__meta {
+  display: inline-flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.agents-group__meta .ag-status {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-faint);
+}
 
 .agents-row {
   display: flex; align-items: center;
   gap: 9px;
-  padding: 7px 10px;
+  padding: 5px 10px;
   border-radius: var(--r-row);
   cursor: pointer;
   font-size: var(--text-sm);
@@ -470,9 +490,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.agents-row.on .ag-name { color: var(--fg-strong); }
-.agents-row .ag-name.main { font-weight: 500; }
-.agents-row.on .ag-name.main { font-weight: 500; }
+.agents-row.on .ag-name { color: var(--fg-strong); font-weight: 500; }
 .ag-def { color: var(--fg-faint); font-weight: 400; }
 .ag-git-badge { display: inline-flex; align-items: center; color: var(--fg-dim2); flex-shrink: 0; }
 .agents-row .ag-rename-input {
@@ -487,12 +505,39 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   outline: none;
 }
 .agents-row .ag-status {
-  font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
   color: var(--fg-faint);
   flex-shrink: 0;
 }
 .agents-row.on .ag-status { color: var(--fg-dim); }
+
+/* Row signals (lib/rowSignal.js) — only the most urgent one shows. */
+.ag-spin { flex-shrink: 0; animation: eos-spin 0.9s linear infinite; }
+.ag-spin circle { fill: none; stroke: color-mix(in srgb, var(--ok) 22%, transparent); stroke-width: 2; }
+.ag-spin path { fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; }
+@media (prefers-reduced-motion: reduce) { .ag-spin { animation: none; } }
+.ag-ask {
+  flex-shrink: 0;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  padding: 0 6px;
+  border-radius: var(--r-kbd);
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 15%, transparent);
+}
+.ag-wait {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+}
+/* Recents rows: a chat glyph in the toggle column marks a project-less session. */
+.agents-row .ag-lead { color: var(--fg-faint); }
+.agents-row--more { width: 100%; text-align: left; }
+.agents-row--more .ag-name { color: var(--fg-faint); font-size: var(--text-xs); }
+.agents-row--more:hover .ag-name { color: var(--fg-dim); }
 
 /* Compact "loop" badge after an agent name; status tints the pill. */
 .agents-row .ag-loop-badge {
@@ -522,7 +567,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 @media (prefers-reduced-motion: reduce) { .agents-row .ag-loop-badge.st-checking { animation: none; } }
 
 /* New-output cue: a static 7px accent dot in place of the meta text. */
-.agents-row .ag-notify, .pane-head .ag-notify {
+.agents-row .ag-notify, .pane-head .ag-notify, .agents-group__meta .ag-notify {
   width: 7px; height: 7px;
   border-radius: 50%;
   background: var(--accent);
@@ -603,9 +648,10 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   background: var(--fg-mute);
   border-radius: 1px;
 }
-/* Agents sidebar: childless rows drop the leaf dash and sit back into the freed
-   toggle column. The Files tree keeps the base spacer + dash. */
-.agents-row .tree-chev-spacer { width: 6px; }
+/* Agents sidebar: childless rows keep the full toggle column (no leaf dash), so
+   every name starts at the same x as its project's name. The Files tree keeps
+   the base spacer + dash. */
+.agents-row .tree-chev, .agents-row .tree-chev-spacer { margin-right: 0; }
 .agents-row .tree-chev-spacer::before { content: none; }
 .tree-node.collapsed > .tree-children { display: none; }
 
