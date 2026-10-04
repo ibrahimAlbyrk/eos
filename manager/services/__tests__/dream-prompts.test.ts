@@ -21,7 +21,7 @@ describe("dream prompts", () => {
     assert.match(consolidate, /<observations>\no1\n<\/observations>/);
     for (const id of ["dream/recall-system", "dream/consolidate-system"]) {
       const text = prompts.render(id);
-      assert.match(text, /ONE JSON object/);
+      assert.match(text, /ONE call to the StructuredOutput tool/);
       assert.doesNotMatch(text, /\{\{/);
     }
   });

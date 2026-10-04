@@ -37,9 +37,11 @@ const LINES: Record<string, DreamLine[]> = {
 };
 
 const recall = (statement: string, evidence: number[]) =>
-  JSON.stringify({ observations: [{ statement, kind: "preference", scope: "global", evidence }] });
+  ({ observations: [{ statement, kind: "preference", scope: "global", evidence }] });
 
-function setup(opts: { replies?: (prompt: string) => string; stopAfter?: number; profile?: Partial<UserProfile> } = {}) {
+const SCHEMAS = { recall: { title: "recall" }, consolidate: { title: "consolidate" } };
+
+function setup(opts: { replies?: (prompt: string) => unknown; stopAfter?: number; profile?: Partial<UserProfile> } = {}) {
   const repo = memRepo();
   const store = new Map<string, UserMemory>();
   let n = 0;
@@ -52,24 +54,27 @@ function setup(opts: { replies?: (prompt: string) => string; stopAfter?: number;
   });
   const profile = { ...emptyUserProfile(), ...opts.profile };
   const prompts: string[] = [];
+  const schemas: unknown[] = [];
   let summaries = 0;
   const deps: DreamDeps = {
     repo,
     summarizer: {
-      summarize: async ({ prompt }) => {
+      summarizeStructured: async ({ prompt, schema }) => {
         prompts.push(prompt);
+        schemas.push(schema);
         summaries++;
         if (opts.replies) return opts.replies(prompt);
         if (prompt.startsWith("dream/recall")) {
           return prompt.includes("profile-design") ? recall("Wants a deep think-through first.", [11]) : recall("Keeps diffs surgical.", [21]);
         }
-        return JSON.stringify({
+        return {
           narrative: "You asked for depth.",
           proposals: [{ kind: "new", text: "Wants a deep think-through before any design or plan.", category: "work-style", scope: "global", confidence: 3, evidence: [11] }],
           dropped: { oneOff: 2 },
-        });
+        };
       },
     },
+    schemas: SCHEMAS,
     prompts: { render: (id, vars) => `${id} ${JSON.stringify(vars ?? {})}` },
     sessions: () => CHATS,
     lines: (id, after) => (LINES[id] ?? []).filter((l) => l.id > after),
@@ -81,13 +86,14 @@ function setup(opts: { replies?: (prompt: string) => string; stopAfter?: number;
     timeoutMs: 1000,
     shouldStop: () => opts.stopAfter !== undefined && summaries >= opts.stopAfter,
   };
-  return { deps, repo, memories, prompts };
+  return { deps, repo, memories, prompts, schemas };
 }
 
 describe("dreamOverChats", () => {
   it("reads finished chats, files proposals with evidence, moves watermarks", async () => {
-    const { deps, repo, memories, prompts } = setup();
+    const { deps, repo, memories, prompts, schemas } = setup();
     const run = await dreamOverChats(deps, { trigger: "nightly" });
+    assert.deepEqual(schemas, [SCHEMAS.recall, SCHEMAS.recall, SCHEMAS.consolidate]);
     assert.equal(run.status, "done");
     assert.equal(run.chatsRead, 2); // the working chat is skipped
     assert.equal(run.observations, 2);
@@ -132,9 +138,9 @@ describe("dreamOverChats", () => {
     assert.deepEqual([repo.watermark("w-1"), repo.watermark("w-2")], [30, 0]);
   });
 
-  it("an unparseable consolidation fails without filing or moving watermarks", async () => {
+  it("a consolidation off its schema fails without filing or moving watermarks", async () => {
     const { deps, repo, memories } = setup({
-      replies: (p) => (p.startsWith("dream/recall") ? recall("Something lasting.", [11]) : "I think the user is great"),
+      replies: (p) => (p.startsWith("dream/recall") ? recall("Something lasting.", [11]) : { proposals: "nope" }),
     });
     const run = await dreamOverChats(deps, { trigger: "nightly" });
     assert.equal(run.status, "failed");

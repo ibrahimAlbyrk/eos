@@ -26,7 +26,9 @@ const MEMORY_LIST_MAX = 200;
 
 export interface DreamDeps {
   readonly repo: DreamRepo;
-  readonly summarizer: ConversationSummarizer;
+  readonly summarizer: Pick<ConversationSummarizer, "summarizeStructured">;
+  // JSON Schemas of the recall and consolidation answers (from the contracts' zod schemas).
+  readonly schemas: { readonly recall: Record<string, unknown>; readonly consolidate: Record<string, unknown> };
   readonly prompts: PromptRenderer;
   readonly sessions: () => readonly DreamSession[];
   // A chat's messages after `afterId`, oldest first, ids kept.
@@ -94,8 +96,8 @@ export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTri
       CHAT: chat.name, PROJECT: chat.project ?? "no folder", TRANSCRIPT: rendered.text,
     });
     try {
-      const out = await deps.summarizer.summarize({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs });
-      tokens += estimateTokens(system + prompt + out);
+      const out = await deps.summarizer.summarizeStructured({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs, schema: deps.schemas.recall });
+      tokens += estimateTokens(system + prompt + JSON.stringify(out));
       const obs = parseRecall(out).filter((o) => !looksSecret(o.statement));
       for (const [id, line] of rendered.lines) {
         evidence.set(id, { quote: clip(line.text), workerId: chat.workerId, chat: chat.name, eventId: id, by: line.role === "user" ? "user" : "agent" });
@@ -127,15 +129,15 @@ export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTri
     PROFILE: deps.profileDigest(),
     PROJECTS: projects.join("\n") || "(none — only no-folder chats)",
   });
-  let out: string;
+  let out: unknown;
   try {
-    out = await deps.summarizer.summarize({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs });
+    out = await deps.summarizer.summarizeStructured({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs, schema: deps.schemas.consolidate });
   } catch (e) {
     return finish({ status: "failed", reason: `Couldn't weigh what it noticed: ${e instanceof Error ? e.message : String(e)}` });
   }
-  tokens += estimateTokens(system + prompt + out);
+  tokens += estimateTokens(system + prompt + JSON.stringify(out));
   const parsed = parseConsolidation(out);
-  if (!parsed) return finish({ status: "failed", reason: "The dream's answer didn't parse — nothing was filed.", tokens });
+  if (!parsed) return finish({ status: "failed", reason: "The dream's answer didn't match its schema — nothing was filed.", tokens });
 
   // ---- file ----
   const check = checkProposals(parsed.proposals, memories, projects);

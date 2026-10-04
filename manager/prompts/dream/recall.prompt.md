@@ -12,4 +12,4 @@ Project: {{PROJECT}}
 {{TRANSCRIPT}}
 </transcript>
 
-Return the JSON object now.
+Call StructuredOutput with your answer now.

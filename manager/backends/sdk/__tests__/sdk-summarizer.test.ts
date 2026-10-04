@@ -42,6 +42,20 @@ describe("SdkSummarizer", () => {
     assert.equal((seen[0].options as unknown as Record<string, unknown>).model, "sonnet");
   });
 
+  it("asks for a structured answer through the schema and returns it as data", async () => {
+    const schema = { type: "object", properties: { a: { type: "integer" } } };
+    const { s, seen } = summarizer(async function* () {
+      yield { type: "assistant", message: { content: [{ type: "text", text: "Here it is." }] } };
+      yield { type: "result", subtype: "success", structured_output: { a: 1 } };
+    });
+    assert.deepEqual(await s.summarizeStructured({ ...input, schema }), { a: 1 });
+    assert.deepEqual((seen[0].options as unknown as Record<string, unknown>).outputFormat, { type: "json_schema", schema });
+    const plain = summarizer(async function* () { yield { type: "result", subtype: "success" }; });
+    await assert.rejects(plain.s.summarizeStructured({ ...input, schema }), /no structured output/);
+    await plain.s.summarize(input);
+    assert.equal((plain.seen[1].options as unknown as Record<string, unknown>).outputFormat, undefined);
+  });
+
   it("rejects without a subscription credential, and on timeout", async () => {
     await assert.rejects(summarizer(async function* () { yield { type: "result", subtype: "success" }; }, "none").s.summarize(input), /no Claude credential/);
     const { s } = summarizer((p) => (async function* () {

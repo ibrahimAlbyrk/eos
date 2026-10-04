@@ -1,6 +1,6 @@
 // Dreaming rules — pure. When a nightly dream is due, how a chat is rendered for
 // the recall pass (event-id tagged, secrets scrubbed, budgeted), and how the
-// model's JSON becomes proposals the memory service can accept. Anything that
+// model's answer becomes proposals the memory service can accept. Anything that
 // doesn't validate is counted and dropped, never half-applied.
 
 import type { MessageRole } from "./message-normalize.ts";
@@ -143,25 +143,15 @@ function clip(text: string, max: number): string {
 
 // ---- model output -----------------------------------------------------------
 
-// The first JSON object in the reply (models wrap it in prose or fences).
-export function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    return JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
-  }
-}
-
-export function parseRecall(text: string): DreamObservation[] {
-  const r = DreamRecallOutputSchema.safeParse(extractJson(text));
+// The model answers through a schema-checked tool, so this is a last check that
+// also applies the schema's defaults and trimming.
+export function parseRecall(answer: unknown): DreamObservation[] {
+  const r = DreamRecallOutputSchema.safeParse(answer);
   return r.success ? r.data.observations : [];
 }
 
-export function parseConsolidation(text: string): DreamConsolidateOutput | null {
-  const r = DreamConsolidateOutputSchema.safeParse(extractJson(text));
+export function parseConsolidation(answer: unknown): DreamConsolidateOutput | null {
+  const r = DreamConsolidateOutputSchema.safeParse(answer);
   return r.success ? r.data : null;
 }
 

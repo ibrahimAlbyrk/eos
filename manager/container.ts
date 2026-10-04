@@ -93,6 +93,8 @@ import { DreamService } from "./services/DreamService.ts";
 import { dreamOverChats } from "../core/src/use-cases/DreamOverChats.ts";
 import { normalizeEventRow } from "../core/src/domain/message-normalize.ts";
 import type { DreamLine, DreamSession } from "../core/src/domain/dream.ts";
+import { DreamConsolidateOutputSchema, DreamRecallOutputSchema } from "../contracts/src/dream.ts";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
@@ -1474,10 +1476,15 @@ export function buildContainer() {
       const m = normalizeEventRow(row);
       return m ? [{ id: row.id, role: m.role, text: m.text }] : [];
     });
+  const dreamSchemas = {
+    recall: zodToJsonSchema(DreamRecallOutputSchema, { $refStrategy: "none" }) as Record<string, unknown>,
+    consolidate: zodToJsonSchema(DreamConsolidateOutputSchema, { $refStrategy: "none" }) as Record<string, unknown>,
+  };
   const dreams = new DreamService({
     run: ({ trigger, onProgress, shouldStop }) => dreamOverChats({
       repo: dreamRepo,
       summarizer,
+      schemas: dreamSchemas,
       prompts,
       sessions: dreamSessions,
       lines: dreamLines,

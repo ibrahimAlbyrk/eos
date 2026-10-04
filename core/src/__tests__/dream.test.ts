@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import {
-  checkProposals, extractJson, isAwayDue, isNightlyDue, looksSecret, nextNightly, nightlySlot,
+  checkProposals, isAwayDue, isNightlyDue, looksSecret, nextNightly, nightlySlot,
   parseConsolidation, parseRecall, renderChatForDream, scrubSecrets,
 } from "../domain/dream.ts";
 import type { UserMemory } from "../../../contracts/src/profile.ts";
@@ -67,12 +67,11 @@ describe("dream rendering", () => {
 });
 
 describe("dream model output", () => {
-  it("finds the JSON inside prose or fences; junk is nothing", () => {
-    assert.deepEqual(extractJson('Here:\n```json\n{"a":1}\n```'), { a: 1 });
-    assert.equal(extractJson("no json"), null);
+  it("checks the structured answer against its schema; anything else is nothing", () => {
     assert.deepEqual(parseRecall("garbage"), []);
-    assert.equal(parseConsolidation("{\"proposals\": \"nope\"}"), null);
-    assert.equal(parseRecall('{"observations":[{"statement":"Wants depth.","kind":"preference","scope":"global","evidence":[1]}]}').length, 1);
+    assert.equal(parseConsolidation({ proposals: "nope" }), null);
+    assert.equal(parseRecall({ observations: [{ statement: "Wants depth.", kind: "preference", scope: "global", evidence: [1] }] }).length, 1);
+    assert.deepEqual(parseConsolidation({ proposals: [] })?.dropped, {});
   });
 
   const mem = (id: string, scope: UserMemory["scope"] = { kind: "global" }, status: UserMemory["status"] = "active"): UserMemory => ({

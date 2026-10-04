@@ -12,6 +12,14 @@ export interface SummarizeInput {
   readonly timeoutMs: number;
 }
 
+export interface StructuredSummarizeInput extends SummarizeInput {
+  /** JSON Schema of the answer. The model hands it over through a schema-checked
+   *  tool call instead of free text, so there is no reply to parse. */
+  readonly schema: Record<string, unknown>;
+}
+
 export interface ConversationSummarizer {
   summarize(input: SummarizeInput): Promise<string>;
+  /** The answer as data matching `schema`; rejects when none comes back. */
+  summarizeStructured(input: StructuredSummarizeInput): Promise<unknown>;
 }

@@ -6,7 +6,7 @@
 
 import { query as realQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
-import type { ConversationSummarizer, SummarizeInput } from "../../../core/src/ports/ConversationSummarizer.ts";
+import type { ConversationSummarizer, StructuredSummarizeInput, SummarizeInput } from "../../../core/src/ports/ConversationSummarizer.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { SdkQueryFn, SdkQueryHandle } from "./ClaudeSdkBackend.ts";
 import { buildBillingGuardEnv, hasClaudeCredential } from "./billing-env.ts";
@@ -27,6 +27,7 @@ type SdkOutput = {
   type?: string;
   subtype?: string;
   message?: { content?: Array<{ type?: string; text?: string }> };
+  structured_output?: unknown;
 };
 
 async function* single(text: string): AsyncIterable<unknown> {
@@ -35,47 +36,60 @@ async function* single(text: string): AsyncIterable<unknown> {
 
 export function createSdkSummarizer(deps: SdkSummarizerDeps): ConversationSummarizer {
   const queryFn: SdkQueryFn = deps.queryFn ?? ((p) => realQuery(p as never) as unknown as SdkQueryHandle);
+  // With a schema, the SDK gives the model a StructuredOutput tool that checks the
+  // answer against it (sending errors back to fix) and returns it on the result.
+  const run = async (input: SummarizeInput, schema?: Record<string, unknown>): Promise<{ text: string; structured: unknown }> => {
+    const auth = await deps.authResolver.resolve({ kind: "subscription" });
+    const anthropic = deps.getAnthropicConfig?.() ?? {};
+    if (!hasClaudeCredential(anthropic, auth)) throw new Error("no Claude credential for the summarizer");
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), input.timeoutMs);
+    const options = {
+      model: input.model ?? deps.defaultModel,
+      cwd: deps.cwd,
+      env: buildBillingGuardEnv({
+        auth, anthropic, workerId: "compaction-summarizer",
+        daemonUrl: deps.daemonUrl, disableAutoCompact: true, claudeStore: deps.claudeStore,
+      }),
+      systemPrompt: input.system,
+      tools: [],
+      mcpServers: {},
+      strictMcpConfig: true,
+      settingSources: [],
+      persistSession: false,
+      maxTurns: 1,
+      abortController: abort,
+      ...(schema ? { outputFormat: { type: "json_schema", schema } } : {}),
+    } as Options;
+    let text = "";
+    let structured: unknown;
+    try {
+      for await (const raw of queryFn({ prompt: single(input.prompt), options })) {
+        const msg = raw as SdkOutput;
+        if (msg.type === "assistant") {
+          for (const b of msg.message?.content ?? []) if (b.type === "text" && b.text) text += b.text;
+        } else if (msg.type === "result") {
+          if (msg.subtype !== "success") throw new Error(`summarizer ended with ${msg.subtype ?? "an error"}`);
+          structured = msg.structured_output;
+          break;
+        }
+      }
+    } catch (e) {
+      if (abort.signal.aborted) throw new Error(`summarizer timed out after ${Math.round(input.timeoutMs / 1000)}s`, { cause: e });
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+    return { text, structured };
+  };
   return {
     async summarize(input: SummarizeInput): Promise<string> {
-      const auth = await deps.authResolver.resolve({ kind: "subscription" });
-      const anthropic = deps.getAnthropicConfig?.() ?? {};
-      if (!hasClaudeCredential(anthropic, auth)) throw new Error("no Claude credential for the summarizer");
-      const abort = new AbortController();
-      const timer = setTimeout(() => abort.abort(), input.timeoutMs);
-      const options = {
-        model: input.model ?? deps.defaultModel,
-        cwd: deps.cwd,
-        env: buildBillingGuardEnv({
-          auth, anthropic, workerId: "compaction-summarizer",
-          daemonUrl: deps.daemonUrl, disableAutoCompact: true, claudeStore: deps.claudeStore,
-        }),
-        systemPrompt: input.system,
-        tools: [],
-        mcpServers: {},
-        strictMcpConfig: true,
-        settingSources: [],
-        persistSession: false,
-        maxTurns: 1,
-        abortController: abort,
-      } as Options;
-      let text = "";
-      try {
-        for await (const raw of queryFn({ prompt: single(input.prompt), options })) {
-          const msg = raw as SdkOutput;
-          if (msg.type === "assistant") {
-            for (const b of msg.message?.content ?? []) if (b.type === "text" && b.text) text += b.text;
-          } else if (msg.type === "result") {
-            if (msg.subtype !== "success") throw new Error(`summarizer ended with ${msg.subtype ?? "an error"}`);
-            break;
-          }
-        }
-      } catch (e) {
-        if (abort.signal.aborted) throw new Error(`summarizer timed out after ${Math.round(input.timeoutMs / 1000)}s`, { cause: e });
-        throw e;
-      } finally {
-        clearTimeout(timer);
-      }
-      return text;
+      return (await run(input)).text;
+    },
+    async summarizeStructured(input: StructuredSummarizeInput): Promise<unknown> {
+      const { structured } = await run(input, input.schema);
+      if (structured === undefined) throw new Error("summarizer returned no structured output");
+      return structured;
     },
   };
 }
