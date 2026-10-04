@@ -644,7 +644,7 @@ export function Messages({ live, agentId, isActive = true }) {
           ].filter(Boolean).join(" ") || undefined;
           const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
           const prevTs = blocks[i - 1]?.ts;
-          if (b.kind !== "user" || prevTs == null || sameDay(b.ts, prevTs)) return row;
+          if (b.kind !== "user" || sameDay(b.ts, prevTs ?? Date.now())) return row;
           return <Fragment key={key}><DayDivider ts={b.ts} />{row}</Fragment>;
         })}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
@@ -678,7 +678,8 @@ function blockKey(b, i) {
   }
 }
 
-// A user message sent on a later local day than the previous block gets a date divider.
+// A user message sent on a later local day than the previous block gets a date
+// divider; the first block has none before it, so it's compared to today.
 function sameDay(a, b) {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
