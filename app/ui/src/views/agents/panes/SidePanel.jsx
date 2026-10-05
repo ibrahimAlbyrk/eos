@@ -1,6 +1,6 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { SidePanelScopeContext } from "../../../state/paneScope.js";
+import { SidePanelScopeContext, SidePanelVisibleContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import { tabType, filePathOf, pageIdOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
@@ -10,13 +10,15 @@ import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx
 import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
+import { SidePanelTabs } from "./SidePanelTabs.jsx";
 import { TAB_ICONS, TAB_LABELS } from "./panelTabMeta.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area and the file
 // dock under it, plus a 6px invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
 // via PaneScopeContext), so every read/action here resolves to that pane; it
-// returns null when that pane's panel is closed. Pills render ONLY the open tabs;
+// renders nothing until that pane's panel first opens, then stays mounted
+// (hidden while closed) so open tabs keep their state. Pills render ONLY the open tabs;
 // + opens a new-tab launcher (search, tools, pages, suggested sites) that turns
 // into whatever it opens, and an open panel with no tabs shows that launcher.
 // A file opened from inside the panel shows in the dock (one opened from
@@ -153,9 +155,13 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   const open = ui.showSidePanel;
   const [wasOpen, setWasOpen] = useState(open);
   const [slide, setSlide] = useState(null);
+  // Once opened, the panel stays mounted (hidden while closed) so its tabs keep
+  // their state across a close/reopen.
+  const [opened, setOpened] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     setSlide(open ? "open" : "close");
+    if (open) setOpened(true);
   }
 
   // While sliding, the contents hold the final width (right-anchored, clipped by
@@ -172,7 +178,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   const toggle = <SidePanelToggle open={open} onToggle={ui.toggleSidePanel} />;
 
   // All hooks above run every render; only the JSX is gated on open.
-  if (!open && slide !== "close") return toggle;
+  if (!opened) return toggle;
+  const shown = open || slide === "close";
 
   const fullscreen = ui.panelFullscreen;
   const dock = ui.fileDock;
@@ -183,6 +190,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
       <aside
         className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "") + (slide ? ` side-panel--${slide}` : "")}
         ref={asideRef}
+        hidden={!shown}
         style={{ "--sp-w": (ui.sidePanelWidth || DEFAULT_PANEL_FRAC) * 100 + "vw" }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setSlide(null); }}
@@ -212,16 +220,17 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
           </span>
         </div>
         <SidePanelScopeContext.Provider value={true}>
-          <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
-            {(panel || !dockOpen) && (
-              <div className="sp-content">
-                {panel
-                  ? <panel.Component key={activeTab} live={live} tabId={activeTab} tools={tabs} />
-                  : <NewTabPanel live={live} tools={tabs} />}
-              </div>
-            )}
-            {dockOpen && <FileDock live={live} fill={!panel} />}
-          </div>
+          <SidePanelVisibleContext.Provider value={shown}>
+            <div className={"sp-body" + (panel && dockOpen && dock.max ? " sp-body--dock-max" : "")}>
+              {(panel || !dockOpen) && (
+                <div className="sp-content">
+                  <SidePanelTabs openTabs={openTabs} activeTab={activeTab} shown={shown} live={live} tools={tabs} />
+                  {!panel && <NewTabPanel live={live} tools={tabs} />}
+                </div>
+              )}
+              {dockOpen && <FileDock live={live} fill={!panel} />}
+            </div>
+          </SidePanelVisibleContext.Provider>
         </SidePanelScopeContext.Provider>
       </aside>
       {toggle}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useSidePanelVisible } from "../../../state/paneScope.js";
 import { fileTabId } from "../../../lib/panelTabs.js";
 import { currentFile, stepFile, closeDock, dropFile, setDockHeight, toggleDockMax } from "../../../lib/fileDock.js";
 import { FileView } from "../messages/FileViewer.jsx";
@@ -17,6 +18,7 @@ const ICON = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "none", stroke
 // the file into its own tab. `fill` = no tab above, so the dock takes the body.
 export function FileDock({ live, fill }) {
   const ui = useUi();
+  const visible = useSidePanelVisible();
   const dock = ui.fileDock;
   const path = currentFile(dock);
   const ref = useRef(null);
@@ -102,7 +104,7 @@ export function FileDock({ live, fill }) {
         path={path}
         live={live}
         reveal={ui.panelData?.[fileTabId(path)]?.reveal}
-        findActive={focused && ui.focusedRegion === "panel"}
+        findActive={visible && focused && ui.focusedRegion === "panel"}
         findPriority={11}
         onRemove={() => ui.updateDock((d) => dropFile(d, path))}
         lead={lead}

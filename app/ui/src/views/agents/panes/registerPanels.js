@@ -19,7 +19,9 @@ registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
 registerPanel({ type: "file", label: "File", Component: FileViewer });
 registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer });
-registerPanel({ type: "browser", label: "Browser", Component: BrowserPanel });
+// The native page view floats over the DOM, so CSS can't hide it; its tabs and
+// URLs live in browserPanelStore and survive the unmount.
+registerPanel({ type: "browser", label: "Browser", Component: BrowserPanel, keepAlive: false });
 registerPanel({ type: "chatfiles", label: "Chat files", Component: ChatFilesPanel });
 registerPanel({ type: "subagents", label: "Subagents", Component: SubagentsPanel });
 registerPanel({ type: "newtab", label: "New tab", Component: NewTabPanel });

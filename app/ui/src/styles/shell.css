@@ -826,6 +826,10 @@ html.native .single-pane { --spt-top: 12px; }
   overflow: hidden;
 }
 .sp-body--dock-max > .sp-content { flex: 0 0 0; }
+/* One per mounted tab (SidePanelTabs): transparent to layout while shown, gone
+   while another tab is — still mounted, so it keeps its state and scroll. */
+.sp-tab-body { display: contents; }
+.sp-tab-body[hidden], .side-panel[hidden] { display: none; }
 /* File dock (FileDock.jsx): an opened file shows here, under the active tab.
    Its height is a fraction of the body; with no tab above it fills the body. */
 .fdock {

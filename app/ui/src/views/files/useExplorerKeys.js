@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useUi } from "../../state/ui.jsx";
-import { useOriginPane } from "../../state/paneScope.js";
+import { useOriginPane, useSidePanelVisible } from "../../state/paneScope.js";
 import { explorer } from "../../state/explorerStore.js";
 import { flattenVisible } from "../../lib/explorerNodes.js";
 import { parentDir } from "../../lib/explorerApi.js";
@@ -13,7 +13,8 @@ import { parentDir } from "../../lib/explorerApi.js";
 export function useExplorerKeys() {
   const ui = useUi();
   const paneId = useOriginPane() ?? ui.focusedLeafId;
-  const enabled = paneId === ui.focusedLeafId && ui.focusedRegion === "panel";
+  const visible = useSidePanelVisible();
+  const enabled = visible && paneId === ui.focusedLeafId && ui.focusedRegion === "panel";
   const openFileRef = useRef(ui.openFile);
   openFileRef.current = ui.openFile;
 

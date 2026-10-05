@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { sessionRootOf } from "../../../lib/agentIndex.js";
 import { usePanelHost } from "../../../state/panelHost.js";
+import { useSidePanelVisible } from "../../../state/paneScope.js";
 import { subscribe, getPtyPanel, openTab, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
 import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
@@ -44,6 +45,7 @@ export function TerminalViewer({ live, tabId }) {
 }
 
 function TerminalViewerInner({ paneId, cwd }) {
+  const visible = useSidePanelVisible();
   const { tabs, activeId } = useSyncExternalStore(
     useCallback((cb) => subscribe(paneId, cb), [paneId]),
     useCallback(() => getPtyPanel(paneId), [paneId]),
@@ -75,7 +77,7 @@ function TerminalViewerInner({ paneId, cwd }) {
     <PanelShell type="terminal">
       <div className="pty-body">
         {tabs.map((t) => (
-          <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} />
+          <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} paused={!visible} />
         ))}
       </div>
     </PanelShell>

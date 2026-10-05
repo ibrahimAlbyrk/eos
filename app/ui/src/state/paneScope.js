@@ -11,3 +11,10 @@ export const useOriginPane = () => useContext(PaneScopeContext);
 // True inside a side panel's body: a file opened from there lands in the panel's
 // dock; opened from anywhere else (transcript, header) it gets its own tab.
 export const SidePanelScopeContext = createContext(false);
+
+// False inside a side-panel subtree kept mounted off screen (another tab is
+// shown, or the panel is closed) so it keeps its state — keyboard handlers and
+// terminals stand down there. True everywhere else.
+export const SidePanelVisibleContext = createContext(true);
+
+export const useSidePanelVisible = () => useContext(SidePanelVisibleContext);

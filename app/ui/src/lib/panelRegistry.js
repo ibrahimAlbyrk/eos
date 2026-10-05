@@ -3,7 +3,8 @@
 // chatfiles) register once at module load (side-effect of importing
 // panes/registerPanels.js); SidePanel reads getPanel(activeTab).Component.
 //
-// descriptor: { type, label, Component }
+// descriptor: { type, label, Component, keepAlive? } — keepAlive:false mounts the
+// tab only while it's shown (default: kept mounted, hidden, until closed).
 
 const registry = new Map();
 

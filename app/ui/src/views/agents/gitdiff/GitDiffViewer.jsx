@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useSidePanelVisible } from "../../../state/paneScope.js";
 import { api } from "../../../api/client.js";
 import { notify } from "../../../lib/notify.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { useGitScopeChanges } from "../../../hooks/useGitScopeChanges.js";
-import { consumeStashFocus } from "../../../state/gitDiffIntent.js";
+import { consumeStashFocus, subscribeStashFocus, stashFocusRequests } from "../../../state/gitDiffIntent.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
 import { BranchConfirmDialog } from "../popovers/BranchConfirmDialog.jsx";
 import { ChangesHeader } from "./ChangesHeader.jsx";
@@ -88,16 +89,17 @@ function GitDiffViewerInner({ cwd, worker, live }) {
   }, []);
   useEffect(() => { resetFor(DEFAULT_SCOPE); }, [cwd, resetFor]);
 
-  // Opened via the composer stash chip: show the newest stash.
-  const stashFocus = useRef(consumeStashFocus());
+  // Opened via the composer stash chip: show the newest stash — on mount, on
+  // being shown, or on a request while already shown.
+  const visible = useSidePanelVisible();
+  const stashAsks = useSyncExternalStore(subscribeStashFocus, stashFocusRequests);
   useEffect(() => {
-    if (!stashFocus.current) return;
-    stashFocus.current = false;
+    if (!visible || !consumeStashFocus()) return;
     api.getGitStashes(cwd).then((r) => {
       const top = r.stashes?.[0];
       if (top) resetFor({ kind: "commit", sha: top.sha, subject: top.subject, stash: top.index });
     });
-  }, [cwd, resetFor]);
+  }, [cwd, resetFor, visible, stashAsks]);
 
   const { changes, patches, loadPatch, refresh } = useGitScopeChanges(cwd, scope);
   const files = useMemo(() => changes?.files ?? (changes ? [] : null), [changes]);

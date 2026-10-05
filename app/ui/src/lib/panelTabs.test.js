@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_TABS, openTab, openNewTab, closeTab, activateTab, tabType, fileTabId, filePathOf, replaceTab, newTabId, pageTabId, pageIdOf } from "./panelTabs.js";
+import { EMPTY_TABS, openTab, openNewTab, closeTab, activateTab, tabType, fileTabId, filePathOf, replaceTab, newTabId, pageTabId, pageIdOf, mountedTabs } from "./panelTabs.js";
 
 describe("panelTabs", () => {
   it("opens tabs in order and activates the opened one", () => {
@@ -129,5 +129,21 @@ describe("panelTabs replace (new-tab launcher)", () => {
     expect(s.openTabs).toEqual(["page:pg-1"]);
     expect(pageIdOf(s.activeTab)).toBe("pg-1");
     expect(pageIdOf("files")).toBe(null);
+  });
+});
+
+describe("panelTabs mountedTabs (tabs kept alive)", () => {
+  it("keeps every tab shown once mounted, in tab order, while another is shown", () => {
+    expect(mountedTabs(new Set(["files", "review"]), ["review", "terminal:1", "files"], "review", true)).toEqual(["review", "files"]);
+  });
+
+  it("mounts the active tab only while the panel is on screen", () => {
+    expect(mountedTabs(new Set(), ["review", "files"], "files", true)).toEqual(["files"]);
+    expect(mountedTabs(new Set(), ["review", "files"], "files", false)).toEqual([]);
+    expect(mountedTabs(new Set(["files"]), ["review", "files"], "files", false)).toEqual(["files"]);
+  });
+
+  it("drops a closed tab even if it was shown", () => {
+    expect(mountedTabs(new Set(["review", "files"]), ["files"], "files", true)).toEqual(["files"]);
   });
 });

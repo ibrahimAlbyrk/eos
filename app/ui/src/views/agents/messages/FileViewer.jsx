@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useSidePanelVisible } from "../../../state/paneScope.js";
 import { combo } from "../../../keymap/index.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { api } from "../../../api/client.js";
@@ -27,6 +28,7 @@ const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 // A `file:<path>` side-panel tab: a pinned file, one per tab.
 export function FileViewer({ live, tabId }) {
   const ui = useUi();
+  const visible = useSidePanelVisible();
   const path = filePathOf(tabId);
   if (!path) return null;
   return (
@@ -34,7 +36,7 @@ export function FileViewer({ live, tabId }) {
       path={path}
       live={live}
       reveal={ui.panelData?.[tabId]?.reveal}
-      findActive={ui.activeTab === tabId && ui.focusedRegion === "panel"}
+      findActive={visible && ui.focusedRegion === "panel"}
       onRemove={() => ui.closeTab(tabId)}
     />
   );

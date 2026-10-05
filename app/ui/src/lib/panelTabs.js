@@ -90,6 +90,13 @@ export function replaceTab(state, oldId, newId) {
   return { openTabs, activeTab: newId, tabHistory: pushHistory(history, newId) };
 }
 
+// The tabs a panel keeps mounted: every open tab already shown once (so it keeps
+// its state while another is shown), plus the active one while the panel is on
+// screen. A tab restored from a previous session mounts only when first shown.
+export function mountedTabs(seen, openTabs, activeTab, shown) {
+  return openTabs.filter((t) => seen.has(t) || (shown && t === activeTab));
+}
+
 // Close a tab: drop it. When it was the active one, activate the most recently
 // active tab still open; with no history, the neighbor that slides into its
 // slot, else the new last tab, else none. Closing a non-active tab leaves the
