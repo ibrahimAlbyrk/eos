@@ -26,7 +26,7 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { Template, TemplateAttachment } from "../../contracts/src/http.ts";
 
-const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
+export const TEMPLATE_NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export class UserTemplateService {
   private readonly dir: string;
@@ -140,7 +140,7 @@ export class UserTemplateService {
 }
 
 function assertName(name: string): void {
-  if (!NAME_RE.test(name)) throw new Error(`invalid template name: ${name}`);
+  if (!TEMPLATE_NAME_RE.test(name)) throw new Error(`invalid template name: ${name}`);
 }
 
 function isInside(dir: string, target: string): boolean {

@@ -25,6 +25,8 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/api/peer/*"],
   ["*", "/api/hosts/*"],
   ["*", "/api/remote/*"],
+  // The sync key is the account — it never leaves this Mac through a facade.
+  ["*", "/api/sync/*"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];

@@ -14,6 +14,13 @@ export type RelayConfig = {
   // WS ping cadence. A socket that misses one pong is terminated, so a half-open
   // peer (suspended phone, sleeping Mac, dead NAT) is dropped within 2 intervals.
   heartbeatMs: number;
+  // Sync vault (vault/): SQLite file, how many vaults may exist (each is TOFU-pinned by
+  // whoever asks first, so the cap is what keeps a public relay from hosting strangers),
+  // and the per-vault / per-blob size limits.
+  vaultPath: string;
+  maxVaults: number;
+  maxVaultBytes: number;
+  maxBlobBytes: number;
 };
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
@@ -23,5 +30,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): RelayConfig {
     ownerHashPin: env.RELAY_ROOM_OWNER_HASH ? env.RELAY_ROOM_OWNER_HASH.toLowerCase() : null,
     maxRoomDevices: Number(env.RELAY_MAX_ROOM_DEVICES ?? 32),
     heartbeatMs: Number(env.RELAY_HEARTBEAT_MS ?? 30_000),
+    vaultPath: env.RELAY_VAULT_DB ?? "./vault.db",
+    maxVaults: Number(env.RELAY_VAULT_MAX ?? 16),
+    maxVaultBytes: Number(env.RELAY_VAULT_MAX_BYTES ?? 256 * 1024 * 1024),
+    maxBlobBytes: 8 * 1024 * 1024,
   };
 }

@@ -10,5 +10,5 @@
     "strict": true,
     "types": ["node"]
   },
-  "include": ["server.ts", "envelope.ts", "admission.ts", "RoomRegistry.ts", "errors.ts", "apns.ts", "config.ts", "__tests__/*.ts"]
+  "include": ["server.ts", "envelope.ts", "admission.ts", "RoomRegistry.ts", "errors.ts", "apns.ts", "config.ts", "vault/*.ts", "__tests__/*.ts"]
 }

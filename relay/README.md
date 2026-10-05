@@ -40,8 +40,27 @@ npm test             # node strip-types test suite
 | `RELAY_ROOM_OWNER_HASH` | _(unset)_ | optional operator pre-pin of the room-owner hash; unset = trust-on-first-register (TOFU) |
 | `RELAY_MAX_ROOM_DEVICES` | `32` | per-room device cap (`ROOM_FULL` past it) |
 | `RELAY_HEARTBEAT_MS` | `30000` | WS ping cadence; a socket that misses one pong is terminated (half-open peers dropped within ~2 intervals) |
+| `RELAY_VAULT_DB` | `./vault.db` | sync vault SQLite file (`/data/vault.db` in Docker, on the `eos-relay-data` volume) |
+| `RELAY_VAULT_MAX` | `16` | how many vaults may exist; a new one past it is `503 {"error":"vault limit"}` |
+| `RELAY_VAULT_MAX_BYTES` | `268435456` | per-vault blob bytes (256 MiB); a put past it is `507` |
 
 `GET /health` → `200 {"ok":true,"rooms":N}` for proxy/Docker health checks.
+
+## Vault (Eos sync)
+
+Plain HTTP next to the ws listener, backing Mac↔Mac sync (`docs/sync/00-SYNC-PLAN.md`).
+It stores **opaque blobs only**: record keys are HMACs and data is AES-GCM ciphertext
+sealed on the Macs — the relay never sees ids, names or content. It only orders writes
+(one monotonic `seq` per vault) and refuses stale ones. SQLite via `node:sqlite`.
+
+| | |
+|---|---|
+| `GET /vault/v1/:vault/changes?since=N&wait=S&limit=L` | `200 {head, entries:[{key,seq,data}], more}` — entries with `seq > N`, oldest first (`limit` default 100, max 1000); when empty, held up to `S` s (max 25) for a put |
+| `PUT /vault/v1/:vault/records/:key` `{baseSeq, data}` | compare-and-swap: `200 {seq}` · `409 {entry}` when the record's seq isn't `baseSeq` (`entry: null` if it doesn't exist) · `413` blob > 8 MiB · `507` vault quota |
+
+`:vault` is 32 hex chars, `:key` 64; `data` is base64. Every call carries
+`Authorization: Bearer <16–128 chars [A-Za-z0-9_-]>`: the first request for a vault pins
+`SHA-256(token)` (TOFU, as rooms do); a different token is `403`, none `401`.
 
 ## Deploy (coexists with an existing Caddy + Docker on 80/443)
 

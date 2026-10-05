@@ -304,11 +304,11 @@ export const UserMemorySuggestResponseSchema = z.object({
 });
 export type UserMemorySuggestResponse = z.infer<typeof UserMemorySuggestResponseSchema>;
 
-// SSE `user-memory:change` payload.
+// SSE `user-memory:change` payload. by "sync" = arrived from another Mac.
 export const UserMemoryChangeEventSchema = z.object({
   id: UserMemoryIdSchema,
   action: z.enum(["created", "updated", "approved", "dismissed", "deleted"]),
   status: UserMemoryStatusSchema,
-  by: z.enum(["user", "agent", "dream"]),
+  by: z.enum(["user", "agent", "dream", "sync"]),
 });
 export type UserMemoryChangeEvent = z.infer<typeof UserMemoryChangeEventSchema>;

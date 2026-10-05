@@ -16,6 +16,7 @@ import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
 import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
 import { MachinesSettings } from "./MachinesSettings.jsx";
+import { SyncSettings } from "./SyncSettings.jsx";
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -57,6 +58,15 @@ const MachinesIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="12" rx="2" />
     <path d="M8 20h8M12 16v4" />
+  </svg>
+);
+
+const SyncIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 11a8 8 0 0 0-14.3-4.9L4 8" />
+    <path d="M4 4v4h4" />
+    <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
+    <path d="M20 20v-4h-4" />
   </svg>
 );
 
@@ -209,6 +219,14 @@ export const SETTINGS_SECTIONS = [
     // Custom Component: read-only subscription usage (plan limits + reset times),
     // fetched live from /api/usage. Owns no settings.json keys.
     Component: UsageSettings,
+  },
+  {
+    id: "sync",
+    label: "Sync",
+    Icon: SyncIcon,
+    // Custom Component: the sync key and its status (/api/sync). Owns no
+    // settings.json keys — the key lives in ~/.eos/sync.
+    Component: SyncSettings,
   },
   {
     id: "remote",

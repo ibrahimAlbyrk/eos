@@ -34,6 +34,7 @@ const EXPECTED_KEYS = [
   "userMemories", "userMemory", "userMemoryApprove", "userMemoryDismiss", "userMemoriesApproveAll",
   "userMemorySuggest", "userMemorySearch",
   "dreams", "dream", "dreamStatus", "dreamStop", "dreamExclusions",
+  "sync", "syncCreate", "syncJoin", "syncKey", "syncNow", "syncLeave",
   "prompts", "promptPreview", "workerDefinitions",
   "settings", "settingsArchive", "settingsCompaction",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",

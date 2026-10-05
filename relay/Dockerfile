@@ -7,6 +7,12 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY envelope.ts admission.ts errors.ts apns.ts config.ts RoomRegistry.ts server.ts ./
+COPY vault/ ./vault/
+
+# Sync vault database (node:sqlite, unflagged since Node 22.13) on a named volume.
+RUN mkdir -p /data
+ENV RELAY_VAULT_DB=/data/vault.db
+VOLUME /data
 
 ENV RELAY_HOST=0.0.0.0
 ENV RELAY_PORT=3000

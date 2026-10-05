@@ -2440,6 +2440,13 @@ export const ROUTES = {
   dreamStatus: "/api/dreams/status",
   dreamStop: "/api/dreams/stop",
   dreamExclusions: "/api/dreams/exclusions",
+  // Sync (contracts/src/sync.ts). Local-only: a controlling Mac never sees the key.
+  sync: "/api/sync",
+  syncCreate: "/api/sync/create",
+  syncJoin: "/api/sync/join",
+  syncKey: "/api/sync/key",
+  syncNow: "/api/sync/now",
+  syncLeave: "/api/sync/leave",
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   workerExport: (id: string): string => `/workers/${id}/export`,

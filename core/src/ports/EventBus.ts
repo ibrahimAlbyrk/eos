@@ -64,6 +64,9 @@ export type EventBusTopic =
   // A dream started, moved on, or finished (payload DreamChangeEvent) — the
   // Memory view, Settings › Dreaming and the dream log refetch its status.
   | "dream:change"
+  // Sync's status changed (payload SyncStatusResponse) — Settings › Sync refetches
+  // nothing, it renders the payload.
+  | "sync:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

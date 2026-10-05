@@ -8,7 +8,7 @@ export function sha256Hex(input: string | Buffer): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-function constantTimeHexEqual(a: string, b: string): boolean {
+export function constantTimeHexEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
   return timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
 }

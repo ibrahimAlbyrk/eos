@@ -11,6 +11,8 @@ import {
 } from "./envelope.ts";
 import { errorPayload, RelayError, type RelayErrorCode } from "./errors.ts";
 import { sendPushIntent, type PushIntent } from "./apns.ts";
+import { VaultStore } from "./vault/VaultStore.ts";
+import { handleVault, type VaultWaiters } from "./vault/routes.ts";
 
 // The dumb unicast forwarder (protocol §4). A single plain-ws listener fronted by
 // Caddy (which owns TLS/ACME). The relay parses only the outer header and the
@@ -134,14 +136,17 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
   }
 }
 
-export function createRelay(config: RelayConfig): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry } {
+export function createRelay(config: RelayConfig): { httpServer: Server; wss: WebSocketServer; registry: RoomRegistry; vault: VaultStore } {
   const registry = new RoomRegistry({ ownerHashPin: config.ownerHashPin, maxRoomDevices: config.maxRoomDevices });
+  const vault = new VaultStore(config.vaultPath, { maxVaults: config.maxVaults, maxVaultBytes: config.maxVaultBytes });
+  const waiters: VaultWaiters = new Map();
   const httpServer = createServer((req, res) => {
     if (req.method === "GET" && req.url === "/health") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, rooms: registry.roomCount() }));
       return;
     }
+    if (handleVault(req, res, vault, waiters, config)) return;
     res.writeHead(426, { "content-type": "text/plain" });
     res.end("Upgrade Required");
   });
@@ -159,6 +164,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
   }, config.heartbeatMs);
   heartbeat.unref?.();
   wss.on("close", () => clearInterval(heartbeat));
+  httpServer.on("close", () => vault.close());
   wss.on("connection", (ws) => {
     ws.binaryType = "nodebuffer";
     alive.add(ws);
@@ -175,7 +181,7 @@ export function createRelay(config: RelayConfig): { httpServer: Server; wss: Web
     });
     ws.on("error", () => {});
   });
-  return { httpServer, wss, registry };
+  return { httpServer, wss, registry, vault };
 }
 
 function isEntrypoint(): boolean {

@@ -19,4 +19,5 @@ export * from "./accounts.ts";
 export * from "./usage.ts";
 export * from "./profile.ts";
 export * from "./dream.ts";
+export * from "./sync.ts";
 export * from "./util.ts";

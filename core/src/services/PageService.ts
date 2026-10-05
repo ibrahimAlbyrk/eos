@@ -113,6 +113,23 @@ export class PageService {
     }
   }
 
+  // Sync: the page as another Mac has it. The chat link stays this Mac's — chats
+  // don't travel.
+  applySynced(page: Omit<Page, "rev" | "agentId">): Page {
+    const cur = this.deps.store.get(page.id);
+    const saved: Page = { ...page, agentId: cur?.agentId ?? null, rev: (cur?.rev ?? 0) + 1 };
+    this.deps.store.put(saved);
+    this.emit(saved, cur ? "updated" : "created", saved.updatedBy);
+    return saved;
+  }
+
+  removeSynced(id: string): void {
+    const cur = this.deps.store.get(id);
+    if (!cur) return;
+    this.deps.store.remove(id);
+    this.emit(cur, "deleted", cur.updatedBy);
+  }
+
   private write(cur: Page, next: { title: string; body: string }, by: PageAuthor): Page {
     if (next.title === cur.title && next.body === cur.body) return cur;
     const page: Page = { ...cur, ...next, rev: cur.rev + 1, updatedAt: this.deps.clock.now(), updatedBy: by };

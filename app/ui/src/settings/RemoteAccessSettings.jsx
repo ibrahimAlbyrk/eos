@@ -12,18 +12,10 @@ import { isRemoteView } from "../lib/host.js";
 import { MachineGlyph } from "../components/machines/MachineGlyph.jsx";
 import { CopyIcon, LinkIcon, QrIcon } from "../components/machines/icons.jsx";
 import { RemoteSettings } from "./RemoteSettings.jsx";
+import { timeAgo } from "../lib/timeAgo.js";
 
 const Toggle = CONTROLS.toggle;
 const Text = CONTROLS.text;
-
-function ago(ts, now) {
-  if (!ts) return "never";
-  const s = Math.max(0, Math.round((now - ts) / 1000));
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.round(s / 60)}m ago`;
-  if (s < 86400) return `${Math.round(s / 3600)}h ago`;
-  return `${Math.round(s / 86400)}d ago`;
-}
 
 function Invite({ deviceId, openInvites }) {
   const [invite, setInvite] = useState(null);
@@ -107,7 +99,7 @@ function Devices({ devices }) {
         <div className="stg-row__text">
           <div className="stg-row__label">{d.name}</div>
           <div className="stg-row__desc" style={{ marginTop: 1 }}>
-            {d.connected ? "Connected now" : `Paired · last seen ${ago(d.lastSeenAt, now)}`} · <span className="mono">{d.deviceId}</span>
+            {d.connected ? "Connected now" : `Paired · last seen ${timeAgo(d.lastSeenAt, now)}`} · <span className="mono">{d.deviceId}</span>
           </div>
         </div>
       </div>

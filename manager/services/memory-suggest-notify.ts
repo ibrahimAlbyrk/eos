@@ -19,8 +19,9 @@ export interface MemorySuggestNotifyDeps {
 export function makeMemorySuggestNotify(deps: MemorySuggestNotifyDeps): (evt: UserMemoryChangeEvent) => void {
   let armed = false;
   return (evt) => {
-    // A dream announces its own morning note once it finishes.
-    if (evt?.action !== "created" || evt.status !== "suggested" || evt.by === "dream" || armed) return;
+    // A dream announces its own morning note once it finishes; the Mac that made a
+    // synced suggestion already announced it.
+    if (evt?.action !== "created" || evt.status !== "suggested" || evt.by === "dream" || evt.by === "sync" || armed) return;
     armed = true;
     deps.schedule(() => {
       armed = false;

@@ -62,7 +62,7 @@ async function withRelay(
   fn: (url: string, registry: ReturnType<typeof createRelay>["registry"]) => Promise<void>,
   heartbeatMs = 30_000,
 ) {
-  const { httpServer, wss, registry } = createRelay({ ...loadConfig(), host: "127.0.0.1", port: 0, heartbeatMs });
+  const { httpServer, wss, registry } = createRelay({ ...loadConfig(), host: "127.0.0.1", port: 0, heartbeatMs, vaultPath: ":memory:" });
   await new Promise<void>((resolve) => httpServer.listen(0, "127.0.0.1", resolve));
   const url = `ws://127.0.0.1:${(httpServer.address() as AddressInfo).port}`;
   try {

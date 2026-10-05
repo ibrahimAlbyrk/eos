@@ -192,7 +192,7 @@ import { parsePrompt } from "../core/src/services/prompt-parse.ts";
 import { toFragment } from "../core/src/domain/prompt.ts";
 import type { Fragment, RawPrompt } from "../core/src/domain/prompt.ts";
 import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemoryStore.ts";
-import { UserTemplateService } from "./services/UserTemplateService.ts";
+import { UserTemplateService, TEMPLATE_NAME_RE } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
@@ -210,6 +210,11 @@ import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts
 import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
+import { SyncService } from "./services/sync/SyncService.ts";
+import { createProjectKeys } from "./services/sync/project-keys.ts";
+import { avatarDomain, memoryDomain, pageDomain, profileDomain } from "./services/sync/service-domains.ts";
+import { fileDirDomain } from "./services/sync/file-dir-domain.ts";
+import { FileSyncIdentityStore, FileSyncStateStore } from "../infra/src/sync/stores.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
 
 // The working dir the web keys git state on (mirrors ComposerDiffRow):
@@ -1586,6 +1591,37 @@ export function buildContainer() {
     log,
   });
 
+  // Sync (Settings › Sync): profile, memories, pages, templates and worker
+  // definitions follow the user to every Mac holding the same sync key, through an
+  // end-to-end encrypted vault on the relay. Plan: docs/sync/00-SYNC-PLAN.md.
+  const syncDir = join(config.daemon.home, "sync");
+  const projectKeys = createProjectKeys({
+    git,
+    candidates: () => [
+      ...projects.list().flatMap((p) => p.folders),
+      ...recents.list(),
+      ...new Set(workers.listAll().flatMap((w) => [w.worktree_from ?? w.cwd].filter((x): x is string => !!x))),
+    ],
+    learnedPath: join(syncDir, "project-keys.json"),
+  });
+  const sync = new SyncService({
+    identities: new FileSyncIdentityStore(syncDir),
+    state: new FileSyncStateStore(syncDir),
+    domains: [
+      profileDomain(profile),
+      avatarDomain(profile),
+      memoryDomain(userMemories, projectKeys),
+      pageDomain(pages, projectKeys),
+      fileDirDomain({ name: "template", dir: join(config.daemon.home, "templates"), idPattern: TEMPLATE_NAME_RE, withAssets: true }),
+      fileDirDomain({ name: "worker", dir: userWorkerDefinitionsDir, idPattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/ }),
+    ],
+    relayUrl: () => config.peer.relayUrl ?? config.remote.relay?.url ?? null,
+    device: peerHost.hostInfo().name,
+    bus,
+    log,
+    now: () => Date.now(),
+  });
+
   const container = {
     get config() { return config; },
     log,
@@ -1634,6 +1670,7 @@ export function buildContainer() {
     uiToken,
     peerHost,
     hostLinks,
+    sync,
     viewTokens: new ViewTokens(),
     recents,
     projects,

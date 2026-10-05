@@ -12,6 +12,7 @@ import { join } from "node:path";
 import type { AddressInfo } from "node:net";
 
 import { createRelay } from "../../../relay/server.ts";
+import { loadConfig } from "../../../relay/config.ts";
 import { PeerHostService } from "../PeerHostService.ts";
 import { HostLinkService } from "../HostLinkService.ts";
 import { registerHostFacade } from "../facade.ts";
@@ -64,7 +65,7 @@ describe("peer link through the relay", () => {
   let hostId = "";
 
   before(async () => {
-    relay = createRelay({ host: "127.0.0.1", port: 0, ownerHashPin: null, maxRoomDevices: 32, heartbeatMs: 30_000 });
+    relay = createRelay({ ...loadConfig({}), host: "127.0.0.1", port: 0, vaultPath: ":memory:" });
     await new Promise<void>((resolve) => relay.httpServer.listen(0, "127.0.0.1", resolve));
     relayUrl = `ws://127.0.0.1:${(relay.httpServer.address() as AddressInfo).port}`;
     // Everything the relay forwards, as the relay operator would see it.

@@ -34,6 +34,9 @@ export const USER_DATA_ENTRIES = [
   // devices allowed to control it and the hosts it controls. Non-regenerable:
   // losing it forces every paired computer to pair again.
   "peer",
+  // Sync (~/.eos/sync/): the sync key (on a Mac whose other Macs are gone, the
+  // only way back into the account), its index and kept conflicts.
+  "sync",
   // User projects (~/.eos/projects.json) — names, icons, source folders.
   "projects.json",
   "policy.yaml",

@@ -5,6 +5,7 @@
 //                              dedupe, declined ideas, cap and events live here
 //                              once, for all of them
 //   - UserMemoryEditor         the user (ui-token routes): keep, edit, delete
+//   - UserMemorySyncTarget     sync: a memory exactly as another Mac has it
 // Dismissing keeps a `dismissed` tombstone so the same idea is never suggested
 // again. Every change publishes `user-memory:change`.
 
@@ -77,6 +78,12 @@ export interface UserMemoryEditor {
   approveAll(): (UserMemory | null)[];
 }
 
+export interface UserMemorySyncTarget {
+  list(): readonly UserMemory[];
+  applySynced(memory: Omit<UserMemory, "rev">): UserMemory;
+  removeSynced(id: string): void;
+}
+
 export interface UserMemoryServiceDeps {
   readonly store: UserMemoryStore;
   readonly clock: Clock;
@@ -85,7 +92,7 @@ export interface UserMemoryServiceDeps {
   readonly maxPendingPerProducer?: number;
 }
 
-export class UserMemoryService implements UserMemoryReader, UserMemorySuggestionSink, UserMemoryEditor {
+export class UserMemoryService implements UserMemoryReader, UserMemorySuggestionSink, UserMemoryEditor, UserMemorySyncTarget {
   private readonly deps: UserMemoryServiceDeps;
 
   constructor(deps: UserMemoryServiceDeps) {
@@ -188,6 +195,22 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
       }
     }
     return out;
+  }
+
+  // Stored as given (timestamps included); only rev is this Mac's own.
+  applySynced(memory: Omit<UserMemory, "rev">): UserMemory {
+    const cur = this.deps.store.get(memory.id);
+    const saved: UserMemory = { ...memory, rev: cur ? cur.rev + 1 : 0 };
+    this.deps.store.put(saved);
+    this.emit(saved, cur ? "updated" : "created", "sync");
+    return saved;
+  }
+
+  removeSynced(id: string): void {
+    const cur = this.deps.store.get(id);
+    if (!cur) return;
+    this.deps.store.remove(id);
+    this.emit(cur, "deleted", "sync");
   }
 
   private requireKept(ids: readonly string[]): UserMemory[] {

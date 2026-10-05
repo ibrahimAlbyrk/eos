@@ -778,6 +778,31 @@ export const api = {
     return postJson(ROUTES.dreamExclusions, { workerId, excluded }, uiTokenHeader());
   },
 
+  // Sync (Settings › Sync) — status is open; the key and every change carry the
+  // UI token. Progress arrives as sync:change.
+  async getSync() {
+    const r = await getJson(ROUTES.sync);
+    if (!r.ok) throw new Error(`getSync → ${r.status}`);
+    return r.body;
+  },
+  async getSyncKey() {
+    const r = await getJson(ROUTES.syncKey, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `getSyncKey → ${r.status}`);
+    return r.body.key;
+  },
+  async createSync() {
+    return postJson(ROUTES.syncCreate, {}, uiTokenHeader());
+  },
+  async joinSync(key) {
+    return postJson(ROUTES.syncJoin, { key }, uiTokenHeader());
+  },
+  async syncNow() {
+    return postJson(ROUTES.syncNow, {}, uiTokenHeader());
+  },
+  async leaveSync() {
+    return postJson(ROUTES.syncLeave, {}, uiTokenHeader());
+  },
+
   // User settings — flat key→value map persisted daemon-side (localStorage
   // is wiped on every Eos.app launch, so it can't hold durable settings).
   async getSettings() {

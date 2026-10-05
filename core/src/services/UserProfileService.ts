@@ -27,6 +27,12 @@ export interface UserProfileServiceDeps {
   readonly bus: Pick<EventBus, "publish">;
 }
 
+// What sync carries: everything but this Mac's bookkeeping, its avatar (synced as
+// bytes, not the extension) and its dreaming settings.
+export type SyncedProfileFields = Partial<Omit<UserProfile, "rev" | "updatedAt" | "dreaming" | "identity">> & {
+  identity?: Omit<UserProfile["identity"], "avatar">;
+};
+
 // What prompt assembly and the preview depend on — nothing that writes.
 export interface UserProfileReader {
   get(): UserProfile;
@@ -69,6 +75,16 @@ export class UserProfileService implements UserProfileReader {
     if (!cur.identity.avatar) return cur;
     this.deps.avatars.remove();
     return this.commit({ ...cur, identity: { ...cur.identity, avatar: null } });
+  }
+
+  applySynced(fields: SyncedProfileFields): UserProfile {
+    const cur = this.get();
+    const next: UserProfile = {
+      ...cur,
+      ...fields,
+      identity: { ...(fields.identity ?? cur.identity), avatar: cur.identity.avatar },
+    };
+    return sameProfileContent(cur, next) ? cur : this.commit(next);
   }
 
   private commit(next: UserProfile): UserProfile {
