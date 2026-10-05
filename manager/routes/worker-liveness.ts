@@ -6,12 +6,21 @@
 // old `!port || !supervisor.has` checks dropped every in-process target).
 
 import type { Container } from "../container.ts";
+import type { AgentSession } from "../../core/src/ports/AgentBackend.ts";
+
+function inProcessSession(c: Container, id: string): AgentSession | null {
+  const kind = c.workers.findById(id)?.backend_kind;
+  if (!kind || !c.backends.has(kind) || c.backends.get(kind).descriptor.processModel !== "in-process") return null;
+  return c.backends.get(kind).attach(id, { kind: "inproc", ref: id });
+}
 
 export function isWorkerLive(c: Container, id: string): boolean {
   if (c.supervisor.has(id)) return true;
-  const kind = c.workers.findById(id)?.backend_kind;
-  if (kind && c.backends.has(kind) && c.backends.get(kind).descriptor.processModel === "in-process") {
-    return c.backends.get(kind).attach(id, { kind: "inproc", ref: id }).isAlive();
-  }
-  return false;
+  return inProcessSession(c, id)?.isAlive() ?? false;
+}
+
+// Background subagents still running in this worker's session (0 on lanes
+// that don't track them).
+export function liveSubagentCount(c: Container, id: string): number {
+  return inProcessSession(c, id)?.liveSubagents?.() ?? 0;
 }

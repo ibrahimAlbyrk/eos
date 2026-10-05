@@ -27,7 +27,7 @@ import { registerRemoteRoutes } from "./routes/remote.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
-import { isWorkerLive } from "./routes/worker-liveness.ts";
+import { isWorkerLive, liveSubagentCount } from "./routes/worker-liveness.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { workerReportEnvelope } from "./shared/worker-report.ts";
 import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
@@ -423,6 +423,7 @@ c.bus.subscribe("pending:created", (msg) =>
 const turnEndNotify = makeTurnEndNotify({
   findWorker: (id) => c.workers.findById(id),
   eventsSince: (workerId, since) => c.events.list({ workerId, since, limit: 60, order: "desc" }),
+  liveSubagents: (workerId) => liveSubagentCount(c, workerId),
   fire: (n) => c.bus.publish("notification:fire", n),
   now: () => c.clock.now(),
   defer: (fn) => { setTimeout(fn, 1000); },

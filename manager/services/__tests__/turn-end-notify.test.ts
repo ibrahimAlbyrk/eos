@@ -24,6 +24,7 @@ function build(over: Partial<TurnEndNotifyDeps> = {}, rows: WorkerEventRow[] = [
   const notify = makeTurnEndNotify({
     findWorker: (id) => (id === "w-top" ? orchestrator : null),
     eventsSince: (_id, since) => rows.filter((r) => r.ts > since),
+    liveSubagents: () => 0,
     fire: (n) => fired.push(n),
     now: () => 42,
     defer: (fn) => fn(),
@@ -72,5 +73,17 @@ describe("turn-end notification (worker:change WORKING→IDLE → notification:f
     const silent = build({}, [reply("previous turn", 50)]);
     silent.bus.publish("worker:change", IDLE_EDGE);
     assert.equal(silent.fired.length, 0);
+  });
+
+  it("waits for background subagents: no banner while one runs, one once the last is done", () => {
+    let live = 2;
+    const { bus, fired } = build({ liveSubagents: () => live }, [reply("Launched 2 agents.", 110)]);
+    bus.publish("worker:change", IDLE_EDGE);
+    live = 1; // first report woke the agent, which went idle again
+    bus.publish("worker:change", IDLE_EDGE);
+    assert.equal(fired.length, 0);
+    live = 0;
+    bus.publish("worker:change", IDLE_EDGE);
+    assert.equal(fired.length, 1);
   });
 });
