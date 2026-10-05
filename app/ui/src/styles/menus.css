@@ -292,9 +292,9 @@
 }
 .head-menu > .ctx-menu.menu-pane { position: static; width: 210px; }
 .menu-pane:focus { outline: none; }
+/* left/top set by MenuList, which flips it left near the window edge */
 .head-menu > .menu-flyout {
   position: absolute;
-  left: calc(100% + 10px);
   width: 180px;
 }
 .ctx-menu .menu-item .sub-chev { margin-left: auto; color: var(--fg-dim2); flex-shrink: 0; }

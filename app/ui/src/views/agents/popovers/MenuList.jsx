@@ -1,4 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+
+const FLY_GAP = 10;
+const EDGE = 8;
 
 // Data-driven menu pane. Items are "sep" or
 //   { id, label, kbd?, danger?, run?, submenu?: item[] }
@@ -13,6 +16,8 @@ export function MenuList({ items, onClose }) {
   const [active, setActive] = useState(-1);
   const [sub, setSub] = useState(null);
   const [subActive, setSubActive] = useState(-1);
+  const flyRef = useRef(null);
+  const [flyPos, setFlyPos] = useState({ left: 0, top: 0, flip: false });
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
@@ -75,8 +80,24 @@ export function MenuList({ items, onClose }) {
   // The flyout is a SIBLING of the pane, not a child: WebKit won't apply a
   // backdrop-filter nested inside another backdrop-filtered element, which
   // made the nested version render flat. Positioned against the shared
-  // .head-menu wrapper using the parent row's offsetTop.
-  const flyTop = sub ? Math.max(0, (rowRefs.current[sub]?.offsetTop ?? 4) - 4) : 0;
+  // .head-menu wrapper using the parent row's offsetTop. It opens to the
+  // right, but flips to the left (and lifts) when it would run past the
+  // window edge — e.g. a menu opened from the right side panel. Measured
+  // before paint; offset* sizes ignore the rise animation's scale.
+  useLayoutEffect(() => {
+    const fly = flyRef.current;
+    const host = paneRef.current?.parentElement;
+    if (!sub || !fly || !host) return;
+    const box = host.getBoundingClientRect();
+    const rowTop = Math.max(0, (rowRefs.current[sub]?.offsetTop ?? 4) - 4);
+    const flip = box.right + FLY_GAP + fly.offsetWidth > window.innerWidth - EDGE;
+    const maxTop = window.innerHeight - EDGE - box.top - fly.offsetHeight;
+    setFlyPos({
+      left: flip ? -(FLY_GAP + fly.offsetWidth) : box.width + FLY_GAP,
+      top: Math.min(rowTop, maxTop),
+      flip,
+    });
+  }, [sub]);
 
   return (
     <>
@@ -122,7 +143,11 @@ export function MenuList({ items, onClose }) {
         })}
       </div>
       {subItems && (
-        <div className="ctx-menu glass-pop open menu-flyout" style={{ top: flyTop }}>
+        <div
+          ref={flyRef}
+          className={`ctx-menu glass-pop open menu-flyout${flyPos.flip ? " menu-flyout--left" : ""}`}
+          style={{ left: flyPos.left, top: flyPos.top }}
+        >
           {subItems.map((s, si) => (
             <button
               key={s.id}

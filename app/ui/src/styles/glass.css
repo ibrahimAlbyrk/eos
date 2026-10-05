@@ -128,6 +128,7 @@
   transform-origin: 0 12%;
   animation-duration: 240ms;
 }
+:where(.head-menu > .menu-flyout--left) { transform-origin: 100% 12%; }
 /* layers that open upward out of the composer, and right-anchored menus */
 :where(.attach-popover, .tpl-popover, .accept-popover, .cmd-names, .cb-chip-dd) { transform-origin: 12% 100%; }
 :where(.me-panel, .model-popover, .pr-menu) { transform-origin: 85% 100%; }
