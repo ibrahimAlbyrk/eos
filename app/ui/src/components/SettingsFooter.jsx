@@ -24,9 +24,9 @@ function useAccountSummary() {
   return { label: label || "Account", expired: signedIn.some((a) => accountTone(a) === "expired") };
 }
 
-// Bottom row of every view's sidebar: the machine row, then the avatar that
-// opens the Account menu (accounts, plan usage, total cost, Settings) — the way
-// into Settings besides ⌘,.
+// Bottom row of every view's sidebar: the avatar that opens the Account menu
+// (accounts, plan usage, total cost, Settings) — the way into Settings besides
+// ⌘, — then the machine row.
 export function SettingsFooter({ live }) {
   const { openSettings } = useSettings();
   const ui = useUi();
@@ -62,7 +62,6 @@ export function SettingsFooter({ live }) {
 
   return (
     <div className="sb-settings" ref={ref}>
-      <MachineRow live={live} />
       <button
         className={"sb-settings__account" + (open ? " on" : "")}
         onClick={toggle}
@@ -79,6 +78,7 @@ export function SettingsFooter({ live }) {
             ? <span className="sb-settings__alert sb-settings__alert--dream" aria-hidden="true" />
             : pending > 0 && <span className="sb-settings__alert sb-settings__alert--pending" aria-hidden="true" />}
       </button>
+      <MachineRow live={live} />
       {anchor && (
         <AccountMenu
           anchor={anchor}

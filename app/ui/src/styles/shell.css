@@ -297,13 +297,13 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   overflow: visible;
 }
 
-/* Settings footer — one row (machine + account avatar), under a centered
+/* Settings footer — one row (account avatar + machine), under a centered
    hairline that fades out at both ends. */
 .sb-settings {
   position: relative;
   margin-top: auto;
   display: flex; align-items: center; gap: 6px;
-  padding: 10px 12px 12px 8px;
+  padding: 10px 8px 12px 12px;
   color: var(--fg-mid);
   font-size: var(--text-base);
 }
