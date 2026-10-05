@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { planUsageSections, isSignedOutReason, formatResetIn, formatResetInShort, formatResetAt, WARN_THRESHOLD, friendlyUsageError } from "./usageFormat.js";
+import {
+  planUsageSections, isSignedOutReason, formatResetIn, formatResetInShort, formatResetAt, formatRowReset, formatCredits,
+  isUsageWarn, WARN_THRESHOLD, friendlyUsageError,
+} from "./usageFormat.js";
 
 const win = (utilization, resetsAt = "2099-01-01T08:59:00Z") => ({ utilization, resetsAt });
 
@@ -11,8 +14,7 @@ const fullUsage = {
       windows: {
         fiveHour: win(42),
         sevenDay: win(10),
-        sevenDayOpus: win(85),
-        sevenDaySonnet: win(3),
+        weeklyByModel: [{ ...win(85), model: "Fable" }],
       },
       fetchedAt: "2099-01-01T00:00:00Z",
     },
@@ -21,14 +23,13 @@ const fullUsage = {
 };
 
 describe("planUsageSections", () => {
-  it("derives one row per non-null window, in order, with plan + kind", () => {
+  it("derives one row per non-null window, in order, then one per model's weekly limit", () => {
     const [section] = planUsageSections(fullUsage);
     expect(section).toMatchObject({ provider: "claude", name: "Claude", plan: "Max" });
-    expect(section.rows.map((r) => [r.key, r.label, r.kind])).toEqual([
-      ["fiveHour", "5-hour limit", "session"],
-      ["sevenDay", "Weekly · all models", "weekly"],
-      ["sevenDayOpus", "Weekly · Opus", "weekly"],
-      ["sevenDaySonnet", "Weekly · Sonnet", "weekly"],
+    expect(section.rows.map((r) => [r.key, r.label, r.short, r.kind])).toEqual([
+      ["fiveHour", "5-hour limit", "5-hour", "session"],
+      ["sevenDay", "Weekly · all models", "Weekly", "weekly"],
+      ["model:Fable", "Weekly · Fable", "Weekly Fable", "weekly"],
     ]);
     expect(section.rows[2].window.utilization).toBe(85);
   });
@@ -41,14 +42,14 @@ describe("planUsageSections", () => {
       ],
     });
     expect(sections.map((s) => [s.name, s.plan, s.rows.map((r) => r.key)])).toEqual([
-      ["Claude", "Max", ["fiveHour", "sevenDay", "sevenDayOpus", "sevenDaySonnet"]],
+      ["Claude", "Max", ["fiveHour", "sevenDay", "model:Fable"]],
       ["ChatGPT", "Pro Lite", ["sevenDay"]],
     ]);
   });
 
   it("skips null windows and carries a null plan through", () => {
-    const [section] = planUsageSections({ providers: [{ provider: "claude", windows: { fiveHour: win(20), sevenDayOpus: win(50) } }] });
-    expect(section.rows.map((r) => r.key)).toEqual(["fiveHour", "sevenDayOpus"]);
+    const [section] = planUsageSections({ providers: [{ provider: "claude", windows: { fiveHour: null, sevenDay: win(50) } }] });
+    expect(section.rows.map((r) => r.key)).toEqual(["sevenDay"]);
     expect(section.plan).toBeNull();
   });
 
@@ -110,5 +111,32 @@ describe("reset formatters", () => {
 
   it("WARN_THRESHOLD is the shared 80% tint boundary", () => {
     expect(WARN_THRESHOLD).toBe(80);
+  });
+
+  it("formatRowReset says 'Not started' for a window with no reset yet", () => {
+    const session = { kind: "session", window: { utilization: 0, resetsAt: null } };
+    expect(formatRowReset(session)).toBe("Not started");
+    expect(formatRowReset(session, { short: true })).toBe("not started");
+    const weekly = { kind: "weekly", window: win(10, "2099-01-04T09:00:00Z") };
+    expect(formatRowReset(weekly)).toBe(`Resets ${formatResetAt("2099-01-04T09:00:00Z")}`);
+  });
+});
+
+describe("isUsageWarn", () => {
+  it("follows the provider's severity when it reports one", () => {
+    expect(isUsageWarn({ utilization: 96, severity: "normal" })).toBe(false);
+    expect(isUsageWarn({ utilization: 60, severity: "warning" })).toBe(true);
+  });
+
+  it("falls back to the 80% line without a severity", () => {
+    expect(isUsageWarn(win(79))).toBe(false);
+    expect(isUsageWarn(win(80))).toBe(true);
+  });
+});
+
+describe("formatCredits", () => {
+  it("formats amounts in the plan's currency", () => {
+    expect(formatCredits(12.34, "USD")).toMatch(/12[.,]34/);
+    expect(formatCredits(12.34, "USD")).toMatch(/\$|USD/);
   });
 });

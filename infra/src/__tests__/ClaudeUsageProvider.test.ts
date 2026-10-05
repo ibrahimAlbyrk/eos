@@ -3,13 +3,21 @@ import assert from "node:assert/strict";
 import { createClaudeUsageProvider, NO_TOKEN_REASON } from "../usage/ClaudeUsageProvider.ts";
 import type { UsageTokenCandidate } from "../usage/ClaudeUsageProvider.ts";
 
-// The live shape (trimmed) confirmed by a real curl of the endpoint.
+// The live shape (trimmed) confirmed by a real reply from the endpoint.
 const LIVE_BODY = {
   five_hour: { utilization: 41.0, resets_at: "2026-07-17T22:50:00+00:00" },
   seven_day: { utilization: 59.0, resets_at: "2026-07-21T06:00:00+00:00" },
   seven_day_opus: null,
-  seven_day_sonnet: { utilization: 12.0, resets_at: "2026-07-21T06:00:00+00:00" },
-  extra_usage: { is_enabled: false, monthly_limit: null, used_credits: 0.0, utilization: null },
+  seven_day_sonnet: null,
+  extra_usage: { is_enabled: true, monthly_limit: 5000, used_credits: 1234, utilization: null, currency: "USD", decimal_places: 2 },
+  limits: [
+    { kind: "session", group: "session", percent: 41, severity: "normal", resets_at: "2026-07-17T22:50:00+00:00", scope: null },
+    { kind: "weekly_all", group: "weekly", percent: 59, severity: "warning", resets_at: "2026-07-21T06:00:00+00:00", scope: null },
+    {
+      kind: "weekly_scoped", group: "weekly", percent: 12, severity: "normal", resets_at: "2026-07-21T06:00:00+00:00",
+      scope: { model: { id: null, display_name: "Fable" }, surface: null },
+    },
+  ],
 };
 
 const SCOPE_BODY =
@@ -47,14 +55,32 @@ describe("ClaudeUsageProvider", () => {
     });
     const usage = await provider.fetchUsage();
     assert.equal(usage.provider, "claude");
-    assert.equal(usage.windows.fiveHour?.utilization, 41);
-    assert.equal(usage.windows.sevenDay?.utilization, 59);
-    assert.equal(usage.windows.sevenDayOpus, null); // null slot stays null
-    assert.equal(usage.windows.sevenDaySonnet?.utilization, 12);
-    assert.equal(usage.extraUsage?.isEnabled, false);
-    assert.equal(usage.extraUsage?.usedCredits, 0);
-    assert.equal(usage.extraUsage?.monthlyLimit, null);
+    assert.deepEqual(usage.windows, {
+      fiveHour: { utilization: 41, resetsAt: "2026-07-17T22:50:00+00:00", severity: "normal" },
+      sevenDay: { utilization: 59, resetsAt: "2026-07-21T06:00:00+00:00", severity: "warning" },
+      weeklyByModel: [{ model: "Fable", utilization: 12, resetsAt: "2026-07-21T06:00:00+00:00", severity: "normal" }],
+    });
     assert.equal(usage.fetchedAt, "2026-07-17T20:00:00.000Z");
+  });
+
+  it("keeps an idle 5-hour window (no reset time yet) as 0% not started", async () => {
+    const provider = createClaudeUsageProvider({
+      getTokens: () => [cand("keychain", "tok")],
+      fetchImpl: async () => jsonResponse({ five_hour: { utilization: 0, resets_at: null }, seven_day: null }),
+    });
+    const { windows } = await provider.fetchUsage();
+    assert.deepEqual(windows.fiveHour, { utilization: 0, resetsAt: null });
+    assert.equal(windows.sevenDay, null);
+    assert.equal(windows.weeklyByModel, undefined);
+  });
+
+  it("scales credit amounts from minor units into the currency", async () => {
+    const provider = createClaudeUsageProvider({
+      getTokens: () => [cand("keychain", "tok")],
+      fetchImpl: async () => jsonResponse(LIVE_BODY),
+    });
+    const usage = await provider.fetchUsage();
+    assert.deepEqual(usage.extraUsage, { isEnabled: true, usedCredits: 12.34, monthlyLimit: 50, currency: "USD" });
   });
 
   it("sends the load-bearing claude-code User-Agent + oauth beta headers", async () => {

@@ -6,6 +6,17 @@
 
 export const WARN_THRESHOLD = 80; // ≥ this utilization tints the bar with the warn color
 
+// Claude grades each limit itself (severity "normal" or worse); a plan that
+// doesn't falls back to the 80% line.
+export function isUsageWarn(window) {
+  return window.severity ? window.severity !== "normal" : window.utilization >= WARN_THRESHOLD;
+}
+
+// "$12.34" — usage-credit amounts arrive in major units of the plan's currency.
+export function formatCredits(amount, currency = "USD") {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+}
+
 // Map a raw provider error reason (GET /api/usage errors[].reason) to a short,
 // human message for the Usage pane. The scope failure means an older Eos sign-in
 // (a setup-token) that runs agents but lacks the `user:profile` scope the usage
@@ -54,9 +65,12 @@ export const USAGE_PROVIDER_ACCOUNTS = { claude: "anthropic", codex: "openai" };
 const WINDOW_ROWS = [
   { key: "fiveHour", label: "5-hour limit", short: "5-hour", kind: "session" },
   { key: "sevenDay", label: "Weekly · all models", short: "Weekly", kind: "weekly" },
-  { key: "sevenDayOpus", label: "Weekly · Opus", short: "Weekly Opus", kind: "weekly" },
-  { key: "sevenDaySonnet", label: "Weekly · Sonnet", short: "Weekly Sonnet", kind: "weekly" },
 ];
+
+// A model's own weekly limit (e.g. Fable), listed after the shared windows.
+const modelRow = (window) => ({
+  key: `model:${window.model}`, label: `Weekly · ${window.model}`, short: `Weekly ${window.model}`, kind: "weekly", window,
+});
 
 // One section per signed-in plan in a GET /api/usage response — its name, plan
 // and limit rows. A plan with no windows to show is left out, so a glance
@@ -70,10 +84,23 @@ export function planUsageSections(usage) {
         provider: p.provider,
         name: USAGE_PROVIDER_NAMES[p.provider] ?? p.provider,
         plan: p.plan ?? null,
-        rows: WINDOW_ROWS.map((r) => ({ ...r, window: w[r.key] })).filter((r) => r.window),
+        rows: [
+          ...WINDOW_ROWS.map((r) => ({ ...r, window: w[r.key] })).filter((r) => r.window),
+          ...(w.weeklyByModel ?? []).map(modelRow),
+        ],
       };
     })
     .filter((s) => s.rows.length > 0);
+}
+
+// A row's reset line — "Resets in 2 hr 41 min" (session) / "Resets Tue 8:59 AM"
+// (weekly), or "Not started" while the window has no usage and so no reset yet.
+// `short` is the Account menu's compact form ("in 2h 41m" / "Tue 8:59 AM").
+export function formatRowReset(row, { short = false } = {}) {
+  const { resetsAt } = row.window;
+  if (!resetsAt) return short ? "not started" : "Not started";
+  if (row.kind === "session") return short ? `in ${formatResetInShort(resetsAt)}` : `Resets in ${formatResetIn(resetsAt)}`;
+  return short ? formatResetAt(resetsAt) : `Resets ${formatResetAt(resetsAt)}`;
 }
 
 // A provider "error" that only means you aren't signed in to that plan — nothing

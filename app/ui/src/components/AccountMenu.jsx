@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../api/client.js";
 import { fmtCost } from "../lib/format.js";
-import {
-  WARN_THRESHOLD, USAGE_PROVIDER_ACCOUNTS, formatResetIn, formatResetInShort, formatResetAt, planUsageSections,
-} from "../lib/usageFormat.js";
+import { USAGE_PROVIDER_ACCOUNTS, formatRowReset, isUsageWarn, planUsageSections } from "../lib/usageFormat.js";
 import { useAccounts, refreshAccounts, accountTone, isSignedIn } from "../state/accountsStore.js";
 import { ProviderGlyph } from "./accounts/ProviderGlyph.jsx";
 import { metaFor, planName } from "./accounts/providerMeta.js";
@@ -42,16 +40,12 @@ function UsageRing({ pct }) {
 function UsageStat({ row }) {
   const used = Math.round(row.window.utilization);
   const left = Math.max(0, 100 - used);
-  const { resetsAt } = row.window;
-  const session = row.kind === "session";
-  const reset = session ? `in ${formatResetInShort(resetsAt)}` : formatResetAt(resetsAt);
-  const full = session ? `Resets in ${formatResetIn(resetsAt)}` : `Resets ${formatResetAt(resetsAt)}`;
   return (
-    <div className={"acct-stat" + (used >= WARN_THRESHOLD ? " is-warn" : "")} title={`${row.label} · ${left}% left · ${full}`}>
+    <div className={"acct-stat" + (isUsageWarn(row.window) ? " is-warn" : "")} title={`${row.label} · ${left}% left · ${formatRowReset(row)}`}>
       <UsageRing pct={left} />
       <span className="acct-stat__text">
         <span className="acct-stat__label">{row.short}</span>
-        <span className="acct-stat__reset">{reset}</span>
+        <span className="acct-stat__reset">{formatRowReset(row, { short: true })}</span>
       </span>
     </div>
   );

@@ -12,17 +12,18 @@ describe("usage schemas", () => {
       provider: "claude",
       plan: "Max",
       windows: {
-        fiveHour: { utilization: 41, resetsAt: "2026-07-17T22:50:00Z" },
-        sevenDay: { utilization: 59, resetsAt: "2026-07-21T06:00:00Z" },
-        sevenDayOpus: null,
-        sevenDaySonnet: { utilization: 12, resetsAt: "2026-07-21T06:00:00Z" },
+        fiveHour: { utilization: 0, resetsAt: null },
+        sevenDay: { utilization: 59, resetsAt: "2026-07-21T06:00:00Z", severity: "normal" },
+        weeklyByModel: [{ model: "Fable", utilization: 12, resetsAt: "2026-07-21T06:00:00Z", severity: "normal" }],
       },
-      extraUsage: { isEnabled: false, usedCredits: 0, monthlyLimit: null },
+      extraUsage: { isEnabled: false, usedCredits: 0, monthlyLimit: null, currency: "USD" },
       fetchedAt: "2026-07-17T20:09:00Z",
     };
     const parsed = ProviderUsageSchema.parse(snapshot);
-    assert.equal(parsed.windows.fiveHour?.utilization, 41);
-    assert.equal(parsed.windows.sevenDayOpus, null);
+    assert.equal(parsed.windows.fiveHour?.resetsAt, null);
+    assert.equal(parsed.windows.sevenDay?.severity, "normal");
+    assert.equal(parsed.windows.weeklyByModel?.[0].model, "Fable");
+    assert.equal(parsed.extraUsage?.currency, "USD");
   });
 
   it("allows windows to be omitted entirely (minimal snapshot)", () => {
@@ -35,7 +36,7 @@ describe("usage schemas", () => {
     assert.equal(parsed.extraUsage, undefined);
   });
 
-  it("requires utilization and resetsAt on a window", () => {
+  it("requires utilization and resetsAt (null when not started) on a window", () => {
     assert.throws(() => UsageWindowSchema.parse({ utilization: 10 }));
     assert.throws(() => UsageWindowSchema.parse({ resetsAt: "2026-07-17T20:09:00Z" }));
   });

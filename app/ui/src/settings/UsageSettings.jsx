@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import {
-  WARN_THRESHOLD, USAGE_PROVIDER_NAMES, formatResetIn, formatResetAt, friendlyUsageError, isSignedOutReason, planUsageSections,
+  USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, planUsageSections,
 } from "../lib/usageFormat.js";
 
 export const USAGE_SETTING_DEFAULTS = {};
@@ -28,9 +28,8 @@ function formatAgo(iso) {
   return new Date(iso).toLocaleDateString();
 }
 
-function UsageBar({ pct }) {
+function UsageBar({ pct, warn }) {
   const clamped = Math.max(0, Math.min(100, pct));
-  const warn = clamped >= WARN_THRESHOLD;
   return (
     <div style={{ height: 6, borderRadius: 999, background: "var(--surface-3)", overflow: "hidden" }}>
       <div
@@ -46,7 +45,7 @@ function UsageBar({ pct }) {
   );
 }
 
-function UsageRow({ label, subtitle, pct }) {
+function UsageRow({ label, subtitle, pct, warn }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "10px 0" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12 }}>
@@ -56,7 +55,7 @@ function UsageRow({ label, subtitle, pct }) {
         </div>
       </div>
       {subtitle && <div className="stg-row__desc">{subtitle}</div>}
-      <UsageBar pct={pct} />
+      <UsageBar pct={pct} warn={warn} />
     </div>
   );
 }
@@ -122,7 +121,8 @@ export function UsageSettings() {
       )}
 
       {sections.map((section) => {
-        const provider = providerOf(section.provider);
+        const extra = providerOf(section.provider)?.extraUsage;
+        const credits = (amount) => formatCredits(amount ?? 0, extra.currency);
         return (
           <div className="stg-group" key={section.provider}>
             <div className="stg-group__title">
@@ -132,18 +132,19 @@ export function UsageSettings() {
               <UsageRow
                 key={r.key}
                 label={r.kind === "session" ? "Current session" : r.label}
-                subtitle={r.kind === "session" ? `Resets in ${formatResetIn(r.window.resetsAt)}` : `Resets ${formatResetAt(r.window.resetsAt)}`}
+                subtitle={formatRowReset(r)}
                 pct={r.window.utilization}
+                warn={isUsageWarn(r.window)}
               />
             ))}
-            {provider?.extraUsage?.isEnabled && (
+            {extra?.isEnabled && (
               <div className="stg-row">
                 <div className="stg-row__text">
                   <div className="stg-row__label">Usage credits</div>
                   <div className="stg-row__desc">
-                    {provider.extraUsage.monthlyLimit != null
-                      ? `${provider.extraUsage.usedCredits ?? 0} of ${provider.extraUsage.monthlyLimit} monthly limit`
-                      : `${provider.extraUsage.usedCredits ?? 0} used`}
+                    {extra.monthlyLimit != null
+                      ? `${credits(extra.usedCredits)} of ${credits(extra.monthlyLimit)} monthly limit`
+                      : `${credits(extra.usedCredits)} used`}
                   </div>
                 </div>
               </div>

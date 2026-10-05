@@ -9,7 +9,7 @@ const account = (id, route, plan) => ({ id, label: id, route, subscription: plan
 const claudeUsage = {
   provider: "claude",
   plan: "Max",
-  windows: { fiveHour: win(42), sevenDay: win(10), sevenDayOpus: win(85), sevenDaySonnet: win(3) },
+  windows: { fiveHour: win(42), sevenDay: win(10), weeklyByModel: [{ ...win(85), model: "Fable" }, { ...win(3), model: "Sonnet" }] },
   fetchedAt: "2099-01-01T00:00:00Z",
 };
 const codexUsage = { provider: "codex", plan: "Pro Lite", windows: { sevenDay: win(39) }, fetchedAt: "x" };
@@ -40,9 +40,17 @@ describe("PlanCards", () => {
     expect(html).toContain('58<span class="acct-ring__unit">%</span>'); // 42% used
     expect(html).toContain('15<span class="acct-ring__unit">%</span>'); // 85% used
     expect(html).toContain(">5-hour<");
-    expect(html).toContain(">Weekly Opus<");
+    expect(html).toContain(">Weekly Fable<");
     expect(html.match(/acct-stat is-warn/g)).toHaveLength(1);
-    expect(html).toContain('title="Weekly · Opus · 15% left · Resets ');
+    expect(html).toContain('title="Weekly · Fable · 15% left · Resets ');
+  });
+
+  it("an idle session window reads 'not started'", () => {
+    const usage = { providers: [{ ...claudeUsage, windows: { fiveHour: { utilization: 0, resetsAt: null } } }] };
+    const html = render({ accounts: [account("anthropic", "subscription")], usage });
+    expect(html).toContain('100<span class="acct-ring__unit">%</span>');
+    expect(html).toContain(">not started<");
+    expect(html).toContain('title="5-hour limit · 100% left · Not started"');
   });
 
   it("matches each usage provider to its account", () => {

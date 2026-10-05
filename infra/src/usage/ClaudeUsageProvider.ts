@@ -17,7 +17,7 @@
 // heuristic would corrupt a genuine sub-1% reading.
 
 import type { SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
-import type { ProviderUsage, UsageWindow } from "../../../contracts/src/usage.ts";
+import type { ModelUsageWindow, ProviderUsage, UsageWindow } from "../../../contracts/src/usage.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 
 const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
@@ -68,23 +68,52 @@ function clampUtilization(u: number): number {
   return Math.max(0, Math.min(100, u));
 }
 
-// A window is emitted only when the source carries both a numeric utilization and
-// an ISO resets_at; anything else (null slot, missing fields) becomes null.
-function toWindow(raw: unknown): UsageWindow | null {
-  if (!raw || typeof raw !== "object") return null;
-  const r = raw as Record<string, unknown>;
-  const resetsAt = r.resets_at;
-  if (typeof r.utilization !== "number" || typeof resetsAt !== "string") return null;
-  return { utilization: clampUtilization(r.utilization), resetsAt };
+function asRecord(raw: unknown): Record<string, unknown> | null {
+  return raw && typeof raw === "object" ? (raw as Record<string, unknown>) : null;
 }
 
+// A window needs a numeric utilization; a missing resets_at means it hasn't
+// started yet (the idle 5-hour window reports 0% with no reset time).
+function toWindow(utilization: unknown, resetsAt: unknown, severity: unknown): UsageWindow | null {
+  if (typeof utilization !== "number") return null;
+  return {
+    utilization: clampUtilization(utilization),
+    resetsAt: typeof resetsAt === "string" ? resetsAt : null,
+    ...(typeof severity === "string" ? { severity } : {}),
+  };
+}
+
+// `limits[]` is the endpoint's graded list of every limit on the account:
+// { kind: "session" | "weekly_all" | "weekly_scoped", percent, resets_at,
+//   severity, scope: { model: { display_name } } }. It carries the severity of
+// the five_hour / seven_day windows and is the only source of per-model weekly
+// limits (e.g. Fable) — the older seven_day_opus / seven_day_sonnet slots come
+// back null.
+function toLimits(raw: unknown): Record<string, unknown>[] {
+  return Array.isArray(raw) ? raw.map(asRecord).filter((l) => l !== null) : [];
+}
+
+function toModelWindows(limits: Record<string, unknown>[]): ModelUsageWindow[] {
+  return limits.flatMap((l) => {
+    const model = asRecord(asRecord(l.scope)?.model)?.display_name;
+    if (l.kind !== "weekly_scoped" || typeof model !== "string") return [];
+    const window = toWindow(l.percent, l.resets_at, l.severity);
+    return window ? [{ ...window, model }] : [];
+  });
+}
+
+// Credit amounts arrive in minor units of the currency (cents for USD), with
+// `decimal_places` saying how many.
 function toExtraUsage(raw: unknown): ProviderUsage["extraUsage"] {
-  if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
+  const r = asRecord(raw);
+  if (!r) return undefined;
+  const scale = 10 ** (typeof r.decimal_places === "number" ? r.decimal_places : 2);
+  const major = (v: unknown) => (typeof v === "number" ? v / scale : null);
   return {
     isEnabled: r.is_enabled === true,
-    usedCredits: typeof r.used_credits === "number" ? r.used_credits : null,
-    monthlyLimit: typeof r.monthly_limit === "number" ? r.monthly_limit : null,
+    usedCredits: major(r.used_credits),
+    monthlyLimit: major(r.monthly_limit),
+    currency: typeof r.currency === "string" ? r.currency : "USD",
   };
 }
 
@@ -99,14 +128,19 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
 
   function toSnapshot(data: Record<string, unknown>): ProviderUsage {
     const plan = deps.plan?.();
+    const limits = toLimits(data.limits);
+    const slot = (raw: unknown, kind: string) => {
+      const r = asRecord(raw);
+      return r ? toWindow(r.utilization, r.resets_at, limits.find((l) => l.kind === kind)?.severity) : null;
+    };
+    const weeklyByModel = toModelWindows(limits);
     return {
       provider: "claude",
       ...(plan ? { plan } : {}),
       windows: {
-        fiveHour: toWindow(data.five_hour),
-        sevenDay: toWindow(data.seven_day),
-        sevenDayOpus: toWindow(data.seven_day_opus),
-        sevenDaySonnet: toWindow(data.seven_day_sonnet),
+        fiveHour: slot(data.five_hour, "session"),
+        sevenDay: slot(data.seven_day, "weekly_all"),
+        ...(weeklyByModel.length ? { weeklyByModel } : {}),
       },
       extraUsage: toExtraUsage(data.extra_usage),
       fetchedAt: now().toISOString(),
