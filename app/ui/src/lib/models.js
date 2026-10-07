@@ -5,7 +5,7 @@
 // the single source of truth for context-window size: the picker's "200k"/"1M"
 // label and the usage meter's total both derive from it.
 const BASELINE = [
-  { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  name: "Haiku 4.5",  ctxTokens: 200_000,   tag: "fastest" },
+  { id: "haiku-5.5",  aliases: ["haiku"],  label: "haiku-5.5",  name: "Haiku 5.5",  ctxTokens: 1_000_000, tag: "fastest" },
   { id: "sonnet-5.5", aliases: ["sonnet"], label: "sonnet-5.5", name: "Sonnet 5.5", ctxTokens: 1_000_000, tag: "balanced" },
   { id: "opus-5.5",   aliases: ["opus"],   label: "opus-5.5",   name: "Opus 5.5",   ctxTokens: 1_000_000, tag: "most capable" },
   { id: "fable-5",    aliases: ["fable"],  label: "fable-5",    name: "Fable 5",    ctxTokens: 1_000_000, tag: "most powerful" },

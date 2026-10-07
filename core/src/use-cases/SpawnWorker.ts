@@ -265,8 +265,8 @@ export async function spawnWorker(
   const id = resolved.fixedId ?? deps.ids.newWorkerId();
   const model = resolved.model ?? "opus";
   // xhigh matches claude's own default tier for current opus models. The
-  // capability check clamps/drops a level the model can't take (haiku has no
-  // effort at all) and fails open when the catalog doesn't know the model.
+  // capability check clamps/drops a level the model can't take (haiku 4.5 has
+  // no effort at all) and fails open when the catalog doesn't know the model.
   const requestedEffort = resolved.effort ?? "xhigh";
   const effort = deps.caps
     ? resolveEffort(requestedEffort, await deps.caps.effortLevelsFor(model))

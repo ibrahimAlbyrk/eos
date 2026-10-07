@@ -21,14 +21,13 @@ const FETCH_TIMEOUT_MS = 3000;
 const MODELS_URL = "https://api.anthropic.com/v1/models?limit=100";
 
 // Server-side twin of the web baseline (app/ui/src/lib/models.js): the window a
-// model gets when the live catalog is cold or doesn't know it. Big Claude
-// families carry the 1M window; haiku and everything unknown fall back to 200k.
+// model gets when the live catalog is cold or doesn't know it. Claude families
+// carry the 1M window; everything unknown falls back to 200k.
 const CONTEXT_WINDOW_FALLBACK = 200_000;
 
 function baselineWindowFor(model: string): number {
   const lower = model.toLowerCase();
-  if (lower.includes("haiku")) return 200_000;
-  if (lower.includes("sonnet") || lower.includes("opus") || lower.includes("fable")) return 1_000_000;
+  if (lower.includes("haiku") || lower.includes("sonnet") || lower.includes("opus") || lower.includes("fable")) return 1_000_000;
   return CONTEXT_WINDOW_FALLBACK;
 }
 

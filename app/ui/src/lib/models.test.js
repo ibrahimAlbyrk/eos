@@ -68,6 +68,7 @@ describe("model helpers", () => {
   it("modelName resolves aliases and falls back to id parsing", () => {
     expect(modelName("opus")).toBe("Opus 5.5");
     expect(modelName("sonnet")).toBe("Sonnet 5.5");
+    expect(modelName("haiku")).toBe("Haiku 5.5");
     expect(modelName("claude-sonnet-5")).toBe("Sonnet 5");
   });
 
@@ -78,7 +79,7 @@ describe("model helpers", () => {
 
   it("modelCtxTokens resolves aliases and family substrings", () => {
     expect(modelCtxTokens("sonnet")).toBe(1_000_000);
-    expect(modelCtxTokens("claude-haiku-4-5-20251001")).toBe(200_000);
+    expect(modelCtxTokens("claude-haiku-5-5")).toBe(1_000_000);
     expect(modelCtxTokens("unknown-model")).toBe(null);
   });
 });
