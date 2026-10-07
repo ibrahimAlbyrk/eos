@@ -12,7 +12,7 @@ import http2 from "node:http2";
 import type tls from "node:tls";
 import type { Duplex } from "node:stream";
 
-import { PEER_REFUSAL, type HostInfo, type KnownHost, type LinkRoute, type LinkStatus } from "../../contracts/src/peer.ts";
+import { PEER_HUMAN_HEADER, PEER_REFUSAL, type HostInfo, type KnownHost, type LinkRoute, type LinkStatus } from "../../contracts/src/peer.ts";
 import { HostInfoSchema } from "../../contracts/src/peer.ts";
 import { ROUTES } from "../../contracts/src/http.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
@@ -356,11 +356,12 @@ export class HostLink {
   }
 
   // A filtered event stream (only notification:fire) for as long as this session
-  // lives; the next session opens its own.
+  // lives; the next session opens its own. This daemon's own call, not some
+  // process's on this Mac — so it vouches for itself.
   private watchNotifications(session: http2.ClientHttp2Session): void {
     let req: http2.ClientHttp2Stream;
     try {
-      req = session.request({ ":method": "GET", ":path": "/stream?topics=notification:fire", accept: "text/event-stream" });
+      req = session.request({ ":method": "GET", ":path": "/stream?topics=notification:fire", accept: "text/event-stream", [PEER_HUMAN_HEADER]: "1" });
     } catch {
       return;
     }

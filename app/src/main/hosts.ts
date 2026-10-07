@@ -76,6 +76,9 @@ export class HostViews {
   private readonly views = new Map<string, WebContentsView>();
   private readonly pending = new Map<string, Promise<WebContentsView>>();
   private readonly bundles = new Map<string, HostBundle>();
+  // Each host's view token, and the hosts whose session already carries it.
+  private readonly viewTokens = new Map<string, string>();
+  private readonly tokenHeaders = new Set<string>();
   // Hosts opened in a window of their own ("Open in Window").
   private readonly windows = new Set<BrowserWindow>();
   private active: string | null = null;
@@ -131,6 +134,8 @@ export class HostViews {
     // A forgotten host's view goes with it.
     for (const id of [...this.views.keys()]) {
       if (!this.hosts.some((h) => h.id === id)) this.dispose(id);
+      // Opened while the daemon couldn't mint one — without it the view gets nothing.
+      else if (!this.viewTokens.get(id)) void this.mintViewToken(id);
     }
     if (this.active && !this.hosts.some((h) => h.id === this.active)) await this.switchTo(null);
     this.broadcast();
@@ -229,7 +234,9 @@ export class HostViews {
     const apiBase = `${this.deps.daemonUrl}/h/${id}`;
     const rawBase = `${this.deps.rawUrl}/h/${id}`;
     const partition = `persist:eos-host-${id.slice(0, 32)}`;
-    this.installProtocol(id, session.fromPartition(partition), apiBase, rawBase);
+    const ses = session.fromPartition(partition);
+    this.installProtocol(id, ses, apiBase, rawBase);
+    this.installTokenHeader(id, ses, apiBase, rawBase);
     const token = await this.mintViewToken(id);
     const descriptor = Buffer.from(JSON.stringify({
       id, remote: true, name: host?.alias ?? host?.name ?? "Remote Mac", deviceId: host?.deviceId ?? "",
@@ -257,10 +264,25 @@ export class HostViews {
         method: "POST", headers: { "x-eos-ui-token": this.deps.uiToken },
       });
       const body = (await res.json()) as { token?: string };
-      return typeof body.token === "string" ? body.token : "";
+      const token = typeof body.token === "string" ? body.token : "";
+      if (token) this.viewTokens.set(id, token);
+      return token;
     } catch {
       return "";
     }
+  }
+
+  // The host refuses anything that isn't the user's dashboard, and an <img>,
+  // <video>, EventSource or pdf.js load can't add a header itself — so every
+  // request this view makes to its host's prefix carries the view token.
+  private installTokenHeader(id: string, ses: Session, apiBase: string, rawBase: string): void {
+    if (this.tokenHeaders.has(id)) return;
+    this.tokenHeaders.add(id);
+    ses.webRequest.onBeforeSendHeaders((details, callback) => {
+      const token = this.viewTokens.get(id);
+      const toHost = details.url.startsWith(`${apiBase}/`) || details.url.startsWith(`${rawBase}/`);
+      callback({ requestHeaders: token && toHost ? { ...details.requestHeaders, "x-eos-ui-token": token } : details.requestHeaders });
+    });
   }
 
   // Serves a host view's dashboard. Decided once per page load (at index.html)
@@ -350,6 +372,7 @@ export class HostViews {
     if (this.active === id) this.deps.win.contentView.removeChildView(view);
     view.webContents.close();
     this.views.delete(id);
+    this.viewTokens.delete(id);
   }
 
   private broadcast(): void {

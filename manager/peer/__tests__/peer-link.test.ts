@@ -23,6 +23,8 @@ import type { PeerConfig } from "../../../contracts/src/peer.ts";
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return silent; } };
 const HOST_TOKEN = "h".repeat(48);
 const DEVICE_TOKEN = "d".repeat(48);
+// The device's own dashboard.
+const HUMAN = { "x-eos-ui-token": DEVICE_TOKEN };
 
 function waitFor(cond: () => boolean, ms = 5000): Promise<void> {
   const start = Date.now();
@@ -58,7 +60,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
   let facadePort = 0;
   let host: PeerHostService;
   let device: HostLinkService;
-  const viewTokens = new ViewTokens();
+  const viewTokens = new ViewTokens(DEVICE_TOKEN);
   const notes: Array<Record<string, unknown>> = [];
   const peerConfig: PeerConfig = { enabled: true, direct: true, port: 0 };
 
@@ -168,13 +170,35 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     assert.equal(notes.length, 1);
   });
 
-  it("proxies requests; the host token rides only with the human dashboard's", async () => {
-    const agent = await get(facadePort, `/h/${hostId}/workers?limit=3`);
-    assert.equal(agent.status, 200);
-    assert.deepEqual(JSON.parse(agent.body), { path: "/workers?limit=3", method: "GET", body: "" });
-    const agentSeen = seen.find((s) => s.path === "/workers?limit=3");
-    assert.equal(agentSeen?.token, undefined, "no ui-token for a caller without the device's own");
-    assert.ok(agentSeen?.device, "the gateway names the device");
+  it("refuses any caller on this Mac that isn't its dashboard — an agent's curl reaches nothing there", async () => {
+    const tries: Array<[string, string, string?]> = [
+      ["GET", "/workers?limit=3"],
+      ["POST", "/workers", '{"task":"x"}'],
+      ["POST", "/fs/open", '{"path":"/Applications/Calculator.app"}'],
+      ["POST", "/fs/paste"],
+      ["GET", "/fs/raw/Users/me/.ssh/id_ed25519"],
+      ["GET", "/stream"],
+    ];
+    for (const [method, path, body] of tries) {
+      const r = await get(facadePort, `/h/${hostId}${path}`, { method, body });
+      assert.equal(r.status, 403, `${method} ${path}`);
+      assert.equal(JSON.parse(r.body).code, "needs-human");
+    }
+    for (const [, path] of tries) assert.equal(seen.some((s) => s.path === path), false, `${path} never reached the host`);
+  });
+
+  it("lets anyone see the host's public face, without its token", async () => {
+    const r = await get(facadePort, `/h/${hostId}/api/host`);
+    assert.equal(r.status, 200);
+    const s = seen.filter((x) => x.path === "/api/host").at(-1);
+    assert.equal(s?.token, undefined);
+    assert.ok(s?.device, "the gateway names the device");
+  });
+
+  it("proxies the dashboard's requests with the host's token", async () => {
+    const dash = await get(facadePort, `/h/${hostId}/workers?limit=3`, { headers: HUMAN });
+    assert.equal(dash.status, 200);
+    assert.deepEqual(JSON.parse(dash.body), { path: "/workers?limit=3", method: "GET", body: "" });
 
     const human = await get(facadePort, `/h/${hostId}/pty`, {
       method: "POST", body: '{"cols":80}',
@@ -191,9 +215,47 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     const mine = viewTokens.mint(hostId);
     const other = viewTokens.mint("f".repeat(64));
     await get(facadePort, `/h/${hostId}/view-mine`, { headers: { "x-eos-ui-token": mine } });
-    await get(facadePort, `/h/${hostId}/view-other`, { headers: { "x-eos-ui-token": other } });
+    const r = await get(facadePort, `/h/${hostId}/view-other`, { headers: { "x-eos-ui-token": other } });
     assert.equal(seen.find((s) => s.path === "/view-mine")?.token, HOST_TOKEN);
-    assert.equal(seen.find((s) => s.path === "/view-other")?.token, undefined);
+    assert.equal(r.status, 403);
+    assert.equal(seen.some((s) => s.path === "/view-other"), false);
+  });
+
+  it("a view token outlives a daemon restart, until its host is forgotten", () => {
+    const token = viewTokens.mint(hostId);
+    const restarted = new ViewTokens(DEVICE_TOKEN);
+    assert.ok(restarted.validFor(token, hostId));
+    assert.equal(new ViewTokens("x".repeat(48)).validFor(token, hostId), false, "bound to this Mac's secret");
+    restarted.revokeHost(hostId);
+    assert.equal(restarted.validFor(token, hostId), false);
+  });
+
+  it("the host holds the line itself — a stream sent straight on the link gets only its public face", async () => {
+    const session = await device.link(hostId)!.ready(5000);
+    const send = (path: string, human: boolean): Promise<number> => new Promise((resolve, reject) => {
+      const req = session.request({ ":method": "GET", ":path": path, ...(human ? { "x-eos-peer-human": "1" } : {}) });
+      req.on("response", (h) => { resolve(Number(h[":status"])); req.close(); });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(await send("/fs/read?path=/etc/hosts", false), 403);
+    assert.equal(seen.some((s) => s.path === "/fs/read?path=/etc/hosts"), false);
+    assert.equal(await send("/api/host", false), 200);
+    assert.equal(await send("/fs/stat?path=/tmp", true), 200);
+  });
+
+  it("judges a path by what it resolves to — dot segments don't pass as the public face", async () => {
+    const session = await device.link(hostId)!.ready(5000);
+    const send = (path: string, human: boolean): Promise<number> => new Promise((resolve, reject) => {
+      const req = session.request({ ":method": "POST", ":path": path, ...(human ? { "x-eos-peer-human": "1" } : {}) });
+      req.on("response", (h) => { resolve(Number(h[":status"])); req.close(); });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(await send("/ui/../fs/open", false), 403);
+    assert.equal(await send("/ui/%2e%2e/fs/paste", false), 403);
+    assert.equal(await send("/ui/../policy/decide", true), 403, "the local plane stays local too");
+    assert.equal(seen.some((s) => /\/fs\/open|\/fs\/paste|\/policy\/decide/.test(s.path)), false);
   });
 
   it("never forwards the local plane", async () => {
@@ -203,7 +265,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
   });
 
   it("streams SSE through the facade as it is written", async () => {
-    const r = await get(facadePort, `/h/${hostId}/stream?since=e-0`);
+    const r = await get(facadePort, `/h/${hostId}/stream?since=e-0`, { headers: HUMAN });
     assert.equal(r.status, 200);
     assert.match(String(r.headers["content-type"]), /text\/event-stream/);
     assert.equal((r.body.match(/event: change/g) ?? []).length, 3);
@@ -212,7 +274,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
 
   it("gzips the event stream for a caller that accepts it, each frame still arriving as written", async () => {
     const r = await new Promise<{ encoding: unknown; text: string; firstAt: number; endAt: number }>((resolve, reject) => {
-      const req = httpRequest({ host: "127.0.0.1", port: facadePort, path: `/h/${hostId}/stream?since=e-0`, headers: { "accept-encoding": "gzip" } }, (res) => {
+      const req = httpRequest({ host: "127.0.0.1", port: facadePort, path: `/h/${hostId}/stream?since=e-0`, headers: { ...HUMAN, "accept-encoding": "gzip" } }, (res) => {
         const gunzip = createGunzip();
         let text = "";
         let firstAt = 0;
@@ -234,7 +296,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
   it("reconnects by itself after the link drops", async () => {
     assert.equal(host.disconnect(host.devicesView()[0].fp), 1);
     await waitFor(() => device.get(hostId)?.link.state === "live" && host.devicesView()[0].connected);
-    const r = await get(facadePort, `/h/${hostId}/after-drop`);
+    const r = await get(facadePort, `/h/${hostId}/after-drop`, { headers: HUMAN });
     assert.equal(r.status, 200);
   });
 
@@ -242,7 +304,7 @@ describe("peer link — pair, proxy, stream, revoke", () => {
     host.revoke(host.devicesView()[0].fp);
     await waitFor(() => device.get(hostId)?.link.state === "unauthorized");
     assert.equal(device.get(hostId)?.link.error, "not-paired");
-    const r = await get(facadePort, `/h/${hostId}/workers`);
+    const r = await get(facadePort, `/h/${hostId}/workers`, { headers: HUMAN });
     assert.equal(r.status, 503);
     assert.equal(JSON.parse(r.body).code, "not-paired");
   });

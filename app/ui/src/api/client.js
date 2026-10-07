@@ -897,17 +897,18 @@ export const api = {
     return postJson(ROUTES.hostReconnect(id), {}, uiTokenHeader());
   },
   // Another computer's daemon, read through this Mac's host facade — the All
-  // machines view and the Machines menu preview its sessions this way.
+  // machines view and the Machines menu preview its sessions this way. The
+  // facade lets only this dashboard through, so each call carries its token.
   async hostWorkers(id) {
-    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.workers}`);
+    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.workers}`, { headers: uiTokenHeader() });
     return r.ok && Array.isArray(r.body) ? r.body : null;
   },
   async hostPending(id) {
-    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pending}`);
+    const r = await getJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pending}`, { headers: uiTokenHeader() });
     return r.ok && Array.isArray(r.body) ? r.body : null;
   },
   async hostDecidePending(id, pendingId, decision) {
-    return postJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pendingDecision(pendingId)}`, { decision });
+    return postJson(`${ROUTES.hostProxyPrefix(id)}${ROUTES.pendingDecision(pendingId)}`, { decision }, uiTokenHeader());
   },
 
   // Claude credentials for the claude lane — loopback + ui-token gated. Persists

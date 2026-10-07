@@ -31,6 +31,14 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/peer/*"],
 ];
 
+// Everything else that crosses must come from the user's own dashboard on the
+// device (its ui-token, or a host view's token) — never from just any process
+// there, such as an agent. These few are public by design, on the host too.
+export const PEER_OPEN_ROUTES: readonly RouteRule[] = [
+  ["GET", "/api/host"],
+  ["GET", "/ui/*"],
+];
+
 function templateRegex(template: string): RegExp {
   const prefix = template.endsWith("/*");
   const base = (prefix ? template.slice(0, -2) : template)
@@ -48,3 +56,4 @@ export function compileRouteRules(rules: readonly RouteRule[]): (method: string,
 }
 
 export const isLocalOnlyRoute = compileRouteRules(LOCAL_ONLY_ROUTES);
+export const isPeerOpenRoute = compileRouteRules(PEER_OPEN_ROUTES);

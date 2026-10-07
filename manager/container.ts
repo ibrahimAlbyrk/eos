@@ -1671,7 +1671,7 @@ export function buildContainer() {
     peerHost,
     hostLinks,
     sync,
-    viewTokens: new ViewTokens(),
+    viewTokens: new ViewTokens(uiToken),
     recents,
     projects,
     pages,

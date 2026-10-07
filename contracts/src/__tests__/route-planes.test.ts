@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalOnlyRoute } from "../route-planes.ts";
+import { isLocalOnlyRoute, isPeerOpenRoute } from "../route-planes.ts";
 
 describe("isLocalOnlyRoute", () => {
   it("keeps the worker/hook plane and native pickers local", () => {
@@ -29,5 +29,21 @@ describe("isLocalOnlyRoute", () => {
   it("matches the method, not just the path", () => {
     assert.equal(isLocalOnlyRoute("GET", "/workers/w1/report"), false);
     assert.ok(isLocalOnlyRoute("POST", "/workers/w1/report"));
+  });
+});
+
+describe("isPeerOpenRoute", () => {
+  it("opens only the host's public face", () => {
+    assert.ok(isPeerOpenRoute("GET", "/api/host"));
+    assert.ok(isPeerOpenRoute("GET", "/ui/index.html"));
+    assert.ok(isPeerOpenRoute("GET", "/ui/assets/app-1a2b.js?v=3"));
+  });
+
+  it("keeps everything that reads, writes or launches closed", () => {
+    for (const [m, p] of [["POST", "/fs/open"], ["POST", "/fs/paste"], ["GET", "/fs/raw/Users/me/.ssh/id_ed25519"],
+      ["GET", "/fs/read?path=/etc/hosts"], ["GET", "/stream"], ["GET", "/workers"], ["POST", "/workers"],
+      ["POST", "/api/host"], ["GET", "/uix"]] as const) {
+      assert.equal(isPeerOpenRoute(m, p), false, `${m} ${p}`);
+    }
   });
 });

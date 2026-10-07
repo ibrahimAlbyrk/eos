@@ -8,12 +8,14 @@
 // response and the dashboard's reconnect resumes it from its last event id.
 
 import http2 from "node:http2";
-import { createHash, randomBytes } from "node:crypto";
+import { createHmac } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { PEER_HUMAN_HEADER } from "../../contracts/src/peer.ts";
+import { isPeerOpenRoute } from "../../contracts/src/route-planes.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { uiTokenOk } from "../routes/fs-shared.ts";
+import { constantTimeEqual } from "../shared/constant-time.ts";
 import type { Router, RouteHandler } from "../routes/Router.ts";
 import { LinkUnavailableError, type HostLink } from "./HostLink.ts";
 
@@ -33,25 +35,33 @@ export const HOST_PREFIX = /^\/h\/(?<hostId>[0-9a-f]{64})(?<rest>\/.*)?$/;
 // view — possibly that computer's own UI bundle. Such a view never gets this
 // Mac's ui-token (it would let that code drive THIS Mac); it gets a token that
 // counts as "the human" only under its own host's /h/<id>/ prefix.
+//
+// Derived from this Mac's ui-token rather than stored: an open view keeps its
+// token for the app's whole run, so it must still hold after the daemon restarts.
 export class ViewTokens {
-  private readonly byHash = new Map<string, string>();
+  private readonly secret: string;
+  private readonly revoked = new Set<string>();
+
+  constructor(secret: string) {
+    this.secret = secret;
+  }
 
   mint(hostId: string): string {
-    const token = randomBytes(24).toString("hex");
-    this.byHash.set(ViewTokens.hash(token), hostId);
-    return token;
+    this.revoked.delete(hostId);
+    return this.derive(hostId);
   }
 
   validFor(token: unknown, hostId: string): boolean {
-    return typeof token === "string" && token.length > 0 && this.byHash.get(ViewTokens.hash(token)) === hostId;
+    if (typeof token !== "string" || this.revoked.has(hostId)) return false;
+    return constantTimeEqual(token, this.derive(hostId));
   }
 
   revokeHost(hostId: string): void {
-    for (const [h, id] of this.byHash) if (id === hostId) this.byHash.delete(h);
+    this.revoked.add(hostId);
   }
 
-  private static hash(token: string): string {
-    return createHash("sha256").update(token).digest("hex");
+  private derive(hostId: string): string {
+    return createHmac("sha256", this.secret).update(`eos-view:${hostId}`).digest("hex");
   }
 }
 
@@ -117,13 +127,17 @@ export function registerHostFacade(r: Router, deps: {
   const handler: RouteHandler = async ({ req, res, params, url }) => {
     const link = deps.link(params.hostId);
     if (!link) { writeJson(res, 404, { error: "unknown computer", code: "unknown-host" }); return; }
+    const rest = params.rest || "/";
     // Pairing and tunnels belong to the link itself — no caller here may speak them.
-    if ((params.rest ?? "").startsWith("/peer/")) { writeJson(res, 404, { error: "not an API route" }); return; }
-    await forwardToHost({
-      link, req, res,
-      path: (params.rest || "/") + url.search,
-      human: uiTokenOk(req, deps.uiToken) || (deps.viewTokens?.validFor(req.headers["x-eos-ui-token"], params.hostId) ?? false),
-    });
+    if (rest.startsWith("/peer/")) { writeJson(res, 404, { error: "not an API route" }); return; }
+    const human = uiTokenOk(req, deps.uiToken) || (deps.viewTokens?.validFor(req.headers["x-eos-ui-token"], params.hostId) ?? false);
+    // Any process on this Mac can reach loopback; only the user's dashboard may
+    // act on another computer through it.
+    if (!human && !isPeerOpenRoute(req.method ?? "GET", rest)) {
+      writeJson(res, 403, { error: "only the Eos window can do this on another computer", code: "needs-human" });
+      return;
+    }
+    await forwardToHost({ link, req, res, path: rest + url.search, human });
   };
   for (const method of ["GET", "POST", "PUT", "DELETE", "HEAD"]) r.on(method, HOST_PREFIX, handler);
 }

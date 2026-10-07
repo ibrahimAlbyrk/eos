@@ -4,6 +4,7 @@
 // ordinary local request (streaming, SSE, Range all behave as on this Mac), so
 // the only peer-specific code is this security boundary:
 //   * local-plane routes never cross (route-planes.ts),
+//   * only the device's human dashboard gets past the host's public face,
 //   * identity headers are always the gateway's, never the device's.
 
 import http from "node:http";
@@ -12,7 +13,7 @@ import type { Readable } from "node:stream";
 import zlib from "node:zlib";
 
 import { PEER_DEVICE_HEADER, PEER_HUMAN_HEADER } from "../../contracts/src/peer.ts";
-import { isLocalOnlyRoute } from "../../contracts/src/route-planes.ts";
+import { isLocalOnlyRoute, isPeerOpenRoute } from "../../contracts/src/route-planes.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 
 export interface LocalDaemonTarget {
@@ -27,6 +28,13 @@ const DROP_HEADERS = new Set([
   "connection", "keep-alive", "proxy-connection", "transfer-encoding", "upgrade", "te", "host", "trailer",
   "x-eos-ui-token", PEER_DEVICE_HEADER, PEER_HUMAN_HEADER, "x-eos-agent-id",
 ]);
+
+// Checked and forwarded in the form the local router will resolve it to — or
+// "/ui/../policy/decide" would pass every rule below as "/ui/…".
+function normalizePath(path: string): string {
+  const u = new URL(path, "http://localhost");
+  return u.pathname + u.search;
+}
 
 function isRawPlane(path: string): boolean {
   return path.startsWith("/fs/raw/") || path === "/pdfjs" || path.startsWith("/pdfjs/");
@@ -94,9 +102,17 @@ export function createLocalForwarder(target: LocalDaemonTarget): {
 
   function forward(stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders, deviceFp: string): void {
     const method = String(headers[":method"] ?? "GET");
-    const path = String(headers[":path"] ?? "/");
+    const path = normalizePath(String(headers[":path"] ?? "/"));
     if (isLocalOnlyRoute(method, path)) {
       respondJson(stream, 403, { error: "not available from another device", path });
+      return;
+    }
+    // The device's daemon vouches its caller was its own human dashboard; an
+    // agent on that machine gets no more reach here than an agent on this one.
+    // Held here too, not only by the device's facade: a device may be older.
+    const human = headers[PEER_HUMAN_HEADER] === "1";
+    if (!human && !isPeerOpenRoute(method, path)) {
+      respondJson(stream, 403, { error: "only the Eos window can do this on another computer", code: "needs-human", path });
       return;
     }
     const out: http.OutgoingHttpHeaders = {};
@@ -105,9 +121,7 @@ export function createLocalForwarder(target: LocalDaemonTarget): {
       out[k] = v;
     }
     out.host = "localhost";
-    // The device's daemon vouches its caller was its own human dashboard; an
-    // agent on that machine gets no more reach here than an agent on this one.
-    if (headers[PEER_HUMAN_HEADER] === "1") out["x-eos-ui-token"] = target.uiToken;
+    if (human) out["x-eos-ui-token"] = target.uiToken;
     out[PEER_DEVICE_HEADER] = deviceFp;
 
     const raw = isRawPlane(path);

@@ -36,9 +36,10 @@ function waitFor(cond: () => boolean, ms = 8000): Promise<void> {
   });
 }
 
+// As the dashboard: the facade lets nothing else through to another computer.
 function get(port: number, path: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
-    const req = httpRequest({ host: "127.0.0.1", port, path }, (res) => {
+    const req = httpRequest({ host: "127.0.0.1", port, path, headers: { "x-eos-ui-token": "d".repeat(48) } }, (res) => {
       let body = "";
       res.setEncoding("utf8");
       res.on("data", (d: string) => { body += d; });
