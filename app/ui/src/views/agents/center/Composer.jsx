@@ -170,6 +170,7 @@ export function Composer({ live, worker, paneId, focused }) {
   const intake = useAttachmentIntake({
     attachments,
     editor: { text, setTextAndSync, cursorPos, editorRef },
+    focused,
   });
   const { addAttachments, removeAttachmentToken, attachmentBackspace, dropActive } = intake;
   uploadFailedRef.current = intake.stripLabel;

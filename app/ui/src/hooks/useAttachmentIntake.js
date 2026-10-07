@@ -2,22 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { attachmentKind } from "../lib/attachmentKind.js";
 import { parseAttachmentMessage, findLabelAt, spliceLabels, labelsDeleted } from "../lib/attachmentTokens.js";
 import { getCursorOffset, readEditor } from "./useContentEditableEditor.js";
-import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState, onFileDrop } from "../lib/nativeBridge.js";
-
-// Native Finder drops arrive on a single global bus (nativeBridge). More than one
-// composing surface can be mounted at once (the message composer plus an open
-// template editor); without arbitration a drop lands in BOTH. This stack tracks
-// mount order so a drop / drag-state reaches only the topmost (most recently
-// mounted) surface; one shared subscription dispatches to its top.
-const dropStack = [];
-let dropWired = false;
-function ensureDropDispatch() {
-  if (dropWired) return;
-  dropWired = true;
-  onNativeDrop((entries) => dropStack[dropStack.length - 1]?.handleDrop(entries));
-  onFileDrop((files) => dropStack[dropStack.length - 1]?.handleFiles(files));
-  onDragState((active) => dropStack[dropStack.length - 1]?.setDragActive(active));
-}
+import { hasPasteboardBridge, readPasteboardPaths } from "../lib/nativeBridge.js";
+import { registerDropSurface } from "../lib/dropSurfaces.js";
 
 // Capture each content-bearing file's bytes SYNCHRONOUSLY (file.arrayBuffer()
 // is started now, awaited later at upload) so the read happens inside the paste
@@ -45,8 +31,9 @@ function snapshotFiles(files) {
 //
 // `attachments` is a useAttachments() instance (owned by the caller, which also
 // feeds its items into useContentEditableEditor); `editor` exposes the editor
-// primitives { text, setTextAndSync, cursorPos, editorRef }.
-export function useAttachmentIntake({ attachments, editor }) {
+// primitives { text, setTextAndSync, cursorPos, editorRef }. `focused` marks the
+// focused pane's composer, which takes drops that land outside every pane.
+export function useAttachmentIntake({ attachments, editor, focused = false }) {
   const { items, addUpload, addPath, addResolved, remove: removeItem } = attachments;
   const { text, setTextAndSync, cursorPos, editorRef } = editor;
   const [dropActive, setDropActive] = useState(false);
@@ -165,30 +152,29 @@ export function useAttachmentIntake({ attachments, editor }) {
   };
 
   // Finder drags intercepted by the native layer — paths arrive via the bridge
-  // globals; latest closures through a ref, topmost-surface arbitration via the
-  // shared stack so an open modal takes drops away from the composer behind it.
+  // global; latest closures through a ref. dropSurfaces sends each drop to the
+  // surface it landed on (this pane's composer, or the modal over it).
   const dropRef = useRef({});
+  dropRef.current.focused = focused;
   dropRef.current.handleDrop = (entries) => {
     if (!entries?.length) return;
     addAttachments(entries.map((en) => ({ type: attachmentKind(en.path, en.isDir), path: en.path })));
   };
   // Files dropped on a view of another computer arrive as bytes — upload them there.
   dropRef.current.handleFiles = (files) => uploadFiles(snapshotFiles(files), cursorPos);
-  dropRef.current.setDragActive = setDropActive;
   useEffect(() => {
-    ensureDropDispatch();
-    const entry = {
-      handleDrop: (es) => dropRef.current.handleDrop(es),
-      handleFiles: (fs) => dropRef.current.handleFiles(fs),
-      setDragActive: (a) => dropRef.current.setDragActive(a),
-    };
-    dropStack.push(entry);
+    const unregister = registerDropSurface({
+      editor: () => editorRef.current,
+      focused: () => dropRef.current.focused,
+      drop: (es) => dropRef.current.handleDrop(es),
+      dropFiles: (fs) => dropRef.current.handleFiles(fs),
+      setDragActive: setDropActive,
+    });
     return () => {
-      const i = dropStack.indexOf(entry);
-      if (i >= 0) dropStack.splice(i, 1);
+      unregister();
       setDropActive(false);
     };
-  }, []);
+  }, [editorRef]);
 
   return {
     handlePaste,
