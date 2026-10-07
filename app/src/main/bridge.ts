@@ -122,11 +122,8 @@ export function registerBridge(win: BrowserWindow): void {
   // pasteboardPaths: reply-style — the UI awaits handler.postMessage(null).
   ipcMain.handle("eos:pasteboardPaths", () => readClipboardFilePaths());
 
-  // Native Finder DnD, forwarded from the preload's capture-phase listeners →
-  // __eosDragState(bool) / __eosNativeDrop(entries) (doc 10 §d outbound 1–4).
-  ipcMain.on("eos:dragState", (_e, active: unknown) => {
-    driveJs(wc, `window.__eosDragState && window.__eosDragState(${active ? "true" : "false"})`);
-  });
+  // Native Finder drop, forwarded from the preload's capture-phase listener →
+  // __eosNativeDrop(entries) (doc 10 §d outbound 1–4).
   ipcMain.on("eos:nativeDrop", async (_e, paths: unknown) => {
     const entries = await statEntries(Array.isArray(paths) ? paths.filter((p): p is string => typeof p === "string") : []);
     driveJs(wc, `window.__eosNativeDrop && window.__eosNativeDrop(${JSON.stringify(entries)})`);

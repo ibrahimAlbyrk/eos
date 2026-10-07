@@ -18,7 +18,7 @@ edits): a `window.webkit.messageHandlers` shim (`themeChanged`, `themeSnapshot`,
 `saveFile`, reply-style `pasteboardPaths`, no-op titlebar handlers) routing to
 main IPC (`src/main/bridge.ts`), a terminal-aware Edit menu driving
 `__eosUndo`/`__eosRedo`/`__eosTerm.*` (`src/main/menu.ts`), Finder DnD
-interception in the preload → `__eosNativeDrop`/`__eosDragState`, and persisted
+interception in the preload → `__eosNativeDrop`, and persisted
 theme (`src/main/theme.ts`) so the opaque pre-paint background tracks dark/light.
 `themeChanged` repaints the native window bg (dark `#1a1a1a` ↔ light `#f6f1e6`);
 `themeSnapshot` feeds the crossfade via `capturePage` → `__eosThemeSnapshot`. See

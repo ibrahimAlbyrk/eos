@@ -145,27 +145,20 @@ contextBridge.exposeInMainWorld("webkit", {
 });
 
 // Finder drag/drop interception: the Swift EosWebView swallowed file drags before
-// the DOM and delivered real paths via __eosNativeDrop/__eosDragState (doc 10 §d
-// outbound 1–4). Capture-phase listeners reproduce that — preventDefault so the
-// UI's own DnD doesn't double-handle, resolve real paths via webUtils
-// (File.path is gone in modern Electron), and let main stat isDir + drive the globals.
+// the DOM and delivered real paths via __eosNativeDrop (doc 10 §d outbound 1–4).
+// Capture-phase listeners reproduce that — preventDefault so the UI's own DnD
+// doesn't double-handle, resolve real paths via webUtils (File.path is gone in
+// modern Electron), and let main stat isDir + drive the global. Where the drag is
+// over the UI reads off the DOM itself.
 function hasFiles(e: DragEvent): boolean {
   // A controlled computer's view gets no local paths — they mean nothing there.
   return !hostView && !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
 }
 document.addEventListener("dragenter", (e) => {
-  if (!hasFiles(e)) return;
-  e.preventDefault();
-  ipcRenderer.send("eos:dragState", true);
+  if (hasFiles(e)) e.preventDefault();
 }, true);
 document.addEventListener("dragover", (e) => {
   if (hasFiles(e)) e.preventDefault();
-}, true);
-document.addEventListener("dragleave", (e) => {
-  // Only the window-level leave (relatedTarget null) toggles off, to avoid
-  // flicker when the cursor crosses child element boundaries.
-  if (!hasFiles(e) || (e as DragEvent).relatedTarget) return;
-  ipcRenderer.send("eos:dragState", false);
 }, true);
 document.addEventListener("drop", (e) => {
   if (!hasFiles(e)) return;
@@ -179,6 +172,5 @@ document.addEventListener("drop", (e) => {
       /* not a real file */
     }
   }
-  ipcRenderer.send("eos:dragState", false);
   ipcRenderer.send("eos:nativeDrop", paths);
 }, true);
