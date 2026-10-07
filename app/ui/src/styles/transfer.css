@@ -267,6 +267,10 @@
 .tx-recent__clear { align-self: flex-start; margin-top: 4px; padding: 4px 10px; border-radius: var(--r-row); font-size: var(--text-xs); color: var(--fg-faint); }
 .tx-recent__clear:hover { color: var(--fg-mid); background: var(--lg-chip-bg); }
 
+/* the same card inside a send_to_machine tool row in the chat */
+.tx-tool { padding: 2px 0; }
+.tx-tool .tx-card { background: var(--panel); }
+
 /* a narrow panel: the two machines stack, the swap turns sideways */
 @container transfer (max-width: 340px) {
   .tx-pair { grid-template-columns: minmax(0, 1fr); }

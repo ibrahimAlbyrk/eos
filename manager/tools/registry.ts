@@ -28,6 +28,7 @@ import { editPageDef } from "./defs/edit_page.ts";
 import { setPageTaskDef } from "./defs/set_page_task.ts";
 import { searchMemoryDef } from "./defs/search_memory.ts";
 import { suggestMemoryDef } from "./defs/suggest_memory.ts";
+import { sendToMachineDef } from "./defs/send_to_machine.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
 import { browserFindDef } from "./defs/browser_find.ts";
@@ -109,6 +110,10 @@ export const orchestratorDefs: ToolDefinition[] = [
 
 // Always registered on a worker.
 export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...memoryDefs, ...browserDefs];
+
+// Added to a focused session's worker surface only — the session the user talks
+// to directly (SdkToolHost; focused sessions always run on the claude SDK lane).
+export const focusedDefs: ToolDefinition[] = [sendToMachineDef];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

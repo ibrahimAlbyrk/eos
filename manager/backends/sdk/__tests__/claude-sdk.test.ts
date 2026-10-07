@@ -368,7 +368,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "oat01-x" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://127.0.0.1:7400",
       makeToolContext,
       queryFn,
@@ -410,7 +410,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s: AgentLaunchSpec): ToolContext => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -436,7 +436,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async (i) => { decided.push({ toolName: i.toolName, fullSurface: i.fullSurface }); return { behavior: "allow" }; } },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s: AgentLaunchSpec): ToolContext => ({
         selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false,
@@ -501,7 +501,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s: AgentLaunchSpec): ToolContext => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       resolveAdditionalDirs: () => dirs,
@@ -522,7 +522,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => { seen.push(s.workerId); return { selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }; },
       queryFn,
@@ -541,7 +541,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "oat01-x" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://127.0.0.1:7400",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       assembleAppendPrompt: () => "EOS ORCHESTRATION PROTOCOL",
@@ -569,7 +569,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
       policy: { decide: async () => (mode === "bypassPermissions"
         ? { behavior: "allow" as const }
         : { behavior: "deny" as const, message: "denied by permission mode: acceptEdits" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -599,7 +599,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -614,7 +614,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -635,7 +635,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => q as never,
@@ -658,7 +658,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: (params) => {
@@ -682,7 +682,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => q as never,
@@ -731,7 +731,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => q as never,
@@ -758,7 +758,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => q as never,
@@ -793,7 +793,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: (params) => { capturedOptions = params.options as unknown as Record<string, unknown>; return q as never; },
@@ -850,7 +850,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -900,7 +900,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -950,7 +950,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -1026,7 +1026,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => q as never,
@@ -1049,7 +1049,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn: () => (async function* () { /* idle */ })() as never,
@@ -1074,7 +1074,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       resolveSdkMcpServers: (_spec, builtins) => {
@@ -1101,7 +1101,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -1117,7 +1117,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       resolveSdkMcpServers: (_spec, builtins) => ({ mcpServers: builtins, dropped: [{ name: "bad", reason: "unsupported MCP server shape" }] }),
@@ -1154,7 +1154,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -1223,7 +1223,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -1297,7 +1297,7 @@ describe("ClaudeSdkBackend — context compaction", () => {
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,

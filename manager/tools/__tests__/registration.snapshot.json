@@ -1473,5 +1473,34 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }
+  },
+  "focused": {
+    "send_to_machine": {
+      "type": "object",
+      "properties": {
+        "machine": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "The paired Mac to send to, by the name the user used — e.g. \"MacBook Air\"."
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "maxItems": 100,
+          "description": "Files or folders on this Mac: absolute, or relative to your working folder."
+        }
+      },
+      "required": [
+        "machine",
+        "paths"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
   }
 }

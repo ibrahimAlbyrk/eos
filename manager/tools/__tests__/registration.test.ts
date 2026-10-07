@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { orchestratorDefs, workerDefs, peerDefs } from "../registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, focusedDefs } from "../registry.ts";
 import { toMcpModule } from "../projections.ts";
 import { orchestratorCtx, workerCtx } from "../context.ts";
 import { fingerprintModules, FAKE_ORCH_SESSION, FAKE_WORKER_SESSION } from "./fingerprint.ts";
@@ -20,6 +20,7 @@ import { listPagesDef } from "../defs/list_pages.ts";
 import { readPageDef } from "../defs/read_page.ts";
 import { appendToPageDef } from "../defs/append_to_page.ts";
 import { setPageTaskDef } from "../defs/set_page_task.ts";
+import { sendToMachineDef } from "../defs/send_to_machine.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
@@ -64,6 +65,13 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
     assert.deepEqual(fp, snapshot.peer);
     assert.deepEqual(Object.keys(fp), ["list_peers", "ask_peer", "respond_to_peer"]);
   });
+
+  it("focused-only tools match, and no other surface has them", () => {
+    const fp = fingerprintModules(focusedDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
+    assert.deepEqual(fp, snapshot.focused);
+    assert.deepEqual(Object.keys(fp), ["send_to_machine"]);
+    for (const defs of [orchestratorDefs, workerDefs, peerDefs]) assert.equal(defs.some((d) => d.name === "send_to_machine"), false);
+  });
 });
 
 describe("tool handlers issue the expected daemon calls", () => {
@@ -102,6 +110,22 @@ describe("tool handlers issue the expected daemon calls", () => {
       { op: "setTask", task: "a", done: true },
     ]);
     assert.equal(edit.calls[0]!.path, "/api/pages/pg-abcdef12/edit");
+  });
+
+  it("send_to_machine starts the transfer as itself, follows it, and says where it landed", async () => {
+    const done = {
+      id: "tr-0000aaaa", status: "done", roots: [{ name: "web.zip" }], sources: ["/repo/builds/web.zip"], totalBytes: 41_200_000,
+      doneBytes: 41_200_000, placed: [{ name: "web.zip", path: "/Users/me/Downloads/Eos/web.zip" }], error: null,
+    };
+    const { ctx, calls } = recording({}, done);
+    const text = await sendToMachineDef.handler(ctx, { machine: "MacBook Air", paths: ["builds/web.zip"] }) as string;
+    assert.deepEqual(calls, [{ method: "POST", path: "/workers/self-1/transfers", body: { machine: "MacBook Air", paths: ["builds/web.zip"] } }]);
+    assert.equal(text, "Sent web.zip (39 MB) to MacBook Air: /Users/me/Downloads/Eos/web.zip (tr-0000aaaa)");
+  });
+
+  it("send_to_machine passes on the daemon's reason, not its raw reply", async () => {
+    const { ctx } = recording({ api: async () => { throw new Error('daemon 400: {"error":"invalid request: No paired Mac matches \\"iMac\\". Paired Macs: Office (online)."}'); } });
+    await assert.rejects(sendToMachineDef.handler(ctx, { machine: "iMac", paths: ["a"] }), /^Error: No paired Mac matches "iMac"\. Paired Macs: Office \(online\)\.$/);
   });
 
   it("notify_user POSTs to /workers/:self/notify", async () => {

@@ -33,6 +33,7 @@ import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
 import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
 import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
 import { MEMORY_TOOL_VIEWS } from "./MemoryToolViews.jsx";
+import { TRANSFER_TOOL_VIEWS } from "./TransferToolViews.jsx";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -324,6 +325,8 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
 for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) {
   for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, view);
 }
+// A focused session's send_to_machine — the worker server only; view in ./TransferToolViews.jsx.
+for (const [tool, view] of Object.entries(TRANSFER_TOOL_VIEWS)) register(`mcp__worker__${tool}`, view);
 
 // Task-management tools (harness built-ins) — the collapsed row says what
 // happened at a glance (subject / #id / count) with a status badge; the bodies

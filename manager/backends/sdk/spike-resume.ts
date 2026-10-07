@@ -45,7 +45,7 @@ function makeBackend() {
   return createClaudeSdkBackend({
     authResolver: createSubscriptionAuthResolver(),
     policy: { decide: async () => ({ behavior: "allow" }) },
-    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: "http://127.0.0.1:7400",
     makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
   });

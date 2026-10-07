@@ -74,7 +74,7 @@ import { buildBuiltinSurface, buildLaneSurface, taskToolItem, type LaneTooling }
 import { SKILL_TOOL_NAME, skillToolItem, buildSkillTool, renderAvailableSkills } from "./backends/skill-tooling.ts";
 import { createFileSkillCatalog } from "../infra/src/skills/FileSkillCatalog.ts";
 import { createCommandTemplateExpander } from "./backends/command-expander.ts";
-import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, focusedDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
@@ -1043,7 +1043,7 @@ export function buildContainer() {
   const builtinDescriptionNames = [...builtinToolRegistry.list().map((t) => t.name), "Task", SKILL_TOOL_NAME];
   const renderInprocToolDescriptions = (): Record<string, string> =>
     renderToolDescriptions(config.paths.promptsDir, [
-      ...[...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name),
+      ...[...orchestratorDefs, ...workerDefs, ...peerDefs, ...focusedDefs].map((d) => d.name),
       ...builtinDescriptionNames,
     ]);
   // The built-in surface for a spec (NO control tools) — used directly for the Task
@@ -1269,7 +1269,7 @@ export function buildContainer() {
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
+    toolHost: { orchestratorDefs, workerDefs, peerDefs, focusedDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
     // save is picked up on the next spawn without restarting the daemon.
@@ -1360,7 +1360,7 @@ export function buildContainer() {
   const judgeBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
     claudeStore: claudeStoreDir,

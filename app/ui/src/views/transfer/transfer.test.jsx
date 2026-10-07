@@ -7,6 +7,8 @@ import { TransferCard } from "./TransferCard.jsx";
 import { RecentTransfers } from "./RecentTransfers.jsx";
 import { Destination } from "./Destination.jsx";
 import { etaLabel, namesOf, percentOf, rateLabel, tildify } from "./text.js";
+import { getToolView } from "../agents/messages/toolViews.jsx";
+import { transferIdOf } from "../agents/messages/TransferToolViews.jsx";
 
 vi.mock("../../api/client.js", () => ({ api: { listTransfers: vi.fn(async () => []) } }));
 
@@ -121,5 +123,16 @@ describe("the rest of the tab", () => {
       .toContain("Same project on This Mac — matched by its git remote.");
     expect(text(render(<Destination dest={{ destDir: "/Users/me/Downloads/Eos", reason: "default" }} toLabel="This Mac" onChange={() => {}} />)))
       .not.toContain("matched");
+  });
+});
+
+describe("send_to_machine in the chat", () => {
+  it("says what went where, and finds the transfer to follow in the answer", () => {
+    const view = getToolView("mcp__worker__send_to_machine");
+    expect(view.label({ input: { paths: ["/p/builds/web.zip", "notes.md"], machine: "MacBook Air" } })).toEqual({ verb: "Sent", file: "web.zip, notes.md → MacBook Air" });
+    expect(view.runningLabel({ input: { paths: ["out"], machine: "Air" } }).verb).toBe("Sending");
+    expect(transferIdOf("Sent web.zip (39 MB) to MacBook Air: /Users/me/Downloads/Eos/web.zip (tr-0000aaaa)")).toBe("tr-0000aaaa");
+    expect(transferIdOf("Sending failed")).toBe(null);
+    expect(getToolView("mcp__orchestrator__send_to_machine").label({ name: "mcp__orchestrator__send_to_machine", input: {} }).verb).toBe("Used");
   });
 });

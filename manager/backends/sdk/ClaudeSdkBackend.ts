@@ -426,6 +426,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const built = buildSdkToolServers(deps.toolHost, {
           isOrchestrator: spec.isOrchestrator,
           collaborate: backendCollaborate(opts),
+          focused,
           ctx,
         });
         // Default: just the in-process Eos builtins (judge / no resolver, and a

@@ -53,6 +53,13 @@ describe("USER_PROFILE in the preambles", () => {
     assert.match(text, /## The user's memory/);
   });
 
+  it("focused: tells the agent how to send files to the user's other Macs — no other role hears it", () => {
+    const text = assemble({ role: "focused", userProfile: "" });
+    assert.match(text, /## The user's other Macs/);
+    assert.ok(text.includes(TOOL_NAME_VARS.SEND_TO_MACHINE_TOOL));
+    for (const role of ["worker", "orchestrator"] as const) assert.doesNotMatch(assemble({ role }), /send_to_machine|other Macs/);
+  });
+
   it("profile text is never re-parsed as a template", () => {
     const text = assemble({ userProfile: "keep {{AGENT_NAME}} literal" });
     assert.ok(text.includes("keep {{AGENT_NAME}} literal"));

@@ -9,9 +9,9 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { orchestratorDefs, workerDefs, peerDefs } from "../registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, focusedDefs } from "../registry.ts";
 import { toMcpModule, toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "../projections.ts";
-import { toSdkTool } from "../../backends/sdk/SdkToolHost.ts";
+import { sdkToolDefs, toSdkTool } from "../../backends/sdk/SdkToolHost.ts";
 import { fingerprintModules } from "./fingerprint.ts";
 import { EOS_BUILTIN_MCP_SERVERS } from "../../../contracts/src/tool-scope.ts";
 import type { ToolContext } from "../types.ts";
@@ -21,6 +21,7 @@ const CTX: ToolContext = { selfId: "x", cwd: "/repo", isGitRepo: () => true, api
 const CASES = [
   { label: "orchestrator", defs: orchestratorDefs, isOrch: true },
   { label: "worker+peer", defs: [...workerDefs, ...peerDefs], isOrch: false },
+  { label: "focused", defs: [...workerDefs, ...focusedDefs], isOrch: false },
 ] as const;
 
 describe("tool projection parity — MCP / SDK / runtime expose identical name+schema", () => {
@@ -53,4 +54,16 @@ describe("tool projection parity — MCP / SDK / runtime expose identical name+s
       assert.deepEqual(rt, expected, "runtime projection drifted from the registry");
     });
   }
+});
+
+describe("which Eos tools a claude session gets", () => {
+  const host = { orchestratorDefs, workerDefs, peerDefs, focusedDefs, renderDescriptions: () => ({}) };
+  const names = (input: { isOrchestrator: boolean; collaborate: boolean; focused?: boolean }) => sdkToolDefs(host, input).map((d) => d.name);
+
+  it("only the focused session can send files to another Mac", () => {
+    assert.ok(names({ isOrchestrator: false, collaborate: false, focused: true }).includes("send_to_machine"));
+    assert.equal(names({ isOrchestrator: false, collaborate: false }).includes("send_to_machine"), false, "a spawned worker can't");
+    assert.equal(names({ isOrchestrator: false, collaborate: true }).includes("send_to_machine"), false);
+    assert.equal(names({ isOrchestrator: true, collaborate: false, focused: true }).includes("send_to_machine"), false);
+  });
 });

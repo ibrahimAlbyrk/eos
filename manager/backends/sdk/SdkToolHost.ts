@@ -23,6 +23,8 @@ export interface SdkToolHostDeps {
   readonly orchestratorDefs: readonly ToolDefinition[];
   readonly workerDefs: readonly ToolDefinition[];
   readonly peerDefs: readonly ToolDefinition[];
+  // A focused session's extras on top of the worker surface.
+  readonly focusedDefs: readonly ToolDefinition[];
   /** Render the tool-name→description map fresh from the prompt library. Called
    *  ONCE per spawn (in buildSdkToolServers) so prompt-file edits take effect on
    *  the next spawn with no daemon restart — matching the claude-cli MCP lane. */
@@ -32,6 +34,7 @@ export interface SdkToolHostDeps {
 export interface SdkToolHostInput {
   readonly isOrchestrator: boolean;
   readonly collaborate: boolean;
+  readonly focused?: boolean;
   readonly ctx: ToolContext;
 }
 
@@ -44,14 +47,20 @@ export interface SdkToolHostInput {
 // an allow-listed tool bypasses canUseTool (and thus Eos's policy engine). Leaving
 // Eos tools out keeps them OFFERED (via mcpServers) but routes every call through
 // canUseTool → PolicyGatewayService — exactly the PTY hook-as-gateway posture.
+// The Eos tools a session gets: an orchestrator its own surface; a worker the
+// worker surface, + peer tools when collaborating, + the focused extras when it's
+// the session the user talks to directly.
+export function sdkToolDefs(deps: SdkToolHostDeps, input: Omit<SdkToolHostInput, "ctx">): readonly ToolDefinition[] {
+  if (input.isOrchestrator) return deps.orchestratorDefs;
+  return [...deps.workerDefs, ...(input.collaborate ? deps.peerDefs : []), ...(input.focused ? deps.focusedDefs : [])];
+}
+
 export function buildSdkToolServers(
   deps: SdkToolHostDeps,
   input: SdkToolHostInput,
 ): { mcpServers: Record<string, McpServerConfig>; allowedTools: string[] } {
   const server = mcpServerForRole(input.isOrchestrator);
-  const defs = input.isOrchestrator
-    ? deps.orchestratorDefs
-    : (input.collaborate ? [...deps.workerDefs, ...deps.peerDefs] : deps.workerDefs);
+  const defs = sdkToolDefs(deps, input);
   const descriptions = deps.renderDescriptions();
   const tools = defs.map((d) => toSdkTool(d, input.ctx, descriptions[d.name] ?? d.name));
   return {

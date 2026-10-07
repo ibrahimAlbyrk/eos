@@ -45,6 +45,7 @@ import { editPageDef } from "./tools/defs/edit_page.ts";
 import { setPageTaskDef } from "./tools/defs/set_page_task.ts";
 import { searchMemoryDef } from "./tools/defs/search_memory.ts";
 import { suggestMemoryDef } from "./tools/defs/suggest_memory.ts";
+import { sendToMachineDef } from "./tools/defs/send_to_machine.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -88,6 +89,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   SET_PAGE_TASK_TOOL: setPageTaskDef.name,
   SEARCH_MEMORY_TOOL: searchMemoryDef.name,
   SUGGEST_MEMORY_TOOL: suggestMemoryDef.name,
+  SEND_TO_MACHINE_TOOL: sendToMachineDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

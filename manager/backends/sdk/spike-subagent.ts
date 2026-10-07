@@ -88,7 +88,7 @@ function recordCanon(e: AgentEvent): void {
 const be = createClaudeSdkBackend({
   authResolver: createSubscriptionAuthResolver(),
   policy: { decide: async () => ({ behavior: "allow" }) },
-  toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+  toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
   daemonUrl: "http://127.0.0.1:7400",
   makeToolContext: (sp) => ({ selfId: sp.workerId, cwd: sp.cwd, isGitRepo: () => false, api: async () => ({}) }),
   queryFn: loggingQuery,
