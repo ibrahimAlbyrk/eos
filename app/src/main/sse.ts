@@ -63,7 +63,7 @@ export class SSEClient {
   private handleLine(line: string): void {
     if (!line.startsWith("data:")) return;
     const json = line.slice(5).trim();
-    if (!json || (!json.includes("worker:") && !json.includes("notification:fire") && !json.includes("hosts:change"))) return;
+    if (!json || (!json.includes("worker:") && !json.includes("notification:fire") && !json.includes("hosts:change") && !json.includes("transfer:change"))) return;
     try {
       const obj = JSON.parse(json) as { reason?: unknown; payload?: unknown };
       if (typeof obj.reason === "string") this.h.onEvent(obj.reason, obj.payload);

@@ -66,6 +66,32 @@ contextBridge.exposeInMainWorld("eosHosts", {
   },
 });
 
+// The Transfer tab inside a controlled computer's view: this Mac's transfer
+// engine is out of that page's reach, so main carries a few calls (transfers.ts).
+// Main checks every one — only this Mac's own dashboard gets through, the other
+// side is always the host this view shows, and this Mac's paths come only from
+// its native pickers.
+async function transferCall(channel: string, arg?: unknown): Promise<unknown> {
+  const r = (await ipcRenderer.invoke(channel, arg)) as { value?: unknown; error?: string; code?: string } | null;
+  if (r?.error) throw Object.assign(new Error(r.error), { code: r.code ?? null });
+  return r?.value ?? null;
+}
+if (hostView) contextBridge.exposeInMainWorld("eosTransfer", {
+  list: () => transferCall("eosTransfer:list"),
+  destination: (body: { paths: string[] }) => transferCall("eosTransfer:destination", { paths: body?.paths }),
+  chooseFolder: () => transferCall("eosTransfer:chooseFolder"),
+  pull: (body: { paths: string[]; chosen: boolean }) => transferCall("eosTransfer:pull", { paths: body?.paths, chosen: body?.chosen === true }),
+  push: (body: { destDir: string | null }) => transferCall("eosTransfer:push", { destDir: body?.destDir ?? null }),
+  act: (id: string, action: string, decisions?: Record<string, string>) => transferCall("eosTransfer:act", { id, action, decisions }),
+  clear: () => transferCall("eosTransfer:clear"),
+  reveal: (id: string) => transferCall("eosTransfer:reveal", { id }),
+  onChange: (cb: (payload: unknown) => void) => {
+    const h = (_e: unknown, payload: unknown) => cb(payload);
+    ipcRenderer.on("eosTransfer:changed", h);
+    return () => ipcRenderer.removeListener("eosTransfer:changed", h);
+  },
+});
+
 // Embedded browser view — geometry/visibility channel ONLY (plan §C/§E). The
 // renderer measures the browser panel's placeholder rect and reports it; the main
 // process positions the native WebContentsView to track it. No webContents and no

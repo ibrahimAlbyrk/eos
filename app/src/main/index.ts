@@ -26,6 +26,7 @@ import { initBinaryAutoUpdate } from "./updater-binary";
 import { initBrowserHost } from "./browser";
 import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
+import { TransferBridge } from "./transfers";
 import { rebuildAndRelaunch } from "./rebuild";
 import type { MenuItemConstructorOptions } from "electron";
 
@@ -92,6 +93,7 @@ else app.on("second-instance", () => {
 
 let mainWindow: BrowserWindow | null = null;
 let hostViews: HostViews | null = null;
+let transferBridge: TransferBridge | null = null;
 let tray: TrayController | null = null;
 let quitting = false;
 // True when THIS app started the daemon (false when we adopted an already-running
@@ -374,6 +376,7 @@ async function startBackgroundServices(token: string): Promise<void> {
     onEvent: (reason, payload) => {
       if (reason.startsWith("worker:")) fleet.onWorkerFrame();
       else if (reason === "notification:fire") notifier(payload);
+      else if (reason === "transfer:change") transferBridge?.forward(payload);
       else if (reason === "hosts:change" && !hostsRefresh) {
         // Link state ticks (latency) arrive in bursts — coalesce the refetch.
         hostsRefresh = setTimeout(() => { hostsRefresh = null; void hostViews?.refresh(); }, 150);
@@ -424,6 +427,15 @@ app.whenReady().then(async () => {
   });
   rebuildMenu();
   void hostViews.refresh();
+  // The Transfer tab inside a view of another computer reaches this Mac's engine here.
+  const views = hostViews;
+  transferBridge = new TransferBridge({
+    daemonUrl: DAEMON_URL, uiToken: token,
+    hostFor: (wc) => views.hostFor(wc),
+    contentsFor: (id) => views.contentsFor(id),
+    hostContents: () => views.hostContents(),
+    fallbackWindow: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+  });
 
   // Embedded-browser lane: register this app as the daemon's browser host and own
   // the native WebContentsView views (M1/M2). The renderer positions them via the

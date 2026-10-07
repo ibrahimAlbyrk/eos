@@ -79,8 +79,9 @@ export class HostViews {
   // Each host's view token, and the hosts whose session already carries it.
   private readonly viewTokens = new Map<string, string>();
   private readonly tokenHeaders = new Set<string>();
-  // Hosts opened in a window of their own ("Open in Window").
+  // Hosts opened in a window of their own ("Open in Window"), and whose each is.
   private readonly windows = new Set<BrowserWindow>();
+  private readonly windowHosts = new Map<BrowserWindow, string>();
   private active: string | null = null;
 
   constructor(deps: Deps) {
@@ -189,6 +190,29 @@ export class HostViews {
     return [this.deps.win.webContents, ...[...this.views.values()].map((v) => v.webContents)];
   }
 
+  // The controlled computer a renderer shows, and whether it runs this Mac's own
+  // dashboard (code we trust) rather than that computer's. null = not a host view.
+  hostFor(wc: WebContents): { id: string; trusted: boolean } | null {
+    let id: string | null = null;
+    for (const [hostId, view] of this.views) if (view.webContents === wc) id = hostId;
+    for (const [win, hostId] of this.windowHosts) if (!win.isDestroyed() && win.webContents === wc) id = hostId;
+    return id ? { id, trusted: this.bundles.get(id)?.source === "local" } : null;
+  }
+
+  // Every renderer showing another computer.
+  hostContents(): WebContents[] {
+    return [...new Set([...this.views.keys(), ...this.windowHosts.values()])].flatMap((id) => this.contentsFor(id));
+  }
+
+  // Every renderer showing `id` (its view, and any window of its own).
+  contentsFor(id: string): WebContents[] {
+    const out: WebContents[] = [];
+    const view = this.views.get(id);
+    if (view && !view.webContents.isDestroyed()) out.push(view.webContents);
+    for (const [win, hostId] of this.windowHosts) if (hostId === id && !win.isDestroyed()) out.push(win.webContents);
+    return out;
+  }
+
   private async reconnect(id: string): Promise<void> {
     try {
       await fetch(`${this.deps.daemonUrl}/api/hosts/${id}/reconnect`, { method: "POST", headers: { "x-eos-ui-token": this.deps.uiToken } });
@@ -206,7 +230,8 @@ export class HostViews {
     });
     this.lockdown(win.webContents);
     this.windows.add(win);
-    win.on("closed", () => this.windows.delete(win));
+    this.windowHosts.set(win, id);
+    win.on("closed", () => { this.windows.delete(win); this.windowHosts.delete(win); });
     await win.loadURL("eos://app/index.html");
   }
 
