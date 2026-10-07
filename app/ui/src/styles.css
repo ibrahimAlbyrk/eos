@@ -30,6 +30,7 @@
 @import "./styles/profile.css";
 @import "./styles/memory.css";
 @import "./styles/dream.css";
+@import "./styles/transfer.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -81,9 +81,12 @@ function Shell() {
   // A notification about the user rather than a worker (e.g. memory suggestions).
   const openMemory = useOpenMemory();
   useEffect(() => {
-    window.__nativeOpenRoute = (route) => { if (route === "memory") openMemory(); };
+    window.__nativeOpenRoute = (route) => {
+      if (route === "memory") openMemory();
+      if (route === "transfers") { ui.setActiveView("agents"); ui.openPanel("transfer"); }
+    };
     return () => { delete window.__nativeOpenRoute; };
-  }, [openMemory]);
+  }, [openMemory, ui.setActiveView, ui.openPanel]);
 
   // Recall (interrupt before the agent responded) is consumed directly by the
   // pane's Composer that owns recall.workerId (recallStore) — no selectedId-keyed

@@ -7,6 +7,7 @@ import { createPage, usePageList } from "../../state/pagesStore.js";
 import { useSuggestions } from "../../state/browserHistoryStore.js";
 import { subscribe as subscribeDiff, getSnapshot as getDiff, revalidate as revalidateDiff } from "../../state/diffStore.js";
 import { useSubagents } from "../../state/subagentsStore.js";
+import { isActive, useTransfers } from "../../state/transfersStore.js";
 import { explorer } from "../../state/explorerStore.js";
 import { resolveOmnibox } from "../../lib/omnibox.js";
 import { pageTabId } from "../../lib/panelTabs.js";
@@ -22,7 +23,7 @@ import { TAB_ICONS, TAB_KBD, TAB_LABELS } from "../agents/panes/panelTabMeta.jsx
 // opens takes this tab's place (ui.replaceTab). `tabId` is null when it stands
 // in for an empty panel — then it opens a tab instead.
 
-const AGENT_TOOLS = ["review", "terminal", "files", "page", "chatfiles", "subagents"];
+const AGENT_TOOLS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "transfer"];
 const SIGIL_CHIPS = [
   { sigil: "#", label: "Pages" },
   { sigil: "@", label: "Files" },
@@ -207,6 +208,7 @@ function PageRow({ page, active, onOpen }) {
 function ToolMeta({ type, scope }) {
   if (type === "review") return <DiffMeta workerId={scope.workerId} />;
   if (type === "subagents") return <SubagentMeta workerId={scope.workerId} />;
+  if (type === "transfer") return <TransferMeta />;
   const folder = baseName(scope.project);
   const text = {
     terminal: folder ? `Shell in ${folder}` : "Shell",
@@ -240,6 +242,12 @@ function SubagentMeta({ workerId }) {
   const runs = useSubagents(workerId);
   const running = (runs ?? []).filter((r) => r.status === "running").length;
   return <span className="nt-tool__meta">{running ? `${running} running` : "Background agents"}</span>;
+}
+
+function TransferMeta() {
+  const list = useTransfers();
+  const moving = (list ?? []).filter(isActive).length;
+  return <span className="nt-tool__meta">{moving ? `${moving} copying` : "Between your Macs"}</span>;
 }
 
 function Suggested({ onOpen }) {

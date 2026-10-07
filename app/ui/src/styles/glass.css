@@ -165,7 +165,8 @@
 .sp-tab, .spawn-modal__close, .spawn-seg__btn, .split-menu .menu-item, .stg-close,
 .stg-dd__opt, .stg-input__eye, .stg-prov-add, .stg-prov-rm, .stg-seg__btn,
 .stg-toolpick__opt, .stg-toolpick__rm, .strip-pill, .tc-stop, .tpl-act, .tpl-add,
-.tpl-modal .spawn-modal__close, .tpl-popover .menu-item, .tree-chev, button.mc-card,
+.tpl-modal .spawn-modal__close, .tpl-popover .menu-item, .tree-chev, .tx-chip, .tx-iconbtn,
+.tx-mcard, .tx-menu__item, .tx-recent__head, .tx-row, .tx-swap, button.mc-card,
 button.mc-card--quiet) {
   transition: background 200ms ease, box-shadow 200ms ease, color 200ms ease;
 }

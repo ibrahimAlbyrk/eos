@@ -4,6 +4,7 @@
 
 import { useRef } from "react";
 import { api } from "../../../api/client.js";
+import { formatBytes } from "../../../lib/format.js";
 
 function PdfBody({ path }) {
   // No sandbox attribute: sandboxing an iframe disables WebKit's PDF plugin
@@ -51,18 +52,6 @@ function AudioBody({ path }) {
       <audio controls src={api.rawUrl(path)} />
     </div>
   );
-}
-
-function formatBytes(n) {
-  if (n < 1024) return `${n} B`;
-  const units = ["KB", "MB", "GB"];
-  let v = n / 1024;
-  let i = 0;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v >= 10 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
 function BinaryBody({ path, size, large }) {

@@ -14,6 +14,7 @@ import { ChatFilesPanel } from "../../chatfiles/ChatFilesPanel.jsx";
 import { SubagentsPanel } from "../subagents/SubagentsPanel.jsx";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { PagePanel } from "../../pages/PagePanel.jsx";
+import { TransferPanel } from "../../transfer/TransferPanel.jsx";
 
 registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -26,3 +27,4 @@ registerPanel({ type: "chatfiles", label: "Chat files", Component: ChatFilesPane
 registerPanel({ type: "subagents", label: "Subagents", Component: SubagentsPanel });
 registerPanel({ type: "newtab", label: "New tab", Component: NewTabPanel });
 registerPanel({ type: "page", label: "Page", Component: PagePanel });
+registerPanel({ type: "transfer", label: "Transfer", Component: TransferPanel });

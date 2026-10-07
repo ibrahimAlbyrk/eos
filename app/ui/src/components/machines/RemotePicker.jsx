@@ -24,7 +24,8 @@ function FileIcon() {
 const parentOf = (p) => (p === "/" ? "/" : p.replace(/\/[^/]+\/?$/, "") || "/");
 
 // Browses the controlled computer's disk (GET /fs/list through its facade) in
-// place of the native picker, which would open on that computer's screen.
+// place of the native picker, which would open on that computer's screen — or,
+// when the request names a `source`, that disk (the Transfer tab's destination).
 export function RemotePicker() {
   const { request } = useRemotePicker();
   const [dir, setDir] = useState(null);
@@ -34,21 +35,22 @@ export function RemotePicker() {
   const [uploading, setUploading] = useState(false);
   const localInput = useRef(null);
 
+  const source = request?.source ?? null;
   const load = useCallback(async (path) => {
     setError(null);
     try {
-      const r = await api.listFiles(path);
+      const r = await (source ? source.list(path) : api.listFiles(path));
       const list = (r?.entries ?? []).slice().sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === "directory" ? -1 : 1));
       setEntries(list);
       setDir(path);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     if (!request) { setDir(null); setEntries([]); setSelected(new Set()); return; }
-    const start = currentHost()?.home;
+    const start = request.source ? request.source.home : currentHost()?.home;
     if (start) { void load(start); return; }
     void api.hostInfo().then((info) => load(info?.home ?? "/"));
   }, [request, load]);
@@ -62,7 +64,7 @@ export function RemotePicker() {
 
   if (!request) return null;
   const files = request.mode === "files";
-  const where = hostLabel(currentHost());
+  const where = source?.where ?? hostLabel(currentHost());
 
   // Files on THIS Mac: copy them over and answer with where they landed, so
   // callers attach them like any file picked on that computer.
@@ -113,7 +115,7 @@ export function RemotePicker() {
         </div>
         <div className="connect-sheet__foot">
           <span className="connect-sheet__note">{files ? `${selected.size} selected` : "Opens the folder you're in."}</span>
-          {files && (
+          {files && !source && (
             <>
               <input ref={localInput} type="file" multiple hidden onChange={(e) => void pickLocal(e.target.files)} />
               <button type="button" className="m-btn" disabled={uploading} onClick={() => localInput.current?.click()}>

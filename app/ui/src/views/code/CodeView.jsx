@@ -23,7 +23,7 @@ import { SidePanel } from "../agents/panes/SidePanel.jsx";
 // panel state, so it stays put whichever terminal pane is focused. Its tabs skip
 // the agent-bound ones (Chat files, Changes) — nothing to show here.
 const PANEL_ID = "code";
-const PANEL_TABS = ["terminal", "files", "page"];
+const PANEL_TABS = ["terminal", "files", "page", "transfer"];
 
 // Workspace hotkeys. All terminalSafe — in this view the terminal IS the
 // focus — and each stops the event so the key never also reaches xterm.

@@ -129,6 +129,16 @@ function uiTokenHeader() {
     : {};
 }
 
+// A transfer call's body, or an Error carrying the daemon's reason (and its code).
+function transferBody(r) {
+  if (r.ok) return r.body;
+  const e = new Error(r.body?.error ?? `transfer request failed (${r.status})`);
+  e.code = r.body?.code ?? null;
+  throw e;
+}
+
+const hostPrefix = (hostId) => (hostId ? ROUTES.hostProxyPrefix(hostId) : "");
+
 async function del(path, extraHeaders) {
   const r = await fetch(`${DAEMON}${path}`, { method: "DELETE", headers: extraHeaders });
   let parsed = null;
@@ -852,6 +862,37 @@ export const api = {
   async pairRemote() {
     return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
+
+  // File transfer between paired Macs. A folder is read from the daemon whose
+  // disk it is: this view's own (no hostId), or a paired one's through this
+  // Mac's facade. The engine (/api/transfers) is this Mac's — only this Mac's
+  // window calls it; a view of another Mac goes through the shell's bridge.
+  async transferList(hostId, path, { hidden = false } = {}) {
+    const q = new URLSearchParams();
+    if (path) q.set("path", path);
+    if (hidden) q.set("hidden", "1");
+    return transferBody(await getJson(`${hostPrefix(hostId)}${ROUTES.transferList}?${q}`, { headers: uiTokenHeader() }));
+  },
+  async transferKey(hostId, path) {
+    return (await transferBody(await postJson(`${hostPrefix(hostId)}${ROUTES.transferKey}`, { path }, uiTokenHeader()))).key;
+  },
+  async transferLocate(hostId, key) {
+    return (await transferBody(await postJson(`${hostPrefix(hostId)}${ROUTES.transferLocate}`, { key }, uiTokenHeader()))).path;
+  },
+  async listTransfers() {
+    return (await transferBody(await getJson(ROUTES.transfers, { headers: uiTokenHeader() }))).transfers;
+  },
+  async startTransfer(body) {
+    return transferBody(await postJson(ROUTES.transfers, body, uiTokenHeader()));
+  },
+  async transferDestination(body) {
+    return transferBody(await postJson(ROUTES.transferDestination, body, uiTokenHeader()));
+  },
+  async pauseTransfer(id) { return transferBody(await postJson(ROUTES.transferPause(id), {}, uiTokenHeader())); },
+  async resumeTransfer(id) { return transferBody(await postJson(ROUTES.transferResume(id), {}, uiTokenHeader())); },
+  async cancelTransfer(id) { return transferBody(await postJson(ROUTES.transferCancel(id), {}, uiTokenHeader())); },
+  async decideTransfer(id, decisions) { return transferBody(await postJson(ROUTES.transferDecide(id), { decisions }, uiTokenHeader())); },
+  async clearTransfers() { return transferBody(await del(ROUTES.transfers, uiTokenHeader())); },
 
   // Eos ↔ Eos peering. hostInfo is an open read (who this daemon is); every
   // other call is this Mac's own settings — loopback + ui-token.

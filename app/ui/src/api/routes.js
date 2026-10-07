@@ -152,6 +152,17 @@ export const ROUTES = {
   syncKey: "/api/sync/key",
   syncNow: "/api/sync/now",
   syncLeave: "/api/sync/leave",
+  // File transfer (contracts/src/transfer.ts): /transfer/* is a daemon's own disk
+  // (this Mac's, or a paired one's through /h/<id>); /api/transfers this Mac's engine.
+  transferList: "/transfer/list",
+  transferKey: "/transfer/key",
+  transferLocate: "/transfer/locate",
+  transfers: "/api/transfers",
+  transferDestination: "/api/transfers/destination",
+  transferPause: (id) => `/api/transfers/${id}/pause`,
+  transferResume: (id) => `/api/transfers/${id}/resume`,
+  transferCancel: (id) => `/api/transfers/${id}/cancel`,
+  transferDecide: (id) => `/api/transfers/${id}/decide`,
   settings: "/api/settings",
   settingsArchive: "/api/settings/archive",
   settingsCompaction: "/api/settings/compaction",

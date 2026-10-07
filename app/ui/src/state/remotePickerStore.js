@@ -5,7 +5,10 @@
 
 import { useSyncExternalStore } from "react";
 
-let state = { request: null }; // { mode: "directory" | "files", resolve }
+// { mode: "directory" | "files", resolve, source? } — `source` browses some other
+// disk ({ list(path) → { entries }, home, where }), e.g. the Transfer tab's
+// destination on a paired Mac; absent, the view's own computer.
+let state = { request: null };
 const subs = new Set();
 
 function set(patch) {
@@ -24,10 +27,10 @@ export function useRemotePicker() {
   return useSyncExternalStore(subscribe, getState, getState);
 }
 
-export function requestRemotePick(mode) {
+export function requestRemotePick(mode, source = null) {
   return new Promise((resolve) => {
     state.request?.resolve({ cancelled: true });
-    set({ request: { mode, resolve } });
+    set({ request: { mode, resolve, source } });
   });
 }
 

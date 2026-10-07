@@ -37,7 +37,7 @@ const DEFAULT_PANEL_FRAC = 0.4; // of the window
 
 // The launcher's tools, in order. The Code view passes its own subset (no
 // agent-bound tabs).
-const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents"];
+const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "transfer"];
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
 
