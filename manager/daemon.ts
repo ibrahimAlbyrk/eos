@@ -66,6 +66,7 @@ import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
 import { registerDreamRoutes } from "./routes/dreams.ts";
 import { registerSyncRoutes } from "./routes/sync.ts";
+import { registerTransferRoutes } from "./routes/transfer.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
 import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
@@ -129,6 +130,7 @@ registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
 registerDreamRoutes(router, c);
 registerSyncRoutes(router, c);
+registerTransferRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
@@ -723,6 +725,7 @@ async function shutdown(sig: string): Promise<void> {
   try { remoteController?.disarm(); } catch {}
   try { c.hostLinks.stop(); } catch {}
   try { c.sync.stop(); } catch {}
+  try { c.transfers.stop(); } catch {}
   void c.peerHost.stop().catch(() => {});
   // Suspend resumable in-process sessions BEFORE killing children and closing
   // the DB: their exit callbacks write rows, so this is the last safe moment —

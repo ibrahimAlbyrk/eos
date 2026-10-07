@@ -2447,6 +2447,27 @@ export const ROUTES = {
   syncKey: "/api/sync/key",
   syncNow: "/api/sync/now",
   syncLeave: "/api/sync/leave",
+  // File transfer (contracts/src/transfer.ts). /transfer/* is every daemon's own
+  // endpoint over its disk (ui-token — a paired Mac reaches it only as the user);
+  // /api/transfers is this Mac's engine and /workers/:id/transfers a focused
+  // agent's way in to it — both local-only.
+  transferList: "/transfer/list",
+  transferScan: "/transfer/scan",
+  transferRead: "/transfer/read",
+  transferWrite: "/transfer/write",
+  transferPrepare: "/transfer/prepare",
+  transferCommit: "/transfer/commit",
+  transferAbort: "/transfer/abort",
+  transferKey: "/transfer/key",
+  transferLocate: "/transfer/locate",
+  transfers: "/api/transfers",
+  transferDestination: "/api/transfers/destination",
+  transferPause: (id: string): string => `/api/transfers/${id}/pause`,
+  transferResume: (id: string): string => `/api/transfers/${id}/resume`,
+  transferCancel: (id: string): string => `/api/transfers/${id}/cancel`,
+  transferDecide: (id: string): string => `/api/transfers/${id}/decide`,
+  workerTransfers: (id: string): string => `/workers/${id}/transfers`,
+  workerTransfer: (id: string, transferId: string): string => `/workers/${id}/transfers/${transferId}`,
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   workerExport: (id: string): string => `/workers/${id}/export`,

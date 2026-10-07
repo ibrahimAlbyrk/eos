@@ -13,4 +13,6 @@ export const IGNORED_ENTRIES = new Set([
   "dist",
   "build",
   ".cache",
+  // A file transfer's staging (infra/src/transfer) — bytes not yet in place.
+  ".eos-incoming",
 ]);

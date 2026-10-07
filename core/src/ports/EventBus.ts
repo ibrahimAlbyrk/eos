@@ -67,6 +67,9 @@ export type EventBusTopic =
   // Sync's status changed (payload SyncStatusResponse) — Settings › Sync refetches
   // nothing, it renders the payload.
   | "sync:change"
+  // A file transfer between Macs moved on, or finished ones were cleared
+  // (payload TransferChangeEvent) — the Transfer tab renders the payload.
+  | "transfer:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

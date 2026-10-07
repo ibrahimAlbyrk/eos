@@ -19,6 +19,8 @@ const CACHE_TTL_MS = 10 * 60_000;
 export interface ProjectKeys {
   toKey(path: string): Promise<string>;
   toPath(key: string, hint: string): Promise<string>;
+  // This Mac's checkout for a git key, or null — never a guess, nothing learned.
+  findPath(key: string): Promise<string | null>;
 }
 
 // git@github.com:Owner/repo.git · https://user@github.com/Owner/repo · ssh://git@host:22/o/r
@@ -61,6 +63,15 @@ export function createProjectKeys(deps: ProjectKeysDeps): ProjectKeys {
     return repo;
   };
 
+  const find = async (key: string, folders: readonly string[]): Promise<string | null> => {
+    const [remote, sub] = key.slice("git:".length).split("#", 2) as [string, string | undefined];
+    for (const folder of new Set(folders)) {
+      const repo = await repoOf(folder);
+      if (repo?.remote === remote) return sub ? join(repo.root, sub) : repo.root;
+    }
+    return null;
+  };
+
   const learn = (path: string, key: string): void => {
     if (learned[path] === key) return;
     learned = { ...learned, [path]: key };
@@ -77,13 +88,14 @@ export function createProjectKeys(deps: ProjectKeysDeps): ProjectKeys {
 
     async toPath(key, hint) {
       if (key.startsWith("path:")) return key.slice("path:".length);
-      const [remote, sub] = key.slice("git:".length).split("#", 2) as [string, string | undefined];
-      for (const folder of new Set([hint, ...deps.candidates()])) {
-        const repo = await repoOf(folder);
-        if (repo?.remote === remote) return sub ? join(repo.root, sub) : repo.root;
-      }
+      const found = await find(key, [hint, ...deps.candidates()]);
+      if (found) return found;
       learn(hint, key);
       return hint;
+    },
+
+    findPath(key) {
+      return key.startsWith("git:") ? find(key, deps.candidates()) : Promise.resolve(null);
     },
   };
 }

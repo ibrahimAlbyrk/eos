@@ -24,7 +24,7 @@ import { createRelay } from "../../../relay/server.ts";
 import { loadConfig } from "../../../relay/config.ts";
 
 const quiet: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => quiet };
-const keys: ProjectKeys = { toKey: async (p) => `path:${p}`, toPath: async (k) => k.slice(5) };
+const keys: ProjectKeys = { toKey: async (p) => `path:${p}`, toPath: async (k) => k.slice(5), findPath: async () => null };
 
 function mac(relayUrl: string | null, name: string) {
   const home = mkdtempSync(join(tmpdir(), `eos-sync-${name}-`));

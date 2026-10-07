@@ -21,6 +21,7 @@ const clock = { now: () => 1000 };
 const keysOf = (root: string): ProjectKeys => ({
   toKey: async (path) => (path.startsWith(root) ? `git:github.com/o/eos${path.slice(root.length).replace(/^\//, "#")}` : `path:${path}`),
   toPath: async (key, hint) => (key.startsWith("git:github.com/o/eos") ? root + key.slice("git:github.com/o/eos".length).replace("#", "/") : hint),
+  findPath: async () => null,
 });
 
 function profileService(): UserProfileService {

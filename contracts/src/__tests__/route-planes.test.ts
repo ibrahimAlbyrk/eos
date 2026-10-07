@@ -18,6 +18,16 @@ describe("isLocalOnlyRoute", () => {
     }
   });
 
+  it("keeps this Mac's transfer engine local; each Mac's own endpoint crosses", () => {
+    for (const [m, p] of [["GET", "/api/transfers"], ["POST", "/api/transfers"], ["POST", "/api/transfers/tr-abcdefgh/cancel"],
+      ["POST", "/api/transfers/destination"], ["POST", "/workers/w1/transfers"], ["GET", "/workers/w1/transfers/tr-abcdefgh"]] as const) {
+      assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
+    }
+    for (const [m, p] of [["GET", "/transfer/list?path=/Users"], ["PUT", "/transfer/write?id=tr-abcdefgh"], ["POST", "/transfer/commit"]] as const) {
+      assert.equal(isLocalOnlyRoute(m, p), false, `${m} ${p}`);
+    }
+  });
+
   it("lets the UI plane through", () => {
     for (const [m, p] of [["GET", "/workers"], ["GET", "/stream?clientId=x"], ["POST", "/workers/w1/message"],
       ["GET", "/workers/w1/events"], ["POST", "/workers/w1/question-answer"], ["POST", "/pty/p1/input"],

@@ -27,6 +27,9 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/api/remote/*"],
   // The sync key is the account — it never leaves this Mac through a facade.
   ["*", "/api/sync/*"],
+  // This Mac's transfer engine: another computer may not start, watch or steer it.
+  ["*", "/api/transfers/*"],
+  ["*", "/workers/:id/transfers/*"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];

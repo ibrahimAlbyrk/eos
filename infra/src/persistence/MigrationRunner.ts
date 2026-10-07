@@ -385,6 +385,16 @@ export const MIGRATIONS: Migration[] = [
       worker_id TEXT PRIMARY KEY
     );
   ` },
+  // File transfers between Macs (SqliteTransferRepo): one JSON row each. A
+  // regenerable log — the bytes of an unfinished one sit in its staging folder.
+  { id: "062_transfers", sql: `
+    CREATE TABLE IF NOT EXISTS transfers (
+      id TEXT PRIMARY KEY,
+      created_at INTEGER NOT NULL,
+      data TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS transfers_created ON transfers (created_at DESC);
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
