@@ -26,6 +26,20 @@ export const proposalKind = (m) => m.proposal?.kind ?? "new";
 export const isDreamProposal = (m) => m.status === "suggested" && m.source?.kind === "dream";
 export const isAgentSuggestion = (m) => m.status === "suggested" && m.source?.kind !== "dream";
 export const evidenceOf = (m) => (m.source?.kind === "dream" ? m.source.evidence : []);
+// What goes wrong for an agent that doesn't know it (dream proposals carry it).
+export const whyOf = (m) => (m.source?.kind === "dream" ? m.source.why ?? null : null);
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+// How far a proposal is backed — "You said it as a standing rule" or "Seen in 3 chats
+// on 2 days · 2 projects"; null for the first dreams' proposals (they carry a score).
+export function supportLine(m) {
+  const s = m.proposal?.support;
+  if (!s) return null;
+  const projects = s.projects > 1 ? ` · ${plural(s.projects, "project")}` : "";
+  if (s.origin === "explicit") return `You said it as a standing rule${s.chats > 1 ? ` · seen in ${plural(s.chats, "chat")}` : ""}${projects}`;
+  return `Seen in ${plural(s.chats, "chat")} on ${plural(s.days, "day")}${projects}`;
+}
 
 // Pending dream proposals, in the order a review walks them: by kind, newest first.
 export function dreamProposals(memories) {
@@ -71,7 +85,8 @@ export function fmtDreamTime(ts, now = Date.now()) {
 export function runSummary(run) {
   if (!run) return "";
   if (run.status === "skipped" || run.status === "failed") return run.reason ?? run.status;
-  const parts = [`${run.chatsRead} ${run.chatsRead === 1 ? "chat" : "chats"}`, `${run.proposed} ${run.proposed === 1 ? "proposal" : "proposals"}`];
+  const parts = [plural(run.chatsRead, "chat"), plural(run.proposed, "proposal")];
+  if (run.candidates) parts.push(`${plural(run.candidates, "idea")} gathering support`);
   if (run.status === "stopped") parts.push("stopped early");
   return parts.join(" · ");
 }
@@ -91,10 +106,16 @@ export function dreamStatusLine(status, settings, now = Date.now()) {
 }
 
 export const DROPPED_LABELS = [
+  ["product", "About the product or codebase — belongs in the code"],
+  ["taskBound", "A step of one task"],
+  ["choice", "Picked an option the agent offered"],
   ["oneOff", "One task's detail"],
   ["known", "Already known (memory, profile or CLAUDE.md)"],
   ["declined", "You dismissed it before"],
   ["weak", "Not enough evidence"],
+  ["critic", "Refuted by the review pass"],
+  ["style", "Didn't follow the memory format"],
+  ["capped", "Morning review full — waits for room"],
   ["secret", "Looked like a secret — never stored"],
   ["invalid", "Didn't fit — dropped"],
 ];

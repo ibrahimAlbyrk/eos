@@ -3,7 +3,7 @@ import { approveMemory, dismissMemory, updateMemory } from "../../state/userMemo
 import { openDreamReview } from "../../state/dreamReviewStore.js";
 import { setMemoryPage } from "../../state/memoryViewStore.js";
 import {
-  KIND_META, droppedTotal, evidenceOf, fmtDreamTime, kindCounts, modelLabel, proposalKind, scopeLine,
+  KIND_META, droppedTotal, evidenceOf, fmtDreamTime, kindCounts, modelLabel, proposalKind, scopeLine, supportLine,
 } from "../../lib/dreamProposals.js";
 import { projectLabel } from "../../lib/memoryGroups.js";
 import { ConfidenceBars, EvidenceQuote, KindTag, MoonIcon, ProposalText } from "./DreamProposal.jsx";
@@ -53,7 +53,7 @@ function ProposalRow({ memory, memories }) {
           {ev[0] && <EvidenceQuote ev={ev[0]} compact />}
           {ev.length > 1 && <span>{ev.length} sources</span>}
           <span>{scopeLine(memory, memories)}</span>
-          <ConfidenceBars value={memory.proposal?.confidence ?? 2} />
+          {supportLine(memory) ? <span>{supportLine(memory)}</span> : <ConfidenceBars value={memory.proposal?.confidence ?? 2} />}
         </span>
       </div>
       <div className="dr-row__actions">
@@ -103,7 +103,7 @@ export function DreamJournal({ proposals, memories, lastRun }) {
 
       <div className="dr-journal__chips">
         {counts.map((k) => <span key={k.kind} className={`dr-tag dr-tag--${k.kind}`}>{k.count} {k.label.toLowerCase()}</span>)}
-        {dropped > 0 && <span className="dr-tag dr-tag--muted">{dropped} dropped — one-off or already known</span>}
+        {dropped > 0 && <span className="dr-tag dr-tag--muted">{dropped} set aside</span>}
       </div>
 
       <div className="dr-sep" />

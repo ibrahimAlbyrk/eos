@@ -58,7 +58,7 @@ describe("A · DreamJournal", () => {
     expect(html).toContain("You asked for a deep think-through three times.");
     expect(html).toContain("Opus");
     expect(html).toContain("1 new");
-    expect(html).toContain("21 dropped");
+    expect(html).toContain("21 set aside");
     expect(html).toContain("dr-old"); // the update shows what it replaces
     expect(html).toContain("is-retired"); // the retire strikes the memory
     expect(html).toContain(">Update it<");

@@ -9,7 +9,6 @@ const Toggle = CONTROLS.toggle;
 const TRIGGER = { nightly: "Every night", away: "While you were away", manual: "Dream now" };
 
 function RunDetail({ run, excluded, waiting }) {
-  const passed = Math.max(0, run.observations - droppedTotal(run));
   return (
     <div className="dr-log__detail">
       <header className="dr-log__head">
@@ -21,7 +20,7 @@ function RunDetail({ run, excluded, waiting }) {
         <div className="dr-log__stats">
           <span><b>{run.chatsRead}</b>chats read</span>
           <span><b>{run.observations}</b>things noticed</span>
-          <span><b>{passed}</b>passed the bar</span>
+          <span><b>{run.candidates ?? 0}</b>gathering support</span>
           <span><b className="dr-violet">{run.proposed}</b>proposed{waiting ? ` · ${waiting} waiting` : ""}</span>
         </div>
       )}
@@ -48,6 +47,14 @@ function RunDetail({ run, excluded, waiting }) {
           <span className="dr-log__section"><b>Didn’t pass the bar · {droppedTotal(run)}</b></span>
           {DROPPED_LABELS.filter(([k]) => run.dropped[k] > 0).map(([k, label]) => (
             <span key={k} className={`dr-log__dropped${k === "secret" ? " is-warn" : ""}`}><span>{label}</span><span className="mono">{run.dropped[k]}</span></span>
+          ))}
+        </section>
+      )}
+      {run.rejected?.length > 0 && (
+        <section className="mem-card">
+          <span className="dr-log__section"><b>Turned down before your review · {run.rejected.length}</b></span>
+          {run.rejected.map((r, i) => (
+            <span key={i} className="dr-log__rejected"><span>{r.text}</span><span>{r.reason}</span></span>
           ))}
         </section>
       )}

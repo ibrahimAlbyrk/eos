@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  dreamProposals, dreamStatusLine, droppedTotal, fmtDreamTime, isAgentSuggestion, kindCounts, runSummary, scopeLine, targetsOf,
+  dreamProposals, dreamStatusLine, droppedTotal, fmtDreamTime, isAgentSuggestion, kindCounts, runSummary, scopeLine, supportLine, targetsOf, whyOf,
 } from "./dreamProposals.js";
 
 let seq = 0;
@@ -51,7 +51,18 @@ describe("dreamProposals", () => {
     expect(dreamStatusLine({ running: false, blocked: "sign-in" }, s)).toBe("Needs a Claude sign-in");
     expect(dreamStatusLine({ running: false, blocked: "disabled" }, { ...s, enabled: false })).toBe("Off");
     expect(runSummary({ status: "done", chatsRead: 14, proposed: 6 })).toBe("14 chats · 6 proposals");
+    expect(runSummary({ status: "done", chatsRead: 1, proposed: 0, candidates: 3 })).toBe("1 chat · 0 proposals · 3 ideas gathering support");
     expect(runSummary({ status: "skipped", reason: "Nothing new since the last dream" })).toBe("Nothing new since the last dream");
     expect(droppedTotal({ dropped: { oneOff: 2, known: 1, declined: 0, secret: 1, weak: 0, invalid: 0 } })).toBe(4);
+  });
+
+  it("support and why: what backs a proposal, what goes wrong without it", () => {
+    const at = (support, why) => ({ status: "suggested", source: { kind: "dream", dreamId: "dr-1", evidence: [], why }, proposal: { kind: "new", targets: [], support } });
+    const base = { firstSeen: 1, lastSeen: 2 };
+    expect(supportLine(at({ ...base, chats: 1, days: 1, projects: 1, origin: "explicit" }))).toBe("You said it as a standing rule");
+    expect(supportLine(at({ ...base, chats: 3, days: 2, projects: 2, origin: "inferred" }))).toBe("Seen in 3 chats on 2 days · 2 projects");
+    expect(supportLine({ proposal: { kind: "new", targets: [], confidence: 3 } })).toBe(null);
+    expect(whyOf(at(undefined, "Agents push without asking."))).toBe("Agents push without asking.");
+    expect(whyOf({ source: { kind: "agent" } })).toBe(null);
   });
 });

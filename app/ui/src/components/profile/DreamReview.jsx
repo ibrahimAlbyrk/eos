@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useUserMemories, approveMemory, dismissMemory, updateMemory } from "../../state/userMemoryStore.js";
 import { useDreams } from "../../state/dreamStore.js";
 import {
-  CONFIDENCE_LABEL, KIND_META, dreamProposals, evidenceOf, proposalKind, scopeLine,
+  CONFIDENCE_LABEL, KIND_META, dreamProposals, evidenceOf, proposalKind, scopeLine, supportLine, whyOf,
 } from "../../lib/dreamProposals.js";
 import { ConfidenceBars, EvidenceQuote, KindTag, MoonIcon, ProposalText } from "../../views/memory/DreamProposal.jsx";
 
@@ -124,9 +124,14 @@ export function DreamReview({ onClose }) {
             <section>
               <span className="dr-eyebrow">Why Eos thinks so</span>
               <span className="dr-review__conf">
-                <ConfidenceBars value={current.proposal?.confidence ?? 2} />
-                {CONFIDENCE_LABEL[current.proposal?.confidence ?? 2]}
+                {supportLine(current) ?? (
+                  <>
+                    <ConfidenceBars value={current.proposal?.confidence ?? 2} />
+                    {CONFIDENCE_LABEL[current.proposal?.confidence ?? 2]}
+                  </>
+                )}
               </span>
+              {whyOf(current) && <span className="dr-review__why">Without it: {whyOf(current)}</span>}
               <span className="dr-review__why">
                 {ev.length ? `Rests on ${ev.length} ${ev.length === 1 ? "message" : "messages"}${ev.some((e) => e.by === "user") ? ", in your own words" : ""}.` : "Drawn from memories you already kept."}
               </span>
