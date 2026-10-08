@@ -1,7 +1,8 @@
-// Dream runs, per-chat watermarks and the chats the user turned off — a
-// regenerable log (state.db); losing it only means the next dream rereads chats.
+// Dream runs, per-chat watermarks, the chats the user turned off and the candidate
+// ledger — a regenerable log (state.db); losing it only means the next dream rereads
+// chats and candidates gather support again.
 
-import type { DreamRun } from "../../../contracts/src/dream.ts";
+import type { DreamCandidate, DreamRun } from "../../../contracts/src/dream.ts";
 
 export interface DreamRepo {
   // Insert or replace a run (a running row first, the finished one after).
@@ -15,4 +16,7 @@ export interface DreamRepo {
   setWatermark(workerId: string, eventId: number): void;
   excluded(): string[];
   setExcluded(workerId: string, excluded: boolean): void;
+  candidates(): DreamCandidate[];
+  // The whole ledger after a dream, in one write.
+  replaceCandidates(candidates: readonly DreamCandidate[]): void;
 }

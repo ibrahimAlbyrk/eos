@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { StaleMemoryError, UserMemoryService } from "../services/UserMemoryService.ts";
+import { DREAM_PENDING_CAP, StaleMemoryError, UserMemoryService } from "../services/UserMemoryService.ts";
 import { ConflictError, LimitExceededError, NotFoundError, ValidationError } from "../errors/index.ts";
 import type { UserMemory, UserMemorySource } from "../../../contracts/src/profile.ts";
 
@@ -104,10 +104,22 @@ describe("UserMemoryService", () => {
     assert.equal(svc.search("tabs", null, 5).length, 0);
   });
 
-  it("each dream gets its own morning's budget", () => {
+  it("all dreams share one morning budget, apart from the agents'", () => {
     const { svc } = make(2);
-    for (let i = 0; i < 6; i++) svc.suggest({ text: `distinct idea number ${i} about ${"xyz".repeat(i + 1)}`, category: "other", scope: { kind: "global" } }, DREAM);
-    assert.equal(svc.list().filter((m) => m.status === "suggested").length, 6);
+    const idea = (i: number) => ({ text: `distinct idea number ${i} about ${"xyz".repeat(i + 1)}`, category: "other" as const, scope: { kind: "global" as const } });
+    for (let i = 0; i < DREAM_PENDING_CAP; i++) svc.suggest(idea(i), { ...DREAM, dreamId: `dr-${i}` });
+    assert.throws(() => svc.suggest(idea(9), { ...DREAM, dreamId: "dr-other-mac" }), LimitExceededError);
+    svc.suggest(idea(10), { kind: "agent", agentId: "w-1", agentName: "a" });
+    assert.equal(svc.list().filter((m) => m.status === "suggested").length, DREAM_PENDING_CAP + 1);
+  });
+
+  it("a domain is stored when given and carried by an update proposal", () => {
+    const { svc, store } = make();
+    const t = svc.create({ text: "When committing, split changes.", category: "work-style", scope: { kind: "global" }, tier: "always" });
+    assert.ok(!("domain" in store.get(t.id)!));
+    const p = svc.suggest({ text: "When committing, review the diff and split changes.", category: "work-style", domain: "git", scope: { kind: "global" }, proposal: { kind: "update", targets: [t.id] } }, DREAM).memory;
+    svc.approve(p.id);
+    assert.equal(store.get(t.id)?.domain, "git");
   });
 
   describe("proposals", () => {

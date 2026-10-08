@@ -395,6 +395,16 @@ export const MIGRATIONS: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS transfers_created ON transfers (created_at DESC);
   ` },
+  // Dreaming's candidate ledger (SqliteDreamRepo): what may become a memory once it
+  // has shown up in enough separate chats and days. Regenerable — a wipe only means
+  // candidates gather support again.
+  { id: "063_dream_candidates", sql: `
+    CREATE TABLE IF NOT EXISTS dream_candidates (
+      id TEXT PRIMARY KEY,
+      last_seen INTEGER NOT NULL,
+      data TEXT NOT NULL
+    )
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

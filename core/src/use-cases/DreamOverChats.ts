@@ -1,9 +1,13 @@
-// DreamOverChats — one dream. Recall: read each chat the filter picks (one
-// summarizer call per chat) and note what it shows about the user. Consolidate:
-// weigh everything noticed against what's already known — kept, pending and
-// declined memories plus the profile (one call). File: hand each proposal to the
-// suggestion sink, which dedupes and remembers declined ideas. Watermarks move only
-// for chats actually read, so a stopped or failed dream picks up next time.
+// DreamOverChats — one dream. Durability is counted, not guessed:
+//   recall      one call per chat → signals (what the user asked for, how they said it)
+//   filter      code drops signals about the product, one task, or an accepted option
+//   match       one call files the rest into the candidate ledger, which outlives the
+//               night; watermarks move once the ledger holds tonight's signals
+//   consolidate one call, only when a candidate is ready (dream-ledger.ts) — at most
+//               a few proposals, written as rules that open with their situation
+//   critic      one call in its own context tries to refute each proposal
+//   file        the survivors go to the suggestion sink (dedupe, tombstones, cap)
+// Most nights end before consolidate: nothing new is ready, and that is a good night.
 
 import type { ConversationSummarizer } from "../ports/ConversationSummarizer.ts";
 import type { Clock } from "../ports/Clock.ts";
@@ -11,24 +15,35 @@ import type { DreamRepo } from "../ports/DreamRepo.ts";
 import type { PromptRenderer } from "../ports/PromptRenderer.ts";
 import type { UserMemoryReader, UserMemorySuggestionSink } from "../services/UserMemoryService.ts";
 import type { UserProfileReader } from "../services/UserProfileService.ts";
+import { LimitExceededError } from "../errors/index.ts";
 import { estimateTokens } from "../domain/compaction.ts";
 import {
-  checkProposals, looksSecret, parseConsolidation, parseRecall, pickChats, renderChatForDream,
-  type DreamLine, type DreamSession,
+  applyVerdicts, checkProposals, emptyDreamDropped, filterSignals, looksSecret, parseConsolidation, parseCritic, parseMatch, parseRecall,
+  pickChats, renderChatForDream, type CheckedProposal, type DreamLine, type DreamSession,
 } from "../domain/dream.ts";
+import {
+  applyMatches, decayLedger, groundedMarker, isCandidateReady, summarizeSupport, type NightSignal,
+} from "../domain/dream-ledger.ts";
+import { formatCandidates, formatMemories, formatProposals, formatSignals } from "../domain/dream-prompt-data.ts";
 import type {
-  DreamChatRead, DreamDropped, DreamObservation, DreamProgress, DreamRun, DreamTrigger,
+  DreamCandidate, DreamChatRead, DreamProgress, DreamRejected, DreamRun, DreamTrigger,
 } from "../../../contracts/src/dream.ts";
-import type { DreamEvidence, UserMemory } from "../../../contracts/src/profile.ts";
+import type { DreamEvidence } from "../../../contracts/src/profile.ts";
 
 const QUOTE_CHARS = 300;
-const MEMORY_LIST_MAX = 200;
+const FILED_EVIDENCE_MAX = 8;
+const REJECTED_MAX = 12;
 
 export interface DreamDeps {
   readonly repo: DreamRepo;
   readonly summarizer: Pick<ConversationSummarizer, "summarizeStructured">;
-  // JSON Schemas of the recall and consolidation answers (from the contracts' zod schemas).
-  readonly schemas: { readonly recall: Record<string, unknown>; readonly consolidate: Record<string, unknown> };
+  // JSON Schemas of the four structured answers (from the contracts' zod schemas).
+  readonly schemas: {
+    readonly recall: Record<string, unknown>;
+    readonly match: Record<string, unknown>;
+    readonly consolidate: Record<string, unknown>;
+    readonly critic: Record<string, unknown>;
+  };
   readonly prompts: PromptRenderer;
   readonly sessions: () => readonly DreamSession[];
   // A chat's messages after `afterId`, oldest first, ids kept.
@@ -44,10 +59,7 @@ export interface DreamDeps {
   readonly onProgress?: (p: DreamProgress) => void;
 }
 
-interface Noticed {
-  readonly o: DreamObservation;
-  readonly chat: DreamSession;
-}
+type Step = "recall" | "match" | "consolidate" | "critic";
 
 export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTrigger }): Promise<DreamRun> {
   const s = deps.profile.get().dreaming;
@@ -61,7 +73,8 @@ export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTri
   let run: DreamRun = {
     id: deps.newId(), trigger: input.trigger, status: "running", reason: null,
     startedAt: deps.clock.now(), finishedAt: null, model: s.model,
-    chatsRead: 0, observations: 0, proposed: 0, tokens: 0, narrative: null, dropped: emptyDropped(), chats: [],
+    chatsRead: 0, observations: 0, proposed: 0, tokens: 0, narrative: null, dropped: emptyDreamDropped(), chats: [],
+    candidates: 0, rejected: [],
   };
   const finish = (patch: Partial<DreamRun>): DreamRun => {
     run = { ...run, ...patch, finishedAt: deps.clock.now() };
@@ -71,15 +84,24 @@ export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTri
   if (!chats.length) return finish({ status: "skipped", reason: "Nothing new since the last dream" });
   deps.repo.save(run);
 
-  // ---- recall ----
-  const evidence = new Map<number, DreamEvidence>();
-  const noticed: Noticed[] = [];
+  let tokens = 0;
+  const ask = async (step: Step, vars: Record<string, string>): Promise<unknown> => {
+    const system = deps.prompts.render(`dream/${step}-system`);
+    const prompt = deps.prompts.render(`dream/${step}`, vars);
+    const out = await deps.summarizer.summarizeStructured({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs, schema: deps.schemas[step] });
+    tokens += estimateTokens(system + prompt + JSON.stringify(out));
+    return out;
+  };
+  const dropped = emptyDreamDropped();
+
+  // ---- recall + filter ----
+  const night: NightSignal[] = [];
   const read: DreamChatRead[] = [];
   const readChats: DreamSession[] = [];
-  let tokens = 0;
+  let noted = 0;
   let stopped = false;
   const progress = (done: number, chat: string | null): void => deps.onProgress?.({
-    done, total: chats.length, chat, noticed: noticed.slice(-3).map((n) => n.o.statement),
+    done, total: chats.length, chat, noticed: night.slice(-3).map((n) => n.signal.ask),
   });
 
   for (const [i, chat] of chats.entries()) {
@@ -91,123 +113,155 @@ export async function dreamOverChats(deps: DreamDeps, input: { trigger: DreamTri
       readChats.push(chat);
       continue;
     }
-    const system = deps.prompts.render("dream/recall-system");
-    const prompt = deps.prompts.render("dream/recall", {
-      CHAT: chat.name, PROJECT: chat.project ?? "no folder", TRANSCRIPT: rendered.text,
-    });
+    let signals;
     try {
-      const out = await deps.summarizer.summarizeStructured({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs, schema: deps.schemas.recall });
-      tokens += estimateTokens(system + prompt + JSON.stringify(out));
-      const obs = parseRecall(out).filter((o) => !looksSecret(o.statement));
-      for (const [id, line] of rendered.lines) {
-        evidence.set(id, { quote: clip(line.text), workerId: chat.workerId, chat: chat.name, eventId: id, by: line.role === "user" ? "user" : "agent" });
-      }
-      noticed.push(...obs.map((o) => ({ o, chat })));
-      read.push({ workerId: chat.workerId, name: chat.name, project: chat.project, userTurns: rendered.userTurns, observations: obs.length });
-      readChats.push(chat);
+      signals = parseRecall(await ask("recall", { CHAT: chat.name, PROJECT: chat.project ?? "no folder", TRANSCRIPT: rendered.text }))
+        .filter((x) => !looksSecret(x.ask));
     } catch {
-      // This chat stays unread — its watermark doesn't move, the next dream retries it.
+      continue; // this chat stays unread — its watermark doesn't move, the next dream retries it
     }
+    noted += signals.length;
+    const f = filterSignals(signals);
+    dropped.product += f.product;
+    dropped.taskBound += f.taskBound;
+    dropped.choice += f.choice;
+    for (const sig of f.kept) {
+      // Evidence must be the user's own lines.
+      const lines = sig.evidence.map((id) => rendered.lines.get(id)).filter((l): l is DreamLine => l?.role === "user");
+      if (!lines.length) { dropped.invalid++; continue; }
+      night.push({
+        signal: { ...sig, marker: groundedMarker(sig.marker, lines.map((l) => l.text)) },
+        workerId: chat.workerId, chat: chat.name, project: chat.project,
+        at: Math.min(...lines.map((l) => l.at)),
+        evidence: lines.map((l): DreamEvidence => ({ quote: clip(l.text), workerId: chat.workerId, chat: chat.name, eventId: l.id, by: "user" })),
+      });
+    }
+    read.push({ workerId: chat.workerId, name: chat.name, project: chat.project, userTurns: rendered.userTurns, observations: signals.length });
+    readChats.push(chat);
   }
   progress(read.length, null);
-  run = { ...run, chatsRead: read.length, observations: noticed.length, chats: read, tokens };
-  const advance = (): void => { for (const c of readChats) deps.repo.setWatermark(c.workerId, c.lastEventId); };
-  const ended = stopped ? { status: "stopped" as const, reason: "Stopped — you came back. The rest waits for the next dream." } : { status: "done" as const };
+  run = { ...run, chatsRead: read.length, observations: noted, chats: read, tokens };
+  const ended = stopped ? { status: "stopped" as const, reason: "Stopped — you came back. The rest waits for the next dream." } : { status: "done" as const, reason: null };
+  const fail = (step: string, e?: unknown): DreamRun => finish({
+    status: "failed", tokens, dropped,
+    reason: `Couldn't ${step}${e === undefined ? " — the answer didn't fit its schema" : `: ${e instanceof Error ? e.message : String(e)}`}`,
+  });
 
-  if (!noticed.length) {
-    advance();
-    return finish({ ...ended, reason: ended.status === "done" ? "Nothing worth remembering this time" : ended.reason });
+  // ---- match → ledger ----
+  const memories = deps.memories.list();
+  let ledger = decayLedger(deps.repo.candidates(), deps.clock.now());
+  if (night.length) {
+    let groups;
+    try {
+      groups = parseMatch(await ask("match", {
+        SIGNALS: formatSignals(night), CANDIDATES: formatCandidates(ledger, { quotes: false }), MEMORIES: formatMemories(memories),
+      }));
+    } catch (e) {
+      return fail("file tonight's signals", e);
+    }
+    if (!groups) return fail("file tonight's signals");
+    let n = 0;
+    const m = applyMatches(ledger, night, groups, memories, () => `dc-${run.id.replace(/^dr-/, "")}-${++n}`);
+    ledger = m.ledger;
+    dropped.known += m.known;
+    dropped.declined += m.declined;
+    dropped.invalid += m.invalid;
+  }
+  deps.repo.replaceCandidates(ledger);
+  for (const c of readChats) deps.repo.setWatermark(c.workerId, c.lastEventId);
+
+  const ready = ledger.filter(isCandidateReady);
+  if (!ready.length) {
+    const reason = ended.reason ?? (ledger.length
+      ? `Nothing ready yet — ${ledger.length} ${ledger.length === 1 ? "idea is" : "ideas are"} still gathering support`
+      : "Nothing worth remembering this time");
+    return finish({ ...ended, reason, tokens, dropped, candidates: ledger.length });
   }
 
   // ---- consolidate ----
-  const memories = deps.memories.list();
-  const projects = [...new Set(read.map((c) => c.project).filter((p): p is string => p !== null))];
-  const system = deps.prompts.render("dream/consolidate-system");
-  const prompt = deps.prompts.render("dream/consolidate", {
-    OBSERVATIONS: formatNoticed(noticed, evidence),
-    MEMORIES: formatMemories(memories),
-    PROFILE: deps.profileDigest(),
-    PROJECTS: projects.join("\n") || "(none — only no-folder chats)",
-  });
-  let out: unknown;
+  let parsed;
   try {
-    out = await deps.summarizer.summarizeStructured({ system, prompt, model: s.model, timeoutMs: deps.timeoutMs, schema: deps.schemas.consolidate });
+    parsed = parseConsolidation(await ask("consolidate", {
+      CANDIDATES: formatCandidates(ready, { quotes: true }), MEMORIES: formatMemories(memories), PROFILE: deps.profileDigest(),
+    }));
   } catch (e) {
-    return finish({ status: "failed", reason: `Couldn't weigh what it noticed: ${e instanceof Error ? e.message : String(e)}` });
+    return fail("weigh what it noticed", e);
   }
-  tokens += estimateTokens(system + prompt + JSON.stringify(out));
-  const parsed = parseConsolidation(out);
-  if (!parsed) return finish({ status: "failed", reason: "The dream's answer didn't match its schema — nothing was filed.", tokens });
+  if (!parsed) return fail("weigh what it noticed");
+  const settled = new Set<string>();
+  for (const a of parsed.setAside) {
+    if (!ready.some((c) => c.id === a.candidate)) continue;
+    settled.add(a.candidate);
+    dropped[a.why]++;
+  }
+  const check = checkProposals(parsed.proposals, memories, ready);
+  dropped.invalid += check.invalid;
+  dropped.secret += check.secret;
+  dropped.style += check.style;
+  for (const p of parsed.proposals) settled.add(p.candidate);
+  const rejected: DreamRejected[] = [...check.rejected];
+
+  // ---- critic ----
+  let finalists: readonly CheckedProposal[] = [];
+  if (check.accepted.length) {
+    let verdicts;
+    try {
+      verdicts = parseCritic(await ask("critic", {
+        PROPOSALS: formatProposals(check.accepted), MEMORIES: formatMemories(memories), PROFILE: deps.profileDigest(),
+      }));
+    } catch (e) {
+      return fail("check its proposals", e);
+    }
+    if (!verdicts) return fail("check its proposals");
+    const outcome = applyVerdicts(check.accepted, verdicts);
+    finalists = outcome.kept;
+    dropped.critic += outcome.rejected.length;
+    rejected.push(...outcome.rejected);
+  }
 
   // ---- file ----
-  const check = checkProposals(parsed.proposals, memories, projects);
   let filed = 0;
-  let known = 0;
-  let declined = 0;
-  let invalid = check.invalid;
-  for (const p of check.accepted) {
-    const ev = p.draft.evidence.map((id) => evidence.get(id)).filter((x): x is DreamEvidence => Boolean(x)).slice(0, 4);
+  for (const p of finalists) {
+    const { irreversible: _irreversible, ...support } = summarizeSupport(p.candidate);
     try {
       const r = deps.memories.suggest(
         {
-          text: p.draft.text, category: p.draft.category, scope: p.scope,
-          proposal: { kind: p.draft.kind, targets: [...p.targets], confidence: p.draft.confidence },
+          text: p.draft.text, category: p.draft.category, domain: p.draft.domain, scope: p.scope,
+          proposal: { kind: p.draft.kind, targets: [...p.targets], support },
         },
-        { kind: "dream", dreamId: run.id, evidence: ev },
+        { kind: "dream", dreamId: run.id, evidence: evidenceOf(p.candidate), why: p.draft.why },
       );
-      if (r.declined) declined++;
-      else if (r.duplicate) known++;
+      if (r.declined) dropped.declined++;
+      else if (r.duplicate) dropped.known++;
       else filed++;
-    } catch {
-      invalid++;
+    } catch (e) {
+      if (e instanceof LimitExceededError) { dropped.capped++; settled.delete(p.candidate.id); } // waits for room
+      else dropped.invalid++;
     }
   }
-  advance();
-  const d = parsed.dropped;
+  // Settled candidates leave the ledger; one that truly recurs gathers support again.
+  ledger = ledger.filter((c) => !settled.has(c.id));
+  deps.repo.replaceCandidates(ledger);
   return finish({
     ...ended,
     tokens,
     proposed: filed,
-    narrative: parsed.narrative || null,
-    dropped: {
-      oneOff: d.oneOff ?? 0,
-      known: (d.known ?? 0) + known,
-      declined: (d.declined ?? 0) + declined,
-      secret: (d.secret ?? 0) + check.secret,
-      weak: d.weak ?? 0,
-      invalid,
-    },
+    narrative: filed ? parsed.narrative || null : null,
+    reason: ended.reason ?? (filed ? null : parsed.proposals.length ? "Nothing passed review this time" : "Nothing worth proposing this time"),
+    dropped,
+    candidates: ledger.length,
+    rejected: rejected.slice(0, REJECTED_MAX),
   });
-}
-
-function emptyDropped(): DreamDropped {
-  return { oneOff: 0, known: 0, declined: 0, secret: 0, weak: 0, invalid: 0 };
 }
 
 function clip(text: string): string {
   return text.length > QUOTE_CHARS ? `${text.slice(0, QUOTE_CHARS).trimEnd()}…` : text;
 }
 
-// o<N> · kind · scope · chat (project) · evidence ids, then the statement and the
-// user's own words it rests on.
-function formatNoticed(noticed: readonly Noticed[], evidence: ReadonlyMap<number, DreamEvidence>): string {
-  return noticed.map(({ o, chat }, i) => {
-    const quotes = o.evidence.map((id) => evidence.get(id)).filter((e): e is DreamEvidence => Boolean(e))
-      .slice(0, 3).map((e) => `    [e${e.eventId}] ${e.by}: “${e.quote}”`);
-    return [
-      `o${i + 1} · ${o.kind} · ${o.scope} · chat ${chat.name} (${chat.project ?? "no folder"}) · evidence ${o.evidence.map((id) => `e${id}`).join(", ") || "none"}`,
-      `  ${o.statement}`,
-      ...quotes,
-    ].join("\n");
-  }).join("\n");
-}
-
-// Kept memories first (they're what update/merge/promote/retire can target), then
-// pending, then declined — the model must not propose those again.
-function formatMemories(memories: readonly UserMemory[]): string {
-  const rank = { active: 0, suggested: 1, dismissed: 2 } as const;
-  const label = { active: "kept", suggested: "pending", dismissed: "declined" } as const;
-  const rows = [...memories].sort((a, b) => rank[a.status] - rank[b.status]).slice(0, MEMORY_LIST_MAX)
-    .map((m) => `${m.id} · ${label[m.status]} · ${m.scope.kind === "global" ? "global" : `project ${m.scope.path}`} · ${m.category}\n  ${m.text}`);
-  return rows.join("\n") || "(none yet)";
+// The newest lines behind a candidate, one per event.
+function evidenceOf(c: DreamCandidate): DreamEvidence[] {
+  const seen = new Set<number | null>();
+  return c.support.flatMap((s) => s.evidence).reverse()
+    .filter((e) => (seen.has(e.eventId) ? false : (seen.add(e.eventId), true)))
+    .slice(0, FILED_EVIDENCE_MAX);
 }

@@ -1,9 +1,13 @@
 // SqliteDreamRepo — dream_runs (one JSON row per run, re-validated on read),
-// dream_watermarks and dream_exclusions (migration 061).
+// dream_watermarks and dream_exclusions (migration 061), dream_candidates (one JSON
+// row per ledger candidate, migration 063).
 
 import type { DatabaseSync } from "node:sqlite";
-import { DreamRunSchema, type DreamRun } from "../../../contracts/src/dream.ts";
+import {
+  DreamCandidateSchema, DreamRunSchema, type DreamCandidate, type DreamRun,
+} from "../../../contracts/src/dream.ts";
 import type { DreamRepo } from "../../../core/src/ports/DreamRepo.ts";
+import { withTransaction } from "./transaction.ts";
 
 export class SqliteDreamRepo implements DreamRepo {
   private readonly stmtSave;
@@ -14,8 +18,13 @@ export class SqliteDreamRepo implements DreamRepo {
   private readonly stmtExcluded;
   private readonly stmtExclude;
   private readonly stmtInclude;
+  private readonly stmtCandidates;
+  private readonly stmtClearCandidates;
+  private readonly stmtPutCandidate;
+  private readonly db: DatabaseSync;
 
   constructor(db: DatabaseSync) {
+    this.db = db;
     this.stmtSave = db.prepare(
       "INSERT INTO dream_runs (id, started_at, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data",
     );
@@ -28,6 +37,9 @@ export class SqliteDreamRepo implements DreamRepo {
     this.stmtExcluded = db.prepare("SELECT worker_id AS id FROM dream_exclusions");
     this.stmtExclude = db.prepare("INSERT INTO dream_exclusions (worker_id) VALUES (?) ON CONFLICT(worker_id) DO NOTHING");
     this.stmtInclude = db.prepare("DELETE FROM dream_exclusions WHERE worker_id = ?");
+    this.stmtCandidates = db.prepare("SELECT data FROM dream_candidates ORDER BY last_seen DESC");
+    this.stmtClearCandidates = db.prepare("DELETE FROM dream_candidates");
+    this.stmtPutCandidate = db.prepare("INSERT INTO dream_candidates (id, last_seen, data) VALUES (?, ?, ?)");
   }
 
   save(run: DreamRun): void {
@@ -64,14 +76,30 @@ export class SqliteDreamRepo implements DreamRepo {
     if (excluded) this.stmtExclude.run(workerId);
     else this.stmtInclude.run(workerId);
   }
+
+  candidates(): DreamCandidate[] {
+    return this.stmtCandidates.all().map((row) => parseRow(row, DreamCandidateSchema)).filter((c): c is DreamCandidate => c !== null);
+  }
+
+  replaceCandidates(candidates: readonly DreamCandidate[]): void {
+    const parsed = candidates.map((c) => DreamCandidateSchema.parse(c));
+    withTransaction(this.db, () => {
+      this.stmtClearCandidates.run();
+      for (const c of parsed) this.stmtPutCandidate.run(c.id, c.lastSeen, JSON.stringify(c));
+    });
+  }
+}
+
+function parseRun(row: unknown): DreamRun | null {
+  return parseRow(row, DreamRunSchema);
 }
 
 // A row that no longer validates (an older shape) is skipped, never fatal.
-function parseRun(row: unknown): DreamRun | null {
+function parseRow<T>(row: unknown, schema: { safeParse(v: unknown): { success: true; data: T } | { success: false } }): T | null {
   const data = (row as { data?: string } | undefined)?.data;
   if (!data) return null;
   try {
-    const r = DreamRunSchema.safeParse(JSON.parse(data));
+    const r = schema.safeParse(JSON.parse(data));
     return r.success ? r.data : null;
   } catch {
     return null;

@@ -203,6 +203,13 @@ export const UserMemoryIdSchema = z.string().regex(/^um-[a-z0-9]{8,32}$/, "inval
 export const UserMemoryCategorySchema = z.enum(["about", "work-style", "stack", "other"]);
 export type UserMemoryCategory = z.infer<typeof UserMemoryCategorySchema>;
 
+// The area of work a memory's situation belongs to — the prompt block groups by it.
+// Optional: a memory without one renders under "Other".
+export const UserMemoryDomainSchema = z.enum([
+  "communication", "planning", "code", "ui", "testing", "debugging", "git", "tools", "about",
+]);
+export type UserMemoryDomain = z.infer<typeof UserMemoryDomainSchema>;
+
 // A project memory renders only for sessions inside `path` (an absolute folder;
 // worktrees resolve to their source repo).
 export const UserMemoryScopeSchema = z.discriminatedUnion("kind", [
@@ -232,15 +239,36 @@ export const UserMemorySourceSchema = z.discriminatedUnion("kind", [
     why: z.string().max(USER_MEMORY_WHY_MAX).optional(),
   }),
   z.object({ kind: z.literal("import"), from: z.string().min(1) }),
-  z.object({ kind: z.literal("dream"), dreamId: z.string().min(1), evidence: z.array(DreamEvidenceSchema).max(8) }),
+  z.object({
+    kind: z.literal("dream"),
+    dreamId: z.string().min(1),
+    evidence: z.array(DreamEvidenceSchema).max(8),
+    // What goes wrong for an agent that doesn't know it.
+    why: z.string().max(USER_MEMORY_WHY_MAX).optional(),
+  }),
 ]);
 export type UserMemorySource = z.infer<typeof UserMemorySourceSchema>;
 
+// How far a dream's proposal is backed: separate chats, days and projects it was
+// seen in, and whether the user said it as a standing rule (explicit) or it was
+// inferred from repeats.
+export const DreamSupportSummarySchema = z.object({
+  chats: z.number().int().nonnegative(),
+  days: z.number().int().nonnegative(),
+  projects: z.number().int().nonnegative(),
+  firstSeen: z.number(),
+  lastSeen: z.number(),
+  origin: z.enum(["explicit", "inferred"]),
+});
+export type DreamSupportSummary = z.infer<typeof DreamSupportSummarySchema>;
+
 // What keeping a suggestion does (a dream's proposal). Absent = a plain new memory.
+// `confidence` is the first dreams' 1–3 score; newer proposals carry `support`.
 export const UserMemoryProposalSchema = z.object({
   kind: DreamProposalKindSchema,
   targets: z.array(UserMemoryIdSchema).max(6),
-  confidence: z.number().int().min(1).max(3),
+  confidence: z.number().int().min(1).max(3).optional(),
+  support: DreamSupportSummarySchema.optional(),
 });
 export type UserMemoryProposal = z.infer<typeof UserMemoryProposalSchema>;
 
@@ -250,6 +278,7 @@ export const UserMemorySchema = z.object({
   id: UserMemoryIdSchema,
   text: MemoryTextSchema,
   category: UserMemoryCategorySchema,
+  domain: UserMemoryDomainSchema.optional(),
   scope: UserMemoryScopeSchema,
   tier: UserMemoryTierSchema,
   status: UserMemoryStatusSchema,
@@ -271,6 +300,7 @@ export type UserMemoryResponse = z.infer<typeof UserMemoryResponseSchema>;
 export const UserMemoryCreateRequestSchema = z.object({
   text: MemoryTextSchema,
   category: UserMemoryCategorySchema,
+  domain: UserMemoryDomainSchema.optional(),
   scope: UserMemoryScopeSchema,
   tier: UserMemoryTierSchema.default("always"),
 });
@@ -279,6 +309,7 @@ export type UserMemoryCreateRequest = z.infer<typeof UserMemoryCreateRequestSche
 export const UserMemoryUpdateRequestSchema = z.object({
   text: MemoryTextSchema.optional(),
   category: UserMemoryCategorySchema.optional(),
+  domain: UserMemoryDomainSchema.optional(),
   scope: UserMemoryScopeSchema.optional(),
   tier: UserMemoryTierSchema.optional(),
   baseRev: z.number().int().nonnegative().optional(),

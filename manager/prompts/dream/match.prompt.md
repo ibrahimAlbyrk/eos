@@ -1,10 +1,14 @@
 ---
-description: Dreaming's consolidation request — the candidates that are ready, the existing memories, the profile
+description: Dreaming's match request — tonight's signals, the open candidates, the existing memories
 variables:
+  - SIGNALS
   - CANDIDATES
   - MEMORIES
-  - PROFILE
 ---
+<signals>
+{{SIGNALS}}
+</signals>
+
 <candidates>
 {{CANDIDATES}}
 </candidates>
@@ -12,9 +16,5 @@ variables:
 <memories>
 {{MEMORIES}}
 </memories>
-
-<profile>
-{{PROFILE}}
-</profile>
 
 Call StructuredOutput with your answer now.

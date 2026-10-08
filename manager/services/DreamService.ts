@@ -10,7 +10,7 @@ import type { Clock } from "../../core/src/ports/Clock.ts";
 import type { DreamRepo } from "../../core/src/ports/DreamRepo.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
-import { isAwayDue, isNightlyDue, nextNightly } from "../../core/src/domain/dream.ts";
+import { emptyDreamDropped, isAwayDue, isNightlyDue, nextNightly } from "../../core/src/domain/dream.ts";
 import type {
   DreamBlock, DreamChangeEvent, DreamProgress, DreamRun, DreamRunStatus, DreamStatus, DreamTrigger,
 } from "../../contracts/src/dream.ts";
@@ -166,7 +166,7 @@ export class DreamService {
     const run: DreamRun = {
       id: this.deps.newId(), trigger, status: "skipped", reason, startedAt: now, finishedAt: now, model: s.model,
       chatsRead: 0, observations: 0, proposed: 0, tokens: 0, narrative: null,
-      dropped: { oneOff: 0, known: 0, declined: 0, secret: 0, weak: 0, invalid: 0 }, chats: [],
+      dropped: emptyDreamDropped(), chats: [], candidates: 0, rejected: [],
     };
     this.deps.repo.save(run);
     this.publish(run.id, "skipped");

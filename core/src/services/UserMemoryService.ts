@@ -17,13 +17,14 @@ import {
   findDuplicateMemory, findDuplicateProposal, normalizeMemoryText, searchMemories,
 } from "../domain/user-memory.ts";
 import type {
-  UserMemory, UserMemoryCategory, UserMemoryChangeEvent, UserMemoryProposal, UserMemoryScope,
+  UserMemory, UserMemoryCategory, UserMemoryChangeEvent, UserMemoryDomain, UserMemoryProposal, UserMemoryScope,
   UserMemorySource, UserMemoryTier,
 } from "../../../contracts/src/profile.ts";
 
 export const DEFAULT_PENDING_PER_PRODUCER = 5;
-// One dream files up to this many proposals for a single morning review.
-export const DREAM_PENDING_CAP = 12;
+// Dream proposals waiting for review, all dreams together (every Mac's): a morning
+// review stays short, and an unreviewed one holds the next dream's back.
+export const DREAM_PENDING_CAP = 4;
 
 export class StaleMemoryError extends ConflictError {
   readonly memory: UserMemory;
@@ -36,6 +37,7 @@ export class StaleMemoryError extends ConflictError {
 export interface UserMemoryInput {
   readonly text: string;
   readonly category: UserMemoryCategory;
+  readonly domain?: UserMemoryDomain;
   readonly scope: UserMemoryScope;
   readonly tier: UserMemoryTier;
 }
@@ -43,6 +45,7 @@ export interface UserMemoryInput {
 export interface UserMemoryPatch {
   readonly text?: string;
   readonly category?: UserMemoryCategory;
+  readonly domain?: UserMemoryDomain;
   readonly scope?: UserMemoryScope;
   readonly tier?: UserMemoryTier;
 }
@@ -126,7 +129,7 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     if (all.filter((m) => m.status === "suggested" && producerKey(m.source) === key).length >= cap) {
       throw new LimitExceededError(`${cap} suggestions are already waiting for the user's review`);
     }
-    const memory = this.insert({ text, category: input.category, scope: input.scope, tier: "always" }, "suggested", source, p);
+    const memory = this.insert({ text, category: input.category, domain: input.domain, scope: input.scope, tier: "always" }, "suggested", source, p);
     return { memory, duplicate: false, declined: false };
   }
 
@@ -141,6 +144,7 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
       ...cur,
       text: patch.text !== undefined ? normalizeMemoryText(patch.text) : cur.text,
       category: patch.category ?? cur.category,
+      ...withDomain(patch.domain ?? cur.domain),
       scope: patch.scope ?? cur.scope,
       tier: patch.tier ?? cur.tier,
     };
@@ -164,7 +168,7 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     switch (p.kind) {
       case "update":
         this.consume(cur);
-        return this.commit({ ...targets[0]!, text: cur.text }, "updated", "user");
+        return this.commit({ ...targets[0]!, text: cur.text, ...withDomain(cur.domain ?? targets[0]!.domain) }, "updated", "user");
       case "promote":
         this.consume(cur);
         return this.commit({ ...targets[0]!, scope: { kind: "global" } }, "updated", "user");
@@ -225,8 +229,9 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     input: UserMemoryInput, status: UserMemory["status"], source: UserMemorySource, proposal?: UserMemoryProposal,
   ): UserMemory {
     const now = this.deps.clock.now();
+    const { domain, ...rest } = input;
     const memory: UserMemory = {
-      id: this.deps.newId(), ...input, status, source, ...(proposal ? { proposal } : {}), rev: 0, createdAt: now, updatedAt: now,
+      id: this.deps.newId(), ...rest, ...withDomain(domain), status, source, ...(proposal ? { proposal } : {}), rev: 0, createdAt: now, updatedAt: now,
     };
     this.deps.store.put(memory);
     this.emit(memory, "created", source.kind === "agent" ? "agent" : source.kind === "dream" ? "dream" : "user");
@@ -257,17 +262,22 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
   }
 }
 
+// An absent domain stays absent (no `domain: undefined` key in the stored record).
+function withDomain(domain: UserMemoryDomain | undefined): { domain?: UserMemoryDomain } {
+  return domain ? { domain } : {};
+}
+
 function withoutProposal(m: UserMemory): UserMemory {
   const copy = { ...m };
   delete copy.proposal;
   return copy;
 }
 
-// One pending budget per producer: an agent can't crowd out the others, and each
-// dream gets its own morning's worth.
+// One pending budget per producer: an agent can't crowd out the others; dreams
+// share one.
 function producerKey(source: UserMemorySource): string {
   if (source.kind === "agent") return `agent:${source.agentId}`;
   if (source.kind === "import") return `import:${source.from}`;
-  if (source.kind === "dream") return `dream:${source.dreamId}`;
+  if (source.kind === "dream") return "dream";
   return "user";
 }
