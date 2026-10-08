@@ -94,6 +94,17 @@ describe("renderUserProfile", () => {
     assert.doesNotMatch(outside.text, /eos build/);
   });
 
+  it("memories open with a header that says how to apply them; with domains they're grouped by area", () => {
+    const flat = renderUserProfile(IBRAHIM, [mem("When asked, act.")], { project: null });
+    assert.match(flat.text, /Standing preferences — each opens with the situation it covers\.[^\n]*\n\n- When asked, act\./);
+    const grouped = renderUserProfile(IBRAHIM, [
+      mem("When committing, split changes.", { domain: "git" }),
+      mem("When planning, ask first.", { domain: "planning" }),
+      mem("Use tabs."),
+    ], { project: null });
+    assert.match(grouped.text, /Planning:\n- When planning, ask first\.\n\nGit & GitHub:\n- When committing, split changes\.\n\nOther:\n- Use tabs\./);
+  });
+
   it("memories past the budget overflow into the hint; facts always stay", () => {
     const many = Array.from({ length: 40 }, (_, i) => mem(`Memory number ${i} ${"padding ".repeat(12)}`));
     const out = renderUserProfile({ ...IBRAHIM, budgetTokens: 300 }, many, { project: null, searchToolName: "search_memory" });

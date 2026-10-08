@@ -6,13 +6,14 @@
 // - An empty profile with nothing to remember renders DEFAULT_USER_PREFERENCES — the
 //   exact block the preambles hardcoded before profiles existed.
 // - Structured lines and instructions always fit; memories fill the token budget
-//   newest-first and the rest overflow into the "N more" hint.
+//   (global first, then newest) and the rest overflow into the "N more" hint. Kept
+//   ones are shown grouped by area, each opening with the situation it covers.
 // - Lines the session already receives elsewhere (`knownLines`, i.e. CLAUDE.md) are
 //   dropped, so importing CLAUDE.md into the profile never doubles a rule.
 // - User and agent text is data: one line per memory, the block's own tags neutralised.
 
 import type {
-  Autonomy, CommitPolicy, ExpertiseLevel, ReplyStyle, UserMemory, UserProfile, WhenUnclear, WorkRole,
+  Autonomy, CommitPolicy, ExpertiseLevel, ReplyStyle, UserMemory, UserMemoryDomain, UserProfile, WhenUnclear, WorkRole,
 } from "../../../contracts/src/profile.ts";
 import { estimateTokens } from "../domain/compaction.ts";
 import { isProfileEmpty } from "../domain/user-profile.ts";
@@ -78,6 +79,15 @@ const COMMITS: Record<CommitPolicy, string> = {
   "on-request": "Commits: only when the user asks.",
   milestones: "Commits: at meaningful milestones.",
 };
+
+// Display order of the memory groups; a memory without a domain goes under "Other".
+const DOMAIN_TITLES: Record<UserMemoryDomain, string> = {
+  communication: "Communication", planning: "Planning", code: "Code", ui: "UI", testing: "Testing",
+  debugging: "Debugging", git: "Git & GitHub", tools: "Tools", about: "About the user",
+};
+
+export const MEMORY_BLOCK_HEADER =
+  "Standing preferences — each opens with the situation it covers. Apply one when your task matches it; there it takes precedence over the general defaults above.";
 
 const LANGUAGE: Record<string, string> = {
   ar: "Arabic", de: "German", en: "English", es: "Spanish", fr: "French", hi: "Hindi",
@@ -154,15 +164,23 @@ function composeBlock(
     parts.push(facts.map((l) => `- ${l}`).join("\n"));
   }
   if (instructions) parts.push("Standing instructions from the user:", instructions);
-  if (kept.length) {
-    parts.push("Remembered about the user:");
-    parts.push(kept.map((m) => `- ${m.scope.kind === "project" ? "In this project: " : ""}${oneLine(m.text)}`).join("\n"));
-  }
+  if (kept.length) parts.push(MEMORY_BLOCK_HEADER, memoryLines(kept));
   if (tool && more > 0) {
     parts.push(`${more} more ${more === 1 ? "memory is" : "memories are"} available — call ${tool} when a task touches the user's preferences or conventions.`);
   }
   parts.push("`</user_profile>`");
   return parts.join("\n\n");
+}
+
+// One bullet per memory; under area titles once any memory has a domain.
+function memoryLines(kept: readonly UserMemory[]): string {
+  const bullet = (m: UserMemory): string => `- ${m.scope.kind === "project" ? "In this project: " : ""}${oneLine(m.text)}`;
+  if (!kept.some((m) => m.domain)) return kept.map(bullet).join("\n");
+  const titles = [...Object.keys(DOMAIN_TITLES), "other"] as const;
+  return titles.flatMap((d) => {
+    const group = kept.filter((m) => (m.domain ?? "other") === d);
+    return group.length ? [`${d === "other" ? "Other" : DOMAIN_TITLES[d as UserMemoryDomain]}:\n${group.map(bullet).join("\n")}`] : [];
+  }).join("\n\n");
 }
 
 function globalFirstThenNewest(a: UserMemory, b: UserMemory): number {
