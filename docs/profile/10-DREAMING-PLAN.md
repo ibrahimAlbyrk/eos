@@ -6,6 +6,36 @@ top of Memory) + **B · Triage** (one-at-a-time review) are the chosen direction
 building blocks: proposal types, Settings › Dreaming, live states, Dream log.
 Builds on `00-PROFILE-PLAN.md` (P0–P5 shipped).
 
+## v2 — durability is counted (2026-10-08)
+
+Why: of 41 `new` proposals over the first four dreams, 9 were kept, and 2 of 29 after the
+first night. The rejects were product facts (16), one task's instructions repeated inside
+one workstream (9), descriptions of behaviour or generic practice (5), duplicates (2).
+Root causes: recall wrote traits from one chat (and counted product corrections as the
+strongest signal), durability was asserted by the model rather than measured, a 12-per-night
+quota, no independent check, and a "fact about the user" voice for memory text.
+Grounded in the dream log plus a literature review (sleep consolidation and spacing,
+trait-vs-state, mem0 / ExpeL / Generative Agents, PersistBench / OP-Bench / PASB on
+memory over-application, Claude Code and Copilot memory docs).
+
+| Step | What changed | Where |
+|---|---|---|
+| Recall | signals, not traits: `ask` near the user's words + `object` (agent-behaviour · user-fact · artifact · project-convention) + `stance` (general-rule · process-correction · task-instruction · product-feedback · choice) + verbatim `marker`, `reason`, `irreversible` | `prompts/dream/recall-*`, `DreamSignalSchema` |
+| Filter | code drops artifact/project-convention/product-feedback, task-instruction and choice signals; evidence must be user lines; a marker counts only if the user's lines contain it (Turkish folded) | `filterSignals`, `groundedMarker` |
+| Match | one call files signals into groups → open candidate / new claim / memory (known, declined, or aimed at a kept one it contradicts or that showed up beyond its project) | `prompts/dream/match-*`, `applyMatches` |
+| Ledger | `dream_candidates` (063): support per occasion (chat × day), rereads idempotent; ready = grounded standing rule ∨ irreversible gate ∨ (≥ 2 chats ∧ ≥ 2 days); scope global once seen in two settings; 30-day fade. Watermarks move once the ledger holds the night | `core/domain/dream-ledger.ts`, `SqliteDreamRepo` |
+| Consolidate | only ready candidates; NOOP default; five tests; ≤ 3 proposals; `setAside` with reasons; text as "When …, … — reason" or "The user …", one preference; `domain` + `why`; no `other` category | `prompts/dream/consolidate-*`, `checkProposals`, `lintMemoryText` |
+| Critic | separate call refutes each proposal (five tests + per-quote "says it?"); kept only with keep ∧ a quote that says it | `prompts/dream/critic-*`, `applyVerdicts` |
+| File | proposal carries `support` (chats, days, projects, origin) instead of confidence; source carries `why`; all dreams share one pending cap (4) | `UserMemoryService` |
+| Render | memories under "Standing preferences — each opens with the situation it covers…", grouped by `domain` | `render-user-profile.ts` |
+| UI | review shows support + "Without it: why"; log shows new drop reasons, ideas gathering support, and what the critic turned down | `DreamReview`, `DreamJournal`, `DreamLog` |
+| Eval | `bash scripts/dream-eval.sh` replays past keep/dismiss decisions through the writing rules and the critic | `scripts/dream-eval.mts` |
+
+Not done, on purpose: project scope by git-remote key (sync already carries scopes as
+git-remote keys; the split clone path was a key this Mac couldn't place) and dreams
+proposing policy rules (the one gate that mattered — GitHub writes — is a `policy.yaml`
+`ask` rule now).
+
 ## What it is
 
 While the user is away, Eos rereads finished chats, turns what it learned about the user
