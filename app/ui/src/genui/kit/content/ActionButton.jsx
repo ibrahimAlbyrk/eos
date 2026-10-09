@@ -33,7 +33,7 @@ export function ActionButton({ id, item: itemProp, size = "md", variant, classNa
   return (
     <button
       type="button"
-      className={cls("gv-btn", primary ? "gv-btn-primary" : "gv-btn-glass", size === "sm" && "gv-btn-sm", className)}
+      className={cls("gv-btn", primary ? "gv-btn-primary" : "gv-btn-secondary", size === "sm" && "gv-btn-sm", className)}
       aria-disabled={busy || undefined}
       aria-busy={pending || undefined}
       data-action={id}

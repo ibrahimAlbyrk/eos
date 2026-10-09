@@ -196,8 +196,8 @@ describe("Steps", () => {
     const kids = renderSpec({ title: "t", summary: "s", ui: '<Steps variant="stepper"><Text label="One">first</Text><Text label="Two">second</Text></Steps>' });
     expect(kids).toContain(">Step 1 / 2<");
     expect(kids).toContain(">One<");
-    expect(kids).toContain("first");
-    expect(kids).not.toContain("second");
+    expect(kids).toContain("<p>first</p>");
+    expect(kids).not.toContain("<p>second</p>");
   });
 });
 

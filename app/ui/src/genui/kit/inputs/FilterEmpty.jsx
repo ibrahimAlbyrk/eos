@@ -52,7 +52,7 @@ export function FilterEmpty({ of, compact = false, standalone = false }) {
     <div className={`gv-fempty${compact ? " is-compact" : ""}`} role="status">
       <div className="gv-fempty__title">Nothing matches these filters</div>
       {compact ? null : <div className="gv-fempty__text">Loosen the filters, or ask for a wider search.</div>}
-      <button type="button" className="gv-btn gv-btn-glass gv-btn-sm" onClick={() => clearFilters(view, of)}>
+      <button type="button" className="gv-btn gv-btn-secondary gv-btn-sm" onClick={() => clearFilters(view, of)}>
         Clear filters
       </button>
     </div>

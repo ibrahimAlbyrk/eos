@@ -100,7 +100,7 @@ export function Steps({ attrs = {}, children }) {
           {step.text ? <div className="gv-steps__text">{step.text}</div> : null}
         </div>
         <div className="gv-steps__nav">
-          <button type="button" className="gv-btn gv-btn-glass gv-kbtn-icon" aria-label="Previous step" disabled={flags.atStart} onClick={() => go(stepNav(index, total, -1))}>
+          <button type="button" className="gv-btn gv-btn-secondary gv-kbtn-icon" aria-label="Previous step" disabled={flags.atStart} onClick={() => go(stepNav(index, total, -1))}>
             <Chevron dir={-1} />
           </button>
           <button type="button" className="gv-btn gv-btn-primary" disabled={flags.atEnd} onClick={() => go(stepNav(index, total, 1))}>

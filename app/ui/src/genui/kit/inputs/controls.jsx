@@ -101,6 +101,7 @@ export function Slider({ attrs = {} }) {
         value={value}
         aria-label={label || bind}
         aria-valuetext={shown}
+        style={{ "--gv-pct": `${max > min ? ((value - min) / (max - min)) * 100 : 0}%` }}
         onChange={(e) => view.setState(bind, snap(Number(e.target.value), min, max, step))}
       />
     </div>

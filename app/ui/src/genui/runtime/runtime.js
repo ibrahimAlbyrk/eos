@@ -50,7 +50,6 @@ export function toneVars(tone) {
   return {
     "--gv-accent": hex,
     "--gv-soft": rgba(hex, 0.14),
-    "--gv-glow": rgba(hex, 0.06),
     "--gv-line": rgba(hex, 0.32),
     "--gv-on": TONE_ON[t],
     "--gv-ink": TONE_INK[t],

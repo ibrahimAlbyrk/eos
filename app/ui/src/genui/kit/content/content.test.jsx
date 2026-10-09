@@ -119,7 +119,7 @@ describe("Callout · Quote", () => {
     expect(html).toContain('class="gv-callout gv-callout-tip"');
     expect(html).toContain('<div class="gv-callout-title">Konaklama önerisi</div>');
     expect(html).toContain("yakın butik otel · Alsancak");
-    expect(html).toMatch(/<button[^>]*class="gv-btn gv-btn-glass gv-btn-sm gv-callout-action"[^>]*data-action="hotels"/);
+    expect(html).toMatch(/<button[^>]*class="gv-btn gv-btn-secondary gv-btn-sm gv-callout-action"[^>]*data-action="hotels"/);
     expect(html).toContain("Seçenekleri göster");
   });
 

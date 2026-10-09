@@ -1,7 +1,8 @@
-/* view.css — the chrome around a visual answer: the view well (rim, tone glow),
-   its header, the streaming skeleton, the failed / superseded / fallback stubs,
-   the side-panel copy and the reply chip. The components inside come from the
-   kit (kit/base.css). Values follow the design boards (Main, States, Tests). */
+/* view.css — the chrome around a visual answer: one flat solid surface (no rim,
+   glow or shadow — it sits in the transcript like content), its header, the
+   streaming skeleton, the failed / superseded / fallback stubs, the side-panel
+   copy and the reply chip. The components inside come from the kit
+   (kit/base.css); sections inside are split by hairlines and space, not boxes. */
 
 .gv-view {
   position: relative;
@@ -10,48 +11,29 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-radius: 18px;
-  background:
-    radial-gradient(560px 150px at 0% 0%, var(--gv-glow, transparent), transparent 70%),
-    linear-gradient(180deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .016) 38%, rgba(255, 255, 255, .026));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06), 0 26px 50px -30px rgba(0, 0, 0, .9);
+  border-radius: 16px;
+  background: var(--gv-surface);
   color: var(--fg);
   font-size: var(--text-base);
   line-height: 1.55;
 }
-.gv-view::after,
-.gv-fallback::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  pointer-events: none;
-  background: linear-gradient(160deg, rgba(255, 255, 255, .24), rgba(255, 255, 255, .05) 24%, rgba(255, 255, 255, .015) 55%, rgba(255, 255, 255, .1));
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
-}
-
 .gv-head {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 16px 4px 18px;
+  gap: 10px;
+  padding: 18px 16px 2px 22px;
 }
 .gv-head-icon {
-  width: 34px;
-  height: 34px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 10px;
-  background: var(--gv-soft);
   color: var(--gv-accent);
 }
-.gv-head-text { flex: 1; min-width: 0; }
+.gv-head-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
 .gv-title {
-  font-size: var(--text-xl);
+  flex-shrink: 0;
+  max-width: 100%;
+  font-size: var(--text-lg);
   font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--fg-strong);
@@ -60,11 +42,9 @@
   white-space: nowrap;
 }
 .gv-meta {
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--fg-dim2);
+  min-width: 0;
+  font-size: 12.5px;
+  color: #6f6f6f;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -76,28 +56,27 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--r-pill);
-  background: var(--lg-chip-bg);
-  box-shadow: var(--lg-chip-sh);
-  color: var(--fg-mid);
+  border-radius: 8px;
+  background: transparent;
+  color: #7a7a7a;
   cursor: pointer;
 }
-.gv-chrome-btn:hover { background: var(--lg-chip-on-bg); color: var(--fg-strong); }
+.gv-chrome-btn:hover { background: var(--gv-control); color: var(--fg-strong); }
 
 .gv-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
-  padding: 12px 12px 14px;
+  padding: 16px 22px 20px;
 }
-.gv-body > .gv-md { padding: 0 6px; }
+.gv-body > .gv-section:not(:first-child) { padding-top: 16px; border-top: 1px solid var(--gv-rule); }
 .gv-md { font-size: var(--text-base); line-height: 1.6; color: var(--fg); }
 .gv-md > :first-child { margin-top: 0; }
 .gv-md > :last-child { margin-bottom: 0; }
 .gv-md p { margin: 0 0 8px; }
 .gv-md strong { color: var(--fg-strong); font-weight: 600; }
-.gv-md code { font-family: var(--font-mono); font-size: .92em; padding: 1px 5px; border-radius: 5px; background: rgba(255, 255, 255, .06); }
+.gv-md code { font-family: var(--font-mono); font-size: .92em; padding: 1px 5px; border-radius: 5px; background: var(--gv-control); }
 .gv-md a { color: var(--accent-hover); }
 
 .gv-broken {
@@ -115,7 +94,7 @@
   background-size: 200% 100%;
   animation: gv-shimmer 1.8s linear infinite;
 }
-.gv-skel { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.gv-skel { display: flex; flex-direction: column; gap: 12px; padding: 18px 22px; }
 .gv-skel-head { display: flex; align-items: center; gap: 10px; }
 .gv-skel-head .gv-shim:first-child { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; }
 .gv-skel-lines { display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -156,7 +135,7 @@
   margin: 2px 0 0;
   padding: 10px 12px;
   border-radius: 12px;
-  background: var(--panel);
+  background: var(--gv-surface);
   font-family: var(--font-mono);
   font-size: 11.5px;
   line-height: 1.7;
@@ -172,17 +151,12 @@
   gap: 10px;
   padding: 10px 14px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, .025);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  background: var(--gv-surface);
 }
 .gv-stub-icon {
-  width: 24px;
-  height: 24px;
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  background: var(--gv-soft);
   color: var(--gv-accent);
   opacity: .8;
 }
@@ -192,25 +166,22 @@
 
 /* the client couldn't render it: the summary stands in */
 .gv-fallback {
-  position: relative;
-  isolation: isolate;
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 14px 16px;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .015));
+  background: var(--gv-surface);
 }
 .gv-fallback-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--warn); }
 .gv-fallback-summary { font-size: 13.5px; line-height: 1.6; color: var(--fg-mid); white-space: pre-wrap; }
-.gv-fallback .gv-link { align-self: flex-start; }
 .gv-partial { display: flex; flex-direction: column; gap: 6px; padding: 2px 6px; }
 .gv-partial-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--warn); }
 .gv-partial-summary { font-size: 13px; line-height: 1.6; color: var(--fg-mid); white-space: pre-wrap; }
 
-/* side-panel copy: fills the tab, no floating shadow */
+/* side-panel copy: fills the tab */
 .gv-panel { height: 100%; overflow-y: auto; padding: 12px; box-sizing: border-box; }
-.gv-panel .gv-view { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .06); min-height: 100%; }
+.gv-panel .gv-view { min-height: 100%; }
 .gv-panel-empty { padding: 24px; }
 
 /* the user's click on a send action, as their turn */
@@ -227,7 +198,6 @@
   font: inherit;
   font-size: var(--text-sm);
   text-align: left;
-  box-shadow: inset 0 .5px 0 rgba(200, 225, 255, .16);
   cursor: pointer;
 }
 .gv-reply:hover { filter: brightness(1.08); }
@@ -236,10 +206,13 @@
 .gv-reply-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 @container gv-view (max-width: 480px) {
-  .gv-head { padding: 12px 12px 2px 14px; gap: 10px; }
-  .gv-head-icon { width: 30px; height: 30px; border-radius: 9px; }
+  .gv-head { padding: 14px 12px 2px 16px; }
+  .gv-head-text { flex-direction: column; align-items: flex-start; gap: 0; }
   .gv-title { font-size: var(--text-md); }
-  .gv-body { padding: 10px 8px 12px; }
+  .gv-body { padding: 12px 16px 16px; }
+  .gv-body > .gv-tabs > .gv-tabs-panel > .gv-carousel,
+  .gv-body > .gv-carousel,
+  .gv-body > .gv-section > .gv-section-body > .gv-carousel { margin-inline: -16px; }
 }
 
 /* Settings › Visual answers › Test location (a custom settings control: the
