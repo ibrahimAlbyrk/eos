@@ -405,6 +405,25 @@ export const MIGRATIONS: Migration[] = [
       data TEXT NOT NULL
     )
   ` },
+  // Visual answers (SqliteGenuiViewRepo): each presented view's spec, and its UI
+  // state (filters, ticks, the current step). Regenerable — a wipe only loses old
+  // views' rendering; their text summaries stay in the event log.
+  { id: "064_genui_views", sql: `
+    CREATE TABLE IF NOT EXISTS genui_views (
+      id TEXT PRIMARY KEY,
+      worker_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      title TEXT NOT NULL,
+      data TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS genui_views_worker ON genui_views (worker_id);
+    CREATE TABLE IF NOT EXISTS genui_view_state (
+      id TEXT PRIMARY KEY,
+      data TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

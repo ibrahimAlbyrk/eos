@@ -3,6 +3,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { MessageQueueRepo, MessageQueueInsert, QueuedMessage } from "../../../core/src/ports/MessageQueueRepo.ts";
 import type { DispatchEnvelope } from "../../../core/src/domain/message-envelope.ts";
+import type { UserMessageAction } from "../../../contracts/src/genui/spec.ts";
 
 interface Row {
   id: number;
@@ -21,11 +22,12 @@ interface QueueMeta {
   envelope?: DispatchEnvelope;
   displayText?: string;
   replyTo?: { rowId: number };
+  action?: UserMessageAction;
 }
 
-function encodeMeta({ envelope, displayText, replyTo }: QueueMeta): string | null {
-  if (!envelope && displayText == null && !replyTo) return null;
-  return JSON.stringify({ envelope, displayText, replyTo });
+function encodeMeta({ envelope, displayText, replyTo, action }: QueueMeta): string | null {
+  if (!envelope && displayText == null && !replyTo && !action) return null;
+  return JSON.stringify({ envelope, displayText, replyTo, action });
 }
 
 function decodeMeta(meta: string | null): QueueMeta {
@@ -38,7 +40,7 @@ function decodeMeta(meta: string | null): QueueMeta {
 }
 
 function toQueuedMessage(r: Row): QueuedMessage {
-  const { envelope, displayText, replyTo } = decodeMeta(r.meta);
+  const { envelope, displayText, replyTo, action } = decodeMeta(r.meta);
   return {
     id: r.id,
     workerId: r.worker_id,
@@ -48,6 +50,7 @@ function toQueuedMessage(r: Row): QueuedMessage {
     ...(envelope ? { envelope } : {}),
     ...(displayText != null ? { displayText } : {}),
     ...(replyTo ? { replyTo } : {}),
+    ...(action ? { action } : {}),
   };
 }
 

@@ -151,6 +151,14 @@ describe("SqliteMessageQueueRepo", () => {
     assert.equal(row.envelope, undefined);
   });
 
+  it("round-trips a visual-answer action (the reply chip) through the meta column", () => {
+    const action = { viewId: "v_AbCdEfGh1234", label: "Book a table", viewTitle: "Kadıköy tonight" };
+    repo.insert({ ...pending("a", "[view action] Book a table\n{}"), displayText: "Book a table", action });
+    const [row] = repo.listPending("w1");
+    assert.deepEqual(row.action, action);
+    assert.equal(row.displayText, "Book a table");
+  });
+
   it("a plain message carries no envelope/displayText (NULL meta)", () => {
     repo.insert(pending("a", "hi"));
     const [row] = repo.listPending("w1");
