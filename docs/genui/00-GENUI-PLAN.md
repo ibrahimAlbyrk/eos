@@ -195,8 +195,11 @@ gains optional `action: ViewAction` (`{viewId, actionId, label, item?, state?}`)
   - *Why a helper:* the first build used `navigator.geolocation` in the main window. It timed
     out with no prompt: during the call locationd logged no Eos client at all — Electron never
     makes Chromium's system-permission request, so CoreLocation is never asked. locationd keys a
-    command-line client by its own identity, so the helper links its own Info.plist
-    (`com.ibrahimalbyrk.eos.location`, name, usage string) into `__TEXT,__info_plist`.
+    command-line client by its own identity, so the helper carries its own Info.plist
+    (`com.ibrahimalbyrk.eos.location`, name, usage string). It ships as `EosLocation.app`:
+    linked into `__TEXT,__info_plist` of a bare binary, locationd registered it and posted the
+    prompt, but CoreLocationAgent logged "client bundle is NULL. Skip showing AuthPrompt" —
+    the prompt is shown only for a process that is the executable of a bundle.
 
 ## UI — `app/ui/src/genui/`
 
