@@ -236,6 +236,12 @@
 .pg-editor .cm-content .pg-codeblock.is-first.is-last { border-radius: 10px; }
 .pg-editor .cm-content .pg-quote { padding-left: 14px; box-shadow: inset 2px 0 0 var(--chip); color: var(--fg-dim); }
 .pg-rule { display: inline-block; width: 100%; height: 1px; vertical-align: middle; background: var(--line); }
+.pg-table { overflow-x: auto; padding: 6px 0; cursor: text; }
+.pg-table table { border-collapse: collapse; font-size: 0.94em; line-height: 1.55; }
+.pg-table th,
+.pg-table td { padding: 6px 12px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+.pg-table th { font-weight: 600; color: var(--fg-strong); background: var(--raised); }
+.pg-editor .cm-content .pg-table-src { font-family: var(--font-mono); font-size: 12.5px; }
 
 /* ── slash / mention popover (glass-pop host) ───────────────────────────── */
 .pg-editor .cm-editor .cm-tooltip.pg-ac {

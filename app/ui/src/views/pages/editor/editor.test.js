@@ -6,6 +6,7 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { pageActions } from "./pageActions.js";
 import { PREFIXES, makeTasks, setLineBlock, toggleTaskAt, toggleTaskCommand } from "./blocks.js";
 import { previewDecorations } from "./livePreview.js";
+import { tableDecorations } from "./tables.js";
 import { slashSource } from "./completions.js";
 
 // Enough of an EditorView for the block commands and the decoration builder:
@@ -87,6 +88,39 @@ describe("page live preview", () => {
   it("offers no hand-off without a reachable agent", () => {
     const widgets = decorations(fakeView("- [ ] open", 0)).map((x) => x.widget);
     expect(widgets).not.toContain("HandWidget");
+  });
+});
+
+describe("page tables", () => {
+  const TABLE = "## Targets\n| | LAN | Relay |\n|---|:---:|--:|\n| fps | **60** | `30` \\| adaptive |\n| short |\n\nafter";
+  const tableDecos = (view) => {
+    const out = [];
+    tableDecorations(view.state).between(0, view.state.doc.length, (from, to, deco) => {
+      out.push({ from, to, cls: deco.spec.class, model: deco.spec.widget?.model });
+    });
+    return out;
+  };
+
+  it("draws a table away from the caret, cells parsed like GFM", () => {
+    const view = fakeView(TABLE, TABLE.length);
+    const [d, ...rest] = tableDecos(view);
+    expect(rest).toHaveLength(0);
+    expect(view.state.sliceDoc(d.from, d.to)).toBe(TABLE.slice(11, TABLE.indexOf("\n\n")));
+    const { align, head, body } = d.model;
+    expect(align).toEqual(["", "center", "right"]);
+    expect(head.map((c) => c.parts.map((p) => p.text).join(""))).toEqual(["", "LAN", "Relay"]);
+    expect(body[0][1].parts).toEqual([{ text: "60", cls: "pg-strong" }]);
+    expect(body[0][2].parts).toEqual([{ text: "30", cls: "pg-icode" }, { text: " ", cls: "" }, { text: "|", cls: "" }, { text: " adaptive", cls: "" }]);
+    expect(body[1]).toHaveLength(3); // a short row is padded to the header
+    // a cell's offset lands the caret at the end of its text
+    expect(view.state.sliceDoc(d.from, d.from + body[0][0].at).endsWith("| fps")).toBe(true);
+  });
+
+  it("shows the markdown while the caret is in the table", () => {
+    const view = fakeView(TABLE, 14);
+    const d = tableDecos(view);
+    expect(d.every((x) => x.cls === "pg-table-src" && !x.model)).toBe(true);
+    expect(d).toHaveLength(4);
   });
 });
 

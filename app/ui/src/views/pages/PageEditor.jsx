@@ -4,6 +4,7 @@ import { EditorView, keymap, placeholder } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownKeymap, markdownLanguage } from "@codemirror/lang-markdown";
 import { livePreview, livePreviewTheme } from "./editor/livePreview.js";
+import { tablePreview } from "./editor/tables.js";
 import { pageCompletions } from "./editor/completions.js";
 import { selectionBar } from "./editor/selectionBar.js";
 import { startCompletion } from "@codemirror/autocomplete";
@@ -45,6 +46,7 @@ export const PageEditor = forwardRef(function PageEditor({ initialDoc, onChange,
           placeholder("Type / for blocks, @ to mention a file"),
           pageActions.of(actionsRef),
           livePreview,
+          tablePreview,
           livePreviewTheme,
           pageCompletions,
           selectionBar,
