@@ -166,6 +166,22 @@ export const ROUTES = {
   settings: "/api/settings",
   settingsArchive: "/api/settings/archive",
   settingsCompaction: "/api/settings/compaction",
+  // Visual answers (contracts/src/genui/spec.ts). settingsGenui GET/PUT (ui-token)
+  // is the only write path for location.share and the logo.dev key.
+  settingsGenui: "/api/settings/genui",
+  genuiViews: "/api/genui/views",
+  genuiView: (id) => `/api/genui/views/${id}`,
+  genuiViewState: (id) => `/api/genui/views/${id}/state`,
+  genuiApps: "/api/genui/apps",
+  genuiMediaImg: "/api/genui/media/img",
+  genuiMediaOg: "/api/genui/media/og",
+  genuiMediaIcon: "/api/genui/media/icon",
+  // Prefix: style at /style.json, tiles under /t/<path>.
+  genuiMap: "/api/genui/map",
+  genuiGeocode: "/api/genui/geocode",
+  genuiPlaces: "/api/genui/places",
+  // Local-only (never through a /h/<id> facade); 403 unless location sharing is on.
+  location: "/api/location",
   // Remote access (iOS relay v3) — loopback + ui-token only. status read; config
   // write (persist config.remote); arm (reload+reconcile the edge); pair (mint QR).
   remoteStatus: "/api/remote/status",

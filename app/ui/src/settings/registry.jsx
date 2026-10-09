@@ -10,6 +10,9 @@
 // entry in controls.jsx CONTROLS. A section may provide `Component` instead
 // of `groups` to render fully custom content.
 
+import { useState } from "react";
+import { api } from "../api/client.js";
+import { isRemoteView } from "../lib/host.js";
 import { AccountsSettings } from "./AccountsSettings.jsx";
 import { ProfileSettings } from "./ProfileSettings.jsx";
 import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
@@ -77,6 +80,39 @@ const RemoteIcon = () => (
   </svg>
 );
 
+// Where GET /api/location says this Mac is ("Kadıköy, İstanbul · ±35 m").
+export function locationText(loc) {
+  if (!loc || typeof loc.lat !== "number" || typeof loc.lon !== "number") return "";
+  const area = [loc.area?.district, loc.area?.city, loc.area?.country].filter(Boolean).join(", ");
+  const where = area || `${loc.lat.toFixed(3)}, ${loc.lon.toFixed(3)}`;
+  return typeof loc.accuracy === "number" ? `${where} · ±${Math.round(loc.accuracy)} m` : where;
+}
+
+// Settings › General › Visual answers: reads the location once through the app
+// (the first read is what makes macOS ask for permission) and shows the result.
+export function LocationTest() {
+  const [st, setSt] = useState({ phase: "idle", text: "" });
+  if (isRemoteView()) return <span className="gv-loc-test">Read on the Mac running Eos</span>;
+  const run = async () => {
+    setSt({ phase: "busy", text: "" });
+    try {
+      const r = await api.getLocation();
+      if (r.ok && r.body) setSt({ phase: "ok", text: locationText(r.body) });
+      else setSt({ phase: "err", text: r.body?.error ?? `location → ${r.status}` });
+    } catch (e) {
+      setSt({ phase: "err", text: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  return (
+    <span className="gv-loc-test">
+      <button type="button" className="gv-link" onClick={run} disabled={st.phase === "busy"}>
+        {st.phase === "busy" ? "Checking…" : "Test"}
+      </button>
+      {st.text && <span className={st.phase === "ok" ? "gv-loc-ok" : "gv-loc-err"}>{st.text}</span>}
+    </span>
+  );
+}
+
 export const SETTINGS_SECTIONS = [
   {
     id: "profile",
@@ -109,6 +145,60 @@ export const SETTINGS_SECTIONS = [
               "Pulse a split-view pane's edge (and show a dot in its header) when its agent finishes with new output while you're focused on another pane. Independent of the sidebar indicators above.",
             control: { type: "toggle" },
             defaultValue: true,
+          },
+        ],
+      },
+      {
+        // genui.* persists through PUT /api/settings/genui (ui-token gated; the
+        // only write path for location sharing and the logo key) — see
+        // CONFIG_BLOCKS in state/settings.jsx.
+        title: "Visual answers",
+        items: [
+          {
+            key: "genui.level",
+            label: "Visual answers",
+            description:
+              "Balanced: agents show places, plans, comparisons and data as interactive views. Rich: also small touches, like a single card. Text only: always prose.",
+            control: {
+              type: "segmented",
+              options: [
+                { value: "rich", label: "Rich" },
+                { value: "balanced", label: "Balanced" },
+                { value: "text", label: "Text only" },
+              ],
+            },
+            defaultValue: "balanced",
+          },
+          {
+            key: "genui.apps",
+            label: "Allow apps",
+            description:
+              "Agents may build small interactive apps when you ask for one. They run sandboxed, with no network, and can only message the agent or open a link after you confirm.",
+            control: { type: "toggle" },
+            defaultValue: true,
+            visibleWhen: (s) => s["genui.level"] !== "text",
+          },
+          {
+            key: "genui.locationShare",
+            label: "Share location",
+            description: "Let agents read this Mac's approximate location for “near me” answers.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
+          {
+            key: "genui.locationTest",
+            label: "Test location",
+            description: "Reads this Mac's location once. The first check asks macOS for permission.",
+            control: { type: "custom", Component: LocationTest },
+            defaultValue: null,
+            visibleWhen: (s) => s["genui.locationShare"] === true,
+          },
+          {
+            key: "genui.logoDevKey",
+            label: "logo.dev key",
+            description: "Optional publishable key (pk_…) for brand logos. Logos then load straight from img.logo.dev; without a key, site icons stand in.",
+            control: { type: "text", placeholder: "pk_…" },
+            defaultValue: "",
           },
         ],
       },

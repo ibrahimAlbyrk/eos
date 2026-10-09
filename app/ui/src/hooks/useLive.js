@@ -46,6 +46,8 @@ import { applyUserMemoryChange, resyncUserMemories } from "../state/userMemorySt
 import { applyDreamChange, resyncDreams } from "../state/dreamStore.js";
 import { applySyncChange, resyncSync } from "../state/syncStore.js";
 import { applyTransferChange, resyncTransfers } from "../state/transfersStore.js";
+import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
+import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -223,6 +225,8 @@ export function useLive() {
         resyncDreams();
         resyncSync();
         if (!isRemoteView()) resyncTransfers();
+        resyncViewStates();
+        resyncGenuiStreams();
       },
       onChange: (e) => {
         try {
@@ -280,6 +284,11 @@ export function useLive() {
           // Live reasoning/text deltas (claude / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }
+          // A visual answer being written (claude SDK lane): its tool input grows
+          // in the genui stream store; the durable tool call replaces it.
+          if (data.reason === "genui:delta") { applyGenuiDelta(data.payload ?? {}); return; }
+          // A view's state changed (another window, the side-panel copy).
+          if (data.reason === "genui:change") { applyViewStateChange(data.payload ?? {}); return; }
           // Transient goal-check progress (loop tick) — drive the live "checking"
           // indicator via the loop-check store; not a worker-state delta, so skip
           // the refetch. The durable verdict rides loop_check (a worker:change).
@@ -344,7 +353,10 @@ export function useLive() {
     const nextBusy = new Set();
     for (const w of workers) if (isRunning(w)) nextBusy.add(w.id);
     for (const id of busyIdsRef.current) {
-      if (!nextBusy.has(id)) finalizeThinking(id);
+      if (!nextBusy.has(id)) {
+        finalizeThinking(id);
+        endGenuiStreams(id);
+      }
     }
     busyIdsRef.current = nextBusy;
   }, [workers]);
@@ -397,13 +409,13 @@ export function useLive() {
   const workersRef = useRef(workers);
   workersRef.current = workers;
 
-  const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) => {
+  const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) => {
     setInterruptedId(null);
     // New turn starting — retire the previous turn's finalized thinking buffers.
     dropInterruptedThinking(id);
     const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
-    const opts = { clientMsgId, queueWhenBusy, replyTo };
+    const opts = { clientMsgId, queueWhenBusy, replyTo, action };
     const r = worker.is_orchestrator
       ? await api.sendOrchestratorMessage(id, text, opts)
       : await api.sendWorkerMessage(id, text, opts);

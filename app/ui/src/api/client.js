@@ -271,8 +271,10 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerSubagentEvents → ${r.status}`);
     return r.body;
   },
-  async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
-    return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });
+  // action: a visual answer's send action ({viewId, actionId, label, viewTitle?,
+  // item?, state?}) — the chat shows its label as a reply chip.
+  async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) {
+    return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy, replyTo, action });
   },
   // Daemon-side message queue — pills render from this; dismiss removes a
   // still-pending row.
@@ -335,8 +337,8 @@ export const api = {
   async spawnOrchestrator({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) {
     return postJson(ROUTES.orchestrators, { name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
   },
-  async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy, replyTo } = {}) {
-    return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy, replyTo });
+  async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) {
+    return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy, replyTo, action });
   },
 
   // Pending
@@ -843,6 +845,45 @@ export const api = {
   },
   async patchCompactionConfig(patch) {
     return putJson(ROUTES.settingsCompaction, patch);
+  },
+
+  // Visual answers. Settings ride their own gated route (location.share and the
+  // logo key are writable nowhere else); a view's spec and state are plain reads.
+  async getGenuiSettings() {
+    const r = await getJson(ROUTES.settingsGenui, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `getGenuiSettings → ${r.status}`);
+    return r.body ?? {};
+  },
+  async patchGenuiSettings(patch) {
+    return putJson(ROUTES.settingsGenui, patch, uiTokenHeader());
+  },
+  // 404 → null (the view was never stored, or the state db was wiped).
+  async getGenuiView(id) {
+    const r = await getJson(ROUTES.genuiView(id));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.body?.error ?? `getGenuiView → ${r.status}`);
+    return r.body;
+  },
+  async getGenuiViewState(id) {
+    const r = await getJson(ROUTES.genuiViewState(id));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.body?.error ?? `getGenuiViewState → ${r.status}`);
+    return r.body;
+  },
+  async putGenuiViewState(id, state) {
+    return putJson(ROUTES.genuiViewState(id), { state }, uiTokenHeader());
+  },
+  // Current location through the app (Settings › Visual answers' Test button).
+  async getLocation() {
+    return getJson(ROUTES.location, { headers: uiTokenHeader() });
+  },
+  // Media proxy URLs for <img>: the app shell authenticates these requests.
+  genuiImgUrl(src) { return `${DAEMON}${ROUTES.genuiMediaImg}?src=${encodeURIComponent(src)}`; },
+  genuiOgUrl(pageUrl) { return `${DAEMON}${ROUTES.genuiMediaOg}?url=${encodeURIComponent(pageUrl)}`; },
+  genuiIconUrl(site) { return `${DAEMON}${ROUTES.genuiMediaIcon}?site=${encodeURIComponent(site)}`; },
+  genuiMapBase() { return `${DAEMON}${ROUTES.genuiMap}`; },
+  genuiGeocodeUrl(q, { limit = 1 } = {}) {
+    return `${DAEMON}${ROUTES.genuiGeocode}?q=${encodeURIComponent(q)}&limit=${limit}`;
   },
 
   // Remote access (iOS relay v3) — all four routes are loopback + ui-token gated.

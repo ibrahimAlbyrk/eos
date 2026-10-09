@@ -15,6 +15,7 @@ import { SubagentsPanel } from "../subagents/SubagentsPanel.jsx";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { PagePanel } from "../../pages/PagePanel.jsx";
 import { TransferPanel } from "../../transfer/TransferPanel.jsx";
+import { ViewPanel } from "../../../genui/panel/ViewPanel.jsx";
 
 registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -28,3 +29,5 @@ registerPanel({ type: "subagents", label: "Subagents", Component: SubagentsPanel
 registerPanel({ type: "newtab", label: "New tab", Component: NewTabPanel });
 registerPanel({ type: "page", label: "Page", Component: PagePanel });
 registerPanel({ type: "transfer", label: "Transfer", Component: TransferPanel });
+// A visual answer opened from the transcript (view:<id>).
+registerPanel({ type: "view", label: "View", Component: ViewPanel });

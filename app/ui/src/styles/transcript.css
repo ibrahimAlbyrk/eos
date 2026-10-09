@@ -69,6 +69,16 @@
   padding: 4px 12px;
   margin: -4px -12px;
 }
+/* A visual answer: room for its drop shadow (0 26px 50px -30px) below and its
+   rim beside. The widened box would sit over the next row and take its clicks
+   (containment paints it as its own layer), so only the view itself is hit. */
+.messages > [data-bkey].cv.cv-view {
+  contain-intrinsic-size: auto 420px;
+  padding: 4px 24px 48px;
+  margin: -4px -24px -48px;
+  pointer-events: none;
+}
+.messages > [data-bkey].cv.cv-view > * { pointer-events: auto; }
 /* backward-pagination sentinel — fixed height so the IntersectionObserver has
    a stable target and the loading skeleton doesn't shift content */
 .load-older {

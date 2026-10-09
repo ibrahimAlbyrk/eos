@@ -62,7 +62,34 @@ function buildRules(labels, slashMap) {
   return rules;
 }
 
-export function MessageUser({ text, cwd, replyTo, agentName, onJumpToReply }) {
+// A click on a visual answer's send action, as the user's turn: a compact chip
+// naming the view it came from (click → back to the view) and the action.
+export function ViewReplyChip({ action, text, onJumpToView }) {
+  const label = action.label || text;
+  return (
+    <div className="msg-user msg-user--action">
+      <button
+        type="button"
+        className="gv-reply"
+        onClick={() => onJumpToView?.(action.viewId)}
+        title={action.viewTitle ? `Go to “${action.viewTitle}”` : "Go to the view"}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+        </svg>
+        {action.viewTitle && <span className="gv-reply-view">{action.viewTitle}</span>}
+        <span className="gv-reply-label">{label}</span>
+      </button>
+    </div>
+  );
+}
+
+export function MessageUser({ text, cwd, replyTo, agentName, onJumpToReply, action, onJumpToView }) {
+  if (action?.viewId) return <ViewReplyChip action={action} text={text} onJumpToView={onJumpToView} />;
+  return <MessageUserText text={text} cwd={cwd} replyTo={replyTo} agentName={agentName} onJumpToReply={onJumpToReply} />;
+}
+
+function MessageUserText({ text, cwd, replyTo, agentName, onJumpToReply }) {
   const slashItems = useSlashItems(cwd);
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
   const { display, attachments } = parseAttachmentMessage(text);

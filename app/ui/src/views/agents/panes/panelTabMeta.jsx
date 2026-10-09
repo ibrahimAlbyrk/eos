@@ -13,6 +13,7 @@ export const TAB_ICONS = {
   newtab: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1.3" /><rect x="9" y="2.5" width="4.5" height="4.5" rx="1.3" /><rect x="2.5" y="9" width="4.5" height="4.5" rx="1.3" /><rect x="9" y="9" width="4.5" height="4.5" rx="1.3" /></svg>,
   page: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M4 2.5h5.2L12 5.3v8.2H4z" /><path d="M9 2.5v3h3M6 8.5h4M6 11h2.8" /></svg>,
   transfer: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5.5h9.5M10 3l2.5 2.5L10 8M13 10.5H3.5M6 8l-2.5 2.5L6 13" /></svg>,
+  view: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="2.5" /><path d="M2 6h12M6 6v7.5" /></svg>,
 };
 
 export const TAB_LABELS = {
@@ -25,6 +26,7 @@ export const TAB_LABELS = {
   newtab: "New tab",
   page: "New page",
   transfer: "Transfer",
+  view: "View",
 };
 
 export const TAB_KBD = { terminal: "⌃`", files: "⌘P" };

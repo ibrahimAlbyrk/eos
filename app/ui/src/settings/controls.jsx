@@ -349,7 +349,13 @@ function SliderControl({ value, onChange, min, max, step, format = String }) {
   );
 }
 
+// A row that brings its own UI: control: { type: "custom", Component }.
+function CustomControl({ Component, value, onChange }) {
+  return Component ? <Component value={value} onChange={onChange} /> : null;
+}
+
 export const CONTROLS = {
+  custom: CustomControl,
   toggle: ToggleControl,
   slider: SliderControl,
   select: SelectControl,

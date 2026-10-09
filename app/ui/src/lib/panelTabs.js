@@ -37,6 +37,16 @@ export function pageIdOf(id) {
   return id && tabType(id) === "page" ? id.slice("page:".length) : null;
 }
 
+// A visual answer opened in the panel, keyed by its view id (the tab rebuilds
+// from GET /api/genui/views/:id).
+export function viewTabId(viewId) {
+  return `view:${viewId}`;
+}
+
+export function viewIdOf(id) {
+  return id && tabType(id) === "view" ? id.slice("view:".length) : null;
+}
+
 // The instance number in a tab id, or 1 for a bare/singleton id.
 function tabNumber(id) {
   const i = id.indexOf(":");

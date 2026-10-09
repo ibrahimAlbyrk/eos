@@ -5,7 +5,8 @@ import { isRunning } from "./subagentRuns.js";
 
 // The agent's own output between two prompts. Anything else (a prompt, a
 // worker report, a terminal run, an error line) ends the run and stays visible.
-const WORK_KINDS = new Set(["thinking", "assistant", "toolGroup", "tool", "subagents", "agentRun"]);
+// A visual answer ("view") belongs to the run but is always pinned in view.
+const WORK_KINDS = new Set(["thinking", "assistant", "toolGroup", "tool", "subagents", "agentRun", "view"]);
 
 // Tool calls the reader must still see once the turn folds — they stay in view
 // between the fold row and the final reply.
@@ -18,7 +19,9 @@ const PINNED_TOOLS = new Set([
   "mcp__worker__send_message_to_parent",
 ]);
 
-const isPinned = (b) => b.kind === "tool" && PINNED_TOOLS.has(b.tool?.name);
+const isPinned = (b) => b.kind === "view" || (b.kind === "tool" && PINNED_TOOLS.has(b.tool?.name));
+// A run may end on the reply or on a view (the agent answered by showing).
+const isFinalReply = (b) => b.kind === "assistant" || b.kind === "view";
 const isAction = (b) => b.kind === "toolGroup" || b.kind === "tool" || b.kind === "subagents" || b.kind === "agentRun";
 const hasRunningSubagent = (b) =>
   (b.kind === "subagents" && b.runs.some(isRunning)) || (b.kind === "agentRun" && isRunning(b));
@@ -50,7 +53,7 @@ export function foldTurns(blocks, keyOf, { live = false } = {}) {
       else work.push(blocks[k]);
     }
     const ongoing = (live && end === blocks.length) || work.some(hasRunningSubagent);
-    const foldable = !ongoing && final.kind === "assistant" && work.some(isAction);
+    const foldable = !ongoing && isFinalReply(final) && work.some(isAction);
     if (!foldable) {
       if (ongoing) liveRunKeys.push(runKey);
       for (let k = i; k < end; k++) items.push({ kind: "block", block: blocks[k], index: k });

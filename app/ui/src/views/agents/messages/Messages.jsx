@@ -55,7 +55,7 @@ import { foldTurns } from "../../../lib/turnFold.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
 import { useConversationBlocks } from "../../../hooks/useConversationBlocks.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
-import { newSessionProject } from "../../../lib/breadcrumb.js";
+import { newSessionProject, projectPathFor } from "../../../lib/breadcrumb.js";
 import { useProjects } from "../../../state/projectsStore.js";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { CompactionCard, CompactionFailedLine } from "./CompactionCard.jsx";
@@ -67,6 +67,10 @@ import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../..
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import { onReveal } from "../../../state/transcriptReveal.js";
 import * as outbox from "../../../state/outboxStore.js";
+import { ViewBlock } from "../../../genui/ViewBlock.jsx";
+import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
+import { stableGenuiIndex, isFinalViewBlock } from "../../../genui/runtime/conversation.js";
+import { subscribe as subscribeGenui, streamsFor as liveViewsFor, dropStream as dropViewStream } from "../../../genui/streamStore.js";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
@@ -316,6 +320,12 @@ export function Messages({ live, agentId, isActive = true }) {
   useEffect(() => subscribeThinking((wid, structural) => {
     if (structural && wid === selectedId) setThinkTick((t) => t + 1);
   }), [selectedId]);
+  // Visual answers being written (claude SDK lane): a stream starting or
+  // ending changes the block list; its text growth is the ViewBlock's own.
+  const [genuiTick, setGenuiTick] = useState(0);
+  useEffect(() => subscribeGenui((wid, structural) => {
+    if (structural && wid === selectedId) setGenuiTick((t) => t + 1);
+  }), [selectedId]);
   // Live goal-check progress streams outside the event store too — re-render the
   // "checking" indicator on each phase update.
   const [loopCheckTick, setLoopCheckTick] = useState(0);
@@ -406,11 +416,20 @@ export function Messages({ live, agentId, isActive = true }) {
       // the store, so token growth never invalidates this memo.
       base.push({ kind: "thinking", ts: lb.ts, blockId: lb.blockId, live: true, interrupted: lb.interrupted });
     }
+    // Overlay a visual answer still being written, until its tool call lands.
+    const durableCalls = new Set(base.filter((b) => b.kind === "view").map((b) => b.tool.id));
+    for (const s of liveViewsFor(selectedId)) {
+      if (durableCalls.has(s.callId)) continue;
+      base.push({
+        kind: "view", live: true, ts: s.ts,
+        tool: { id: s.callId, name: s.name, verb: "read", input: {}, result: null, running: true, done: false, ts: s.ts },
+      });
+    }
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale. A launch batch of
     // subagents then folds into one line.
     return groupSubagentRuns(sortBlocksByTs(base), subagents);
-  }, [baseBlocks, subagents, selectedId, termTick, outboxTick, thinkTick]);
+  }, [baseBlocks, subagents, selectedId, termTick, outboxTick, thinkTick, genuiTick]);
 
   // With older pages unloaded the window starts mid-conversation, so the boot
   // turn comes from the whole-conversation index instead.
@@ -434,6 +453,8 @@ export function Messages({ live, agentId, isActive = true }) {
   const jumpToTurn = useCallback((key) => jumpTo(`[data-bkey="${CSS.escape(key)}"]`), [jumpTo]);
   // A reply quote jumps to the message it answers.
   const jumpToRow = useCallback((rowId) => jumpTo(`[data-rowid="${rowId}"]`), [jumpTo]);
+  // A view action's reply chip jumps back to the view it came from.
+  const jumpToView = useCallback((viewId) => jumpTo(`[data-genui-view="${CSS.escape(viewId)}"]`), [jumpTo]);
   useEffect(() => {
     const selector = pendingJumpRef.current;
     if (!selector) return;
@@ -491,6 +512,33 @@ export function Messages({ live, agentId, isActive = true }) {
     }
   }, [blocks, selectedId]);
 
+  // Drop a streamed view's buffer once its finished tool call is in the window.
+  useEffect(() => {
+    for (const b of blocks) {
+      if (isFinalViewBlock(b)) dropViewStream(selectedId, b.tool.id);
+    }
+  }, [blocks, selectedId]);
+
+  // Which views a later one replaced, and which failed calls were fixed below —
+  // over the whole conversation (a replacement is always newer than what it
+  // replaces, so it is in the window whenever the old view is).
+  const genuiRef = useRef(null);
+  const genui = useMemo(() => {
+    genuiRef.current = stableGenuiIndex(conversationBlocks, genuiRef.current);
+    return genuiRef.current;
+  }, [conversationBlocks]);
+  const sendToAgent = live.sendToAgent;
+  // The chat's project folder ("Save as page" from an app files the page there).
+  const genuiProject = selectedId ? projectPathFor(live.workers ?? [], selectedId) : null;
+  const genuiHost = useMemo(() => (selectedId ? {
+    workerId: selectedId,
+    cwd: selectedWorker?.cwd ?? null,
+    project: genuiProject,
+    send: (text, opts) => sendToAgent(selectedId, text, opts),
+    superseded: genui.superseded,
+    fixedBelow: genui.fixedBelow,
+  } : null), [selectedId, selectedWorker?.cwd, genuiProject, sendToAgent, genui]);
+
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive, stick.hold);
 
@@ -527,7 +575,7 @@ export function Messages({ live, agentId, isActive = true }) {
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
   // dispatches; see core/use-cases/DrainQueuedMessages.)
-  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents");
+  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents" || lastBlock.kind === "view");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
   // Live goal-check (transient store) — shown only while the worker is idle under
@@ -628,7 +676,7 @@ export function Messages({ live, agentId, isActive = true }) {
       )
       : b.kind === "compactionFailed"
         ? <CompactionFailedLine block={b} />
-        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow);
+        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow, jumpToView);
     if (!block) return null;
     // The wrapper carries the block's scroll-anchor identity
     // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -639,7 +687,7 @@ export function Messages({ live, agentId, isActive = true }) {
     // wrapper. See styles.css.
     const cls = [
       isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
-      MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
+      MESSAGE_ROW_KINDS.has(b.kind) ? null : b.kind === "view" ? "cv cv-view" : "cv",
     ].filter(Boolean).join(" ") || undefined;
     const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
     const prevTs = blocks[i - 1]?.ts;
@@ -657,7 +705,7 @@ export function Messages({ live, agentId, isActive = true }) {
     const prevTs = i > 0 ? blocks[i - 1].ts : undefined;
     return (
       <div key={key} data-rowid={b.rowId}>
-        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, prevTs, onReply, jumpToRow)}
+        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, prevTs, onReply, jumpToRow, jumpToView)}
       </div>
     );
   };
@@ -670,6 +718,7 @@ export function Messages({ live, agentId, isActive = true }) {
 
   return (
     <ScrollHoldContext.Provider value={stick.hold}>
+    <GenuiHostContext.Provider value={genuiHost}>
     <div className="messages-frame">
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
@@ -709,6 +758,7 @@ export function Messages({ live, agentId, isActive = true }) {
       <TurnRail turns={turns} scrollerRef={wrapRef} contentRef={contentRef} busy={agentBusy} onJump={jumpToTurn} />
     )}
     </div>
+    </GenuiHostContext.Provider>
     </ScrollHoldContext.Provider>
   );
 }
@@ -717,6 +767,7 @@ function blockKey(b, i) {
   switch (b.kind) {
     case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
+    case "view":      return "v-" + (b.tool.id ?? b.ts ?? i);
     case "subagents": return "sa-" + (b.runs[0]?.toolUseId ?? b.ts ?? i);
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
     default:          return b.blockId ? b.kind + "-" + b.blockId : b.kind + "-" + (b.ts ?? i);
@@ -738,15 +789,19 @@ function DayDivider({ ts }) {
 // (copy/rewind/timestamp) absolutely positioned past the wrapper's edges.
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
+// Views are the heaviest blocks (tables, carousels, charts, maps), so they keep
+// content-visibility; .cv-view widens the paint box for their drop shadow (see
+// transcript.css). Their selects are native, so nothing else reaches past it.
 
 // prevTs: the preceding block's ts — reasoning has no start time of its own, so
 // the gap since the previous transcript event approximates how long it thought.
-function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs, onReply, onJumpToRow) {
+function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs, onReply, onJumpToRow, onJumpToView) {
   switch (b.kind) {
     case "user": {
       const self = b.replyTo?.role === "assistant" ? workers.find((w) => w.id === sessionId) : null;
-      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} /></MessageRow>;
+      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} action={b.action} onJumpToView={onJumpToView} /></MessageRow>;
     }
+    case "view":      return <ViewBlock key={key} block={b} />;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;

@@ -48,6 +48,14 @@ describe("web ROUTES parity with contracts ROUTES", () => {
     expect(webRoutes.settingsArchive).toBe("/api/settings/archive");
   });
 
+  it("visual answers routes match the contracts table", () => {
+    expect(webRoutes.genuiView("v_abcdefghijkl")).toBe("/api/genui/views/v_abcdefghijkl");
+    expect(webRoutes.genuiViewState("v_abcdefghijkl")).toBe("/api/genui/views/v_abcdefghijkl/state");
+    for (const key of ["settingsGenui", "genuiViews", "genuiApps", "genuiMediaImg", "genuiMediaOg", "genuiMediaIcon", "genuiMap", "genuiGeocode", "genuiPlaces", "location"]) {
+      expect(webRoutes[key]).toBe(contractRoutes[key]);
+    }
+  });
+
   it("every web ROUTES path matches the contracts path for that key", () => {
     const mismatched = [];
     for (const key of Object.keys(webRoutes)) {

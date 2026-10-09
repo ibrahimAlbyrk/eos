@@ -325,6 +325,16 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
 for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) {
   for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, view);
 }
+// Visual answers render as views in the transcript (genui/ViewBlock.jsx); this
+// row is only what a present call looks like where it is listed as a tool.
+const presentView = {
+  label: (t) => ({ verb: t.name?.endsWith("present_app") ? "Presented app" : "Presented", file: t.input?.title ?? "" }),
+  runningLabel: (t) => ({ verb: "Presenting", file: t.input?.title ?? "" }),
+  expandable: (t) => failed(t) || Boolean(t.input?.summary),
+};
+for (const tool of ["present", "present_app"]) {
+  for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, presentView);
+}
 // A focused session's send_to_machine — the worker server only; view in ./TransferToolViews.jsx.
 for (const [tool, view] of Object.entries(TRANSFER_TOOL_VIEWS)) register(`mcp__worker__${tool}`, view);
 

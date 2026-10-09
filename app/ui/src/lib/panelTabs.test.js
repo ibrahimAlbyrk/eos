@@ -147,3 +147,14 @@ describe("panelTabs mountedTabs (tabs kept alive)", () => {
     expect(mountedTabs(new Set(["review", "files"]), ["files"], "files", true)).toEqual(["files"]);
   });
 });
+
+describe("view tabs", () => {
+  it("a visual answer's tab is keyed by its view id", async () => {
+    const { viewTabId, viewIdOf } = await import("./panelTabs.js");
+    expect(viewTabId("v_abcdefghijkl")).toBe("view:v_abcdefghijkl");
+    expect(viewIdOf("view:v_abcdefghijkl")).toBe("v_abcdefghijkl");
+    expect(tabType(viewTabId("v_abcdefghijkl"))).toBe("view");
+    expect(viewIdOf("page:pg-1")).toBe(null);
+    expect(viewIdOf(null)).toBe(null);
+  });
+});

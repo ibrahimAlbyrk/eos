@@ -4,15 +4,27 @@ import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "../settings/registry.jsx";
 import { THEME_STORAGE_KEY, setTheme } from "../settings/theme.js";
 import { useComposer } from "./composer.jsx";
 import { useSelection } from "./selection.jsx";
+import { notify } from "../lib/notify.js";
+import { setGenuiSettings } from "../genui/runtime/genuiSettings.js";
 
 const SettingsContext = createContext(null);
 
 // Settings the DAEMON reads live from ~/.eos/config.json (archive sweeper, the
 // compaction trigger) — they load/persist through their own endpoints and sit in
 // the flat map under their block prefix ("archive.retention", "compaction.threshold").
+// `settle`: the PUT answers with the whole block, which the map adopts — a value
+// the daemon refused reverts (with a notice) instead of showing as saved.
 const CONFIG_BLOCKS = {
   archive: { load: () => api.getArchiveConfig(), patch: (p) => api.patchArchiveConfig(p) },
   compaction: { load: () => api.getCompactionConfig(), patch: (p) => api.patchCompactionConfig(p) },
+  // Visual answers (GET/PUT /api/settings/genui, ui-token): level, apps,
+  // locationShare, logoDevKey. The kit reads the logo key from genuiSettings.
+  genui: {
+    load: () => api.getGenuiSettings().then((s) => { setGenuiSettings(s); return s; }),
+    patch: (p) => api.patchGenuiSettings(p),
+    settle: true,
+    adopt: (s) => setGenuiSettings(s),
+  },
 };
 const configBlockOf = (key) => Object.keys(CONFIG_BLOCKS).find((b) => key.startsWith(`${b}.`));
 
@@ -37,6 +49,14 @@ export function SettingsProvider({ children }) {
   }, []);
   const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
+  const applyBlock = useCallback((block, cfg) => {
+    if (!cfg || typeof cfg !== "object") return;
+    setSettings((v) => ({
+      ...v,
+      ...Object.fromEntries(Object.entries(cfg).map(([k, val]) => [`${block}.${k}`, val])),
+    }));
+  }, []);
+
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
@@ -47,14 +67,9 @@ export function SettingsProvider({ children }) {
     // config.json-backed blocks merge in flat-key form. A failed load keeps the
     // registry defaults.
     for (const [block, io] of Object.entries(CONFIG_BLOCKS)) {
-      io.load()
-        .then((cfg) => setSettings((v) => ({
-          ...v,
-          ...Object.fromEntries(Object.entries(cfg).map(([k, val]) => [`${block}.${k}`, val])),
-        })))
-        .catch(() => {});
+      io.load().then((cfg) => applyBlock(block, cfg)).catch(() => {});
     }
-  }, []);
+  }, [applyBlock]);
 
   // Manual expand/collapse clicks are XOR overrides against the verbose
   // defaults — a verbose.* change would render every previously-clicked tool
@@ -66,11 +81,23 @@ export function SettingsProvider({ children }) {
     // Config-backed blocks persist to config.json (see the load above), never settings.json.
     const block = configBlockOf(key);
     if (block) {
-      CONFIG_BLOCKS[block].patch({ [key.slice(block.length + 1)]: value }).catch(() => {});
+      const io = CONFIG_BLOCKS[block];
+      CONFIG_BLOCKS[block].patch({ [key.slice(block.length + 1)]: value })
+        .then((r) => {
+          if (!io.settle) return;
+          if (r?.ok && r.body) {
+            applyBlock(block, r.body);
+            io.adopt?.(r.body);
+            return;
+          }
+          notify.error(r?.body?.error ?? "Couldn't save the setting");
+          io.load().then((cfg) => applyBlock(block, cfg)).catch(() => {});
+        })
+        .catch(() => {});
       return;
     }
     api.patchSettings({ [key]: value }).catch(() => {});
-  }, [resetToolToggles]);
+  }, [resetToolToggles, applyBlock]);
 
   // Default-model setting seeds the composer (what new agents spawn with);
   // per-agent changes stay in the model popover and don't touch the setting.

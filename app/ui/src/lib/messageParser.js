@@ -1,6 +1,7 @@
 import { deriveToolLifecycle, parsePayload } from "./toolLifecycle.js";
 import { parseSkillBody } from "./skillBody.js";
 import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
+import { isGenuiTool } from "../genui/runtime/toolCall.js";
 
 export { parsePayload };
 
@@ -25,6 +26,11 @@ export const STANDALONE_TOOLS = new Set([
   "ExitPlanMode",
   "mcp__orchestrator__notify_user",
   "mcp__worker__send_message_to_parent",
+  // Visual answers render as "view" blocks (content, not tool rows).
+  "mcp__orchestrator__present",
+  "mcp__worker__present",
+  "mcp__orchestrator__present_app",
+  "mcp__worker__present_app",
 ]);
 
 // A tool_use that runs a subagent: the lane-neutral `spawnsSubagent` marker (every
@@ -412,6 +418,12 @@ export function buildBlocks(rawEvents) {
   const pushTool = (tool) => {
     if (tool.name === "mcp__worker__respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
     if (tool.name === "mcp__worker__ask_peer") lastAskPeer = tool;
+    // A present / present_app call is the agent's answer, shown as a view.
+    if (isGenuiTool(tool.name)) {
+      flushTools();
+      out.push({ kind: "view", tool, ts: tool.ts });
+      return;
+    }
     const lane = laneOf(tool.name);
     if (lane === null) {
       flushTools();
@@ -432,7 +444,12 @@ export function buildBlocks(rawEvents) {
       // anchorTs (the consuming transcript entry's creation time) is the true
       // conversation position; sentAt (dispatch time) covers emissions with no
       // sighting (unverified delivery, flush); event receipt ts is last resort.
-      out.push({ kind: "user", text: payload.text ?? "", ts: payload.anchorTs ?? payload.sentAt ?? ev.ts, rowId: ev.id, ...(payload.replyTo ? { replyTo: payload.replyTo } : {}) });
+      out.push({
+        kind: "user", text: payload.text ?? "", ts: payload.anchorTs ?? payload.sentAt ?? ev.ts, rowId: ev.id,
+        ...(payload.replyTo ? { replyTo: payload.replyTo } : {}),
+        // A click on a visual answer's send action: shown as a reply chip.
+        ...(payload.action?.viewId ? { action: payload.action } : {}),
+      });
       continue;
     }
     if (ev.type === "worker_report") {

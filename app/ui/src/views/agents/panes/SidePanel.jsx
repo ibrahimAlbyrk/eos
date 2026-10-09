@@ -1,13 +1,14 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { SidePanelScopeContext, SidePanelVisibleContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType, filePathOf, pageIdOf } from "../../../lib/panelTabs.js";
+import { tabType, filePathOf, pageIdOf, viewIdOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
 import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js";
+import { fetchViewRecord, getViewRecord, useViewRecordsVersion, viewTitleOf } from "../../../genui/panel/viewRecords.js";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
 import { SidePanelTabs } from "./SidePanelTabs.jsx";
@@ -52,6 +53,11 @@ function labelFor(id, openTabs) {
     const page = getPage(pageId);
     if (!page) return "Page";
     return page === DELETED ? "Deleted page" : page.title || "Untitled";
+  }
+  const viewId = viewIdOf(id);
+  if (viewId) {
+    const title = viewTitleOf(viewId);
+    return title ? `View · ${title}` : TAB_LABELS.view;
   }
   const type = tabType(id);
   if (type === "newtab") return TAB_LABELS.newtab;
@@ -111,6 +117,16 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   const asideRef = useRef(null);
   // Page tab labels are page titles — re-render when one changes.
   usePagesVersion();
+  // View tabs are labelled by the view's title — fetch the ones a restored
+  // session reopened before they are first shown.
+  useViewRecordsVersion();
+  const tabsKey = openTabs.join("\n");
+  useEffect(() => {
+    for (const id of tabsKey.split("\n")) {
+      const viewId = viewIdOf(id);
+      if (viewId && !getViewRecord(viewId)) void fetchViewRecord(viewId);
+    }
+  }, [tabsKey]);
 
   // Width fraction = distance from pointer to the OWNING pane's right edge over
   // the window width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
