@@ -1,0 +1,298 @@
+/* apps.css — the App tier frame (AppFrame.jsx), per the App board: the
+   transcript's soft well with a gradient rim, a violet "APP · SANDBOXED" pill,
+   small glass icon buttons, the agent's app in an inset stage, a footer note
+   and "Save as page". The confirmation chip sits in the chrome between the
+   stage and the footer, never inside the frame. */
+
+.gv-app {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 4px 0 8px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(var(--tint), 0.045), rgba(var(--tint), 0.016) 38%, rgba(var(--tint), 0.026));
+  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.06), 0 26px 50px -30px rgba(var(--ink), 0.9);
+  overflow: hidden;
+
+  /* 1px rim, brightest at the top-left (glass.css floating-surface recipe) */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(160deg, rgba(var(--tint), 0.24), rgba(var(--tint), 0.05) 24%, rgba(var(--tint), 0.015) 55%, rgba(var(--tint), 0.1));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
+    pointer-events: none;
+  }
+}
+
+/* ── chrome ───────────────────────────────────────────────────────────── */
+.gv-app-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 10px 10px 16px;
+}
+.gv-app-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--violet) 10%, transparent);
+  color: var(--violet);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.gv-app-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--fg-strong);
+}
+.gv-app-tools {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.gv-app-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  color: var(--fg-mid);
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+
+  &:hover:not(:disabled),
+  &[aria-expanded="true"],
+  &[aria-pressed="true"] {
+    color: var(--fg-strong);
+    background: var(--lg-chip-on-bg);
+    box-shadow: var(--lg-chip-on-sh);
+  }
+  &:disabled { opacity: 0.45; cursor: default; }
+}
+:is(.gv-app-icon, .gv-app-btn, .gv-app-trust):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
+  outline-offset: 2px;
+}
+
+/* ── the app ──────────────────────────────────────────────────────────── */
+.gv-app-stage {
+  position: relative;
+  flex-shrink: 0;
+  margin: 0 10px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.05);
+  transition: height 180ms var(--lg-ease);
+}
+.gv-app-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color-scheme: dark;
+}
+.gv-app-skeleton,
+.gv-app-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+.gv-app-skeleton {
+  background: linear-gradient(100deg, transparent 30%, rgba(var(--tint), 0.04) 50%, transparent 70%) var(--panel);
+  background-size: 200% 100%;
+  animation: gv-app-shimmer 1.6s linear infinite;
+}
+@keyframes gv-app-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+/* ── view source ──────────────────────────────────────────────────────── */
+.gv-app-source {
+  margin: 10px 10px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.05);
+}
+.gv-app-source-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.gv-app-source-code {
+  margin: 0;
+  max-height: 360px;
+  overflow: auto;
+  padding: 2px 14px 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--fg-mid);
+  white-space: pre;
+  tab-size: 2;
+}
+
+/* ── confirmation chip ────────────────────────────────────────────────── */
+.gv-app-ask {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin: 10px 10px 0;
+  padding: 8px 8px 8px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--violet) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 22%, transparent);
+  animation: lg-pop-rise 220ms var(--lg-ease);
+}
+.gv-app-ask-lead {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  color: var(--violet);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+.gv-app-ask-text {
+  display: block;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-height: 96px;
+  overflow: auto;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.gv-app-ask-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.gv-app-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── footer + buttons ─────────────────────────────────────────────────── */
+.gv-app-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 16px 12px;
+}
+.gv-app-note {
+  min-width: 0;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.gv-app-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--r-pill);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  color: var(--fg-mid);
+  font-family: inherit;
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+
+  &:hover:not(:disabled) { color: var(--fg-strong); background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); }
+  &:disabled { opacity: 0.5; cursor: default; }
+}
+.gv-app-btn--primary {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--accent-fg);
+  font-weight: 600;
+
+  &:hover:not(:disabled) { background: var(--accent-hover); box-shadow: none; color: var(--accent-fg); }
+}
+.gv-app-btn--quiet { color: var(--fg-dim); }
+.gv-app-btn--small { height: 26px; padding: 0 10px; font-size: var(--text-xs); }
+.gv-app-save { flex-shrink: 0; margin-left: auto; }
+.gv-app-trust {
+  flex-shrink: 0;
+  margin-left: auto;
+  height: 30px;
+  padding: 0 6px;
+  border: 0;
+  background: none;
+  color: var(--fg-dim2);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover { color: var(--fg); }
+  & + .gv-app-save { margin-left: 0; }
+}
+
+/* ── side panel + fullscreen: the stage fills what is left ────────────── */
+.gv-app.is-filled {
+  height: 100%;
+  & .gv-app-stage { flex: 1 1 auto; min-height: 0; }
+  & .gv-app-source-code { max-height: 30vh; }
+}
+.gv-app.is-panel { margin: 0; }
+.gv-app:fullscreen {
+  margin: 0;
+  border-radius: 0;
+  background: var(--bg);
+  &::after { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gv-app-stage { transition: none; }
+  .gv-app-skeleton { animation: none; }
+  .gv-app-ask { animation: none; }
+}
