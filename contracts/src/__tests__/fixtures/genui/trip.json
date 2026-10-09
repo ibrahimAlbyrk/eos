@@ -1,0 +1,209 @@
+{
+  "title": "İzmir, iki gün",
+  "tone": "amber",
+  "icon": "plane",
+  "data": {
+    "stops": [
+      {
+        "id": "s1",
+        "type": "Place",
+        "name": "Kemeraltı Çarşısı",
+        "day": "Cumartesi",
+        "time": "09:30",
+        "note": "Kahvaltı: boyoz, gevrek, çay. Sokaklar sabah sakin.",
+        "dur": "1,5 sa",
+        "geo": [
+          38.4189,
+          27.1287
+        ],
+        "leg": "Yürüyüş · 8 dk"
+      },
+      {
+        "id": "s2",
+        "type": "Place",
+        "name": "Saat Kulesi & Konak Meydanı",
+        "day": "Cumartesi",
+        "time": "11:30",
+        "note": "Kısa mola, fotoğraf, iskele tarafı.",
+        "dur": "30 dk",
+        "geo": [
+          38.4192,
+          27.1287
+        ],
+        "leg": "Taksi · 12 dk"
+      },
+      {
+        "id": "s3",
+        "type": "Place",
+        "name": "Asansör",
+        "day": "Cumartesi",
+        "time": "12:30",
+        "note": "Körfez manzarası, yukarıda kahve.",
+        "dur": "45 dk",
+        "geo": [
+          38.4086,
+          27.1206
+        ],
+        "leg": "Yürüyüş + vapur · 35 dk"
+      },
+      {
+        "id": "s4",
+        "type": "Place",
+        "name": "Kordon yürüyüşü",
+        "day": "Cumartesi",
+        "time": "15:00",
+        "note": "Pasaport'tan Alsancak'a sahil boyu.",
+        "dur": "2 sa",
+        "geo": [
+          38.433,
+          27.142
+        ],
+        "leg": "Yürüyüş · 10 dk"
+      },
+      {
+        "id": "s5",
+        "type": "Place",
+        "name": "Akşam yemeği · Alsancak",
+        "day": "Cumartesi",
+        "time": "19:30",
+        "note": "Meze + balık. Seçenekleri ayrıca çıkarabilirim.",
+        "dur": "2 sa",
+        "geo": [
+          38.438,
+          27.145
+        ]
+      },
+      {
+        "id": "s6",
+        "type": "Place",
+        "name": "Urla'ya geçiş",
+        "day": "Pazar",
+        "time": "09:00",
+        "note": "Otelden araçla, sabah trafiği hafif.",
+        "dur": "45 dk",
+        "geo": [
+          38.435,
+          27.143
+        ],
+        "leg": "Araç · 45 dk"
+      },
+      {
+        "id": "s7",
+        "type": "Place",
+        "name": "Bağ yolu",
+        "day": "Pazar",
+        "time": "10:00",
+        "note": "Tadım ve kısa bağ turu — önceden yer ayırtın.",
+        "dur": "2 sa",
+        "geo": [
+          38.3,
+          26.77
+        ],
+        "leg": "Araç · 15 dk"
+      },
+      {
+        "id": "s8",
+        "type": "Place",
+        "name": "Urla merkez · öğle",
+        "day": "Pazar",
+        "time": "13:00",
+        "note": "Sanat sokağında gezinti ve öğle yemeği.",
+        "dur": "2 sa",
+        "geo": [
+          38.3225,
+          26.765
+        ],
+        "leg": "Araç · 50 dk"
+      },
+      {
+        "id": "s9",
+        "type": "Place",
+        "name": "Dönüş",
+        "day": "Pazar",
+        "time": "16:30",
+        "note": "Akşam trafiğinden önce şehre dönüş.",
+        "dur": "—",
+        "geo": [
+          38.435,
+          27.143
+        ]
+      }
+    ],
+    "weather": [
+      {
+        "day": "Cumartesi",
+        "temp": "24°",
+        "sky": "Güneşli"
+      },
+      {
+        "day": "Pazar",
+        "temp": "22°",
+        "sky": "Parçalı bulutlu"
+      }
+    ],
+    "budget": [
+      {
+        "label": "Konaklama · 1 gece",
+        "amount": 4500
+      },
+      {
+        "label": "Yemek",
+        "amount": 3200
+      },
+      {
+        "label": "Ulaşım · taksi + araç",
+        "amount": 1700
+      }
+    ],
+    "packing": [
+      {
+        "id": "a",
+        "label": "Rahat yürüyüş ayakkabısı",
+        "done": true
+      },
+      {
+        "id": "b",
+        "label": "Bağ tadımı için rezervasyon"
+      },
+      {
+        "id": "c",
+        "label": "Vapur için İzmirim Kart"
+      },
+      {
+        "id": "d",
+        "label": "Hafif ceket — Pazar akşamı serin"
+      }
+    ],
+    "sources": [
+      {
+        "title": "Hava tahmini",
+        "site": "weather.example",
+        "at": "08.10"
+      }
+    ]
+  },
+  "actions": {
+    "calendar": {
+      "label": "Takvime ekle",
+      "kind": "send",
+      "primary": true,
+      "text": "Bu iki günlük İzmir planını takvimime ekle"
+    },
+    "page": {
+      "label": "Sayfa olarak kaydet",
+      "kind": "send",
+      "text": "Bu planı bir sayfa olarak kaydet"
+    },
+    "hotels": {
+      "label": "Seçenekleri göster",
+      "kind": "send",
+      "text": "Alsancak'ta Kordon'a yakın butik otel seçeneklerini göster"
+    },
+    "meyhane": {
+      "label": "Alsancak'ta meyhane öner",
+      "kind": "send"
+    }
+  },
+  "ui": "<Segmented bind=\"day\" options=\"Cumartesi | Pazar\" default=\"Cumartesi\"/>\n<Split ratio=\"2:1\">\n  <Map of=\"stops\" where=\"day == state.day\" pin=\"index\" route/>\n  <KeyValue of=\"weather\" key=\"{day}\" value=\"{temp} · {sky}\"/>\n</Split>\n<Timeline of=\"stops\" where=\"day == state.day\" time=\"{time}\" title=\"{name}\" note=\"{note}\" meta=\"{dur}\" leg=\"{leg}\" numbered/>\n<Grid cols=\"2\">\n  <Stack gap=\"sm\">\n    <Value label=\"Tahmini bütçe\" expr=\"sum(budget.amount)\" format=\"currency\" currency=\"TRY\" size=\"lg\"/>\n    <KeyValue of=\"budget\" key=\"{label}\" value=\"₺{amount}\"/>\n  </Stack>\n  <Checklist bind=\"packed\" of=\"packing\" title=\"Yanına al\"/>\n</Grid>\n<Callout kind=\"tip\" title=\"Konaklama önerisi\" icon=\"hotel\" action=\"hotels\">Kordon'a yakın butik otel · Alsancak — deniz tarafı oda, kahvaltı dahil.</Callout>\n<Sources compact/>\n<Actions ids=\"calendar page meyhane\"/>",
+  "summary": "İzmir'de iki gün: Cumartesi Kemeraltı, Saat Kulesi, Asansör, Kordon ve Alsancak'ta akşam yemeği; Pazar Urla'da bağ yolu ve merkezde öğle, 16:30'da dönüş. Tahmini bütçe ₺9.400. Hava 24° / 22°, yürüyüşe uygun."
+}

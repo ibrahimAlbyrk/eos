@@ -39,7 +39,9 @@ const EXPECTED_KEYS = [
   "transferKey", "transferLocate", "transfers", "transferDestination", "transferPause", "transferResume", "transferCancel",
   "transferDecide", "workerTransfers", "workerTransfer",
   "prompts", "promptPreview", "workerDefinitions",
-  "settings", "settingsArchive", "settingsCompaction",
+  "settings", "settingsArchive", "settingsCompaction", "settingsGenui",
+  "genuiViews", "genuiView", "genuiViewState", "genuiApps", "genuiMediaImg", "genuiMediaOg", "genuiMediaIcon",
+  "genuiMap", "genuiGeocode", "genuiPlaces", "location",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair", "peerReverse",
@@ -71,7 +73,7 @@ describe("ROUTES completeness", () => {
       if (typeof val === "string") {
         assert.ok(val.startsWith("/"), `ROUTES.${key} = "${val}" does not start with /`);
       } else if (typeof val === "function") {
-        const result = val("test-id");
+        const result = (val as (...ids: string[]) => string)("test-id", "test-id");
         assert.equal(typeof result, "string", `ROUTES.${key}("test-id") did not return a string`);
         assert.ok(result.startsWith("/"), `ROUTES.${key}("test-id") = "${result}" does not start with /`);
       } else {

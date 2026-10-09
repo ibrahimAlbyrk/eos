@@ -16,6 +16,7 @@ import { BackendKindSchema } from "./canonical.ts";
 import { AuthRefSchema } from "./backend.ts";
 import { ProviderCapabilitiesSchema } from "./provider-capabilities.ts";
 import { LiveBlockSchema } from "./remote.ts";
+import { UserMessageActionSchema, ViewActionSchema } from "./genui/spec.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -133,11 +134,14 @@ export const OrchestratorListResponseSchema = z.array(WorkerRowSchema);
 // MCP/action paths omit both (mid-turn steering stays available to them).
 // replyTo: the event row id of the earlier chat message this one answers; the
 // daemon resolves it into the <reply_to> block the model reads.
+// action: a click on a visual answer's send action (contracts/src/genui/spec.ts);
+// `text` is then the filled action text and the chat shows action.label.
 export const MessageRequestSchema = z.object({
   text: z.string().min(1),
   clientMsgId: z.string().min(1).max(128).optional(),
   queueWhenBusy: z.boolean().optional(),
   replyTo: z.object({ rowId: z.number().int().positive() }).optional(),
+  action: ViewActionSchema.optional(),
 });
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
@@ -155,8 +159,16 @@ export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 // resolution, interrupt/exit drain) get an event ts AFTER the turn's output;
 // the chat sorts the bubble by sentAt so it never renders below output it
 // caused.
+// action: the visual-answer click this message came from — stored on the
+// user_message so the chat renders it as a reply chip linking to the view.
 export const MessageRecordSchema = z.union([
-  z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional(), sentAt: z.number().optional() }),
+  z.object({
+    as: z.literal("user_message"),
+    displayText: z.string().optional(),
+    clientMsgIds: z.array(z.string()).optional(),
+    sentAt: z.number().optional(),
+    action: UserMessageActionSchema.optional(),
+  }),
   z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
   z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
   // A peer worker's consultation, delivered into this worker's PTY by the
@@ -2479,6 +2491,32 @@ export const ROUTES = {
   // Context compaction config — also ~/.eos/config.json (the daemon's idle-edge
   // compaction trigger reads config.compaction live).
   settingsCompaction: "/api/settings/compaction",
+  // Visual answers (contracts/src/genui/). GET → GenuiSettings; PUT (ui-token)
+  // GenuiSettingsPatch — the only write path for location.share and the
+  // config.json `genui` block (logoDevKey).
+  settingsGenui: "/api/settings/genui",
+  // ---- visual answers (contracts/src/genui/spec.ts) --------------------------
+  // POST { input } (the present tool) → CreateViewResponse | 400 GenuiRejection.
+  genuiViews: "/api/genui/views",
+  // GET → ViewRecord (the side-panel tab re-derives from it after a reload).
+  genuiView: (id: string): string => `/api/genui/views/${id}`,
+  // GET → ViewStateResponse; PUT (ui-token) PutViewStateRequest; fans out genui:change.
+  genuiViewState: (id: string): string => `/api/genui/views/${id}/state`,
+  // POST { input } (present_app) → CreateAppResponse | 400 GenuiRejection.
+  genuiApps: "/api/genui/apps",
+  // GET ?src= / ?url= / ?site= → image bytes through the daemon's media proxy + cache.
+  genuiMediaImg: "/api/genui/media/img",
+  genuiMediaOg: "/api/genui/media/og",
+  genuiMediaIcon: "/api/genui/media/icon",
+  // Prefix: /api/genui/map/style.json (rewritten to the proxy) and
+  // /api/genui/map/t/<path> mirroring https://tiles.openfreemap.org/<path>.
+  genuiMap: "/api/genui/map",
+  // GET ?q= → GeocodeResponse (Nominatim, 1 rps, cached).
+  genuiGeocode: "/api/genui/geocode",
+  // POST PlacesRequest → PlacesResponse (Overpass; the find_places tool).
+  genuiPlaces: "/api/genui/places",
+  // GET → LocationResponse via the app (local-only; 403 unless location.share is on).
+  location: "/api/location",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",

@@ -1,0 +1,77 @@
+{
+  "title": "Bir branch'i main'e taşımak",
+  "tone": "violet",
+  "icon": "git-branch",
+  "data": {
+    "merge": [
+      {
+        "title": "Başlangıç: iki geçmiş ayrıldı",
+        "text": "feature, B'den ayrıldı ve D, E commit'lerini aldı. Bu arada main'e C eklendi.",
+        "code": "git log --graph --oneline"
+      },
+      {
+        "title": "İki ucu birleştiren yeni bir commit: M",
+        "text": "Merge, C ve E'yi ebeveyn alan bir merge commit'i yaratır. Çakışmalar tek seferde, burada çözülür.",
+        "code": "git switch main && git merge feature"
+      },
+      {
+        "title": "Sonuç: geçmiş korunur, ama dallanır",
+        "text": "Hiçbir commit yeniden yazılmadı; D ve E aynı hash'lerle duruyor. Paylaşılan branch'ler için güvenli, ama log daha kalabalık.",
+        "code": "git log --graph --oneline"
+      }
+    ],
+    "rebase": [
+      {
+        "title": "Başlangıç: iki geçmiş ayrıldı",
+        "text": "feature, B'den ayrıldı ve D, E commit'lerini aldı. Bu arada main'e C eklendi.",
+        "code": "git log --graph --oneline"
+      },
+      {
+        "title": "Git, feature'a özel commit'leri kenara alır",
+        "text": "Rebase, feature'da olup main'de olmayan commit'leri (D, E) bulur ve geçici olarak ayırır.",
+        "code": "git switch feature"
+      },
+      {
+        "title": "Her commit C'nin üstüne yeniden uygulanır",
+        "text": "Değişiklikler aynı ama ebeveyn değişti, bu yüzden hash'ler de değişir: D → D′, E → E′. Çakışma olursa burada, commit commit çözülür.",
+        "code": "git rebase main"
+      },
+      {
+        "title": "Sonuç: tek çizgi geçmiş",
+        "text": "Eski D, E artık hiçbir branch'te değil. main'i feature'a hızlı ileri sarmak (fast-forward) yeterli — merge commit'i yok.",
+        "code": "git switch main && git merge --ff-only feature"
+      }
+    ],
+    "compare": [
+      {
+        "aspect": "Geçmiş",
+        "merge": "Dallanır, olduğu gibi kalır",
+        "rebase": "Tek çizgi, temiz"
+      },
+      {
+        "aspect": "Commit hash'leri",
+        "merge": "Değişmez",
+        "rebase": "Yeniden yazılır (D → D′)"
+      },
+      {
+        "aspect": "Çakışma çözümü",
+        "merge": "Bir kez, merge commit'inde",
+        "rebase": "Commit commit, gerekirse her birinde"
+      },
+      {
+        "aspect": "Paylaşılan branch",
+        "merge": "Güvenli",
+        "rebase": "Push edildiyse kaçın"
+      }
+    ]
+  },
+  "actions": {
+    "tryIt": {
+      "label": "Bu repoda birlikte deneyelim",
+      "kind": "send",
+      "text": "Rebase'i bu repodaki gerçek bir branch üzerinde birlikte deneyelim"
+    }
+  },
+  "ui": "<Tabs bind=\"mode\" labels=\"Merge | Rebase\">\n  <Steps of=\"merge\" variant=\"stepper\" bind=\"mergeStep\" title=\"{title}\" text=\"{text}\" code=\"{code}\"/>\n  <Steps of=\"rebase\" variant=\"stepper\" bind=\"rebaseStep\" title=\"{title}\" text=\"{text}\" code=\"{code}\"/>\n</Tabs>\n<Table of=\"compare\" cols=\"aspect:, merge:Merge, rebase:Rebase\"/>\n<Choice bind=\"quiz\" question=\"Ekibinle paylaştığın, zaten push edilmiş bir branch'i rebase etmeli misin?\" options={[\"Evet, geçmiş daha temiz olur\", \"Hayır — başkalarının elindeki commit'leri yeniden yazar\", \"Sadece --force ile push edebiliyorsam\"]} answer=\"1\" explain=\"Push edilmiş commit'leri yeniden yazmak ekip arkadaşlarının geçmişini bozar — paylaşılan branch'te merge kullan.\"/>\n<Actions ids=\"tryIt\"/>",
+  "summary": "Merge iki ucu yeni bir merge commit'iyle birleştirir; geçmiş korunur ama dallanır. Rebase feature'daki commit'leri main'in ucuna yeniden uygular; tek çizgi geçmiş verir ama hash'leri değiştirir. Kural: kendi lokal branch'ini temizlemek için rebase, paylaşılan geçmişi birleştirmek için merge."
+}

@@ -28,6 +28,14 @@ describe("isLocalOnlyRoute", () => {
     }
   });
 
+  it("keeps this Mac's location local; visual-answer routes cross", () => {
+    assert.ok(isLocalOnlyRoute("GET", "/api/location"));
+    for (const [m, p] of [["POST", "/api/genui/views"], ["GET", "/api/genui/views/v_7Hq2abcdEFGH"], ["PUT", "/api/genui/views/v_7Hq2abcdEFGH/state"],
+      ["GET", "/api/genui/media/img?src=https://a.example/x.jpg"], ["GET", "/api/genui/map/t/planet/1/2/3.pbf"], ["POST", "/api/genui/places"]] as const) {
+      assert.equal(isLocalOnlyRoute(m, p), false, `${m} ${p}`);
+    }
+  });
+
   it("lets the UI plane through", () => {
     for (const [m, p] of [["GET", "/workers"], ["GET", "/stream?clientId=x"], ["POST", "/workers/w1/message"],
       ["GET", "/workers/w1/events"], ["POST", "/workers/w1/question-answer"], ["POST", "/pty/p1/input"],

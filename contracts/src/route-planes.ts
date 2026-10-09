@@ -30,6 +30,8 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   // This Mac's transfer engine: another computer may not start, watch or steer it.
   ["*", "/api/transfers/*"],
   ["*", "/workers/:id/transfers/*"],
+  // Where this Mac is — never readable from another computer.
+  ["*", "/api/location"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];
