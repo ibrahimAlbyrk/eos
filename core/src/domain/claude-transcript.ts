@@ -67,6 +67,18 @@ function inputText(input: unknown): string {
   try { return JSON.stringify(input); } catch { return String(input); }
 }
 
+// A visual answer's input is a whole spec (data + markup, up to ~90 KB) the
+// summarizer has no use for; what the user saw is its title and its summary.
+const VIEW_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
+
+function viewText(input: unknown): string | null {
+  if (!input || typeof input !== "object") return null;
+  const { title, summary } = input as { title?: unknown; summary?: unknown };
+  if (typeof title !== "string" && typeof summary !== "string") return null;
+  const head = typeof title === "string" && title.trim() ? title.trim() : "untitled";
+  return typeof summary === "string" && summary.trim() ? `[view] ${head} — ${summary.trim()}` : `[view] ${head}`;
+}
+
 // Harness noise that is not conversation: interrupt markers and local slash-command echoes.
 function isNoise(text: string): boolean {
   return text.startsWith("[Request interrupted") || text.startsWith("<local-command-stdout");
@@ -96,7 +108,9 @@ export function parseClaudeTranscript(jsonl: string): TranscriptEntry[] {
         if (b.type === "text" && typeof b.text === "string" && b.text.trim()) {
           out.push({ kind: "assistant", text: b.text });
         } else if (b.type === "tool_use") {
-          out.push({ kind: "tool_call", name: typeof b.name === "string" ? b.name : "tool", input: inputText(b.input) });
+          const name = typeof b.name === "string" ? b.name : "tool";
+          const view = VIEW_TOOL.test(name) ? viewText(b.input) : null;
+          out.push({ kind: "tool_call", name, input: view ?? inputText(b.input) });
         }
       }
     }

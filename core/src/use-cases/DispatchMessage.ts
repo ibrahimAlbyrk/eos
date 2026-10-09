@@ -20,8 +20,10 @@ import type { Logger } from "../ports/Logger.ts";
 import type { MessageIdRepo } from "../ports/MessageIdRepo.ts";
 import type { MessageRecord } from "../../../contracts/src/http.ts";
 import type { ReplyRef } from "../../../contracts/src/events.ts";
+import type { UserMessageAction, ViewAction } from "../../../contracts/src/genui/spec.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
 import { applySenderTag, senderTagForEnvelope } from "../domain/sender-tag.ts";
+import { viewActionTurn } from "../domain/view-action.ts";
 import {
   buildReplyBlock, prefixOperatorTurn, replyRefOf, replyTargetFromRow, startsWithSlashCommand, type ReplyTarget,
 } from "../domain/message-id.ts";
@@ -47,6 +49,7 @@ function buildMessageRecord(
   sentAt: number,
   displayText: string | undefined,
   clientMsgIds: string[] | undefined,
+  action?: UserMessageAction,
 ): MessageRecord {
   const display = displayText ? { displayText } : {};
   switch (env?.kind) {
@@ -63,7 +66,7 @@ function buildMessageRecord(
     case "permission_ask":
       return { as: "permission_ask", ...display, sentAt };
     default:
-      return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), sentAt };
+      return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), ...(action ? { action } : {}), sentAt };
   }
 }
 
@@ -83,6 +86,7 @@ function appendChatEvent(
   text: string,
   clientMsgIds: string[] | undefined,
   ids: { msgId?: string; replyTo?: ReplyRef },
+  action?: UserMessageAction,
 ): number | null {
   const base = { text, ...ids };
   switch (env?.kind) {
@@ -105,7 +109,11 @@ function appendChatEvent(
       events.append(workerId, ts, "permission_ask", base);
       return null;
     default:
-      return events.append(workerId, ts, "user_message", { ...base, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
+      return events.append(workerId, ts, "user_message", {
+        ...base,
+        ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}),
+        ...(action ? { action } : {}),
+      });
   }
 }
 
@@ -208,12 +216,25 @@ export interface DispatchMessageInput {
   /** Operator reply: the event row of the earlier chat message this one
    *  answers. Resolved at delivery into the <reply_to> block the model reads. */
   replyTo?: { rowId: number };
+  /** A click on a visual answer's send action (POST …/message `action`). The
+   *  model reads "[view action] <label>" and a JSON line (view, action, item,
+   *  state); the chat shows the label as a reply chip (domain/view-action.ts). */
+  viewAction?: ViewAction;
+  /** That click as the stored user_message keeps it — set from viewAction here,
+   *  and carried by a queued row to its drain. */
+  action?: UserMessageAction;
 }
 
 export async function dispatchMessage(
   deps: DispatchMessageDeps,
   input: DispatchMessageInput,
 ): Promise<{ status: number; body: unknown }> {
+  // A view action becomes plain message fields once, here: the queue and its
+  // drain then carry the model text, the label and the stored action as-is.
+  if (input.viewAction && !input.envelope) {
+    const turn = viewActionTurn(input.viewAction, input.text);
+    input = { ...input, viewAction: undefined, text: turn.text, displayText: turn.displayText, action: turn.action };
+  }
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
   if (deps.requireOrchestrator && !w.is_orchestrator) {
@@ -269,6 +290,7 @@ export async function dispatchMessage(
       ...(input.envelope ? { envelope: input.envelope } : {}),
       ...(input.displayText ? { displayText: input.displayText } : {}),
       ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+      ...(input.action ? { action: input.action } : {}),
     });
     if (queueId === null) return { status: 200, body: { ok: true, deduped: true } };
     deps.log.info("message queued (worker busy)", { workerId: input.workerId, queueId, origin: input.origin });
@@ -386,7 +408,7 @@ export async function dispatchMessage(
 
   const recordClientMsgIds = input.recordClientMsgIds
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
-  const record = buildMessageRecord(input.envelope, now, input.displayText, recordClientMsgIds);
+  const record = buildMessageRecord(input.envelope, now, input.displayText, recordClientMsgIds, input.action);
 
   const rollbackClaim = (): void => {
     if (claimId !== null) deps.queue.removeById(claimId);
@@ -459,7 +481,7 @@ export async function dispatchMessage(
       ...(msgId != null ? { msgId: String(msgId) } : {}),
       ...(reply ? { replyTo: replyRefOf(reply) } : {}),
     };
-    const chatRowId = appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds, ids);
+    const chatRowId = appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds, ids, input.action);
     // The recall target for this turn: exactly the user_message row just
     // appended. The !seen gate covers the send→append microtask gap.
     if (chatRowId != null) deps.turnOutput?.setRecallRow(input.workerId, chatRowId);

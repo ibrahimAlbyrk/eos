@@ -5,6 +5,7 @@
 // Adapter is SqliteMessageQueueRepo in infra/persistence/.
 
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
+import type { UserMessageAction } from "../../../contracts/src/genui/spec.ts";
 
 /** Which plane a queued message belongs to. "user" = a human's pending message
  *  the dashboard renders as a pill. "agent" = internal agent-plane traffic
@@ -26,6 +27,8 @@ export interface QueuedMessage {
   displayText?: string;
   /** Operator reply target — resolved only when the row drains. */
   replyTo?: { rowId: number };
+  /** The visual-answer click this message came from (the chat's reply chip). */
+  action?: UserMessageAction;
 }
 
 export interface MessageQueueInsert {
@@ -39,6 +42,7 @@ export interface MessageQueueInsert {
   envelope?: DispatchEnvelope;
   displayText?: string;
   replyTo?: { rowId: number };
+  action?: UserMessageAction;
   /** Visibility plane. Omitted → "user". Agent-plane callers (those passing an
    *  envelope) set "agent" so the row drains normally but never shows as a pill. */
   plane?: MessagePlane;

@@ -2,22 +2,25 @@
 
 import type { MessageQueueRepo, MessagePlane } from "../../ports/MessageQueueRepo.ts";
 import type { DispatchEnvelope } from "../../domain/message-envelope.ts";
+import type { UserMessageAction } from "../../../../contracts/src/genui/spec.ts";
 
 export interface QueueRow {
   id: number; workerId: string; clientMsgId: string | null;
   text: string; createdAt: number; dispatchedAt: number | null;
   envelope?: DispatchEnvelope; displayText?: string; plane?: MessagePlane;
   replyTo?: { rowId: number };
+  action?: UserMessageAction;
 }
 
 export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
   const rows: QueueRow[] = [];
   let nextId = 1;
-  const toPublic = ({ id, workerId, clientMsgId, text, createdAt, envelope, displayText, replyTo }: QueueRow) => ({
+  const toPublic = ({ id, workerId, clientMsgId, text, createdAt, envelope, displayText, replyTo, action }: QueueRow) => ({
     id, workerId, clientMsgId, text, createdAt,
     ...(envelope ? { envelope } : {}),
     ...(displayText != null ? { displayText } : {}),
     ...(replyTo ? { replyTo } : {}),
+    ...(action ? { action } : {}),
   });
   return {
     rows,

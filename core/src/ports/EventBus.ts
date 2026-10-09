@@ -70,6 +70,12 @@ export type EventBusTopic =
   // A file transfer between Macs moved on, or finished ones were cleared
   // (payload TransferChangeEvent) — the Transfer tab renders the payload.
   | "transfer:change"
+  // A visual answer's tool input while the model writes it (claude SDK lane;
+  // payload GenuiDelta: workerId, callId, name, phase, text). Its own topic so
+  // agent:delta consumers (LiveText, phones) never see tool JSON. Ephemeral.
+  | "genui:delta"
+  // A view's UI state was replaced (payload GenuiChange { viewId, state }).
+  | "genui:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

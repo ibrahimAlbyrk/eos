@@ -65,6 +65,7 @@ export async function drainQueuedMessages(
       ...(head.envelope ? { envelope: head.envelope } : {}),
       ...(head.displayText != null ? { displayText: head.displayText } : {}),
       ...(head.replyTo ? { replyTo: head.replyTo } : {}),
+      ...(head.action ? { action: head.action } : {}),
     });
   } catch (e) {
     deps.log.warn("queue drain dispatch failed — row stays pending", {
