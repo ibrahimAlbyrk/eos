@@ -23,6 +23,7 @@ import { claudeTranscriptPath } from "../../shared/claude-transcript-path.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
+import type { GenuiDelta } from "../../../contracts/src/genui/spec.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
@@ -132,6 +133,10 @@ export interface ClaudeSdkBackendDeps {
   /** Read per session start: true → the child gets DISABLE_AUTO_COMPACT (Eos
    *  compaction owns it). Absent → the binary's default auto-compaction. */
   disableAutoCompact?(): boolean;
+  /** A visual answer's tool input while the model writes it (present /
+   *  present_app) — the daemon relays it as bus topic genui:delta. Absent → no
+   *  live preview; the view renders from the finished call. */
+  publishGenuiDelta?(delta: GenuiDelta): void;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -537,7 +542,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         rec.abort = abort;
         const { mcpServers, allowedTools } = buildMcpServers();
         const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
-        const mapper = createSdkEventMapper();
+        const publishGenui = deps.publishGenuiDelta;
+        const mapper = createSdkEventMapper(publishGenui ? { onGenuiDelta: (d) => publishGenui({ workerId: spec.workerId, ...d }) } : {});
         rec.mapper = mapper;
         rec.resumedFrom = resume;
         const q = queryFn({ prompt: input.iterable, options });

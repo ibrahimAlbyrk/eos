@@ -237,4 +237,17 @@ describe("SseBroadcaster — a tab's on-screen focus", () => {
     attachFake(b, again, { since, clientId: "tab", focus: { workers: ["w2"], ptys: [] } });
     assert.equal(changeWrites(again), 0, "w1's deltas are not replayed to a tab now showing w2");
   });
+
+  it("streams a visual answer's genui:delta under the same focus as agent:delta; genui:change to every tab", () => {
+    const b = new SseBroadcaster({ bus: fakeBus(), keepaliveMs: 60_000 });
+    const focused = new FakeRes();
+    const unfocused = new FakeRes();
+    attachFake(b, focused, { clientId: "tab", focus: { workers: ["w1"], ptys: [] } });
+    attachFake(b, unfocused);
+    b.broadcast("genui:delta", { workerId: "w1", callId: "c1", name: "mcp__orchestrator__present", phase: "append", text: "{" });
+    b.broadcast("genui:delta", { workerId: "w2", callId: "c2", name: "mcp__worker__present", phase: "append", text: "{" });
+    b.broadcast("genui:change", { viewId: "v_abcdefghijkl", state: { day: 2 } });
+    assert.deepEqual(reasons(focused), ["genui:delta:w1", "genui:change:"]);
+    assert.equal(changeWrites(unfocused), 3, "a tab that declared nothing gets everything");
+  });
 });

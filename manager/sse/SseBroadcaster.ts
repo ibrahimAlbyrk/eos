@@ -37,7 +37,8 @@ export interface SseAttachOptions {
 }
 
 // What a dashboard tab has on screen. Its streams then carry the high-volume
-// live topics only for these: agent:delta for `workers`, pty:data for `ptys`.
+// live topics only for these: agent:delta and genui:delta for `workers`,
+// pty:data for `ptys`.
 export interface StreamFocus {
   workers: readonly string[];
   ptys: readonly string[];
@@ -46,6 +47,7 @@ export interface StreamFocus {
 // Scoped topic → the payload field naming what it is for.
 const SCOPE_FIELD: Record<string, "workerId" | "sessionId"> = {
   "agent:delta": "workerId",
+  "genui:delta": "workerId",
   "pty:data": "sessionId",
 };
 // Focus of tabs whose stream is gone — a reconnect re-sends it; this only bounds

@@ -8,7 +8,8 @@
 
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 import type { WorkerEventRow } from "../../contracts/src/events.ts";
-import { normalizeEventRows } from "../../core/src/domain/message-normalize.ts";
+import { AgentEventSchema } from "../../contracts/src/canonical.ts";
+import { normalizeEventRow } from "../../core/src/domain/message-normalize.ts";
 import { truncate } from "./permission-ask-push.ts";
 import type { NotificationFire } from "./permission-ask-notify.ts";
 
@@ -38,16 +39,53 @@ export function makeTurnEndNotify(
       const w = deps.findWorker(workerId);
       if (!w || w.parent_id || w.state !== "IDLE" || !w.turn_started_at) return;
       if (deps.liveSubagents(workerId) > 0) return;
-      const reply = normalizeEventRows(deps.eventsSince(workerId, w.turn_started_at - 1), Infinity)
-        .filter((m) => m.role === "assistant")
-        .at(-1);
+      const reply = lastAnswer(deps.eventsSince(workerId, w.turn_started_at - 1));
       if (!reply) return;
       deps.fire({
         title: w.name ?? workerId,
-        body: truncate(reply.text.replace(/\s+/g, " ").trim(), 160),
+        body: truncate(reply.replace(/\s+/g, " ").trim(), 160),
         workerId,
         ts: deps.now(),
       });
     });
   };
+}
+
+const VIEW_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
+
+// What the turn answered last: its final assistant text, or — when the answer
+// was a visual one — that view's summary (what notifications keep, per the
+// present prompt), so a view-only turn still gets a banner and a lead-in written
+// before the view doesn't stand in for it.
+function lastAnswer(rows: WorkerEventRow[]): string | null {
+  let last: string | null = null;
+  for (const row of rows) {
+    if (row.type !== "agent_event") {
+      const m = normalizeEventRow(row);
+      if (m?.role === "assistant") last = m.text;
+      continue;
+    }
+    let payload: unknown;
+    try { payload = JSON.parse(row.payload ?? "null"); } catch { continue; }
+    const parsed = AgentEventSchema.safeParse(payload);
+    if (!parsed.success || parsed.data.type !== "message" || parsed.data.role !== "assistant") continue;
+    let parts: string[] = [];
+    for (const b of parsed.data.blocks) {
+      if (b.type === "text" && b.text.trim()) parts.push(b.text);
+      if (b.type === "tool_call" && !b.parentCallId && VIEW_TOOL.test(b.name)) {
+        const said = viewLine(b.input);
+        if (said) { last = said; parts = []; }
+      }
+    }
+    if (parts.length) last = parts.join("\n");
+  }
+  return last;
+}
+
+function viewLine(input: Record<string, unknown>): string | null {
+  for (const key of ["summary", "title"]) {
+    const v = input[key];
+    if (typeof v === "string" && v.trim()) return v;
+  }
+  return null;
 }

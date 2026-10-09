@@ -17,6 +17,12 @@ function row(type: string, payload: unknown, ts: number): WorkerEventRow {
 const reply = (text: string, ts: number) =>
   row("agent_event", { type: "message", role: "assistant", blocks: [{ type: "text", text }] }, ts);
 
+const present = (input: Record<string, unknown>, ts: number, lead?: string) =>
+  row("agent_event", {
+    type: "message", role: "assistant",
+    blocks: [...(lead ? [{ type: "text", text: lead }] : []), { type: "tool_call", callId: `c${ts}`, name: "mcp__orchestrator__present", input }],
+  }, ts);
+
 const IDLE_EDGE = { workerId: "w-top", from: "WORKING", state: "IDLE" };
 
 function build(over: Partial<TurnEndNotifyDeps> = {}, rows: WorkerEventRow[] = []) {
@@ -46,6 +52,25 @@ describe("turn-end notification (worker:change WORKING→IDLE → notification:f
     ]);
     bus.publish("worker:change", IDLE_EDGE);
     assert.deepEqual(fired, [{ title: "Orchestrator", body: "All done. Tests pass.", workerId: "w-top", ts: 42 }]);
+  });
+
+  it("a turn that answered with a view carries the view's summary, not the lead-in before it", () => {
+    const { bus, fired } = build({}, [
+      row("user_message", { text: "where to eat?" }, 100),
+      reply("Let me look up places nearby.", 105),
+      present({ title: "Kadıköy tonight", summary: "6 places open. Best: Moda Kıyı.", ui: "<Map/>" }, 110, "Here you go."),
+    ]);
+    bus.publish("worker:change", IDLE_EDGE);
+    assert.equal(fired[0]?.body, "6 places open. Best: Moda Kıyı.");
+  });
+
+  it("text written after the view is the last word; a view without summary falls back to its title", () => {
+    const after = build({}, [present({ title: "T", summary: "S" }, 110), reply("Moda Kıyı is the pick.", 120)]);
+    after.bus.publish("worker:change", IDLE_EDGE);
+    assert.equal(after.fired[0]?.body, "Moda Kıyı is the pick.");
+    const titled = build({}, [present({ title: "Kadıköy tonight" }, 110)]);
+    titled.bus.publish("worker:change", IDLE_EDGE);
+    assert.equal(titled.fired[0]?.body, "Kadıköy tonight");
   });
 
   it("truncates a long reply", () => {

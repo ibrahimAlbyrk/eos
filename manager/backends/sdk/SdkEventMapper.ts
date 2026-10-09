@@ -9,7 +9,7 @@ import type { AgentEvent, ContentBlock, CanonicalUsage, SubagentUsage } from "..
 import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/canonical.ts";
 
 // --- the SDK message subset we read (structural) ---------------------------
-interface RawDelta { type: string; text?: string; thinking?: string }
+interface RawDelta { type: string; text?: string; thinking?: string; partial_json?: string }
 export interface RawBlock { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown>; tool_use_id?: string; content?: unknown; is_error?: boolean }
 // message_start carries the stable Anthropic message id (msg_…); content_block_*
 // events do not, so the mapper tracks it across the message's stream.
@@ -179,6 +179,30 @@ export function durableBlocks(msgId: string, content: RawBlock[], startIdx: numb
 // agent_id is set only inside a subagent; effort only on models that take one.
 export interface SubagentHookInput { agent_id?: string; effort?: { level?: string } }
 
+// A visual answer's tool input (present / present_app) while the model writes it.
+// Not an AgentEvent: it never reaches the event log or the worker state machine —
+// the backend relays it to the bus as genui:delta, apart from agent:delta.
+export interface GenuiInputDelta {
+  callId: string;
+  name: string;
+  phase: "start" | "append" | "stop";
+  text: string;
+}
+
+export interface SdkEventMapperOptions {
+  onGenuiDelta?(delta: GenuiInputDelta): void;
+  now?(): number;
+}
+
+// Only Eos's own servers: a user MCP server's "present" is an ordinary tool.
+const GENUI_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
+// input_json_delta arrives a few characters at a time — thousands per view. Appends
+// are merged until this much time passed since the last one (or the text grew this
+// big), so the stream costs tens of frames, not thousands. No timer is needed: the
+// next delta or the block's stop flushes what is held.
+const GENUI_FLUSH_MS = 80;
+const GENUI_FLUSH_CHARS = 4096;
+
 export interface SdkEventMapper {
   map(msg: SdkMsg): AgentEvent[];
   // A hook fired (inside a subagent, or not): the effort its turn applied — the
@@ -197,7 +221,7 @@ export interface SdkEventMapper {
   stopLiveSubagents(): AgentEvent[];
 }
 
-export function createSdkEventMapper(): SdkEventMapper {
+export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEventMapper {
   let turnActive = false;
   let sessionId: string | null = null;
   let lastAssistantUuid: string | null = null;
@@ -276,6 +300,26 @@ export function createSdkEventMapper(): SdkEventMapper {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
 
+  // blockId -> the present call streaming in that block, and its not-yet-sent text.
+  const genuiBlocks = new Map<string, { callId: string; name: string; held: string; sentAt: number }>();
+  const now = opts.now ?? Date.now;
+  const emitGenui = (delta: GenuiInputDelta): void => {
+    try { opts.onGenuiDelta?.(delta); } catch { /* a live preview must never break the session */ }
+  };
+  const flushGenui = (g: { callId: string; name: string; held: string; sentAt: number }): void => {
+    if (!g.held) return;
+    emitGenui({ callId: g.callId, name: g.name, phase: "append", text: g.held });
+    g.held = "";
+    g.sentAt = now();
+  };
+  const stopGenui = (blockId: string): void => {
+    const g = genuiBlocks.get(blockId);
+    if (!g) return;
+    genuiBlocks.delete(blockId);
+    flushGenui(g);
+    emitGenui({ callId: g.callId, name: g.name, phase: "stop", text: "" });
+  };
+
   return {
     get sessionId() { return sessionId; },
     get lastAssistantUuid() { return lastAssistantUuid; },
@@ -350,8 +394,18 @@ export function createSdkEventMapper(): SdkEventMapper {
             currentMsgId = ev.message?.id ?? null;
             return out;
           }
+          if (ev.type === "content_block_start" && ev.index !== undefined) {
+            const b = ev.content_block;
+            if (opts.onGenuiDelta && b?.type === "tool_use" && b.id && b.name && GENUI_TOOL.test(b.name)) {
+              const startId = `${blockBase()}:${ev.index}`;
+              genuiBlocks.set(startId, { callId: b.id, name: b.name, held: "", sentAt: -Infinity });
+              emitGenui({ callId: b.id, name: b.name, phase: "start", text: "" });
+            }
+            return out;
+          }
           if (ev.type === "content_block_stop" && ev.index !== undefined) {
             const stopId = `${blockBase()}:${ev.index}`;
+            stopGenui(stopId);
             const open = openedBlocks.get(stopId);
             if (open) { openedBlocks.delete(stopId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId: stopId, text: "" }); }
             return out;
@@ -359,7 +413,17 @@ export function createSdkEventMapper(): SdkEventMapper {
           if (ev.type !== "content_block_delta" || ev.index === undefined || !ev.delta) return out;
           const blockId = `${blockBase()}:${ev.index}`;
           const d = ev.delta;
-          // Only reasoning/text stream live; input_json_delta (tool args),
+          // A present call's input goes to its own stream (genui:delta), never the
+          // reasoning/text channel.
+          if (d.type === "input_json_delta") {
+            const g = genuiBlocks.get(blockId);
+            if (g && d.partial_json) {
+              g.held += d.partial_json;
+              if (now() - g.sentAt >= GENUI_FLUSH_MS || g.held.length >= GENUI_FLUSH_CHARS) flushGenui(g);
+            }
+            return out;
+          }
+          // Only reasoning/text stream live; input_json_delta (other tools' args),
           // signature_delta and citations_delta share the channel and are dropped.
           const channel = d.type === "thinking_delta" ? "reasoning" : d.type === "text_delta" ? "text" : null;
           if (!channel) return out;
@@ -402,6 +466,7 @@ export function createSdkEventMapper(): SdkEventMapper {
           // Close any live blocks this message finalizes (the durable block takes over).
           content.forEach((_b, i) => {
             const blockId = `${msgId}:${startIdx + i}`;
+            stopGenui(blockId);
             const open = openedBlocks.get(blockId);
             if (open) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId, text: "" }); }
           });
@@ -526,6 +591,7 @@ export function createSdkEventMapper(): SdkEventMapper {
             if (open.channel === "reasoning" && open.text.trim()) cut.push({ type: "reasoning", text: open.text, blockId, interrupted: true });
           }
           openedBlocks.clear();
+          for (const blockId of [...genuiBlocks.keys()]) stopGenui(blockId);
           if (cut.length) out.push({ type: "message", role: "assistant", blocks: cut });
           out.push({ type: "usage", usage: toCanonicalUsage(msg.usage ?? {}, msg.model ?? null) });
           turnActive = false;
