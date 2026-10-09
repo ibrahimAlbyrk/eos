@@ -21,6 +21,10 @@ import { readPageDef } from "../defs/read_page.ts";
 import { appendToPageDef } from "../defs/append_to_page.ts";
 import { setPageTaskDef } from "../defs/set_page_task.ts";
 import { sendToMachineDef } from "../defs/send_to_machine.ts";
+import { presentDef } from "../defs/present.ts";
+import { presentAppDef } from "../defs/present_app.ts";
+import { GENUI_OFF_TEXT } from "../../../contracts/src/genui/spec.ts";
+import { GENUI_APPS_OFF_TEXT } from "../../../core/src/use-cases/PresentView.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
@@ -30,6 +34,10 @@ const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration
 const PAGE_TOOLS = ["list_pages", "read_page", "create_page", "append_to_page", "edit_page", "set_page_task"];
 // The user's memory — right after the page tools on both surfaces (registry.ts memoryDefs).
 const MEMORY_TOOLS = ["search_memory", "suggest_memory"];
+
+// Visual answers — last on the orchestrator surface, after send_to_machine on the
+// focused one (registry.ts genuiDefs); never on a worker.
+const GENUI_TOOLS = ["present", "present_app", "find_places", "current_location"];
 
 const BROWSER_TOOLS = [
   "browser_navigate", "browser_snapshot", "browser_find", "browser_act",
@@ -51,6 +59,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       ...PAGE_TOOLS,
       ...MEMORY_TOOLS,
       ...BROWSER_TOOLS,
+      ...GENUI_TOOLS,
     ]);
   });
 
@@ -69,8 +78,16 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
   it("focused-only tools match, and no other surface has them", () => {
     const fp = fingerprintModules(focusedDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.focused);
-    assert.deepEqual(Object.keys(fp), ["send_to_machine"]);
+    assert.deepEqual(Object.keys(fp), ["send_to_machine", ...GENUI_TOOLS]);
     for (const defs of [orchestratorDefs, workerDefs, peerDefs]) assert.equal(defs.some((d) => d.name === "send_to_machine"), false);
+  });
+
+  it("visual answers reach orchestrators and focused sessions only — never a worker", () => {
+    for (const name of GENUI_TOOLS) {
+      assert.ok(orchestratorDefs.some((d) => d.name === name), `orchestrator has ${name}`);
+      assert.ok(focusedDefs.some((d) => d.name === name), `focused has ${name}`);
+      for (const defs of [workerDefs, peerDefs]) assert.equal(defs.some((d) => d.name === name), false, `no worker gets ${name}`);
+    }
   });
 });
 
@@ -126,6 +143,70 @@ describe("tool handlers issue the expected daemon calls", () => {
   it("send_to_machine passes on the daemon's reason, not its raw reply", async () => {
     const { ctx } = recording({ api: async () => { throw new Error('daemon 400: {"error":"invalid request: No paired Mac matches \\"iMac\\". Paired Macs: Office (online)."}'); } });
     await assert.rejects(sendToMachineDef.handler(ctx, { machine: "iMac", paths: ["a"] }), /^Error: No paired Mac matches "iMac"\. Paired Macs: Office \(online\)\.$/);
+  });
+
+  it("present posts the call's input as itself and answers in one line", async () => {
+    const stats = {
+      uiBytes: 900, dataBytes: 2000, elements: 7, depth: 2, components: ["Map", "Table"],
+      collections: [{ name: "places", count: 6, type: "Place" }, { name: "sources", count: 4, type: null }],
+      images: 0, sites: 3, maps: 1, primaryActions: 1,
+    };
+    const { ctx, calls } = recording({}, { viewId: "v_AbCdEfGh1234", warnings: [], stats });
+    const input = { title: "Kadıköy tonight", ui: '<Map of="places"/>', summary: "6 places", data: { places: [] } };
+    const text = await presentDef.handler(ctx, input) as string;
+    assert.deepEqual(calls, [{ method: "POST", path: "/api/genui/views", body: { input } }]);
+    assert.equal(text, "view v_AbCdEfGh1234 rendered · 6 places");
+
+    const warned = recording({}, { viewId: "v_AbCdEfGh1234", warnings: [{ path: "data.places[2].site", message: "is not a domain" }], stats });
+    assert.equal(
+      await presentDef.handler(warned.ctx, input),
+      "view v_AbCdEfGh1234 rendered · 6 places\nwarnings (fix next time, no need to re-present):\n· data.places[2].site: is not a domain",
+    );
+  });
+
+  it("a rejected present shows the model only the problems, never the HTTP reply", async () => {
+    const body = {
+      error: "2 problems — nothing rendered\n· data.places[3].rating: 6.2 is outside 0–5\n· ui line 4 <Carousel of=\"places\">: 11 items, max 8\nfix and call present again",
+      problems: [
+        { path: "data.places[3].rating", message: "6.2 is outside 0–5" },
+        { path: 'ui line 4 <Carousel of="places">', message: "11 items, max 8" },
+      ],
+    };
+    const { ctx } = recording({ api: async () => { throw new Error(`daemon 400: ${JSON.stringify(body)}`); } });
+    await assert.rejects(presentDef.handler(ctx, { title: "x", ui: "x", summary: "x" }), (e: Error) => {
+      assert.equal(e.message, [
+        "present: 2 problems — nothing rendered",
+        "· data.places[3].rating: 6.2 is outside 0–5",
+        '· ui line 4 <Carousel of="places">: 11 items, max 8',
+        "fix and call present again",
+      ].join("\n"));
+      return true;
+    });
+  });
+
+  it("present answers in text when the user turned visual answers off; other refusals stay errors", async () => {
+    const off = recording({ api: async () => { throw new Error(`daemon 403: ${JSON.stringify({ error: GENUI_OFF_TEXT })}`); } });
+    assert.equal(await presentDef.handler(off.ctx, { title: "x", ui: "x", summary: "x" }), GENUI_OFF_TEXT);
+    const worker = recording({ api: async () => { throw new Error('daemon 403: {"error":"only an orchestrator or a focused session can present"}'); } });
+    await assert.rejects(presentDef.handler(worker.ctx, { title: "x", ui: "x", summary: "x" }), /^Error: only an orchestrator or a focused session can present$/);
+    const down = recording({ api: async () => { throw new Error('daemon 500: {"error":"database is locked"}'); } });
+    await assert.rejects(presentDef.handler(down.ctx, { title: "x", ui: "x", summary: "x" }), /^Error: database is locked$/);
+  });
+
+  it("present_app posts to the apps route; problems and a switched-off answer read like present's", async () => {
+    const ok = recording({}, { viewId: "v_AbCdEfGh1234", warnings: [] });
+    const input = { title: "Brew timer", html: "<html><body>…</body></html>", summary: "A timer", height: 460 };
+    assert.equal(await presentAppDef.handler(ok.ctx, input), "view v_AbCdEfGh1234 rendered · app");
+    assert.deepEqual(ok.calls, [{ method: "POST", path: "/api/genui/apps", body: { input } }]);
+
+    const bad = recording({ api: async () => { throw new Error(`daemon 400: ${JSON.stringify({ error: "…", problems: [{ path: "html", message: "is 300 KB, max 256 KB — inline less" }] })}`); } });
+    await assert.rejects(presentAppDef.handler(bad.ctx, input), (e: Error) => {
+      assert.equal(e.message, "present_app: 1 problem — nothing rendered\n· html: is 300 KB, max 256 KB — inline less\nfix and call present_app again");
+      return true;
+    });
+
+    const off = recording({ api: async () => { throw new Error(`daemon 403: ${JSON.stringify({ error: GENUI_APPS_OFF_TEXT })}`); } });
+    assert.equal(await presentAppDef.handler(off.ctx, input), GENUI_APPS_OFF_TEXT);
   });
 
   it("notify_user POSTs to /workers/:self/notify", async () => {

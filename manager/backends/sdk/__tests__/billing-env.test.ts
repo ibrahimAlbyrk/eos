@@ -1,6 +1,9 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { buildBillingGuardEnv, anthropicCredentialEnv, hasClaudeCredential } from "../billing-env.ts";
+import { fileURLToPath } from "node:url";
+import { buildBillingGuardEnv, anthropicCredentialEnv, hasClaudeCredential, MCP_DESCRIPTION_CAP } from "../billing-env.ts";
+import { renderToolDescriptions } from "../../../tool-descriptions.ts";
+import { focusedDefs, orchestratorDefs, peerDefs, workerDefs } from "../../../tools/registry.ts";
 
 describe("buildBillingGuardEnv — SDK child billing guard", () => {
   const saved = process.env.ANTHROPIC_API_KEY;
@@ -22,6 +25,17 @@ describe("buildBillingGuardEnv — SDK child billing guard", () => {
     assert.equal(env.EOS_SPAWNED, "1");
     assert.equal(env.EOS_WORKER_ID, "w-1");
     assert.equal(env.EOS_DAEMON_URL, "http://127.0.0.1:7400");
+  });
+
+  it("lifts the binary's 2,048-character MCP description cap above every Eos tool description", () => {
+    const env = buildBillingGuardEnv({ auth: { scheme: "none" }, workerId: "w", daemonUrl: "http://x" });
+    assert.equal(env.CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH, String(MCP_DESCRIPTION_CAP));
+    const names = [...new Set([...orchestratorDefs, ...workerDefs, ...focusedDefs, ...peerDefs].map((d) => d.name))];
+    const descriptions = renderToolDescriptions(fileURLToPath(new URL("../../../prompts", import.meta.url)), names);
+    assert.ok(descriptions.present!.length > 2048, "present carries the catalog");
+    for (const [name, text] of Object.entries(descriptions)) {
+      assert.ok(text.length <= MCP_DESCRIPTION_CAP, `${name}: ${text.length} characters`);
+    }
   });
 
   it("switches the binary's auto-compaction off only when asked", () => {

@@ -29,6 +29,10 @@ import { setPageTaskDef } from "./defs/set_page_task.ts";
 import { searchMemoryDef } from "./defs/search_memory.ts";
 import { suggestMemoryDef } from "./defs/suggest_memory.ts";
 import { sendToMachineDef } from "./defs/send_to_machine.ts";
+import { presentDef } from "./defs/present.ts";
+import { presentAppDef } from "./defs/present_app.ts";
+import { findPlacesDef } from "./defs/find_places.ts";
+import { currentLocationDef } from "./defs/current_location.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
 import { browserFindDef } from "./defs/browser_find.ts";
@@ -84,6 +88,11 @@ const pageDefs: ToolDefinition[] = [
 // The user's memory — on BOTH surfaces, right after the page tools.
 const memoryDefs: ToolDefinition[] = [searchMemoryDef, suggestMemoryDef];
 
+// Visual answers — for the sessions that answer the user: orchestrators (last on
+// their surface) and focused sessions. Never a worker: it reports to its
+// orchestrator, which presents.
+const genuiDefs: ToolDefinition[] = [presentDef, presentAppDef, findPlacesDef, currentLocationDef];
+
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
 export const orchestratorDefs: ToolDefinition[] = [
@@ -106,6 +115,7 @@ export const orchestratorDefs: ToolDefinition[] = [
   ...pageDefs,
   ...memoryDefs,
   ...browserDefs,
+  ...genuiDefs,
 ];
 
 // Always registered on a worker.
@@ -113,7 +123,7 @@ export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDate
 
 // Added to a focused session's worker surface only — the session the user talks
 // to directly (SdkToolHost; focused sessions always run on the claude SDK lane).
-export const focusedDefs: ToolDefinition[] = [sendToMachineDef];
+export const focusedDefs: ToolDefinition[] = [sendToMachineDef, ...genuiDefs];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

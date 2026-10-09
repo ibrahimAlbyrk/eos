@@ -66,4 +66,14 @@ describe("which Eos tools a claude session gets", () => {
     assert.equal(names({ isOrchestrator: false, collaborate: true }).includes("send_to_machine"), false);
     assert.equal(names({ isOrchestrator: true, collaborate: false, focused: true }).includes("send_to_machine"), false);
   });
+
+  it("visual answers: orchestrators and the focused session, once each — never a spawned worker", () => {
+    for (const tool of ["present", "present_app"]) {
+      for (const input of [{ isOrchestrator: true, collaborate: false }, { isOrchestrator: false, collaborate: false, focused: true }]) {
+        assert.equal(names(input).filter((n) => n === tool).length, 1, `${tool} for ${JSON.stringify(input)}`);
+      }
+      assert.equal(names({ isOrchestrator: false, collaborate: false }).includes(tool), false);
+      assert.equal(names({ isOrchestrator: false, collaborate: true }).includes(tool), false);
+    }
+  });
 });

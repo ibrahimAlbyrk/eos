@@ -867,6 +867,153 @@
       },
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "present": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "≤ 80 chars"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "blue",
+            "green",
+            "amber",
+            "red",
+            "violet",
+            "teal"
+          ],
+          "description": "the view's one accent"
+        },
+        "icon": {
+          "type": "string",
+          "description": "an icon name from the catalog"
+        },
+        "replaces": {
+          "type": "string",
+          "description": "id of an earlier view (v_…) this one updates"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "collections (arrays of entities) and scalars, each written once"
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "{id: {label, kind, primary?, text?, href?, set?}}"
+        },
+        "ui": {
+          "type": "string",
+          "description": "markup that references data"
+        },
+        "summary": {
+          "type": "string",
+          "description": "the answer as plain text, ≤ 600 chars"
+        }
+      },
+      "required": [
+        "title",
+        "ui",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "present_app": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "≤ 80 chars"
+        },
+        "html": {
+          "type": "string",
+          "description": "one self-contained HTML document, ≤ 256 KB"
+        },
+        "summary": {
+          "type": "string",
+          "description": "what the app is and does, as plain text, ≤ 600 chars"
+        },
+        "height": {
+          "type": "number",
+          "description": "initial height in px, 200–720"
+        }
+      },
+      "required": [
+        "title",
+        "html",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "find_places": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "what to look for — a name or a kind: \"ramen\", \"bike repair\""
+        },
+        "category": {
+          "type": "string",
+          "description": "a kind of place: restaurant, cafe, bar, bakery, pharmacy, hotel, museum, supermarket, atm, …"
+        },
+        "near": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "type": "number"
+                },
+                "lon": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lat",
+                "lon"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "{text: a place name or address} or {lat, lon}; omitted = around the user's current location (needs location sharing)"
+        },
+        "radiusM": {
+          "type": "number",
+          "description": "search radius in meters, 50–20000 (default 1500)"
+        },
+        "limit": {
+          "type": "number",
+          "description": "how many places, 1–40 (default 12)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "current_location": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -1499,6 +1646,153 @@
         "machine",
         "paths"
       ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "present": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "≤ 80 chars"
+        },
+        "tone": {
+          "type": "string",
+          "enum": [
+            "blue",
+            "green",
+            "amber",
+            "red",
+            "violet",
+            "teal"
+          ],
+          "description": "the view's one accent"
+        },
+        "icon": {
+          "type": "string",
+          "description": "an icon name from the catalog"
+        },
+        "replaces": {
+          "type": "string",
+          "description": "id of an earlier view (v_…) this one updates"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "collections (arrays of entities) and scalars, each written once"
+        },
+        "actions": {
+          "type": "object",
+          "additionalProperties": {},
+          "description": "{id: {label, kind, primary?, text?, href?, set?}}"
+        },
+        "ui": {
+          "type": "string",
+          "description": "markup that references data"
+        },
+        "summary": {
+          "type": "string",
+          "description": "the answer as plain text, ≤ 600 chars"
+        }
+      },
+      "required": [
+        "title",
+        "ui",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "present_app": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "≤ 80 chars"
+        },
+        "html": {
+          "type": "string",
+          "description": "one self-contained HTML document, ≤ 256 KB"
+        },
+        "summary": {
+          "type": "string",
+          "description": "what the app is and does, as plain text, ≤ 600 chars"
+        },
+        "height": {
+          "type": "number",
+          "description": "initial height in px, 200–720"
+        }
+      },
+      "required": [
+        "title",
+        "html",
+        "summary"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "find_places": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "what to look for — a name or a kind: \"ramen\", \"bike repair\""
+        },
+        "category": {
+          "type": "string",
+          "description": "a kind of place: restaurant, cafe, bar, bakery, pharmacy, hotel, museum, supermarket, atm, …"
+        },
+        "near": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "text"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "lat": {
+                  "type": "number"
+                },
+                "lon": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "lat",
+                "lon"
+              ],
+              "additionalProperties": false
+            }
+          ],
+          "description": "{text: a place name or address} or {lat, lon}; omitted = around the user's current location (needs location sharing)"
+        },
+        "radiusM": {
+          "type": "number",
+          "description": "search radius in meters, 50–20000 (default 1500)"
+        },
+        "limit": {
+          "type": "number",
+          "description": "how many places, 1–40 (default 12)"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "current_location": {
+      "type": "object",
+      "properties": {},
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }

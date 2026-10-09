@@ -46,6 +46,10 @@ import { setPageTaskDef } from "./tools/defs/set_page_task.ts";
 import { searchMemoryDef } from "./tools/defs/search_memory.ts";
 import { suggestMemoryDef } from "./tools/defs/suggest_memory.ts";
 import { sendToMachineDef } from "./tools/defs/send_to_machine.ts";
+import { presentDef } from "./tools/defs/present.ts";
+import { presentAppDef } from "./tools/defs/present_app.ts";
+import { findPlacesDef } from "./tools/defs/find_places.ts";
+import { currentLocationDef } from "./tools/defs/current_location.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -90,6 +94,10 @@ export const TOOL_NAME_VARS: VariableScope = {
   SEARCH_MEMORY_TOOL: searchMemoryDef.name,
   SUGGEST_MEMORY_TOOL: suggestMemoryDef.name,
   SEND_TO_MACHINE_TOOL: sendToMachineDef.name,
+  PRESENT_TOOL: presentDef.name,
+  PRESENT_APP_TOOL: presentAppDef.name,
+  FIND_PLACES_TOOL: findPlacesDef.name,
+  CURRENT_LOCATION_TOOL: currentLocationDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

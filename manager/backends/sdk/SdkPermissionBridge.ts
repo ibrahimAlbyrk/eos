@@ -29,6 +29,10 @@ export interface FullSurfaceOptions {
   askUser(questions: unknown, toolUseId: string, signal: AbortSignal): Promise<Record<string, string> | null>;
 }
 
+// A view a Task subagent presents lands inside its collapsed run, never in the
+// transcript the user reads, so the subagent would report a view nobody saw.
+const VIEW_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
+
 export function makeCanUseTool(workerId: string, policy: PolicyDecider, fullSurface?: FullSurfaceOptions): CanUseTool {
   return async (toolName, input, opts): Promise<PermissionResult> => {
     if (fullSurface && toolName === "AskUserQuestion") {
@@ -41,6 +45,9 @@ export function makeCanUseTool(workerId: string, policy: PolicyDecider, fullSurf
     // (single source: contracts/src/tool-scope.ts).
     if (!fullSurface && isBlockedBuiltinTool(toolName)) {
       return { behavior: "deny", message: blockedBuiltinToolMessage(toolName) };
+    }
+    if (opts?.agentID && VIEW_TOOL.test(toolName)) {
+      return { behavior: "deny", message: `${toolName} is main-agent only — return your findings; the main agent presents them.` };
     }
     const d = await policy.decide({ workerId, toolName, input, ...(fullSurface ? { fullSurface: true } : {}) });
     return d.behavior === "allow"

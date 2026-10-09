@@ -63,6 +63,11 @@ export function hasClaudeCredential(creds: { apiKey?: string; authToken?: string
   return auth.scheme !== "none" || Object.keys(anthropicCredentialEnv(creds, auth)).length > 0;
 }
 
+// The binary trims every MCP tool description to 2,048 characters unless told
+// otherwise — present's carries the whole component catalog (~7.5k), so the
+// model would see its first lines and "… [truncated]".
+export const MCP_DESCRIPTION_CAP = 16384;
+
 export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, string> {
   return {
     ...buildSubscriptionChildEnv(process.env),
@@ -71,6 +76,7 @@ export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, s
     ...(input.claudeStore ? { [CLAUDE_STORE_ENV]: input.claudeStore } : {}),
     ...(input.fullSurface ? { CLAUDE_CODE_ARTIFACT: "1" } : { ENABLE_TOOL_SEARCH: "false" }),
     ...(input.disableAutoCompact ? { DISABLE_AUTO_COMPACT: "1" } : {}),
+    CLAUDE_CODE_MAX_MCP_DESCRIPTION_LENGTH: String(MCP_DESCRIPTION_CAP),
     EOS_SPAWNED: "1",
     EOS_WORKER_ID: input.workerId,
     EOS_DAEMON_URL: input.daemonUrl,

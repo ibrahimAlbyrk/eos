@@ -3,13 +3,16 @@
 // registration — the description text never lives inline in the tool module.
 // withToolDescriptions wraps the McpServer so registerTool pulls the description
 // from the rendered map; tool-name refs inside descriptions resolve via the
-// same TOOL_NAME_VARS globals as the role prompts.
+// same TOOL_NAME_VARS globals as the role prompts. present's description also
+// carries the visual-answer catalog ({{GENUI_CATALOG}}), generated from the
+// validator's own schemas so the reference never drifts from what it accepts.
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
 import { PromptRegistry } from "../core/src/services/PromptRegistry.ts";
 import { PromptService } from "../core/src/services/PromptService.ts";
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
+import { catalogPrompt } from "../contracts/src/genui/prompt.ts";
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLog; } };
 
@@ -19,7 +22,7 @@ export function renderToolDescriptions(
 ): Record<string, string> {
   const svc = new PromptService(
     new PromptRegistry(new FilePromptSource([promptsDir]), noopLog as never),
-    TOOL_NAME_VARS,
+    { ...TOOL_NAME_VARS, GENUI_CATALOG: catalogPrompt() },
   );
   const out: Record<string, string> = {};
   for (const name of names) {
