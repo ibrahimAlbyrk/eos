@@ -90,6 +90,12 @@ import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRep
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
 import { SqliteDreamRepo } from "../infra/src/persistence/SqliteDreamRepo.ts";
 import { SqliteTransferRepo } from "../infra/src/persistence/SqliteTransferRepo.ts";
+import { SqliteGenuiViewRepo } from "../infra/src/persistence/SqliteGenuiViewRepo.ts";
+import type { PresentViewDeps } from "../core/src/use-cases/PresentView.ts";
+import { validateView } from "../contracts/src/genui/catalog.ts";
+import { GENUI_TOPICS, newViewId, validateApp } from "../contracts/src/genui/spec.ts";
+import { genuiSettingsOf } from "./shared/genui-settings.ts";
+import { buildGenuiMedia } from "./services/genui/media.ts";
 import { FsTransferEndpoint } from "../infra/src/transfer/FsTransferEndpoint.ts";
 import { DreamService } from "./services/DreamService.ts";
 import { dreamOverChats } from "../core/src/use-cases/DreamOverChats.ts";
@@ -275,6 +281,11 @@ export function buildContainer() {
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
   const messageIds = new SqliteMessageIdRepo(db);
   const dreamRepo = new SqliteDreamRepo(db);
+  const genuiViews = new SqliteGenuiViewRepo(db);
+  // Up here, not with the other user-data services: spawn-time prompt assembly
+  // reads the visual-answers level, and boot reconcile may already resume a session.
+  const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
+  const genuiSettings = () => genuiSettingsOf(userSettings.read(), config);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -676,6 +687,22 @@ export function buildContainer() {
     log,
   });
   appHost.onDeregister(() => browser.resetEngines());
+
+  // Visual answers (docs/genui/00-GENUI-PLAN.md): present / present_app store
+  // through PresentView; media, map tiles, geocoding, place search and the app's
+  // location answer the dashboard and the find_places / current_location tools.
+  const genuiPresent: PresentViewDeps = {
+    views: genuiViews,
+    clock: systemClock,
+    newId: () => newViewId(),
+    validateView,
+    validateApp,
+    settings: () => {
+      const s = genuiSettings();
+      return { level: s.level, apps: s.apps };
+    },
+  };
+  const genuiMedia = buildGenuiMedia({ home: config.daemon.home, clock: systemClock, log, appHost, userSettings, config });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
   // per reload so prompt edits apply on the next spawn without a daemon restart.
@@ -853,6 +880,7 @@ export function buildContainer() {
         defaultEffort: defaultEffortFor(identity),
         effortSupported: identity.effortSupported,
         userProfile,
+        genuiLevel: genuiSettings().level,
       },
       extra,
     );
@@ -881,7 +909,6 @@ export function buildContainer() {
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const projectMemory = new FileProjectMemoryStore();
-  const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
 
   // Auto-update — polls the configured git remote and offers a newer build to
@@ -1285,6 +1312,13 @@ export function buildContainer() {
     assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude"),
     // Eos compaction owns context compaction while enabled (read per launch).
     disableAutoCompact: () => config.compaction.enabled,
+    // A visual answer's input while it is written — its own topic, so LiveText,
+    // the phone and agent:delta consumers never see it.
+    // A view on screen is turn output too: an interrupt past it is no recall.
+    publishGenuiDelta: (d) => {
+      if (d.phase !== "stop") turnOutput.markSeen(d.workerId);
+      bus.publish(GENUI_TOPICS.delta, d);
+    },
     log,
   });
   // The slash menu's view of Claude Code's own commands, as a focused session sees them.
@@ -1704,6 +1738,10 @@ export function buildContainer() {
     sync,
     transferEndpoint,
     transfers,
+    genuiViews,
+    genuiPresent,
+    genuiMedia,
+    genuiSettings,
     viewTokens: new ViewTokens(uiToken),
     recents,
     projects,

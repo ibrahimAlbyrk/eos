@@ -370,7 +370,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         workerId: params.id, text: body.text,
         clientMsgId: body.clientMsgId, queueWhenBusy: body.queueWhenBusy,
         replyTo: body.replyTo,
-        origin: "dashboard",
+        ...(body.action ? { viewAction: body.action } : {}),
+        origin: body.action ? "view-action" : "dashboard",
       },
     );
     if (result.status < 300) resumeLoopOnInput(c, params.id);

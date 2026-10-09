@@ -17,6 +17,7 @@ import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remot
 import { PeerConfigSchema, type PeerConfig } from "../../contracts/src/peer.ts";
 import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
+import type { GenuiConfig } from "../../contracts/src/genui/spec.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 import type { ArchiveRetention } from "../../core/src/use-cases/PurgeExpiredArchives.ts";
@@ -204,6 +205,11 @@ export interface DaemonConfig {
     persistProfile: boolean;
     perSession: boolean;
   };
+  // Visual answers (Settings › General). logoDevKey: an optional logo.dev
+  // publishable key (pk_…) — the UI loads logos straight from img.logo.dev with
+  // it, as its terms require. The level / apps / location switches are
+  // settings.json keys (GENUI_SETTING_KEYS), not config.
+  genui: GenuiConfig;
 }
 
 const DEFAULT_AGENT_MCP: AgentMcpConfig = {
@@ -464,6 +470,9 @@ export function defaults(): DaemonConfig {
       persistProfile: true,
       perSession: true,
     },
+    // No logo key by default — logos come from the free stack (site icon,
+    // og:image, monogram).
+    genui: {},
   };
 }
 
@@ -684,6 +693,9 @@ export const DaemonConfigOverrideSchema = z.object({
     persistProfile: z.boolean(),
     perSession: z.boolean(),
   }).partial().optional(),
+  // Shape only: a hand-typo'd logo key must not sink the whole config.json. The
+  // pk_ check is PUT /api/settings/genui's, and GET reports a malformed key as none.
+  genui: z.object({ logoDevKey: z.string().max(256) }).partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
