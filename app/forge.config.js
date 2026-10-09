@@ -125,7 +125,7 @@ module.exports = {
       path.resolve(__dirname, "..", "manager", "workers"),
       path.resolve(__dirname, ".forge-build", "Eos.saver"),
       // The CoreLocation helper behind location sharing (main/location.ts runs it).
-      path.resolve(__dirname, ".forge-build", "eos-location"),
+      path.resolve(__dirname, ".forge-build", "EosLocation.app"),
       // Native notifications play it by name (main/notifications.ts); macOS finds it in Contents/Resources.
       path.resolve(__dirname, "build", "eos-notification.aiff"),
     ],
@@ -142,7 +142,7 @@ module.exports = {
     // .forge-build/{main,preload}.js stay IN — they are the app entry.
     ignore: (p) =>
       /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location)(\/|$)/.test(p) ||
-      /^\/\.forge-build\/(daemon|Eos\.saver|eos-location)(\/|$)/.test(p) ||
+      /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
     ...(osxSign ? { osxSign } : {}),

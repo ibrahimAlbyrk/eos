@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Linked into eos-location's __TEXT,__info_plist. locationd keys a command-line
-     client by its own identity (not the app that launched it), so the helper
-     carries the bundle id, name and usage string macOS shows in the prompt and
-     in Location Services. -->
+<!-- EosLocation.app's Info.plist. locationd keys the helper by this identity (not
+     the app that launched it), and CoreLocationAgent shows the permission prompt
+     only for a process that is the executable of a bundle — a bare binary with an
+     embedded plist is registered but its prompt is silently skipped. The name and
+     usage string are what macOS shows in the prompt and in Location Services. -->
 <plist version="1.0">
 <dict>
   <key>CFBundleIdentifier</key>
@@ -12,8 +13,16 @@
   <string>Eos</string>
   <key>CFBundleDisplayName</key>
   <string>Eos</string>
+  <key>CFBundleExecutable</key>
+  <string>eos-location</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSLocationUsageDescription</key>
   <string>Eos uses your location only when you turn on location sharing, to find places near you.</string>
   <key>NSLocationWhenInUseUsageDescription</key>

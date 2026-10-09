@@ -6,7 +6,8 @@ import { app } from "electron";
 // The daemon's "location.get" RPC. Chromium's navigator.geolocation never reaches
 // CoreLocation inside Electron (nothing asks macOS for the system permission, so
 // it just times out), so a small CoreLocation helper (location/main.swift) asks
-// macOS — prompting once — and prints one fix as JSON. Failures reject with an
+// macOS — prompting once — and prints one fix as JSON. It ships as EosLocation.app:
+// macOS shows that prompt only for a bundle's executable. Failures reject with an
 // Error whose name the daemon maps to a sentence (manager/services/genui/media.ts).
 
 export interface LocationFix {
@@ -18,7 +19,7 @@ export interface LocationFix {
 
 // Long enough to answer the first-time prompt; under the daemon's 30 s RPC timeout.
 const TIMEOUT_S = 25;
-const HELPER = "eos-location";
+const HELPER = path.join("EosLocation.app", "Contents", "MacOS", "eos-location");
 
 const NAMES: Record<string, string> = {
   denied: "LocationDenied",

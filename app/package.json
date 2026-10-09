@@ -14,7 +14,7 @@
     "build:saver": "node scripts/build-saver.mjs",
     "ensure:saver": "test -d .forge-build/Eos.saver || npm run build:saver",
     "build:location": "node scripts/build-location.mjs",
-    "ensure:location": "test -f .forge-build/eos-location || npm run build:location",
+    "ensure:location": "test -d .forge-build/EosLocation.app || npm run build:location",
     "typecheck": "tsc --noEmit",
     "start": "npm run ensure:ui && npm run bundle && npm run ensure:saver && npm run ensure:location && electron-forge start",
     "package": "npm run bundle && electron-forge package",
