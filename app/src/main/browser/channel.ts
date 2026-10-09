@@ -14,6 +14,9 @@ interface Driver {
   handle(method: string, sessionKey: string, args: unknown[]): Promise<unknown>;
 }
 
+// An app-level RPC that isn't a browser port verb (e.g. "location.get").
+export type LocalMethod = (args: unknown[]) => Promise<unknown>;
+
 interface Frame {
   type?: string;
   id?: number;
@@ -28,6 +31,7 @@ export class HostChannel {
   private url: string;
   private ws: WebSocket | null = null;
   private driver: Driver | null = null;
+  private local = new Map<string, LocalMethod>();
   private registered = false;
   private stopped = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,6 +43,10 @@ export class HostChannel {
 
   setDriver(driver: Driver): void {
     this.driver = driver;
+  }
+
+  setLocalMethod(method: string, fn: LocalMethod): void {
+    this.local.set(method, fn);
   }
 
   start(): void {
@@ -122,9 +130,12 @@ export class HostChannel {
     const ws = this.ws;
     if (!ws) return;
     try {
-      const result = this.driver
-        ? await this.driver.handle(frame.method, frame.sessionKey ?? "", frame.args ?? [])
-        : null;
+      const local = this.local.get(frame.method);
+      const result = local
+        ? await local(frame.args ?? [])
+        : this.driver
+          ? await this.driver.handle(frame.method, frame.sessionKey ?? "", frame.args ?? [])
+          : null;
       ws.send(JSON.stringify({ id: frame.id, ok: true, result }));
     } catch (e) {
       const name = e instanceof Error ? e.name : "Error";

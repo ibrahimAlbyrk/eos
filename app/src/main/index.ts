@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, shell, dialog, ipcMain, session } from "electron";
 import path from "node:path";
 import { registerEosSchemePrivileges, installEosProtocol } from "./scheme";
 import { resolveUiRoot, resolveDaemonUrl, resolveRawUrl, themeBackground } from "./config";
@@ -28,6 +28,9 @@ import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
 import { TransferBridge } from "./transfers";
 import { rebuildAndRelaunch } from "./rebuild";
+import { installMainWindowPermissions } from "./permissions";
+import { installGenuiTokenHeader } from "./genuiToken";
+import { readLocation } from "./location";
 import type { MenuItemConstructorOptions } from "electron";
 
 const DAEMON_URL = resolveDaemonUrl();
@@ -40,13 +43,15 @@ const PRELOAD = path.join(__dirname, "preload.js");
 // defense-in-depth win. 'unsafe-inline'/'wasm-unsafe-eval' are required by the
 // app's own inline theme bootstrap, emotion styles, and pdf.js wasm; tightening
 // script-src to a hash/nonce is deferred. Disable with EOS_ELECTRON_DISABLE_CSP=1.
+// img.logo.dev: visual answers' optional logo.dev key — its terms require loading
+// logos from its CDN directly, never through the daemon.
 function buildCsp(egress: { api: string; raw: string; ws: string }): string | null {
   if (process.env.EOS_ELECTRON_DISABLE_CSP === "1") return null;
   return [
     "default-src 'self' eos:",
     "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' eos:",
     "style-src 'self' 'unsafe-inline' eos:",
-    `img-src 'self' eos: data: blob: ${egress.api} ${egress.raw}`,
+    `img-src 'self' eos: data: blob: ${egress.api} ${egress.raw} https://img.logo.dev`,
     "font-src 'self' eos: data:",
     `connect-src 'self' eos: ${egress.api} ${egress.ws}`.trim(),
     `frame-src 'self' eos: ${egress.raw}`,
@@ -92,6 +97,8 @@ else app.on("second-instance", () => {
 });
 
 let mainWindow: BrowserWindow | null = null;
+// The token the main window runs with — the genui media/map header uses it.
+let mainUiToken: string | null = null;
 let hostViews: HostViews | null = null;
 let transferBridge: TransferBridge | null = null;
 let tray: TrayController | null = null;
@@ -107,6 +114,10 @@ const rebuild = (): void => void rebuildAndRelaunch(busyAgents);
 // that (in parallel with the daemon boot) but stays hidden until then.
 let markDaemonReady!: () => void;
 const daemonReady = new Promise<void>((resolve) => { markDaemonReady = resolve; });
+
+function mainContents() {
+  return mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null;
+}
 
 function showMainWindow(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -189,6 +200,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
     },
   });
   mainWindow = win;
+  mainUiToken = token;
   wireNavigationLockdown(win);
   wireRendererRecovery(win);
   registerBridge(win); // inbound webkit.messageHandlers + native DnD (M3)
@@ -395,6 +407,8 @@ async function startBackgroundServices(token: string): Promise<void> {
 app.whenReady().then(async () => {
   if (!gotLock) return; // a second instance already handed off to the first
   installEosProtocol(UI_ROOT, CSP);
+  installMainWindowPermissions(session.defaultSession, mainContents);
+  installGenuiTokenHeader(session.defaultSession, DAEMON_URL, () => mainUiToken);
 
   // The UI mounts only once /health answers (app/ui/src/main.jsx), so with the
   // token already on disk the window loads WHILE the daemon boots instead of
@@ -440,7 +454,9 @@ app.whenReady().then(async () => {
   // Embedded-browser lane: register this app as the daemon's browser host and own
   // the native WebContentsView views (M1/M2). The renderer positions them via the
   // eosBrowserView preload bridge; the daemon drives them over /browser/host.
-  initBrowserHost({ win, daemonUrl: DAEMON_URL, uiToken: token });
+  // The same channel answers the daemon's location.get (GET /api/location)
+  // through the CoreLocation helper (location.ts).
+  initBrowserHost({ win, daemonUrl: DAEMON_URL, uiToken: token, locate: () => readLocation() });
 
   // Artifact link previews render in Eos's own claude.ai session (artifactPreview.ts).
   initArtifactPreview(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));

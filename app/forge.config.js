@@ -66,6 +66,7 @@ module.exports = {
       execFileSync("node", ["scripts/bundle-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
       execFileSync("node", ["scripts/assemble-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
       execFileSync("node", ["scripts/build-saver.mjs"], { cwd: __dirname, stdio: "inherit" });
+      execFileSync("node", ["scripts/build-location.mjs"], { cwd: __dirname, stdio: "inherit" });
     },
     // Ad-hoc identifier fix (the DURABLE Dock-icon fix). Without a Developer ID,
     // Forge does no signing and the app keeps Electron's linker-signed default,
@@ -100,6 +101,9 @@ module.exports = {
       NSLocalNetworkUsageDescription: "Eos connects directly to your other computers on this network so you can control them from here.",
       // Without it macOS denies Apple Events from Eos's agents and terminals without asking.
       NSAppleEventsUsageDescription: "Eos agents and terminals run scripts that control other apps.",
+      // Read only while the user has location sharing on (Settings › General › Visual answers).
+      NSLocationUsageDescription: "Eos uses your location only when you turn on location sharing, to find places near you.",
+      NSLocationWhenInUseUsageDescription: "Eos uses your location only when you turn on location sharing, to find places near you.",
     },
     // pack app/ into app.asar — best practice, and lets @electron/universal merge
     // the two arch slices (avoids its identical-SHA check on loose files). Unpack
@@ -120,6 +124,8 @@ module.exports = {
       path.resolve(__dirname, "..", "manager", "prompts"),
       path.resolve(__dirname, "..", "manager", "workers"),
       path.resolve(__dirname, ".forge-build", "Eos.saver"),
+      // The CoreLocation helper behind location sharing (main/location.ts runs it).
+      path.resolve(__dirname, ".forge-build", "eos-location"),
       // Native notifications play it by name (main/notifications.ts); macOS finds it in Contents/Resources.
       path.resolve(__dirname, "build", "eos-notification.aiff"),
     ],
@@ -135,8 +141,8 @@ module.exports = {
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
     // .forge-build/{main,preload}.js stay IN — they are the app entry.
     ignore: (p) =>
-      /^\/(ui|src|verify|out|build|node_modules|scripts|saver)(\/|$)/.test(p) ||
-      /^\/\.forge-build\/(daemon|Eos\.saver)(\/|$)/.test(p) ||
+      /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location)(\/|$)/.test(p) ||
+      /^\/\.forge-build\/(daemon|Eos\.saver|eos-location)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
     ...(osxSign ? { osxSign } : {}),

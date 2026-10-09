@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Linked into eos-location's __TEXT,__info_plist. locationd keys a command-line
+     client by its own identity (not the app that launched it), so the helper
+     carries the bundle id, name and usage string macOS shows in the prompt and
+     in Location Services. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>com.ibrahimalbyrk.eos.location</string>
+  <key>CFBundleName</key>
+  <string>Eos</string>
+  <key>CFBundleDisplayName</key>
+  <string>Eos</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>NSLocationUsageDescription</key>
+  <string>Eos uses your location only when you turn on location sharing, to find places near you.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Eos uses your location only when you turn on location sharing, to find places near you.</string>
+</dict>
+</plist>

@@ -2,6 +2,7 @@ import { BrowserWindow, WebContentsView, ipcMain, session, shell } from "electro
 import type { Session, WebContents } from "electron";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { denyGeolocation } from "./permissions";
 
 // Other computers this Mac controls, each in its own isolated view INSIDE the
 // main window: switching is showing a different, already-live view — no reload,
@@ -260,6 +261,8 @@ export class HostViews {
     const rawBase = `${this.deps.rawUrl}/h/${id}`;
     const partition = `persist:eos-host-${id.slice(0, 32)}`;
     const ses = session.fromPartition(partition);
+    // Location is this Mac's: a controlled computer's dashboard never gets it.
+    denyGeolocation(ses);
     this.installProtocol(id, ses, apiBase, rawBase);
     this.installTokenHeader(id, ses, apiBase, rawBase);
     const token = await this.mintViewToken(id);

@@ -11,7 +11,7 @@ import { HostChannel } from "./channel";
 
 let started = false;
 
-export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiToken: string }): void {
+export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiToken: string; locate?: () => Promise<unknown> }): void {
   if (started) return; // idempotent — the IPC + host live for the app's lifetime
   started = true;
 
@@ -30,6 +30,8 @@ export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiTo
       .catch((e) => console.error("[eos-browser] popup→tab failed:", e instanceof Error ? e.message : String(e)));
   });
   channel.setDriver(driver);
+  const locate = deps.locate;
+  if (locate) channel.setLocalMethod("location.get", () => locate());
 
   // Renderer → main geometry/visibility only (plan §C: no webContents, no verbs
   // over this channel; state-changing verbs flow through the daemon REST path).

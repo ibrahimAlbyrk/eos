@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, session as electronSession } from "electro
 import { createHash } from "node:crypto";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { denyGeolocation } from "./permissions";
 
 // Artifact link previews: Eos renders a published claude.ai artifact in its OWN
 // persistent claude.ai session (never another browser's cookies) and hands the
@@ -28,8 +29,14 @@ type PreviewResult =
 const mem = new Map<string, { at: number; dataUrl: string }>();
 const inflight = new Map<string, Promise<PreviewResult>>();
 
+let permissionsSet = false;
 function claudeSession() {
-  return electronSession.fromPartition(PARTITION);
+  const ses = electronSession.fromPartition(PARTITION);
+  if (!permissionsSet) {
+    permissionsSet = true;
+    denyGeolocation(ses);
+  }
+  return ses;
 }
 
 async function isSignedIn(): Promise<boolean> {

@@ -16,5 +16,9 @@
   <true/>
   <key>com.apple.security.device.camera</key>
   <true/>
+  <!-- Visual answers: the user's location, only while sharing is on (Settings ›
+       General › Visual answers). Hardened Runtime denies CoreLocation without it. -->
+  <key>com.apple.security.personal-information.location</key>
+  <true/>
 </dict>
 </plist>
