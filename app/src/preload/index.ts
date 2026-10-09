@@ -153,6 +153,19 @@ markNative();
 // stylesheet, so it is not subject to the page CSP.
 webFrame.insertCSS("html.native * { -webkit-app-region: var(--app-region, no-drag); }");
 
+// While a controlled computer's view covers this page, the page must claim no
+// drag strips: Electron hit-tests every view's drag regions in attach order,
+// not z-order, so this hidden header would swallow clicks and hover meant for
+// the host view's buttons above it (main/hosts.ts).
+if (!hostView) {
+  webFrame.insertCSS("html.native.eos-covered * { -webkit-app-region: no-drag; }");
+  const setCovered = (snap: HostsSnapshot | null): void => {
+    document.documentElement?.classList.toggle("eos-covered", Boolean(snap?.active));
+  };
+  ipcRenderer.on("eosHosts:changed", (_e, snap: HostsSnapshot) => setCovered(snap));
+  void ipcRenderer.invoke("eosHosts:list").then(setCovered, () => {});
+}
+
 // window.webkit.messageHandlers shim — the UI's WKWebView bridge, re-provided as
 // the exact same names so its capability checks light up (doc 20 §e, doc 10 §d).
 // postMessage → IPC → main (bridge.ts); pasteboardPaths is reply-style so its
