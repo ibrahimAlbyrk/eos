@@ -260,7 +260,8 @@ describe("App board — present_app", () => {
     expect(h).toContain(`data-genui-view="${VIEW}"`);
     expect(h).toContain("APP · SANDBOXED");
     expect(h).toContain(`<span class="gv-app-title" title="${app.title}">${app.title}</span>`);
-    for (const label of ["View source", "Reload app", "Open in side panel", "Fullscreen"]) expect(h).toContain(`aria-label="${label}"`);
+    for (const label of ["Reload app", "Open in side panel", "Fullscreen"]) expect(h).toContain(`aria-label="${label}"`);
+    expect(h).not.toContain("View source");
     expect(h).toContain(">Save as page</button>");
     const frame = /<iframe[^>]*>/.exec(h)?.[0] ?? "";
     expect(frame).toContain('sandbox="allow-scripts allow-forms"');

@@ -17,7 +17,7 @@ import { ConfirmChip } from "./ConfirmChip.jsx";
 import "./apps.css";
 
 // The App tier (present_app): agent-authored HTML/JS in a sandboxed srcdoc
-// frame inside Eos chrome — the pill, view source / reload / side panel /
+// frame inside Eos chrome — the pill, reload / side panel /
 // fullscreen, the confirmation chip for anything the app wants to tell the
 // agent, and "Save as page". The app has no network and no way to reach Eos
 // except the bridge (bridge.js), which answers only this frame's own window.
@@ -32,14 +32,12 @@ const svg = (children, size = 14) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
 );
 const LOCK = svg(<><rect width="18" height="11" x="3" y="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></>, 12);
-const CODE = svg(<><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>);
 const RELOAD = svg(<><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>);
 const PANEL = svg(<><rect width="18" height="18" x="3" y="3" rx="2" /><path d="M15 3v18" /></>);
 const EXPAND = svg(<><polyline points="15 3 21 3 21 9" /><polyline points="9 21 3 21 3 15" /><line x1="21" x2="14" y1="3" y2="10" /><line x1="3" x2="10" y1="21" y2="14" /></>);
 const SHRINK = svg(<><polyline points="4 14 10 14 10 20" /><polyline points="20 10 14 10 14 4" /><line x1="14" x2="21" y1="10" y2="3" /><line x1="3" x2="10" y1="21" y2="14" /></>);
 
 const errText = (e) => (e instanceof Error ? e.message : String(e));
-const kb = (s) => `${(new Blob([s]).size / 1024).toFixed(1)} KB`;
 
 function freshBridge() {
   return { lastMessageAt: -Infinity, lastLinkAt: -Infinity, awaiting: null, initialized: false };
@@ -73,7 +71,6 @@ export function AppFrame({
   const declared = declaredHeight(height);
   const [frameHeight, setFrameHeight] = useState(() => clampInlineHeight(declared ?? DEFAULT_APP_HEIGHT));
   const [generation, setGeneration] = useState(0);
-  const [sourceOpen, setSourceOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [ask, setAsk] = useState(null); // { id, text } — a ui/message waiting for the user
   const [always, setAlways] = useState(() => isAlwaysSend(viewId));
@@ -295,8 +292,6 @@ export function AppFrame({
         <span className="gv-app-pill">{LOCK}APP · SANDBOXED</span>
         <span className="gv-app-title" title={title}>{title || "App"}</span>
         <span className="gv-app-tools">
-          <button type="button" className="gv-app-icon" aria-label="View source" title="View source"
-            aria-expanded={sourceOpen} disabled={!hasSource} onClick={() => setSourceOpen((o) => !o)}>{CODE}</button>
           <button type="button" className="gv-app-icon" aria-label="Reload app" title="Reload"
             disabled={!runnable} onClick={reload}>{RELOAD}</button>
           {!panel && (viewId || onOpenPanel) ? (
@@ -329,18 +324,6 @@ export function AppFrame({
           <div className="gv-app-empty">{summary || "This app has no content."}</div>
         )}
       </div>
-
-      {sourceOpen && hasSource ? (
-        <div className="gv-app-source">
-          <div className="gv-app-source-bar">
-            <span>source · html · {kb(html)}</span>
-            <button type="button" className="gv-app-btn gv-app-btn--small" onClick={() => {
-              navigator.clipboard?.writeText(html).catch((e) => notify.warning(`Couldn't copy: ${errText(e)}`));
-            }}>Copy</button>
-          </div>
-          <pre className="gv-app-source-code"><code>{html}</code></pre>
-        </div>
-      ) : null}
 
       {ask ? (
         <ConfirmChip key={ask.id} kind={ask.kind} text={ask.text} onSend={sendAsked} onDismiss={dismissAsked} onAlways={alwaysAsked} />

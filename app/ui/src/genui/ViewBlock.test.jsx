@@ -135,7 +135,8 @@ describe("ViewSurface renders the scenario fixtures through the kit", () => {
     const none = render(<ViewSurface viewId={VIEW} spec={{ ...restaurants, ui: "<Sparkle/><Glitter>x</Glitter>" }} />);
     expect(none).toContain("This view couldn&#x27;t be displayed · showing its summary");
     expect(none).toContain("En iyi eşleşme: Moda Kıyı");
-    expect(none).toContain("Show spec");
+    expect(none).not.toContain("Show spec");
+    expect(none).not.toContain("<pre");
   });
 
   it("when= hides an element while its expression is false", () => {

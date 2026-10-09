@@ -5,7 +5,7 @@
 //   complete    the finished call → the whole view (state, actions live once
 //               the result names the view id)
 //   failed      the daemon refused it → one line; the agent fixes it below
-//   render error nothing this build can render → the summary + "Show spec"
+//   render error nothing this build can render → the summary
 //   superseded  a later view replaced it → a stub that can still be opened
 // ViewSurface is the view itself, shared with the side-panel tab.
 
@@ -311,23 +311,12 @@ function SupersededStub({ viewId, spec, onShow }) {
 // Nothing renderable (an old build, an unknown component, a crash): the
 // required summary stands in. Nothing blank, nothing raw.
 export function ViewFallback({ spec }) {
-  const [open, setOpen] = useState(false);
   return (
     <div className="gv-fallback">
       <div className="gv-fallback-head">{WARN_ICON}This view couldn't be displayed · showing its summary</div>
       <div className="gv-fallback-summary">{spec.summary || spec.title || ""}</div>
-      <button type="button" className="gv-link" onClick={() => setOpen((v) => !v)}>{open ? "Hide spec" : "Show spec"}</button>
-      {open && <pre className="gv-problems">{specText(spec)}</pre>}
     </div>
   );
-}
-
-function specText(spec) {
-  try {
-    return JSON.stringify(spec, null, 2);
-  } catch {
-    return String(spec?.ui ?? "");
-  }
 }
 
 class SurfaceBoundary extends ReactComponent {

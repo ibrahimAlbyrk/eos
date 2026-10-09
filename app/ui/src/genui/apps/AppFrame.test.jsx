@@ -23,13 +23,14 @@ const frame = (props = {}) =>
 const decode = (s) => s.replace(/&quot;/g, '"').replace(/&#x27;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 
 describe("AppFrame chrome", () => {
-  it("shows the pill, the title, the four tools, the footer note and Save as page", () => {
+  it("shows the pill, the title, the three tools (no view source), the footer note and Save as page", () => {
     const html = frame();
     expect(html).toContain("APP · SANDBOXED");
     expect(html).toContain("V60 Brew Timer");
-    for (const label of ["View source", "Reload app", "Open in side panel", "Fullscreen"]) {
+    for (const label of ["Reload app", "Open in side panel", "Fullscreen"]) {
       expect(html).toContain(`aria-label="${label}"`);
     }
+    expect(html).not.toContain("View source");
     expect(html).toContain("Runs in an isolated sandbox · no network");
     expect(html).toContain("Save as page");
   });
