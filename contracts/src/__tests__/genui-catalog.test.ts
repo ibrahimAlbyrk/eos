@@ -265,6 +265,23 @@ describe("ui problems", () => {
     hasProblem(r, "ui line 2 <Steps>", "needs of= or child elements");
   });
 
+  it("a per-item text attr that names a field prints the word, so it is rejected", () => {
+    const spec = fixture("restaurants");
+    spec.data.plan = [{ title: "Emergency fund", text: "3 months of costs" }];
+    spec.data.assumptions = [{ k: "Start", v: "October" }];
+    spec.ui = '<Steps of="plan" title="title" text="text"/>\n<KeyValue of="assumptions" key="k" value="v"/>\n<List of="places" meta="cuisine"/>';
+    const r = validateView(spec);
+    hasProblem(r, 'ui line 1 <Steps of="plan" title="title">.title', '"title" prints the word itself on every item — to show the title field write title="{title}"');
+    hasProblem(r, 'ui line 1 <Steps of="plan" title="title">.text', /write text="\{text\}"$/);
+    hasProblem(r, 'ui line 2 <KeyValue of="assumptions">.key', /write key="\{k\}"$/);
+    hasProblem(r, 'ui line 2 <KeyValue of="assumptions">.value', /write value="\{v\}"$/);
+    hasProblem(r, 'ui line 3 <List of="places">.meta', /write meta="\{cuisine\}"$/);
+
+    spec.ui = '<Steps of="plan" title="{title}" text="{text}"/>\n<KeyValue of="assumptions" key="{k}" value="{v}"/>\n<Chart type="bar" of="places" x="name" y="rating" unit="rating"/>\n<List of="places" badge="new"/>';
+    const ok = validateView(spec);
+    assert.equal(ok.ok, true, ok.ok ? "" : formatProblems(ok.problems));
+  });
+
   it("action kinds need their fields", () => {
     const spec = fixture("restaurants");
     spec.actions.route = { label: "Yol", kind: "open" };

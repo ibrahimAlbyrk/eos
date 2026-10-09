@@ -15,7 +15,8 @@ data.sources: [{title, url, site, at, note}] — required when stating facts. Un
 
 ## Markup
 <Tag a="text" n={3} list={["a","b"]} flag>children</Tag> · <Tag a="x"/>. {…} is JSON, never JS. Text children: inline markdown, no HTML. Depth ≤ 8.
-⊂ = takes of="collection" + where= sort="field|-field" limit= skip="ids". Text attrs template the item (meta="{cuisine} · {area}"); number attrs name a field (y="amount").
+⊂ = takes of="collection" + where= sort="field|-field" limit= skip="ids".
+Field attrs (x y cols, Meter value) take a bare name (y="amount"); text attrs read a field only in braces (meta="{cuisine} · {area}"): title="title" prints "title". Omit title/text/meta to show the item's own.
 Lists: ids "a b" or "a, b"; labels "A | B" or "A, B"; or JSON arrays.
 where: open · field · !field · field op value (== != < <= > >= ~contains), joined by &&; value may be state.key.
 expr (Value, Progress, when=): arithmetic, comparisons, && || ! ?:; names = state keys, item fields, data (places.rating = all ratings); fns sum count min max avg round abs floor ceil fv(payment, annualRate, years).

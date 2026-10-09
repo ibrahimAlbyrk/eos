@@ -302,6 +302,8 @@ export interface AttrDef {
   doc?: string;
   // The prompt lists the name only, not the enum values.
   brief?: boolean;
+  // Text rendered once per item of of=, so "{field}" reads that item's field.
+  item?: boolean;
 }
 
 export type ChildPolicy = "none" | "text" | "nodes" | "raw" | "items";
@@ -319,6 +321,7 @@ export interface ComponentDef {
 }
 
 const t = (doc?: string): AttrDef => ({ kind: "text", doc });
+const ti = (doc?: string): AttrDef => ({ kind: "text", item: true, doc });
 const req = (a: AttrDef): AttrDef => ({ ...a, required: true });
 const en = (values: readonly string[], doc?: string): AttrDef => ({ kind: "enum", values, doc });
 const int = (min: number, max: number, doc?: string): AttrDef => ({ kind: "int", min, max, doc });
@@ -373,7 +376,7 @@ export const COMPONENTS = {
   Carousel: {
     group: "layout",
     doc: "3–8 cards scrolling sideways, from of= or child elements",
-    attrs: { of: k("collection"), card: en(["row", "compact", "hero"]), meta: t(), actions: k("actions") },
+    attrs: { of: k("collection"), card: en(["row", "compact", "hero"]), meta: ti(), actions: k("actions") },
     children: "nodes",
     collection: "optional",
     needs: [["of", "children"]],
@@ -496,7 +499,7 @@ export const COMPONENTS = {
   KeyValue: {
     group: "data",
     doc: "label/value rows",
-    attrs: { of: k("collection"), items: k("json", "{\"Label\":\"value\"}"), key: t(), value: t(), cols: int(1, 2) },
+    attrs: { of: k("collection"), items: k("json", "{\"Label\":\"value\"}"), key: ti(), value: ti(), cols: int(1, 2) },
     children: "none",
     collection: "optional",
     needs: [["of", "items"]],
@@ -528,21 +531,21 @@ export const COMPONENTS = {
   Meter: {
     group: "data",
     doc: "bar meter; with of= one per item and value= names the field",
-    attrs: { value: req(k("numfield")), max: num(), label: t(), unit: t(), tone: k("tone"), of: k("collection") },
+    attrs: { value: req(k("numfield")), max: num(), label: ti(), unit: t(), tone: k("tone"), of: k("collection") },
     children: "none",
     collection: "optional",
   },
   Timeline: {
     group: "data",
     doc: "time-ordered stops or events",
-    attrs: { of: req(k("collection")), time: t(), title: t(), note: t(), meta: t(), leg: t("to next"), numbered: flag() },
+    attrs: { of: req(k("collection")), time: ti(), title: ti(), note: ti(), meta: ti(), leg: ti("to next"), numbered: flag() },
     children: "none",
     collection: "required",
   },
   Steps: {
     group: "data",
     doc: "ordered steps; stepper shows one at a time with Back/Next",
-    attrs: { of: k("collection"), variant: en(["list", "stepper"]), bind: k("state"), title: t(), text: t(), code: t() },
+    attrs: { of: k("collection"), variant: en(["list", "stepper"]), bind: k("state"), title: ti(), text: ti(), code: ti() },
     children: "nodes",
     collection: "optional",
     needs: [["of", "children"]],
@@ -580,8 +583,8 @@ export const COMPONENTS = {
       pick: req(k("id")),
       variant: en(["row", "compact", "hero"]),
       kind: { ...en(ENTITY_TYPES, "entity type"), brief: true },
-      meta: t(),
-      badge: t(),
+      meta: ti(),
+      badge: ti(),
       actions: k("actions"),
     },
     children: "none",
@@ -589,7 +592,7 @@ export const COMPONENTS = {
   Hero: {
     group: "entities",
     doc: "the top pick, large; children say why",
-    attrs: { of: req(k("collection")), pick: req(k("id")), badge: t(), meta: t(), actions: k("actions"), gallery: flag() },
+    attrs: { of: req(k("collection")), pick: req(k("id")), badge: ti(), meta: ti(), actions: k("actions"), gallery: flag() },
     children: "text",
   },
   List: {
@@ -598,9 +601,9 @@ export const COMPONENTS = {
     attrs: {
       of: req(k("collection")),
       variant: en(["row", "compact", "disclosure"]),
-      title: t(),
-      meta: t(),
-      badge: t(),
+      title: ti(),
+      meta: ti(),
+      badge: ti(),
       tone: k("tone"),
       numbered: flag(),
       actions: k("actions"),
@@ -669,7 +672,7 @@ export const COMPONENTS = {
   Checklist: {
     group: "inputs",
     doc: "tick list with a done count",
-    attrs: { bind: req(k("state")), of: k("collection"), items: k("labels"), title: t(), text: t() },
+    attrs: { bind: req(k("state")), of: k("collection"), items: k("labels"), title: t(), text: ti() },
     children: "none",
     collection: "optional",
     needs: [["of", "items"]],
@@ -1273,6 +1276,12 @@ function visitElement(ctx: UiContext, el: MarkupElement, depth: number, inItem: 
       if (!ids.has(id)) ctx.warnings.push({ path: `${path}.skip`, message: `"${id}" is not an id in ${of}` });
     }
     const fields = fieldsOf(items);
+    // title="title" renders the word itself on every item: a field is read only as "{title}".
+    for (const [attr, a] of Object.entries(def.attrs)) {
+      const v = el.attrs[attr];
+      if (!a.item || typeof v !== "string" || hasTemplate(v) || !fields.has(v)) continue;
+      ctx.problems.push({ path: `${path}.${attr}`, message: `${show(v)} prints the word itself on every item — to show the ${v} field write ${attr}="{${v}}"` });
+    }
     if (name === "Table") {
       for (const col of parseCols(el.attrs.cols)) {
         if (!fields.has(col.key)) ctx.warnings.push({ path: `${path}.cols`, message: `"${col.key}" is not a field of any ${of} item — the column stays empty` });
