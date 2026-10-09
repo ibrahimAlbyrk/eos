@@ -19,13 +19,18 @@ export const PREFIXES = {
   quote: "> ",
 };
 
-// Replace the line's block marker (and an optional range typed after it, e.g.
-// the "/cmd" that summoned the slash menu) with `prefix`.
-export function setLineBlock(view, prefix, strip = null) {
-  const { state } = view;
+// The caret's line, minus an optional range typed on it (e.g. the "/cmd" that
+// summoned the slash menu).
+function caretLine(state, strip) {
   const line = state.doc.lineAt(state.selection.main.head);
   let text = line.text;
   if (strip) text = text.slice(0, strip.from - line.from) + text.slice(strip.to - line.from);
+  return { line, text };
+}
+
+// Replace the line's block marker (and `strip`) with `prefix`.
+export function setLineBlock(view, prefix, strip = null) {
+  const { line, text } = caretLine(view.state, strip);
   const m = text.match(BLOCK_PREFIX);
   const rest = text.slice(m[0].length);
   const insert = m[1] + prefix + rest;
@@ -39,10 +44,7 @@ export function setLineBlock(view, prefix, strip = null) {
 }
 
 export function insertCodeBlock(view, strip = null) {
-  const { state } = view;
-  const line = state.doc.lineAt(state.selection.main.head);
-  let text = line.text;
-  if (strip) text = text.slice(0, strip.from - line.from) + text.slice(strip.to - line.from);
+  const { line, text } = caretLine(view.state, strip);
   const before = text.trim() ? `${text}\n` : "";
   const insert = `${before}\`\`\`\n\n\`\`\``;
   view.dispatch({
@@ -54,10 +56,7 @@ export function insertCodeBlock(view, strip = null) {
 }
 
 export function insertDivider(view, strip = null) {
-  const { state } = view;
-  const line = state.doc.lineAt(state.selection.main.head);
-  let text = line.text;
-  if (strip) text = text.slice(0, strip.from - line.from) + text.slice(strip.to - line.from);
+  const { line, text } = caretLine(view.state, strip);
   const insert = `${text.trim() ? `${text}\n` : ""}---\n`;
   view.dispatch({
     changes: { from: line.from, to: line.to, insert },
