@@ -206,7 +206,7 @@ export function ViewSurface({ viewId, spec, streaming = false, ts, workerId = nu
         aria-busy={streaming || undefined}
       >
         <header className="gv-head">
-          <span className="gv-head-icon"><GvIcon name={hasIcon(spec.icon) ? spec.icon : "sparkles"} size={18} /></span>
+          <span className="gv-head-icon"><GvIcon name={hasIcon(spec.icon) ? spec.icon : "sparkles"} size={16} /></span>
           <div className="gv-head-text">
             <div className="gv-title">{spec.title}</div>
             <div className="gv-meta">{viewMeta(spec, ts)}</div>

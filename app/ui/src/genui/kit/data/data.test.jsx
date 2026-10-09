@@ -108,15 +108,15 @@ describe("Chart", () => {
   it("draws a bar chart with the max bar in tone and the rest dimmed", () => {
     const html = renderSpec({ ...spec, ui: '<Chart type="bar" of="runs" x="run" y="t"/>' });
     expect(count(html, "<path")).toBe(3);
-    expect(html).toContain('fill="#5cb8c4"');
-    expect(count(html, 'fill="#283f42"')).toBe(2);
+    expect(html).toContain('fill="#26c1c8"');
+    expect(count(html, 'fill="#1b4243"')).toBe(2);
     expect(html).toContain('role="img"');
     expect(html).toContain(">r2<");
   });
 
   it("draws line and area charts with grid labels and the unit", () => {
     const line = renderSpec({ ...spec, ui: '<Chart type="line" of="runs" x="run" y="t" unit="s"/>' });
-    expect(line).toContain('stroke="#5cb8c4"');
+    expect(line).toContain('stroke="#26c1c8"');
     expect(line).toMatch(/>3\ds</);
     const area = renderSpec({ ...spec, ui: '<Chart type="area" of="runs" x="run" y="t"/>' });
     expect(area).toContain("<linearGradient");
@@ -148,7 +148,7 @@ describe("Meter", () => {
   it("renders a single bar", () => {
     const html = renderSpec({ title: "t", summary: "s", ui: '<Meter value="8.6" label="Value" tone="green"/>' });
     expect(html).toContain('style="width:86%"');
-    expect(html).toContain("--gv-meter-fill:#6fae86");
+    expect(html).toContain("--gv-meter-fill:#61c380");
   });
 });
 

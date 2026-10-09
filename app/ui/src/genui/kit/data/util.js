@@ -3,17 +3,13 @@
 
 import { matchWhere } from "../../../../../../contracts/src/genui/expr.ts";
 import { attrNum, parseSort, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { TONES as PALETTE, toneVars } from "../../runtime/runtime.js";
 
-// The six view tones (Kit A board). `on` is the text color on a tone fill.
-// `light` is the tone's text color on a tinted well (the boards' FAILED tile).
-export const TONES = {
-  blue: { hex: "#6ea4e8", on: "#0b1018", light: "#b5d3f6" },
-  green: { hex: "#6fae86", on: "#0d1a12", light: "#bfe0c9" },
-  amber: { hex: "#c9a163", on: "#1a1408", light: "#e0c48f" },
-  red: { hex: "#c47f79", on: "#1f0f0d", light: "#f0b3ad" },
-  violet: { hex: "#c8a2ff", on: "#170f24", light: "#cbb3f5" },
-  teal: { hex: "#5cb8c4", on: "#0a1a1d", light: "#a6dde4" },
-};
+// The six view tones, from the runtime's palette. `on` is the text color on a
+// tone fill; `light` is the tone as text on a tinted well.
+export const TONES = Object.fromEntries(
+  Object.entries(PALETTE).map(([name, t]) => [name, { hex: t.accent, on: t.on, light: t.ink }]),
+);
 export const TONE_ORDER = ["blue", "green", "amber", "red", "violet", "teal"];
 
 export function isTone(t) {
@@ -22,13 +18,6 @@ export function isTone(t) {
 
 export function toneHex(tone, fallback = TONES.blue.hex) {
   return isTone(tone) ? TONES[tone.toLowerCase()].hex : fallback;
-}
-
-export function rgba(hex, alpha) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
 }
 
 // Linear blend of `hex` over `base` — the dim bar color of the Kit B board.
@@ -46,8 +35,8 @@ export function mix(hex, base, t) {
 // tone= (the view root sets them for the view tone).
 export function toneStyle(tone) {
   if (!isTone(tone)) return undefined;
-  const t = TONES[tone.toLowerCase()];
-  return { "--gv-accent": t.hex, "--gv-soft": rgba(t.hex, 0.14), "--gv-on": t.on, "--gv-light": t.light };
+  const t = tone.toLowerCase();
+  return { ...toneVars(t), "--gv-light": TONES[t].light };
 }
 
 // Series colors: the view tone first, then the rest of the palette.

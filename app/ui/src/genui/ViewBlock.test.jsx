@@ -85,7 +85,7 @@ describe("ViewSurface renders the scenario fixtures through the kit", () => {
     expect(html).toContain("6 places");
     expect(html).toContain(`data-genui-view="${VIEW}"`);
     expect(html).toContain('aria-label="Open in side panel"');
-    expect(html).toContain("--gv-accent:#6ea4e8");
+    expect(html).toContain("--gv-accent:#67affd");
     // "Şu an açık" starts on: Sofra Moda (closed) leaves every lens.
     expect(dataCount(html, "Map")).toBe(5);
     expect(dataCount(html, "Table")).toBe(5);

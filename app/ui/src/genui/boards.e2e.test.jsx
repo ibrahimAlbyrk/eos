@@ -94,7 +94,7 @@ describe("Main board — restaurants", () => {
     const h = html();
     expect(h).toContain('class="gv-view"');
     expect(h).toContain(`data-genui-view="${VIEW}"`);
-    expect(h).toContain("--gv-accent:#6ea4e8");
+    expect(h).toContain("--gv-accent:#67affd");
     expect(h).toContain(`<div class="gv-title">${restaurants.title.replace("'", "&#x27;")}</div>`);
     expect(h).toMatch(/<div class="gv-meta">6 places · /);
     expect(h).toContain('aria-label="Open in side panel"');
@@ -160,7 +160,7 @@ describe("Trip board", () => {
 
   it("day tabs drive the route map and the timeline; budget, weather, checklist, callout", () => {
     const h = html();
-    expect(h).toContain("--gv-accent:#c9a163");
+    expect(h).toContain("--gv-accent:#dc9d39");
     expect(h).toMatch(/aria-pressed="true"[^>]*class="gv-seg-opt is-on">Cumartesi</);
     expect(h).toContain('aria-label="Map of 5 stops"');
     expect(h).toContain('class="gv-map__route"');
@@ -229,7 +229,7 @@ describe("Learn board", () => {
 
   it("a stepper per mode, the compare table and the quiz", () => {
     const h = html();
-    expect(h).toContain("--gv-accent:#c8a2ff");
+    expect(h).toContain("--gv-accent:#b597f5");
     expect(h).toMatch(/role="tab"[^>]*aria-selected="true"[^>]*>Merge</);
     expect(h).toContain('<div class="gv-steps__count">Step 1 / 3</div>');
     expect(h).toContain(`<div class="gv-steps__title">${learn.data.merge[0].title}</div>`);

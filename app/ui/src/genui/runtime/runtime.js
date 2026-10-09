@@ -15,20 +15,20 @@ import { attrBool, attrNum, attrText, parseChips, parseOptions, parseSort, split
 import { walkMarkup } from "../../../../../contracts/src/genui/markup.ts";
 import { media as defaultMedia } from "./media.js";
 
+// The view tones (Grafit palette). Every hue shares one OKLCH lightness and
+// chroma per role, so no tone outshouts another on the chat ground:
+// accent (L .74) fills and marks, ink (L .80) is the tone as text and icons,
+// on (L .20) is text on an accent fill. kit/base.css mirrors these as --gv-<tone>*.
 export const TONES = {
-  blue: "#6ea4e8",
-  green: "#6fae86",
-  amber: "#c9a163",
-  red: "#c47f79",
-  violet: "#c8a2ff",
-  teal: "#5cb8c4",
+  blue: { accent: "#67affd", ink: "#8ec2fc", on: "#0a1725" },
+  green: { accent: "#61c380", ink: "#7fd497", on: "#081b0e" },
+  amber: { accent: "#dc9d39", ink: "#ebb25f", on: "#1f1303" },
+  red: { accent: "#f4877f", ink: "#fea199", on: "#240f0e" },
+  violet: { accent: "#b597f5", ink: "#c6aefd", on: "#181224" },
+  teal: { accent: "#26c1c8", ink: "#43d5dc", on: "#001b1c" },
 };
 
 export const ENTITY_TYPES = ["Place", "Product", "Event", "Person", "Article", "Media", "File", "Generic"];
-
-// Text on a tone fill, and the tone as text on a tinted well (kit/base.css .gv-tone-*).
-const TONE_ON = { blue: "#0b1018", green: "#0d1a12", amber: "#1a1408", red: "#1f0f0d", violet: "#170f24", teal: "#08191b" };
-const TONE_INK = { blue: "#8ab9f0", green: "#a9d6b6", amber: "#e0c48f", red: "#f0b3ad", violet: "#cbb3f5", teal: "#9fd3e6" };
 
 const VIEW_ID_RE = /^v_[A-Za-z0-9]{12}$/;
 // "manager/peer/x.test.ts" — a project-relative file (FileRef path=).
@@ -45,14 +45,13 @@ function rgba(hex, a) {
 
 // The CSS custom properties a view root (or a monogram, a badge) sets for a tone.
 export function toneVars(tone) {
-  const t = toneOf(tone);
-  const hex = TONES[t];
+  const { accent, ink, on } = TONES[toneOf(tone)];
   return {
-    "--gv-accent": hex,
-    "--gv-soft": rgba(hex, 0.14),
-    "--gv-line": rgba(hex, 0.32),
-    "--gv-on": TONE_ON[t],
-    "--gv-ink": TONE_INK[t],
+    "--gv-accent": accent,
+    "--gv-soft": rgba(accent, 0.22),
+    "--gv-line": rgba(accent, 0.32),
+    "--gv-on": on,
+    "--gv-ink": ink,
   };
 }
 

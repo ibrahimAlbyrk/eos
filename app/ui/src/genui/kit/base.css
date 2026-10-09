@@ -1,27 +1,41 @@
 /* kit/base.css — the view kit's shared look (Kit A board: foundations, layout,
-   content, entities). The view well and its header are the chrome's (genui/
-   view.css); this file styles what goes inside. Every color is an Eos token or
-   one of the --gv-* vars below; a view root re-points --gv-accent/--gv-soft/
-   --gv-on at its tone, and .gv-tone-* does the same for one component. */
+   content, entities). A view has no surface of its own: it sits on the chat
+   ground like the agent's text (genui/view.css), and only what has a job —
+   controls, code, cards, selections — gets a fill. Every color is an Eos token
+   or one of the --gv-* vars below (Grafit palette); a view root re-points
+   --gv-accent/--gv-soft/--gv-on/--gv-ink at its tone, and .gv-tone-* does the
+   same for one component. The app's own colors are never changed from here. */
 
 :root {
-  --gv-accent: var(--accent);
-  --gv-soft: color-mix(in srgb, var(--accent) 14%, transparent);
-  --gv-on: var(--accent-fg);
+  /* Tones — mirror runtime/runtime.js TONES (accent · ink · on). */
+  --gv-blue: #67affd;   --gv-blue-ink: #8ec2fc;   --gv-blue-on: #0a1725;
+  --gv-green: #61c380;  --gv-green-ink: #7fd497;  --gv-green-on: #081b0e;
+  --gv-amber: #dc9d39;  --gv-amber-ink: #ebb25f;  --gv-amber-on: #1f1303;
+  --gv-red: #f4877f;    --gv-red-ink: #fea199;    --gv-red-on: #240f0e;
+  --gv-violet: #b597f5; --gv-violet-ink: #c6aefd; --gv-violet-on: #181224;
+  --gv-teal: #26c1c8;   --gv-teal-ink: #43d5dc;   --gv-teal-on: #001b1c;
 
-  /* Values the token system has no name for (from the Kit boards). */
-  --gv-teal: #5cb8c4;
+  --gv-accent: var(--gv-blue);
+  --gv-ink: var(--gv-blue-ink);
+  --gv-on: var(--gv-blue-on);
+  --gv-soft: color-mix(in srgb, var(--gv-accent) 22%, transparent);
+
   --gv-star: #e2b45f;
   --gv-star-off: #3a3a3a;
-  /* Solid surfaces (no rims, glows or shadows): a view is one flat surface,
-     the blocks inside it a step lighter, controls a step above that. */
-  --gv-surface: #161616;
-  --gv-raised: #1c1c1c;
-  --gv-control: #232323;
-  --gv-control-hover: #2c2c2c;
-  --gv-rule: #242424;
-  --gv-track: #2a2a2a;
-  --gv-ring: var(--gv-raised);  /* the card surface, as a ring around an overlapping logo */
+  /* Neutrals in even OKLCH lightness steps above the ground (#101010, L .17),
+     so each one reads apart from it: sunk .22 · raised .25 · control .29 ·
+     rule .29 · hover .33 · track .34. */
+  --gv-ground: var(--bg);        /* what a view sits on (the side panel re-points it) */
+  --gv-surface: #161616;         /* framed things: apps, stubs, fallbacks */
+  --gv-sunk: #191919;            /* code, segmented tracks, fields */
+  --gv-raised: #202020;          /* cards, open rows, tip callouts */
+  --gv-raised-hover: #262626;
+  --gv-control: #2a2a2a;
+  --gv-control-hover: #343434;
+  --gv-rule: #2b2b2b;
+  --gv-track: #383838;
+  --gv-mark: #696969;            /* an unchecked box or radio */
+  --gv-ring: var(--gv-raised);   /* the card surface, as a ring around an overlapping logo */
   --gv-shim-a: #1a1a1a;
   --gv-shim-b: #262626;
   --gv-scrim: rgba(0, 0, 0, 0.45);
@@ -29,20 +43,23 @@
   --gv-well: var(--gv-raised);
   --gv-card: var(--gv-raised);
   --gv-hover: var(--gv-raised);
-  --gv-select: color-mix(in srgb, var(--gv-accent) 10%, var(--gv-surface));
+  --gv-select: var(--gv-soft);
   --gv-ease: cubic-bezier(.2, .7, .3, 1);
 }
 
 /* ── tones ─────────────────────────────────────────────────────────────── */
-.gv-tone-blue   { --gv-accent: var(--accent); --gv-soft: rgba(110, 164, 232, 0.14); --gv-on: #0b1018; --gv-ink: #8ab9f0; }
-.gv-tone-green  { --gv-accent: var(--ok);     --gv-soft: rgba(111, 174, 134, 0.14); --gv-on: #0d1a12; --gv-ink: #a9d6b6; }
-.gv-tone-amber  { --gv-accent: var(--warn);   --gv-soft: rgba(201, 161, 99, 0.14);  --gv-on: #1a1408; --gv-ink: #e0c48f; }
-.gv-tone-red    { --gv-accent: var(--err);    --gv-soft: rgba(196, 127, 121, 0.14); --gv-on: #1f0f0d; --gv-ink: #f0b3ad; }
-.gv-tone-violet { --gv-accent: var(--violet); --gv-soft: rgba(200, 162, 255, 0.13); --gv-on: #170f24; --gv-ink: #cbb3f5; }
-.gv-tone-teal   { --gv-accent: var(--gv-teal); --gv-soft: rgba(92, 184, 196, 0.14); --gv-on: #08191b; --gv-ink: #9fd3e6; }
+.gv-tone-blue   { --gv-accent: var(--gv-blue);   --gv-ink: var(--gv-blue-ink);   --gv-on: var(--gv-blue-on); }
+.gv-tone-green  { --gv-accent: var(--gv-green);  --gv-ink: var(--gv-green-ink);  --gv-on: var(--gv-green-on); }
+.gv-tone-amber  { --gv-accent: var(--gv-amber);  --gv-ink: var(--gv-amber-ink);  --gv-on: var(--gv-amber-on); }
+.gv-tone-red    { --gv-accent: var(--gv-red);    --gv-ink: var(--gv-red-ink);    --gv-on: var(--gv-red-on); }
+.gv-tone-violet { --gv-accent: var(--gv-violet); --gv-ink: var(--gv-violet-ink); --gv-on: var(--gv-violet-on); }
+.gv-tone-teal   { --gv-accent: var(--gv-teal);   --gv-ink: var(--gv-teal-ink);   --gv-on: var(--gv-teal-on); }
 /* Recomputed where a tone lands: a custom property's var() resolves where it is
    declared, so a :root-only value would keep the default accent. */
-:is(.gv-view, .gv-app, .gv-stub, [class*="gv-tone-"]) { --gv-select: color-mix(in srgb, var(--gv-accent) 10%, var(--gv-surface)); }
+:is(.gv-view, .gv-app, .gv-stub, [class*="gv-tone-"]) {
+  --gv-soft: color-mix(in srgb, var(--gv-accent) 22%, transparent);
+  --gv-select: var(--gv-soft);
+}
 
 /* monogram palettes: a tone hashed from the name (kit/monogram.js) */
 .gv-mono-blue   { --gv-mono-bg: #2b3a4d; --gv-mono-fg: #b8d4f4; }
@@ -240,7 +257,8 @@
   max-width: 100%;
   padding: 3px;
   border-radius: var(--r-pill);
-  background: var(--gv-raised);
+  background: var(--gv-sunk);
+  box-shadow: inset 0 0 0 1px var(--gv-rule);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -314,19 +332,16 @@
 }
 .gv-divider-line { flex: 1; height: 1px; background: var(--gv-rule); }
 
-/* carousel: a direct child of the view body bleeds to the surface's edge */
-.gv-carousel { position: relative; min-width: 0; }
-.gv-body > .gv-carousel,
-.gv-body > .gv-section > .gv-section-body > .gv-carousel,
-.gv-body > .gv-tabs > .gv-tabs-panel > .gv-carousel { margin-inline: -22px; }
+/* carousel: the track keeps 2px each side so a selected card's ring isn't clipped */
+.gv-carousel { position: relative; min-width: 0; margin-inline: -2px; }
 .gv-carousel-track {
   display: flex;
   gap: 12px;
   overflow-x: auto;
   overscroll-behavior-x: contain;
   scroll-snap-type: x mandatory;
-  scroll-padding-inline: 22px;
-  padding: 4px 22px 14px;
+  scroll-padding-inline: 2px;
+  padding: 4px 2px 14px;
   margin-bottom: -8px;
   scrollbar-width: none;
 }
@@ -450,7 +465,7 @@ button.gv-gallery-tile { cursor: pointer; }
 }
 .gv-badge > span { overflow: hidden; text-overflow: ellipsis; }
 .gv-badge.is-neutral { color: var(--fg-dim); background: var(--gv-control); }
-.gv-badge-soft.is-toned { color: var(--gv-ink, color-mix(in srgb, var(--gv-accent) 72%, white)); background: color-mix(in srgb, var(--gv-accent) 12%, transparent); }
+.gv-badge-soft.is-toned { color: var(--gv-ink, color-mix(in srgb, var(--gv-accent) 72%, white)); background: var(--gv-soft); }
 .gv-badge-solid { font-weight: 600; background: var(--gv-accent); color: var(--gv-on); }
 .gv-badge-solid.is-neutral { background: var(--gv-accent); color: var(--gv-on); }
 .gv-badge-outline { background: none; color: var(--gv-ink, color-mix(in srgb, var(--gv-accent) 72%, white)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gv-accent) 40%, transparent); }
@@ -475,10 +490,10 @@ button.gv-gallery-tile { cursor: pointer; }
 .gv-status { display: inline-flex; align-items: center; gap: 7px; min-width: 0; font-size: 12.5px; }
 .gv-status > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gv-status-dot { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
-.gv-status-open, .gv-status-ok, .gv-status-running { color: var(--ok); }
-.gv-status-closing, .gv-status-warn { color: var(--warn); }
-.gv-status-closed, .gv-status-error { color: var(--err); }
-.gv-status-info { color: var(--accent-hover); }
+.gv-status-open, .gv-status-ok, .gv-status-running { color: var(--gv-green-ink); }
+.gv-status-closing, .gv-status-warn { color: var(--gv-amber-ink); }
+.gv-status-closed, .gv-status-error { color: var(--gv-red-ink); }
+.gv-status-info { color: var(--gv-blue-ink); }
 .gv-status-idle { color: var(--fg-dim2); }
 .gv-status-running .gv-status-dot { animation: d-breathe 2.2s ease-in-out infinite; }
 
@@ -504,7 +519,7 @@ button.gv-gallery-tile { cursor: pointer; }
 .gv-callout-tip .gv-callout-icon { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 10px; background: var(--gv-soft); color: var(--gv-accent); }
 .gv-callout-warning, .gv-callout-danger, .gv-callout-success {
   align-items: center;
-  background: color-mix(in srgb, var(--gv-accent) 12%, var(--gv-surface));
+  background: var(--gv-soft);
 }
 :is(.gv-callout-warning, .gv-callout-danger, .gv-callout-success) .gv-callout-text { color: var(--gv-ink, var(--fg-mid)); }
 :is(.gv-callout-warning, .gv-callout-danger, .gv-callout-success) .gv-callout-icon { color: var(--gv-accent); }
@@ -521,7 +536,7 @@ button.gv-gallery-tile { cursor: pointer; }
 .gv-quote-text { margin: 0; font-style: italic; color: var(--fg); }
 .gv-quote-cite { font-size: 12.5px; color: var(--fg-dim); }
 
-.gv-code { position: relative; min-width: 0; border-radius: 10px; background: var(--bg); }
+.gv-code { position: relative; min-width: 0; border-radius: 10px; background: var(--gv-sunk); }
 .gv-code-head { padding: 8px 40px 0 12px; font-family: var(--font-mono); font-size: 11px; letter-spacing: .04em; color: var(--fg-dim2); }
 .gv-code-pre {
   margin: 0;
@@ -600,7 +615,7 @@ button.gv-gallery-tile { cursor: pointer; }
   overflow: hidden;
   border-radius: 6px;
   background: var(--chip);
-  box-shadow: 0 0 0 2px var(--gv-surface);
+  box-shadow: 0 0 0 2px var(--gv-ground);
 }
 .gv-src-fav .gv-mono { border-radius: 6px; font-size: 10px; }
 .gv-src-more {
@@ -611,7 +626,7 @@ button.gv-gallery-tile { cursor: pointer; }
   padding: 0 4px;
   border-radius: 6px;
   background: var(--chip);
-  box-shadow: 0 0 0 2px var(--gv-surface);
+  box-shadow: 0 0 0 2px var(--gv-ground);
   color: var(--fg-mid);
   font-size: 10px;
   font-weight: 600;
@@ -652,7 +667,7 @@ a.gv-src-row:hover { background: var(--gv-hover); color: var(--fg-strong); }
   color: var(--fg);
   transition: box-shadow .16s ease, background .16s ease;
 }
-.gv-card.is-selectable:hover { background: #202020; }
+.gv-card.is-selectable:hover { background: var(--gv-raised-hover); }
 .gv-card.is-selected { box-shadow: inset 0 0 0 1.5px var(--gv-accent); }
 .gv-card-hit {
   display: flex;
@@ -800,8 +815,8 @@ button.gv-card-hit { cursor: pointer; }
 .gv-dateleaf-day { padding: 3px 0; font-size: 18px; font-weight: 600; color: var(--fg-strong); }
 .gv-dateleaf-icon { display: grid; place-items: center; height: 46px; color: var(--gv-accent); }
 .gv-filestat { display: inline-flex; gap: 6px; font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
-.gv-add { color: var(--ok); }
-.gv-del { color: var(--err); }
+.gv-add { color: var(--gv-green-ink); }
+.gv-del { color: var(--gv-red-ink); }
 
 .gv-hero-wrap { container-type: inline-size; min-width: 0; }
 .gv-hero {

@@ -95,7 +95,7 @@
   width: 11px;
   height: 11px;
   border-radius: 50%;
-  background: var(--accent, #6ea4e8);
+  background: var(--gv-blue);
   box-shadow: 0 0 0 2px #101010;
   pointer-events: none;
 }
@@ -104,7 +104,7 @@
   position: absolute;
   inset: -3px;
   border-radius: 50%;
-  background: var(--accent, #6ea4e8);
+  background: var(--gv-blue);
   opacity: 0.35;
   animation: gv-you-pulse 2.4s ease-out infinite;
 }

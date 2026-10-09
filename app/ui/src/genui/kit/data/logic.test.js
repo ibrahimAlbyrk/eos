@@ -54,9 +54,9 @@ describe("applyLens / numberItems", () => {
 
 describe("tones", () => {
   it("re-points the tone vars and orders series from the view tone", () => {
-    expect(toneStyle("teal")["--gv-accent"]).toBe("#5cb8c4");
+    expect(toneStyle("teal")["--gv-accent"]).toBe("#26c1c8");
     expect(toneStyle("nope")).toBeUndefined();
-    expect(seriesColors("amber", 3)).toEqual(["#c9a163", "#6ea4e8", "#6fae86"]);
+    expect(seriesColors("amber", 3)).toEqual(["#dc9d39", "#67affd", "#61c380"]);
     expect(mix("#5cb8c4", "#171717", 0.25)).toBe("#283f42");
   });
 });

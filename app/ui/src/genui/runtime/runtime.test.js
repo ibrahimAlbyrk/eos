@@ -154,9 +154,9 @@ describe("runAction", () => {
   });
 
   it("toneVars carries the tone's own on-color and ink", () => {
-    expect(toneVars("amber")["--gv-on"]).toBe("#1a1408");
-    expect(toneVars("violet")["--gv-ink"]).toBe("#cbb3f5");
-    expect(toneVars("nope")["--gv-on"]).toBe("#0b1018");
+    expect(toneVars("amber")["--gv-on"]).toBe("#1f1303");
+    expect(toneVars("violet")["--gv-ink"]).toBe("#c6aefd");
+    expect(toneVars("nope")["--gv-on"]).toBe("#0a1725");
   });
 
   it("send: one at a time per view, and never before the view has its id", async () => {
@@ -288,9 +288,9 @@ describe("runAction", () => {
 
 describe("helpers", () => {
   it("tone vars come from the tone, blue by default", () => {
-    expect(toneVars("red")["--gv-accent"]).toBe("#c47f79");
-    expect(toneVars("nope")["--gv-accent"]).toBe("#6ea4e8");
-    expect(toneVars("teal")["--gv-soft"]).toBe("rgba(92, 184, 196, 0.14)");
+    expect(toneVars("red")["--gv-accent"]).toBe("#f4877f");
+    expect(toneVars("nope")["--gv-accent"]).toBe("#67affd");
+    expect(toneVars("teal")["--gv-soft"]).toBe("rgba(38, 193, 200, 0.22)");
   });
 
   it("infers an entity kind from its fields when type is missing", () => {

@@ -1,8 +1,9 @@
-/* view.css — the chrome around a visual answer: one flat solid surface (no rim,
-   glow or shadow — it sits in the transcript like content), its header, the
-   streaming skeleton, the failed / superseded / fallback stubs, the side-panel
-   copy and the reply chip. The components inside come from the kit
-   (kit/base.css); sections inside are split by hairlines and space, not boxes. */
+/* view.css — the chrome around a visual answer: no surface of its own — it
+   sits on the chat ground like the agent's text, set apart only by its header
+   (tone chip + title) — the streaming skeleton, the failed / superseded /
+   fallback stubs, the side-panel copy and the reply chip. The components inside
+   come from the kit (kit/base.css); sections are split by hairlines and space,
+   not boxes. Apps (apps/apps.css) stay framed: their frame marks the sandbox. */
 
 .gv-view {
   position: relative;
@@ -11,8 +12,6 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-radius: 16px;
-  background: var(--gv-surface);
   color: var(--fg);
   font-size: var(--text-base);
   line-height: 1.55;
@@ -21,13 +20,17 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 18px 16px 2px 22px;
+  padding: 2px 0 0;
 }
 .gv-head-icon {
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  color: var(--gv-accent);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gv-soft);
+  color: var(--gv-ink);
 }
 .gv-head-text { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
 .gv-title {
@@ -44,7 +47,7 @@
 .gv-meta {
   min-width: 0;
   font-size: 12.5px;
-  color: #6f6f6f;
+  color: var(--fg-dim2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -58,7 +61,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #7a7a7a;
+  color: var(--fg-dim2);
   cursor: pointer;
 }
 .gv-chrome-btn:hover { background: var(--gv-control); color: var(--fg-strong); }
@@ -68,7 +71,7 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 16px 22px 20px;
+  padding: 16px 0 4px;
 }
 .gv-body > .gv-section:not(:first-child) { padding-top: 16px; border-top: 1px solid var(--gv-rule); }
 .gv-md { font-size: var(--text-base); line-height: 1.6; color: var(--fg); }
@@ -94,7 +97,7 @@
   background-size: 200% 100%;
   animation: gv-shimmer 1.8s linear infinite;
 }
-.gv-skel { display: flex; flex-direction: column; gap: 12px; padding: 18px 22px; }
+.gv-skel { display: flex; flex-direction: column; gap: 12px; padding: 2px 0 4px; }
 .gv-skel-head { display: flex; align-items: center; gap: 10px; }
 .gv-skel-head .gv-shim:first-child { width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0; }
 .gv-skel-lines { display: flex; flex-direction: column; gap: 6px; flex: 1; }
@@ -117,7 +120,7 @@
   font-size: 12.5px;
   color: var(--fg-faint);
 }
-.gv-failed svg { flex-shrink: 0; color: var(--err); }
+.gv-failed svg { flex-shrink: 0; color: var(--gv-red-ink); }
 .gv-failed--off svg { color: var(--fg-faint); }
 .gv-failed-title { color: var(--fg-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .gv-link {
@@ -173,14 +176,14 @@
   border-radius: 16px;
   background: var(--gv-surface);
 }
-.gv-fallback-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--warn); }
+.gv-fallback-head { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gv-amber-ink); }
 .gv-fallback-summary { font-size: 13.5px; line-height: 1.6; color: var(--fg-mid); white-space: pre-wrap; }
 .gv-partial { display: flex; flex-direction: column; gap: 6px; padding: 2px 6px; }
-.gv-partial-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--warn); }
+.gv-partial-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--gv-amber-ink); }
 .gv-partial-summary { font-size: 13px; line-height: 1.6; color: var(--fg-mid); white-space: pre-wrap; }
 
 /* side-panel copy: fills the tab */
-.gv-panel { height: 100%; overflow-y: auto; padding: 12px; box-sizing: border-box; }
+.gv-panel { --gv-ground: var(--panel); height: 100%; overflow-y: auto; padding: 16px 20px; box-sizing: border-box; }
 .gv-panel .gv-view { min-height: 100%; }
 .gv-panel-empty { padding: 24px; }
 
@@ -206,13 +209,9 @@
 .gv-reply-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 
 @container gv-view (max-width: 480px) {
-  .gv-head { padding: 14px 12px 2px 16px; }
   .gv-head-text { flex-direction: column; align-items: flex-start; gap: 0; }
   .gv-title { font-size: var(--text-md); }
-  .gv-body { padding: 12px 16px 16px; }
-  .gv-body > .gv-tabs > .gv-tabs-panel > .gv-carousel,
-  .gv-body > .gv-carousel,
-  .gv-body > .gv-section > .gv-section-body > .gv-carousel { margin-inline: -16px; }
+  .gv-body { padding-top: 12px; }
 }
 
 /* Settings › Visual answers › Test location (a custom settings control: the
