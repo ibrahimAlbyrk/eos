@@ -56,6 +56,30 @@ describe("tool projection parity — MCP / SDK / runtime expose identical name+s
   }
 });
 
+describe("tool-search hints on the claude lane", () => {
+  // A focused session runs with tool search on, so MCP tools are deferred unless
+  // their _meta says otherwise.
+  const SEARCH_HINTED = ["present_app", "find_places", "current_location"];
+  const meta = (d: (typeof focusedDefs)[number]) => (toSdkTool(d, CTX, "d") as { _meta?: Record<string, unknown> })._meta;
+
+  it("present is always loaded; the other visual-answer tools only carry a search hint", () => {
+    const byName = new Map(focusedDefs.map((d) => [d.name, d]));
+    assert.deepEqual(meta(byName.get("present")!), { "anthropic/alwaysLoad": true });
+    for (const name of SEARCH_HINTED) {
+      const m = meta(byName.get(name)!);
+      assert.equal(typeof m?.["anthropic/searchHint"], "string", name);
+      assert.equal(m?.["anthropic/alwaysLoad"], undefined, name);
+    }
+  });
+
+  it("no other tool changes how it loads", () => {
+    const hinted = new Set(["present", ...SEARCH_HINTED]);
+    for (const d of [...orchestratorDefs, ...workerDefs, ...peerDefs, ...focusedDefs]) {
+      if (!hinted.has(d.name)) assert.equal(meta(d), undefined, d.name);
+    }
+  });
+});
+
 describe("which Eos tools a claude session gets", () => {
   const host = { orchestratorDefs, workerDefs, peerDefs, focusedDefs, renderDescriptions: () => ({}) };
   const names = (input: { isOrchestrator: boolean; collaborate: boolean; focused?: boolean }) => sdkToolDefs(host, input).map((d) => d.name);

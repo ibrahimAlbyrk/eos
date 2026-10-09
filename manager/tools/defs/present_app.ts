@@ -8,6 +8,7 @@ import { isSwitchedOff, problemsText, refusalOf } from "./present_shared.ts";
 export const presentAppDef: ToolDefinition = {
   name: "present_app",
   visibility: "orchestrator",
+  searchHint: "sandboxed HTML app in the chat: calculator, timer, game, simulator, custom interactive visual",
   inputSchema: {
     title: z.string().describe(`≤ ${GENUI_LIMITS.titleChars} chars`),
     html: z.string().describe(`one self-contained HTML document, ≤ ${GENUI_LIMITS.appHtmlBytes / 1024} KB`),

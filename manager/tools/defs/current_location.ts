@@ -7,6 +7,7 @@ import { areaLine, callDaemon, formatAccuracy, formatAge } from "./geo_shared.ts
 export const currentLocationDef: ToolDefinition = {
   name: "current_location",
   visibility: "orchestrator",
+  searchHint: "where the user is now, near me, around here: latitude, longitude, district, city",
   inputSchema: {},
   handler: async (ctx) => {
     const loc = (await callDaemon(() => ctx.api("GET", ROUTES.location))) as LocationResponse;

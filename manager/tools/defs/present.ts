@@ -11,6 +11,8 @@ import { isSwitchedOff, problemsText, refusalOf } from "./present_shared.ts";
 export const presentDef: ToolDefinition = {
   name: "present",
   visibility: "orchestrator",
+  // The catalog rides this description: a focused session (tool search on) must see it from turn 1.
+  alwaysLoad: true,
   inputSchema: {
     title: z.string().describe(`≤ ${GENUI_LIMITS.titleChars} chars`),
     tone: z.enum(GENUI_TONES).optional().describe("the view's one accent"),

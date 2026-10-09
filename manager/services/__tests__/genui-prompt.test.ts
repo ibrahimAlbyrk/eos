@@ -54,6 +54,16 @@ describe("visual answers in the system prompt", () => {
     });
   }
 
+  it("focused names the tools as they appear in its deferred list; the orchestrator loads them directly", () => {
+    const focused = assemble({ role: "focused", userProfile: "" }).text;
+    for (const name of ["present", "present_app", "find_places", "current_location"]) {
+      assert.ok(focused.includes(`\`mcp__worker__${name}\``), name);
+    }
+    assert.match(focused, /`mcp__worker__present` is always loaded/);
+    assert.match(focused, /ToolSearch \(`select:<name>`\)/);
+    assert.doesNotMatch(assemble({ role: "orchestrator" }).text, /ToolSearch/);
+  });
+
   it("a worker never hears about visual answers", () => {
     for (const parentId of [null, "orch-1"]) {
       const { text, ids } = assemble({ role: "worker", parentId });

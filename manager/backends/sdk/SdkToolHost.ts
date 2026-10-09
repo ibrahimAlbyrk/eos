@@ -13,10 +13,16 @@ import { mcpServerForRole } from "../../tools/projections.ts";
 // projection-parity.test.ts. tool() takes the same zod raw shape as the MCP +
 // runtime lanes, so ToolDefinition.inputSchema plugs in unchanged.
 export function toSdkTool(def: ToolDefinition, ctx: ToolContext, description: string) {
-  return tool(def.name, description, def.inputSchema, async (args) => {
-    const res = await def.handler(ctx, args as Record<string, unknown>);
-    return { content: [{ type: "text" as const, text: typeof res === "string" ? res : JSON.stringify(res, null, 2) }] };
-  });
+  return tool(
+    def.name,
+    description,
+    def.inputSchema,
+    async (args) => {
+      const res = await def.handler(ctx, args as Record<string, unknown>);
+      return { content: [{ type: "text" as const, text: typeof res === "string" ? res : JSON.stringify(res, null, 2) }] };
+    },
+    { ...(def.alwaysLoad ? { alwaysLoad: true } : {}), ...(def.searchHint ? { searchHint: def.searchHint } : {}) },
+  );
 }
 
 export interface SdkToolHostDeps {

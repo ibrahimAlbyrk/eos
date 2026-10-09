@@ -28,5 +28,11 @@ export interface ToolDefinition {
   readonly name: string;
   readonly visibility: ToolVisibility;
   readonly inputSchema: ZodRawShape;
+  // Claude Code tool-search hints (only the in-process claude lane reads them;
+  // a session with tool search on defers MCP tools behind ToolSearch). alwaysLoad
+  // keeps the tool's schema + description in the prompt from turn 1; searchHint
+  // is extra text ToolSearch matches a deferred tool on.
+  readonly alwaysLoad?: boolean;
+  readonly searchHint?: string;
   handler(ctx: ToolContext, args: Record<string, unknown>): Promise<unknown>;
 }

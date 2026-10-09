@@ -31,6 +31,7 @@ function radiusText(m: number): string {
 export const findPlacesDef: ToolDefinition = {
   name: "find_places",
   visibility: "orchestrator",
+  searchHint: "nearby places near me or an address: restaurants, cafes, shops, pharmacies — coordinates, hours, websites from OpenStreetMap",
   inputSchema: {
     query: z.string().optional().describe("what to look for — a name or a kind: \"ramen\", \"bike repair\""),
     category: z.string().optional().describe("a kind of place: restaurant, cafe, bar, bakery, pharmacy, hotel, museum, supermarket, atm, …"),
