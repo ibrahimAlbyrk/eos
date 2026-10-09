@@ -1,7 +1,7 @@
 import { autocompletion, startCompletion } from "@codemirror/autocomplete";
 import { api } from "../../../api/client.js";
 import { actionsOf } from "./pageActions.js";
-import { PREFIXES, insertCodeBlock, insertDivider, setLineBlock } from "./blocks.js";
+import { PREFIXES, insertCodeBlock, insertDivider, insertTable, setLineBlock } from "./blocks.js";
 
 // Two completion sources: "/" at the start of a line opens the block menu
 // (markdown blocks + Eos actions), "@" completes a file path in the page's
@@ -21,6 +21,7 @@ const ICONS = {
   quote: '<path d="M3 3.5v9M6 5.5h7M6 8h7M6 10.5h5"/>',
   code: '<path d="m5.5 5-3 3 3 3M10.5 5l3 3-3 3"/>',
   divider: '<path d="M2 8h12"/>',
+  table: '<rect x="2.5" y="3" width="11" height="10" rx="2"/><path d="M2.5 6.5h11M2.5 9.75h11M8 6.5V13"/>',
   mention: '<circle cx="8" cy="8" r="2.5"/><path d="M10.5 8v1a1.8 1.8 0 0 0 3.5 0V8A6 6 0 1 0 11.5 13"/>',
   chat: '<path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z"/>',
   hand: '<path d="M5 11 11 5M6 5h5v5"/>',
@@ -41,6 +42,7 @@ const COMMANDS = [
   blockCmd("Quote", "quote", ">", (v, strip) => setLineBlock(v, PREFIXES.quote, strip)),
   blockCmd("Code block", "code", "```", (v, strip) => insertCodeBlock(v, strip)),
   blockCmd("Divider", "divider", "---", (v, strip) => insertDivider(v, strip)),
+  blockCmd("Table", "table", "|", (v, strip) => insertTable(v, strip)),
   {
     label: "Mention a file", icon: "mention", hint: "@", section: EOS,
     available: (a) => Boolean(a.project),

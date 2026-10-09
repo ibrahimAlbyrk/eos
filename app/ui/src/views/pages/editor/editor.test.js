@@ -4,7 +4,7 @@ import { ensureSyntaxTree } from "@codemirror/language";
 import { CompletionContext } from "@codemirror/autocomplete";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { pageActions } from "./pageActions.js";
-import { PREFIXES, makeTasks, setLineBlock, toggleTaskAt, toggleTaskCommand } from "./blocks.js";
+import { PREFIXES, insertTable, makeTasks, setLineBlock, toggleTaskAt, toggleTaskCommand } from "./blocks.js";
 import { previewDecorations } from "./livePreview.js";
 import { tableDecorations } from "./tables.js";
 import { slashSource } from "./completions.js";
@@ -121,6 +121,17 @@ describe("page tables", () => {
     const d = tableDecos(view);
     expect(d.every((x) => x.cls === "pg-table-src" && !x.model)).toBe(true);
     expect(d).toHaveLength(4);
+  });
+
+  it("inserts a table kept apart from the text around it", () => {
+    const v = fakeView("intro\n/ta\nnext", 9);
+    insertTable(v, { from: 6, to: 9 });
+    expect(v.state.doc.toString()).toBe("intro\n\n| Column 1 | Column 2 |\n| --- | --- |\n|  |  |\n\nnext");
+    const { from, to } = v.state.selection.main;
+    expect(v.state.sliceDoc(from, to)).toBe("Column 1");
+    ensureSyntaxTree(v.state, v.state.doc.length, 5000);
+    v.state = v.state.update({ selection: EditorSelection.cursor(0) }).state;
+    expect(tableDecos(v)[0].model.head).toHaveLength(2);
   });
 });
 

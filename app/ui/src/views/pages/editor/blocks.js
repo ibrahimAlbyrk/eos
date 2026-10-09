@@ -66,6 +66,24 @@ export function insertDivider(view, strip = null) {
   view.focus();
 }
 
+// A two-column table with "Column 1" selected. Blank lines keep it apart: a
+// table can't continue a paragraph, and takes the lines right under it as rows.
+export function insertTable(view, strip = null) {
+  const { doc } = view.state;
+  const { line, text } = caretLine(view.state, strip);
+  const blankAbove = line.number === 1 || !doc.line(line.number - 1).text.trim();
+  const before = text.trim() ? `${text}\n\n` : blankAbove ? "" : "\n";
+  const after = line.number < doc.lines && doc.line(line.number + 1).text.trim() ? "\n" : "";
+  const insert = `${before}| Column 1 | Column 2 |\n| --- | --- |\n|  |  |${after}`;
+  const head = line.from + before.length + 2;
+  view.dispatch({
+    changes: { from: line.from, to: line.to, insert },
+    selection: EditorSelection.range(head, head + "Column 1".length),
+    userEvent: "input.block",
+  });
+  view.focus();
+}
+
 // Tick/untick the task on `lineNo` (1-based); false when it isn't a task.
 export function toggleTaskAt(view, lineNo) {
   const line = view.state.doc.line(lineNo);
