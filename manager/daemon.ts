@@ -20,6 +20,7 @@ import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
+import { apiHosts, apiOrigins, applyCors, hostAllowed } from "./middleware/cors.ts";
 import { RemoteController } from "./remote/controller.ts";
 import { StatePatcher } from "./remote/patcher.ts";
 import { makeRouteDispatch } from "./remote/virtual-dispatch.ts";
@@ -491,6 +492,9 @@ for (const topic of ["worker:spawn", "worker:change", "worker:exit", "worker:rem
   c.bus.subscribe(topic, () => c.gitWatchReconciler.schedule());
 }
 
+const apiAllowedOrigins = apiOrigins(c.config.daemon.port);
+const apiAllowedHosts = apiHosts(c.config.daemon.host);
+
 function makeHandler(router: Router, opts: { cors?: boolean; unixSocket?: boolean } = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     c.metrics.requests++;
@@ -498,31 +502,15 @@ function makeHandler(router: Router, opts: { cors?: boolean; unixSocket?: boolea
     const method = req.method ?? "GET";
 
     // The bundled app UI loads from the eos:// custom-scheme origin, so its
-    // fetch/EventSource calls to this loopback API are cross-origin. Reflect
-    // the Origin (loopback-only server, mutations still gated by
-    // x-eos-ui-token) and answer preflight. Never applied to the raw server —
-    // its untrusted content must stay origin-isolated.
-    if (opts.cors) {
-      const origin = req.headers.origin;
-      if (origin) {
-        res.setHeader("access-control-allow-origin", origin);
-        res.setHeader("vary", "Origin");
-      }
-      res.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
-      // x-filename: the /fs/paste upload (image paste) sends it; without it the
-      // cross-origin preflight from eos://app/ blocks the POST and paste fails.
-      res.setHeader("access-control-allow-headers", "content-type, x-eos-ui-token, x-filename");
-      // content-disposition: the export download reads the server-chosen filename
-      // (orchestrator name + date) off this header; unexposed it's invisible to
-      // cross-origin fetch and the UI falls back to the raw worker id.
-      res.setHeader("access-control-expose-headers", "content-disposition");
-      res.setHeader("access-control-max-age", "86400");
-      if (method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-      }
+    // fetch/EventSource calls to this loopback API are cross-origin: allow that
+    // origin (and the daemon's own) and refuse every other one, "null" included —
+    // a sandboxed agent app must not reach ungated routes. Never applied to the
+    // raw server — its untrusted content must stay origin-isolated.
+    if (opts.cors && !hostAllowed(req.headers.host, apiAllowedHosts)) {
+      writeJson(res, 403, { error: "host not allowed" });
+      return;
     }
+    if (opts.cors && !applyCors(req, res, apiAllowedOrigins)) return;
 
     // Loopback-lock (design §2.2/§4.7). A request reaching this handler is a
     // plain REST/SSE/raw call — the authenticated /ws upgrade is handled on the
