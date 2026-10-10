@@ -7,6 +7,12 @@
 // no dependence on which worker's event happened to fire (the old eventSignal
 // gate's blind spot). Keying by dir (not workerId) is also why siblings sharing
 // a checkout both refresh.
+//
+// The daemon watches only active workers' dirs on its own, so a dir's first
+// subscriber leases a watch for it (the pre-spawn composer folder, a suspended
+// agent's checkout would otherwise never emit) and the last one releases it.
+
+import { api } from "../api/client.js";
 
 const subs = new Map(); // dir -> Set<handler(kinds)>
 
@@ -28,6 +34,34 @@ export const BRANCH_KINDS = ["head", "refs"];                      // config-row
 export const GITDIFF_KINDS = ["worktree", "index", "head", "refs"];
 export const STASH_KINDS = ["stash"];                              // gitdiff stashes section
 
+// A released lease lingers this long, so an unmount/remount (agent switch,
+// StrictMode) keeps the daemon watch instead of racing unwatch against watch.
+const LEASE_RELEASE_MS = 5000;
+const releaseTimers = new Map(); // dir -> timeout
+
+function lease(dir) {
+  const pending = releaseTimers.get(dir);
+  if (pending) {
+    clearTimeout(pending);
+    releaseTimers.delete(dir);
+    return;
+  }
+  api.watchGitDir(dir).catch(() => {});
+}
+
+function release(dir) {
+  releaseTimers.set(dir, setTimeout(() => {
+    releaseTimers.delete(dir);
+    api.unwatchGitDir(dir).catch(() => {});
+  }, LEASE_RELEASE_MS));
+}
+
+// Re-arm every leased watch (SSE reconnect — the daemon drops a client's leases
+// with its connection).
+export function resubscribeGitWatches() {
+  for (const dir of subs.keys()) api.watchGitDir(dir).catch(() => {});
+}
+
 // Subscribe to a dir's git changes, filtered to `wantedKinds`. `cb` is called
 // (no args) whenever a matching change arrives. An event with no kinds is
 // treated as "refetch" (fail-safe). Returns an unsubscribe; a null dir is a noop.
@@ -40,13 +74,17 @@ export function subscribeGitChange(dir, wantedKinds, cb) {
   if (!set) {
     set = new Set();
     subs.set(dir, set);
+    lease(dir);
   }
   set.add(handler);
   return () => {
     const s = subs.get(dir);
     if (!s) return;
     s.delete(handler);
-    if (s.size === 0) subs.delete(dir);
+    if (s.size === 0) {
+      subs.delete(dir);
+      release(dir);
+    }
   };
 }
 

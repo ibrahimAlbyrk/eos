@@ -572,6 +572,12 @@ export const api = {
   async unwatchAll() {
     return postJson(ROUTES.fsUnwatch, { clientId: CLIENT_ID, all: true }, uiTokenHeader());
   },
+  async watchGitDir(dir) {
+    return postJson(ROUTES.fsGitWatch, { dir, clientId: CLIENT_ID }, uiTokenHeader());
+  },
+  async unwatchGitDir(dir) {
+    return postJson(ROUTES.fsGitUnwatch, { dir, clientId: CLIENT_ID }, uiTokenHeader());
+  },
 
   // Per-agent settings
   async renameWorker(id, name) {

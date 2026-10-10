@@ -1,5 +1,5 @@
 // Files-explorer mutation routes: create / rename / move / trash, plus the
-// watch subscribe/unsubscribe pair. Every handler is thin — validate the body,
+// watch subscribe/unsubscribe pairs (files and git state). Every handler is thin — validate the body,
 // gate on the UI token, sandbox each path within the supplied root
 // (resolveWithinRoot), then delegate to c.files. Domain errors thrown by the
 // adapter (ConflictError, NotFoundError, …) are mapped to status codes by the
@@ -18,6 +18,7 @@ import {
   FsTrashRequestSchema,
   FsUnwatchRequestSchema,
   FsWatchRequestSchema,
+  GitWatchRequestSchema,
 } from "../../contracts/src/http.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { guardMutation, resolveWithinRoot, uiTokenOk } from "./fs-shared.ts";
@@ -140,6 +141,25 @@ export function registerFsMutateRoutes(r: Router, c: Container): void {
       const dir = resolveWithinRoot(body.root, body.dir);
       if (dir) c.fsWatchRegistry.unwatch(body.clientId, dir);
     }
+    writeJson(res, 200, { ok: true });
+  });
+
+  // Git-state leases: the git views keep a dir live that no active worker
+  // watches (the pre-spawn composer folder, a suspended agent's checkout).
+  r.post("/fs/git/watch", async ({ req, res }) => {
+    const body = validate(GitWatchRequestSchema, await readBody(req));
+    if (!guardMutation(req, res, body.dir, c.uiToken)) return;
+    c.gitWatchRegistry.watch(body.clientId, body.dir);
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.post("/fs/git/unwatch", async ({ req, res }) => {
+    const body = validate(GitWatchRequestSchema, await readBody(req));
+    if (!uiTokenOk(req, c.uiToken)) {
+      writeJson(res, 403, { error: "ui token required" });
+      return;
+    }
+    c.gitWatchRegistry.unwatch(body.clientId, body.dir);
     writeJson(res, 200, { ok: true });
   });
 }

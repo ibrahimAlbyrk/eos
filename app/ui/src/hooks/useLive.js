@@ -26,7 +26,7 @@ import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
-import { emitGitChange } from "../state/gitChangeBus.js";
+import { emitGitChange, resubscribeGitWatches } from "../state/gitChangeBus.js";
 import { emitFsChange } from "../state/fsChangeBus.js";
 import { notify } from "../lib/notify.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
@@ -209,7 +209,7 @@ export function useLive() {
   useEffect(() => {
     const s = createReconnectingStream({
       query: focusQuery,
-      onOpen: () => { streamLiveRef.current = true; setStreamLive(true); setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
+      onOpen: () => { streamLiveRef.current = true; setStreamLive(true); setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); resubscribeGitWatches(); },
       onHello: noteCaps,
       // The daemon could not replay what this client missed (it restarted, or
       // the gap outgrew its buffer): refetch every live view from scratch.

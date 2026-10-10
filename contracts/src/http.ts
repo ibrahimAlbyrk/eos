@@ -1313,6 +1313,16 @@ export type FsUnwatchRequest = z.infer<typeof FsUnwatchRequestSchema>;
 export const FsWatchResponseSchema = z.object({ ok: z.boolean() });
 export type FsWatchResponse = z.infer<typeof FsWatchResponseSchema>;
 
+// POST /fs/git/watch · /fs/git/unwatch — lease / release a live git:change watch
+// on a working dir the UI shows git state for. The daemon only watches active
+// workers' dirs on its own; clientId ties the lease to the SSE connection, as
+// /fs/watch does. Answers FsWatchResponse.
+export const GitWatchRequestSchema = z.object({
+  dir: z.string().min(1),
+  clientId: z.string().min(1),
+});
+export type GitWatchRequest = z.infer<typeof GitWatchRequestSchema>;
+
 // ---- PUT /workers/:id/permission -------------------------------------------
 
 export const SetPermissionRequestSchema = z.object({
@@ -2371,6 +2381,8 @@ export const ROUTES = {
   fsTrash: "/fs/trash",
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
+  fsGitWatch: "/fs/git/watch",
+  fsGitUnwatch: "/fs/git/unwatch",
   // Syntactic symbol intelligence (tree-sitter tags). Un-gated GETs, same
   // sandbox model as the /fs read routes. lookup serves go-to-def + find-refs
   // (want=definitions|references); search serves symbol-name search.

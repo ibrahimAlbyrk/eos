@@ -15,8 +15,8 @@ export function registerStreamRoutes(r: Router, c: Container): void {
     const lastEventId = req.headers["last-event-id"];
     const since = url.searchParams.get("since") ?? (typeof lastEventId === "string" ? lastEventId : null);
     const topics = url.searchParams.get("topics")?.split(",").map((t) => t.trim()).filter(Boolean) ?? null;
-    // The Files tab passes ?clientId so its directory watches are released when
-    // this connection drops (tab close/reload/crash) even if DELETE never fires.
+    // The tab passes ?clientId so its directory and git watches are released
+    // when this connection drops (tab close/reload/crash) even if unwatch never fires.
     const clientId = url.searchParams.get("clientId");
     // ?focus= (even empty) = the tab says what it has on screen; POST
     // /stream/focus keeps it current.
@@ -26,7 +26,10 @@ export function registerStreamRoutes(r: Router, c: Container): void {
     const handle = c.sse.attach(res, { since, topics, clientId, focus });
     req.on("close", () => {
       handle.detach();
-      if (clientId) c.fsWatchRegistry.dropClient(clientId);
+      if (clientId) {
+        c.fsWatchRegistry.dropClient(clientId);
+        c.gitWatchRegistry.dropClient(clientId);
+      }
     });
   });
 

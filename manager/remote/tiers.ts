@@ -99,6 +99,8 @@ const RULES: TierRule[] = [
   R("POST", "/fs/paste-b64", "HIGH", true),
   R("POST", "/fs/watch", "HIGH", true),
   R("POST", "/fs/unwatch", "HIGH", true),
+  R("POST", "/fs/git/watch", "HIGH", true),
+  R("POST", "/fs/git/unwatch", "HIGH", true),
   R("POST", "/fs/checkout", "HIGH", true),
   R("POST", "/fs/branch/create", "HIGH", true),
   R("POST", "/fs/branch/rename", "HIGH", true),

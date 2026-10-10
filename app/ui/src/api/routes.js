@@ -84,6 +84,8 @@ export const ROUTES = {
   fsTrash: "/fs/trash",
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
+  fsGitWatch: "/fs/git/watch",
+  fsGitUnwatch: "/fs/git/unwatch",
   // Symbol-level code intelligence (name-matched, syntactic tier). Lookup serves
   // go-to-definition + find-references (one handler, ?want=); search backs the
   // Symbols search mode. Reads are un-gated GETs like /fs/read.

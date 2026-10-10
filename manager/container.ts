@@ -511,6 +511,10 @@ export function buildContainer() {
         .filter((d): d is string => !!d),
   });
   gitWatchReconciler.reconcile(); // boot: watch the workers reconciled above
+  // Dirs the UI shows git state for beyond the live workers (the pre-spawn
+  // composer folder, a suspended agent's checkout) — leased per SSE client with
+  // the same bookkeeping as the Files watches, sharing the ref-counted watcher.
+  const gitWatchRegistry = new FsWatchRegistry({ watcher: gitWatcher });
 
   // Durable worktree reaper — drains the removal queue KillWorker writes to.
   // Runs once at boot (reclaims trees stranded by a crash/SIGKILL in a prior
@@ -1724,6 +1728,7 @@ export function buildContainer() {
     git,
     gitWatcher,
     gitWatchReconciler,
+    gitWatchRegistry,
     worktrees,
     branchIntegration,
     branchMerge,
