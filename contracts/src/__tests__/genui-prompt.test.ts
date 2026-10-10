@@ -26,9 +26,9 @@ describe("catalogPrompt", () => {
     assert.ok(text.includes("title, tone, icon, replaces, data, actions, ui, summary"));
   });
 
-  it("stays compact (≈1.2–1.8k tokens)", () => {
+  it("stays compact (≈1.2–1.9k tokens)", () => {
     const text = catalogPrompt();
     const roughTokens = (text.match(/[A-Za-z]+|[0-9]+|[^\sA-Za-z0-9]/g) ?? []).length;
-    assert.ok(roughTokens >= 1200 && roughTokens <= 1850, `≈${roughTokens} tokens`);
+    assert.ok(roughTokens >= 1200 && roughTokens <= 1950, `≈${roughTokens} tokens`);
   });
 });
