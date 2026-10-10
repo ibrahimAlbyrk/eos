@@ -60,7 +60,7 @@ export function catalogPrompt(): string {
     "Place: name rating(0–5) reviews price(1–4) geo[lat,lon] address hours{until|closed|text} area cuisine distance",
     "Product: name price currency brand specs inStock · Event: name start end venue geo price · Person: name role org",
     "Article: title author date excerpt · Media: title kind duration · File: path line added removed · Generic: any",
-    "All: image (http URL from results, never invented) site (domain → logo) url source (1-based into data.sources) tags[]. Untyped rows need no type/id.",
+    "All: image (http URL from results, never invented) site (domain → logo) url source (1-based into data.sources) tags[]. Untyped rows need no type/id; a type naming no entity is a plain field.",
     "data.sources: [{title, url, site, at, note}] — required when stating facts. Unknown → leave it out.",
     "",
     "## Markup",

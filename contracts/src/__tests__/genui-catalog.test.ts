@@ -165,8 +165,29 @@ describe("limits — each rejected with its path", () => {
     const r = validateView(spec);
     hasProblem(r, "data.places[0].geo[0]", "95 is not a latitude (−90–90)");
     hasProblem(r, "data.places[1].price", "5 is outside 1–4 (price level)");
-    hasProblem(r, "data.places[2].type", /^"Restaurant" is not an entity type — use one of Place, Product, Event/);
     hasProblem(r, "data.places[4].geo", "must be [lat, lon] — two numbers");
+    assert.ok(!problemsOf(r).some((p) => p.path.startsWith("data.places[2]")));
+    assert.ok(r.warnings.some((w) => w.path === "data.places[2].type" && /^"Restaurant" is not an entity type — this row is read as a plain row; use one of Place, Product, Event/.test(w.message)));
+  });
+
+  it("a type naming no entity is a plain field", () => {
+    const types = (rows: unknown[]) => ({ title: "Commits", summary: "s", data: { types: rows }, ui: '<Chart type="donut" of="types" x="type" y="n"/>' });
+    const r = validateView(types([{ type: "feat", n: 193 }, { type: "fix", n: 96 }]));
+    assert.equal(r.ok, true, r.ok ? "" : formatProblems(r.problems));
+    assert.deepEqual(r.warnings, []);
+    assert.equal(validateView(types([{ type: 3, n: 1 }])).ok, true);
+    hasProblem(validateView(types([{ type: "feat", n: 1, rating: 9 }])), "data.types[0].rating", "9 is outside 0–5");
+  });
+
+  it("a mistyped entity among entities is read as a plain row, with a warning", () => {
+    const spec = fixture("restaurants");
+    spec.data.places[2].type = "Palce";
+    const r = validateView(spec);
+    assert.equal(r.ok, true, r.ok ? "" : formatProblems(r.problems));
+    assert.deepEqual(
+      r.warnings.map((w) => `${w.path}: ${w.message}`),
+      ['data.places[2].type: "Palce" is not an entity type — this row is read as a plain row; use one of Place, Product, Event, Person, Article, Media, File, Generic or rename the field'],
+    );
   });
 
   it("typed entities need an id; ids are unique", () => {

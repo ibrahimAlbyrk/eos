@@ -298,6 +298,8 @@ describe("helpers", () => {
     expect(inferEntityKind({ geo: [1, 2] })).toBe("Place");
     expect(inferEntityKind({ path: "a.ts" })).toBe("File");
     expect(inferEntityKind({ label: "x" })).toBe("Generic");
+    expect(inferEntityKind({ type: "feat" })).toBe("Generic");
+    expect(inferEntityKind({ type: "fix", geo: [1, 2] })).toBe("Place");
   });
 
   it("maps: links open as Apple Maps", () => {

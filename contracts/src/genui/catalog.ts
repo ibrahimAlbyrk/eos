@@ -50,6 +50,8 @@ export const GENUI_LIMITS = {
 export const ENTITY_TYPES = ["Place", "Product", "Event", "Person", "Article", "Media", "File", "Generic"] as const;
 export const EntityTypeSchema = z.enum(ENTITY_TYPES);
 export type EntityType = z.infer<typeof EntityTypeSchema>;
+// `type` tags an entity only on an exact name; any other value is an ordinary field of a plain row.
+const isEntityType = (v: unknown): v is EntityType => typeof v === "string" && (ENTITY_TYPES as readonly string[]).includes(v);
 
 export const ACTION_KINDS = ["send", "prefill", "open", "copy", "set"] as const;
 export const ActionKindSchema = z.enum(ACTION_KINDS);
@@ -1043,15 +1045,23 @@ function validateData(data: unknown, problems: ViewProblem[], warnings: ViewProb
     const items = value as Record<string, unknown>[];
     info.collections.set(key, items);
     const ids = new Set<string>();
+    const hasEntity = items.some((x) => isEntityType(x.type));
     items.forEach((item, i) => {
       const path = `data.${key}[${i}]`;
-      if (item.type !== undefined) {
+      if (isEntityType(item.type)) {
         const r = EntitySchema.safeParse(item);
         if (!r.success) problems.push(...issueProblems(path, item, r.error));
-        if (item.type !== "File" && item.name === undefined && item.title === undefined && ENTITY_TYPES.includes(item.type as EntityType)) {
+        if (item.type !== "File" && item.name === undefined && item.title === undefined) {
           warnings.push({ path, message: "has no name or title — cards show its id" });
         }
       } else {
+        // A `type` that names no entity is an ordinary field (commit kinds, file/dir); only among entity rows is it likely a typo.
+        if (hasEntity && typeof item.type === "string") {
+          warnings.push({
+            path: `${path}.type`,
+            message: `${show(item.type)} is not an entity type — this row is read as a plain row; use one of ${ENTITY_TYPES.join(", ")} or rename the field`,
+          });
+        }
         const r = RowSchema.safeParse(item);
         if (!r.success) problems.push(...issueProblems(path, item, r.error));
       }
