@@ -10,7 +10,9 @@ import {
   matchWhere,
   parseExpr,
   parseWhere,
+  whereReadsState,
   type ExprScope,
+  type WhereNode,
 } from "../genui/expr.ts";
 
 const places = [
@@ -201,17 +203,83 @@ describe("where", () => {
     assert.deepEqual(pass("price == state.none", {}), []);
   });
 
+  it("reads state.key on the left too", () => {
+    assert.deepEqual(pass("state.mode == 'Sea' && tags~sea", { mode: "sea" }), ["moda"]);
+    assert.deepEqual(pass("state.mode == 'Sea'", {}), []);
+    assert.deepEqual(pass("state.all || price<=1", { all: false }), ["rihtim"]);
+    assert.deepEqual(pass("!state.all && price<=1", {}), ["rihtim"]);
+    assert.deepEqual(pass("state.cap >= state.min", { cap: 3, min: 2 }), ["moda", "rihtim", "sofra", "yel"]);
+  });
+
+  it("|| joins clauses, && binds tighter, ( ) and !( ) group", () => {
+    assert.deepEqual(pass("open || rating>4.5"), ["moda", "rihtim", "yel"]);
+    assert.deepEqual(pass("price==3 || open && price==1"), ["rihtim", "yel"]);
+    assert.deepEqual(pass("(price==3 || open) && price<=2"), ["moda", "rihtim"]);
+    assert.deepEqual(pass("!(open || price==3)"), ["sofra"]);
+    assert.deepEqual(pass("!(!open)"), ["moda", "rihtim"]);
+    assert.deepEqual(pass(" ( ( tags~rez ) ) && !(status)"), ["sofra"]);
+    assert.deepEqual(pass("id != 'moda' || state.mode == 'all'", { mode: "all" }), ["moda", "rihtim", "sofra", "yel"]);
+    assert.deepEqual(pass("id != 'moda' || state.mode == 'all'", { mode: "one" }), ["rihtim", "sofra", "yel"]);
+  });
+
+  it("keeps && || ( ) inside quotes and parentheses inside bare values", () => {
+    const items = [
+      { id: "a", name: "Fish && Chips" },
+      { id: "b", name: "Tea || Coffee" },
+      { id: "c", name: "Kebap (Moda)" },
+      { id: "d", name: "O'Brien" },
+    ];
+    const ids = (where: string): string[] => items.filter((it) => matchWhere(it, where)).map((it) => it.id);
+    assert.deepEqual(ids("name == 'Fish && Chips'"), ["a"]);
+    assert.deepEqual(ids('name == "Tea || Coffee" || id == c'), ["b", "c"]);
+    assert.deepEqual(ids("name == Kebap (Moda)"), ["c"]);
+    assert.deepEqual(ids("(name == Kebap (Moda) || id == a)"), ["a", "c"]);
+    assert.deepEqual(ids("(name == 'a)' || id == b)"), ["b"]);
+    assert.deepEqual(ids("name == O'Brien || id == a"), ["a", "d"]);
+    // A quote that never closes is plain text.
+    assert.deepEqual(ids("name ~ 'brien && id == d"), ["d"]);
+  });
+
   it("rejects what it can't read, and then filters nothing", () => {
-    for (const bad of ["", "price <", "open || rating>4", "rating >> 4", "&& open", "1 == 1", "price(2)"]) {
-      assert.ok(checkWhere(bad), `accepted ${JSON.stringify(bad)}`);
-    }
+    const bad = ["", "price <", "rating >> 4", "&& open", "open ||", "open || || price<2", "1 == 1", "price(2)", "(open", "open)", "(open))", "(open) price<2", "()", "!price<=2", "!(open"];
+    for (const src of bad) assert.ok(checkWhere(src), `accepted ${JSON.stringify(src)}`);
+    assert.match(checkWhere("(open || price<2") ?? "", /"\(" at 1 is never closed/);
+    assert.match(checkWhere("(open))") ?? "", /"\)" at 7 has no "\("/);
+    assert.match(checkWhere("(open) price<2") ?? "", /expected && or \|\| before "price<2" at 8/);
+    assert.match(checkWhere("open || ") ?? "", /empty clause/);
     assert.equal(checkWhere("open && tags~sea"), null);
+    assert.equal(checkWhere("open)"), "\"open)\" is not a filter — use open, field, !field or field op value (op: == != < <= > >= ~), joined with && or ||, grouped with ( )");
     assert.equal(matchWhere(places[2], "price <"), true);
     const r = parseWhere("tags~sea && price<=2");
     assert.ok(r.ok);
-    assert.deepEqual(r.clauses, [
-      { op: "~", field: "tags", value: "sea" },
-      { op: "<=", field: "price", value: 2 },
-    ]);
+    assert.deepEqual(r.node, {
+      op: "and",
+      of: [
+        { op: "~", field: "tags", value: "sea" },
+        { op: "<=", field: "price", value: 2 },
+      ],
+    });
+  });
+
+  it("parses into a tree", () => {
+    const tree = (src: string): unknown => {
+      const r = parseWhere(src);
+      assert.ok(r.ok, src);
+      return r.node;
+    };
+    assert.deepEqual(tree("open"), { op: "open" });
+    assert.deepEqual(tree("a || b && !c"), {
+      op: "or",
+      of: [
+        { op: "truthy", field: "a" },
+        { op: "and", of: [{ op: "truthy", field: "b" }, { op: "truthy", field: "c", not: true }] },
+      ],
+    });
+    assert.deepEqual(tree("!(a || b)"), { op: "or", of: [{ op: "truthy", field: "a" }, { op: "truthy", field: "b" }], not: true });
+    assert.deepEqual(tree("!(!open)"), { op: "open" });
+    assert.deepEqual(tree("state.x == state.y"), { op: "==", lref: "x", ref: "y" });
+    assert.equal(whereReadsState(tree("open || (price<2 && day == {state.day})") as WhereNode), true);
+    assert.equal(whereReadsState(tree("open || !state.all") as WhereNode), true);
+    assert.equal(whereReadsState(tree("open || (price<2 && state == CA)") as WhereNode), false);
   });
 });

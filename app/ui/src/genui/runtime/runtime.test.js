@@ -84,6 +84,17 @@ describe("collections", () => {
     expect(t.rt.collection("stops", { where: "day == state.day" }).every((s) => s.day === "Pazar")).toBe(true);
   });
 
+  it("chips and where= take || with state.key on either side", () => {
+    const spec = { ...restaurants, ui: '<Filters of="places" chips="Cheap or great: price<=1 || rating>=4.6 | Sea: tags~sea" on="0"/><Toggle bind="all"/>' };
+    const v = runtimeFor(spec);
+    expect(v.rt.filters("places").map((c) => c.where)).toEqual(["price<=1 || rating>=4.6", "tags~sea"]);
+    expect(v.rt.collection("places").map((p) => p.id)).toEqual(["moda", "lal", "ocak", "rihtim", "yel"]);
+    const where = "state.all || (open && tags~sea)";
+    expect(v.rt.collection("places", { where }).map((p) => p.id)).toEqual(["moda", "lal"]);
+    v.rt.setState("all", true);
+    expect(v.rt.collection("places", { where }).map((p) => p.id)).toEqual(["moda", "lal", "ocak", "rihtim", "yel"]);
+  });
+
   it("templates and expressions read item, state and data", () => {
     const t = runtimeFor(trip);
     expect(t.rt.evalExpr("sum(budget.amount)")).toBe(trip.data.budget.reduce((a, b) => a + b.amount, 0));

@@ -87,6 +87,17 @@ describe("limits — each rejected with its path", () => {
     assert.equal(validateView(spec).ok, true);
     spec.ui = spec.ui.replace('limit="8"', 'where="rating>=4.5"');
     assert.equal(validateView(spec).ok, true);
+    spec.ui = spec.ui.replace('where="rating>=4.5"', 'where="rating>=4.6 || (price==1 && !status)"');
+    assert.equal(validateView(spec).ok, true);
+  });
+
+  it("Carousel where= that reads state anywhere isn't counted", () => {
+    const spec = fixture("restaurants");
+    spec.data.places.push(...Array.from({ length: 6 }, (_, i) => ({ id: `x${i}`, type: "Place", name: `X${i}`, geo: [40.98, 29.02] })));
+    for (const where of ["rating>=4.5 || price == state.budget", "state.all || rating>=4.5"]) {
+      const r = validateView({ ...spec, ui: spec.ui.replace('<Carousel of="places" skip="moda"', `<Carousel of="places" skip="moda" where="${where}"`) });
+      hasProblem(r, 'ui line 7 <Carousel of="places">', "11 items, max 8 — paginate or filter (limit=8, where=)");
+    }
   });
 
   it("Carousel below 3 items", () => {
@@ -287,6 +298,14 @@ describe("ui problems", () => {
     hasProblem(r, 'ui line 1 <List of="places">.where', /is not a valid filter/);
     hasProblem(r, 'ui line 2 <Value expr="sum(places.rating">.expr', /is not a valid expression/);
     hasProblem(r, 'ui line 3 <Filters of="places">.chips[0]', /^"Cheap": /);
+  });
+
+  it("filters and chips take || and ( )", () => {
+    const ok = validateView(withUi('<List of="places" where="(open || rating>=4.6) && state.mode != \'off\'"/>\n<Filters of="places" chips="Good: open || rating>4.5, Cheap: price<=1"/>'));
+    assert.equal(ok.ok, true, ok.ok ? "" : formatProblems(ok.problems));
+    const r = validateView(withUi('<List of="places" where="(open || rating>4"/>\n<Filters of="places" chips="Good: open || rating>4.5 | Bad: (price<2"/>'));
+    hasProblem(r, 'ui line 1 <List of="places">.where', /is not a valid filter: "\(" at 1 is never closed/);
+    hasProblem(r, 'ui line 2 <Filters of="places">.chips[1]', /^"Bad": "\(" at 1 is never closed/);
   });
 
   it("markup errors carry the line", () => {

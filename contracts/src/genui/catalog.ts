@@ -8,7 +8,7 @@
 
 import { z } from "zod";
 import { parseMarkup, tagLabel, type MarkupElement, type MarkupNode } from "./markup.ts";
-import { checkExpr, checkWhere, exprRefs, hasTemplate, matchWhere, parseWhere } from "./expr.ts";
+import { checkExpr, checkWhere, exprRefs, hasTemplate, matchWhere, parseWhere, whereReadsState } from "./expr.ts";
 import { dataRef, parseChips, parseCols, parseOptions, splitIds, splitLabels } from "./attrs.ts";
 
 // ---- enums & limits -----------------------------------------------------------
@@ -1196,7 +1196,7 @@ function staticCount(items: Record<string, unknown>[], el: MarkupElement, ids: S
   const where = el.attrs.where;
   if (typeof where === "string") {
     const r = parseWhere(where);
-    if (r.ok && r.clauses.every((c) => c.ref === undefined)) list = list.filter((it) => matchWhere(it, r.clauses));
+    if (r.ok && !whereReadsState(r.node)) list = list.filter((it) => matchWhere(it, r.node));
   }
   const skip = new Set(splitIds(el.attrs.skip).filter((id) => ids.has(id)));
   if (skip.size) list = list.filter((it) => !skip.has(String(it.id)));

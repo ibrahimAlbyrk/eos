@@ -8,10 +8,12 @@
 //   scope. A member of a list maps over it (places.rating → every rating). Calls
 //   only to: sum count min max avg round abs floor ceil fv(payment, annualRate, years).
 //
-// Filters (where=, <Filters chips>): clauses joined with &&, each one of
+// Filters (where=, <Filters chips>): clauses joined with && and || (&& binds
+// tighter), grouped with ( ) and negated with !( ), each one of
 //   open · field · !field · field op value   (op: == != < <= > >= ~)
 // `~` is a case-insensitive contains (a list contains when any element does); the
-// value may be a number, 'quoted' or bare text, true/false/null, or state.key.
+// value may be a number, 'quoted' or bare text, true/false/null, or state.key, and
+// state.key may stand in for the field too.
 
 export type ExprValue = number | string | boolean | null | ExprValue[] | { [k: string]: unknown };
 
@@ -645,57 +647,159 @@ export type WhereOp = "open" | "truthy" | "==" | "!=" | "<" | "<=" | ">" | ">=" 
 
 export interface WhereClause {
   op: WhereOp;
-  // Dotted field path; absent for `open`.
+  // Dotted field path; absent for `open` and when the left side is state.
   field?: string;
+  // `state.key` on the left-hand side: that state value is tested, not a field.
+  lref?: string;
   not?: boolean;
   value?: string | number | boolean | null;
   // `state.key` on the right-hand side: compared against that state value.
   ref?: string;
 }
 
-export type WhereParseResult = { ok: true; clauses: WhereClause[] } | { ok: false; error: string };
+// `a && b` (and), `a || b` (or); `!( … )` sets not.
+export interface WhereGroup {
+  op: "and" | "or";
+  of: WhereNode[];
+  not?: boolean;
+}
+
+export type WhereNode = WhereClause | WhereGroup;
+
+export type WhereParseResult = { ok: true; node: WhereNode } | { ok: false; error: string };
 
 const FIELD = "[\\p{L}_$][\\p{L}\\p{N}_$]*(?:\\.[\\p{L}_$][\\p{L}\\p{N}_$]*)*";
 const CLAUSE_RE = new RegExp(`^(${FIELD})\\s*(===|!==|==|!=|<=|>=|=|<|>|~)\\s*(.*)$`, "u");
 const FLAG_RE = new RegExp(`^(!?)\\s*(${FIELD})$`, "u");
-const WHERE_HINT = "use open, field, !field or field op value (op: == != < <= > >= ~), joined with &&";
+const NOT_GROUP_RE = /!\s*\(/y;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+const WHERE_HINT = "use open, field, !field or field op value (op: == != < <= > >= ~), joined with && or ||, grouped with ( )";
 
 export function parseWhere(src: unknown): WhereParseResult {
   if (typeof src !== "string") return { ok: false, error: "filter must be a string" };
   if (!src.trim()) return { ok: false, error: "filter is empty" };
   if (src.length > EXPR_MAX_LENGTH) return { ok: false, error: `filter is ${src.length} chars, max ${EXPR_MAX_LENGTH}` };
-  if (/\|\|/.test(src)) return { ok: false, error: `"||" is not supported in filters — ${WHERE_HINT}` };
-  const clauses: WhereClause[] = [];
-  for (const raw of src.split("&&")) {
-    const part = raw.trim();
-    if (!part) return { ok: false, error: `empty clause in "${src}" — ${WHERE_HINT}` };
-    if (part === "open" || part === "!open") {
-      clauses.push(part === "open" ? { op: "open" } : { op: "open", not: true });
-      continue;
-    }
-    const m = CLAUSE_RE.exec(part);
-    if (m) {
-      const opRaw = m[2];
-      const op: WhereOp = opRaw === "=" || opRaw === "===" ? "==" : opRaw === "!==" ? "!=" : (opRaw as WhereOp);
-      const rhs = m[3].trim();
-      if (!rhs) return { ok: false, error: `"${part}" has no value after ${opRaw}` };
-      if (/^[=<>!~]/.test(rhs)) return { ok: false, error: `"${part}" has two operators — ${WHERE_HINT}` };
-      const ref = /^\{?\s*state\.([\p{L}_$][\p{L}\p{N}_$]*)\s*\}?$/u.exec(rhs);
-      if (ref) {
-        clauses.push({ op, field: m[1], ref: ref[1] });
-        continue;
-      }
-      clauses.push({ op, field: m[1], value: literal(rhs) });
-      continue;
-    }
-    const f = FLAG_RE.exec(part);
-    if (f) {
-      clauses.push(f[1] ? { op: "truthy", field: f[2], not: true } : { op: "truthy", field: f[2] });
-      continue;
-    }
-    return { ok: false, error: `"${part}" is not a filter — ${WHERE_HINT}` };
+  try {
+    return { ok: true, node: parseWhereNode(src) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
-  return { ok: true, clauses };
+}
+
+// or := and ('||' and)* · and := unary ('&&' unary)* · unary := '!'? '(' or ')' | clause.
+// A clause runs to the next && / || or group-closing ")" outside quotes, so bare
+// values read as they always did ("hours.until > 20:00", "name == Kebap (Moda)").
+function parseWhereNode(src: string): WhereNode {
+  let i = 0;
+  let groups = 0;
+  const skipWs = (): void => {
+    while (i < src.length && /\s/.test(src[i])) i++;
+  };
+  // A string ends at its quote mark followed by a space, &, |, ) or the end.
+  const closingQuote = (q: string, from: number): number => {
+    for (let k = src.indexOf(q, from); k > 0; k = src.indexOf(q, k + 1)) {
+      if (k + 1 >= src.length || /[\s&|)]/.test(src[k + 1])) return k;
+    }
+    return -1;
+  };
+  const unexpected = (k: number): string =>
+    src[k] === ")" ? `")" at ${k + 1} has no "("` : `expected && or || before "${src.slice(k, k + 16).trim()}" at ${k + 1} — ${WHERE_HINT}`;
+
+  const parseChain = (op: "and" | "or", depth: number): WhereNode => {
+    const sep = op === "or" ? "||" : "&&";
+    const next = (): WhereNode => (op === "or" ? parseChain("and", depth) : parseUnary(depth));
+    const of = [next()];
+    for (skipWs(); src.startsWith(sep, i); skipWs()) {
+      i += sep.length;
+      of.push(next());
+    }
+    return of.length === 1 ? of[0] : { op, of };
+  };
+
+  const parseUnary = (depth: number): WhereNode => {
+    if (depth > MAX_PARSE_DEPTH) throw new ParseError("filter is nested too deeply", i);
+    skipWs();
+    NOT_GROUP_RE.lastIndex = i;
+    if (NOT_GROUP_RE.test(src)) {
+      i++;
+      return negate(parseUnary(depth + 1));
+    }
+    if (src[i] !== "(") return parseClauseAt();
+    const start = i++;
+    groups++;
+    const inner = parseChain("or", depth + 1);
+    skipWs();
+    if (src[i] !== ")") throw new ParseError(i < src.length ? unexpected(i) : `"(" at ${start + 1} is never closed`, i);
+    i++;
+    groups--;
+    return inner;
+  };
+
+  const parseClauseAt = (): WhereClause => {
+    const start = i;
+    let parens = 0;
+    while (i < src.length) {
+      const c = src[i];
+      // A quote opens a string only at a word boundary (O'Brien stays text) and only when it closes.
+      if ((c === "'" || c === '"') && !WORD_CHAR.test(src[i - 1] ?? "")) {
+        const close = closingQuote(c, i + 1);
+        if (close > 0) {
+          i = close + 1;
+          continue;
+        }
+      }
+      if (src.startsWith("&&", i) || src.startsWith("||", i)) break;
+      if (c === "(") parens++;
+      else if (c === ")") {
+        if (parens > 0) parens--;
+        else if (groups > 0) break;
+      }
+      i++;
+    }
+    const part = src.slice(start, i).trim();
+    if (!part) throw new ParseError(`empty clause in "${src}" — ${WHERE_HINT}`, start);
+    return parseClause(part);
+  };
+
+  const node = parseChain("or", 0);
+  skipWs();
+  if (i < src.length) throw new ParseError(unexpected(i), i);
+  return node;
+}
+
+function parseClause(part: string): WhereClause {
+  if (part === "open" || part === "!open") return part === "open" ? { op: "open" } : { op: "open", not: true };
+  const m = CLAUSE_RE.exec(part);
+  if (m) {
+    const opRaw = m[2];
+    const op: WhereOp = opRaw === "=" || opRaw === "===" ? "==" : opRaw === "!==" ? "!=" : (opRaw as WhereOp);
+    const rhs = m[3].trim();
+    if (!rhs) throw new ParseError(`"${part}" has no value after ${opRaw}`, 0);
+    if (/^[=<>!~]/.test(rhs)) throw new ParseError(`"${part}" has two operators — ${WHERE_HINT}`, 0);
+    const ref = /^\{?\s*state\.([\p{L}_$][\p{L}\p{N}_$]*)\s*\}?$/u.exec(rhs);
+    if (ref) return { op, ...leftSide(m[1]), ref: ref[1] };
+    return { op, ...leftSide(m[1]), value: literal(rhs) };
+  }
+  const f = FLAG_RE.exec(part);
+  if (f) return f[1] ? { op: "truthy", ...leftSide(f[2]), not: true } : { op: "truthy", ...leftSide(f[2]) };
+  throw new ParseError(`"${part}" is not a filter — ${WHERE_HINT}`, 0);
+}
+
+function leftSide(field: string): { field: string } | { lref: string } {
+  return field.startsWith("state.") ? { lref: field.slice("state.".length) } : { field };
+}
+
+function negate(n: WhereNode): WhereNode {
+  const out = { ...n };
+  if (out.not) delete out.not;
+  else out.not = true;
+  return out;
+}
+
+// Whether a filter reads view state (state.key on either side of any clause).
+export function whereReadsState(n: WhereNode): boolean {
+  if ("of" in n) return n.of.some(whereReadsState);
+  return n.ref !== undefined || n.lref !== undefined;
 }
 
 export function checkWhere(src: unknown): string | null {
@@ -717,8 +821,8 @@ const whereCache = new Map<string, WhereParseResult>();
 
 // Whether an item passes a filter. A filter that doesn't parse filters nothing
 // (the validator rejects it before it is ever stored).
-export function matchWhere(item: unknown, where: string | readonly WhereClause[], state?: unknown): boolean {
-  let clauses: readonly WhereClause[];
+export function matchWhere(item: unknown, where: string | WhereNode, state?: unknown): boolean {
+  let node: WhereNode;
   if (typeof where === "string") {
     let r = whereCache.get(where);
     if (!r) {
@@ -727,9 +831,17 @@ export function matchWhere(item: unknown, where: string | readonly WhereClause[]
       whereCache.set(where, r);
     }
     if (!r.ok) return true;
-    clauses = r.clauses;
-  } else clauses = where;
-  return clauses.every((c) => matchClause(item, c, state));
+    node = r.node;
+  } else node = where;
+  return matchNode(item, node, state);
+}
+
+function matchNode(item: unknown, n: WhereNode, state: unknown): boolean {
+  let r: boolean;
+  if (!("of" in n)) r = matchClause(item, n, state);
+  else if (n.op === "and") r = n.of.every((c) => matchNode(item, c, state));
+  else r = n.of.some((c) => matchNode(item, c, state));
+  return n.not ? !r : r;
 }
 
 function getPath(obj: unknown, path: string): unknown {
@@ -745,20 +857,17 @@ function lower(v: unknown): string {
   return str(v).toLocaleLowerCase();
 }
 
+// The clause's own test; matchNode applies `not`.
 function matchClause(item: unknown, c: WhereClause, state: unknown): boolean {
-  let r: boolean;
   if (c.op === "open") {
     const hours = own(item, "hours");
     const closedByHours = own(hours, "closed") === true;
-    r = !closedByHours && lower(own(item, "status")) !== "closed";
-  } else if (c.op === "truthy") {
-    r = truthy(getPath(item, c.field ?? ""));
-  } else {
-    const v = getPath(item, c.field ?? "");
-    const want = c.ref !== undefined ? (own(state, c.ref) as ExprValue | undefined) ?? null : c.value ?? null;
-    r = compareField(c.op, v, want);
+    return !closedByHours && lower(own(item, "status")) !== "closed";
   }
-  return c.not ? !r : r;
+  const v = c.lref !== undefined ? getPath(state, c.lref) : getPath(item, c.field ?? "");
+  if (c.op === "truthy") return truthy(v);
+  const want = c.ref !== undefined ? (own(state, c.ref) as ExprValue | undefined) ?? null : c.value ?? null;
+  return compareField(c.op, v, want);
 }
 
 function compareField(op: WhereOp, v: unknown, want: unknown): boolean {

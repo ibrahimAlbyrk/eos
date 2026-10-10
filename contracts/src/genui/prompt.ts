@@ -74,7 +74,7 @@ export function catalogPrompt(): string {
     '⊂ = takes of="collection" + where= sort="field|-field" limit= skip="ids".',
     'Field attrs (x y cols, Meter value) take a bare name (y="amount"); text attrs read a field only in braces (meta="{cuisine} · {area}"): title="title" prints "title". Omit title/text/meta to show the item\'s own.',
     'Lists: ids "a b" or "a, b"; labels "A | B" or "A, B"; or JSON arrays.',
-    "where: open · field · !field · field op value (== != < <= > >= ~contains), joined by &&; value may be state.key.",
+    "where: open · field · !field · field op value (== != < <= > >= ~contains), joined by && or || (&& binds tighter), ( ) groups; state.key on either side.",
     `expr (Value, Progress, when=): arithmetic, comparisons, && || ! ?:; names = state keys, item fields, data (places.rating = all ratings); fns ${EXPR_FUNCTIONS.filter((f) => f !== "fv").join(" ")} fv(payment, annualRate, years).`,
     'Inputs bind="key" to view state. Any element: when="expr", label= (its tab in Tabs). Filters and selection apply to every lens of a collection.',
     "",

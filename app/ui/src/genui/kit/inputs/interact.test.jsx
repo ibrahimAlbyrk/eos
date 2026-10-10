@@ -42,6 +42,16 @@ describe("Filters toggling", () => {
     expect(h.rt.state._filters_places).toEqual([1]);
   });
 
+  it("a chip's filter may use || with either chip separator", () => {
+    for (const chips of ["Cheap or great: price<=1 || rating>=4.6, Sea: tags~sea", "Cheap or great: price<=1 || rating>=4.6 | Sea: tags~sea"]) {
+      h.rt = testRuntime({ ...restaurants, ui: `<Filters of="places" chips="${chips}"/>` });
+      const btns = buttons(Filters({ attrs: { of: "places", chips } }), "gv-fchip");
+      expect(btns.map((b) => b.props.title)).toEqual(["price<=1 || rating>=4.6", "tags~sea"]);
+      btns[0].props.onClick();
+      expect(h.rt.view.collection("places").map((p) => p.id)).toEqual(["moda", "lal", "ocak", "rihtim", "yel"]);
+    }
+  });
+
   it("the empty state clears every chip", () => {
     h.rt = testRuntime({ ...restaurants, ui: '<Filters of="places" chips="Nope: tags~zzz, Sea: tags~sea"/>' }, { state: { _filters_places: [0, 1] } });
     expect(h.rt.view.collection("places")).toEqual([]);

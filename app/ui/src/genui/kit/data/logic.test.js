@@ -44,6 +44,14 @@ describe("applyLens / numberItems", () => {
     expect(applyLens(stops, { where: "day == state.day" }, { day: "Sun" }).map((s) => s.id)).toEqual([2]);
   });
 
+  it("where takes ||, ( ) and state.key on the left", () => {
+    const ingredients = [{ id: "sogan" }, { id: "domates" }, { id: "biber" }];
+    const where = "id != 'sogan' || state.ekol == 'Soğanlı'";
+    expect(applyLens(ingredients, { where }, { ekol: "Soğanlı" }).map((x) => x.id)).toEqual(["sogan", "domates", "biber"]);
+    expect(applyLens(ingredients, { where }, { ekol: "Sade" }).map((x) => x.id)).toEqual(["domates", "biber"]);
+    expect(applyLens(places, { where: "(price <= 1 || rating >= 4.6) && !(id == yel)" }, {}).map((p) => p.id)).toEqual(["moda", "lal", "ocak", "rihtim"]);
+  });
+
   it("numbers stay stable when shared chips hide items", () => {
     const num = numberItems(places, {}, {});
     const visible = places.filter((p) => p.id !== "moda");

@@ -62,8 +62,9 @@ export interface ChipSpec {
 
 // chips="Open now: open | Seafood: tags~sea | ₺–₺₺: price<=2" (or comma-separated)
 // chips={[{"label":"Open now","where":"open"}]}. A chip without a label shows its filter.
+// Only a lone "|" separates chips — "||" is a filter's own.
 export function parseChips(v: unknown): ChipSpec[] {
-  const entries: unknown[] = Array.isArray(v) ? v : splitLabels(v);
+  const entries: unknown[] = Array.isArray(v) ? v : splitChips(v);
   const out: ChipSpec[] = [];
   for (const x of entries) {
     if (isObj(x)) {
@@ -79,6 +80,13 @@ export function parseChips(v: unknown): ChipSpec[] {
     else out.push({ label: s, where: s });
   }
   return out;
+}
+
+const CHIP_BAR = /(?<!\|)\|(?!\|)/;
+
+function splitChips(v: unknown): string[] {
+  if (typeof v !== "string") return splitLabels(v);
+  return v.split(CHIP_BAR.test(v) ? CHIP_BAR : ",").map((x) => x.trim()).filter(Boolean);
 }
 
 export interface OptionSpec {

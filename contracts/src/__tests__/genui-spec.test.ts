@@ -147,6 +147,15 @@ describe("attribute readers", () => {
       { label: "tags~sea", where: "tags~sea" },
     ]);
     assert.deepEqual(parseChips([{ label: "Open", where: "open" }]), [{ label: "Open", where: "open" }]);
+    // "||" belongs to the filter; only a lone "|" separates chips.
+    assert.deepEqual(parseChips("Mine: a || b, Other: c"), [
+      { label: "Mine", where: "a || b" },
+      { label: "Other", where: "c" },
+    ]);
+    assert.deepEqual(parseChips("Mine: a || b | Other: c"), [
+      { label: "Mine", where: "a || b" },
+      { label: "Other", where: "c" },
+    ]);
     assert.deepEqual(parseOptions("Cumartesi | Pazar"), [
       { label: "Cumartesi", value: "Cumartesi" },
       { label: "Pazar", value: "Pazar" },
