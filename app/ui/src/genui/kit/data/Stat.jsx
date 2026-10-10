@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText, dataRef } from "../../../../../../contracts/src/genui/attrs.ts";
 import { isTone, toneStyle } from "./util.js";
 import { sourceName } from "../content/Sources.jsx";
 import { Sparkline } from "./Chart.jsx";
@@ -43,7 +43,7 @@ export function Stat({ attrs = {} }) {
   const dir = deltaDirection(delta, attrs.trend);
   const mood = deltaMood(dir, typeof attrs.good === "string" ? attrs.good.toLowerCase() : null);
   // spark= (catalog); values= is tolerated, as on Chart.
-  const spark = sparkValues(attrs.spark ?? attrs.values);
+  const spark = sparkValues(dataRef(attrs.spark ?? attrs.values, view.data));
   const cls = ["gv-stat", tone && "gv-stat--toned", tone === "red" && "gv-stat--alert"].filter(Boolean).join(" ");
   return (
     <div className={cls} style={toneStyle(tone)}>

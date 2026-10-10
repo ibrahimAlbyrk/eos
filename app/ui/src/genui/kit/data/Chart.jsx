@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum, attrText, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum, attrText, dataRef, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
 import { formatNumber, withUnit } from "./format.js";
 import { applyLens, itemId, mix, seriesColors } from "./util.js";
 import {
@@ -323,7 +323,8 @@ export function Chart({ attrs = {} }) {
   const of = typeof attrs.of === "string" ? attrs.of : null;
   const items = of ? applyLens(view.collection(of), attrs, view.state) : null;
   if (of && !items.length) return <FilterEmpty of={of} />;
-  const values = Array.isArray(attrs.values) ? attrs.values : null;
+  const rawValues = dataRef(attrs.values, view.data);
+  const values = Array.isArray(rawValues) ? rawValues : null;
   const data = chartData(items, { x: attrText(attrs.x) || undefined, y: splitIds(attrs.y), values });
   if (!data.series.length || !data.labels.length) return null;
   const unit = view.template(attrText(attrs.unit), undefined);

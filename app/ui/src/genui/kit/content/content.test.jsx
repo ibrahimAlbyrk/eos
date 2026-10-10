@@ -56,6 +56,13 @@ describe("Image · Gallery · Logo", () => {
     expect(html).toContain(">+2<");
   });
 
+  it("Gallery images= may name a data key", () => {
+    const urls = [1, 2, 3, 4].map((i) => `https://example.com/${i}.jpg`);
+    const html = renderView({ ...restaurants, data: { ...restaurants.data, urls } }, { ui: `<Gallery images="urls"/>` });
+    expect(count(html, 'class="gv-gallery-tile"')).toBe(3);
+    expect(html).toContain(">+1<");
+  });
+
   it("Logo tries the site's icon and falls back to a monogram (never a broken image)", () => {
     const html = view(`<Logo site="modakiyi.example" name="Moda Kıyı" size="lg"/>`);
     expect(html).toContain("--gv-logo-size:44px");

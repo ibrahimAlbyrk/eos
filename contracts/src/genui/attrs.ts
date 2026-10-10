@@ -151,6 +151,12 @@ export function attrText(v: unknown, fallback = ""): string {
   return fallback;
 }
 
+// A {…} attribute (items, values, spark, images) never takes a string, so a string
+// names a data key: items="limits" reads data.limits. Anything else is the value.
+export function dataRef(v: unknown, data: unknown): unknown {
+  return typeof v === "string" && isObj(data) && Object.prototype.hasOwnProperty.call(data, v) ? data[v] : v;
+}
+
 function scalarText(v: unknown): string {
   if (typeof v === "string") return v.trim();
   if (typeof v === "number" || typeof v === "boolean") return String(v);

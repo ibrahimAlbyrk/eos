@@ -9,7 +9,7 @@
 import { z } from "zod";
 import { parseMarkup, tagLabel, type MarkupElement, type MarkupNode } from "./markup.ts";
 import { checkExpr, checkWhere, exprRefs, hasTemplate, matchWhere, parseWhere } from "./expr.ts";
-import { parseChips, parseCols, parseOptions, splitIds, splitLabels } from "./attrs.ts";
+import { dataRef, parseChips, parseCols, parseOptions, splitIds, splitLabels } from "./attrs.ts";
 
 // ---- enums & limits -----------------------------------------------------------
 
@@ -983,6 +983,8 @@ function withValue(message: string, value: unknown): string {
 interface DataInfo {
   collections: Map<string, Record<string, unknown>[]>;
   keys: Set<string>;
+  // The data object itself, for {…} attributes that name a key (items="limits").
+  raw: Record<string, unknown>;
   ids: Map<string, Set<string>>;
   images: Set<string>;
   sites: Set<string>;
@@ -990,12 +992,13 @@ interface DataInfo {
 }
 
 function validateData(data: unknown, problems: ViewProblem[], warnings: ViewProblem[]): DataInfo {
-  const info: DataInfo = { collections: new Map(), keys: new Set(), ids: new Map(), images: new Set(), sites: new Set(), sourcesCount: 0 };
+  const info: DataInfo = { collections: new Map(), keys: new Set(), raw: {}, ids: new Map(), images: new Set(), sites: new Set(), sourcesCount: 0 };
   if (data === undefined) return info;
   if (!isObj(data)) {
     problems.push({ path: "data", message: `must be an object of collections, got ${show(data)}` });
     return info;
   }
+  info.raw = data;
   let bytes: number;
   try {
     bytes = utf8Bytes(JSON.stringify(data));
@@ -1267,11 +1270,16 @@ function visitElement(ctx: UiContext, el: MarkupElement, depth: number, inItem: 
       else if (of !== "sources" && !ctx.data.collections.has(of)) ctx.problems.push({ path, message: `data has no collection "${of}" — ${collectionNames(ctx)}` });
     } else if (!ctx.data.collections.has(of)) {
       const why = ctx.data.keys.has(of) ? `data.${of} is not a list of objects` : `data has no collection "${of}"`;
-      ctx.problems.push({ path, message: `${why} — ${collectionNames(ctx)}` });
+      const hint = isObj(dataRef(of, ctx.data.raw)) ? ` — for label/value rows write <KeyValue items="${of}"/>` : "";
+      ctx.problems.push({ path, message: `${why} — ${collectionNames(ctx)}${hint}` });
     } else {
       items = ctx.data.collections.get(of);
       ids = ctx.data.ids.get(of) ?? new Set();
     }
+  }
+  for (const [attr, a] of Object.entries(attrs)) {
+    const v = el.attrs[attr];
+    if (a.kind === "json" && typeof v === "string") checkDataRef(ctx, `${path}.${attr}`, attr, a, v);
   }
 
   if (items) {
@@ -1358,8 +1366,9 @@ function visitElement(ctx: UiContext, el: MarkupElement, depth: number, inItem: 
     }
   }
   if (name === "Image" && typeof el.attrs.src === "string" && !hasTemplate(el.attrs.src)) ctx.images.add(el.attrs.src);
-  if (name === "Gallery" && Array.isArray(el.attrs.images)) {
-    el.attrs.images.forEach((u, i) => {
+  const galleryImages = name === "Gallery" ? dataRef(el.attrs.images, ctx.data.raw) : undefined;
+  if (Array.isArray(galleryImages)) {
+    galleryImages.forEach((u, i) => {
       if (typeof u !== "string" || !/^https?:\/\/\S+$/i.test(u)) ctx.problems.push({ path: `${path}.images[${i}]`, message: `${show(u)} must be an http(s) URL` });
       else ctx.images.add(u);
     });
@@ -1393,6 +1402,19 @@ function visitElement(ctx: UiContext, el: MarkupElement, depth: number, inItem: 
 function actionList(ctx: UiContext): string {
   const ids = [...ctx.actions.ids];
   return ids.length ? `actions: ${ids.join(", ")}` : "the view defines no actions";
+}
+
+// A {…} attribute given as a string names a data key (items="limits").
+function checkDataRef(ctx: UiContext, path: string, attr: string, a: AttrDef, key: string): void {
+  if (!ctx.data.keys.has(key)) {
+    const keys = [...ctx.data.keys];
+    ctx.problems.push({ path, message: `"${key}" is not a data key — ${keys.length ? `data keys: ${keys.join(", ")}` : "data has none"}` });
+    return;
+  }
+  const v = ctx.data.raw[key];
+  if (v == null || typeof v !== "object") {
+    ctx.problems.push({ path, message: `${dataPath("data", [key])} is ${show(v)}, not a list or object${a.doc ? ` (${attr}: ${a.doc})` : ""}` });
+  }
 }
 
 function checkCarousel(ctx: UiContext, path: string, n: number): void {

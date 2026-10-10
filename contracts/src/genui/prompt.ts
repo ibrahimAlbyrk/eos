@@ -33,6 +33,11 @@ function attrText(name: string, a: AttrDef): string {
   return s;
 }
 
+function jsonAttrNames(): string[] {
+  const names = COMPONENT_NAMES.flatMap((n) => Object.entries((COMPONENTS[n] as ComponentDef).attrs).filter(([, a]) => a.kind === "json").map(([attr]) => attr));
+  return [...new Set(names)];
+}
+
 function componentLine(name: string, def: ComponentDef): string {
   const attrs = Object.entries(def.attrs).map(([n, a]) => attrText(n, a));
   if (def.collection) attrs.push("⊂");
@@ -65,6 +70,7 @@ export function catalogPrompt(): string {
     "",
     "## Markup",
     `<Tag a="text" n={3} list={["a","b"]} flag>children</Tag> · <Tag a="x"/>. {…} is JSON, never JS. Text children: inline markdown, no HTML. Depth ≤ ${L.depth}.`,
+    `A {…} attr (${jsonAttrNames().join(" ")}) may name a data key: items="limits".`,
     '⊂ = takes of="collection" + where= sort="field|-field" limit= skip="ids".',
     'Field attrs (x y cols, Meter value) take a bare name (y="amount"); text attrs read a field only in braces (meta="{cuisine} · {area}"): title="title" prints "title". Omit title/text/meta to show the item\'s own.',
     'Lists: ids "a b" or "a, b"; labels "A | B" or "A, B"; or JSON arrays.',

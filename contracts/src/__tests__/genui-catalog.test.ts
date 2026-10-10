@@ -349,6 +349,35 @@ describe("ui problems", () => {
   });
 });
 
+describe("{…} attrs name a data key", () => {
+  const spec = (ui: string, data: Record<string, unknown>) => ({ title: "t", summary: "s", data, ui });
+  const limits = { "ui markup": "≤ 24 KB", data: "≤ 64 KB" };
+
+  it("items=, spark= and values= read data", () => {
+    const r = validateView(spec('<KeyValue items="limits"/>\n<Stat label="Runs" value="3" spark="trend"/>\n<Chart type="line" values="trend"/>', { limits, trend: [3, 5, 4, 8] }));
+    assert.equal(r.ok, true, r.ok ? "" : formatProblems(r.problems));
+    assert.deepEqual(r.warnings, []);
+  });
+
+  it("an unknown key is rejected with its path", () => {
+    hasProblem(validateView(spec('<KeyValue items="limit"/>', { limits })), "ui line 1 <KeyValue>.items", '"limit" is not a data key — data keys: limits');
+  });
+
+  it("a key that holds a scalar is rejected", () => {
+    hasProblem(validateView(spec('<Chart type="sparkline" values="n"/>', { n: 5 })), 'ui line 1 <Chart type="sparkline">.values', "data.n is 5, not a list or object (values: number list)");
+  });
+
+  it("an object given to of= points at items=", () => {
+    hasProblem(validateView(spec('<KeyValue of="limits"/>', { limits })), 'ui line 1 <KeyValue of="limits">', /^data\.limits is not a list of objects — .* — for label\/value rows write <KeyValue items="limits"\/>$/);
+  });
+
+  it("Gallery images= checks the URLs it names and counts them", () => {
+    hasProblem(validateView(spec('<Gallery images="urls"/>', { urls: ["https://img.example/1.jpg", "not a url"] })), "ui line 1 <Gallery>.images[1]", '"not a url" must be an http(s) URL');
+    const urls = Array.from({ length: 41 }, (_, i) => `https://img.example/${i}.jpg`);
+    hasProblem(validateView(spec('<Gallery images="urls"/>', { urls })), "data", "41 images, max 40 — keep the ones that matter");
+  });
+});
+
 describe("warnings", () => {
   it("are returned on success", () => {
     const r = validateView(

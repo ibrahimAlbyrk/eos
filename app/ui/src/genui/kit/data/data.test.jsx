@@ -144,6 +144,21 @@ describe("Chart", () => {
   });
 });
 
+describe("{…} attrs naming a data key", () => {
+  const spec = { title: "t", summary: "s", data: { limits: { "ui markup": "≤ 24 KB", data: "≤ 64 KB" }, trend: [3, 5, 4, 8] } };
+
+  it("KeyValue items= reads an object from data", () => {
+    const html = renderSpec({ ...spec, ui: '<KeyValue items="limits"/>' });
+    expect(html).toContain('<dt class="gv-kv__key">ui markup</dt>');
+    expect(html).toContain('<dd class="gv-kv__value">≤ 64 KB</dd>');
+  });
+
+  it("Stat spark= and Chart values= read a number list from data", () => {
+    expect(renderSpec({ ...spec, ui: '<Stat label="Runs" value="4" spark="trend"/>' })).toContain('class="gv-spark"');
+    expect(renderSpec({ ...spec, ui: '<Chart type="sparkline" values="trend"/>' })).toContain('class="gv-spark"');
+  });
+});
+
 describe("Meter", () => {
   it("renders one bar per item scaled to max (Tests board Slowest)", () => {
     const html = renderSpec(withUi(tests, '<Meter of="slow" label="{name}" value="t" max="9.8" unit="s"/>'));

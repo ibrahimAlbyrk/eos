@@ -2,7 +2,7 @@
 // every failure ends on a monogram — never a broken image.
 
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
-import { attrText, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrText, dataRef, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
 import { MediaImg, MonoTile, Monogram } from "./media.jsx";
 import { oneOf } from "./text.jsx";
 import { cls, hostOf, itemName, logoSrcs, sameId, tpl } from "./util.js";
@@ -45,8 +45,9 @@ function getPath(obj, path) {
 
 // [{src, name, item}] from images= or from a collection's image field(s).
 function galleryEntries(view, attrs) {
-  if (Array.isArray(attrs.images)) {
-    return attrs.images.filter((u) => typeof u === "string").map((u) => ({ src: u, name: hostOf(u) || "image" }));
+  const images = dataRef(attrs.images, view?.data);
+  if (Array.isArray(images)) {
+    return images.filter((u) => typeof u === "string").map((u) => ({ src: u, name: hostOf(u) || "image" }));
   }
   const of = typeof attrs.of === "string" ? attrs.of : null;
   if (!of) return [];

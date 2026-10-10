@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText, dataRef } from "../../../../../../contracts/src/genui/attrs.ts";
 import { applyLens, getPath, itemName } from "./util.js";
 
 function scalar(v) {
@@ -36,7 +36,7 @@ export function KeyValue({ attrs = {} }) {
       value: attrs.value !== undefined ? view.template(attrText(attrs.value), it) : scalar(getPath(it, "value")),
     }));
   } else {
-    rows = itemsRows(attrs.items).map((r) => ({ key: view.template(r.key, undefined), value: view.template(r.value, undefined) }));
+    rows = itemsRows(dataRef(attrs.items, view.data)).map((r) => ({ key: view.template(r.key, undefined), value: view.template(r.value, undefined) }));
   }
   const cols = attrNum(attrs.cols) === 2 ? 2 : 1;
   if (!rows.length) return null;
