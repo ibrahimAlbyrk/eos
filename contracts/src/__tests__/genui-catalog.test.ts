@@ -208,6 +208,20 @@ describe("limits — each rejected with its path", () => {
     hasProblem(validateView(spec), "data.places[0].source", /but data has no sources/);
   });
 
+  it("an element's source= cites data.sources, warning past its end", () => {
+    const ok = validateView(withUi('<Stat label="Toplam commit" value="1.382" source={1}/>\n<Rating value="4.7" source="{source}"/>'));
+    assert.ok(ok.ok);
+    assert.deepEqual(ok.warnings, []);
+    const r = validateView(withUi('<Stat label="Toplam commit" value="1.382" source={9}/>\n<Quote source="5">Best.</Quote>'));
+    assert.ok(r.ok, "a citation past the end is a warning, not a problem");
+    const lines = r.warnings.map((w) => `${w.path}: ${w.message}`);
+    assert.ok(lines.includes('ui line 1 <Stat label="Toplam commit">.source: 9 but data.sources has 4 — source is 1-based (1 = data.sources[0])'), lines.join("\n"));
+    assert.ok(lines.includes("ui line 2 <Quote>.source: 5 but data.sources has 4 — source is 1-based (1 = data.sources[0])"), lines.join("\n"));
+    const none = validateView({ ...withUi('<Stat label="Commits" value="12" source={1}/>'), data: {} });
+    assert.ok(none.ok);
+    assert.ok(none.warnings.some((w) => w.path === 'ui line 1 <Stat label="Commits">.source' && /but data has no sources/.test(w.message)));
+  });
+
   it("a collection holds objects only", () => {
     const spec = fixture("restaurants");
     spec.data.places.push("Kadıköy");

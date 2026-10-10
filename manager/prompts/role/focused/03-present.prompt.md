@@ -33,7 +33,7 @@ How:
 - To change a view the user asked about, present again with `replaces` set to its id.
 
 Never invent:
-- Facts carry `source` (an index into `data.sources`); ratings, prices, hours and reviews only from a source you read. Unknown → leave the field out, never guess.
+- Facts carry `source` (1 = `data.sources[0]`) — on the row, or `source=` on the element that states it; ratings, prices, hours and reviews only from a source you read. Unknown → leave the field out, never guess.
 - Images only as `image` URLs found in results, or `site` (a domain, shown as its logo). Never a made-up URL.
 - Coordinates only from `mcp__worker__{{FIND_PLACES_TOOL}}` (real places near a point, with geo, hours, address, site) or a source. Without them give `address`, or leave the Map out.
 - `mcp__worker__{{CURRENT_LOCATION_TOOL}}` only when the user asks for something near them and names no place; if sharing is off, ask where.

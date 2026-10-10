@@ -48,7 +48,7 @@ Content:
 - FileRef path* line — file chip that opens in the side panel
 - Sources of compact — numbered sources (default of=sources)
 Data:
-- Stat label* value* meta delta trend=up|down|flat good=up|down tone icon spark (number list) — KPI tile; spark= draws a sparkline under it; delta is coloured only with good= (the direction that is good news)
+- Stat label* value* meta delta trend=up|down|flat good=up|down tone icon spark (number list) source=1–100 — KPI tile; spark= draws a sparkline under it; delta is coloured only with good= (the direction that is good news)
 - KeyValue of items ({"Label":"value"}) key value cols=1–2 ⊂ — label/value rows
 - Table of* cols* best numbered actions ⊂ — sortable compare table; a row selects its entity in every lens
 - Chart type=bar|line|area|donut|sparkline* of x y values (number list) unit height=60–400 stacked ⊂ — chart from rows (x field, y field(s)) or values

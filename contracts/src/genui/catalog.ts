@@ -495,7 +495,7 @@ export const COMPONENTS = {
   Stat: {
     group: "data",
     doc: "KPI tile; spark= draws a sparkline under it; delta is coloured only with good= (the direction that is good news)",
-    attrs: { label: req(t()), value: req(t()), meta: t(), delta: t(), trend: en(["up", "down", "flat"]), good: en(["up", "down"]), tone: k("tone"), icon: k("icon"), spark: k("json", "number list") },
+    attrs: { label: req(t()), value: req(t()), meta: t(), delta: t(), trend: en(["up", "down", "flat"]), good: en(["up", "down"]), tone: k("tone"), icon: k("icon"), spark: k("json", "number list"), source: int(1, 100) },
     children: "none",
   },
   KeyValue: {
@@ -1343,6 +1343,19 @@ function visitElement(ctx: UiContext, el: MarkupElement, depth: number, inItem: 
   if (name === "Map") {
     ctx.maps++;
     if (ctx.maps === GENUI_LIMITS.maps + 1) ctx.problems.push({ path, message: `is map ${ctx.maps}, max ${GENUI_LIMITS.maps} per view — use one Map (filters and tabs can switch what it shows)` });
+  }
+  // A warning, not a problem: views citing past the end rendered before this check.
+  if (attrs.source && el.attrs.source !== undefined && !hasTemplate(el.attrs.source)) {
+    const r = cachedBase(attrs.source).safeParse(el.attrs.source);
+    const n = r.success ? (r.data as number) : 0;
+    if (n > ctx.data.sourcesCount) {
+      ctx.warnings.push({
+        path: `${path}.source`,
+        message: ctx.data.sourcesCount
+          ? `${n} but data.sources has ${ctx.data.sourcesCount} — source is 1-based (1 = data.sources[0])`
+          : `${n} but data has no sources — add data.sources [{title, url, at}]`,
+      });
+    }
   }
   if (name === "Image" && typeof el.attrs.src === "string" && !hasTemplate(el.attrs.src)) ctx.images.add(el.attrs.src);
   if (name === "Gallery" && Array.isArray(el.attrs.images)) {

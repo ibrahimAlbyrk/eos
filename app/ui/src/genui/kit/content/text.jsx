@@ -7,6 +7,7 @@ import { attrBool, attrNum } from "../../../../../../contracts/src/genui/attrs.t
 import { monoTone } from "../monogram.js";
 import { ActionButton } from "./ActionButton.jsx";
 import { Markdown } from "./Markdown.jsx";
+import { sourceName } from "./Sources.jsx";
 import { cls, isTone, scopedText, textOf, toneClass, tpl } from "./util.js";
 
 export function oneOf(v, values, fallback) {
@@ -103,12 +104,6 @@ export function Callout({ attrs = {}, node, children }) {
   );
 }
 
-function sourceLabel(view, n) {
-  const list = Array.isArray(view?.data?.sources) ? view.data.sources : [];
-  const s = list[n - 1];
-  return s && typeof s === "object" ? s.title || s.name || s.site || null : null;
-}
-
 export function Quote({ attrs = {}, node, children }) {
   const view = useView();
   const item = useItem();
@@ -116,7 +111,7 @@ export function Quote({ attrs = {}, node, children }) {
   if (!text.trim()) return null;
   const cite = tpl(view, attrs.cite, item);
   const src = attrNum(attrs.source);
-  const srcName = src != null ? sourceLabel(view, src) : null;
+  const srcName = src != null ? sourceName(view, src) : null;
   return (
     <figure className="gv-quote">
       <blockquote className="gv-quote-text"><Markdown text={text} /></blockquote>

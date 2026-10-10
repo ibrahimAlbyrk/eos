@@ -73,7 +73,8 @@ present({
 
 - **Entities** (`contracts/src/genui/entities.ts`): `Place`, `Product`, `Event`, `Person`,
   `Article`, `Media`, `File`, `Generic` — schema.org-like shapes, each with `id`. Shared optional
-  fields: `image`, `site` (domain → logo), `url`, `source` (index into `data.sources`). Place:
+  fields: `image`, `site` (domain → logo), `url`, `source` (1 = `data.sources[0]`;
+  `Stat`, `Rating`, `Quote` take `source=` too). Place:
   `rating 0–5`, `reviews`, `price 1–4`, `geo [lat,lon]` or `address`, `hours {until|closed|text}`,
   `area`, `cuisine`, `tags`. Unknown fields are kept for `{field}` templates.
 - **Markup** (`ui`): XML-ish JSX — `<Tag a="text" b={json} flag>children</Tag>`; text children

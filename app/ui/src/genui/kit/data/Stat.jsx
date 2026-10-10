@@ -1,6 +1,7 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
 import { isTone, toneStyle } from "./util.js";
+import { sourceName } from "../content/Sources.jsx";
 import { Sparkline } from "./Chart.jsx";
 import { Icon, hasIcon } from "../icons.jsx";
 
@@ -35,6 +36,9 @@ export function Stat({ attrs = {} }) {
   const label = fill(attrs.label);
   const value = fill(attrs.value);
   const meta = fill(attrs.meta);
+  const src = attrNum(attrs.source);
+  const srcName = src != null ? sourceName(view, src) : null;
+  const metaLine = srcName ? [meta, srcName].filter(Boolean).join(" · ") : meta;
   const delta = fill(attrs.delta);
   const dir = deltaDirection(delta, attrs.trend);
   const mood = deltaMood(dir, typeof attrs.good === "string" ? attrs.good.toLowerCase() : null);
@@ -51,7 +55,12 @@ export function Stat({ attrs = {} }) {
         <span className="gv-stat__value">{value || "—"}</span>
         {delta ? <span className={`gv-stat__delta gv-stat__delta--${dir} is-${mood}`}>{delta}</span> : null}
       </div>
-      {meta ? <div className="gv-stat__meta">{meta}</div> : null}
+      {metaLine || src != null ? (
+        <div className="gv-stat__meta">
+          {metaLine}
+          {!srcName && src != null ? <sup className="gv-footref">{src}</sup> : null}
+        </div>
+      ) : null}
       {spark ? <Sparkline values={spark} height={28} label={label} /> : null}
     </div>
   );

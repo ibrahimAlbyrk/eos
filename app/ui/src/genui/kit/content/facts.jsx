@@ -4,6 +4,7 @@ import { Icon } from "../icons.jsx";
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
 import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
 import { clamp, cls, currencySymbol, formatAmount, formatCount, scopedText, textOf, tpl } from "./util.js";
+import { sourceName } from "./Sources.jsx";
 
 // ── rating ──────────────────────────────────────────────────────────────────
 
@@ -38,13 +39,6 @@ export function RatingInline({ value, count, size = 13 }) {
       {count != null && count !== "" ? <span className="gv-dim">({formatCount(count)})</span> : null}
     </span>
   );
-}
-
-function sourceName(view, n) {
-  const list = Array.isArray(view?.data?.sources) ? view.data.sources : [];
-  const s = list[Number(n) - 1];
-  if (!s || typeof s !== "object") return null;
-  return s.title || s.name || s.site || null;
 }
 
 export function Rating({ attrs = {} }) {

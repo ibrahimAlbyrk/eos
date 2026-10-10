@@ -16,6 +16,14 @@ function sourceTitle(s) {
   return s.title || s.name || sourceSite(s) || s.url || "Source";
 }
 
+// The name an element's source= cites (1 = the first), or null when it has none.
+export function sourceName(view, n) {
+  const list = Array.isArray(view?.data?.sources) ? view.data.sources : [];
+  const s = list[Number(n) - 1];
+  if (!s || typeof s !== "object") return null;
+  return s.title || s.name || s.site || null;
+}
+
 function sourceHref(s) {
   if (typeof s.url === "string" && /^https?:\/\//i.test(s.url)) return s.url;
   const site = sourceSite(s);

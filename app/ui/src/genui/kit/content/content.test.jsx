@@ -85,6 +85,7 @@ describe("Badge · Rating · Price · Status", () => {
     expect(html).toMatch(/\(1[,.]?284\)/);
     expect(html).toContain("· Harita kaydı");
     expect(html).toMatch(/aria-label="Rated 4.7 out of 5, 1[,.]?284 reviews"/);
+    expect(view(`<Rating value="4.7" source="9"/>`)).toContain('<sup class="gv-footref">9</sup>');
   });
 
   it("Price shows a level with the dim remainder, or an exact amount", () => {

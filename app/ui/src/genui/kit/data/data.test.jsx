@@ -34,6 +34,14 @@ describe("Stat", () => {
     expect(html).toContain(">412<");
     expect(html).toContain('class="gv-spark"');
   });
+
+  it("cites its source on the meta line, a footnote number when the source has no name", () => {
+    const sources = [{ title: "GitHub", url: "https://github.com/x" }, { url: "https://example.com/y" }];
+    const at = (ui) => renderSpec({ title: "t", summary: "s", data: { sources }, ui });
+    expect(at('<Stat label="Commits" value="1.382" meta="son 30 gün" source={1}/>')).toContain('<div class="gv-stat__meta">son 30 gün · GitHub</div>');
+    expect(at('<Stat label="Commits" value="1.382" source="1"/>')).toContain('<div class="gv-stat__meta">GitHub</div>');
+    expect(at('<Stat label="Commits" value="1.382" meta="son 30 gün" source={2}/>')).toContain('<div class="gv-stat__meta">son 30 gün<sup class="gv-footref">2</sup></div>');
+  });
 });
 
 describe("KeyValue", () => {
