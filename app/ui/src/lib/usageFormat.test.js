@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planUsageSections, isSignedOutReason, formatResetIn, formatResetInShort, formatResetAt, formatRowReset, formatCredits,
-  isUsageWarn, WARN_THRESHOLD, friendlyUsageError,
+  isUsageWarn, WARN_THRESHOLD, friendlyUsageError, rolledWindow,
 } from "./usageFormat.js";
 
 const win = (utilization, resetsAt = "2099-01-01T08:59:00Z") => ({ utilization, resetsAt });
@@ -58,6 +58,42 @@ describe("planUsageSections", () => {
     expect(planUsageSections(undefined)).toEqual([]);
     expect(planUsageSections({ providers: [], errors: [{ reason: "no subscription token" }] })).toEqual([]);
     expect(planUsageSections({ providers: [{ provider: "claude", windows: {} }] })).toEqual([]);
+  });
+
+  it("flags a plan served from its last good snapshot", () => {
+    const [section] = planUsageSections({ providers: [{ ...fullUsage.providers[0], stale: true }] });
+    expect(section.stale).toBe(true);
+    expect(planUsageSections(fullUsage)[0].stale).toBe(false);
+  });
+
+  it("rolls over windows whose reset passed since the snapshot", () => {
+    const now = Date.parse("2099-01-01T09:00:00Z");
+    const [section] = planUsageSections(fullUsage, now);
+    expect(section.rows.map((r) => r.window.utilization)).toEqual([0, 0, 0]);
+    expect(section.rows[0].window.resetsAt).toBeNull();
+    expect(section.rows[2].window.resetsAt).toBe("2099-01-08T08:59:00.000Z");
+  });
+});
+
+describe("rolledWindow", () => {
+  const at = "2026-10-14T08:00:00.000Z";
+  const t = (iso) => Date.parse(iso);
+
+  it("leaves a window alone until its reset", () => {
+    const w = { utilization: 60, resetsAt: at, severity: "warning" };
+    expect(rolledWindow(w, "weekly", t("2026-10-14T07:59:00Z"))).toBe(w);
+    expect(rolledWindow({ utilization: 0, resetsAt: null }, "session", t(at))).toEqual({ utilization: 0, resetsAt: null });
+  });
+
+  it("starts a passed session window over with no reset until the next use", () => {
+    expect(rolledWindow({ utilization: 95, resetsAt: at, severity: "warning" }, "session", t(at)))
+      .toEqual({ utilization: 0, resetsAt: null });
+  });
+
+  it("moves a passed weekly window to its next weekly reset, keeping the model", () => {
+    const w = { utilization: 60, resetsAt: at, model: "Fable" };
+    expect(rolledWindow(w, "weekly", t(at))).toEqual({ utilization: 0, resetsAt: "2026-10-21T08:00:00.000Z", model: "Fable" });
+    expect(rolledWindow(w, "weekly", t("2026-10-25T00:00:00Z")).resetsAt).toBe("2026-10-28T08:00:00.000Z");
   });
 });
 

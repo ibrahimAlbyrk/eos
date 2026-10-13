@@ -1,15 +1,15 @@
 // Usage panel — the Settings "Usage" tab. Shows every signed-in plan's limits
 // (Claude, ChatGPT…: 5-hour session + weekly windows) as thin progress bars with
 // reset times, one group per plan, styled to match Claude's own usage screen
-// using the existing settings tokens/classes. Read-only: it fetches GET /api/usage on open (the daemon owns
-// the cache + 180s upstream floor) and offers a manual refresh that just re-hits
-// the same route.
+// using the existing settings tokens/classes. Read-only: it loads GET /api/usage on open through
+// state/usageStore.js (the daemon owns the cache + 180s upstream floor) and offers a
+// manual refresh that just re-hits the same route. A failed refresh keeps the last
+// data on screen and says so in the footer.
 //
 // Custom Component (no registry `groups`), like AccountsSettings/RemoteSettings —
 // it owns no settings.json keys (the data is fetched live, never persisted).
 
-import { useEffect, useRef, useState } from "react";
-import { api } from "../api/client.js";
+import { loadUsage, useUsage } from "../state/usageStore.js";
 import {
   USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, planUsageSections,
 } from "../lib/usageFormat.js";
@@ -61,30 +61,18 @@ function UsageRow({ label, subtitle, pct, warn }) {
 }
 
 export function UsageSettings() {
-  const [data, setData] = useState(undefined); // undefined = loading, null = transport fail
-  const [busy, setBusy] = useState(false);
-  const loaded = useRef(false);
+  // data: undefined = loading, null = transport fail with nothing to show
+  const { usage: data, loading: busy, unreachable, now } = useUsage();
 
-  const load = () => {
-    setBusy(true);
-    api.getUsage()
-      .then((res) => setData(res))
-      .catch(() => setData(null))
-      .finally(() => setBusy(false));
-  };
-
-  useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
-    load();
-  }, []);
-
-  const sections = planUsageSections(data);
+  const sections = planUsageSections(data, now);
   const providerOf = (id) => data?.providers?.find((p) => p.provider === id);
   // A plan you aren't signed in to is simply absent — only real failures (an
   // upstream/scope error on a plan you ARE signed in to) are shown, mapped to a
-  // human one-liner (never the raw JSON body).
-  const failures = (data?.errors ?? []).filter((e) => !isSignedOutReason(e.reason));
+  // human one-liner (never the raw JSON body). A plan still showing its last
+  // data only gets the footer note.
+  const failures = (data?.errors ?? [])
+    .filter((e) => !isSignedOutReason(e.reason) && !sections.some((sec) => sec.provider === e.provider));
+  const outdated = unreachable || sections.some((sec) => sec.stale);
   const signedOut = data && !sections.length && !failures.length;
   const lastUpdated = sections
     .map((sec) => providerOf(sec.provider)?.fetchedAt)
@@ -103,7 +91,7 @@ export function UsageSettings() {
           <div className="stg-row stg-row--stack">
             <div className="stg-prov-err">Couldn’t reach the daemon to load usage.</div>
           </div>
-          <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
+          <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
             {busy ? "Retrying…" : "Retry"}
           </button>
         </div>
@@ -163,7 +151,7 @@ export function UsageSettings() {
             </div>
           ))}
           {!sections.length && (
-            <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
+            <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
               {busy ? "Refreshing…" : "Try again"}
             </button>
           )}
@@ -175,8 +163,10 @@ export function UsageSettings() {
           className="stg-row"
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
         >
-          <span className="stg-row__desc">Last updated: {formatAgo(lastUpdated)}</span>
-          <button type="button" className="stg-prov-save" disabled={busy} onClick={load}>
+          <span className="stg-row__desc">
+            Last updated: {formatAgo(lastUpdated)}{outdated ? " · couldn’t refresh, retrying" : ""}
+          </span>
+          <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
             {busy ? "Refreshing…" : "Refresh"}
           </button>
         </div>

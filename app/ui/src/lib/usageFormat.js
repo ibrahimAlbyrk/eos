@@ -2,7 +2,7 @@
 // "Usage" pane (settings/UsageSettings.jsx) and the context popover's "Plan
 // usage limits" section (views/agents/popovers/CtxPopover.jsx) so the two never
 // drift. Data source is GET /api/usage (utilization normalized 0–100, resetsAt
-// ISO); the daemon owns the upstream cache + 180s floor.
+// ISO) via state/usageStore.js; the daemon owns the upstream cache + 180s floor.
 
 export const WARN_THRESHOLD = 80; // ≥ this utilization tints the bar with the warn color
 
@@ -72,11 +72,25 @@ const modelRow = (window) => ({
   key: `model:${window.model}`, label: `Weekly · ${window.model}`, short: `Weekly ${window.model}`, kind: "weekly", window,
 });
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// A window whose reset time has passed since the snapshot has rolled over, so it
+// starts empty. A weekly window resets on a fixed weekly beat; a session window
+// only starts with the next use, so it has no reset time until then.
+export function rolledWindow(window, kind, now = Date.now()) {
+  const at = window.resetsAt ? new Date(window.resetsAt).getTime() : NaN;
+  if (!(at <= now)) return window;
+  const { severity: _severity, ...rest } = window;
+  if (kind === "session") return { ...rest, utilization: 0, resetsAt: null };
+  const next = at + Math.ceil((now - at + 1) / WEEK_MS) * WEEK_MS;
+  return { ...rest, utilization: 0, resetsAt: new Date(next).toISOString() };
+}
+
 // One section per signed-in plan in a GET /api/usage response — its name, plan
-// and limit rows. A plan with no windows to show is left out, so a glance
-// surface can render the list as-is (empty = nothing to show). `kind` picks the
-// reset formatter: "session" → relative, "weekly" → weekday + time.
-export function planUsageSections(usage) {
+// and limit rows, rolled over to `now`. A plan with no windows to show is left
+// out, so a glance surface can render the list as-is (empty = nothing to show).
+// `kind` picks the reset formatter: "session" → relative, "weekly" → weekday + time.
+export function planUsageSections(usage, now = Date.now()) {
   return (usage?.providers ?? [])
     .map((p) => {
       const w = p.windows ?? {};
@@ -84,10 +98,11 @@ export function planUsageSections(usage) {
         provider: p.provider,
         name: USAGE_PROVIDER_NAMES[p.provider] ?? p.provider,
         plan: p.plan ?? null,
+        stale: p.stale === true,
         rows: [
           ...WINDOW_ROWS.map((r) => ({ ...r, window: w[r.key] })).filter((r) => r.window),
           ...(w.weeklyByModel ?? []).map(modelRow),
-        ],
+        ].map((r) => ({ ...r, window: rolledWindow(r.window, r.kind, now) })),
       };
     })
     .filter((s) => s.rows.length > 0);

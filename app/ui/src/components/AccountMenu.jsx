@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { api } from "../api/client.js";
 import { fmtCost } from "../lib/format.js";
 import { USAGE_PROVIDER_ACCOUNTS, formatRowReset, isUsageWarn, planUsageSections } from "../lib/usageFormat.js";
 import { useAccounts, refreshAccounts, accountTone, isSignedIn } from "../state/accountsStore.js";
@@ -8,6 +7,7 @@ import { ProviderGlyph } from "./accounts/ProviderGlyph.jsx";
 import { metaFor, planName } from "./accounts/providerMeta.js";
 import { GeneralIcon } from "../settings/registry.jsx";
 import { useProfile } from "../state/profileStore.js";
+import { useUsage } from "../state/usageStore.js";
 import { ProfileMenuHeader, MemoryReviewRow, DreamReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
 
 const RING_R = 18;
@@ -60,8 +60,8 @@ function planLabel(account, section) {
 // attention) with a ring per limit from GET /api/usage. A plan with no usage to
 // show (loading, failed, or a provider that reports none) keeps just its header —
 // the menu is a glance surface, not an error one.
-export function PlanCards({ accounts, usage }) {
-  const sections = planUsageSections(usage);
+export function PlanCards({ accounts, usage, now }) {
+  const sections = planUsageSections(usage, now);
   return (accounts ?? []).filter(isSignedIn).map((a) => {
     const section = sections.find((s) => USAGE_PROVIDER_ACCOUNTS[s.provider] === a.id);
     return (
@@ -84,24 +84,16 @@ export function PlanCards({ accounts, usage }) {
 // Opened from the sidebar's Account row: the plan cards, total cost across
 // agents, then Settings. Fixed above the row (`anchor` = its rect)
 // and portal'd to <body>; data-popover keeps clicks inside it "inside" for the
-// outside-click handler. Mounted only while open, so usage is fetched per open
-// (the daemon caches upstream with a 180s floor).
+// outside-click handler. Mounted only while open, so usage is refreshed per open
+// (the last response shows meanwhile; the daemon caches upstream with a 180s floor).
 export function AccountMenu({
   anchor, totalCostUsd, pendingMemories = 0, dreamProposals = 0, onReviewDream, onOpenSettings, onOpenMemory, onSetUpProfile,
 }) {
   const { accounts } = useAccounts();
   const { profile } = useProfile();
-  const [usage, setUsage] = useState(undefined); // undefined = loading, null = none/error
+  const { usage, now } = useUsage();
 
   useEffect(() => { refreshAccounts(); }, []);
-
-  useEffect(() => {
-    let alive = true;
-    api.getUsage()
-      .then((res) => { if (alive) setUsage(res); })
-      .catch(() => { if (alive) setUsage(null); });
-    return () => { alive = false; };
-  }, []);
 
   const pos = { left: Math.round(anchor.left + 8), bottom: Math.round(window.innerHeight - anchor.top + 6) };
 
@@ -110,7 +102,7 @@ export function AccountMenu({
       <ProfileMenuHeader profile={profile} onOpen={() => onOpenSettings("profile")} onSetUp={onSetUpProfile} />
       {dreamProposals > 0 && <DreamReviewRow count={dreamProposals} onOpen={onReviewDream} />}
       {pendingMemories > 0 && <MemoryReviewRow count={pendingMemories} onOpen={onOpenMemory} />}
-      <PlanCards accounts={accounts} usage={usage} />
+      <PlanCards accounts={accounts} usage={usage} now={now} />
       <div
         className="acct-total"
         title="Estimated API-equivalent cost across all agents. If you use a Max/Pro subscription, no actual money is charged."
