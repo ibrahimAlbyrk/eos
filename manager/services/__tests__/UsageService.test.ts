@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { UsageService } from "../UsageService.ts";
-import type { SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
+import { NoUsageAccountError, type SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
 import type { ProviderUsage } from "../../../contracts/src/usage.ts";
 
 function fakeClock(start = 0) {
@@ -73,5 +73,76 @@ describe("UsageService", () => {
     assert.equal(res.providers.length, 1);
     assert.equal(res.providers[0].provider, "claude");
     assert.deepEqual(res.errors, [{ provider: "other", reason: "down" }]);
+  });
+
+  // A provider whose fetches succeed until `fail` is set, then throw `fail()`.
+  function flaky() {
+    let calls = 0;
+    let fail: (() => Error) | null = null;
+    const provider: SubscriptionUsageProvider = {
+      id: "claude",
+      async fetchUsage() { calls++; if (fail) throw fail(); return snapshot(); },
+    };
+    return { provider, calls: () => calls, failWith: (f: (() => Error) | null) => { fail = f; } };
+  }
+
+  it("keeps serving the last good snapshot, marked stale, when a fetch fails", async () => {
+    const clock = fakeClock(0);
+    const p = flaky();
+    const svc = new UsageService({ providers: [p.provider], clock, minIntervalMs: 1000 });
+    await svc.getUsage();
+    p.failWith(() => new Error("usage fetch failed (HTTP 429)"));
+    clock.advance(1000);
+    const res = await svc.getUsage();
+    assert.deepEqual(res.providers, [{ ...snapshot(), stale: true }]);
+    assert.deepEqual(res.errors, [{ provider: "claude", reason: "usage fetch failed (HTTP 429)" }]);
+
+    p.failWith(null);
+    clock.advance(1000);
+    assert.deepEqual((await svc.getUsage()).providers, [snapshot()]);
+  });
+
+  it("backs off a failing provider while its stale snapshot covers the gap", async () => {
+    const clock = fakeClock(0);
+    const p = flaky();
+    const svc = new UsageService({ providers: [p.provider], clock, minIntervalMs: 1000 });
+    await svc.getUsage();
+    p.failWith(() => new Error("down"));
+    clock.advance(1000);
+    await svc.getUsage(); // failure 1 → retry after 1 s
+    clock.advance(1000);
+    await svc.getUsage(); // failure 2 → retry after 2 s
+    assert.equal(p.calls(), 3);
+    clock.advance(1000);
+    const res = await svc.getUsage();
+    assert.equal(p.calls(), 3); // still backing off
+    assert.equal(res.providers[0].stale, true);
+    clock.advance(1000);
+    await svc.getUsage();
+    assert.equal(p.calls(), 4);
+  });
+
+  it("drops the snapshot once the account is signed out", async () => {
+    const clock = fakeClock(0);
+    const p = flaky();
+    const svc = new UsageService({ providers: [p.provider], clock, minIntervalMs: 1000 });
+    await svc.getUsage();
+    p.failWith(() => new NoUsageAccountError("not signed in"));
+    clock.advance(1000);
+    const res = await svc.getUsage();
+    assert.deepEqual(res.providers, []);
+    assert.deepEqual(res.errors, [{ provider: "claude", reason: "not signed in" }]);
+  });
+
+  it("serves a saved snapshot after a restart when the first fetch fails", async () => {
+    let saved: ProviderUsage[] = [];
+    const store = { load: () => saved, save: (s: ProviderUsage[]) => { saved = s; } };
+    await new UsageService({ providers: [flaky().provider], clock: fakeClock(0), store }).getUsage();
+    assert.deepEqual(saved, [snapshot()]);
+
+    const p = flaky();
+    p.failWith(() => new Error("down"));
+    const res = await new UsageService({ providers: [p.provider], clock: fakeClock(0), store }).getUsage();
+    assert.deepEqual(res.providers, [{ ...snapshot(), stale: true }]);
   });
 });

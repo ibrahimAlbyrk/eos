@@ -14,3 +14,14 @@ export interface SubscriptionUsageProvider {
   readonly id: string;
   fetchUsage(): Promise<ProviderUsage>;
 }
+
+// Thrown when there is no account to read usage for (not signed in). Unlike an
+// upstream failure it means the last snapshot no longer belongs to anyone, so
+// the UsageService drops it instead of serving it stale.
+export class NoUsageAccountError extends Error {}
+
+// Where the last good snapshot per provider survives a daemon restart.
+export interface UsageSnapshotStore {
+  load(): ProviderUsage[];
+  save(snapshots: ProviderUsage[]): void;
+}

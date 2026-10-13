@@ -57,6 +57,7 @@ import { PROVIDER_PRESETS } from "./shared/provider-presets.ts";
 import { spawnPtyHost } from "../spawner/pty-host.ts";
 import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
+import { createFileUsageSnapshotStore } from "../infra/src/usage/FileUsageSnapshotStore.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
@@ -966,7 +967,8 @@ export function buildContainer() {
 
   // Subscription usage (Settings > Usage), from the Eos sign-ins only. Read live
   // off `config` so a Settings write is picked up without a restart. The
-  // UsageService owns the cache + 180s upstream floor.
+  // UsageService owns the cache + 180s upstream floor; the last good snapshots
+  // live in ~/.eos/usage-cache.json (regenerable).
   const usage = new UsageService({
     providers: [
       createClaudeUsageProvider({
@@ -995,6 +997,7 @@ export function buildContainer() {
       createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin(codexEnv()).present, open: openAppServer }),
     ],
     clock: systemClock,
+    store: createFileUsageSnapshotStore(join(config.daemon.home, "usage-cache.json")),
   });
 
   // Settings › Accounts. Sign in with Claude runs the official `claude auth login`

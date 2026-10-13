@@ -16,7 +16,7 @@
 // adapter CLAMPS to [0,100] rather than rescaling — applying a "×100 if ≤1"
 // heuristic would corrupt a genuine sub-1% reading.
 
-import type { SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
+import { NoUsageAccountError, type SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
 import type { ModelUsageWindow, ProviderUsage, UsageWindow } from "../../../contracts/src/usage.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 
@@ -180,7 +180,7 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
     id: "claude",
     async fetchUsage(): Promise<ProviderUsage> {
       const candidates = await deps.getTokens();
-      if (!candidates.length) throw new Error(NO_TOKEN_REASON);
+      if (!candidates.length) throw new NoUsageAccountError(NO_TOKEN_REASON);
 
       // Try the remembered working source first, then the rest in precedence order.
       const ordered = preferredSource
@@ -209,7 +209,7 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
       // Every candidate's token was rejected — surface the last rejection (it
       // carries the scope-requirement body the UI maps to a friendly message).
       preferredSource = null;
-      throw lastRejection ?? new Error(NO_TOKEN_REASON);
+      throw lastRejection ?? new NoUsageAccountError(NO_TOKEN_REASON);
     },
   };
 }

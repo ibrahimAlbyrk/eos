@@ -2,9 +2,9 @@
 // Settings > Usage pane. Claude is the only provider today; the shape is
 // deliberately provider-neutral (a `provider` tag + an array response) so a
 // future non-Claude subscription plugs in as another SubscriptionUsageProvider
-// without a schema change. A provider that can't fetch is simply ABSENT from
-// `providers` and surfaced in `errors` instead — one provider's outage never
-// fails the whole pane.
+// without a schema change. A provider that can't fetch is surfaced in `errors`;
+// it stays in `providers` (marked `stale`) only when an earlier fetch succeeded —
+// one provider's outage never fails the whole pane.
 
 import { z } from "zod";
 
@@ -47,6 +47,8 @@ export const ProviderUsageSchema = z.object({
     })
     .optional(),
   fetchedAt: z.string(), // ISO — when this snapshot was pulled upstream
+  // The latest fetch failed and this is the last good snapshot (its reason is in errors[]).
+  stale: z.boolean().optional(),
 });
 export type ProviderUsage = z.infer<typeof ProviderUsageSchema>;
 

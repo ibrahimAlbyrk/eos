@@ -4,7 +4,7 @@
 // minutes; each lands in the slot of the same length — the 5-hour session or the
 // weekly limit — so the pane renders them exactly like Claude's.
 
-import type { SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
+import { NoUsageAccountError, type SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
 import type { ProviderUsage, UsageWindow } from "../../../contracts/src/usage.ts";
 import type { AppServerClient, AppServerOptions } from "./AppServerClient.ts";
 
@@ -54,7 +54,7 @@ export function createCodexUsageProvider(deps: CodexUsageProviderDeps): Subscrip
   return {
     id: "codex",
     async fetchUsage(): Promise<ProviderUsage> {
-      if (!deps.binary || !deps.signedIn()) throw new Error(CODEX_NOT_SIGNED_IN);
+      if (!deps.binary || !deps.signedIn()) throw new NoUsageAccountError(CODEX_NOT_SIGNED_IN);
       const client = await deps.open({ binary: deps.binary, args: ["-c", "notify=[]"], env: deps.env() });
       try {
         const res = await client.request<{ rateLimits?: RateLimitSnapshot | null }>("account/rateLimits/read", { excludeResetCreditDetails: true });
