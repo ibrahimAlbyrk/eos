@@ -6,20 +6,36 @@
 import { assignIdentities } from "./subagentIdentity.js";
 import { fmtElapsedShort, fmtTimeAgo } from "./format.js";
 
-// Every agentRun in spawn order, each carrying its identity ({ color, hex, glyph }).
+// Every subagent in spawn order, each carrying its identity ({ color, hex, glyph }).
+// One continued later (a message resumed it) is still one subagent: `runs` holds
+// each time it worked, all under its first run's id, name and identity, and the
+// subagent reads as its latest run.
 export function collectSubagents(blocks) {
-  const runs = blocks
+  const sorted = blocks
     .filter((b) => b.kind === "agentRun")
     .sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0));
-  const identities = assignIdentities(runs.map((r) => r.toolUseId));
-  return runs.map((r) => ({ ...r, identity: identities.get(r.toolUseId) }));
+  const agents = [];
+  const runsOf = new Map(); // any run's toolUseId → its subagent's runs
+  for (const r of sorted) {
+    let runs = r.resumeOf && runsOf.get(r.resumeOf);
+    if (!runs) agents.push((runs = []));
+    runs.push(r);
+    runsOf.set(r.toolUseId, runs);
+  }
+  const identities = assignIdentities(agents.map((runs) => runs[0].toolUseId));
+  return agents.map((runs) => {
+    const [first] = runs;
+    const identity = identities.get(first.toolUseId);
+    const own = runs.map((r) => ({ ...r, identity, description: first.description }));
+    return { ...own.at(-1), toolUseId: first.toolUseId, subagentType: first.subagentType, runs: own };
+  });
 }
 
 // Consecutive agentRun blocks are one launch batch → one "subagents" block that
 // renders as a single line. `subagents` (from collectSubagents) supplies the
 // identity-carrying version of each run.
 export function groupSubagentRuns(blocks, subagents) {
-  const byId = new Map(subagents.map((r) => [r.toolUseId, r]));
+  const byId = new Map(subagents.flatMap((s) => s.runs.map((r) => [r.toolUseId, r])));
   const out = [];
   for (const b of blocks) {
     if (b.kind !== "agentRun") {

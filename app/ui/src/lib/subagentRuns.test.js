@@ -13,6 +13,24 @@ describe("collectSubagents", () => {
     expect(out.every((r) => r.identity?.hex && r.identity.glyph)).toBe(true);
     expect(out[0].identity).not.toEqual(out[1].identity);
   });
+
+  it("keeps a continued subagent as one, reading as its latest run", () => {
+    const out = collectSubagents([
+      run("a", 10, { description: "Git özeti", subagentType: "Explore", endTs: 20 }),
+      run("b", 15),
+      run("s1", 30, { resumeOf: "a", description: "Recap", subagentType: null, endTs: 40 }),
+      run("s2", 50, { resumeOf: "s1", description: "Recap 2", subagentType: null, status: "running" }),
+    ]);
+    expect(out.map((s) => s.toolUseId)).toEqual(["a", "b"]);
+    const [git] = out;
+    expect(git).toMatchObject({ description: "Git özeti", subagentType: "Explore", status: "running", ts: 50 });
+    expect(git.runs.map((r) => r.toolUseId)).toEqual(["a", "s1", "s2"]);
+    expect(git.runs.every((r) => r.identity === git.identity && r.description === "Git özeti")).toBe(true);
+  });
+
+  it("keeps a resumed run of a subagent no longer in view as its own", () => {
+    expect(collectSubagents([run("s1", 30, { resumeOf: "gone" })]).map((s) => s.toolUseId)).toEqual(["s1"]);
+  });
 });
 
 describe("groupSubagentRuns", () => {
@@ -23,6 +41,15 @@ describe("groupSubagentRuns", () => {
     expect(out[1].runs.map((r) => r.toolUseId)).toEqual(["a", "b"]);
     expect(out[1].ts).toBe(2);
     expect(out[1].runs[0].identity).toBeDefined();
+  });
+
+  it("gives a resumed run its own line, named and colored as the subagent it continues", () => {
+    const blocks = [run("a", 1, { description: "Git özeti" }), { kind: "assistant", ts: 2 }, run("s1", 3, { resumeOf: "a", description: "Recap", status: "running" })];
+    const out = groupSubagentRuns(blocks, collectSubagents(blocks));
+    expect(out.map((b) => b.kind)).toEqual(["subagents", "assistant", "subagents"]);
+    const [first, resumed] = [out[0].runs[0], out[2].runs[0]];
+    expect(resumed).toMatchObject({ toolUseId: "s1", description: "Git özeti", status: "running" });
+    expect(resumed.identity).toEqual(first.identity);
   });
 });
 

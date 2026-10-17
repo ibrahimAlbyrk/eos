@@ -87,6 +87,43 @@ describe("buildBlocks agentRun timing", () => {
   });
 });
 
+describe("buildBlocks subagents continued by a message", () => {
+  const ev = (ts, payload) => ({ type: "agent_event", ts, payload });
+  const call = (callId, ts, name, input) => ev(ts, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId, name, input }] });
+  const result = (callId, ts, content) => ev(ts, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId, content }] });
+  const inner = (callId, ts, parentCallId) => ev(ts, { type: "activity", kind: "tool_started", callId, toolName: "Read", input: { file_path: "/x" }, parentCallId });
+  const send = (ts) => call("S1", ts, "SendMessage", { to: "a1", message: "now count the tags", summary: "Count tags" });
+  const first = [
+    call("AG", 100, "Agent", { description: "Git özeti", prompt: "git kontrolleri" }),
+    ev(101, { type: "subagent_started", callId: "AG", agentId: "a1", background: true }),
+    result("AG", 101, "launch stub"),
+    ev(150, { type: "subagent_completed", agentId: "a1", callId: "AG", status: "completed", result: "Dal: main" }),
+  ];
+
+  it("turns the resuming message into a run of its own, running until it completes", () => {
+    const events = [...first, send(200), result("S1", 201, "resuming"), ev(201, { type: "subagent_started", callId: "S1", agentId: "a1", background: true, resumes: "AG" }), inner("I1", 210, "S1")];
+    const [launch, resumed] = runs(buildBlocks(events));
+    expect(launch).toMatchObject({ toolUseId: "AG", status: "completed", result: "Dal: main", resumeOf: null });
+    expect(resumed).toMatchObject({ toolUseId: "S1", resumeOf: "AG", status: "running", prompt: "now count the tags", ts: 200 });
+    expect(resumed.tools.map((t) => t.id)).toEqual(["I1"]);
+    expect(buildBlocks(events).some((b) => b.kind === "tool")).toBe(false);
+
+    const done = runs(buildBlocks([...events, ev(260, { type: "subagent_completed", agentId: "a1", callId: "S1", status: "completed", result: "12 tags" })]))[1];
+    expect(done).toMatchObject({ status: "completed", result: "12 tags", endTs: 260 });
+  });
+
+  it("pairs a run with the agent's earlier one by agentId when the lane could not name it", () => {
+    const events = [...first, send(200), result("S1", 201, "resuming"), ev(201, { type: "subagent_started", callId: "S1", agentId: "a1", background: true })];
+    expect(runs(buildBlocks(events))[1].resumeOf).toBe("AG");
+  });
+
+  it("leaves a message that resumed nothing as a plain tool", () => {
+    const blocks = buildBlocks([...first, send(200), result("S1", 201, "queued")]);
+    expect(runs(blocks)).toHaveLength(1);
+    expect(blocks.some((b) => b.kind === "tool" && b.tool.name === "SendMessage")).toBe(true);
+  });
+});
+
 describe("buildBlocks background agents that end without finishing", () => {
   const userMsg = (ts, text) => ({ type: "user_message", ts, payload: { text } });
   const started = (ts) => ({ type: "agent_event", ts, payload: { type: "subagent_started", callId: "AG", agentId: "a1", background: true } });

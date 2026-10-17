@@ -130,10 +130,23 @@ describe("SubagentDetail", () => {
   });
 
   it("folds a run of tools into a transcript-style group", () => {
-    const grouped = { ...byId("files"), tools: [read("r1", false), read("r2", false), read("r3", false)] };
+    const [grouped] = collectSubagents([{ ...byId("files").runs[0], tools: [read("r1", false), read("r2", false), read("r3", false)] }]);
     const html = render(<SubagentDetail run={grouped} now={NOW} workers={[]} onBack={() => {}} />);
     expect(text(html)).toContain("Read 3 files");
     expect(html.match(/class="tool-group"/g)).toHaveLength(1);
     expect(html).not.toContain("tool-item standalone");
+  });
+
+  it("shows a continued subagent's runs in order, the live one open on its message", () => {
+    const [resumed] = collectSubagents([
+      { kind: "agentRun", toolUseId: "git", description: "Git özeti", prompt: "git kontrolleri", status: "completed", ts: 10_000, endTs: 20_000, tools: [], result: "Dal: main", usage: null, model: null },
+      { kind: "agentRun", toolUseId: "send", resumeOf: "git", description: "Recap", prompt: "şimdi etiketleri say", status: "running", ts: 90_000, endTs: null, tools: [read("r1", true)], result: null, usage: null, model: null },
+    ]);
+    const html = text(render(<SubagentDetail run={resumed} now={NOW} workers={[]} onBack={() => {}} />));
+    expect(html).toContain("Git özeti");
+    expect(html.indexOf("Worked for 10s")).toBeLessThan(html.indexOf("Dal: main"));
+    expect(html.indexOf("Dal: main")).toBeLessThan(html.indexOf("Working for 10s"));
+    expect(html).toContain("şimdi etiketleri say");
+    expect(html).not.toContain("git kontrolleri");
   });
 });

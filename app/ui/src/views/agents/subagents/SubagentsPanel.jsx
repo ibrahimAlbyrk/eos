@@ -16,7 +16,10 @@ export function SubagentsPanel({ live }) {
   const workerId = findLeaf(ui.tree, ui.paneId)?.agentId ?? ui.selectedId ?? null;
   const runs = useSubagents(workerId);
   const opened = ui.panelData?.subagents;
-  const run = opened?.workerId === workerId ? runs.find((r) => r.toolUseId === opened.toolUseId) : null;
+  // Any of a subagent's runs opens it — the transcript line of a resumed run too.
+  const run = opened?.workerId === workerId
+    ? runs.find((r) => r.runs.some((own) => own.toolUseId === opened.toolUseId))
+    : null;
   const worker = live.workers.find((w) => w.id === workerId);
 
   return (

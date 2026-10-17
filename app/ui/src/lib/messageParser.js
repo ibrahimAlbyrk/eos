@@ -231,6 +231,10 @@ export function buildBlocks(rawEvents) {
   const subagentStartCallIds = new Set();
   const callIdByAgentId = new Map();
   const subagentCompletions = [];
+  // A stopped subagent continued later (a message resumed it) starts a new run
+  // under the call that resumed it; this maps that call to the agent's earlier
+  // run so the panel keeps one subagent.
+  const resumeOfByCallId = new Map();
   // A Skill's injected SKILL.md body arrives as its own jsonl event, keyed to
   // the Skill tool_use id — collect it up front so the tool block can carry it.
   const skillBodyById = new Map();
@@ -254,7 +258,14 @@ export function buildBlocks(rawEvents) {
       const p = parsePayload(ev.payload);
       if (p.callId) {
         subagentStartCallIds.add(p.callId);
+        const earlier = p.resumes ?? callIdByAgentId.get(p.agentId);
+        if (earlier && earlier !== p.callId) resumeOfByCallId.set(p.callId, earlier);
         if (p.agentId) callIdByAgentId.set(p.agentId, p.callId);
+        // A run started by some other call (the message that resumed it) is a
+        // subagent run all the same.
+        if (toolUseIds.has(p.callId) && !agentSpans.has(p.callId)) {
+          agentSpans.set(p.callId, { startTs: ev.ts, endTs: Infinity, background: true });
+        }
       }
       continue;
     }
@@ -396,11 +407,15 @@ export function buildBlocks(rawEvents) {
       ? completion != null || lc.exitAfter(evIdx)
       : lc.isClosed(id, evIdx);
     const endStatus = completion?.status ?? (isBackground ? "stopped" : "completed");
+    // A resumed run's call is the message that continued the subagent (claude:
+    // SendMessage { message, summary }), and that message is the run's prompt.
+    const prompt = input?.prompt ?? (typeof input?.message === "string" ? input.message : "");
     out.push({
       kind: "agentRun",
       toolUseId: id,
-      description: input?.description || (input?.prompt ?? "").slice(0, 100) || "agent",
-      prompt: input?.prompt ?? "",
+      description: input?.description || input?.summary || prompt.slice(0, 100) || "agent",
+      prompt,
+      resumeOf: resumeOfByCallId.get(id) ?? null,
       // The model the subagent actually ran on beats the spawn call's requested alias.
       model: profileByCallId.get(id)?.model ?? input?.model ?? parentModel ?? null,
       effort: profileByCallId.get(id)?.effort ?? null,
@@ -687,7 +702,7 @@ export function buildBlocks(rawEvents) {
       out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}), ...(p.interrupted ? { interrupted: true } : {}) });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
-      if (isSubagentToolUse(p)) {
+      if (agentSpans.has(p.id)) {
         pushAgentRun(p.id, p.input, p.tsTranscript ?? ev.ts, evIdx, p.parentModel);
       } else {
         pushTool({
