@@ -6,9 +6,11 @@ const COPY = {
   compact: { doing: "Compacting", confirm: "Stop & compact" },
 };
 
-export function subagentStopMessage({ action, count }) {
-  const one = count === 1;
-  return `${count} subagent${one ? " is" : "s are"} still running. ${COPY[action].doing} restarts the session and stops ${one ? "it" : "them"}.`;
+export function subagentStopMessage({ action, count, workflows = 0 }) {
+  const plural = (n, noun) => `${n} ${noun}${n === 1 ? "" : "s"}`;
+  const what = [count > 0 && plural(count, "subagent"), workflows > 0 && plural(workflows, "workflow")].filter(Boolean).join(" and ");
+  const one = count + workflows === 1;
+  return `${what} ${one ? "is" : "are"} still running. ${COPY[action].doing} restarts the session and stops ${one ? "it" : "them"}.`;
 }
 
 export function SubagentStopDialog() {

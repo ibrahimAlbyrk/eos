@@ -16,6 +16,7 @@ import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { PagePanel } from "../../pages/PagePanel.jsx";
 import { TransferPanel } from "../../transfer/TransferPanel.jsx";
 import { ViewPanel } from "../../../genui/panel/ViewPanel.jsx";
+import { WorkflowPanel } from "../workflow/WorkflowPanel.jsx";
 
 registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -31,3 +32,5 @@ registerPanel({ type: "page", label: "Page", Component: PagePanel });
 registerPanel({ type: "transfer", label: "Transfer", Component: TransferPanel });
 // A visual answer opened from the transcript (view:<id>).
 registerPanel({ type: "view", label: "View", Component: ViewPanel });
+// A Workflow run's live view, opened from its card (workflow:<workerId>/<callId>).
+registerPanel({ type: "workflow", label: "Workflow", Component: WorkflowPanel });

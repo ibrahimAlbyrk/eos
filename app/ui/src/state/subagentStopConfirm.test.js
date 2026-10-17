@@ -28,3 +28,12 @@ describe("subagentStopMessage", () => {
       .toBe("3 subagents are still running. Compacting restarts the session and stops them.");
   });
 });
+
+describe("subagentStopMessage — workflows", () => {
+  it("counts running workflows alongside subagents", () => {
+    expect(subagentStopMessage({ action: "rewind", count: 0, workflows: 1 }))
+      .toBe("1 workflow is still running. Rewinding restarts the session and stops it.");
+    expect(subagentStopMessage({ action: "compact", count: 2, workflows: 1 }))
+      .toBe("2 subagents and 1 workflow are still running. Compacting restarts the session and stops them.");
+  });
+});

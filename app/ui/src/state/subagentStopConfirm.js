@@ -5,9 +5,10 @@
 
 import { useSyncExternalStore } from "react";
 import { getSubagents } from "./subagentsStore.js";
+import { runningWorkflowCount } from "./workflowRunsStore.js";
 import { isRunning } from "../lib/subagentRuns.js";
 
-let pending = null; // { action: "rewind" | "compact", count, resolve }
+let pending = null; // { action: "rewind" | "compact", count, workflows, resolve }
 const subs = new Set();
 
 function emit() {
@@ -21,10 +22,11 @@ function subscribe(cb) {
 
 export function confirmSubagentStop(workerId, action) {
   const count = getSubagents(workerId).filter(isRunning).length;
-  if (count === 0) return Promise.resolve(true);
+  const workflows = runningWorkflowCount(workerId);
+  if (count + workflows === 0) return Promise.resolve(true);
   pending?.resolve(false);
   return new Promise((resolve) => {
-    pending = { action, count, resolve };
+    pending = { action, count, workflows, resolve };
     emit();
   });
 }

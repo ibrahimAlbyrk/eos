@@ -68,6 +68,7 @@ import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import { onReveal } from "../../../state/transcriptReveal.js";
 import * as outbox from "../../../state/outboxStore.js";
 import { ViewBlock } from "../../../genui/ViewBlock.jsx";
+import { WorkflowCard } from "../workflow/WorkflowCard.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { stableGenuiIndex, isFinalViewBlock } from "../../../genui/runtime/conversation.js";
 import { subscribe as subscribeGenui, streamsFor as liveViewsFor, dropStream as dropViewStream } from "../../../genui/streamStore.js";
@@ -575,7 +576,7 @@ export function Messages({ live, agentId, isActive = true }) {
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
   // dispatches; see core/use-cases/DrainQueuedMessages.)
-  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents" || lastBlock.kind === "view");
+  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents" || lastBlock.kind === "view" || lastBlock.kind === "workflow");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
   // Live goal-check (transient store) — shown only while the worker is idle under
@@ -768,6 +769,7 @@ function blockKey(b, i) {
     case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
     case "view":      return "v-" + (b.tool.id ?? b.ts ?? i);
+    case "workflow":  return "wf-" + (b.tool.id ?? b.ts ?? i);
     case "subagents": return "sa-" + (b.runs[0]?.toolUseId ?? b.ts ?? i);
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
     default:          return b.blockId ? b.kind + "-" + b.blockId : b.kind + "-" + (b.ts ?? i);
@@ -802,6 +804,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
       return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} action={b.action} onJumpToView={onJumpToView} /></MessageRow>;
     }
     case "view":      return <ViewBlock key={key} block={b} />;
+    case "workflow":  return <WorkflowCard key={key} block={b} workerId={sessionId} cwd={cwd} workers={workers} />;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;

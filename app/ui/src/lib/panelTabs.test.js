@@ -158,3 +158,16 @@ describe("view tabs", () => {
     expect(viewIdOf(null)).toBe(null);
   });
 });
+
+describe("workflow tabs", () => {
+  it("a Workflow run's tab names its conversation and call", async () => {
+    const { workflowTabId, workflowRefOf } = await import("./panelTabs.js");
+    const id = workflowTabId("w-e3ajaozg", "toolu_01SJaud");
+    expect(id).toBe("workflow:w-e3ajaozg/toolu_01SJaud");
+    expect(tabType(id)).toBe("workflow");
+    expect(workflowRefOf(id)).toEqual({ workerId: "w-e3ajaozg", callId: "toolu_01SJaud" });
+    expect(workflowRefOf("workflow:w-1")).toBe(null);
+    expect(workflowRefOf("view:v_abcdefghijkl")).toBe(null);
+    expect(workflowRefOf(null)).toBe(null);
+  });
+});

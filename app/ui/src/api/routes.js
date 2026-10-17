@@ -29,6 +29,11 @@ export const ROUTES = {
   // Every row that rebuilds the conversation's subagents — the Subagents panel
   // lists the ones the paged window hasn't loaded too.
   workerSubagentEvents: (id) => `/workers/${id}/subagent-events`,
+  // Claude Code Workflow runs (contracts/src/workflow-run.ts).
+  workerWorkflowRuns: (id) => `/workers/${id}/workflow-runs`,
+  workerWorkflowRun: (id, callId) => `/workers/${id}/workflow-runs/${callId}`,
+  workerWorkflowRunStop: (id, callId) => `/workers/${id}/workflow-runs/${callId}/stop`,
+  workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,

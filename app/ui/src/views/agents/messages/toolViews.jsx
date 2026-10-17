@@ -34,6 +34,7 @@ import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.j
 import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
 import { MEMORY_TOOL_VIEWS } from "./MemoryToolViews.jsx";
 import { TRANSFER_TOOL_VIEWS } from "./TransferToolViews.jsx";
+import { workflowNameOf } from "../../../lib/workflowRuns.js";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -428,6 +429,14 @@ register("TaskOutput", {
   label: (t) => ({ verb: "Read task output", file: t.input?.task_id ?? "" }),
   runningLabel: (t) => ({ verb: "Reading task output", file: t.input?.task_id ?? "" }),
   Detail: TaskOutputDetail,
+});
+
+// A Workflow call renders as its run card (views/agents/workflow/); this row is
+// what a run the daemon never reported on falls back to.
+register("Workflow", {
+  mono: true,
+  label: (t) => ({ verb: "Started workflow", file: workflowNameOf(t.input) }),
+  runningLabel: (t) => ({ verb: "Starting workflow", file: workflowNameOf(t.input) }),
 });
 
 // Worker-management MCP tools — folded into this registry so every tool

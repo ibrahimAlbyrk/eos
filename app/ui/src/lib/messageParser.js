@@ -31,6 +31,8 @@ export const STANDALONE_TOOLS = new Set([
   "mcp__worker__present",
   "mcp__orchestrator__present_app",
   "mcp__worker__present_app",
+  // A Workflow run renders as a "workflow" block (its live run card).
+  "Workflow",
 ]);
 
 // A tool_use that runs a subagent: the lane-neutral `spawnsSubagent` marker (every
@@ -210,6 +212,8 @@ function normalizeEvents(events) {
       out.push({ type: "exit", ts, payload: {} }); // exit barrier — closes every open tool
     } else if (e?.type === "subagent_started" || e?.type === "subagent_completed" || e?.type === "subagent_profile") {
       out.push({ type: e.type, ts, payload: e }); // subagent lifecycle + profile (see buildBlocks)
+    } else if (e?.type === "workflow_started" || e?.type === "workflow_completed") {
+      out.push({ type: e.type, ts, payload: e }); // a Workflow run's start / end (see buildBlocks)
     }
     // role:"user" → rendered via the synthesized user_message event (no double);
     // delta/usage/permission_request/question_request: no content/lifecycle here.
@@ -241,7 +245,17 @@ export function buildBlocks(rawEvents) {
   // What each subagent runs on (model + effort) as the lane observed it — the
   // newest profile wins; older events carry none.
   const profileByCallId = new Map();
+  // A Workflow run's start and end, by the Workflow call — carried on its block.
+  const workflowByCallId = new Map();
   for (const ev of events) {
+    if (ev.type === "workflow_started" || ev.type === "workflow_completed") {
+      const p = parsePayload(ev.payload);
+      if (p.callId) {
+        const which = ev.type === "workflow_started" ? "started" : "completed";
+        workflowByCallId.set(p.callId, { ...workflowByCallId.get(p.callId), [which]: { ...p, ts: ev.ts } });
+      }
+      continue;
+    }
     if (ev.type === "subagent_profile") {
       const p = parsePayload(ev.payload);
       if (p.callId) profileByCallId.set(p.callId, p);
@@ -437,6 +451,13 @@ export function buildBlocks(rawEvents) {
     if (isGenuiTool(tool.name)) {
       flushTools();
       out.push({ kind: "view", tool, ts: tool.ts });
+      return;
+    }
+    // A Workflow call is a run that outlives its launch stub: its own block.
+    if (tool.name === "Workflow") {
+      flushTools();
+      const run = workflowByCallId.get(tool.id);
+      out.push({ kind: "workflow", tool, started: run?.started ?? null, completed: run?.completed ?? null, ts: tool.ts });
       return;
     }
     const lane = laneOf(tool.name);

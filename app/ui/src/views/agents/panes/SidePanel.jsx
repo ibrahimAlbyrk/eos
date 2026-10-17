@@ -2,13 +2,15 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useUi } from "../../../state/ui.jsx";
 import { SidePanelScopeContext, SidePanelVisibleContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType, filePathOf, pageIdOf, viewIdOf } from "../../../lib/panelTabs.js";
+import { tabType, filePathOf, pageIdOf, viewIdOf, workflowRefOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
 import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js";
 import { fetchViewRecord, getViewRecord, useViewRecordsVersion, viewTitleOf } from "../../../genui/panel/viewRecords.js";
+import { fetchWorkflowRun, getWorkflowRun, useWorkflowRunsVersion } from "../../../state/workflowRunsStore.js";
+import { workflowNameOf } from "../../../lib/workflowRuns.js";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
 import { SidePanelTabs } from "./SidePanelTabs.jsx";
@@ -58,6 +60,12 @@ function labelFor(id, openTabs) {
   if (viewId) {
     const title = viewTitleOf(viewId);
     return title ? `View · ${title}` : TAB_LABELS.view;
+  }
+  const run = workflowRefOf(id);
+  if (run) {
+    const r = getWorkflowRun(run.workerId, run.callId);
+    const name = r?.detail?.name ?? (r?.tool ? workflowNameOf(r.tool.input) : null);
+    return name ? `Workflow · ${name}` : TAB_LABELS.workflow;
   }
   const type = tabType(id);
   if (type === "newtab") return TAB_LABELS.newtab;
@@ -120,11 +128,15 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   // View tabs are labelled by the view's title — fetch the ones a restored
   // session reopened before they are first shown.
   useViewRecordsVersion();
+  // Workflow tabs are labelled by the run's name, fetched the same way.
+  useWorkflowRunsVersion();
   const tabsKey = openTabs.join("\n");
   useEffect(() => {
     for (const id of tabsKey.split("\n")) {
       const viewId = viewIdOf(id);
       if (viewId && !getViewRecord(viewId)) void fetchViewRecord(viewId);
+      const run = workflowRefOf(id);
+      if (run) void fetchWorkflowRun(run.workerId, run.callId);
     }
   }, [tabsKey]);
 

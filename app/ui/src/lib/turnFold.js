@@ -6,7 +6,8 @@ import { isRunning } from "./subagentRuns.js";
 // The agent's own output between two prompts. Anything else (a prompt, a
 // worker report, a terminal run, an error line) ends the run and stays visible.
 // A visual answer ("view") belongs to the run but is always pinned in view.
-const WORK_KINDS = new Set(["thinking", "assistant", "toolGroup", "tool", "subagents", "agentRun", "view"]);
+// A Workflow run ("workflow") is pinned the same way: its card is the run's live view.
+const WORK_KINDS = new Set(["thinking", "assistant", "toolGroup", "tool", "subagents", "agentRun", "view", "workflow"]);
 
 // Tool calls the reader must still see once the turn folds — they stay in view
 // between the fold row and the final reply.
@@ -19,12 +20,14 @@ const PINNED_TOOLS = new Set([
   "mcp__worker__send_message_to_parent",
 ]);
 
-const isPinned = (b) => b.kind === "view" || (b.kind === "tool" && PINNED_TOOLS.has(b.tool?.name));
+const isPinned = (b) => b.kind === "view" || b.kind === "workflow" || (b.kind === "tool" && PINNED_TOOLS.has(b.tool?.name));
 // A run may end on the reply or on a view (the agent answered by showing).
 const isFinalReply = (b) => b.kind === "assistant" || b.kind === "view";
-const isAction = (b) => b.kind === "toolGroup" || b.kind === "tool" || b.kind === "subagents" || b.kind === "agentRun";
+const isAction = (b) => b.kind === "toolGroup" || b.kind === "tool" || b.kind === "subagents" || b.kind === "agentRun" || b.kind === "workflow";
+// A workflow that started and hasn't ended still works in the background.
 const hasRunningSubagent = (b) =>
-  (b.kind === "subagents" && b.runs.some(isRunning)) || (b.kind === "agentRun" && isRunning(b));
+  (b.kind === "subagents" && b.runs.some(isRunning)) || (b.kind === "agentRun" && isRunning(b))
+  || (b.kind === "workflow" && Boolean(b.started) && !b.completed);
 
 // blocks → render items: { kind: "block", block, index } | { kind: "fold", … }.
 // A run that isn't over never folds: the one still streaming at the tail while
@@ -52,7 +55,7 @@ export function foldTurns(blocks, keyOf, { live = false } = {}) {
       if (isPinned(blocks[k])) pinned.push({ kind: "block", block: blocks[k], index: k });
       else work.push(blocks[k]);
     }
-    const ongoing = (live && end === blocks.length) || work.some(hasRunningSubagent);
+    const ongoing = (live && end === blocks.length) || work.some(hasRunningSubagent) || pinned.some((p) => hasRunningSubagent(p.block));
     const foldable = !ongoing && isFinalReply(final) && work.some(isAction);
     if (!foldable) {
       if (ongoing) liveRunKeys.push(runKey);

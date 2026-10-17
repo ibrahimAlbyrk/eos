@@ -271,6 +271,23 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerSubagentEvents → ${r.status}`);
     return r.body;
   },
+  // A Workflow run (WorkflowRunDetail), or null when the daemon knows none.
+  async getWorkflowRun(workerId, callId) {
+    const r = await getJson(ROUTES.workerWorkflowRun(workerId, callId));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.body?.error ?? `getWorkflowRun → ${r.status}`);
+    return r.body;
+  },
+  // One workflow agent's transcript rows, or null when it has none (yet).
+  async getWorkflowAgentRows(workerId, callId, agentId) {
+    const r = await getJson(ROUTES.workerWorkflowAgent(workerId, callId, agentId));
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.body?.error ?? `getWorkflowAgentRows → ${r.status}`);
+    return r.body.rows;
+  },
+  async stopWorkflowRun(workerId, callId) {
+    return postJson(ROUTES.workerWorkflowRunStop(workerId, callId), {}, uiTokenHeader());
+  },
   // action: a visual answer's send action ({viewId, actionId, label, viewTitle?,
   // item?, state?}) — the chat shows its label as a reply chip.
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) {

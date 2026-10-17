@@ -47,6 +47,7 @@ import { applyDreamChange, resyncDreams } from "../state/dreamStore.js";
 import { applySyncChange, resyncSync } from "../state/syncStore.js";
 import { applyTransferChange, resyncTransfers } from "../state/transfersStore.js";
 import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
+import { applyWorkflowProgress, resyncWorkflowRuns } from "../state/workflowRunsStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
 
 const POLL_MS = 4000;
@@ -227,6 +228,7 @@ export function useLive() {
         if (!isRemoteView()) resyncTransfers();
         resyncViewStates();
         resyncGenuiStreams();
+        resyncWorkflowRuns();
       },
       onChange: (e) => {
         try {
@@ -289,6 +291,9 @@ export function useLive() {
           if (data.reason === "genui:delta") { applyGenuiDelta(data.payload ?? {}); return; }
           // A view's state changed (another window, the side-panel copy).
           if (data.reason === "genui:change") { applyViewStateChange(data.payload ?? {}); return; }
+          // A Workflow run's live snapshot (claude SDK lane) — the run card and its
+          // side-panel tab read it; the run's start and end are worker events.
+          if (data.reason === "workflow:progress") { applyWorkflowProgress(data.payload ?? {}); return; }
           // Transient goal-check progress (loop tick) — drive the live "checking"
           // indicator via the loop-check store; not a worker-state delta, so skip
           // the refetch. The durable verdict rides loop_check (a worker:change).

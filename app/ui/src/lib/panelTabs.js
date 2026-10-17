@@ -47,6 +47,18 @@ export function viewIdOf(id) {
   return id && tabType(id) === "view" ? id.slice("view:".length) : null;
 }
 
+// A Workflow run's live view, keyed by the conversation and the Workflow call
+// (the tab rebuilds from GET /workers/:id/workflow-runs/:callId).
+export function workflowTabId(workerId, callId) {
+  return `workflow:${workerId}/${callId}`;
+}
+
+export function workflowRefOf(id) {
+  if (!id || tabType(id) !== "workflow") return null;
+  const [workerId, callId] = id.slice("workflow:".length).split("/");
+  return workerId && callId ? { workerId, callId } : null;
+}
+
 // The instance number in a tab id, or 1 for a bare/singleton id.
 function tabNumber(id) {
   const i = id.indexOf(":");
