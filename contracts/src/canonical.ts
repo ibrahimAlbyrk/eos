@@ -241,6 +241,75 @@ export const SubagentProfileEventSchema = z.object({
   effort: z.string().optional(),
 });
 
+// --- workflow runs ------------------------------------------------------------
+// Claude Code's Workflow tool: a script that runs many agents in phases, in the
+// background of the session that called it. Its tool_result is only a launch
+// stub; the run reports progress on its own (the snapshot below) and its true
+// end arrives later, like a background subagent. Correlation key: the Workflow
+// call's callId.
+
+export const WorkflowPhaseSchema = z.object({
+  index: z.number().int(), // 1-based, in meta.phases order
+  title: z.string(),
+  detail: z.string().optional(), // meta.phases[].detail — only once the run's record exists
+});
+export type WorkflowPhase = z.infer<typeof WorkflowPhaseSchema>;
+
+export const WorkflowAgentStateSchema = z.enum(["queued", "running", "done", "error", "cancelled"]);
+export type WorkflowAgentState = z.infer<typeof WorkflowAgentStateSchema>;
+
+export const WorkflowAgentSchema = z.object({
+  index: z.number().int(), // 1-based, in spawn order
+  label: z.string(),
+  phaseIndex: z.number().int().optional(),
+  agentId: z.string().optional(),
+  model: z.string().optional(),
+  state: WorkflowAgentStateSchema,
+  queuedAt: z.number().optional(),
+  startedAt: z.number().optional(),
+  lastProgressAt: z.number().optional(),
+  durationMs: z.number().nonnegative().optional(), // set once the agent finished
+  lastToolName: z.string().optional(),
+  lastToolSummary: z.string().optional(),
+  promptPreview: z.string().optional(),
+  resultPreview: z.string().optional(),
+  tokens: z.number().nonnegative().optional(),
+  toolCalls: z.number().nonnegative().optional(),
+  error: z.string().optional(),
+  cached: z.boolean().optional(), // a resumed run's agent that returned its earlier result
+});
+export type WorkflowAgent = z.infer<typeof WorkflowAgentSchema>;
+
+export const WorkflowRunSnapshotSchema = z.object({
+  phases: z.array(WorkflowPhaseSchema),
+  agents: z.array(WorkflowAgentSchema),
+  logs: z.array(z.string()), // the script's log() lines, when the lane reports them
+});
+export type WorkflowRunSnapshot = z.infer<typeof WorkflowRunSnapshotSchema>;
+
+// The run was launched (claude: the Workflow tool_result + system/task_started).
+export const WorkflowStartedEventSchema = z.object({
+  type: z.literal("workflow_started"),
+  callId: z.string(),
+  taskId: z.string(),
+  runId: z.string().optional(),
+  name: z.string().optional(), // meta.name
+  description: z.string().optional(), // meta.description
+  transcriptDir: z.string().optional(), // where the run's agents write their transcripts
+});
+
+// The run ended (claude: system/task_notification). Carries the last snapshot so
+// a finished run renders from the event log alone.
+export const WorkflowCompletedEventSchema = z.object({
+  type: z.literal("workflow_completed"),
+  callId: z.string(),
+  taskId: z.string(),
+  status: z.enum(["completed", "failed", "stopped"]),
+  summary: z.string().optional(),
+  usage: SubagentUsageSchema.optional(),
+  snapshot: WorkflowRunSnapshotSchema.optional(),
+});
+
 // Cumulative billing usage for a unit of work (one request, or a whole turn for
 // backends that only report at turn end). The daemon SUMS these into the cost +
 // token ledger. Do NOT read this for context-window occupancy — use ContextEvent.
@@ -309,6 +378,8 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
   SubagentStartedEventSchema,
   SubagentCompletedEventSchema,
   SubagentProfileEventSchema,
+  WorkflowStartedEventSchema,
+  WorkflowCompletedEventSchema,
   UsageEventSchema,
   ContextEventSchema,
   SessionEventSchema,

@@ -212,6 +212,7 @@ import { PendingPeerRequestService } from "./services/PendingPeerRequestService.
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
+import { WorkflowRunService } from "./services/WorkflowRunService.ts";
 import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
 import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
 import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts";
@@ -1299,6 +1300,19 @@ export function buildContainer() {
     const { servers } = resolveMcpServers({ inherited, builtins, config: cfg, nativeDiscovery: false });
     return toSdkMcpServers(servers);
   };
+  // Claude Code Workflow runs: live progress relayed as workflow:progress;
+  // finished runs read back from the event log and Claude Code's own run files.
+  const workflowRuns = new WorkflowRunService({
+    bus,
+    agentEvents: (workerId) => events.listByType(workerId, "agent_event"),
+    session: (workerId) => {
+      const kind = workers.findById(workerId)?.backend_kind;
+      if (!kind || !backends.has(kind)) return null;
+      const backend = backends.get(kind);
+      return backend.descriptor.processModel === "in-process" ? backend.attach(workerId, { kind: "inproc", ref: workerId }) : null;
+    },
+    claudeProjectsDir: join(claudeHome, "projects"),
+  });
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
@@ -1326,6 +1340,7 @@ export function buildContainer() {
       if (d.phase !== "stop") turnOutput.markSeen(d.workerId);
       bus.publish(GENUI_TOPICS.delta, d);
     },
+    publishWorkflowProgress: (p) => workflowRuns.onProgress(p),
     log,
   });
   // The slash menu's view of Claude Code's own commands, as a focused session sees them.
@@ -1589,6 +1604,7 @@ export function buildContainer() {
     if (event.type === "message" && event.role === "assistant") {
       turnOutput.markSeen(workerId);
     }
+    if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id), isInterruptPending: (id) => turnSettle.isInterruptPending(id) },
       workerId,
@@ -1749,6 +1765,7 @@ export function buildContainer() {
     genuiViews,
     genuiPresent,
     genuiMedia,
+    workflowRuns,
     genuiSettings,
     viewTokens: new ViewTokens(uiToken),
     recents,

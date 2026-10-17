@@ -5,8 +5,9 @@
 // we depend on, verified against @anthropic-ai/claude-agent-sdk 0.3.x + the
 // validated Python probes (content_block_delta -> thinking_delta/text_delta).
 
-import type { AgentEvent, ContentBlock, CanonicalUsage, SubagentUsage } from "../../../contracts/src/canonical.ts";
+import type { AgentEvent, ContentBlock, CanonicalUsage, SubagentUsage, WorkflowRunSnapshot } from "../../../contracts/src/canonical.ts";
 import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/canonical.ts";
+import { EMPTY_WORKFLOW_SNAPSHOT, applyWorkflowProgress, settleWorkflowSnapshot } from "../../../core/src/domain/workflow-run.ts";
 
 // --- the SDK message subset we read (structural) ---------------------------
 interface RawDelta { type: string; text?: string; thinking?: string; partial_json?: string }
@@ -39,6 +40,12 @@ interface SdkMsg {
   status?: string;
   output_file?: string;
   summary?: string;
+  // task_started: "local_workflow" for a Workflow run, with its meta.name.
+  task_type?: string;
+  workflow_name?: string;
+  // task_progress of a Workflow run: the run's progress entries. Not in the SDK's
+  // types — read only by core's applyWorkflowProgress.
+  workflow_progress?: unknown;
   // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
   // tool_use id. Drives subagent attribution: inner tools surface as parented
   // activity grouped under the agentRun, not as top-level main-stream blocks.
@@ -157,6 +164,26 @@ function parseNotificationCarriers(text: string): NotificationCarrier[] {
   return out;
 }
 
+// A Workflow call's tool_result is a launch stub too. The structured
+// WorkflowOutput rides the tool_use_result sidecar; the rendered text
+// ("Workflow launched in background. Task ID: …") is the fallback.
+interface WorkflowLaunch { taskId: string; runId?: string; name?: string; description?: string; transcriptDir?: string }
+
+function parseWorkflowLaunch(tur: unknown, text: string): WorkflowLaunch | null {
+  const o = tur && typeof tur === "object" ? (tur as Record<string, unknown>) : null;
+  const s = (v: unknown): string | undefined => (typeof v === "string" && v ? v : undefined);
+  if (o && (o.status === "async_launched" || o.status === "remote_launched") && s(o.taskId)) {
+    const runId = s(o.runId), name = s(o.workflowName), description = s(o.summary), transcriptDir = s(o.transcriptDir);
+    return { taskId: s(o.taskId)!, ...(runId ? { runId } : {}), ...(name ? { name } : {}), ...(description ? { description } : {}), ...(transcriptDir ? { transcriptDir } : {}) };
+  }
+  if (!text.startsWith("Workflow launched")) return null;
+  const field = (label: string): string | undefined => new RegExp(`\\b${label}:[ \\t]*([^\\n]+)`).exec(text)?.[1].trim() || undefined;
+  const taskId = /\bTask ID:\s*(\S+)/.exec(text)?.[1];
+  if (!taskId) return null;
+  const runId = field("Run ID"), description = field("Summary"), transcriptDir = field("Transcript dir");
+  return { taskId, ...(runId ? { runId } : {}), ...(description ? { description } : {}), ...(transcriptDir ? { transcriptDir } : {}) };
+}
+
 function toSubagentUsage(u: SdkTaskUsage | undefined): SubagentUsage | undefined {
   if (!u) return undefined;
   const usage: SubagentUsage = {
@@ -203,8 +230,19 @@ export interface GenuiInputDelta {
   text: string;
 }
 
+// A running Workflow's latest snapshot. Like GenuiInputDelta, not an AgentEvent:
+// the backend relays it as workflow:progress; only the run's start and end are
+// recorded.
+export interface WorkflowProgress {
+  callId: string;
+  taskId: string;
+  snapshot: WorkflowRunSnapshot;
+  usage?: SubagentUsage;
+}
+
 export interface SdkEventMapperOptions {
   onGenuiDelta?(delta: GenuiInputDelta): void;
+  onWorkflowProgress?(progress: WorkflowProgress): void;
   now?(): number;
 }
 
@@ -227,11 +265,11 @@ export interface SdkEventMapper {
   // (forkSession slices the transcript up to and including it). null until the
   // first assistant message of the session.
   readonly lastAssistantUuid: string | null;
-  // Background subagents announced and not yet completed. They live inside this
-  // launch's process, so they die with it.
+  // Background subagents and Workflow runs announced and not yet completed. They
+  // live inside this launch's process, so they die with it.
   readonly liveSubagents: number;
   // The process is going away: report every still-running background subagent
-  // as stopped (once), so none is left showing as running.
+  // and Workflow run as stopped (once), so none is left showing as running.
   stopLiveSubagents(): AgentEvent[];
 }
 
@@ -339,6 +377,36 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
     out.push({ type: "subagent_profile", callId, ...(next.model ? { model: next.model } : {}), ...(next.effort ? { effort: next.effort } : {}) });
   };
 
+  // Workflow runs, keyed by task_id. workflowCallIds (top-level Workflow calls)
+  // gates them like agentCallIds gates subagents: a task is a run only when its
+  // tool_use_id is one of these or task_started says local_workflow.
+  interface WorkflowEntry { callId: string; snapshot: WorkflowRunSnapshot; usage?: SubagentUsage; name?: string; announced?: boolean; done?: boolean }
+  const workflowCallIds = new Set<string>();
+  const workflows = new Map<string, WorkflowEntry>();
+  const isLiveWorkflow = (w: WorkflowEntry): boolean => w.announced === true && w.done !== true;
+  const workflowOf = (taskId: string, toolUseId: string | undefined, isWorkflow = false): WorkflowEntry | undefined => {
+    const w = workflows.get(taskId);
+    if (w) return w;
+    if (!toolUseId || !(isWorkflow || workflowCallIds.has(toolUseId))) return undefined;
+    const fresh: WorkflowEntry = { callId: toolUseId, snapshot: EMPTY_WORKFLOW_SNAPSHOT };
+    workflows.set(taskId, fresh);
+    return fresh;
+  };
+  const completeWorkflow = (out: AgentEvent[], taskId: string, w: WorkflowEntry, c: { status: "completed" | "failed" | "stopped"; summary?: string; usage?: SubagentUsage }): void => {
+    if (w.done) return;
+    w.done = true;
+    const usage = c.usage ?? w.usage;
+    out.push({
+      type: "workflow_completed",
+      callId: w.callId,
+      taskId,
+      status: c.status,
+      ...(c.summary ? { summary: c.summary } : {}),
+      ...(usage ? { usage } : {}),
+      snapshot: settleWorkflowSnapshot(w.snapshot, c.status),
+    });
+  };
+
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
@@ -366,11 +434,14 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
   return {
     get sessionId() { return sessionId; },
     get lastAssistantUuid() { return lastAssistantUuid; },
-    get liveSubagents() { return [...bgAgents.values()].filter(isLive).length; },
+    get liveSubagents() { return [...bgAgents.values()].filter(isLive).length + [...workflows.values()].filter(isLiveWorkflow).length; },
     stopLiveSubagents(): AgentEvent[] {
       const out: AgentEvent[] = [];
       for (const [agentId, entry] of bgAgents) {
         if (isLive(entry)) pushCompleted(out, agentId, entry, { status: "stopped" });
+      }
+      for (const [taskId, w] of workflows) {
+        if (isLiveWorkflow(w)) completeWorkflow(out, taskId, w, { status: "stopped" });
       }
       return out;
     },
@@ -395,9 +466,19 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // the full final text follows on the injected user-turn carrier, which
           // upgrades this event (see the plain-user branch of the "user" case).
           else if (msg.subtype === "task_notification" && msg.task_id) {
+            const usage = toSubagentUsage(msg.usage);
+            const wf = workflowOf(msg.task_id, msg.tool_use_id);
+            if (wf) {
+              completeWorkflow(out, msg.task_id, wf, {
+                status: normalizeTaskStatus(msg.status),
+                ...(msg.summary ? { summary: msg.summary } : {}),
+                ...(usage ? { usage } : {}),
+              });
+              return out;
+            }
             const entry = resolveBgEntry(msg.task_id, msg.tool_use_id);
             if (entry) {
-              entry.usage = toSubagentUsage(msg.usage) ?? entry.usage;
+              entry.usage = usage ?? entry.usage;
               if (msg.output_file) entry.outputFile = msg.output_file;
               entry.pendingSummary = true;
               pushCompleted(out, msg.task_id, entry, {
@@ -407,12 +488,25 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
               });
             }
           }
+          // A Workflow run's progress: fold its entries into the run's snapshot
+          // and relay it (never an AgentEvent — only start and end are recorded).
+          else if (msg.subtype === "task_progress" && msg.task_id) {
+            const wf = workflowOf(msg.task_id, msg.tool_use_id);
+            if (!wf || wf.done) return out;
+            wf.snapshot = applyWorkflowProgress(wf.snapshot, msg.workflow_progress);
+            wf.usage = toSubagentUsage(msg.usage) ?? wf.usage;
+            try {
+              opts.onWorkflowProgress?.({ callId: wf.callId, taskId: msg.task_id, snapshot: wf.snapshot, ...(wf.usage ? { usage: wf.usage } : {}) });
+            } catch { /* a live view must never break the session */ }
+          }
           // task_started backfills the task_id→callId map — live it routinely
           // arrives BEFORE the stub. It never announces a subagent (it also fires
           // for foreground subagents); subagent_started comes from the
           // async_launched stub, which is background-only. It does release a
           // subagent effort a hook reported before the mapping existed.
           else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
+            const wf = workflowOf(msg.task_id, msg.tool_use_id, msg.task_type === "local_workflow");
+            if (wf && msg.workflow_name) wf.name = msg.workflow_name;
             resolveBgEntry(msg.task_id, msg.tool_use_id);
             if (agentCallIds.has(msg.tool_use_id)) noteFirstCall(msg.task_id, msg.tool_use_id);
             taskCallIds.set(msg.task_id, msg.tool_use_id);
@@ -531,6 +625,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             if (b.type !== "tool_use" || !b.id) continue;
             if (b.name === "Agent" || b.name === "Task") agentCallIds.add(b.id);
             else if (b.name === "SendMessage") sendCallIds.add(b.id);
+            else if (b.name === "Workflow") workflowCallIds.add(b.id);
           }
           // Context-window occupancy: this top-level assistant message carries its
           // own API request's usage (BetaMessage.usage). Its prompt footprint
@@ -563,6 +658,13 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             const text = blockText(msg.message?.content);
             if (!text.includes("<task-notification>")) return out;
             for (const c of parseNotificationCarriers(text)) {
+              // A Workflow's <result> is its script's return value, for the model —
+              // the run already carries its own record; only a missed end is filled in.
+              const wf = workflowOf(c.taskId, c.toolUseId);
+              if (wf) {
+                completeWorkflow(out, c.taskId, wf, { status: c.status, ...(c.summary ? { summary: c.summary } : {}) });
+                continue;
+              }
               const entry = resolveBgEntry(c.taskId, c.toolUseId);
               if (!entry) continue; // not a subagent task (background Bash/Monitor)
               const alreadyReported = entry.pendingSummary === true;
@@ -625,6 +727,25 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                 ? parseResumedAgentId(msg.tool_use_result, blockText(r.content))
                 : null;
               if (resumed && r.tool_use_id) announceResume(out, resumed, r.tool_use_id);
+              const launch = r.tool_use_id && workflowCallIds.has(r.tool_use_id) && !r.is_error
+                ? parseWorkflowLaunch(msg.tool_use_result, blockText(r.content))
+                : null;
+              if (launch && r.tool_use_id) {
+                const wf = workflowOf(launch.taskId, r.tool_use_id)!;
+                if (!wf.announced) {
+                  wf.announced = true;
+                  const name = launch.name ?? wf.name;
+                  out.push({
+                    type: "workflow_started",
+                    callId: r.tool_use_id,
+                    taskId: launch.taskId,
+                    ...(launch.runId ? { runId: launch.runId } : {}),
+                    ...(name ? { name } : {}),
+                    ...(launch.description ? { description: launch.description } : {}),
+                    ...(launch.transcriptDir ? { transcriptDir: launch.transcriptDir } : {}),
+                  });
+                }
+              }
             }
           }
           return out;

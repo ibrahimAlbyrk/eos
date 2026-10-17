@@ -31,14 +31,16 @@ export function parseJsonlEntries(jsonl: string): ClaudeJsonlEntry[] {
   return entries;
 }
 
-/** The subset of `entries` on the active branch (same objects), file order. */
-export function activeBranchOf(entries: ClaudeJsonlEntry[]): ClaudeJsonlEntry[] {
+/** The subset of `entries` on the active branch (same objects), file order.
+ *  `sidechain` walks a subagent's own transcript, whose entries are all sidechain. */
+export function activeBranchOf(entries: ClaudeJsonlEntry[], opts: { sidechain?: boolean } = {}): ClaudeJsonlEntry[] {
+  const sidechain = opts.sidechain === true;
   const byUuid = new Map<string, ClaudeJsonlEntry>();
   let tip: ClaudeJsonlEntry | null = null;
   for (const e of entries) {
     if (typeof e.uuid !== "string") continue;
     byUuid.set(e.uuid, e);
-    if ((e.type === "user" || e.type === "assistant") && e.isSidechain !== true) tip = e;
+    if ((e.type === "user" || e.type === "assistant") && (e.isSidechain === true) === sidechain) tip = e;
   }
   if (!tip) return [];
 

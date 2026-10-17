@@ -172,7 +172,7 @@ describe("SdkEventMapper — background subagent events", () => {
     assert.deepEqual(done.stopLiveSubagents(), []);
   });
 
-  it("ignores task carriers of non-subagent background tasks (Bash/Monitor/workflows)", () => {
+  it("ignores task carriers of non-subagent background tasks (Bash/Monitor)", () => {
     const mapper = createSdkEventMapper();
     const bashNotification = { ...NOTIFICATION, task_id: "bssnhs4ej", tool_use_id: "toolu_bash1" };
     const bashCarrier = { type: "user", message: { content: "<task-notification>\n<task-id>bssnhs4ej</task-id>\n<status>completed</status>\n<summary>Background command finished</summary>\n</task-notification>" } };

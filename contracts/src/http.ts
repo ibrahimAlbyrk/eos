@@ -2319,6 +2319,14 @@ export const ROUTES = {
   workerAttachments: (id: string): string => `/workers/${id}/attachments`,
   workerPromptEvents: (id: string): string => `/workers/${id}/prompt-events`,
   workerSubagentEvents: (id: string): string => `/workers/${id}/subagent-events`,
+  // Workflow runs (contracts/src/workflow-run.ts). GET → WorkflowRunList (live runs).
+  workerWorkflowRuns: (id: string): string => `/workers/${id}/workflow-runs`,
+  // GET → WorkflowRunDetail (live or finished).
+  workerWorkflowRun: (id: string, callId: string): string => `/workers/${id}/workflow-runs/${callId}`,
+  // POST (ui-token) → stops the run; 409 when the session can't.
+  workerWorkflowRunStop: (id: string, callId: string): string => `/workers/${id}/workflow-runs/${callId}/stop`,
+  // GET → WorkflowAgentRows (one agent's transcript).
+  workerWorkflowAgent: (id: string, callId: string, agentId: string): string => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,

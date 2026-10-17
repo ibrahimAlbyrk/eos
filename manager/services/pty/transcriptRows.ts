@@ -59,9 +59,10 @@ function promptOf(content: unknown): Prompt {
   return classifyPrompt(text);
 }
 
-export function transcriptView(jsonl: string): TranscriptView {
+// `sidechain` reads a subagent's own transcript (a Workflow agent's agent-<id>.jsonl).
+export function transcriptView(jsonl: string, opts: { sidechain?: boolean } = {}): TranscriptView {
   const entries = parseJsonlEntries(jsonl) as Entry[];
-  const onPath = new Set<ClaudeJsonlEntry>(activeBranchOf(entries));
+  const onPath = new Set<ClaudeJsonlEntry>(activeBranchOf(entries, opts));
   const rows: PtyConversationRow[] = [];
   const waiting = new Map<string, PtyPending>();
   let running = false;

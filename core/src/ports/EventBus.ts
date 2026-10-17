@@ -76,6 +76,10 @@ export type EventBusTopic =
   | "genui:delta"
   // A view's UI state was replaced (payload GenuiChange { viewId, state }).
   | "genui:change"
+  // A running Claude Code Workflow's latest snapshot (claude SDK lane; payload
+  // WorkflowRunProgress), at most twice a second per run. Ephemeral — the run's
+  // start and end are agent events.
+  | "workflow:progress"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

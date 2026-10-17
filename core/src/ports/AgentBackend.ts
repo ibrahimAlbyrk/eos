@@ -200,6 +200,10 @@ export interface AgentSession {
   // session is restarted (compaction, /clear, rewind, recall), so callers that
   // may wait check this first. Omitted by lanes without background subagents.
   liveSubagents?(): number;
+  // Stop one background task of this session (claude: a Workflow run) without
+  // touching the turn or the session. Omitted by lanes that can't; callers gate
+  // on the method's presence.
+  stopTask?(taskId: string): Promise<{ ok: boolean; reason?: string }>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. LIVE in-session

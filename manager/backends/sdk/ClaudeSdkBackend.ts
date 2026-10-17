@@ -24,6 +24,7 @@ import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
 import type { GenuiDelta } from "../../../contracts/src/genui/spec.ts";
+import type { WorkflowRunProgress } from "../../../contracts/src/workflow-run.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
@@ -79,6 +80,9 @@ export interface SdkQueryHandle extends AsyncIterable<unknown> {
   // primitive). Only effective when file checkpointing is enabled — returns
   // canRewind:false otherwise. Present on the real Query; scripted in tests.
   rewindFiles?(userMessageId: string, options?: { dryRun?: boolean }): Promise<{ canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number }>;
+  // Stops one background task (a Workflow run). We declare perTaskStopAffordance,
+  // so an interrupt spares those tasks and this is the only way to stop one.
+  stopTask?(taskId: string): Promise<void>;
   // Ends the query and terminates its CLI subprocess.
   close?(): void;
 }
@@ -137,6 +141,9 @@ export interface ClaudeSdkBackendDeps {
    *  present_app) — the daemon relays it as bus topic genui:delta. Absent → no
    *  live preview; the view renders from the finished call. */
   publishGenuiDelta?(delta: GenuiDelta): void;
+  /** A running Workflow's latest snapshot — the daemon relays it as bus topic
+   *  workflow:progress. Absent → the run shows only its start and end. */
+  publishWorkflowProgress?(progress: WorkflowRunProgress): void;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -399,6 +406,14 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
     },
     isAlive() { return live.get(workerId)?.alive ?? false; },
     liveSubagents() { return live.get(workerId)?.mapper?.liveSubagents ?? 0; },
+    // The task's own end (task_notification status "stopped") closes it in the UI.
+    async stopTask(taskId: string) {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      if (!s.q?.stopTask) return { ok: false, reason: "stopTask unavailable" };
+      try { await s.q.stopTask(taskId); return { ok: true }; }
+      catch (e) { return { ok: false, reason: e instanceof Error ? e.message : String(e) }; }
+    },
   });
 
   return {
@@ -543,7 +558,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const { mcpServers, allowedTools } = buildMcpServers();
         const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
         const publishGenui = deps.publishGenuiDelta;
-        const mapper = createSdkEventMapper(publishGenui ? { onGenuiDelta: (d) => publishGenui({ workerId: spec.workerId, ...d }) } : {});
+        const publishWorkflow = deps.publishWorkflowProgress;
+        const mapper = createSdkEventMapper({
+          ...(publishGenui ? { onGenuiDelta: (d) => publishGenui({ workerId: spec.workerId, ...d }) } : {}),
+          ...(publishWorkflow ? { onWorkflowProgress: (p) => publishWorkflow({ workerId: spec.workerId, ...p, status: "running", updatedAt: Date.now() }) } : {}),
+        });
         rec.mapper = mapper;
         rec.resumedFrom = resume;
         const q = queryFn({ prompt: input.iterable, options });
