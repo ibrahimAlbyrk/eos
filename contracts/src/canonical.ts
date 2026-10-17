@@ -187,18 +187,24 @@ export const ActivityEventSchema = z.object({
 
 // --- background-subagent lifecycle ------------------------------------------
 // Emitted ONLY for background Task/Agent subagents (the immediate tool_result
-// is an async_launched stub; the true completion arrives later). Foreground
-// subagents get NO subagent_* events — their existing tool_result path is
-// unchanged. Correlation rule: primary key is callId (the spawning tool_use
-// id); fallback is agentId when callId is not derivable from the carrier.
+// is an async_launched stub; the true completion arrives later) and for a
+// stopped subagent continued later, whose new run is always background.
+// Foreground subagents get NO subagent_* events — their existing tool_result
+// path is unchanged. Correlation rule: primary key is callId (the call that
+// started the run); fallback is agentId when callId is not derivable from the
+// carrier.
 
-// Fired the moment a lane adapter confirms a background launch (the
-// async_launched stub in the spawning tool's result).
+// Fired the moment a lane adapter confirms a background run: the async_launched
+// stub in the spawning tool's result, or a stopped subagent continued by a
+// message (claude: SendMessage's "resuming" result).
 export const SubagentStartedEventSchema = z.object({
   type: z.literal("subagent_started"),
-  callId: z.string(), // spawning Agent/Task tool_use id
+  callId: z.string(), // the call that started this run: Agent/Task, or the message that continued it
   agentId: z.string(),
   background: z.boolean(), // always true today; explicit so a foreground lane can never emit it silently
+  // A continued subagent: the call that first started it, when the lane knows
+  // it — its runs are one subagent. Absent, the UI pairs runs by agentId.
+  resumes: z.string().optional(),
   agentType: z.string().optional(),
   description: z.string().optional(),
   outputFile: z.string().optional(),
@@ -230,7 +236,7 @@ export const SubagentCompletedEventSchema = z.object({
 // model takes no effort). Re-emitted whenever either becomes known or changes.
 export const SubagentProfileEventSchema = z.object({
   type: z.literal("subagent_profile"),
-  callId: z.string(), // spawning Agent/Task tool_use id
+  callId: z.string(), // the call that started the run (see SubagentStartedEventSchema)
   model: z.string().optional(),
   effort: z.string().optional(),
 });

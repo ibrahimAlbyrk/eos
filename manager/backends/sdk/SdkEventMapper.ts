@@ -109,6 +109,20 @@ function parseAsyncStubText(text: string): AsyncStub | null {
   return { agentId, ...(outputFile ? { outputFile } : {}) };
 }
 
+// SendMessage to a stopped subagent runs it again: its result names the agent it
+// resumed ({ success, message: "Resuming agent …", resumedAgentId }). The
+// sidecar is preferred; the result text is the same object as JSON.
+function parseResumedAgentId(tur: unknown, text: string): string | null {
+  const fromSidecar = (tur as { resumedAgentId?: unknown } | null | undefined)?.resumedAgentId;
+  if (typeof fromSidecar === "string") return fromSidecar;
+  try {
+    const id = (JSON.parse(text) as { resumedAgentId?: unknown } | null)?.resumedAgentId;
+    return typeof id === "string" ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 // The true completion also rides an injected plain user turn (<task-notification>
 // XML, origin kind "task-notification") — the only carrier of the agent's FULL
 // final text (<result>). One turn can batch several notification blocks.
@@ -256,6 +270,35 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
   const bgAgents = new Map<string, BgEntry>();
   const isLive = (entry: BgEntry): boolean => entry.announced === true && entry.done !== true;
 
+  // Continued subagents. sendCallIds: top-level SendMessage ids — the gate for
+  // reading a result as a resume. firstCallIds: agentId → the Agent/Task call
+  // that first started it. The SDK keeps parenting a resumed agent's messages to
+  // that first call; runOf files them under the run they belong to instead.
+  const sendCallIds = new Set<string>();
+  const firstCallIds = new Map<string, string>();
+  const latestRun = new Map<string, string>();
+  const runOf = (parentCallId: string): string => latestRun.get(parentCallId) ?? parentCallId;
+  const noteFirstCall = (agentId: string, callId: string): void => {
+    if (!firstCallIds.has(agentId)) firstCallIds.set(agentId, callId);
+  };
+  // A resume is a new background run of the same agent: announce it like a
+  // launch, naming the agent's first call so the UI keeps one subagent.
+  const announceResume = (out: AgentEvent[], agentId: string, callId: string): void => {
+    const entry = bgAgents.get(agentId) ?? { callId };
+    Object.assign(entry, { callId, announced: true, done: false, pendingSummary: false, usage: undefined });
+    bgAgents.set(agentId, entry);
+    const first = firstCallIds.get(agentId);
+    if (first) latestRun.set(first, callId);
+    out.push({
+      type: "subagent_started",
+      callId,
+      agentId,
+      background: true,
+      ...(first ? { resumes: first } : {}),
+      ...(entry.outputFile ? { outputFile: entry.outputFile } : {}),
+    });
+  };
+
   const pushCompleted = (out: AgentEvent[], agentId: string, entry: BgEntry, c: { callId?: string | null; status: "completed" | "failed" | "stopped"; result?: string; outputFile?: string; usage?: SubagentUsage }): void => {
     entry.done = true;
     out.push({
@@ -371,6 +414,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // subagent effort a hook reported before the mapping existed.
           else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
             resolveBgEntry(msg.task_id, msg.tool_use_id);
+            if (agentCallIds.has(msg.tool_use_id)) noteFirstCall(msg.task_id, msg.tool_use_id);
             taskCallIds.set(msg.task_id, msg.tool_use_id);
             const effort = pendingEffort.get(msg.task_id);
             if (effort) {
@@ -448,9 +492,10 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // It never opens a parent turn: a background subagent keeps streaming after
           // the parent's turn ended, and the parent is idle until it is woken.
           if (msg.parent_tool_use_id) {
-            if (msg.message?.model) noteProfile(out, msg.parent_tool_use_id, { model: msg.message.model });
+            const parent = runOf(msg.parent_tool_use_id);
+            if (msg.message?.model) noteProfile(out, parent, { model: msg.message.model });
             for (const b of content) {
-              if (b.type === "tool_use") out.push({ type: "activity", kind: "tool_started", callId: b.id ?? null, toolName: b.name, input: b.input ?? {}, parentCallId: msg.parent_tool_use_id });
+              if (b.type === "tool_use") out.push({ type: "activity", kind: "tool_started", callId: b.id ?? null, toolName: b.name, input: b.input ?? {}, parentCallId: parent });
             }
             return out;
           }
@@ -483,7 +528,9 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // Remember top-level subagent-spawning callIds — the gate for mapping
           // this call's async stub / task notifications to subagent events.
           for (const b of content) {
-            if (b.type === "tool_use" && b.id && (b.name === "Agent" || b.name === "Task")) agentCallIds.add(b.id);
+            if (b.type !== "tool_use" || !b.id) continue;
+            if (b.name === "Agent" || b.name === "Task") agentCallIds.add(b.id);
+            else if (b.name === "SendMessage") sendCallIds.add(b.id);
           }
           // Context-window occupancy: this top-level assistant message carries its
           // own API request's usage (BetaMessage.usage). Its prompt footprint
@@ -544,7 +591,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             // activity (one carrier per tool; the contract reserves activity for the
             // block-less subagent case).
             if (msg.parent_tool_use_id) {
-              out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: msg.parent_tool_use_id });
+              out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: runOf(msg.parent_tool_use_id) });
             } else {
               out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content), ...(patch ? { patch } : {}) }] });
               // Background launch: the stub result confirms the async spawn. The
@@ -561,6 +608,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                   if (stub.outputFile) entry.outputFile = stub.outputFile;
                   entry.announced = true;
                   bgAgents.set(stub.agentId, entry);
+                  noteFirstCall(stub.agentId, r.tool_use_id);
                   out.push({
                     type: "subagent_started",
                     callId: r.tool_use_id,
@@ -571,6 +619,12 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                   });
                 }
               }
+              // A message to a still-running subagent is only queued; one to a
+              // stopped subagent resumes it.
+              const resumed = r.tool_use_id && sendCallIds.has(r.tool_use_id)
+                ? parseResumedAgentId(msg.tool_use_result, blockText(r.content))
+                : null;
+              if (resumed && r.tool_use_id) announceResume(out, resumed, r.tool_use_id);
             }
           }
           return out;

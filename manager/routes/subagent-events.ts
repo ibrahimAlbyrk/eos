@@ -74,6 +74,10 @@ export function selectSubagentRows(rows: WorkerEventRow[]): WorkerEventRow[] {
 
   const agentIds = new Set<string>();
   for (const rowRefs of refs) for (const ref of rowRefs) if (ref.launchesSubagent && ref.id) agentIds.add(ref.id);
+  // A run started by some other call (a message that resumed a stopped subagent).
+  rows.forEach((r, i) => {
+    if (r.type === "agent_event" && parsed[i].type === "subagent_started" && parsed[i].callId) agentIds.add(parsed[i].callId);
+  });
 
   const wanted = new Set(agentIds);
   for (const rowRefs of refs) {

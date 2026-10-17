@@ -179,3 +179,72 @@ describe("SdkEventMapper — background subagent events", () => {
     assert.deepEqual(subagentEvents(run(mapper, [SPAWN, STUB_RESULT, bashNotification, bashCarrier])).slice(1), []);
   });
 });
+
+// SendMessage to a stopped subagent resumes it in the background. Shapes copied
+// from persisted claude-sdk sessions: the result text is the output object as
+// JSON, task_started names the SendMessage call, and the agent's own messages
+// stay parented to the Agent call that first started it.
+describe("SdkEventMapper — subagents continued by SendMessage", () => {
+  const SEND_ID = "toolu_send1";
+  const SEND = {
+    type: "assistant",
+    uuid: "u2",
+    message: { id: "msg_B", content: [{ type: "tool_use", id: SEND_ID, name: "SendMessage", input: { to: AGENT_ID, message: "now do Y", summary: "Do Y" } }] },
+  };
+  const sendResult = (output: unknown) => ({
+    type: "user",
+    message: { content: [{ type: "tool_result", tool_use_id: SEND_ID, content: [{ type: "text", text: JSON.stringify(output) }] }] },
+  });
+  const RESUMED = sendResult({ success: true, message: "Resuming agent a54f36a", resumedAgentId: AGENT_ID, pin: { id: AGENT_ID, name: AGENT_ID, ref: "f5db05" } });
+  const RESUME_TASK = { type: "system", subtype: "task_started", task_id: AGENT_ID, tool_use_id: SEND_ID, description: "Research X", is_backgrounded: true };
+  const INNER = { type: "assistant", parent_tool_use_id: CALL_ID, message: { id: "msg_C", model: "claude-sonnet-4-5", content: [{ type: "tool_use", id: "toolu_in1", name: "Read", input: { file_path: "/x" } }] } };
+  const INNER_DONE = { type: "user", parent_tool_use_id: CALL_ID, message: { content: [{ type: "tool_result", tool_use_id: "toolu_in1", content: "x" }] } };
+  const RESUME_DONE = { ...NOTIFICATION, tool_use_id: SEND_ID, summary: "Did Y", usage: { total_tokens: 99 } };
+  const FIRST_RUN = [SPAWN, STUB_RESULT, NOTIFICATION];
+
+  it("announces the resumed run as a background start that names the agent's first call", () => {
+    const mapper = createSdkEventMapper();
+    const out = subagentEvents(run(mapper, [...FIRST_RUN, SEND, RESUME_TASK, RESUMED]));
+    assert.deepEqual(out.at(-1), { type: "subagent_started", callId: SEND_ID, agentId: AGENT_ID, background: true, resumes: CALL_ID, outputFile: OUTPUT_FILE });
+  });
+
+  it("files the resumed run's tools and model under it, not under the first call", () => {
+    const mapper = createSdkEventMapper();
+    run(mapper, [...FIRST_RUN, SEND, RESUME_TASK, RESUMED]);
+    const out = run(mapper, [INNER, INNER_DONE]);
+    assert.deepEqual(out.flatMap((e) => (e.type === "activity" ? [e.parentCallId] : [])), [SEND_ID, SEND_ID]);
+    assert.ok(out.some((e) => e.type === "subagent_profile" && e.callId === SEND_ID && e.model === "claude-sonnet-4-5"));
+  });
+
+  it("keeps the resumed run live until its own completion", () => {
+    const mapper = createSdkEventMapper();
+    run(mapper, [...FIRST_RUN, SEND, RESUME_TASK, RESUMED]);
+    assert.equal(mapper.liveSubagents, 1);
+    assert.deepEqual(subagentEvents(run(mapper, [RESUME_DONE])), [
+      { type: "subagent_completed", agentId: AGENT_ID, callId: SEND_ID, status: "completed", result: "Did Y", outputFile: OUTPUT_FILE, usage: { totalTokens: 99 } },
+    ]);
+    assert.equal(mapper.liveSubagents, 0);
+  });
+
+  it("names a foreground subagent's first call from its task_started", () => {
+    const mapper = createSdkEventMapper();
+    const fgStart = { type: "system", subtype: "task_started", task_id: AGENT_ID, tool_use_id: CALL_ID, description: "Research X", is_backgrounded: false };
+    const fgDone = { type: "user", message: { content: [{ type: "tool_result", tool_use_id: CALL_ID, content: [{ type: "text", text: "final answer" }] }] } };
+    const out = subagentEvents(run(mapper, [SPAWN, fgStart, fgDone, SEND, RESUME_TASK, RESUMED]));
+    assert.deepEqual(out, [{ type: "subagent_started", callId: SEND_ID, agentId: AGENT_ID, background: true, resumes: CALL_ID }]);
+  });
+
+  it("starts nothing for a message only queued to a running subagent", () => {
+    const mapper = createSdkEventMapper();
+    const queued = sendResult({ success: true, message: `Message queued for delivery to ${AGENT_ID} at its next tool round.` });
+    assert.deepEqual(subagentEvents(run(mapper, [SPAWN, STUB_RESULT, SEND, queued])).slice(1), []);
+  });
+
+  it("still announces and completes a run whose first call this process never saw", () => {
+    const mapper = createSdkEventMapper();
+    const out = subagentEvents(run(mapper, [SEND, RESUME_TASK, RESUMED, RESUME_DONE]));
+    assert.deepEqual(out.map((e) => e.type), ["subagent_started", "subagent_completed"]);
+    assert.deepEqual(out[0], { type: "subagent_started", callId: SEND_ID, agentId: AGENT_ID, background: true });
+    assert.equal((out[1] as { callId?: string | null }).callId, SEND_ID);
+  });
+});

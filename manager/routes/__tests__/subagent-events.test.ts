@@ -31,6 +31,16 @@ describe("selectSubagentRows", () => {
     assert.deepEqual(ids(out), ids([launch, inner, innerDone, result]));
   });
 
+  it("keeps a resumed run: the message that continued it, its result and its inner tools", () => {
+    nextId = 1;
+    const send = toolCall("S1", "SendMessage");
+    const resumed = toolResult("S1");
+    const started = row("agent_event", { type: "subagent_started", callId: "S1", agentId: "a1", background: true, resumes: "AG" });
+    const inner = innerStart("I1", "S1");
+    const other = toolCall("T1");
+    assert.deepEqual(ids(selectSubagentRows([send, resumed, started, inner, other])), ids([send, resumed, started, inner]));
+  });
+
   it("keeps parallel launches in one assistant message", () => {
     nextId = 1;
     const both = row("agent_event", { type: "message", role: "assistant", blocks: [
