@@ -16,7 +16,7 @@
 }
 .dr-tag--new { color: color-mix(in srgb, var(--violet) 85%, white); background: color-mix(in srgb, var(--violet) 13%, transparent); }
 .dr-tag--update { color: color-mix(in srgb, var(--accent) 80%, white); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-.dr-tag--merge { color: color-mix(in srgb, var(--wfk-control) 80%, white); background: color-mix(in srgb, var(--wfk-control) 14%, transparent); }
+.dr-tag--merge { color: color-mix(in srgb, #5cb8c4 80%, white); background: color-mix(in srgb, #5cb8c4 14%, transparent); }
 .dr-tag--promote { color: color-mix(in srgb, var(--warn) 80%, white); background: color-mix(in srgb, var(--warn) 14%, transparent); }
 .dr-tag--retire { color: color-mix(in srgb, var(--err) 80%, white); background: color-mix(in srgb, var(--err) 14%, transparent); }
 .dr-tag--muted { color: var(--fg-dim2); background: rgba(var(--tint), 0.04); font-weight: 400; }

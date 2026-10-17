@@ -174,12 +174,6 @@ kbd {
   --git-soft: color-mix(in srgb, var(--git) 14%, transparent);
   --amber: var(--warn);
   --violet: #c8a2ff;
-  /* Workflow node-kind category accents (editor-scoped). */
-  --wfk-io: var(--accent);
-  --wfk-compute: var(--violet);
-  --wfk-transform: var(--amber);
-  --wfk-control: #5cb8c4;
-  --wfk-composite: #9a8cff;
   /* rgb channels: --tint = neutral hover/active overlays, --glass = translucent
      panel bgs, --rim = glass rim gradients. */
   --tint: 255, 255, 255;

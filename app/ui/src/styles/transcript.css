@@ -1092,39 +1092,6 @@
 .task-row-subject { flex: 1; min-width: 0; color: var(--fg); font-size: var(--text-sm); word-break: break-word; }
 .task-row-owner { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
 
-/* workflow tool call + run-completion card — reuses .wd-card */
-.wf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.wf-id { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg); word-break: break-all; }
-.tool-item-header .wf-id { margin-left: 6px; }
-.wf-running { font-style: italic; color: var(--fg-faint); }
-.wf-status {
-  font-size: var(--text-xs);
-  padding: 1px 7px;
-  border-radius: 4px;
-  letter-spacing: 0.3px;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-  margin-left: 4px;
-}
-.wf-status-passed { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
-.wf-status-failed { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
-.wf-status-running { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
-.wf-status-stopped { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
-.wf-status-pending { background: color-mix(in srgb, var(--fg-faint) 20%, transparent); color: var(--fg-dim); }
-.wf-result {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  color: var(--fg-dim);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 360px;
-  overflow: auto;
-}
-.wf-card:hover .fp-copy { opacity: 1; }
-
 /* ── report / directive / loop message detail ─────────────────────────── */
 .report-detail { padding: 12px 16px; }
 .report-detail-text {
