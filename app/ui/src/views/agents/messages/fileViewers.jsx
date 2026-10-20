@@ -30,26 +30,26 @@ function HtmlBody({ path, frameGen }) {
   );
 }
 
-function ImageBody({ path }) {
+function ImageBody({ path, frameGen }) {
   return (
     <div className="fv-image-wrap">
-      <img src={api.imageUrl(path)} alt={path.split("/").pop()} className="fv-image" />
+      <img key={frameGen} src={api.imageUrl(path)} alt={path.split("/").pop()} className="fv-image" />
     </div>
   );
 }
 
-function VideoBody({ path }) {
+function VideoBody({ path, frameGen }) {
   return (
     <div className="fv-media-wrap">
-      <video className="fv-media" controls src={api.rawUrl(path)} />
+      <video key={frameGen} className="fv-media" controls src={api.rawUrl(path)} />
     </div>
   );
 }
 
-function AudioBody({ path }) {
+function AudioBody({ path, frameGen }) {
   return (
     <div className="fv-media-wrap">
-      <audio controls src={api.rawUrl(path)} />
+      <audio key={frameGen} controls src={api.rawUrl(path)} />
     </div>
   );
 }

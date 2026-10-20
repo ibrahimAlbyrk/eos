@@ -229,9 +229,13 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
   const dirty = isText && content !== null && editContent !== content;
 
   // Live-refresh on a disk change of THIS file (agent edit, git op, …). Refetch
-  // unless the buffer is dirty or a save is in flight; let the host drop it on unlink.
+  // unless the buffer is dirty or a save is in flight; a media/HTML body remounts
+  // (frameGen) so it loads the new bytes; let the host drop it on unlink.
   useFileWatch(path, {
-    onChange: () => { if (!dirty && !saving) setReloadTick((t) => t + 1); },
+    onChange: () => {
+      if (!dirty && !saving) setReloadTick((t) => t + 1);
+      if (!isText) setFrameGen((g) => g + 1);
+    },
     onRemove,
   });
 
