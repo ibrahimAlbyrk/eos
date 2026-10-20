@@ -103,6 +103,31 @@
   top: calc(100% + 8px);
 }
 
+/* image peek over a tool row's file name (ImagePeek.jsx) — bare picture, no
+   chrome; invisible until the image loads, then rises out of the name. */
+.img-peek {
+  position: fixed;
+  z-index: 420;
+  border-radius: var(--r-card);
+  overflow: hidden;
+  background: var(--panel);
+  box-shadow: var(--lg-pop-shadow);
+  pointer-events: none;
+  visibility: hidden;
+  transform-origin: 0 100%;
+}
+.img-peek.below { transform-origin: 0 0; }
+.img-peek.is-loaded { visibility: visible; animation: lg-pop-rise 220ms var(--lg-ease) both; }
+.img-peek::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.12);
+}
+.img-peek img { display: block; max-width: 300px; max-height: 240px; }
+@media (prefers-reduced-motion: reduce) { .img-peek.is-loaded { animation: none; } }
+
 /* artifact chip peek (ArtifactPeek.jsx) — fixed + portalled, rises out of the
    chip it hovers. After .glass-pop so position:fixed wins. */
 .art-peek {

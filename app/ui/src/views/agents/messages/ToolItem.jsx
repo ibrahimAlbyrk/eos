@@ -5,6 +5,8 @@ import { failureKind } from "../../../lib/toolFailure.js";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 import { Collapse } from "./Collapse.jsx";
+import { useImagePeek } from "./ImagePeek.jsx";
+import { fileKind } from "../../../lib/fileKind.js";
 
 // The single tool-render dispatcher: every tool (bespoke or generic fallback,
 // including the worker-management tools) resolves through getToolView and renders
@@ -29,10 +31,12 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
   const headerBadge = view.headerBadge(tool, ctx);
   const failure = failureKind(tool);
   const diffStats = view.stats(tool);
+  const peek = useImagePeek(filePath && fileKind(filePath) === "image" ? filePath : null);
 
   const onFileClick = (e) => {
     if (!filePath) return;
     e.stopPropagation();
+    peek.close();
     ui.openFile(filePath, undefined, { tab: e.metaKey });
   };
 
@@ -50,8 +54,9 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
           {agentRef ? (
             <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
           ) : (
-            <span className={"ti-file" + (view.mono ? " ti-mono" : "") + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+            <span className={"ti-file" + (view.mono ? " ti-mono" : "") + (filePath ? " ti-link" : "")} onClick={onFileClick} {...peek.handlers}>{label.file}</span>
           )}
+          {peek.layer}
           {summary && <span className="ti-arg-summary">{summary}</span>}
         </span>
         {headerBadge}
