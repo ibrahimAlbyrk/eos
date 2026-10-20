@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdtempSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
 
@@ -24,16 +24,27 @@ function decodeFilename(name: string): string {
 }
 
 export function registerFsReadRoutes(r: Router, c: Container): void {
-  r.get("/fs/image", ({ url, res }) => {
+  // The file at a path can change, so the browser must revalidate every use
+  // (no-cache) — an unchanged file costs a 304, an edited one is never stale.
+  r.get("/fs/image", ({ url, req, res }) => {
     const qPath = url.searchParams.get("path");
     if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
     try {
-      const data = readFileSync(qPath);
+      const st = statSync(qPath);
+      const etag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
       const ext = qPath.split(".").pop()?.toLowerCase() ?? "";
-      res.writeHead(200, {
+      const headers = {
         "content-type": IMAGE_MIME[ext] ?? "application/octet-stream",
-        "cache-control": "public, max-age=86400",
-      });
+        "cache-control": "no-cache",
+        etag,
+      };
+      if (req.headers["if-none-match"] === etag) {
+        res.writeHead(304, headers);
+        res.end();
+        return;
+      }
+      const data = readFileSync(qPath);
+      res.writeHead(200, headers);
       res.end(data);
     } catch (e) {
       writeJson(res, 404, { error: errMsg(e) });
