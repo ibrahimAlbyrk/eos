@@ -1484,12 +1484,12 @@
   color: var(--fg-mid);
   background: var(--panel);
   border-radius: var(--r-card);
-  overflow-x: auto;
-  white-space: pre;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .md-prose pre code { padding: 0; background: none; border-radius: 0; font-size: inherit; }
 /* Per-block copy button on rendered code fences (lib/codeBlockCopy.js). Sits on
-   the relative wrapper (not inside <pre>) so it stays pinned while code scrolls. */
+   the relative wrapper (not inside <pre>) so it stays pinned to the block. */
 .code-block-wrap { position: relative; margin: 8px 0 12px; }
 .code-block-wrap > pre { margin: 0; }
 .code-block-wrap > .code-copy-btn {
