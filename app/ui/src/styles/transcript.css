@@ -382,6 +382,9 @@
   contain: layout style;
   transition: opacity 0.16s ease;
 }
+/* The copy that lands under the floating composer (z-index 3), so its glass
+   frosts it like the real bubble. Positioned in the composer's pane. */
+.msg-user.send-flight.is-under { position: absolute; z-index: 2; }
 .send-flight.is-gone { opacity: 0; }
 .send-flight .b {
   position: absolute;

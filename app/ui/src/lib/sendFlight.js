@@ -11,6 +11,7 @@ const HANDOFF_MS = 1200; // the material has settled by then
 const WAIT_MS = 1000;    // the bubble renders after attachments resolve
 const FADE_MS = 160;
 const PIN_SLACK_PX = 48;
+const SHADOW_PX = 64; // the flight's drop shadow reach (sf-material)
 
 // Damped spring (~3% overshoot) over t∈[0,1], at rest by t=1.
 export function flightSpring(t) {
@@ -64,19 +65,32 @@ export function launchSendFlight(editor) {
   const es = getComputedStyle(editor);
   const textFrom = { x: ed.left - from.left, y: ed.top - from.top };
 
-  const ghost = document.createElement("div");
-  ghost.className = "msg-user send-flight";
-  ghost.setAttribute("aria-hidden", "true");
-  const body = document.createElement("div");
-  body.className = "b";
-  // Same window as the editor: a long draft is scrolled inside max-height.
-  const texts = [layer("sf-text sf-from", [...editor.cloneNode(true).childNodes], {
-    ...typography(es), width: `${ed.width}px`, height: `${ed.height}px`, overflow: "hidden", color: es.color,
-  })];
-  const rim = document.createElement("span");
-  rim.className = "sf-rim";
-  body.append(rim, texts[0]);
-  ghost.append(body);
+  // Two copies fly in lockstep: one over everything (the card lifting off),
+  // one under the floating composer so its glass frosts the bubble's landing
+  // part, just as it frosts the real bubble after the hand-off.
+  const dock = card.closest(".composer-inner") ?? card;
+  const wrap = dock.closest(".composer-wrap");
+  const host = wrap?.parentElement;
+  const build = (className) => {
+    const el = document.createElement("div");
+    el.className = className;
+    el.setAttribute("aria-hidden", "true");
+    const body = document.createElement("div");
+    body.className = "b";
+    // Same window as the editor: a long draft is scrolled inside max-height.
+    const texts = [layer("sf-text sf-from", [...editor.cloneNode(true).childNodes], {
+      ...typography(es), width: `${ed.width}px`, height: `${ed.height}px`, overflow: "hidden", color: es.color,
+    })];
+    const rim = document.createElement("span");
+    rim.className = "sf-rim";
+    body.append(rim, texts[0]);
+    el.append(body);
+    return { el, body, texts };
+  };
+  const over = build("msg-user send-flight");
+  const under = host && build("msg-user send-flight is-under");
+  const copies = under ? [over, under] : [over];
+  const each = (fn) => copies.forEach(fn);
 
   let target = null;
   let toRadius = fromRadius;
@@ -86,22 +100,36 @@ export function launchSendFlight(editor) {
   let raf = 0;
   const born = performance.now();
 
+  // The real bubble sits under the composer, so above the composer's top edge
+  // the over copy shows and below it the under copy; the over copy cedes that
+  // band as it lands. Its sides/top keep the drop shadow.
   const place = (rect, radius, p) => {
-    ghost.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
-    ghost.style.width = `${rect.width}px`;
-    ghost.style.height = `${rect.height}px`;
-    body.style.borderRadius = `${radius}px`;
+    const edge = dock.getBoundingClientRect().top;
+    const sunk = Math.min(rect.height, Math.max(0, rect.top + rect.height - edge));
     const shift = `translate(${lerp(textFrom.x, textTo.x, p)}px, ${lerp(textFrom.y, textTo.y, p)}px)`;
-    for (const t of texts) t.style.transform = shift;
+    each(({ el, body, texts }) => {
+      el.style.width = `${rect.width}px`;
+      el.style.height = `${rect.height}px`;
+      body.style.borderRadius = `${radius}px`;
+      for (const t of texts) t.style.transform = shift;
+    });
+    over.el.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+    over.el.style.clipPath = sunk ? `inset(${-SHADOW_PX}px ${-SHADOW_PX}px ${sunk * Math.min(p, 1)}px)` : "";
+    if (!under) return;
+    const origin = host.getBoundingClientRect();
+    under.el.style.transform = `translate(${rect.left - origin.left}px, ${rect.top - origin.top}px)`;
+    under.el.style.visibility = sunk ? "" : "hidden";
+    under.el.style.clipPath = `inset(${rect.height - sunk}px 0 0)`;
   };
 
   const reveal = () => { if (target) target.style.visibility = ""; };
-  const finish = () => { cancelAnimationFrame(raf); reveal(); ghost.remove(); };
+  const remove = () => each(({ el }) => el.remove());
+  const finish = () => { cancelAnimationFrame(raf); reveal(); remove(); };
   const abort = () => {
     cancelAnimationFrame(raf);
     reveal();
-    ghost.classList.add("is-gone");
-    setTimeout(() => ghost.remove(), FADE_MS);
+    each(({ el }) => el.classList.add("is-gone"));
+    setTimeout(remove, FADE_MS);
   };
 
   // The optimistic bubble is replaced by the durable one mid-flight — same
@@ -111,14 +139,16 @@ export function launchSendFlight(editor) {
     target = bubbles()[index] ?? null;
     if (!target) return;
     target.style.visibility = "hidden";
-    if (texts.length > 1) return;
+    if (over.texts.length > 1) return;
     const bs = getComputedStyle(target);
     const padL = parseFloat(bs.paddingLeft);
     padX = padL + parseFloat(bs.paddingRight);
     toRadius = parseFloat(bs.borderTopLeftRadius) || 0;
     textTo = { x: padL, y: parseFloat(bs.paddingTop) };
-    texts.push(layer("sf-text sf-to", [...target.cloneNode(true).childNodes], typography(bs)));
-    body.append(texts[1]);
+    each(({ body, texts }) => {
+      texts.push(layer("sf-text sf-to", [...target.cloneNode(true).childNodes], typography(bs)));
+      body.append(texts[1]);
+    });
   };
 
   const frame = (now) => {
@@ -132,10 +162,10 @@ export function launchSendFlight(editor) {
     const to = target.getBoundingClientRect();
     if (!to.width) return abort(); // the pane was parked mid-flight
     // Fractional and live: a scrollbar appearing mid-flight narrows the bubble.
-    texts[1].style.width = `${to.width - padX}px`;
+    each(({ texts }) => { texts[1].style.width = `${to.width - padX}px`; });
     if (!start) {
       start = now;
-      ghost.classList.add("is-flying");
+      each(({ el }) => el.classList.add("is-flying"));
     }
     const elapsed = now - start;
     if (elapsed >= HANDOFF_MS) return finish();
@@ -150,7 +180,8 @@ export function launchSendFlight(editor) {
   };
 
   place(from, fromRadius, 0);
-  document.body.append(ghost);
-  texts[0].scrollTop = editor.scrollTop;
+  document.body.append(over.el);
+  if (under) host.insertBefore(under.el, wrap);
+  each(({ texts }) => { texts[0].scrollTop = editor.scrollTop; });
   raf = requestAnimationFrame(frame);
 }
