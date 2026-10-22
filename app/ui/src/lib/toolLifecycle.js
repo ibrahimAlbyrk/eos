@@ -63,7 +63,7 @@ export function deriveToolLifecycle(events) {
   };
 }
 
-function isTurnBarrier(ev) {
+export function isTurnBarrier(ev) {
   if (ev.type === "hook") {
     const e = parsePayload(ev.payload).event;
     return e === "Stop" || e === "SessionEnd";
@@ -79,7 +79,7 @@ function isTurnBarrier(ev) {
   return false;
 }
 
-function isExitBarrier(ev) {
+export function isExitBarrier(ev) {
   if (ev.type === "exit") return true;
   if (ev.type === "lifecycle") return parsePayload(ev.payload).phase === "pty_exit";
   return false;

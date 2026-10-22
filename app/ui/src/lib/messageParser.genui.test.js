@@ -50,6 +50,7 @@ describe("messageParser — view blocks", () => {
 describe("turnFold — views stay pinned", () => {
   const key = (b, i) => `${b.kind}-${i}`;
   const view = { kind: "view", tool: { id: "c1", name: "mcp__orchestrator__present" }, ts: 3 };
+  const ended = { starts: [0], lastEnd: 5 };
 
   it("a finished turn folds its tools; the view and the reply stay in view", () => {
     const blocks = [
@@ -59,7 +60,7 @@ describe("turnFold — views stay pinned", () => {
       view,
       { kind: "assistant", text: "done", ts: 4 },
     ];
-    const { items } = foldTurns(blocks, key);
+    const { items } = foldTurns(blocks, key, ended);
     expect(items.map((it) => (it.kind === "fold" ? "fold" : it.block.kind))).toEqual(["user", "fold", "view", "assistant"]);
     expect(items[1].work.map((b) => b.kind)).toEqual(["thinking", "tool"]);
   });
@@ -70,13 +71,13 @@ describe("turnFold — views stay pinned", () => {
       { kind: "tool", tool: { id: "r", name: "WebSearch" }, ts: 2 },
       view,
     ];
-    const { items } = foldTurns(blocks, key);
+    const { items } = foldTurns(blocks, key, ended);
     expect(items.map((it) => (it.kind === "fold" ? "fold" : it.block.kind))).toEqual(["user", "fold", "view"]);
   });
 
   it("never folds while the turn is still live", () => {
     const blocks = [{ kind: "tool", tool: { id: "r", name: "Read" }, ts: 1 }, view];
-    const { items } = foldTurns(blocks, key, { live: true });
+    const { items } = foldTurns(blocks, key, { starts: [0], lastEnd: -Infinity });
     expect(items.every((it) => it.kind === "block")).toBe(true);
   });
 });

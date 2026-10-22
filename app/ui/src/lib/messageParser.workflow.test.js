@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { buildBlocks } from "./messageParser.js";
-import { foldTurns } from "./turnFold.js";
+import { foldTurns, turnBounds } from "./turnFold.js";
 
 // A Workflow call in the transcript: its own "workflow" block carrying the run's
-// start and end events, pinned when the turn folds, and keeping the turn open
-// while the run still works.
+// start and end events, pinned when the turn folds.
 
 let id = 0;
 const ev = (type, payload, ts) => ({ id: ++id, type, ts, payload: JSON.stringify(payload) });
@@ -43,16 +42,22 @@ describe("messageParser — workflow blocks", () => {
 
 describe("turnFold — workflow blocks", () => {
   const keyOf = (b, i) => `${b.kind}-${i}`;
-  const fold = (events) => foldTurns(buildBlocks(events), keyOf);
+  const fold = (events) => foldTurns(buildBlocks(events), keyOf, turnBounds(events));
+  const kinds = (items) => items.map((it) => (it.kind === "fold" ? "fold" : it.block.kind));
 
-  it("a running workflow keeps its turn open", () => {
-    const { items, liveRunKeys } = fold([ev("user_message", { text: "go" }, 1), ...read("r1", 2), ...launch(10), text("Started it.", 15), turnEnd(16)]);
+  it("nothing folds while the turn that launched it goes on", () => {
+    const { items, liveRunKeys } = fold([ev("user_message", { text: "go" }, 1), ...read("r1", 2), ...launch(10), text("Started it.", 15)]);
     expect(items.every((it) => it.kind === "block")).toBe(true);
     expect(liveRunKeys).toHaveLength(1);
   });
 
-  it("once it ended the turn folds, the card staying in view", () => {
+  it("the turn folds once it ends, the card staying in view while the run works on", () => {
+    const { items } = fold([ev("user_message", { text: "go" }, 1), ...read("r1", 2), ...launch(10), text("Started it.", 15), turnEnd(16)]);
+    expect(kinds(items)).toEqual(["user", "fold", "workflow", "assistant"]);
+  });
+
+  it("the run's end leaves the folded turn as it was", () => {
     const { items } = fold([ev("user_message", { text: "go" }, 1), ...read("r1", 2), ...launch(10), text("Started it.", 15), turnEnd(16), done(40)]);
-    expect(items.map((it) => (it.kind === "fold" ? "fold" : it.block.kind))).toEqual(["user", "fold", "workflow", "assistant"]);
+    expect(kinds(items)).toEqual(["user", "fold", "workflow", "assistant"]);
   });
 });

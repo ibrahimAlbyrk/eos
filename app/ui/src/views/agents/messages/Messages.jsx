@@ -51,7 +51,7 @@ import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
 import { TurnFold } from "./TurnFold.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
-import { foldTurns } from "../../../lib/turnFold.js";
+import { foldTurns, turnBounds } from "../../../lib/turnFold.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
 import { useConversationBlocks } from "../../../hooks/useConversationBlocks.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
@@ -554,13 +554,14 @@ export function Messages({ live, agentId, isActive = true }) {
   const lastBlock = blocks[blocks.length - 1];
 
   // Finished turns fold their work behind "Worked for …" (Settings › Code ›
-  // Transcript); the turn still streaming or waiting on its subagents stays open.
+  // Transcript) once the log records their end; the turn still going stays open.
   const foldOn = ui.settings["transcript.foldWork"] !== false;
+  const turnEdges = useMemo(() => turnBounds(events), [events]);
   const { items, liveRunKeys } = useMemo(
     () => (foldOn
-      ? foldTurns(blocks, blockKey, { live: agentBusy })
+      ? foldTurns(blocks, blockKey, turnEdges)
       : { items: blocks.map((block, index) => ({ kind: "block", block, index })), liveRunKeys: [] }),
-    [blocks, foldOn, agentBusy],
+    [blocks, foldOn, turnEdges],
   );
   // Runs this pane watched stream in: when one of them folds it settles in
   // place, once — any later mount of that fold lands closed.

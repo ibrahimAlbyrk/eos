@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UiProvider } from "../state/ui.jsx";
 import { buildBlocks } from "../lib/messageParser.js";
-import { foldTurns } from "../lib/turnFold.js";
+import { foldTurns, turnBounds } from "../lib/turnFold.js";
 import restaurants from "../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
 import trip from "../../../../contracts/src/__tests__/fixtures/genui/trip.json";
 import tests from "../../../../contracts/src/__tests__/fixtures/genui/tests.json";
@@ -57,12 +57,13 @@ function transcript(name, input, viewId, callId = "toolu_e2e") {
 }
 
 function viewBlock(name, input, viewId) {
-  const blocks = buildBlocks(transcript(name, input, viewId));
+  const rows = transcript(name, input, viewId);
+  const blocks = buildBlocks(rows);
   const view = blocks.find((b) => b.kind === "view");
   expect(view, "messageParser makes a view block").toBeTruthy();
   expect(blocks.some((b) => b.kind === "tool" || b.kind === "toolGroup"), "no tool chrome").toBe(false);
   // A finished turn folds its work, never the view.
-  const { items } = foldTurns(blocks, (b, i) => `${b.kind}-${i}`);
+  const { items } = foldTurns(blocks, (b, i) => `${b.kind}-${i}`, turnBounds(rows));
   expect(items.some((it) => it.kind !== "fold" && it.block === view), "the view stays pinned when the turn folds").toBe(true);
   return view;
 }
