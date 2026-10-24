@@ -33,6 +33,12 @@ export const ROUTES = {
   workerWorkflowRuns: (id) => `/workers/${id}/workflow-runs`,
   workerWorkflowRun: (id, callId) => `/workers/${id}/workflow-runs/${callId}`,
   workerWorkflowRunStop: (id, callId) => `/workers/${id}/workflow-runs/${callId}/stop`,
+  // Background jobs (contracts/src/background-job.ts), all ui-token.
+  jobs: "/api/jobs",
+  jobsClear: "/api/jobs/clear",
+  jobOutput: (id) => `/api/jobs/${encodeURIComponent(id)}/output`,
+  jobStop: (id) => `/api/jobs/${encodeURIComponent(id)}/stop`,
+  jobDismiss: (id) => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
   workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,

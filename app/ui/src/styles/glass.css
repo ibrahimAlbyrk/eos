@@ -153,7 +153,7 @@
 .fv-find-nav, .fv-icon-btn, .fv-ow-item, .fv-symrefs-row, .fx-row, .fx-tb-btn,
 .gd-tree-row, .git-agent-popover .menu-item, .icon-picker__cat,
 .icon-picker__cell, .machine-row, .me-model-row, .me-readout, .me-reset,
-.model-effort-trigger, .mon-close, .mon-row, .mp-row, .msg-action-btn, .mv-confirm-no,
+.model-effort-trigger, .mp-row, .msg-action-btn, .mv-confirm-no,
 .native-toggle, .page-find-nav, .pane-close, .pane-head .crumb .ctx-chip, .pane-head
 .crumb .plan-chip, .pane-head .crumb .v, .pane-picker-item, .pane-split-btn,
 .perm-always, .perm-deny, .plan-summary, .pr-menu-item, .proj-card__action,
@@ -173,7 +173,7 @@ button.mc-card--quiet) {
 
 /* radii: menus 16 · flyouts 14 · permission popover 18 · model/effort 20 */
 .acct-menu, .plan-pop, .machines-menu, .host-card, .env-pop, .ctx-card,
-.proj-card, .cb-chip-dd, .sp-chip-dd, .mon-panel { border-radius: var(--r-menu); }
+.proj-card, .cb-chip-dd, .sp-chip-dd { border-radius: var(--r-menu); }
 .ctx-menu.ctx-flyout, .head-menu > .menu-flyout, .sb-prefs-flyout { border-radius: var(--r-flyout); }
 .accept-popover { border-radius: 18px; }
 .me-panel { border-radius: 20px; }
@@ -182,7 +182,7 @@ button.mc-card--quiet) {
 .tpl-popover .menu-item, .git-agent-popover .menu-item, .pr-menu-item, .acct-action,
 .cmdk__item, .cw-menu__item, .fv-ow-item, .sp-chip-dd-item, .stg-dd__opt,
 .stg-toolpick__opt, .cmd-item, .file-item, .pane-picker-item, .rpick__row,
-.proj-card__action, .mon-row, .rw-item { border-radius: var(--r-item); }
+.proj-card__action, .rw-item { border-radius: var(--r-item); }
 .ap-option, .me-model-row, .mp-row { border-radius: 12px; }
 /* hairline separators fade out at both ends */
 .ctx-menu .menu-sep, .split-menu .menu-sep, .acct-sep, .mp-sep, .cw-menu__sep,

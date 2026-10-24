@@ -9,10 +9,12 @@ import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PlanChip } from "./PlanChip.jsx";
 import { ContextChip } from "./ContextChip.jsx";
+import { JobsBeacon } from "../../jobs/JobsBeacon.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
-// Environment & changes (git docked panel) and a slot for the Open-side-panel
-// toggle (drawn by SidePanel as a pane overlay).
+// the background-jobs beacon (top-right pane only), Environment & changes (git
+// docked panel) and a slot for the Open-side-panel toggle (drawn by SidePanel as
+// a pane overlay).
 // Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so every
 // scoped ui read/action (openPop, toggleSidePanel) targets THIS pane with no
 // prop-drilling. The header is the native window-drag strip (--app-region: drag
@@ -20,7 +22,7 @@ import { ContextChip } from "./ContextChip.jsx";
 // (status/attention cue + close ×). Collapsed-sidebar chrome
 // (traffic lights + hamburger) is drawn by the shell's SideHandle/NativeToggleZone
 // overlays that sit over `.pane-head-inset`; see App.jsx.
-export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, topLeft, topRow, split }) {
+export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, topLeft, topRow, topRight, split }) {
   const ui = useUi();
   const { projects } = useProjects();
   // Header-local rename (breadcrumb inline edit), reset when the pane's agent
@@ -44,6 +46,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // nothing to open). × closes non-primary split panes.
   const actions = (
     <div className="pane-head-actions">
+      {topRight && <JobsBeacon live={live} />}
       {worker && (
         <button
           className={"pane-split-btn" + (envOpen ? " is-active" : "")}

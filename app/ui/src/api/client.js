@@ -288,6 +288,22 @@ export const api = {
   async stopWorkflowRun(workerId, callId) {
     return postJson(ROUTES.workerWorkflowRunStop(workerId, callId), {}, uiTokenHeader());
   },
+  // Background jobs (contracts/src/background-job.ts), all ui-token.
+  async listJobs() {
+    const r = await getJson(ROUTES.jobs, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `listJobs → ${r.status}`);
+    return r.body.jobs;
+  },
+  // The output after `since`, or null when the job has none (any more).
+  async getJobOutput(id, since) {
+    const r = await getJson(`${ROUTES.jobOutput(id)}?since=${since}`, { headers: uiTokenHeader() });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(r.body?.error ?? `getJobOutput → ${r.status}`);
+    return r.body;
+  },
+  async stopJob(id) { return postJson(ROUTES.jobStop(id), {}, uiTokenHeader()); },
+  async dismissJob(id) { return postJson(ROUTES.jobDismiss(id), {}, uiTokenHeader()); },
+  async clearJobs() { return postJson(ROUTES.jobsClear, {}, uiTokenHeader()); },
   // action: a visual answer's send action ({viewId, actionId, label, viewTitle?,
   // item?, state?}) — the chat shows its label as a reply chip.
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) {

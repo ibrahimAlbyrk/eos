@@ -32,6 +32,7 @@
 @import "./styles/dream.css";
 @import "./styles/transfer.css";
 @import "./styles/workflow-runs.css";
+@import "./styles/jobs.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

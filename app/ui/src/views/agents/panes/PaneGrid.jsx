@@ -100,6 +100,8 @@ export function PaneGrid({ live }) {
     // Top-ROW panes compensate the island chrome above them (grid margin + pane
     // inset + border) so their header content sits at the N=1 bar's window-y.
     const topRow = !isLeaving && rect.top === 0;
+    // The top-right pane carries the window-wide background-jobs beacon.
+    const topRight = topRow && rect.left + rect.width >= 99.99;
     return (
       <div
         key={id}
@@ -115,6 +117,7 @@ export function PaneGrid({ live }) {
           focused={focused}
           topLeft={topLeft}
           topRow={topRow}
+          topRight={topRight}
           attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
           canClose={canClose}
           canSplit={canSplit}
@@ -175,6 +178,7 @@ export function SinglePane({ live }) {
             canClose={false}
             onClose={() => {}}
             topLeft
+            topRight
           />
           <EnvDock live={live} worker={selected}>
             <div className="pane-tx">
@@ -218,7 +222,7 @@ export function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
   );
 }
 
-function Pane({ id, agentId, worker, live, focused, topLeft, topRow, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
+function Pane({ id, agentId, worker, live, focused, topLeft, topRow, topRight, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
@@ -260,6 +264,7 @@ function Pane({ id, agentId, worker, live, focused, topLeft, topRow, attention, 
             onClose={onClose}
             topLeft={topLeft}
             topRow={topRow}
+            topRight={topRight}
             split
           />
           {/* Every split pane is rendered on screen regardless of focus, so all are

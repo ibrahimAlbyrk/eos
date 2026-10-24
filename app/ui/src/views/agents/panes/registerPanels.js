@@ -17,6 +17,7 @@ import { PagePanel } from "../../pages/PagePanel.jsx";
 import { TransferPanel } from "../../transfer/TransferPanel.jsx";
 import { ViewPanel } from "../../../genui/panel/ViewPanel.jsx";
 import { WorkflowPanel } from "../workflow/WorkflowPanel.jsx";
+import { JobsPanel } from "../../jobs/JobsPanel.jsx";
 
 registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -30,6 +31,8 @@ registerPanel({ type: "subagents", label: "Subagents", Component: SubagentsPanel
 registerPanel({ type: "newtab", label: "New tab", Component: NewTabPanel });
 registerPanel({ type: "page", label: "Page", Component: PagePanel });
 registerPanel({ type: "transfer", label: "Transfer", Component: TransferPanel });
+// Every background job (the header beacon opens it on one).
+registerPanel({ type: "jobs", label: "Jobs", Component: JobsPanel });
 // A visual answer opened from the transcript (view:<id>).
 registerPanel({ type: "view", label: "View", Component: ViewPanel });
 // A Workflow run's live view, opened from its card (workflow:<workerId>/<callId>).
