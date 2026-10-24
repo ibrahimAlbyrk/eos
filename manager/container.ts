@@ -207,12 +207,12 @@ import { UpdateService } from "./services/UpdateService.ts";
 import { UsageService } from "./services/UsageService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
-import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
 import { WorkflowRunService } from "./services/WorkflowRunService.ts";
+import { BackgroundJobService } from "./services/BackgroundJobService.ts";
 import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
 import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
 import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts";
@@ -634,7 +634,6 @@ export function buildContainer() {
   // handler's recall decision. Never sourced from the durable log (deltas aren't logged).
   const turnOutput = new TurnOutputTrackerService();
   const pendingQuestions = new PendingQuestionService(randomIdGenerator, systemClock);
-  const backgroundActivity = new BackgroundActivityService(systemClock);
   const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock, config.collaborate.awaitTimeoutMs);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   // Only sign-ins made through Eos count (Settings › Accounts): each CLI Eos runs
@@ -1302,16 +1301,28 @@ export function buildContainer() {
   };
   // Claude Code Workflow runs: live progress relayed as workflow:progress;
   // finished runs read back from the event log and Claude Code's own run files.
+  // A worker's live in-process session (the lanes that can stop one task of it).
+  const inProcessSession = (workerId: string) => {
+    const kind = workers.findById(workerId)?.backend_kind;
+    if (!kind || !backends.has(kind)) return null;
+    const backend = backends.get(kind);
+    return backend.descriptor.processModel === "in-process" ? backend.attach(workerId, { kind: "inproc", ref: workerId }) : null;
+  };
   const workflowRuns = new WorkflowRunService({
     bus,
     agentEvents: (workerId) => events.listByType(workerId, "agent_event"),
-    session: (workerId) => {
-      const kind = workers.findById(workerId)?.backend_kind;
-      if (!kind || !backends.has(kind)) return null;
-      const backend = backends.get(kind);
-      return backend.descriptor.processModel === "in-process" ? backend.attach(workerId, { kind: "inproc", ref: workerId }) : null;
-    },
+    session: inProcessSession,
     claudeProjectsDir: join(claudeHome, "projects"),
+  });
+  // Everything running in the background, for the header beacon and the Jobs
+  // tab. The bus-borne sources are wired in daemon.ts (wireJobSources).
+  const backgroundJobs = new BackgroundJobService({
+    bus,
+    session: inProcessSession,
+    cancelTransfer: (id) => { transfers.cancel(id); },
+    stopDream: () => dreams.requestStop(),
+    killTerminal: (runId) => terminalRuns.kill(runId),
+    machineName: (ref) => (ref === "local" ? peerHost.hostInfo().name : hostLinks.get(ref)?.alias ?? hostLinks.get(ref)?.name ?? "another Mac"),
   });
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
@@ -1340,7 +1351,11 @@ export function buildContainer() {
       if (d.phase !== "stop") turnOutput.markSeen(d.workerId);
       bus.publish(GENUI_TOPICS.delta, d);
     },
-    publishWorkflowProgress: (p) => workflowRuns.onProgress(p),
+    publishWorkflowProgress: (p) => {
+      workflowRuns.onProgress(p);
+      backgroundJobs.onWorkflowProgress(p);
+    },
+    publishBackgroundTask: (workerId, u) => backgroundJobs.onBackgroundTask(workerId, u),
     log,
   });
   // The slash menu's view of Claude Code's own commands, as a focused session sees them.
@@ -1510,6 +1525,7 @@ export function buildContainer() {
     canCompact: (id, kind) => compactionSession({ backends }, id, kind) !== null,
     liveSubagents: (id, kind) => compactionSession({ backends }, id, kind)?.liveSubagents?.() ?? 0,
     deferCap: () => config.context.fullRatio,
+    onRunChange: (workerId, running) => backgroundJobs.onCompaction(workerId, running),
     run: (input) => compactContext({
       workers, events, bus, clock: systemClock, backends, summarizer, prompts, contextWindowFor, log,
       timeoutMs: () => config.compaction.timeoutMs,
@@ -1605,6 +1621,9 @@ export function buildContainer() {
       turnOutput.markSeen(workerId);
     }
     if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
+    if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
+      backgroundJobs.observe(workerId, event);
+    }
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id), isInterruptPending: (id) => turnSettle.isInterruptPending(id) },
       workerId,
@@ -1766,6 +1785,7 @@ export function buildContainer() {
     genuiPresent,
     genuiMedia,
     workflowRuns,
+    backgroundJobs,
     genuiSettings,
     viewTokens: new ViewTokens(uiToken),
     recents,
@@ -1791,7 +1811,6 @@ export function buildContainer() {
     turnSettle,
     suspendGuard,
     pendingQuestions,
-    backgroundActivity,
     pendingPeerRequests,
     terminalRuns,
     ptySessions,

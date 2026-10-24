@@ -25,7 +25,7 @@ function harness() {
   const queueDeleted: string[] = [];
   const escalated: string[] = [];
   const backendStopped: string[] = [];
-  const cancelled: Record<string, string[]> = { questions: [], peers: [], activity: [] };
+  const cancelled: Record<string, string[]> = { questions: [], peers: [] };
   const published: Array<{ topic: string; payload: unknown }> = [];
   const browserDisposed: string[] = [];
 
@@ -54,7 +54,6 @@ function harness() {
     },
     pendingQuestions: { cancelByWorker: (id: string) => { cancelled.questions.push(id); } },
     pendingPeerRequests: { cancelByWorker: (id: string) => { cancelled.peers.push(id); } },
-    backgroundActivity: { clearWorker: (id: string) => { cancelled.activity.push(id); } },
     browser: { disposeSession: (id: string) => { browserDisposed.push(id); } },
   } as unknown as Container;
 
@@ -112,7 +111,6 @@ describe("archiveWorkerHandler", () => {
     await h.run({ id: "w1" });
     assert.deepEqual(h.cancelled.questions, ["w2", "w1"]);
     assert.deepEqual(h.cancelled.peers, ["w2", "w1"]);
-    assert.deepEqual(h.cancelled.activity, ["w2", "w1"]);
     assert.deepEqual(h.pendingDeleted, ["w2", "w1"], "pending_permissions deleted per row");
     assert.equal(h.queueDeleted.length, 0, "undelivered user text survives archive");
   });

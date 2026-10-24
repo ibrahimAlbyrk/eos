@@ -44,7 +44,6 @@ function containerWith(rows: Row[], opts: { purgeOnAppClose?: boolean } = {}) {
       delete: (id: string) => { alive.delete(id); },
     },
     loops: { findActiveByWorker: () => null, deleteByWorker: () => {} },
-    backgroundActivity: { forWorker: () => [] },
     pendingQuestions: { hasPending: () => false },
     modelCatalog: { contextWindowFor: () => 200_000 },
     // Observability hook: resumeIfDead's first container touch is

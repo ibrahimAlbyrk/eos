@@ -22,7 +22,7 @@ import { parseClaudeTranscript } from "../../../core/src/domain/claude-transcrip
 import { claudeTranscriptPath } from "../../shared/claude-transcript-path.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
-import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
+import { createSdkEventMapper, type BackgroundTaskUpdate, type SdkEventMapper } from "./SdkEventMapper.ts";
 import type { GenuiDelta } from "../../../contracts/src/genui/spec.ts";
 import type { WorkflowRunProgress } from "../../../contracts/src/workflow-run.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
@@ -144,6 +144,9 @@ export interface ClaudeSdkBackendDeps {
   /** A running Workflow's latest snapshot — the daemon relays it as bus topic
    *  workflow:progress. Absent → the run shows only its start and end. */
   publishWorkflowProgress?(progress: WorkflowRunProgress): void;
+  /** A background shell/Monitor started, moved on or ended, or a background
+   *  agent's progress — the daemon's jobs registry. Absent → not tracked. */
+  publishBackgroundTask?(workerId: string, update: BackgroundTaskUpdate): void;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -559,9 +562,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
         const publishGenui = deps.publishGenuiDelta;
         const publishWorkflow = deps.publishWorkflowProgress;
+        const publishTask = deps.publishBackgroundTask;
         const mapper = createSdkEventMapper({
           ...(publishGenui ? { onGenuiDelta: (d) => publishGenui({ workerId: spec.workerId, ...d }) } : {}),
           ...(publishWorkflow ? { onWorkflowProgress: (p) => publishWorkflow({ workerId: spec.workerId, ...p, status: "running", updatedAt: Date.now() }) } : {}),
+          ...(publishTask ? { onBackgroundTask: (u) => publishTask(spec.workerId, u) } : {}),
         });
         rec.mapper = mapper;
         rec.resumedFrom = resume;

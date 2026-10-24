@@ -84,6 +84,7 @@ export class TerminalRunService {
     };
     run.timeoutTimer.unref?.();
     this.runs.set(runId, run);
+    this.bus.publish("terminal:start", { workerId, runId, command, startedAt: run.startedAt });
 
     child.stdout?.on("data", (b: Buffer) => this.onData(runId, b));
     child.stderr?.on("data", (b: Buffer) => this.onData(runId, b));

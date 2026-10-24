@@ -50,6 +50,8 @@ import { registerAttachmentRoutes } from "./routes/attachments.ts";
 import { registerPromptEventRoutes } from "./routes/prompt-events.ts";
 import { registerSubagentEventRoutes } from "./routes/subagent-events.ts";
 import { registerWorkflowRunRoutes } from "./routes/workflow-runs.ts";
+import { registerJobRoutes } from "./routes/jobs.ts";
+import { wireJobSources } from "./services/jobs/wireJobSources.ts";
 import { registerPtyRoutes } from "./routes/pty.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
@@ -157,6 +159,7 @@ registerAttachmentRoutes(router, c);
 registerPromptEventRoutes(router, c);
 registerSubagentEventRoutes(router, c);
 registerWorkflowRunRoutes(router, c);
+registerJobRoutes(router, c);
 registerPtyRoutes(router, c);
 registerBrowserRoutes(router, c);
 registerExportRoutes(router, c);
@@ -405,6 +408,14 @@ c.bus.subscribe("worker:spawn", (msg) => {
 // persisting the row; the in-process bus is synchronous, so this subscriber sees
 // the persisted loop. loopTickFor is idempotent (ticking Set + IDLE guard), so a
 // continued-republish or a concurrent IDLE drain safely no-ops.
+wireJobSources({
+  bus: c.bus,
+  jobs: c.backgroundJobs,
+  transfers: () => c.transfers.list(),
+  dreamStatus: () => c.dreams.status(),
+  syncStatus: () => c.sync.status(),
+});
+
 c.bus.subscribe("loop:change", (msg) => {
   const p = msg.payload as { workerId?: string; status?: string };
   if (p?.workerId && p.status === "active") goalLoop.loopTickFor(p.workerId);
@@ -492,7 +503,6 @@ c.bus.subscribe("worker:exit", (msg) => {
   // pass through DELETE, so their entries would otherwise leak until restart.
   // All idempotent; turnSettle.clear is safe — a dead worker has no turn to starve.
   c.pendingQuestions.cancelByWorker(p.workerId);
-  c.backgroundActivity.clearWorker(p.workerId);
   c.turnSettle.clear(p.workerId);
   c.events.forgetPruneCounter(p.workerId);
   // A worker that exits/dies leaves its active loop orphaned — stop it.

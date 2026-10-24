@@ -20,7 +20,6 @@ function containerWith(rows: Row[], window: number | null, asking: string[] = []
       listActive: () => rows.filter((r) => r.archived_at == null),
     },
     loops: { findActiveByWorker: () => null },
-    backgroundActivity: { forWorker: () => [] },
     pendingQuestions: { hasPending: (id: string) => asking.includes(id) },
     modelCatalog: { contextWindowFor: (_m: string | null) => window },
   } as unknown as Container;

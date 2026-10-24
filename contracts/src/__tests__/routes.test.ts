@@ -34,6 +34,7 @@ const EXPECTED_KEYS = [
   "profile", "profilePreview", "profileAvatar", "profileImportClaudeMd",
   "userMemories", "userMemory", "userMemoryApprove", "userMemoryDismiss", "userMemoriesApproveAll",
   "userMemorySuggest", "userMemorySearch",
+  "jobs", "jobsClear", "jobOutput", "jobStop", "jobDismiss",
   "dreams", "dream", "dreamStatus", "dreamStop", "dreamExclusions",
   "sync", "syncCreate", "syncJoin", "syncKey", "syncNow", "syncLeave",
   "transferList", "transferScan", "transferRead", "transferWrite", "transferPrepare", "transferCommit", "transferAbort",

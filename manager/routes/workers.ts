@@ -100,21 +100,6 @@ async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | u
   return (await c.git.mergeBase(w.worktree_dir, w.worktree_from)) ?? undefined;
 }
 
-// Surface a worker's live background processes (Monitor / `Bash
-// run_in_background`) on its row for the corner activity widget — but only
-// while the worker is alive, since those processes die with it. Runtime view
-// state from the in-memory service; never persisted.
-function withBackgroundActivity(c: Container, rows: WorkerRow[]): WorkerRow[] {
-  return rows.map((w) => {
-    // Only while the agent is actively working — a turn-scoped indicator. On
-    // IDLE the turn is over; Monitor/bg-bash run async and their real finish
-    // isn't observable, so we stop surfacing them instead of leaving them stuck.
-    const alive = w.state === "WORKING" || w.state === "SPAWNING";
-    const bg = alive ? c.backgroundActivity.forWorker(w.id) : [];
-    return bg.length ? { ...w, backgroundActivity: bg } : w;
-  });
-}
-
 // The orchestrator's (or user's) message reached a worker paused on needs-input:
 // the answer arrived, so clear awaiting_input and let the goal-gate resume its
 // normal tick on the next IDLE. No-op when the worker has no active loop.
@@ -198,7 +183,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const rows = parentId
       ? c.workers.listByParent(parentId).filter((w) => w.archived_at == null)
       : c.workers.listActive();
-    const enriched = withPendingQuestion(c, withContext(c, withLoopState(c, withBackgroundActivity(c, rows))));
+    const enriched = withPendingQuestion(c, withContext(c, withLoopState(c, rows)));
     writeJson(res, 200, url.searchParams.get("brief") === "1" ? withBriefPrompt(enriched) : enriched);
   });
 
@@ -267,24 +252,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
-    // Corner activity widget: track Monitor / `Bash run_in_background` starts
-    // (tool_running) and their shell-id replies (tool_done). Manager-side view
-    // state, deliberately kept out of ProcessWorkerEvent (core) — OCP.
-    if (body.type === "tool_running") {
-      const p = body.payload as { toolName?: string; toolUseId?: string | null; input?: Record<string, unknown> } | undefined;
-      if (p?.toolName) c.backgroundActivity.onToolRunning(params.id, p.toolName, p.toolUseId ?? null, p.input ?? {});
-    } else if (body.type === "tool_done") {
-      const p = body.payload as { toolName?: string; toolUseId?: string | null; result?: string } | undefined;
-      if (p?.toolName) c.backgroundActivity.onToolDone(params.id, p.toolName, p.toolUseId ?? null, p.result ?? "");
-    } else if (body.type === "hook") {
-      // Turn/session ended → clear this worker's background activity. Monitor /
-      // `Bash run_in_background` are async: their real finish isn't observable
-      // (tool_done fires ~200ms after start, at arm time, not completion), so we
-      // drop them when the turn that started them ends — a turn-scoped indicator
-      // instead of a stuck entry.
-      const ev = (body.payload as { event?: string } | undefined)?.event;
-      if (ev === "Stop" || ev === "SessionEnd") c.backgroundActivity.clearWorker(params.id);
-    }
     // /clear marker: mirror of conversation_rewound — the web hides everything
     // before it. Synthesized here because the signal arrives as a plain hook.
     const hp = body.payload as { event?: string; body?: { reason?: string; session_id?: string } } | undefined;

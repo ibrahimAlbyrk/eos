@@ -28,6 +28,8 @@ export interface CompactionServiceDeps {
   liveSubagents(workerId: string, backendKind: string | null): number;
   /** Occupancy ratio past which an auto run stops waiting for subagents. */
   deferCap(): number;
+  // A compaction started (true) or settled (false) — the jobs registry.
+  onRunChange?(workerId: string, running: boolean): void;
   run(input: CompactContextInput): Promise<CompactContextResult>;
   log: Logger;
 }
@@ -82,12 +84,16 @@ export class CompactionService {
   private launch(input: CompactContextInput, usedAtStart: number): void {
     const { workerId } = input;
     this.running.add(workerId);
+    this.deps.onRunChange?.(workerId, true);
     void this.deps.run(input)
       .then((r) => {
         if (r.ok) this.failedAt.delete(workerId);
         else if (input.trigger === "auto") this.failedAt.set(workerId, usedAtStart);
       })
       .catch((e) => this.deps.log.warn("compaction run crashed", { workerId, error: e instanceof Error ? e.message : String(e) }))
-      .finally(() => this.running.delete(workerId));
+      .finally(() => {
+        this.running.delete(workerId);
+        this.deps.onRunChange?.(workerId, false);
+      });
   }
 }

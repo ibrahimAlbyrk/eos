@@ -4,7 +4,6 @@
 
 import { z } from "zod";
 import { WorkerStateSchema } from "./events.ts";
-import { BackgroundActivityEntrySchema } from "./background-activity.ts";
 import { LoopStatusSchema } from "./loop.ts";
 
 // Provenance of a worker's name. "default" = the default assigned at creation —
@@ -68,12 +67,6 @@ export const WorkerRowSchema = z.object({
   // daemon on every TodoWrite tool call and nulled on /clear. A JSON string of
   // Task[] (see task.ts); the web parses it. Null/absent → no task list yet.
   tasks: z.string().nullable().optional(),
-  // Live background processes the agent has spawned (Monitor tool / `Bash
-  // run_in_background`), surfaced by the corner activity widget. NOT a DB
-  // column — route-enriched from the in-memory BackgroundActivityService
-  // (they die with the worker process, so persisting would resurrect dead
-  // entries on restart). Absent on rows that weren't HTTP-enriched.
-  backgroundActivity: z.array(BackgroundActivityEntrySchema).optional(),
   // The worker's active dynamic loop, if any. NOT a DB column — route-enriched
   // from the loops repo (findActiveByWorker) on the worker list/detail reads, so
   // the dashboard can show "looping (attempt N/M)". Surfaced regardless of worker

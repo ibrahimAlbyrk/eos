@@ -42,7 +42,6 @@ export const archiveWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, Archiv
     for (const wid of result.archived) {
       c.pendingQuestions.cancelByWorker(wid);
       c.pendingPeerRequests.cancelByWorker(wid);
-      c.backgroundActivity.clearWorker(wid);
     }
     if (isSessionRoot) c.browser.disposeSession(id);
     return {

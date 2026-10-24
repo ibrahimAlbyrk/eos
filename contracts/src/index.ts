@@ -22,5 +22,6 @@ export * from "./dream.ts";
 export * from "./sync.ts";
 export * from "./transfer.ts";
 export * from "./workflow-run.ts";
+export * from "./background-job.ts";
 export * from "./genui/index.ts";
 export * from "./util.ts";

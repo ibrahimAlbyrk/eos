@@ -14,6 +14,8 @@ export type EventBusTopic =
   | "usage:recorded"
   | "worker:report"
   | "notification:fire"
+  // A `!` command started (payload { workerId|null, runId, command, startedAt }).
+  | "terminal:start"
   | "terminal:chunk"
   | "terminal:done"
   // Interactive multi-tab PTY output/exit (the `pty` feature; NOT terminal:*).
@@ -80,6 +82,9 @@ export type EventBusTopic =
   // WorkflowRunProgress), at most twice a second per run. Ephemeral — the run's
   // start and end are agent events.
   | "workflow:progress"
+  // A background job started, moved on or ended, or finished ones were dropped
+  // (payload BackgroundJobChange) — the header beacon and the Jobs tab.
+  | "jobs:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

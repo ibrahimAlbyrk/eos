@@ -46,6 +46,16 @@ interface SdkMsg {
   // task_progress of a Workflow run: the run's progress entries. Not in the SDK's
   // types — read only by core's applyWorkflowProgress.
   workflow_progress?: unknown;
+  // task_started: a shell (local_bash, which a Monitor with a command is too) or
+  // subagent running in the background; ambient = not activity to show.
+  is_backgrounded?: boolean;
+  ambient?: boolean;
+  // task_progress: the tool a background agent ran last.
+  last_tool_name?: string;
+  // task_updated: what changed on a task.
+  patch?: { is_backgrounded?: boolean };
+  // background_tasks_changed: every task still live in the session.
+  tasks?: Array<{ task_id?: string }>;
   // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
   // tool_use id. Drives subagent attribution: inner tools surface as parented
   // activity grouped under the agentRun, not as top-level main-stream blocks.
@@ -133,7 +143,9 @@ function parseResumedAgentId(tur: unknown, text: string): string | null {
 // The true completion also rides an injected plain user turn (<task-notification>
 // XML, origin kind "task-notification") — the only carrier of the agent's FULL
 // final text (<result>). One turn can batch several notification blocks.
-interface NotificationCarrier { taskId: string; toolUseId?: string; status: "completed" | "failed" | "stopped"; outputFile?: string; summary?: string; result?: string }
+// A Monitor's events ride the same carrier: <event> and no <status>, which only
+// its last notification has.
+interface NotificationCarrier { taskId: string; toolUseId?: string; status: "completed" | "failed" | "stopped"; hasStatus: boolean; outputFile?: string; summary?: string; result?: string; event?: string }
 
 function normalizeTaskStatus(s: string | undefined): "completed" | "failed" | "stopped" {
   return s === "failed" || s === "stopped" ? s : "completed";
@@ -152,9 +164,13 @@ function parseNotificationCarriers(text: string): NotificationCarrier[] {
     const toolUseId = tag("tool-use-id");
     const outputFile = tag("output-file");
     const summary = tag("summary");
+    const status = tag("status");
+    const event = tag("event");
     out.push({
       taskId,
-      status: normalizeTaskStatus(tag("status")),
+      status: normalizeTaskStatus(status),
+      hasStatus: status !== undefined,
+      ...(event ? { event } : {}),
       ...(toolUseId ? { toolUseId } : {}),
       ...(outputFile ? { outputFile } : {}),
       ...(summary ? { summary } : {}),
@@ -193,6 +209,18 @@ function toSubagentUsage(u: SdkTaskUsage | undefined): SubagentUsage | undefined
   };
   return Object.keys(usage).length ? usage : undefined;
 }
+
+// A background shell's exit code, as its notification summary reports it
+// ("Background command "…" completed (exit code 0)").
+export function exitCodeOf(summary: string | undefined): number | null {
+  const m = summary ? /\bexit code (-?\d+)/i.exec(summary) : null;
+  return m ? Number(m[1]) : null;
+}
+
+// Only Claude Code's own task output files (<…>/tasks/<id>.output) are named as
+// a job's output.
+const TASK_OUTPUT_FILE = /^\/[^\0]*\/tasks\/[\w-]+\.output$/;
+const outputFileOf = (path: string | undefined): string | null => (path && TASK_OUTPUT_FILE.test(path) ? path : null);
 
 // Map a complete assistant content block to a canonical block, stamping the SAME
 // blockId the live deltas used (msgId:globalIndex) so the UI reconciles live <->
@@ -240,9 +268,21 @@ export interface WorkflowProgress {
   usage?: SubagentUsage;
 }
 
+// A background shell or Monitor of this session (Bash run_in_background, a Bash
+// moved to the background, Monitor), or a background agent's progress. Not an
+// AgentEvent: the backend relays it to the jobs registry; subagents and Workflow
+// runs start and end through their own agent events.
+export type BackgroundTaskUpdate =
+  | { phase: "started"; taskId: string; callId: string; kind: "shell" | "monitor"; title: string; command: string | null; outputFile: string | null }
+  | { phase: "output"; taskId: string; outputFile: string }
+  | { phase: "event"; taskId: string; text: string }
+  | { phase: "progress"; taskId: string; lastTool: string | null; toolUses: number | null }
+  | { phase: "ended"; taskId: string; status: "completed" | "failed" | "stopped"; summary: string | null; outputFile: string | null; exitCode: number | null };
+
 export interface SdkEventMapperOptions {
   onGenuiDelta?(delta: GenuiInputDelta): void;
   onWorkflowProgress?(progress: WorkflowProgress): void;
+  onBackgroundTask?(update: BackgroundTaskUpdate): void;
   now?(): number;
 }
 
@@ -268,8 +308,9 @@ export interface SdkEventMapper {
   // Background subagents and Workflow runs announced and not yet completed. They
   // live inside this launch's process, so they die with it.
   readonly liveSubagents: number;
-  // The process is going away: report every still-running background subagent
-  // and Workflow run as stopped (once), so none is left showing as running.
+  // The process is going away: report every still-running background subagent,
+  // Workflow run, shell and Monitor as stopped (once), so none is left showing
+  // as running.
   stopLiveSubagents(): AgentEvent[];
 }
 
@@ -407,6 +448,49 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
     });
   };
 
+  // Background shells and Monitors. shellCalls: top-level Bash/Monitor calls by
+  // id — a task is one of ours only when its tool_use_id is here. A Bash call
+  // that runs in the foreground still registers a task (it can be moved to the
+  // background), so it is announced only once it is backgrounded.
+  interface ShellCall { kind: "shell" | "monitor"; title: string; command: string | null; background: boolean }
+  interface ShellTask { call: ShellCall; callId: string; outputFile: string | null; announced: boolean; done: boolean }
+  const shellCalls = new Map<string, ShellCall>();
+  const shellTasks = new Map<string, ShellTask>();
+  const emitTask = (u: BackgroundTaskUpdate): void => {
+    try { opts.onBackgroundTask?.(u); } catch { /* the jobs view must never break the session */ }
+  };
+  const shellTaskOf = (taskId: string, callId: string | undefined): ShellTask | undefined => {
+    const t = shellTasks.get(taskId);
+    if (t || !callId) return t;
+    const call = shellCalls.get(callId);
+    if (!call) return undefined;
+    const fresh: ShellTask = { call, callId, outputFile: null, announced: false, done: false };
+    shellTasks.set(taskId, fresh);
+    return fresh;
+  };
+  const announceShell = (taskId: string, t: ShellTask): void => {
+    if (t.announced) return;
+    t.announced = true;
+    emitTask({ phase: "started", taskId, callId: t.callId, kind: t.call.kind, title: t.call.title, command: t.call.command, outputFile: t.outputFile });
+  };
+  const endShell = (taskId: string, t: ShellTask, c: { status: "completed" | "failed" | "stopped"; summary?: string; outputFile?: string }): void => {
+    if (!t.announced || t.done) return;
+    t.done = true;
+    t.outputFile = outputFileOf(c.outputFile) ?? t.outputFile;
+    emitTask({ phase: "ended", taskId, status: c.status, summary: c.summary || null, outputFile: t.outputFile, exitCode: exitCodeOf(c.summary) });
+  };
+  const noteShellCall = (b: RawBlock): void => {
+    const input = b.input ?? {};
+    const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+    if (b.name === "Bash") {
+      const command = str(input.command);
+      shellCalls.set(b.id!, { kind: "shell", title: str(input.description) ?? command ?? "Shell", command, background: input.run_in_background === true });
+    } else if (b.name === "Monitor") {
+      const ws = input.ws && typeof input.ws === "object" ? str((input.ws as { url?: unknown }).url) : null;
+      shellCalls.set(b.id!, { kind: "monitor", title: str(input.description) ?? "Monitor", command: str(input.command) ?? ws, background: true });
+    }
+  };
+
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
@@ -443,6 +527,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
       for (const [taskId, w] of workflows) {
         if (isLiveWorkflow(w)) completeWorkflow(out, taskId, w, { status: "stopped" });
       }
+      for (const [taskId, t] of shellTasks) endShell(taskId, t, { status: "stopped" });
       return out;
     },
     noteHook(input: SubagentHookInput): AgentEvent[] {
@@ -476,6 +561,11 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
               });
               return out;
             }
+            const shell = shellTaskOf(msg.task_id, msg.tool_use_id);
+            if (shell) {
+              endShell(msg.task_id, shell, { status: normalizeTaskStatus(msg.status), ...(msg.summary ? { summary: msg.summary } : {}), ...(msg.output_file ? { outputFile: msg.output_file } : {}) });
+              return out;
+            }
             const entry = resolveBgEntry(msg.task_id, msg.tool_use_id);
             if (entry) {
               entry.usage = usage ?? entry.usage;
@@ -492,7 +582,11 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // and relay it (never an AgentEvent — only start and end are recorded).
           else if (msg.subtype === "task_progress" && msg.task_id) {
             const wf = workflowOf(msg.task_id, msg.tool_use_id);
-            if (!wf || wf.done) return out;
+            if (!wf) {
+              if (bgAgents.has(msg.task_id)) emitTask({ phase: "progress", taskId: msg.task_id, lastTool: msg.last_tool_name ?? null, toolUses: msg.usage?.tool_uses ?? null });
+              return out;
+            }
+            if (wf.done) return out;
             wf.snapshot = applyWorkflowProgress(wf.snapshot, msg.workflow_progress);
             wf.usage = toSubagentUsage(msg.usage) ?? wf.usage;
             try {
@@ -505,6 +599,8 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // async_launched stub, which is background-only. It does release a
           // subagent effort a hook reported before the mapping existed.
           else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
+            const shell = msg.ambient ? undefined : shellTaskOf(msg.task_id, msg.tool_use_id);
+            if (shell && (shell.call.background || msg.is_backgrounded)) announceShell(msg.task_id, shell);
             const wf = workflowOf(msg.task_id, msg.tool_use_id, msg.task_type === "local_workflow");
             if (wf && msg.workflow_name) wf.name = msg.workflow_name;
             resolveBgEntry(msg.task_id, msg.tool_use_id);
@@ -515,6 +611,17 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
               pendingEffort.delete(msg.task_id);
               noteProfile(out, msg.tool_use_id, { effort });
             }
+          }
+          // A foreground Bash moved to the background (the user's Ctrl+B).
+          else if (msg.subtype === "task_updated" && msg.task_id && msg.patch?.is_backgrounded) {
+            const shell = shellTasks.get(msg.task_id);
+            if (shell) announceShell(msg.task_id, shell);
+          }
+          // The live task set. A shell missing from it has ended; its notification
+          // (sent while it was still registered) normally closed it already.
+          else if (msg.subtype === "background_tasks_changed" && Array.isArray(msg.tasks)) {
+            const liveIds = new Set(msg.tasks.map((t) => t.task_id));
+            for (const [taskId, t] of shellTasks) if (!liveIds.has(taskId)) endShell(taskId, t, { status: "completed" });
           }
           return out;
 
@@ -626,6 +733,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             if (b.name === "Agent" || b.name === "Task") agentCallIds.add(b.id);
             else if (b.name === "SendMessage") sendCallIds.add(b.id);
             else if (b.name === "Workflow") workflowCallIds.add(b.id);
+            else if (b.name === "Bash" || b.name === "Monitor") noteShellCall(b);
           }
           // Context-window occupancy: this top-level assistant message carries its
           // own API request's usage (BetaMessage.usage). Its prompt footprint
@@ -665,8 +773,14 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                 completeWorkflow(out, c.taskId, wf, { status: c.status, ...(c.summary ? { summary: c.summary } : {}) });
                 continue;
               }
+              const shell = shellTaskOf(c.taskId, c.toolUseId);
+              if (shell) {
+                if (c.hasStatus) endShell(c.taskId, shell, { status: c.status, ...(c.summary ? { summary: c.summary } : {}), ...(c.outputFile ? { outputFile: c.outputFile } : {}) });
+                else if (c.event && shell.announced && !shell.done) emitTask({ phase: "event", taskId: c.taskId, text: c.event });
+                continue;
+              }
               const entry = resolveBgEntry(c.taskId, c.toolUseId);
-              if (!entry) continue; // not a subagent task (background Bash/Monitor)
+              if (!entry) continue; // not a task this session tracks
               const alreadyReported = entry.pendingSummary === true;
               entry.pendingSummary = false;
               if (alreadyReported && !c.result) continue; // nothing to add over the summary
@@ -727,6 +841,23 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                 ? parseResumedAgentId(msg.tool_use_result, blockText(r.content))
                 : null;
               if (resumed && r.tool_use_id) announceResume(out, resumed, r.tool_use_id);
+              // A background shell/Monitor's result names its task — the start when
+              // task_started was missed, and where a shell writes its output.
+              const call = r.tool_use_id ? shellCalls.get(r.tool_use_id) : undefined;
+              if (call && r.tool_use_id && !r.is_error) {
+                const tur = (msg.tool_use_result ?? {}) as { backgroundTaskId?: unknown; taskId?: unknown };
+                const text = blockText(r.content);
+                const taskId = call.kind === "monitor"
+                  ? (typeof tur.taskId === "string" ? tur.taskId : /\bMonitor started \(task ([\w-]+)/.exec(text)?.[1])
+                  : (typeof tur.backgroundTaskId === "string" ? tur.backgroundTaskId : /\brunning in background with ID: ([\w-]+)/.exec(text)?.[1]);
+                const shell = taskId ? shellTaskOf(taskId, r.tool_use_id) : undefined;
+                if (taskId && shell) {
+                  const file = shell.outputFile ? null : outputFileOf(/\bOutput is being written to: (\S+?\.output)\b/.exec(text)?.[1]);
+                  if (file) shell.outputFile = file;
+                  if (!shell.announced) announceShell(taskId, shell);
+                  else if (file && !shell.done) emitTask({ phase: "output", taskId, outputFile: file });
+                }
+              }
               const launch = r.tool_use_id && workflowCallIds.has(r.tool_use_id) && !r.is_error
                 ? parseWorkflowLaunch(msg.tool_use_result, blockText(r.content))
                 : null;

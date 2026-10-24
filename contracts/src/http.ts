@@ -2466,6 +2466,12 @@ export const ROUTES = {
   userMemoriesApproveAll: "/api/user-memories/approve-all",
   userMemorySuggest: "/api/user-memories/suggest",
   userMemorySearch: "/api/user-memories/search",
+  // Background jobs (contracts/src/background-job.ts), all ui-token.
+  jobs: "/api/jobs",
+  jobsClear: "/api/jobs/clear",
+  jobOutput: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/output`,
+  jobStop: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/stop`,
+  jobDismiss: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
   // Dreaming (contracts/src/dream.ts). GET runs · POST = dream now (ui-token).
   dreams: "/api/dreams",
   dream: (id: string): string => `/api/dreams/${id}`,
