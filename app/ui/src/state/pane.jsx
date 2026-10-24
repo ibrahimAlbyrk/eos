@@ -6,7 +6,7 @@ import {
 } from "../lib/paneLayout.js";
 import { sessionRootOf } from "../lib/agentIndex.js";
 import {
-  stashBrowserSession, shouldRestoreBrowser, registerBrowserSessionUi,
+  stashBrowserSession, shouldRestoreBrowserLive, registerBrowserSessionUi,
 } from "./browserSessionState.js";
 import { setArchiveViewing } from "./archiveStore.js";
 import { setMemoryViewing } from "./memoryViewStore.js";
@@ -84,7 +84,8 @@ export function PaneProvider({ children }) {
   // When the focused pane's selection moves to a different session, stash whether
   // the leaving session's Browser tab was showing in that pane, then re-open the
   // arriving session's Browser tab (in the pane the selection landed in) when it
-  // was last seen open (or owes its deferred first-use auto-open).
+  // was last seen open (or owes its deferred first-use auto-open) and its browser
+  // still holds a real page.
   const prevSelRef = useRef(selectedId);
   useEffect(() => {
     const prev = prevSelRef.current;
@@ -94,7 +95,12 @@ export function PaneProvider({ children }) {
     const { show, tab } = panelViewRef.current;
     stashBrowserSession(sessionRootOf(prev), show && tab === "browser");
     const sessionKey = sessionRootOf(next);
-    if (shouldRestoreBrowser(sessionKey)) openPanelIn(focusedRef.current, "browser", { sessionKey });
+    shouldRestoreBrowserLive(sessionKey).then((restore) => {
+      // The tab check is async: skip if the user has already moved on.
+      if (restore && sessionRootOf(selectedIdRef.current) === sessionKey) {
+        openPanelIn(focusedRef.current, "browser", { sessionKey });
+      }
+    });
   }, [selectedId, openPanelIn]);
 
   const focusLeaf = useCallback((id) => {

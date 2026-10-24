@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { notify } from "../lib/notify.js";
 import { patchBrowserPanel, getBrowserPanel, _resetBrowserPanel } from "./browserPanelStore.js";
 import {
-  subscribe, getSessionState, stashBrowserSession, shouldRestoreBrowser,
+  subscribe, getSessionState, stashBrowserSession, shouldRestoreBrowser, shouldRestoreBrowserLive,
   notePanelOpened, seedRememberedTab, registerBrowserSessionUi, applyActivity,
   _resetBrowserSessions,
 } from "./browserSessionState.js";
@@ -61,6 +61,37 @@ describe("browserSessionState panel memory (session switch)", () => {
     patchBrowserPanel("A", { activeTabId: "t1" });
     stashBrowserSession("A", false);
     expect(shouldRestoreBrowser("A")).toBe(false);
+  });
+
+  describe("shouldRestoreBrowserLive", () => {
+    const daemonTabs = (tabs) =>
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ tabs }) })));
+    afterEach(() => vi.unstubAllGlobals());
+
+    it("restores when the session still holds a real page", async () => {
+      daemonTabs([{ tabId: "t1", url: "https://example.com" }]);
+      stashBrowserSession("A", true);
+      expect(await shouldRestoreBrowserLive("A")).toBe(true);
+    });
+
+    it("skips and forgets the memory when the agent closed every tab", async () => {
+      daemonTabs([]);
+      stashBrowserSession("A", true);
+      expect(await shouldRestoreBrowserLive("A")).toBe(false);
+      expect(getSessionState("A").panelOpen).toBe(false);
+    });
+
+    it("skips when only blank tabs are left", async () => {
+      daemonTabs([{ tabId: "t1", url: "about:blank" }]);
+      stashBrowserSession("A", true);
+      expect(await shouldRestoreBrowserLive("A")).toBe(false);
+    });
+
+    it("never asks the daemon when the memory says closed", async () => {
+      daemonTabs([{ tabId: "t1", url: "https://example.com" }]);
+      expect(await shouldRestoreBrowserLive("A")).toBe(false);
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 
   it("seedRememberedTab re-applies the remembered tab only when the live store has none", () => {

@@ -11,7 +11,7 @@
 
 import { notify } from "../lib/notify.js";
 import { GLOBAL_SESSION, sessionNameOf } from "../lib/agentIndex.js";
-import { getBrowserPanel, patchBrowserPanel } from "./browserPanelStore.js";
+import { getBrowserPanel, patchBrowserPanel, refreshTabs, isBlankUrl } from "./browserPanelStore.js";
 
 const KEY = "cm:browserSessions";
 
@@ -110,6 +110,18 @@ export function stashBrowserSession(sessionKey, panelOpen) {
 export function shouldRestoreBrowser(sessionKey) {
   const s = getSessionState(sessionKey);
   return s.panelOpen || (s.everUsed && s.unseenCount > 0 && !s.everOpened);
+}
+
+// The memory alone isn't enough: the agent may have closed every tab since, or
+// the panel's own mount left only a blank tab behind. Restore only when the
+// daemon still holds a real page for the session; otherwise forget the memory
+// so the stale "open" never comes back.
+export async function shouldRestoreBrowserLive(sessionKey) {
+  if (!shouldRestoreBrowser(sessionKey)) return false;
+  const tabs = await refreshTabs(sessionKey).catch(() => null);
+  if (tabs?.some((t) => !isBlankUrl(t.url))) return true;
+  patch(sessionKey, { panelOpen: false, unseenCount: 0 });
+  return false;
 }
 
 // BrowserPanel mount (every open path: toggle, restore, auto-open, present):
