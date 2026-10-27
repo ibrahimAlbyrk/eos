@@ -3,7 +3,7 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
-import { isSafeAbsPath } from "./fs-shared.ts";
+import { isSafeAbsPath, uiTokenOk } from "./fs-shared.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { FsOpenInRequestSchema, type FsOpenInRequest } from "../../contracts/src/http.ts";
 
@@ -60,10 +60,13 @@ export function registerFsPickerRoutes(r: Router, c: Container): void {
     });
   });
 
+  // open / reveal / open-in launch apps on this Mac's screen, so only the
+  // dashboard may call them (an agent holding the daemon URL must not).
   r.post("/fs/open", async ({ req, res }) => {
     const body = await readBody(req) as { path?: string };
     const isUrl = typeof body.path === "string" && /^https?:\/\//.test(body.path);
     if (!isUrl && !isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path or URL required" }); return; }
+    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
     try {
       await c.fs.openPath(body.path!);
       writeJson(res, 200, { ok: true });
@@ -75,6 +78,7 @@ export function registerFsPickerRoutes(r: Router, c: Container): void {
   r.post("/fs/reveal", async ({ req, res }) => {
     const body = await readBody(req) as { path?: string };
     if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
     try {
       const { execFileSync } = await import("node:child_process");
       execFileSync("open", ["-R", body.path]);
@@ -89,6 +93,7 @@ export function registerFsPickerRoutes(r: Router, c: Container): void {
   r.post("/fs/open-in", async ({ req, res }) => {
     const body = validate(FsOpenInRequestSchema, await readBody(req));
     if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
     try {
       const { execFileSync } = await import("node:child_process");
       execFileSync("open", openInArgv(body.target, body.path));

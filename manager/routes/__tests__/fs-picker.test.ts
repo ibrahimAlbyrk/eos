@@ -1,6 +1,6 @@
 // POST /fs/open-in — path-based reveal/open. argv construction is unit-tested
-// via the pure openInArgv helper (no spawn); the route test only exercises the
-// guard path, which returns before execFileSync.
+// via the pure openInArgv helper (no spawn); the route tests only exercise the
+// guard paths, which return before execFileSync.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -12,13 +12,15 @@ import type { RouteContext } from "../Router.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { FsOpenInRequestSchema } from "../../../contracts/src/http.ts";
 
-async function post(path: string, body: unknown) {
+const UI_TOKEN = "tok";
+
+async function post(path: string, body: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
-  registerFsPickerRoutes(router, {} as unknown as Container);
+  registerFsPickerRoutes(router, { uiToken: UI_TOKEN } as unknown as Container);
   const u = new URL("http://x" + path);
   const m = router.match("POST", u.pathname);
   assert.ok(m, `no POST route matched ${u.pathname}`);
-  const req = Readable.from([JSON.stringify(body)]) as unknown as RouteContext["req"];
+  const req = Object.assign(Readable.from([JSON.stringify(body)]), { headers }) as unknown as RouteContext["req"];
   let status = 0;
   let payload: unknown;
   const res = {
@@ -62,4 +64,18 @@ describe("POST /fs/open-in guards", () => {
   it("invalid target → ValidationError (mapped to 400 by the error handler)", async () => {
     await assert.rejects(post("/fs/open-in", { path: "/a/b.ts", target: "nope" }), ValidationError);
   });
+
+  it("no ui token → 403 (before any spawn)", async () => {
+    const out = await post("/fs/open-in", { path: "/a/b.ts", target: "finder" }, { "x-eos-ui-token": "wrong" });
+    assert.equal(out.status, 403);
+  });
+});
+
+describe("POST /fs/open and /fs/reveal guards", () => {
+  for (const route of ["/fs/open", "/fs/reveal"]) {
+    it(`${route} without the ui token → 403 (before any spawn)`, async () => {
+      const out = await post(route, { path: "/Applications/Calculator.app" });
+      assert.equal(out.status, 403);
+    });
+  }
 });

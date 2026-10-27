@@ -440,7 +440,7 @@ export const api = {
   },
   async openFile(path) {
     if (isRemoteView()) return openRemoteFileHere(path);
-    return postJson(ROUTES.fsOpen, { path });
+    return postJson(ROUTES.fsOpen, { path }, uiTokenHeader());
   },
   async listBranches(cwd, { remotes = false } = {}) {
     const q = `?cwd=${encodeURIComponent(cwd)}${remotes ? "&remotes=1" : ""}`;
@@ -573,7 +573,7 @@ export const api = {
     return postJson(ROUTES.fsWrite, { path, content, root, mkdirp }, uiTokenHeader());
   },
   async revealFile(path) {
-    return postJson(ROUTES.fsReveal, { path });
+    return postJson(ROUTES.fsReveal, { path }, uiTokenHeader());
   },
 
   // Files explorer — per-entry detail + mutations. Mutations carry the UI token
