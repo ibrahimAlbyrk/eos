@@ -71,13 +71,24 @@ describe("AgentsTree rows", () => {
     expect(leadRow).toContain(">Input<");
   });
 
-  it("folds a project past three rows behind 'Show N more', keeping busy rows visible", () => {
-    const roots = ["A", "B", "C", "D", "E"].map((id, i) => agent(id, { turn_started_at: NOW - i * 60_000 }));
-    roots.push(agent("Busy", { state: "WORKING", turn_started_at: NOW - 3_600_000 }));
+  it("keeps rows active in the last 4h past the first three, folding older ones behind 'Show N more'", () => {
+    const HOUR = 3_600_000;
+    const roots = [["A", 0], ["B", 1], ["C", 2], ["D", 3 * HOUR], ["E", 5 * HOUR], ["F", 48 * HOUR]]
+      .map(([id, ago]) => agent(id, { turn_started_at: NOW - ago }));
+    roots.push(agent("Busy", { state: "WORKING", turn_started_at: NOW - 24 * HOUR }));
     const html = render(roots);
-    expect(html).toContain("Show 2 more");
+    expect(html).toContain(">D<");
     expect(html).toContain(">Busy<");
     expect(html).not.toContain(">E<");
+    expect(html).toContain("Show 2 more");
+  });
+
+  it("caps the recent window at eight rows", () => {
+    const roots = Array.from({ length: 10 }, (_, i) => agent(`R${i}`, { turn_started_at: NOW - i * 60_000 }));
+    const html = render(roots);
+    expect(html).toContain(">R7<");
+    expect(html).not.toContain(">R8<");
+    expect(html).toContain("Show 2 more");
   });
 
   it("lists no-folder sessions under Recents, after the projects", () => {

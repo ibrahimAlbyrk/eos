@@ -30,9 +30,13 @@ if (TRANSPARENT_DRAG_IMG) {
 
 const EMPTY_SET = new Set();
 
-// Project grouping shows this many rows per project; the rest fold behind
+// Project grouping shows the first PREVIEW_ROWS rows per project plus every
+// row active within RECENT_WINDOW_MS, up to MAX_ROWS — so hopping between
+// recent sessions never pushes one out of sight. The rest fold behind
 // "Show N more". Rows that are busy, blocked, unread or selected always show.
 const PREVIEW_ROWS = 3;
+const RECENT_WINDOW_MS = 4 * 3_600_000;
+const MAX_ROWS = 8;
 
 // Statuses that carry no news — the row shows its last-activity age instead.
 const QUIET_LABELS = new Set(["idle", "done"]);
@@ -78,14 +82,18 @@ function lastActiveAt(w) {
   return w.turn_started_at ?? w.started_at ?? null;
 }
 
-// The rows of one group, capped to PREVIEW_ROWS when `capped` — the selected
-// row and anything with a live signal stay visible past the cap.
+// The rows of one group, capped to the preview + recent window when `capped` —
+// the selected row and anything with a live signal stay visible past the cap.
 function GroupRows({ group, capped, onRename, variant, archivedSelectedId, signals, lead }) {
   const ui = useUi();
   const moreKey = `more:${group.key}`;
   const showAll = !capped || ui.collapsedNodes.has(moreKey);
   const sel = ui.selectedId;
-  const kept = !capped ? group.roots : group.roots.filter((n, i) => i < PREVIEW_ROWS
+  const recentSince = Date.now() - RECENT_WINDOW_MS;
+  const preview = new Set(group.roots
+    .filter((n, i) => i < PREVIEW_ROWS || (lastActiveAt(n) ?? 0) >= recentSince)
+    .slice(0, MAX_ROWS));
+  const kept = !capped ? group.roots : group.roots.filter((n) => preview.has(n)
     || n.id === sel || n.id === archivedSelectedId
     || (sel != null && subtreeHasId(n, sel))
     || (!n.__archived && subtreeSignal(n, signals) != null));
