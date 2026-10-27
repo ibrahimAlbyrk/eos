@@ -4,7 +4,6 @@
 const KIND_PATHS = {
   shell: <><path d="M3 11.5 6.5 8 3 4.5" /><path d="M8 12h5" /></>,
   monitor: <path d="M1.5 8h2.5l2-5 4 10 2-5h2.5" />,
-  agent: <path d="M8 2l1.2 3.6L13 7l-3.8 1.4L8 12l-1.2-3.6L3 7l3.8-1.4z" />,
   workflow: <><circle cx="3.5" cy="8" r="2" /><circle cx="12.5" cy="3.5" r="2" /><circle cx="12.5" cy="12.5" r="2" /><path d="M5.5 8H8M8 3.5v9M8 3.5h2.5M8 12.5h2.5" /></>,
   transfer: <><path d="M4.5 11.5 11.5 4.5" /><path d="M6 4.5h5.5V10" /></>,
   compaction: <path d="M3 9.5h3.5V13M13 6.5H9.5V3M9.5 6.5l4-4M2.5 13.5l4-4" />,

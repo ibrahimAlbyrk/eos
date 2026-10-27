@@ -13,14 +13,14 @@ which dropped entries when the turn that started them ended.
 | `shell` (background Bash) | SDK mapper → `onBackgroundTask` | `session.stopTask(taskId)` |
 | `shell` (`!` command) | bus `terminal:start` / `terminal:chunk` / `terminal:done` | `TerminalRunService.kill` |
 | `monitor` | SDK mapper → `onBackgroundTask` (events = carriers with `<event>`, no `<status>`) | `session.stopTask(taskId)` |
-| `agent` (background subagent) | agent events `subagent_started` / `subagent_completed`; progress from `task_progress` | `session.stopTask(agentId)` |
 | `workflow` | agent events `workflow_started` / `workflow_completed`; progress from `publishWorkflowProgress` | `session.stopTask(taskId)` |
 | `transfer` | bus `transfer:change` (only transfers seen running) | `TransferService.cancel` |
 | `compaction` | `CompactionService.onRunChange` | — |
 | `dream` | bus `dream:change` + `DreamService.status()` | `DreamService.requestStop` |
 | `sync` | bus `sync:change` (shown only after a pass outlasts 1.5 s) | — |
 
-Goal-loop checks are deliberately left out (they have their own indicator).
+Goal-loop checks are deliberately left out (they have their own indicator), and
+so are subagents (the Environment panel lists them).
 
 ## SDK mapping (`manager/backends/sdk/SdkEventMapper.ts`)
 
@@ -58,7 +58,7 @@ Routes (all ui-token): `GET /api/jobs`, `GET /api/jobs/:id/output?since=`,
 - `JobsBeacon.jsx` in the top-right pane's header: shown while anything runs or a
   failure is unseen; popover groups by chat (Eos for its own work); a row opens
   the Jobs tab on that job.
-- `JobsPanel.jsx`: filters All / Shells / Agents / Eos, Running / Finished, a row
+- `JobsPanel.jsx`: filters All / Shells / Workflows / Eos, Running / Finished, a row
   opens `JobDetail.jsx` (output tail read once a second while running; Stop,
   Ask agent to fix, Open live view, Open transfers, Open journal, Copy output,
   Go to chat, Dismiss).

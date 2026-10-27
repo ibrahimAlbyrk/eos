@@ -269,14 +269,12 @@ export interface WorkflowProgress {
 }
 
 // A background shell or Monitor of this session (Bash run_in_background, a Bash
-// moved to the background, Monitor), or a background agent's progress. Not an
-// AgentEvent: the backend relays it to the jobs registry; subagents and Workflow
-// runs start and end through their own agent events.
+// moved to the background, Monitor). Not an AgentEvent: the backend relays it to
+// the jobs registry; Workflow runs start and end through their own agent events.
 export type BackgroundTaskUpdate =
   | { phase: "started"; taskId: string; callId: string; kind: "shell" | "monitor"; title: string; command: string | null; outputFile: string | null }
   | { phase: "output"; taskId: string; outputFile: string }
   | { phase: "event"; taskId: string; text: string }
-  | { phase: "progress"; taskId: string; lastTool: string | null; toolUses: number | null }
   | { phase: "ended"; taskId: string; status: "completed" | "failed" | "stopped"; summary: string | null; outputFile: string | null; exitCode: number | null };
 
 export interface SdkEventMapperOptions {
@@ -582,11 +580,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // and relay it (never an AgentEvent — only start and end are recorded).
           else if (msg.subtype === "task_progress" && msg.task_id) {
             const wf = workflowOf(msg.task_id, msg.tool_use_id);
-            if (!wf) {
-              if (bgAgents.has(msg.task_id)) emitTask({ phase: "progress", taskId: msg.task_id, lastTool: msg.last_tool_name ?? null, toolUses: msg.usage?.tool_uses ?? null });
-              return out;
-            }
-            if (wf.done) return out;
+            if (!wf || wf.done) return out;
             wf.snapshot = applyWorkflowProgress(wf.snapshot, msg.workflow_progress);
             wf.usage = toSubagentUsage(msg.usage) ?? wf.usage;
             try {

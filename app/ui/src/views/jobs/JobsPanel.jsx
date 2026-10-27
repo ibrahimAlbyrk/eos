@@ -76,7 +76,7 @@ export function JobsPanel({ live }) {
         {jobs && !shown.length && (
           <div className="jb-empty">
             <div className="jb-empty__title">Nothing in the background</div>
-            <div className="jb-empty__sub">Shells, Monitors, subagents, workflows, transfers and dreams show up here while they run.</div>
+            <div className="jb-empty__sub">Shells, Monitors, workflows, transfers and dreams show up here while they run.</div>
           </div>
         )}
       </div>

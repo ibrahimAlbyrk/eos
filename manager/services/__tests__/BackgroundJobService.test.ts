@@ -72,18 +72,11 @@ describe("BackgroundJobService", () => {
     assert.equal(h.svc.output("monitor:w1:m1", 0)?.text, "PASS a.spec\nFAIL b.spec\n");
   });
 
-  it("follows a background subagent, its progress and its end; a resume runs the same job again", () => {
+  it("leaves subagents out (the Environment panel lists them)", () => {
     const h = harness();
     h.svc.observe("w1", { type: "subagent_started", callId: "toolu_a", agentId: "ag1", background: true, agentType: "Explore", description: "map sources" });
-    h.svc.onBackgroundTask("w1", { phase: "progress", taskId: "ag1", lastTool: "Read", toolUses: 14 });
-    assert.equal(h.job("agent:w1:ag1")?.title, "Explore · map sources");
-    assert.equal(h.job("agent:w1:ag1")?.detail, "Read · 14 tool uses");
-    h.svc.observe("w1", { type: "subagent_completed", agentId: "ag1", callId: "toolu_a", status: "completed", result: "Found 6 sources.\nDetails…" });
-    assert.equal(h.job("agent:w1:ag1")?.status, "completed");
-    assert.equal(h.job("agent:w1:ag1")?.detail, "Found 6 sources.");
-    h.svc.observe("w1", { type: "subagent_started", callId: "toolu_s", agentId: "ag1", background: true, resumes: "toolu_a" });
-    assert.equal(h.job("agent:w1:ag1")?.status, "running");
-    assert.equal(h.job("agent:w1:ag1")?.callId, "toolu_a");
+    h.svc.observe("w1", { type: "subagent_completed", agentId: "ag1", callId: "toolu_a", status: "completed", result: "Found 6 sources." });
+    assert.deepEqual(h.svc.list(), []);
   });
 
   it("stops a session task through the session, and refuses when the session can't", async () => {

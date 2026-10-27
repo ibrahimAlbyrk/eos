@@ -21,7 +21,7 @@ describe("jobs model", () => {
     const jobs = [job({ id: "a", kind: "shell" }), job({ id: "b", kind: "monitor" }), job({ id: "c", kind: "workflow" }), job({ id: "d", kind: "transfer", workerId: null })];
     expect(filterJobs(jobs, "all")).toHaveLength(4);
     expect(filterJobs(jobs, "shells").map((j) => j.id)).toEqual(["a", "b"]);
-    expect(filterJobs(jobs, "agents").map((j) => j.id)).toEqual(["c"]);
+    expect(filterJobs(jobs, "workflows").map((j) => j.id)).toEqual(["c"]);
     expect(filterJobs(jobs, "eos").map((j) => j.id)).toEqual(["d"]);
   });
 

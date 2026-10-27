@@ -23,17 +23,7 @@ export function formatBytes(n: number): string {
   return `${v >= 100 ? Math.round(v) : v.toFixed(1).replace(/\.0$/, "")} ${units[i]}`;
 }
 
-export function agentJobTitle(agentType: string | undefined, description: string | undefined): string {
-  if (agentType && description) return `${agentType} · ${description}`;
-  return description ?? agentType ?? "Subagent";
-}
-
 const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
-
-export function agentProgressDetail(lastTool: string | null, toolUses: number | null): string | null {
-  const parts = [lastTool, toolUses ? plural(toolUses, "tool use") : null].filter(Boolean);
-  return parts.length ? parts.join(" · ") : null;
-}
 
 // "Verify 2/3 · 6 agents", agents done of all as the bar.
 export function workflowProgressOf(snapshot: WorkflowRunSnapshot): Pick<BackgroundJob, "detail" | "progress"> {

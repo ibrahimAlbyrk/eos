@@ -1,14 +1,15 @@
 // Background jobs — everything running on its own behind a chat or behind Eos:
-// an agent's background shells, Monitors, subagents and Workflow runs, a `!`
-// command, and Eos's own transfers, compaction, dreams and sync. One in-memory
-// registry in the daemon (BackgroundJobService) feeds the header beacon and the
-// Jobs side-panel tab. Never persisted: a daemon restart starts an empty list.
+// an agent's background shells, Monitors and Workflow runs, a `!` command, and
+// Eos's own transfers, compaction, dreams and sync. Subagents are left out: the
+// Environment panel already lists them. One in-memory registry in the daemon
+// (BackgroundJobService) feeds the header beacon and the Jobs side-panel tab.
+// Never persisted: a daemon restart starts an empty list.
 // Plan: docs/background-jobs/00-BACKGROUND-JOBS-PLAN.md.
 
 import { z } from "zod";
 
 export const BackgroundJobKindSchema = z.enum([
-  "shell", "monitor", "agent", "workflow", "transfer", "compaction", "dream", "sync",
+  "shell", "monitor", "workflow", "transfer", "compaction", "dream", "sync",
 ]);
 export type BackgroundJobKind = z.infer<typeof BackgroundJobKindSchema>;
 
@@ -31,7 +32,7 @@ export const BackgroundJobSchema = z.object({
   endedAt: z.number().nullable(),
   progress: z.object({ done: z.number().nonnegative(), total: z.number().nonnegative() }).nullable(),
   exitCode: z.number().int().nullable(),
-  // The tool call that started it (agent / workflow / shell / monitor) — the
+  // The tool call that started it (workflow / shell / monitor) — the
   // UI links to the call's transcript card or live view with it.
   callId: z.string().nullable(),
   // GET /api/jobs/:id/output has something to show.

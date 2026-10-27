@@ -17,7 +17,7 @@ export function sortJobs(jobs) {
 export const JOB_FILTERS = [
   { id: "all", label: "All", kinds: null },
   { id: "shells", label: "Shells", kinds: ["shell", "monitor"] },
-  { id: "agents", label: "Agents", kinds: ["agent", "workflow"] },
+  { id: "workflows", label: "Workflows", kinds: ["workflow"] },
   { id: "eos", label: "Eos", kinds: ["transfer", "compaction", "dream", "sync"] },
 ];
 

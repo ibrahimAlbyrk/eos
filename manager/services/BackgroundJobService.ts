@@ -10,13 +10,13 @@ import type { SyncStatusResponse } from "../../contracts/src/sync.ts";
 import type { TransferChangeEvent } from "../../contracts/src/transfer.ts";
 import type { WorkflowRunProgress } from "../../contracts/src/workflow-run.ts";
 import {
-  agentJobTitle, agentProgressDetail, compareJobs, firstLine, jobIdOf, transferJobFields, workflowProgressOf,
+  compareJobs, firstLine, jobIdOf, transferJobFields, workflowProgressOf,
 } from "../../core/src/domain/background-jobs.ts";
 import type { BackgroundTaskUpdate } from "../backends/sdk/SdkEventMapper.ts";
 
-// Every background job, in memory: an agent's background shells, Monitors,
-// subagents and Workflow runs, `!` commands, and Eos's transfers, compaction,
-// dreams and sync. Each source reports here (wired in jobs/wireJobSources.ts);
+// Every background job, in memory: an agent's background shells, Monitors and
+// Workflow runs, `!` commands, and Eos's transfers, compaction, dreams and
+// sync. Each source reports here (wired in jobs/wireJobSources.ts);
 // changes go out as jobs:change, at most every throttleMs per job except a
 // start or an end, which go at once. Finished jobs are kept (newest finishedMax)
 // until dismissed; compaction and sync are only shown while they run.
@@ -26,7 +26,7 @@ interface StopCapable {
   stopTask?(taskId: string): Promise<{ ok: boolean; reason?: string }>;
 }
 
-// How a job is stopped: a session task (shell, Monitor, agent, Workflow) goes
+// How a job is stopped: a session task (shell, Monitor, Workflow) goes
 // through the session that runs it.
 type Source =
   | { type: "task"; taskId: string }
@@ -111,9 +111,6 @@ export class BackgroundJobService {
       this.appendMem(e, `${u.text}\n`);
       const last = firstLine(u.text);
       this.update(e, { detail: `${e.events} event${e.events === 1 ? "" : "s"}${last ? ` · ${last}` : ""}` });
-    } else if (u.phase === "progress") {
-      const detail = agentProgressDetail(u.lastTool, u.toolUses);
-      if (detail && e.job.status === "running") this.update(e, { detail });
     } else {
       if (u.outputFile) e.outputFile = u.outputFile;
       // A shell can report "completed" for a command that exited non-zero.
@@ -122,19 +119,9 @@ export class BackgroundJobService {
     }
   }
 
-  // A worker's agent events: background subagents and Workflow runs start and end here.
+  // A worker's agent events: Workflow runs start and end here.
   observe(workerId: string, event: AgentEvent): void {
-    if (event.type === "subagent_started") {
-      const e = this.start("agent", workerId, event.agentId, {
-        title: agentJobTitle(event.agentType, event.description), command: null, callId: event.resumes ?? event.callId,
-      }, { type: "task", taskId: event.agentId });
-      this.byRef.set(`${workerId}\0${event.agentId}`, e.job.id);
-      this.send(e);
-    } else if (event.type === "subagent_completed") {
-      const e = this.byTask(workerId, event.agentId);
-      const toolUses = event.usage?.toolUses;
-      if (e) this.finish(e, event.status, { detail: firstLine(event.result) ?? (toolUses ? agentProgressDetail(null, toolUses) : e.job.detail) });
-    } else if (event.type === "workflow_started") {
+    if (event.type === "workflow_started") {
       const e = this.start("workflow", workerId, event.callId, {
         title: event.name ?? event.description ?? "Workflow", command: null, callId: event.callId,
       }, { type: "task", taskId: event.taskId });
@@ -299,7 +286,7 @@ export class BackgroundJobService {
 
   // ---- internals ----------------------------------------------------------
 
-  // A new job, or the same one started again (a resumed subagent).
+  // A new job, or the same one started again.
   private start(kind: BackgroundJobKind, workerId: string | null, ref: string, f: { title: string; command: string | null; callId: string | null }, source: Source): Entry {
     const id = jobIdOf(kind, workerId, ref);
     const prev = this.entries.get(id);
