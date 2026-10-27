@@ -13,11 +13,11 @@ export const EMPTY_PANEL = Object.freeze({
   open: false, openTabs: [], activeTab: null, tabHistory: [], width: null, fullscreen: false, data: {}, dock: EMPTY_DOCK,
 });
 
-// A file's reveal target (line/column + a fresh seq, so re-opening the same line
+// A file's reveal target (line/column/endLine + a fresh seq, so re-opening the same line
 // re-centers the editor), keyed by its tab id: the dock and a pinned tab of the
 // same file read the same entry.
 function withReveal(data, path, reveal, seq) {
-  return reveal ? { ...data, [fileTabId(path)]: { reveal: { line: reveal.line, column: reveal.column, seq } } } : data;
+  return reveal ? { ...data, [fileTabId(path)]: { reveal: { line: reveal.line, column: reveal.column, endLine: reveal.endLine, seq } } } : data;
 }
 
 // Per-pane panels persist keyed by leaf id (the pane tree persists the same

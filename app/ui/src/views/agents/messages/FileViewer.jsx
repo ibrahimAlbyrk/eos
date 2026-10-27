@@ -85,6 +85,10 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
     setFrameGen(0);
     setBinaryMeta(null);
   }, [path]);
+  // Asked to show a line (a chat path like guide.md:42): only the source has lines.
+  useEffect(() => {
+    if (reveal?.line) setViewMode("source");
+  }, [path, reveal?.line, reveal?.seq]);
 
   // The first load of a path shows Loading…; a later disk refresh (our own save
   // included) keeps the editor mounted — scroll, cursor and undo history survive
@@ -359,6 +363,7 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
                   onVisibleDefs={requestCounts}
                   revealLine={reveal?.line}
                   revealColumn={reveal?.column}
+                  revealEndLine={reveal?.endLine}
                   revealSeq={reveal?.seq}
                 />
               )

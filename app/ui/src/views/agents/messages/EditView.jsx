@@ -46,7 +46,7 @@ function isOnScreen(view, pos) {
 // `onPlaceMatch(i)`: a new find query (or a fresh ⌘F, `findSeed`) starts at
 // match i — the first one at or after the cursor/selection — instead of the top
 // of the file.
-export function EditView({ editContent, setEditContent, findQuery, findSeed = null, currentMatch, matches, onPlaceMatch = null, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealSeq, codeLens = null, onCodeLensClick = null, onVisibleDefs = null }) {
+export function EditView({ editContent, setEditContent, findQuery, findSeed = null, currentMatch, matches, onPlaceMatch = null, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealEndLine, revealSeq, codeLens = null, onCodeLensClick = null, onVisibleDefs = null }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const docRef = useRef(editContent);
@@ -176,8 +176,9 @@ export function EditView({ editContent, setEditContent, findQuery, findSeed = nu
     return () => { view.destroy(); viewRef.current = null; };
   }, [filePath, readOnly, symbolNavEnabled, codeLensEnabled]);
 
-  // Scroll-to-line for go-to-definition / reference navigation. Keyed off
-  // revealSeq so re-navigating to the same line still re-centers.
+  // Scroll-to-line for go-to-definition / reference navigation and chat paths.
+  // Keyed off revealSeq so re-navigating to the same line still re-centers; a
+  // line range (revealEndLine) comes up selected.
   useEffect(() => {
     const view = viewRef.current;
     if (!view || !revealLine) return;
@@ -186,9 +187,10 @@ export function EditView({ editContent, setEditContent, findQuery, findSeed = nu
     const lineObj = view.state.doc.line(ln);
     const col = revealColumn ? Math.min(Math.max(revealColumn - 1, 0), lineObj.length) : 0;
     const pos = lineObj.from + col;
-    view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
+    const end = revealEndLine > ln ? view.state.doc.line(Math.min(revealEndLine, total)).to : pos;
+    view.dispatch({ selection: { anchor: pos, head: end }, effects: EditorView.scrollIntoView(pos, { y: "center" }) });
     view.focus();
-  }, [revealLine, revealColumn, revealSeq]);
+  }, [revealLine, revealColumn, revealEndLine, revealSeq]);
 
   // External resets (e.g. Cancel, a change on disk) — doc edits flow through
   // updateListener, so docRef only diverges from editContent when the change
