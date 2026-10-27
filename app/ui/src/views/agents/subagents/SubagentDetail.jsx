@@ -9,6 +9,7 @@ import { Collapse } from "../messages/Collapse.jsx";
 import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageRow } from "../messages/MessageRow.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
+import { usePathLinks } from "../messages/paths/usePathLinks.jsx";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 
 // Inner tools as transcript blocks (lone tools and grouped runs), in ToolItem's
@@ -35,6 +36,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
     if (running) stick.write(Infinity, { pin: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  const pathLinks = usePathLinks({ cwd });
   const effort = run.effort ? EFFORT_LABELS[run.effort] ?? run.effort : null;
   const meta = [run.subagentType, modelName(run.model), effort].filter(Boolean).join(" · ");
 
@@ -50,13 +52,14 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
       </div>
       <ScrollHoldContext.Provider value={stick.hold}>
         <div className="sa-detail__scroll" ref={stick.scrollerRef}>
-          <div className="sa-detail__body" ref={stick.contentRef}>
+          <div className="sa-detail__body" ref={stick.contentRef} {...pathLinks.handlers}>
             {run.runs.map((r, i) => (
               <Fragment key={r.toolUseId}>
                 {i > 0 && <div className="sa-detail__sep" />}
                 <SubagentRunWork run={r} now={now} cwd={cwd} workers={workers} />
               </Fragment>
             ))}
+            {pathLinks.layer}
           </div>
         </div>
       </ScrollHoldContext.Provider>
@@ -90,7 +93,7 @@ function SubagentRunWork({ run, now, cwd, workers }) {
       {result ? (
         <>
           <div className="sa-detail__sep" />
-          <MessageRow ts={run.endTs} copyText={result}><MessageAssistant text={result} /></MessageRow>
+          <MessageRow ts={run.endTs} copyText={result}><MessageAssistant text={result} cwd={cwd} /></MessageRow>
         </>
       ) : !running && <p className="sa-detail__note">No output captured.</p>}
     </>

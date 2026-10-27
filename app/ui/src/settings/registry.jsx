@@ -20,6 +20,7 @@ import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
 import { MachinesSettings } from "./MachinesSettings.jsx";
 import { SyncSettings } from "./SyncSettings.jsx";
+import { EditorSelect } from "./EditorSelect.jsx";
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -372,6 +373,53 @@ export const SETTINGS_SECTIONS = [
             key: "transcript.foldWork",
             label: "Fold finished work",
             description: "When the agent finishes, its steps collapse under “Worked for …” and only the final reply stays open.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+        ],
+      },
+      {
+        // Paths the agents name in chat (views/agents/messages/paths/).
+        title: "Files & links",
+        items: [
+          {
+            key: "paths.clickOpens",
+            label: "Click a path",
+            description: "Where clicking a file or folder in the chat opens it. ⌥-click opens it the other way.",
+            control: {
+              type: "segmented",
+              options: [
+                { value: "panel", label: "Side panel" },
+                { value: "editor", label: "Editor" },
+              ],
+            },
+            defaultValue: "panel",
+          },
+          {
+            key: "paths.editor",
+            label: "Editor",
+            description: "The app paths open in from the chat. Code files open at the line the agent named.",
+            control: { type: "custom", Component: EditorSelect },
+            defaultValue: "",
+          },
+          {
+            key: "paths.plainText",
+            label: "Link plain-text paths",
+            description: "Also link paths written in plain text, not only those in code.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+          {
+            key: "paths.shorten",
+            label: "Shorten long paths",
+            description: "Show paths from the agent's folder, the home folder as ~, and fold the middle of long ones.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+          {
+            key: "paths.peek",
+            label: "Hover preview",
+            description: "Hovering a path shows a look inside the file or folder.",
             control: { type: "toggle" },
             defaultValue: true,
           },

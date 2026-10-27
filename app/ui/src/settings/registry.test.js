@@ -16,6 +16,16 @@ describe("settings registry", () => {
     expect(keysOf(section("general"))).not.toContain("verbose.enabled");
   });
 
+  it("Files & links lives in Code: side panel by default, every path feature on", () => {
+    const items = section("code").groups.find((g) => g.title === "Files & links").items;
+    expect(items.map((i) => i.key)).toEqual([
+      "paths.clickOpens", "paths.editor", "paths.plainText", "paths.shorten", "paths.peek",
+    ]);
+    expect(items[0].control.options.map((o) => o.value)).toEqual(["panel", "editor"]);
+    expect(SETTING_DEFAULTS["paths.clickOpens"]).toBe("panel");
+    for (const key of ["paths.plainText", "paths.shorten", "paths.peek"]) expect(SETTING_DEFAULTS[key]).toBe(true);
+  });
+
   it("archive group lives in General: retention select, purge-on-close toggle, ⌘W action", () => {
     const keys = keysOf(section("general"));
     expect(keys).toEqual(expect.arrayContaining(["archive.retention", "archive.purgeOnAppClose", "archive.cmdW"]));

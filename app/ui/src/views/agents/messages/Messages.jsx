@@ -72,6 +72,7 @@ import { WorkflowCard } from "../workflow/WorkflowCard.jsx";
 import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { stableGenuiIndex, isFinalViewBlock } from "../../../genui/runtime/conversation.js";
 import { subscribe as subscribeGenui, streamsFor as liveViewsFor, dropStream as dropViewStream } from "../../../genui/streamStore.js";
+import { usePathLinks } from "./paths/usePathLinks.jsx";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
@@ -573,6 +574,7 @@ export function Messages({ live, agentId, isActive = true }) {
     for (const it of items) if (it.kind === "fold") watchedRunsRef.current.delete(it.runKey);
   }, [items]);
   const blockIndex = useMemo(() => new Map(blocks.map((b, i) => [b, i])), [blocks]);
+  const pathLinks = usePathLinks({ cwd: selectedWorker?.cwd ?? null });
 
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
@@ -724,7 +726,7 @@ export function Messages({ live, agentId, isActive = true }) {
     <div className="messages-frame">
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
-      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
+      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef} {...pathLinks.handlers}>
         {!selectedId && <NewTaskHero project={newSessionProject(ui.composer, live.recents, projects).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
@@ -744,6 +746,7 @@ export function Messages({ live, agentId, isActive = true }) {
         {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} history={loopChecks} />}
         {items.map((it) => (it.kind === "fold" ? renderFold(it) : renderRow(it.block, it.index)))}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
+        {pathLinks.layer}
         {showAnchor && !showCheck && !compaction.pending && (
           <ProcessingLine
             busy={agentBusy}
@@ -811,7 +814,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} /></MessageRow>;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={prevTs != null ? b.ts - prevTs : undefined} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);

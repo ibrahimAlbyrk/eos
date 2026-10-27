@@ -4,6 +4,8 @@ import { withCopyButtons } from "../../../lib/codeBlockCopy.js";
 import { withArtifactChips } from "../../../lib/artifactLink.js";
 import { useArtifactPeek } from "./ArtifactPeek.jsx";
 import { useMermaid, useResolvedTheme } from "../../../hooks/useMermaid.js";
+import { usePathChips } from "../../../hooks/usePathChips.js";
+import { usePathPrefs } from "./paths/pathPrefs.js";
 
 // Copies the raw text of one code block when its injected copy button is
 // clicked. Delegated from the prose container because the buttons live in
@@ -25,9 +27,13 @@ function onCopyClick(e) {
   );
 }
 
-export function MessageAssistant({ text }) {
+// `cwd` (the agent's folder) resolves the relative paths it names; the
+// surrounding view's usePathLinks handles the chips they become.
+export function MessageAssistant({ text, cwd = null }) {
   const ref = useRef(null);
-  const html = useMemo(() => withArtifactChips(withCopyButtons(renderMarkdown(text))), [text]);
+  const prefs = usePathPrefs();
+  const base = useMemo(() => withArtifactChips(withCopyButtons(renderMarkdown(text))), [text]);
+  const html = usePathChips(base, cwd, { plainText: prefs.plainText, shorten: prefs.shorten, title: !prefs.peek });
   const theme = useResolvedTheme();
   const peek = useArtifactPeek();
 

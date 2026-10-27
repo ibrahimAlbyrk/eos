@@ -1,0 +1,125 @@
+/* paths.css — files and folders the chat names (views/agents/messages/paths/,
+   lib/pathLinks.js): the inline path chip, a disk link's glyph, a missing path
+   and the hover peek. */
+
+/* ── path chip — inline code's look plus the type glyph, the folder dimmed and
+   the name bright; the name underlines on hover ─────────────────────────── */
+.path-chip {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0;
+  padding: 1px 6px 1px 5px;
+  border: 0;
+  border-radius: var(--r-kbd);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: inherit;
+  text-align: start;
+  color: var(--fg-mid);
+  background: var(--panel);
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+.path-chip:hover { background: var(--raised); }
+.path-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.path-chip-icon { width: 13px; height: 13px; margin-right: 5px; vertical-align: -2px; color: var(--fg-dim2); }
+.path-chip-dir { color: var(--fg-faint); }
+.path-chip-base {
+  color: var(--fg);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 120ms ease;
+}
+.path-chip:hover .path-chip-base { text-decoration-color: var(--accent); }
+.path-chip-loc { color: var(--accent); }
+
+/* a markdown link to disk keeps its words; the glyph says it is a file */
+.path-link-icon { width: 13px; height: 13px; margin-right: 4px; vertical-align: -2px; }
+
+/* a rooted path in code that is not on disk */
+.md-prose code.path-missing { color: var(--fg-faint); text-decoration: line-through; text-decoration-color: var(--fg-mute); }
+
+/* ── hover peek (PathPeek.jsx) — fixed + portalled, rises out of the path.
+   After .glass-pop so position:fixed wins. ──────────────────────────────── */
+.path-peek {
+  position: fixed;
+  z-index: 420;
+  width: 380px;
+  box-sizing: border-box;
+  padding: 6px;
+  border-radius: var(--r-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fg);
+  transform-origin: 12% 100%;
+  animation: lg-pop-rise 200ms var(--lg-ease) both;
+}
+.path-peek.below { transform-origin: 12% 0; }
+@media (prefers-reduced-motion: reduce) { .path-peek { animation: none; } }
+.path-peek-head { display: flex; align-items: center; gap: 10px; padding: 6px 8px 2px; }
+.path-peek-head .fx-icon { flex-shrink: 0; width: 15px; height: 15px; color: var(--fg-dim2); }
+.path-peek-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.path-peek-name,
+.path-peek-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-peek-name { font-size: var(--text-sm); font-weight: 500; color: var(--fg-strong); }
+.path-peek-meta { font-size: var(--text-xs); color: var(--fg-faint); }
+
+.path-peek-body {
+  position: relative;
+  max-height: 150px;
+  overflow: hidden;
+  border-radius: var(--r-card);
+  background: var(--bg);
+}
+/* the cut-off end fades out instead of stopping mid-line */
+.path-peek-md::after,
+.path-peek-code::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 28px;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+}
+.path-peek-md { padding: 10px 12px; font-size: var(--text-xs); line-height: 1.55; }
+.path-peek-md h1, .path-peek-md h2, .path-peek-md h3 { margin: 4px 0; font-size: var(--text-sm); }
+.path-peek-md p, .path-peek-md ul, .path-peek-md ol { margin: 0 0 6px; }
+.path-peek-code { padding: 8px 0; font-family: var(--font-mono); font-size: var(--text-xs); line-height: 1.65; }
+.path-peek-line { display: flex; padding-right: 10px; }
+.path-peek-line.is-on { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.path-peek-ln { flex-shrink: 0; width: 38px; padding-right: 12px; box-sizing: border-box; text-align: right; color: var(--fg-mute); }
+.path-peek-line.is-on .path-peek-ln { color: var(--accent); }
+.path-peek-src { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: pre; color: var(--fg-mid); }
+.path-peek-img { display: grid; place-items: center; padding: 6px; }
+.path-peek-img img { display: block; max-width: 100%; max-height: 138px; border-radius: var(--r-kbd); }
+.path-peek-dir { padding: 4px; font-size: var(--text-xs); color: var(--fg-mid); }
+.path-peek-entry { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px; }
+.path-peek-entry .fx-icon { flex-shrink: 0; width: 12px; height: 12px; color: var(--fg-dim2); }
+.path-peek-entry > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.path-peek-entry.is-more { color: var(--fg-faint); }
+
+.path-peek-actions { display: flex; align-items: center; gap: 2px; padding: 0 2px 2px; }
+.path-peek-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--r-icon);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--fg-mid);
+  background: none;
+  cursor: pointer;
+}
+.path-peek-act:hover { color: var(--fg-strong); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.path-peek-act.is-primary { color: var(--fg-strong); background: var(--chip); }
+.path-peek-more { margin-left: auto; padding: 0 7px; }
+.path-peek-kbd { font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); }
+
+/* Settings › Files & links when no editor is installed */
+.stg-note { font-size: var(--text-sm); color: var(--fg-faint); }

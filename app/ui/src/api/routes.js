@@ -74,6 +74,7 @@ export const ROUTES = {
   fsStashApply: "/fs/stash/apply",
   fsStashDrop: "/fs/stash/drop",
   fsOpenIn: "/fs/open-in",
+  fsEditors: "/fs/editors",
   fsCheckout: "/fs/checkout",
   fsBranchCreate: "/fs/branch/create",
   fsBranchRename: "/fs/branch/rename",

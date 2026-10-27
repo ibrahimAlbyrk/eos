@@ -535,10 +535,15 @@ export const api = {
   async stashDrop(cwd, index) {
     return postJson(ROUTES.fsStashDrop, { cwd, index }, uiTokenHeader());
   },
-  // Open an absolute path in Finder (reveal) or VS Code, for the Git Diff
-  // panel's file-row menu. UI-token gated like /workers/:id/open.
-  async openPathIn(path, target) {
-    return postJson(ROUTES.fsOpenIn, { path, target }, uiTokenHeader());
+  // Open an absolute path in Finder (reveal) or an editor (contracts
+  // EDITOR_APPS), at `line`/`column` when given. UI-token gated like /workers/:id/open.
+  async openPathIn(path, target, { line, column } = {}) {
+    return postJson(ROUTES.fsOpenIn, { path, target, line, column }, uiTokenHeader());
+  },
+  // The editors installed on this Mac: [{ id, name }].
+  async listEditors() {
+    const r = await getJson(ROUTES.fsEditors);
+    return r.ok ? r.body.editors : [];
   },
   async listProjects() {
     const r = await getJson(ROUTES.projects);
