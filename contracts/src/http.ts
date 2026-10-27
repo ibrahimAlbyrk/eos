@@ -484,14 +484,29 @@ export const OpenInRequestSchema = z.object({ target: z.enum(["vscode", "finder"
 export type OpenInRequest = z.infer<typeof OpenInRequestSchema>;
 
 // ---- POST /fs/open-in --------------------------------------------------------
-// Path-based "open in" for the Git Diff panel's file rows: reveal an arbitrary
-// absolute path in Finder or open it in VS Code. Unlike /workers/:id/open (dir
-// resolved server-side), the caller supplies the path. finder = reveal (same
-// as /fs/reveal); vscode = open the file in the editor.
+// Path-based "open in" for file rows and chat paths: reveal an arbitrary
+// absolute path in Finder or open it in one of the editors below. Unlike
+// /workers/:id/open (dir resolved server-side), the caller supplies the path.
+// finder = reveal (same as /fs/reveal); an editor id opens the path in that app,
+// at `line`/`column` when the editor takes a file:line URL. UI-token gated.
+
+// Editor id → macOS app name (`open -a <name>`). GET /fs/editors answers
+// `{ editors: [{ id, name }] }` for the ones installed, in this order.
+export const EDITOR_APPS = {
+  vscode: "Visual Studio Code",
+  cursor: "Cursor",
+  zed: "Zed",
+  sublime: "Sublime Text",
+  xcode: "Xcode",
+} as const;
+export type EditorId = keyof typeof EDITOR_APPS;
+const EDITOR_IDS = Object.keys(EDITOR_APPS) as [EditorId, ...EditorId[]];
 
 export const FsOpenInRequestSchema = z.object({
   path: z.string().min(1),
-  target: z.enum(["finder", "vscode"]),
+  target: z.enum(["finder", ...EDITOR_IDS]),
+  line: z.number().int().positive().optional(),
+  column: z.number().int().positive().optional(),
 });
 export type FsOpenInRequest = z.infer<typeof FsOpenInRequestSchema>;
 
@@ -2367,6 +2382,7 @@ export const ROUTES = {
   projectsDelete: "/projects/delete",
   fsReveal: "/fs/reveal",
   fsOpenIn: "/fs/open-in",
+  fsEditors: "/fs/editors",
   fsRead: "/fs/read",
   fsList: "/fs/list",
   fsImage: "/fs/image",

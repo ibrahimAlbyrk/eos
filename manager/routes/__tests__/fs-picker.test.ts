@@ -6,7 +6,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { Router } from "../Router.ts";
-import { registerFsPickerRoutes, openInArgv } from "../fs-picker.ts";
+import { registerFsPickerRoutes, openInArgv, installedEditors } from "../fs-picker.ts";
 import type { Container } from "../../container.ts";
 import type { RouteContext } from "../Router.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
@@ -38,8 +38,16 @@ describe("FsOpenInRequestSchema", () => {
     assert.deepEqual(FsOpenInRequestSchema.parse({ path: "/a/b.ts", target: "vscode" }), { path: "/a/b.ts", target: "vscode" });
   });
 
-  it("rejects unknown targets, empty path, missing fields", () => {
-    assert.throws(() => FsOpenInRequestSchema.parse({ path: "/a", target: "sublime" }));
+  it("parses an editor target with a line and column", () => {
+    assert.deepEqual(
+      FsOpenInRequestSchema.parse({ path: "/a/b.ts", target: "cursor", line: 42, column: 7 }),
+      { path: "/a/b.ts", target: "cursor", line: 42, column: 7 },
+    );
+  });
+
+  it("rejects unknown targets, bad lines, empty path, missing fields", () => {
+    assert.throws(() => FsOpenInRequestSchema.parse({ path: "/a", target: "notepad" }));
+    assert.throws(() => FsOpenInRequestSchema.parse({ path: "/a", target: "vscode", line: 0 }));
     assert.throws(() => FsOpenInRequestSchema.parse({ path: "", target: "finder" }));
     assert.throws(() => FsOpenInRequestSchema.parse({ target: "finder" }));
   });
@@ -52,6 +60,25 @@ describe("openInArgv", () => {
 
   it("vscode → open -a Visual Studio Code path", () => {
     assert.deepEqual(openInArgv("vscode", "/repo/src/a.ts"), ["-a", "Visual Studio Code", "/repo/src/a.ts"]);
+  });
+
+  it("a line goes through the editor's file URL, path segments encoded", () => {
+    assert.deepEqual(openInArgv("cursor", "/repo/my src/a#1.ts", 42, 7), ["cursor://file/repo/my%20src/a%231.ts:42:7"]);
+    assert.deepEqual(openInArgv("vscode", "/repo/a.ts", 3), ["vscode://file/repo/a.ts:3"]);
+  });
+
+  it("an editor without a line URL opens the file only", () => {
+    assert.deepEqual(openInArgv("zed", "/repo/a.ts", 42), ["-a", "Zed", "/repo/a.ts"]);
+  });
+});
+
+describe("installedEditors", () => {
+  it("keeps the editors whose app bundle exists, in EDITOR_APPS order", () => {
+    const present = new Set(["/Applications/Cursor.app", "/Applications/Visual Studio Code.app"]);
+    assert.deepEqual(installedEditors((p) => present.has(p)), [
+      { id: "vscode", name: "Visual Studio Code" },
+      { id: "cursor", name: "Cursor" },
+    ]);
   });
 });
 
