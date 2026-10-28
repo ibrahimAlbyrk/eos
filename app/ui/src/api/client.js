@@ -1059,8 +1059,28 @@ export const api = {
     const r = await getJson(ROUTES.accounts, { headers: uiTokenHeader() });
     return r.ok ? (r.body?.accounts ?? null) : null;
   },
-  async startSignIn(provider) {
-    return postJson(ROUTES.accountSignIn(provider), {}, uiTokenHeader());
+  // loginId signs that sign-in in again; without it the sign-in adds one.
+  async startSignIn(provider, loginId) {
+    return postJson(ROUTES.accountSignIn(provider), loginId ? { loginId } : {}, uiTokenHeader());
+  },
+  async renameLogin(provider, loginId, label) {
+    return putJson(ROUTES.accountLogin(provider, loginId), { label }, uiTokenHeader());
+  },
+  async removeLogin(provider, loginId) {
+    return del(ROUTES.accountLogin(provider, loginId), uiTokenHeader());
+  },
+  async setDefaultLogin(provider, loginId) {
+    return putJson(ROUTES.accountDefaultLogin(provider), { loginId }, uiTokenHeader());
+  },
+  async setAutoSwitch(provider, enabled) {
+    return putJson(ROUTES.accountAutoSwitch(provider), { enabled }, uiTokenHeader());
+  },
+  // An accounts_exhausted row's actions.
+  async setPlanResume(workerId, rowId, on) {
+    return putJson(ROUTES.workerPlanResume(workerId), { rowId, on }, uiTokenHeader());
+  },
+  async continueOnApiKey(workerId) {
+    return postJson(ROUTES.workerApiKeyContinue(workerId), {}, uiTokenHeader());
   },
   async signOut(provider) {
     return del(ROUTES.accountSignIn(provider), uiTokenHeader());

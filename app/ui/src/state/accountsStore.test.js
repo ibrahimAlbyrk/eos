@@ -9,6 +9,10 @@ vi.mock("../api/client.js", () => ({
     cancelSignIn: vi.fn(async () => ({ ok: true })),
     submitSignInCode: vi.fn(),
     signOut: vi.fn(),
+    removeLogin: vi.fn(),
+    renameLogin: vi.fn(),
+    setDefaultLogin: vi.fn(),
+    setAutoSwitch: vi.fn(),
     setAnthropicConfig: vi.fn(),
     testBackend: vi.fn(),
     addBackend: vi.fn(),
@@ -20,6 +24,7 @@ import { api } from "../api/client.js";
 import {
   _resetAccounts, getAccountsState, refreshAccounts, startSignIn, cancelSignIn, submitSignInCode,
   saveApiKey, removeApiKey, accountTone, noAccountConnected, isUsable,
+  removeLogin, renameLogin, setDefaultLogin, setAutoSwitch,
 } from "./accountsStore.js";
 
 const claude = { id: "anthropic", route: "none", subscription: { supported: true, state: "signed_out" }, apiKey: { set: false } };
@@ -102,6 +107,36 @@ describe("sign-in", () => {
     expect(await submitSignInCode("anthropic", "abc")).toEqual({ ok: true });
     expect(api.submitSignInCode).toHaveBeenCalledWith("s1", "abc");
     expect((await submitSignInCode("openai", "x")).ok).toBe(false);
+  });
+});
+
+describe("several sign-ins", () => {
+  it("signing in again names the sign-in it renews", async () => {
+    api.startSignIn.mockResolvedValue({ ok: true, body: { id: "s1", provider: "anthropic", loginId: "l1", state: "waiting" } });
+    const pending = startSignIn("anthropic", "l1");
+    expect(getAccountsState().signIns.anthropic).toEqual({ provider: "anthropic", loginId: "l1", state: "starting" });
+    await pending;
+    expect(api.startSignIn).toHaveBeenCalledWith("anthropic", "l1");
+    expect(getAccountsState().signIns.anthropic.loginId).toBe("l1");
+  });
+
+  it("removes, renames and picks the default, then reloads the accounts", async () => {
+    api.removeLogin.mockResolvedValue({ ok: true, body: { ok: true } });
+    api.renameLogin.mockResolvedValue({ ok: true, body: { ok: true } });
+    api.setDefaultLogin.mockResolvedValue({ ok: false, status: 404, body: { error: "sign-in not found: l9" } });
+    expect(await removeLogin("anthropic", "l1")).toEqual({ ok: true });
+    expect(await renameLogin("anthropic", "l2", "Work")).toEqual({ ok: true });
+    expect(await setDefaultLogin("anthropic", "l9")).toEqual({ ok: false, error: "sign-in not found: l9" });
+    expect(api.removeLogin).toHaveBeenCalledWith("anthropic", "l1");
+    expect(api.renameLogin).toHaveBeenCalledWith("anthropic", "l2", "Work");
+    expect(api.listAccounts).toHaveBeenCalledTimes(2);
+  });
+
+  it("turns auto-switch off and reloads", async () => {
+    api.setAutoSwitch.mockResolvedValue({ ok: true, body: { ok: true } });
+    expect(await setAutoSwitch("anthropic", false)).toEqual({ ok: true });
+    expect(api.setAutoSwitch).toHaveBeenCalledWith("anthropic", false);
+    expect(api.listAccounts).toHaveBeenCalledTimes(1);
   });
 });
 

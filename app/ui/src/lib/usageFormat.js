@@ -86,19 +86,26 @@ export function rolledWindow(window, kind, now = Date.now()) {
   return { ...rest, utilization: 0, resetsAt: new Date(next).toISOString() };
 }
 
-// One section per signed-in plan in a GET /api/usage response — its name, plan
-// and limit rows, rolled over to `now`. A plan with no windows to show is left
-// out, so a glance surface can render the list as-is (empty = nothing to show).
-// `kind` picks the reset formatter: "session" → relative, "weekly" → weekday + time.
+// One section per signed-in plan in a GET /api/usage response — one per sign-in
+// for a provider that holds several — with its name, the sign-in's label, plan
+// and limit rows, rolled over to `now`. `key` matches the daemon's error entries.
+// A plan with no windows to show is left out, so a glance surface can render the
+// list as-is (empty = nothing to show). `kind` picks the reset formatter:
+// "session" → relative, "weekly" → weekday + time.
 export function planUsageSections(usage, now = Date.now()) {
   return (usage?.providers ?? [])
     .map((p) => {
       const w = p.windows ?? {};
       return {
+        key: p.loginId ? `${p.provider}:${p.loginId}` : p.provider,
         provider: p.provider,
+        loginId: p.loginId ?? null,
+        label: p.label ?? null,
         name: USAGE_PROVIDER_NAMES[p.provider] ?? p.provider,
         plan: p.plan ?? null,
         stale: p.stale === true,
+        fetchedAt: p.fetchedAt ?? null,
+        extraUsage: p.extraUsage ?? null,
         rows: [
           ...WINDOW_ROWS.map((r) => ({ ...r, window: w[r.key] })).filter((r) => r.window),
           ...(w.weeklyByModel ?? []).map(modelRow),

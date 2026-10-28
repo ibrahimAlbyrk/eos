@@ -22,6 +22,15 @@ const fullUsage = {
   errors: [],
 };
 
+describe("planUsageSections — several sign-ins", () => {
+  it("keys a sign-in's section by provider and sign-in, the way errors name it", () => {
+    const usage = { providers: [{ provider: "claude", loginId: "a", label: "Personal", windows: { fiveHour: { utilization: 10, resetsAt: null } }, fetchedAt: "t" }] };
+    const [section] = planUsageSections(usage);
+    expect(section).toMatchObject({ key: "claude:a", loginId: "a", label: "Personal", fetchedAt: "t", extraUsage: null });
+    expect(planUsageSections({ providers: [{ provider: "codex", windows: { sevenDay: { utilization: 1, resetsAt: null } } }] })[0].key).toBe("codex");
+  });
+});
+
 describe("planUsageSections", () => {
   it("derives one row per non-null window, in order, then one per model's weekly limit", () => {
     const [section] = planUsageSections(fullUsage);

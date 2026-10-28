@@ -734,6 +734,35 @@ describe("applyRewinds", () => {
   });
 });
 
+describe("account_switched", () => {
+  const asst = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text }) });
+  const switched = (payload, ts) => ({ type: "account_switched", ts, payload: JSON.stringify(payload) });
+
+  it("splits the reply at the switch with a divider block", () => {
+    const blocks = buildBlocks([
+      asst("before", 1),
+      switched({ provider: "anthropic", from: "Personal", to: "Work", reason: "limit", resetsAt: "2026-10-28T16:40:00.000Z" }, 2),
+      asst("after", 3),
+    ]);
+    expect(blocks.map((b) => b.kind)).toEqual(["assistant", "accountSwitched", "assistant"]);
+    expect(blocks[1]).toMatchObject({ from: "Personal", to: "Work", reason: "limit", resetsAt: "2026-10-28T16:40:00.000Z" });
+  });
+
+  it("keeps the reasons it knows; anything else reads as the limit", () => {
+    expect(buildBlocks([switched({ from: "P", to: "W", reason: "expired" }, 1)])[0]).toMatchObject({ reason: "expired", resetsAt: null });
+    expect(buildBlocks([switched({ to: "API key", reason: "api_key" }, 1)])[0]).toMatchObject({ reason: "api_key", from: "" });
+    expect(buildBlocks([switched({ from: "P", to: "W" }, 1)])[0].reason).toBe("limit");
+  });
+
+  it("an exhausted row carries its id and schedule", () => {
+    const row = { id: 42, type: "accounts_exhausted", ts: 5, payload: JSON.stringify({ provider: "anthropic", nextResetAt: "2026-10-28T16:40:00.000Z", apiKey: true, resumeAt: "2026-10-28T16:40:00.000Z" }) };
+    expect(buildBlocks([row])[0]).toEqual({
+      kind: "accountsExhausted", rowId: 42, nextResetAt: "2026-10-28T16:40:00.000Z", apiKey: true,
+      resumeAt: "2026-10-28T16:40:00.000Z", resumed: false, ts: 5,
+    });
+  });
+});
+
 describe("applyClears", () => {
   const user = (text, ts) => ({ type: "user_message", ts, payload: JSON.stringify({ text }) });
   const asst = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text }) });

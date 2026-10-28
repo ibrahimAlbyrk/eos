@@ -13,7 +13,8 @@ import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 const POLL_MS = 1000;
 
 // accounts: null until the first successful load. signIns: provider id → the
-// SignInSession (plus a local "starting" placeholder before the daemon answers).
+// SignInSession (plus a local "starting" placeholder before the daemon answers);
+// its loginId names the sign-in it renews, if any.
 let state = { accounts: null, signIns: {} };
 const subs = new Set();
 let pollTimer = null;
@@ -105,11 +106,13 @@ export function clearSignIn(provider) {
 
 const failure = (r, fallback) => r.body?.error ?? `${fallback} (HTTP ${r.status})`;
 
-export async function startSignIn(provider) {
-  setSignIn(provider, { provider, state: "starting" });
-  const r = await api.startSignIn(provider).catch(() => null);
+// loginId signs that sign-in in again; without it the sign-in adds one.
+export async function startSignIn(provider, loginId) {
+  const base = { provider, ...(loginId ? { loginId } : {}) };
+  setSignIn(provider, { ...base, state: "starting" });
+  const r = await api.startSignIn(provider, loginId).catch(() => null);
   if (!r?.ok) {
-    setSignIn(provider, { provider, state: "failed", error: r ? failure(r, "Couldn't start the sign-in") : "Eos isn't reachable." });
+    setSignIn(provider, { ...base, state: "failed", error: r ? failure(r, "Couldn't start the sign-in") : "Eos isn't reachable." });
     return;
   }
   setSignIn(provider, r.body);
@@ -166,6 +169,27 @@ export async function signOut(provider) {
   await afterCredentialChange();
   return { ok: true };
 }
+
+// ---- several sign-ins (account.logins) --------------------------------------
+
+async function change(request, fallback, after = afterCredentialChange) {
+  const r = await request().catch(() => null);
+  if (!r?.ok) return { ok: false, error: r ? failure(r, fallback) : "Eos isn't reachable." };
+  await after();
+  return { ok: true };
+}
+
+export const removeLogin = (provider, loginId) =>
+  change(() => api.removeLogin(provider, loginId), "Sign-out failed");
+
+export const setDefaultLogin = (provider, loginId) =>
+  change(() => api.setDefaultLogin(provider, loginId), "Couldn't change the default account");
+
+export const renameLogin = (provider, loginId, label) =>
+  change(() => api.renameLogin(provider, loginId, label), "Couldn't rename the account", refreshAccounts);
+
+export const setAutoSwitch = (provider, enabled) =>
+  change(() => api.setAutoSwitch(provider, enabled), "Couldn't change the setting", refreshAccounts);
 
 // ---- API keys ---------------------------------------------------------------
 

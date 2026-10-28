@@ -73,6 +73,8 @@ import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { stableGenuiIndex, isFinalViewBlock } from "../../../genui/runtime/conversation.js";
 import { subscribe as subscribeGenui, streamsFor as liveViewsFor, dropStream as dropViewStream } from "../../../genui/streamStore.js";
 import { usePathLinks } from "./paths/usePathLinks.jsx";
+import { AccountSwitchLine } from "./AccountSwitchLine.jsx";
+import { AccountsExhaustedRow } from "./AccountsExhaustedRow.jsx";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
@@ -838,6 +840,8 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
           conversation cleared
         </div>
       );
+    case "accountSwitched": return <AccountSwitchLine key={key} block={b} />;
+    case "accountsExhausted": return <AccountsExhaustedRow key={key} block={b} workerId={sessionId} />;
     case "turnError":
       return (
         <div key={key} className="turn-error mono">

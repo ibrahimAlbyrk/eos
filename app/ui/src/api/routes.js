@@ -238,6 +238,11 @@ export const ROUTES = {
   // Settings › Accounts — loopback + ui-token only, redacted.
   accounts: "/api/accounts",
   accountSignIn: (provider) => `/api/accounts/${provider}/sign-in`,
+  accountLogin: (provider, id) => `/api/accounts/${provider}/logins/${id}`,
+  accountDefaultLogin: (provider) => `/api/accounts/${provider}/default-login`,
+  accountAutoSwitch: (provider) => `/api/accounts/${provider}/auto-switch`,
+  workerPlanResume: (id) => `/workers/${id}/plan-resume`,
+  workerApiKeyContinue: (id) => `/workers/${id}/api-key-continue`,
   signIn: (id) => `/api/sign-ins/${id}`,
   signInCode: (id) => `/api/sign-ins/${id}/code`,
   // Browser panel — the daemon's single Chrome over CDP. Loopback + ui-token

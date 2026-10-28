@@ -189,6 +189,110 @@
 .acc-card__billing .is-ok { color: #93c8a6; }
 .acc-card__billing .acc-link { font-size: var(--text-xs); }
 
+/* A provider holding several sign-ins: one row each, then its settings. */
+.acc-logins { min-height: 0; gap: 6px; padding: 16px 12px 12px; }
+.acc-logins .acc-card__head { padding: 0 8px 10px; }
+.acc-logins .acc-card__head .acc-btn { height: 32px; padding: 0 12px; border-radius: 999px; }
+.acc-logins__list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.acc-login {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  column-gap: 14px;
+  padding: 10px 8px;
+  border-radius: 10px;
+}
+.acc-login:hover { background: rgba(var(--tint), 0.03); }
+.acc-login.is-signing { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+.acc-login__avatar {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--chip);
+  color: var(--fg-mid);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.acc-login__avatar.is-tint-0 { background: #3a3021; color: #e6c48c; }
+.acc-login__avatar.is-tint-1 { background: #1d2d44; color: #9cc2f0; }
+.acc-login__avatar.is-tint-2 { background: #1e3328; color: #93c8a6; }
+.acc-login__avatar.is-tint-3 { background: #33243f; color: #cfb1f0; }
+.acc-login__names { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acc-login__names b {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.acc-login__names small { overflow: hidden; font-size: var(--text-xs); color: var(--fg-dim2); white-space: nowrap; text-overflow: ellipsis; }
+.acc-login__plan {
+  flex-shrink: 0;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--fg-mid);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.acc-login__rename { height: 28px; font-size: var(--text-sm); }
+.acc-login__state { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--fg-dim); }
+.acc-login__state.is-warn { color: var(--warn); }
+.acc-login__use { display: inline-flex; align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--fg-dim); }
+.acc-login__bar { width: 72px; height: 5px; overflow: hidden; border-radius: 999px; background: var(--chip); }
+.acc-login__bar i { display: block; height: 100%; border-radius: 999px; background: var(--accent); }
+.acc-login__use.is-warn { color: var(--warn); }
+.acc-login__use.is-warn .acc-login__bar i { background: var(--warn); }
+.acc-login__inuse {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: #9cc2f0;
+  font-size: 11px;
+  font-weight: 600;
+}
+.acc-login__actions { display: inline-flex; gap: 12px; opacity: 0; transition: opacity 120ms ease; }
+.acc-login__actions .acc-link { font-size: var(--text-xs); }
+.acc-login:hover .acc-login__actions,
+.acc-login:focus-within .acc-login__actions,
+.acc-login.is-signing .acc-login__actions,
+.acc-login.is-out .acc-login__actions { opacity: 1; }
+.acc-login__help { grid-column: 2 / -1; padding-top: 8px; }
+
+.acc-logins__setting,
+.acc-logins__key {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 8px;
+}
+.acc-logins__setting:first-of-type { margin-top: 6px; border-top: 1px solid rgba(var(--tint), 0.06); }
+.acc-logins__key.is-editing { flex-direction: column; align-items: stretch; gap: 8px; }
+.acc-logins__key-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--chip);
+  color: var(--fg-dim);
+}
+.acc-logins__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.acc-logins__text b { font-size: var(--text-base); font-weight: 400; color: var(--fg); }
+.acc-logins__text b .mono { margin-left: 6px; font-size: var(--text-xs); color: var(--fg-dim2); }
+.acc-logins__text small { font-size: var(--text-xs); color: var(--fg-dim2); }
+.acc-logins__key .acc-link { font-size: var(--text-sm); }
+
 .acc-route {
   display: flex;
   flex-direction: column;

@@ -622,6 +622,35 @@ export function buildBlocks(rawEvents) {
       out.push({ kind: "cleared", ts: ev.ts });
       continue;
     }
+    if (ev.type === "account_switched") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "accountSwitched",
+        from: payload.from ?? "",
+        to: payload.to ?? "",
+        reason: ["expired", "reset", "api_key"].includes(payload.reason) ? payload.reason : "limit",
+        resetsAt: payload.resetsAt ?? null,
+        ts: ev.ts,
+      });
+      continue;
+    }
+    if (ev.type === "accounts_exhausted") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "accountsExhausted",
+        rowId: ev.id,
+        nextResetAt: payload.nextResetAt ?? null,
+        apiKey: payload.apiKey === true,
+        resumeAt: payload.resumeAt ?? null,
+        resumed: payload.resumed === true,
+        ts: ev.ts,
+      });
+      continue;
+    }
     // A running compaction renders nothing in flow (the nebula overlay owns it);
     // its outcome is the boundary card or a failure line.
     if (ev.type === "compaction_started") continue;

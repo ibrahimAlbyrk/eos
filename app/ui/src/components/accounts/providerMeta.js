@@ -19,10 +19,16 @@ export function metaFor(account) {
 
 const PLAN_NAMES = { prolite: "Pro Lite" };
 
+// "max" → "Max"; no plan recorded → null.
+export function planLabel(plan) {
+  if (!plan) return null;
+  return PLAN_NAMES[plan] ?? `${plan[0].toUpperCase()}${plan.slice(1)}`;
+}
+
 // "max" → "Max plan"; no plan recorded → null.
 export function planName(plan) {
-  if (!plan) return null;
-  return `${PLAN_NAMES[plan] ?? `${plan[0].toUpperCase()}${plan.slice(1)}`} plan`;
+  const label = planLabel(plan);
+  return label ? `${label} plan` : null;
 }
 
 

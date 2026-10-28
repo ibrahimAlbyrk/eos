@@ -60,7 +60,7 @@ function AnchoredPopover({ anchorRef, open, onClose, align = "left", matchWidth 
   );
 }
 
-function ToggleControl({ value, onChange }) {
+export function ToggleControl({ value, onChange }) {
   return (
     <button
       type="button"

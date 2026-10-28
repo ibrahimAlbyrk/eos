@@ -60,22 +60,26 @@ function planLabel(account, section) {
 // attention) with a ring per limit from GET /api/usage. A plan with no usage to
 // show (loading, failed, or a provider that reports none) keeps just its header —
 // the menu is a glance surface, not an error one.
+// A provider holding several sign-ins gets a labelled block of rings per sign-in.
 export function PlanCards({ accounts, usage, now }) {
   const sections = planUsageSections(usage, now);
   return (accounts ?? []).filter(isSignedIn).map((a) => {
-    const section = sections.find((s) => USAGE_PROVIDER_ACCOUNTS[s.provider] === a.id);
+    const own = sections.filter((s) => USAGE_PROVIDER_ACCOUNTS[s.provider] === a.id);
     return (
       <div className="acct-card" key={a.id}>
         <div className="acct-card__head">
           <ProviderGlyph id={a.id} size={24} tone={accountTone(a)} />
           <span className="acct-card__name">{metaFor(a).name}</span>
-          <span className={"acct-plan" + (a.route === "blocked" ? " is-expired" : "")}>{planLabel(a, section)}</span>
+          <span className={"acct-plan" + (a.route === "blocked" ? " is-expired" : "")}>{planLabel(a, own.length === 1 ? own[0] : null)}</span>
         </div>
-        {section && (
-          <div className="acct-card__stats">
-            {section.rows.map((r) => <UsageStat key={r.key} row={r} />)}
+        {own.map((section) => (
+          <div className="acct-card__login" key={section.key}>
+            {own.length > 1 && <span className="acct-card__login-name">{section.label}{section.plan ? ` · ${section.plan}` : ""}</span>}
+            <div className="acct-card__stats">
+              {section.rows.map((r) => <UsageStat key={r.key} row={r} />)}
+            </div>
           </div>
-        )}
+        ))}
       </div>
     );
   });

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AccountCard } from "./AccountCard.jsx";
-import { accountMatchesChoice, choiceReady, planName } from "./providerMeta.js";
+import { PlanLoginsCard } from "./PlanLoginsCard.jsx";
+import { accountMatchesChoice, choiceReady, planName, planLabel } from "./providerMeta.js";
 import { _resetAccounts } from "../../state/accountsStore.js";
 
 const claude = (over = {}) => ({
@@ -120,5 +121,48 @@ describe("accountMatchesChoice", () => {
     expect(accountMatchesChoice(openai({ profile: "openai" }), { name: "openai", kind: "openai", subscription: false })).toBe(true);
     expect(accountMatchesChoice(openai(), { name: "openai", kind: "openai", subscription: false })).toBe(false);
     expect(accountMatchesChoice(openai({ profile: "openai" }), { name: "claude", kind: "claude", subscription: true })).toBe(false);
+  });
+});
+
+describe("PlanLoginsCard", () => {
+  const login = (id, over = {}) => ({ id, label: `${id}@example.com`, email: `${id}@example.com`, plan: "max", state: "signed_in", ...over });
+  const listed = (logins, defaultLoginId = logins[0]?.id) =>
+    renderToStaticMarkup(<PlanLoginsCard account={claude({ route: "subscription", logins, defaultLoginId })} />);
+
+  it("one row per sign-in with its plan; the email only when the name isn't it", () => {
+    const html = listed([login("me"), login("work", { label: "Work", plan: "pro" })]);
+    expect(html).toContain("2 accounts");
+    expect(html).toContain("me@example.com");
+    expect(html).toContain("Work");
+    expect(html).toContain("work@example.com");
+    expect(html).toContain(">Max<");
+    expect(html).toContain(">Pro<");
+    expect(html).toContain("Add account");
+    expect(listed([login("me")]).match(/me@example\.com/g)).toHaveLength(1);
+  });
+
+  it("the default account and auto-switch are offered only once there are two", () => {
+    expect(listed([login("me")])).not.toContain("Default account");
+    expect(listed([login("me")])).not.toContain("Switch automatically");
+    const two = listed([login("me"), login("work")], "work");
+    expect(two).toContain("Default account");
+    expect(two).toContain("Switch automatically");
+    expect(two).toContain('aria-checked="true"');
+  });
+
+  it("a sign-in at its limit says until when", () => {
+    const at = new Date(2026, 9, 28, 16, 40).toISOString();
+    expect(listed([login("me", { limitedUntil: at })])).toContain("At limit · resets");
+  });
+
+  it("a sign-in that stopped working offers to sign in again", () => {
+    const html = listed([login("me", { state: "signed_out" })]);
+    expect(html).toContain("Signed out");
+    expect(html).toContain("Sign in again");
+  });
+
+  it("plan labels drop the word plan", () => {
+    expect(planLabel("prolite")).toBe("Pro Lite");
+    expect(planLabel(undefined)).toBe(null);
   });
 });

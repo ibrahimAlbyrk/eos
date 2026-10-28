@@ -33,6 +33,16 @@ describe("PlanCards", () => {
     expect(html).toContain('acct-plan is-expired">Expired<');
   });
 
+  it("a provider holding several sign-ins shows a labelled block of rings per sign-in", () => {
+    const login = (loginId, label, used) => ({ ...claudeUsage, loginId, label, plan: "Pro", windows: { fiveHour: win(used) } });
+    const html = render({ accounts: [account("anthropic", "subscription", "max")], usage: { providers: [login("a", "Personal", 90), login("b", "Work", 20)] } });
+    expect(html.match(/class="acct-card"/g)).toHaveLength(1);
+    expect(html).toContain("Personal · Pro");
+    expect(html).toContain("Work · Pro");
+    expect(html.match(/class="acct-ring"/g)).toHaveLength(2);
+    expect(html).toContain(">Max<");
+  });
+
   it("a ring per limit showing what's left, warn tint only at ≥80% used", () => {
     const html = render({ accounts: [account("anthropic", "subscription")], usage: { providers: [claudeUsage] } });
     expect(html).toContain(">Max<");

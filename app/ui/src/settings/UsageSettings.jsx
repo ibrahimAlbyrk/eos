@@ -65,17 +65,16 @@ export function UsageSettings() {
   const { usage: data, loading: busy, unreachable, now } = useUsage();
 
   const sections = planUsageSections(data, now);
-  const providerOf = (id) => data?.providers?.find((p) => p.provider === id);
   // A plan you aren't signed in to is simply absent — only real failures (an
   // upstream/scope error on a plan you ARE signed in to) are shown, mapped to a
   // human one-liner (never the raw JSON body). A plan still showing its last
   // data only gets the footer note.
   const failures = (data?.errors ?? [])
-    .filter((e) => !isSignedOutReason(e.reason) && !sections.some((sec) => sec.provider === e.provider));
+    .filter((e) => !isSignedOutReason(e.reason) && !sections.some((sec) => sec.key === e.provider));
   const outdated = unreachable || sections.some((sec) => sec.stale);
   const signedOut = data && !sections.length && !failures.length;
   const lastUpdated = sections
-    .map((sec) => providerOf(sec.provider)?.fetchedAt)
+    .map((sec) => sec.fetchedAt)
     .filter(Boolean)
     .sort()
     .at(0);
@@ -109,12 +108,12 @@ export function UsageSettings() {
       )}
 
       {sections.map((section) => {
-        const extra = providerOf(section.provider)?.extraUsage;
+        const extra = section.extraUsage;
         const credits = (amount) => formatCredits(amount ?? 0, extra.currency);
         return (
-          <div className="stg-group" key={section.provider}>
+          <div className="stg-group" key={section.key}>
             <div className="stg-group__title">
-              {section.name}{section.plan ? ` · ${section.plan}` : ""}
+              {section.name}{section.label ? ` · ${section.label}` : ""}{section.plan ? ` · ${section.plan}` : ""}
             </div>
             {section.rows.map((r) => (
               <UsageRow

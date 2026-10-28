@@ -1392,6 +1392,52 @@
   border-top: 1px solid var(--line);
 }
 
+/* account_switched: the session moved to another Claude sign-in mid-turn. */
+.account-switch-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+}
+.account-switch-line::before,
+.account-switch-line::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+.account-switch-line__text { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.account-switch-line b { font-weight: 500; color: var(--fg); }
+
+/* accounts_exhausted: every Claude sign-in is out; resume later or on the key. */
+.accounts-exhausted {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-card);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  font-size: var(--text-xs);
+  color: color-mix(in srgb, var(--warn) 82%, var(--fg-strong));
+}
+.accounts-exhausted__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.accounts-exhausted__btn {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--fg);
+  font-family: inherit;
+  font-size: var(--text-xs);
+}
+.accounts-exhausted__btn:hover:not(:disabled) { background: #383838; }
+.accounts-exhausted__btn.is-quiet { background: none; color: var(--fg-dim); }
+.accounts-exhausted__btn.is-quiet:hover:not(:disabled) { color: var(--fg); }
+.accounts-exhausted__btn:disabled { opacity: 0.45; }
+.accounts-exhausted__note { color: var(--fg-dim); }
+.accounts-exhausted .acc-err { color: var(--err); }
+
 .msg-day-divider {
   text-align: center;
   font-size: var(--text-xs);
