@@ -128,19 +128,21 @@ if (!hostView) contextBridge.exposeInMainWorld("eosArtifactPreview", {
   connect: (): Promise<{ signedIn: boolean }> => ipcRenderer.invoke("artifactPreview:connect"),
 });
 
-// html.native gates ~30 CSS rules (titlebar/traffic-light insets, sidebar chrome).
+// html.native gates ~30 CSS rules (titlebar/traffic-light insets, sidebar chrome);
+// html[data-os] carries this computer's desktop conventions (ui lib/platform.js).
 // The DOM is shared across isolated worlds, so setting it here is visible to the
 // page; guard for pre-documentElement timing (doc 20 §e-3, plan §C4 item 3).
+const os = argValue("eos-os") === "windows" ? "windows" : "mac";
 function markNative(): void {
-  if (document.documentElement) {
+  const mark = (): void => {
     document.documentElement.classList.add("native");
+    document.documentElement.dataset.os = os;
+  };
+  if (document.documentElement) {
+    mark();
     return;
   }
-  document.addEventListener(
-    "DOMContentLoaded",
-    () => document.documentElement.classList.add("native"),
-    { once: true },
-  );
+  document.addEventListener("DOMContentLoaded", mark, { once: true });
 }
 markNative();
 

@@ -1,7 +1,7 @@
 import { Tray, Menu, nativeImage, nativeTheme } from "electron";
 import type { WebContents, NativeImage } from "electron";
 import { renderTrayImage } from "./tray-paint";
-import { installScreenSaver, lockScreen } from "./screensaver";
+import { shellPlatform } from "./platform";
 import type { Completion } from "./fleet";
 
 const ease = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
@@ -9,7 +9,7 @@ const ease = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t +
 interface TrayHooks {
   wc: () => WebContents | null;
   showWindow: () => void;
-  rebuild: () => void;
+  rebuild: (() => void) | null;
   quit: () => void;
 }
 
@@ -46,14 +46,17 @@ export class TrayController {
   }
 
   private popMenu(): void {
+    const { rebuild } = this.hooks;
+    const saver = shellPlatform.screenSaver;
     const menu = Menu.buildFromTemplate([
       { label: "Open Eos", click: () => this.hooks.showWindow() },
       { type: "separator" },
-      { label: "Rebuild & Relaunch", click: () => this.hooks.rebuild() },
-      { type: "separator" },
-      { label: "Lock Screen", click: lockScreen },
-      { label: "Install Screen Saver…", click: () => void installScreenSaver() },
-      { type: "separator" },
+      ...(rebuild ? [{ label: "Rebuild & Relaunch", click: rebuild }, { type: "separator" as const }] : []),
+      ...(saver ? [
+        { label: "Lock Screen", click: () => saver.lock() },
+        { label: "Install Screen Saver…", click: () => void saver.install() },
+        { type: "separator" as const },
+      ] : []),
       { label: "Quit Eos", click: () => this.hooks.quit() },
     ]);
     this.tray?.popUpContextMenu(menu);

@@ -25,7 +25,7 @@ import { initBrowserHost } from "./browser";
 import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
 import { TransferBridge } from "./transfers";
-import { rebuildAndRelaunch } from "./rebuild";
+import { shellPlatform } from "./platform";
 import { installMainWindowPermissions } from "./permissions";
 import { installGenuiTokenHeader } from "./genuiToken";
 import { readLocation } from "./location";
@@ -67,17 +67,6 @@ const CSP = buildCsp({ api: "http://127.0.0.1:*", raw: "http://127.0.0.1:*", ws:
 const hostCsp = (apiBase: string, rawBase: string): string | null =>
   buildCsp({ api: `${apiBase}/`, raw: `${rawBase}/`, ws: "" });
 
-// Traffic-light position. Native (main.swift TrafficLightPositioner) nudges the
-// buttons +3pt up off AppKit's default; the documented target is a button
-// center-y of 23pt (styles.css:1245-1247). x is AppKit-standard (Swift only
-// changed y). Env-tunable for A/B measurement; defaults are the measured match.
-function trafficLightPos(): { x: number; y: number } {
-  return {
-    x: Number(process.env.EOS_TL_X ?? "19"),
-    y: Number(process.env.EOS_TL_Y ?? "16"),
-  };
-}
-
 // A dev build next to the installed app: its own profile, so it neither shares
 // state with nor hands off (single-instance) to the installed Eos.
 if (process.env.EOS_ELECTRON_USER_DATA?.trim()) app.setPath("userData", process.env.EOS_ELECTRON_USER_DATA.trim());
@@ -85,10 +74,13 @@ if (process.env.EOS_ELECTRON_USER_DATA?.trim()) app.setPath("userData", process.
 // Must run before app.ready.
 registerEosSchemePrivileges();
 
+// Per-system setup; false = this launch only answered an installer event.
+const launching = shellPlatform.init();
+
 // Single-instance: a second launch focuses the existing window (LaunchServices
 // gives the Swift app this implicitly; Electron needs it explicitly — §C6/E3).
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) app.quit();
+const gotLock = launching && app.requestSingleInstanceLock();
+if (!gotLock && launching) app.quit();
 else app.on("second-instance", () => {
   console.log("[eos-electron] second-instance: focusing existing window");
   showMainWindow();
@@ -107,7 +99,7 @@ let ownsDaemon = false;
 let splashWin: BrowserWindow | null = null;
 // Agents working right now (fleet feed) — a rebuild asks first when any are.
 let busyAgents = 0;
-const rebuild = (): void => void rebuildAndRelaunch(busyAgents);
+const rebuild = shellPlatform.rebuild ? (): void => void shellPlatform.rebuild?.(busyAgents) : null;
 // Resolves once a healthy daemon is confirmed. The main window may load before
 // that (in parallel with the daemon boot) but stays hidden until then.
 let markDaemonReady!: () => void;
@@ -181,10 +173,8 @@ async function createWindow(token: string): Promise<BrowserWindow> {
     minHeight: 500, // doc 10 §b minSize
     show: false, // reveal on ready-to-show — no flash (doc 10 §a)
     backgroundColor: themeBackground(loadPersistedTheme()), // opaque pre-paint tracks last theme (§D5)
-    title: "Eos", // set, but hidden by hiddenInset (doc 10 §b titleVisibility hidden)
-    titleBarStyle: "hiddenInset", // transparent titlebar + full-size content, native traffic lights (§D1)
-    trafficLightPosition: trafficLightPos(), // tuned to the native +3pt-nudged spot (§D2)
-    roundedCorners: true, // system-rounded macOS corners (§D3)
+    title: "Eos", // set, but hidden by the frameless title bar (doc 10 §b titleVisibility hidden)
+    ...shellPlatform.windowFrame(),
     // NB: deliberately NO `vibrancy` / `transparent` — the main window is opaque; the
     // glass is web CSS (backdrop-filter). Frosted floating overlays are handled by a
     // scoped preload CSS injection, not by making the window translucent (§D1).
@@ -194,7 +184,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
       sandbox: true,
       nodeIntegration: false,
       backgroundThrottling: false, // live SSE dashboard must keep drawing (doc 30 Claim 3.1)
-      additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`],
+      additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`, `--eos-os=${shellPlatform.uiOS}`],
     },
   });
   mainWindow = win;
@@ -443,7 +433,19 @@ app.whenReady().then(async () => {
   // eosBrowserView preload bridge; the daemon drives them over /browser/host.
   // The same channel answers the daemon's location.get (GET /api/location)
   // through the CoreLocation helper (location.ts).
-  initBrowserHost({ win, daemonUrl: DAEMON_URL, uiToken: token, locate: () => readLocation() });
+  initBrowserHost({
+    win,
+    daemonUrl: DAEMON_URL,
+    uiToken: token,
+    locate: () => readLocation(),
+    pick: {
+      directory: async () => (await dialog.showOpenDialog(win, { properties: ["openDirectory", "createDirectory"] })).filePaths[0] ?? null,
+      files: async () => {
+        const r = await dialog.showOpenDialog(win, { properties: ["openFile", "multiSelections"] });
+        return r.canceled ? null : r.filePaths;
+      },
+    },
+  });
 
   // Artifact link previews render in Eos's own claude.ai session (artifactPreview.ts).
   initArtifactPreview(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));

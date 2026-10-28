@@ -5,7 +5,7 @@ import { request } from "node:http";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { DAEMON_LABEL, bootoutLaunchAgent, startLaunchAgent } from "../../../infra/src/daemon/launchd";
+import { shellPlatform } from "./platform";
 
 export interface Health {
   ok: boolean;
@@ -34,7 +34,7 @@ export function eosHome(): string {
   return process.env.EOS_HOME?.trim() || path.join(homedir(), ".eos");
 }
 export function daemonSocketPath(): string {
-  return path.join(eosHome(), "daemon.sock");
+  return shellPlatform.controlSocket(eosHome());
 }
 export function daemonLogPath(): string {
   return path.join(eosHome(), "logs", "daemon.log");
@@ -169,60 +169,45 @@ function rotateDaemonLog(logPath: string): void {
   try { renameSync(logPath, `${logPath}.1`); } catch {}
 }
 
+/** How the daemon process starts: the node binary, its flags + entry, and env. */
+export interface DaemonLaunch {
+  program: string;
+  args: string[];
+  env: NodeJS.ProcessEnv;
+}
+
 /**
- * Start the daemon as a launchd agent, with the same command manager/cli/daemon-lifecycle.ts
- * uses (launchd restarts it after a crash and reaps its process group on stop).
- * Runs under bash to lift the fd soft limit to the hard ceiling before node starts
- * (the macOS GUI default of 256 is far too low for a process supervising many
- * PTYs + watches); the ulimit + node flags are kept byte-identical to the source.
+ * Starts the daemon under the system's service manager (crash restart, the
+ * process tree reaped on stop), with the same node flags manager/cli/daemon-lifecycle.ts uses.
  */
 export async function startDaemon(repoRoot: string, logPath: string): Promise<void> {
   try {
     mkdirSync(path.dirname(logPath), { recursive: true });
     rotateDaemonLog(logPath);
   } catch {}
-  const { cmd, env } = daemonLaunch(repoRoot);
-  await startLaunchAgent({
-    label: DAEMON_LABEL,
-    plistPath: path.join(eosHome(), "daemon.plist"),
-    programArguments: ["/bin/bash", "-c", cmd],
-    env,
-    logPath,
-    // A launch agent isn't exempt from Local Network privacy: without this the
-    // packaged daemon (this app's own binary) can be kept off the LAN with no
-    // prompt naming Eos, and every direct link to another Mac fails.
-    ...(app.isPackaged ? { associatedBundleId: APP_BUNDLE_ID } : {}),
-  }, DAEMON_STOP_TIMEOUT_MS);
+  await shellPlatform.startDaemon(daemonLaunch(repoRoot), logPath);
 }
 
-/** Asks launchd to stop the daemon; returns at once (the app is quitting). */
+/** Asks the service manager to stop the daemon; returns at once (the app is quitting). */
 export function stopDaemon(): void {
-  bootoutLaunchAgent(DAEMON_LABEL);
+  shellPlatform.stopDaemon();
 }
 
-// forge.config.js packagerConfig.appBundleId.
-const APP_BUNDLE_ID = "com.ibrahimalbyrk.eos";
+// The daemon's memory cap; on argv because Electron ignores NODE_OPTIONS when
+// the process is started by another app (a service manager).
+const NODE_FLAGS = ["--max-old-space-size=1024", "--no-warnings"];
 
-// Above the daemon's own shutdown deadline (5s) and launchd's ExitTimeOut (10s).
-const DAEMON_STOP_TIMEOUT_MS = 12_000;
-
-function daemonLaunch(repoRoot: string): { cmd: string; env: NodeJS.ProcessEnv } {
+function daemonLaunch(repoRoot: string): DaemonLaunch {
   // PACKAGED: run the shipped daemon BUNDLE off Electron's own Node
   // (process.execPath + ELECTRON_RUN_AS_NODE=1) — no repo, no system node/bun.
   // The EOS_* env points the daemon (and every subprocess it spawns) at the
   // shipped bundles + node_modules + prompts + worker templates under Resources.
-  // Node flags go on argv: Electron ignores NODE_OPTIONS when the process is
-  // started by another app (launchd), so the memory cap would silently vanish.
   if (app.isPackaged) {
     const resources = process.resourcesPath;
     const bundlesDir = path.join(resources, "daemon");
-    const entry = path.join(bundlesDir, "daemon.bundle.mjs");
-    // arm64-only for now (Stage 3 decision); universal later.
-    const claudeBin = path.join(
-      bundlesDir, "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude",
-    );
     return {
-      cmd: `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec ${JSON.stringify(process.execPath)} --max-old-space-size=1024 --no-warnings ${JSON.stringify(entry)}`,
+      program: process.execPath,
+      args: [...NODE_FLAGS, path.join(bundlesDir, "daemon.bundle.mjs")],
       env: {
         ...process.env,
         ELECTRON_RUN_AS_NODE: "1",
@@ -231,15 +216,15 @@ function daemonLaunch(repoRoot: string): { cmd: string; env: NodeJS.ProcessEnv }
         EOS_REPO_ROOT: resources,
         EOS_PROMPTS_DIR: path.join(resources, "prompts"),
         EOS_WORKER_DEFINITIONS_DIR: path.join(resources, "workers"),
-        EOS_CLAUDE_BIN: claudeBin,
+        EOS_CLAUDE_BIN: shellPlatform.claudeBinary(bundlesDir),
       },
     };
   }
 
-  // DEV: system node + strip-types against the repo .ts (unchanged).
-  const entry = path.join(repoRoot, "manager", "daemon.ts");
+  // DEV: system node + strip-types against the repo .ts.
   return {
-    cmd: `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`,
+    program: "node",
+    args: [...NODE_FLAGS, "--experimental-strip-types", path.join(repoRoot, "manager", "daemon.ts")],
     env: process.env,
   };
 }

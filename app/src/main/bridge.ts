@@ -1,11 +1,11 @@
-import { ipcMain, clipboard, shell, BrowserWindow } from "electron";
+import { ipcMain, shell, BrowserWindow } from "electron";
 import type { WebContents } from "electron";
-import { execFile } from "node:child_process";
 import { writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { themeBackground } from "./config";
 import { persistTheme, type Theme } from "./theme";
+import { shellPlatform } from "./platform";
 
 // Run a snippet in the renderer's MAIN world (where the UI defines its __eos*
 // callback globals). Errors are swallowed — a missing global just no-ops,
@@ -34,44 +34,11 @@ async function statEntries(paths: string[]): Promise<DirEntry[]> {
   return out;
 }
 
-// Finder's ⌘C lists every copied item's real POSIX path here, as a plist (binary
-// or XML) — plutil turns either form into a JSON string array.
-async function readFilenamesPlist(): Promise<string[]> {
-  try {
-    const plist = clipboard.readBuffer("NSFilenamesPboardType");
-    if (!plist.length) return [];
-    const json = await new Promise<string>((resolve, reject) => {
-      const child = execFile("/usr/bin/plutil", ["-convert", "json", "-o", "-", "-"], (err, stdout) =>
-        err ? reject(err) : resolve(stdout),
-      );
-      child.stdin?.end(plist);
-    });
-    const parsed: unknown = JSON.parse(json);
-    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-// Finder writes a file REFERENCE url here (file:///.file/id=<vol>.<inode>), which
-// doesn't resolve as a path — only a plain file url is usable.
-function readFileUrl(): string[] {
-  try {
-    const fileUrl = clipboard.read("public.file-url");
-    if (!fileUrl.startsWith("file://")) return [];
-    const p = decodeURIComponent(new URL(fileUrl).pathname);
-    return p.startsWith("/.file/") ? [] : [p];
-  } catch {
-    return [];
-  }
-}
-
-// Best-effort read of file paths from the macOS pasteboard (⌘V of Finder items).
-// The UI treats [] as "no native paths" and uploads the pasted bytes instead
-// (doc 10 §f1).
+// Best-effort read of copied files' paths from the clipboard (paste of items
+// copied in the file manager). The UI treats [] as "no native paths" and uploads
+// the pasted bytes instead (doc 10 §f1).
 async function readClipboardFilePaths(): Promise<DirEntry[]> {
-  const names = await readFilenamesPlist();
-  return statEntries(names.length ? names : readFileUrl());
+  return statEntries(await shellPlatform.clipboardFilePaths());
 }
 
 // All inbound web→main handlers (the six webkit.messageHandlers, doc 10 §d 1–6)

@@ -1,5 +1,6 @@
 import { Menu, app, clipboard } from "electron";
 import type { WebContents, MenuItemConstructorOptions } from "electron";
+import { shellPlatform } from "./platform";
 
 function clipboardHasFiles(): boolean {
   return clipboard.availableFormats().some((f) => f.startsWith("image/") || f === "text/uri-list");
@@ -16,9 +17,13 @@ function clipboardHasFiles(): boolean {
 // controls); omitted until the host list is known.
 export function buildAppMenu(
   getWC: () => WebContents | null,
-  rebuild: () => void,
+  rebuild: (() => void) | null,
   machines?: MenuItemConstructorOptions,
 ): void {
+  if (!shellPlatform.appMenu) {
+    Menu.setApplicationMenu(null);
+    return;
+  }
   const run = (js: string): Promise<unknown> =>
     getWC()?.executeJavaScript(js, true).catch(() => null) ?? Promise.resolve(null);
 
@@ -64,8 +69,7 @@ export function buildAppMenu(
       submenu: [
         { role: "about" },
         { type: "separator" },
-        { label: "Rebuild & Relaunch", accelerator: "CmdOrCtrl+Shift+R", click: rebuild },
-        { type: "separator" },
+        ...(rebuild ? [{ label: "Rebuild & Relaunch", accelerator: "CmdOrCtrl+Shift+R", click: rebuild }, { type: "separator" as const }] : []),
         { role: "services" },
         { type: "separator" },
         { role: "hide" },

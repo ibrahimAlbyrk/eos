@@ -1,11 +1,7 @@
 import { app, Notification, BrowserWindow } from "electron";
 import type { WebContents } from "electron";
 import { navigateToRoute, navigateToWorker } from "./bridge";
-
-// Eos's own notification sound, shipped in Contents/Resources (forge.config.js
-// extraResource). A dev run (`npm start`) is the stock Electron.app, which lacks
-// the file, so macOS falls back to its default sound there.
-const NOTIFICATION_SOUND = "eos-notification.aiff";
+import { shellPlatform } from "./platform";
 
 // A shown Notification whose JS object is garbage collected loses its click
 // handler, so clicking the banner did nothing. Hold each one until it's settled.
@@ -31,7 +27,7 @@ export function makeNotifier(
     if (win && win.isFocused()) return "suppressed"; // app active — no banner
     const workerId = typeof p.workerId === "string" ? p.workerId : "";
     const route = typeof p.route === "string" ? p.route : "";
-    const n = new Notification({ title: p.title, body: p.body, sound: NOTIFICATION_SOUND });
+    const n = new Notification({ title: p.title, body: p.body, sound: shellPlatform.notificationSound });
     // Electron 42's UNNotification path refuses unsigned builds with this event instead of a banner.
     n.on("failed", (_e, error) => {
       live.delete(n);

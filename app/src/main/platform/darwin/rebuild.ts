@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { eosHome } from "./daemon";
+import { eosHome } from "../../daemon";
 
 // `eos build --app` without a terminal. The build quits this app, stops its
 // daemon and swaps /Applications/Eos.app, so it must outlive us: a detached

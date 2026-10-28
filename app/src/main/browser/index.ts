@@ -11,7 +11,14 @@ import { HostChannel } from "./channel";
 
 let started = false;
 
-export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiToken: string; locate?: () => Promise<unknown> }): void {
+export function initBrowserHost(deps: {
+  win: BaseWindow;
+  daemonUrl: string;
+  uiToken: string;
+  locate?: () => Promise<unknown>;
+  /** The app's own file dialogs, for a daemon without a native picker. */
+  pick?: { directory: () => Promise<string | null>; files: () => Promise<string[] | null> };
+}): void {
   if (started) return; // idempotent — the IPC + host live for the app's lifetime
   started = true;
 
@@ -32,6 +39,11 @@ export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiTo
   channel.setDriver(driver);
   const locate = deps.locate;
   if (locate) channel.setLocalMethod("location.get", () => locate());
+  const pick = deps.pick;
+  if (pick) {
+    channel.setLocalMethod("dialog.pickDirectory", () => pick.directory());
+    channel.setLocalMethod("dialog.pickFiles", () => pick.files());
+  }
 
   // Renderer → main geometry/visibility only (plan §C: no webContents, no verbs
   // over this channel; state-changing verbs flow through the daemon REST path).

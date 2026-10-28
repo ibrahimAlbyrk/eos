@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { resolveUiRoot } from "./config";
+import { shellPlatform } from "./platform";
 
 // Launch splash — a small frameless glass panel (logo, "Eos", indeterminate bar),
 // the ONE window where native vibrancy is correct (the main window stays opaque;
@@ -52,8 +53,7 @@ export function createSplash(): BrowserWindow {
     resizable: false,
     hasShadow: true,
     roundedCorners: true,
-    vibrancy: "popover", // §D8: the pre-26 fallback material
-    visualEffectState: "active", // stay lit (it shows for seconds)
+    ...shellPlatform.splashMaterial(),
     alwaysOnTop: true,
     center: true,
     show: false,
