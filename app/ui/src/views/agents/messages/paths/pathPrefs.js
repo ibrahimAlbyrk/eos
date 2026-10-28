@@ -7,6 +7,6 @@ export function usePathPrefs() {
     editor: useSettingOr("paths.editor", ""),
     plainText: useSettingOr("paths.plainText", true) !== false,
     shorten: useSettingOr("paths.shorten", true) !== false,
-    peek: useSettingOr("paths.peek", true) !== false,
+    peek: useSettingOr("paths.peek", false) === true,
   };
 }

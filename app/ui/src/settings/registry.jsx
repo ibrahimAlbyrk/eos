@@ -421,7 +421,7 @@ export const SETTINGS_SECTIONS = [
             label: "Hover preview",
             description: "Hovering a path shows a look inside the file or folder.",
             control: { type: "toggle" },
-            defaultValue: true,
+            defaultValue: false,
           },
         ],
       },
