@@ -81,7 +81,7 @@ function classifyCommonTop(p: string): GitChangeKind | null {
 
 function classifyRefs(p: string): GitChangeKind | null {
   // refs/stash is the stash ref; everything else under refs/ is a branch/tag/remote.
-  return p.endsWith("/refs/stash") ? "stash" : "refs";
+  return p.endsWith(`${sep}refs${sep}stash`) ? "stash" : "refs";
 }
 
 // Ignore VCS internals, dependency caches, build output (shared list) AND a

@@ -63,7 +63,7 @@ jobs:
           cd manager
           files=$(node -p 'require("./package.json").scripts.test.replace(/^tsx --test /, "")')
           for f in $files; do
-            timeout 300 npx tsx --test "$f" > ../test-out.log 2>&1; code=$?
+            code=0; timeout 300 npx tsx --test "$f" > ../test-out.log 2>&1 || code=$?
             if [ $code -eq 124 ]; then echo "::error::TIMEOUT $f"; failed="$failed manager:$f"
             elif [ $code -ne 0 ]; then echo "::group::FAIL $f"; grep -E "✖|Error|expected|actual" ../test-out.log | head -40; echo "::endgroup::"; failed="$failed manager:$f"
             fi

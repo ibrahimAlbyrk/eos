@@ -103,7 +103,8 @@ describe("sync stores", () => {
     const id = newSyncIdentity("wss://r/");
     ids.save(id);
     assert.deepEqual(ids.load(), id);
-    assert.equal(statSync(join(dir, "identity.json")).mode & 0o777, 0o600);
+    // Windows has no POSIX modes: the profile ACL protects the file.
+    if (process.platform !== "win32") assert.equal(statSync(join(dir, "identity.json")).mode & 0o777, 0o600);
     ids.clear();
     assert.equal(ids.load(), null);
   });

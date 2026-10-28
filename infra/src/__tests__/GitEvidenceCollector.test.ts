@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir, homedir } from "node:os";
+import { join } from "node:path";
 import { GitEvidenceCollector } from "../goalcheck/GitEvidenceCollector.ts";
 import type { GoalSpec } from "../../../contracts/src/loop.ts";
 import type { GoalContext } from "../../../core/src/ports/GoalCheckStrategy.ts";
@@ -123,7 +124,7 @@ describe("GitEvidenceCollector", () => {
   });
 
   it("expands a leading ~/ to the homedir (path.resolve would not)", async () => {
-    const abs = `${homedir()}/notes/x.txt`;
+    const abs = join(homedir(), "notes", "x.txt");
     const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "artifact at ~/notes/x.txt" }] };
     const bundle = await fileCollector({ [abs]: "home artifact" }).collect(goal, { workerId: "w-1", attempt: 0 });
     assert.equal(bundle.files?.length, 1);
