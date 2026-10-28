@@ -19,7 +19,7 @@ function makeContainer(askSide: (q: string, o?: { signal?: AbortSignal }) => Pro
   };
   const c = {
     uiToken: "tok",
-    workers: { findById: (id: string) => (id === "w-1" ? { id } : null) },
+    workers: { findById: (id: string) => (id === "w-1" ? { id, state: "IDLE", archived_at: null } : null) },
     inProcessSession: () => session,
   } as unknown as Container;
   return { c, asked };

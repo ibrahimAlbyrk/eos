@@ -9,6 +9,7 @@ import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { uiTokenOk } from "./fs-shared.ts";
+import { resumeIfDead } from "./resume-helpers.ts";
 import { askSideQuestion } from "../../core/src/use-cases/AskSideQuestion.ts";
 import { SideQuestionRequestSchema, type SideQuestionAnswer } from "../../contracts/src/side-question.ts";
 
@@ -22,7 +23,7 @@ export function registerSideQuestionRoutes(r: Router, c: Container): void {
     res.on("close", () => { if (!res.writableEnded) abort.abort(); });
     try {
       const answer: SideQuestionAnswer = await askSideQuestion(
-        { workers: c.workers, session: c.inProcessSession },
+        { workers: c.workers, revive: (w) => resumeIfDead(c, w), session: c.inProcessSession },
         { workerId: params.id, question: body.question, signal: abort.signal },
       );
       writeJson(res, 200, answer);

@@ -16,8 +16,10 @@ that drops it.
 
 - A reply with `synthetic: true` is the binary's own text (an API error), and
   `null` means no answer; both reach the user as an error, never as an answer.
-- Only a live session can answer: a suspended agent, or one mid-restart
-  (compaction, `/clear`, rewind, recall), gets a 409.
+- A suspended agent (every idle chat after a daemon restart) is revived
+  first, as a message to it would be (`resumeIfDead`); a resumed session
+  answers before it has run any turn. One mid-restart (compaction, `/clear`,
+  rewind, recall) gets a 409.
 - It bills the same subscription and limits as the agent.
 
 ## Layers
@@ -25,9 +27,9 @@ that drops it.
 - **Port** (`core/src/ports/AgentBackend.ts`): `capabilities.sideQuestion` +
   `AgentSession.askSide(question, { signal }) → SideAnswer`. Callers gate on the
   flag, never on backend kind. Only the claude lane declares it.
-- **Use-case** (`core/src/use-cases/AskSideQuestion.ts`): worker exists →
-  question not empty → capability → live session → answer. A failure is a
-  `ConflictError` (409).
+- **Use-case** (`core/src/use-cases/AskSideQuestion.ts`): worker exists and
+  isn't archived → question not empty → capability → revive if suspended →
+  answer. A failure is a `ConflictError` (409).
 - **Route** (`manager/routes/side-question.ts`): `POST /workers/:id/btw`
   `{ question }` → `{ answer }`, ui-token gated. The answer rides the response;
   a caller that goes away aborts it. No bus topic and nothing persisted. Shapes
