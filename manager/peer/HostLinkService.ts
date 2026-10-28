@@ -24,6 +24,7 @@ import { HostLink } from "./HostLink.ts";
 import { dialFailure, explainDialFailures, type DialFailure } from "./dial-failure.ts";
 import { decodeInvite } from "./invite-codec.ts";
 import { openRelayPipe, relayJoinBearer, RelayJoinError } from "./relay-pipe.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 const PAIR_TIMEOUT_MS = 10_000;
 const NETWORK_POLL_MS = 3_000;
@@ -133,7 +134,7 @@ export class HostLinkService {
       const req: PairRequest = {
         secret: invite.sec,
         name: this.deps.deviceName(),
-        platform: process.platform,
+        platform: hostPlatform.os,
         ...(reciprocal ? { reciprocal: { addrs: reciprocal.addrs, relay: reciprocal.relay } } : {}),
       };
       ({ status, body } = await postJson(session, ROUTES.peerPair, req));

@@ -37,6 +37,9 @@ export const USER_DATA_ENTRIES = [
   // Sync (~/.eos/sync/): the sync key (on a Mac whose other Macs are gone, the
   // only way back into the account), its index and kept conflicts.
   "sync",
+  // Provider API keys on Windows (~/.eos/secrets/), sealed with DPAPI for this
+  // user — macOS keeps them in the Keychain. Non-regenerable.
+  "secrets",
   // User projects (~/.eos/projects.json) — names, icons, source folders.
   "projects.json",
   "policy.yaml",

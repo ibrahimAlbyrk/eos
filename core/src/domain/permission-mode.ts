@@ -48,16 +48,20 @@ const BROWSER_READ_VERBS = new Set(["snapshot", "find", "get", "screenshot", "ta
 // Pure segment-level resolution (core can't use node:path). Resolves "."/".."
 // so a traversal like plans/../../etc can't spoof the prefix check. Symlinks
 // are NOT resolved — creating one inside plansDir already requires write
-// access, so that escape is outside the threat model.
+// access, so that escape is outside the threat model. A Windows path
+// (C:\a\b or C:/a/b) keeps its drive as the first segment and compares
+// case-insensitively, as Windows does.
 function resolveSegments(p: string): string[] | null {
-  if (!p.startsWith("/")) return null;
-  const out: string[] = [];
-  for (const seg of p.split("/")) {
+  const drive = /^([A-Za-z]):[\\/]/.exec(p);
+  if (!drive && !p.startsWith("/")) return null;
+  const out: string[] = drive ? [`${drive[1]}:`] : [];
+  const root = out.length;
+  for (const seg of (drive ? p.slice(2) : p).split(drive ? /[\\/]/ : "/")) {
     if (seg === "" || seg === ".") continue;
-    if (seg === "..") { out.pop(); continue; }
+    if (seg === "..") { if (out.length > root) out.pop(); continue; }
     out.push(seg);
   }
-  return out;
+  return drive ? out.map((s) => s.toLowerCase()) : out;
 }
 
 export function isPathInside(child: string, parent: string): boolean {

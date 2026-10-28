@@ -114,7 +114,8 @@ export class AppBrowserHost {
 
   // Send one port-method RPC and await the app's reply. Rejects with an Error
   // whose `.name` is the remote error's class so StaleRefError survives the hop.
-  rpc(sessionKey: string, method: string, args: unknown[]): Promise<unknown> {
+  // A call that waits on the user (a file dialog) passes a longer timeout.
+  rpc(sessionKey: string, method: string, args: unknown[], timeoutMs = RPC_TIMEOUT_MS): Promise<unknown> {
     const ws = this.ws;
     if (!ws) return Promise.reject(new Error("browser host not connected"));
     const id = ++this.frameId;
@@ -126,7 +127,7 @@ export class AppBrowserHost {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.pending.delete(id)) reject(new Error(`browser host RPC timeout: ${method}`));
-      }, RPC_TIMEOUT_MS);
+      }, timeoutMs);
       timer.unref?.();
       this.pending.set(id, { resolve, reject, timer });
     });

@@ -1,30 +1,44 @@
 // macOS-specific FS helpers extracted from daemon.ts. Encapsulates the
-// Swift helper, sips icon conversion, and `open` shellouts. Linux/Windows
-// fallbacks return null/throw — see NoopFsHelpers.
+// Swift helper, sips icon conversion, and `open` shellouts. Other systems use
+// NoopFsHelpers.
 
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
+import { EDITOR_APPS, type EditorId } from "../../../contracts/src/http.ts";
+import type { AppInfo, FsHelpers, OpenInTarget } from "./FsHelpers.ts";
 
-export interface AppInfo {
-  bundlePath: string;
-  bundleId: string;
-  appName: string;
+// Editors that open a file at a line through their own URL scheme
+// (<scheme>://file/<path>:<line>:<column>); the rest open the file only.
+const LINE_URL_SCHEMES: Partial<Record<EditorId, string>> = { vscode: "vscode", cursor: "cursor" };
+
+// `open` argv per target. finder = reveal (`open -R <path>`); an editor opens
+// the path in that app. Pure so it's unit-testable without spawning.
+export function openInArgv(target: OpenInTarget, path: string, line?: number, column?: number): string[] {
+  if (target === "finder") return ["-R", path];
+  const scheme = LINE_URL_SCHEMES[target];
+  if (scheme && line) {
+    const encoded = path.split("/").map(encodeURIComponent).join("/");
+    return [`${scheme}://file${encoded}:${line}${column ? `:${column}` : ""}`];
+  }
+  return ["-a", EDITOR_APPS[target], path];
 }
 
-export interface FsHelpers {
-  pickDirectory(): Promise<string | null>;
-  pickFiles(): Promise<string[] | null>;
-  resolveDefaultApp(opts: { path?: string; ext?: string }): Promise<AppInfo | null>;
-  iconForApp(bundlePath: string, bundleId: string): Promise<string | null>;
-  openPath(path: string): Promise<void>;
-  /**
-   * Returns the cached PNG path if one exists for this bundleId AND the
-   * underlying icon file is on disk. Builds the icon from the cached
-   * AppInfo's bundlePath if needed. Returns null only when the icon truly
-   * can't be produced (non-darwin, bundle never seen, .icns missing, etc.).
-   */
-  iconPathForBundleId(bundleId: string): Promise<string | null>;
+// The editors installed in /Applications or ~/Applications, in EDITOR_APPS order.
+export function installedEditors(exists: (_path: string) => boolean = existsSync): Array<{ id: EditorId; name: string }> {
+  const dirs = ["/Applications", join(homedir(), "Applications")];
+  return (Object.entries(EDITOR_APPS) as Array<[EditorId, string]>)
+    .filter(([, name]) => dirs.some((d) => exists(join(d, `${name}.app`))))
+    .map(([id, name]) => ({ id, name }));
+}
+
+function runOpen(args: string[]): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn("open", args, { stdio: "ignore" });
+    proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`open exit ${code}`)));
+    proc.on("error", reject);
+  });
 }
 
 export interface DarwinFsHelpersOptions {
@@ -67,6 +81,8 @@ export function createDarwinFsHelpers(opts: DarwinFsHelpersOptions): FsHelpers {
   }
 
   return {
+    canPick: true,
+
     async pickDirectory(): Promise<string | null> {
       const out = await new Promise<string>((resolve) => {
         const proc = spawn(
@@ -164,12 +180,18 @@ export function createDarwinFsHelpers(opts: DarwinFsHelpersOptions): FsHelpers {
     },
 
     async openPath(path): Promise<void> {
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn("open", [path], { stdio: "ignore" });
-        proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`open exit ${code}`)));
-        proc.on("error", reject);
-      });
+      await runOpen([path]);
     },
+
+    async revealPath(path): Promise<void> {
+      await runOpen(["-R", path]);
+    },
+
+    async openIn(target, path, line, column): Promise<void> {
+      await runOpen(openInArgv(target, path, line, column));
+    },
+
+    installedEditors: () => installedEditors(),
 
     async iconPathForBundleId(bundleId): Promise<string | null> {
       const safe = sanitizeBundleId(bundleId);

@@ -10,7 +10,7 @@ function tmp(): string {
   return mkdtempSync(join(tmpdir(), "eos-fs-test-"));
 }
 function fsFor(root: string) {
-  return createNodeFileSystem({ trashDir: join(root, ".trash"), platform: "linux" });
+  return createNodeFileSystem({ trashDir: join(root, ".trash"), systemTrash: null });
 }
 
 test("listDir returns dirs-first, hides node_modules + dotfiles", async () => {

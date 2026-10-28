@@ -27,6 +27,7 @@ import { createLocalForwarder, respondJson, type LocalDaemonTarget } from "./gat
 import { encodeInvite } from "./invite-codec.ts";
 import { PeerRelayHost, bearerHash, relayJoinBearer, type RelayPipe } from "./relay-pipe.ts";
 import { startKeepAwake } from "../remote/keepAwake.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 // Invites never expire on their own (one may be redeemed a day later, from
 // another network) — so only a few may be open at once, each works once, and
@@ -143,7 +144,7 @@ export class PeerHostService {
       id: fp,
       deviceId: formatDeviceId(fp),
       name: this.deps.getConfig().name ?? this.machineName,
-      platform: process.platform,
+      platform: hostPlatform.os,
       home: homedir(),
       apiStamp: this.apiStamp,
       servesUi: this.deps.servesUi(),

@@ -27,6 +27,16 @@ describe("isPathInside", () => {
     assert.equal(isPathInside(`${PLANS}/sub/../plan.md`, PLANS), true);
   });
 
+  it("reads Windows paths: either separator, drive and case don't matter, no escape past the drive", () => {
+    const winPlans = "C:\\Users\\me\\.claude\\plans";
+    assert.equal(isPathInside("C:\\Users\\me\\.claude\\plans\\plan.md", winPlans), true);
+    assert.equal(isPathInside("c:/users/ME/.claude/plans/a/plan.md", winPlans), true);
+    assert.equal(isPathInside("C:\\Users\\me\\.claude\\plans\\..\\x.md", winPlans), false);
+    assert.equal(isPathInside("D:\\Users\\me\\.claude\\plans\\plan.md", winPlans), false);
+    assert.equal(isPathInside("C:\\..\\..\\Users\\me\\.claude\\plans\\plan.md", winPlans), true);
+    assert.equal(isPathInside("/Users/me/.claude/plans/plan.md", winPlans), false);
+  });
+
   it("rejects relative paths", () => {
     assert.equal(isPathInside("plans/plan.md", PLANS), false);
   });

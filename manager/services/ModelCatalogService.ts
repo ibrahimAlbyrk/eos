@@ -5,15 +5,14 @@
 // a fetch failure (expired token, offline) falls back to the cached list, and the
 // web UI keeps its own hardcoded baseline as the final fallback.
 
-import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { homedir } from "node:os";
+import { dirname } from "node:path";
 
 import type { Clock } from "../../core/src/ports/Clock.ts";
 import type { CatalogModel } from "../../contracts/src/http.ts";
 import { CatalogModelSchema } from "../../contracts/src/http.ts";
 import { EFFORT_LEVELS } from "../../contracts/src/shared.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 import { z } from "zod";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
@@ -147,12 +146,8 @@ function extractEffortLevels(capabilities: unknown): string[] | null {
 // so it stays fresh in practice. Never logged, never sent to the web UI.
 function readOauthToken(): string | null {
   try {
-    const raw =
-      process.platform === "darwin"
-        ? execFileSync("security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"], {
-            encoding: "utf8",
-          })
-        : readFileSync(join(homedir(), ".claude", ".credentials.json"), "utf8");
+    const raw = hostPlatform.credentials.readClaudeStore();
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     const oauth = (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
     const token = typeof oauth.accessToken === "string" ? oauth.accessToken : null;

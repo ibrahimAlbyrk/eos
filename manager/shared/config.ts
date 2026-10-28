@@ -22,6 +22,7 @@ import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 import type { ArchiveRetention } from "../../core/src/use-cases/PurgeExpiredArchives.ts";
 import { isTieredPrice, type ModelPriceSpec, type PriceTier } from "../../core/src/domain/value-objects.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
 // A config price is EITHER flat (the existing/LiteLLM shape) or context-tiered.
@@ -47,7 +48,7 @@ export interface DaemonConfig {
     home: string;            // ~/.eos
     logDir: string;          // ~/.eos/logs
     pidFile: string;         // ~/.eos/daemon.pid
-    socketFile: string;      // ~/.eos/daemon.sock — unix-socket twin of the HTTP API
+    socketFile: string;      // ~/.eos/daemon.sock (a named pipe on Windows) — local twin of the HTTP API
     dbFile: string;          // ~/.eos/state.db
     sseKeepaliveMs: number;
   };
@@ -344,7 +345,7 @@ export function defaults(): DaemonConfig {
       home,
       logDir: join(home, "logs"),
       pidFile: join(home, "daemon.pid"),
-      socketFile: join(home, "daemon.sock"),
+      socketFile: hostPlatform.controlSocket(home),
       dbFile: join(home, "state.db"),
       sseKeepaliveMs: envNum("EOS_SSE_KEEPALIVE_MS", 25000),
     },

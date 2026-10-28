@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { CLAUDE_COMMAND, type PtyPending } from "../../../contracts/src/http.ts";
+import { hostPlatform, type TerminalShell } from "../../../infra/src/platform/index.ts";
 
 // How a claude PTY is launched and how its pane reports back. Claude Code runs
 // with inline `--settings` hooks (no file anywhere, no effect on other sessions)
@@ -42,11 +43,14 @@ const withHooks = (claudeCmd: string): string =>
 
 // The conversation id is pinned up front so the pane can be resumed after its
 // PTY dies. A conversation that never got a message has no transcript to resume
-// — then it starts fresh under the same id.
-export function claudeLaunch(resume?: string): { command: string; claudeSessionId: string } {
+// — then it starts fresh under the same id. Where the pane's shell can't hand
+// hooks its terminal device, the pane runs without them: the pinned id stands
+// (a /clear inside isn't followed) and open dialogs aren't reported.
+export function claudeLaunch(resume?: string, shell: TerminalShell = hostPlatform.shell): { command: string; claudeSessionId: string } {
   const id = resume ?? randomUUID();
-  const fresh = withHooks(`${CLAUDE_COMMAND} --session-id ${id}`);
-  const command = resume ? `${withHooks(`${CLAUDE_COMMAND} --resume ${id}`)} || ${fresh}` : fresh;
+  const hooked = shell.ttyHooks ? withHooks : (cmd: string) => cmd;
+  const fresh = hooked(`${CLAUDE_COMMAND} --session-id ${id}`);
+  const command = resume ? shell.orElse(hooked(`${CLAUDE_COMMAND} --resume ${id}`), fresh) : fresh;
   return { command, claudeSessionId: id };
 }
 

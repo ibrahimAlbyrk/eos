@@ -1,6 +1,7 @@
 import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { claudeStoreService, createSubscriptionAuthResolver } from "../auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver } from "../auth/SubscriptionAuthResolver.ts";
+import { claudeStoreService } from "../platform/keychain.ts";
 
 describe("SubscriptionAuthResolver", () => {
   const saved: Record<string, string | undefined> = {};

@@ -6,11 +6,9 @@
 
 import { readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { hostPlatform } from "../platform/index.ts";
 
 let cachedLimit: number | null | undefined;
-
-// <sys/syslimits.h> OPEN_MAX
-const DARWIN_OPEN_MAX = 10240;
 
 export function openFdCount(): number | null {
   try {
@@ -31,15 +29,10 @@ export function softFdLimit(): number | null {
 function readSoftLimit(): number | null {
   try {
     const soft = numOrNull(execFileSync("/bin/sh", ["-c", "ulimit -n"], { encoding: "utf8" }).trim());
-    // macOS caps actual open fds at kern.maxfilesperproc regardless of the (often
-    // far larger) rlimit Node sets at startup, and posix_spawn rejects any fd
-    // ≥ OPEN_MAX with EBADF — so past OPEN_MAX open fds the daemon can no longer
-    // start a child, whatever the rlimit. On Linux the rlimit soft value is the ceiling.
-    if (process.platform === "darwin") {
-      const cap = numOrNull(execFileSync("/usr/sbin/sysctl", ["-n", "kern.maxfilesperproc"], { encoding: "utf8" }).trim());
-      return Math.min(soft ?? Infinity, cap ?? Infinity, DARWIN_OPEN_MAX);
-    }
-    return soft;
+    // Some systems stop a process well below its rlimit (see HostPlatform.fdCeiling).
+    const ceiling = hostPlatform.fdCeiling();
+    if (soft === null) return ceiling;
+    return ceiling === null ? soft : Math.min(soft, ceiling);
   } catch {
     return null;
   }

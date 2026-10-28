@@ -18,11 +18,12 @@ import type {
   ListDirOptions,
   MoveOptions,
 } from "../../../core/src/ports/FileSystem.ts";
-import { trashIntoDir, trashViaFinder } from "./trashDarwin.ts";
+import { trashIntoDir } from "./trashDarwin.ts";
 
 export interface NodeFileSystemDeps {
   trashDir: string; // ~/.eos-trash fallback root
-  platform: string; // process.platform
+  /** The system trash (HostPlatform.trash); null = trashDir only. */
+  systemTrash: ((path: string) => Promise<void>) | null;
 }
 
 function mapFsError(e: unknown, path: string): never {
@@ -39,7 +40,7 @@ function compareEntries(a: FsEntryMeta, b: FsEntryMeta): number {
 }
 
 export function createNodeFileSystem(deps: NodeFileSystemDeps): FileSystem {
-  const { trashDir, platform } = deps;
+  const { trashDir, systemTrash } = deps;
 
   const exists = async (p: string): Promise<boolean> => {
     try {
@@ -163,13 +164,13 @@ export function createNodeFileSystem(deps: NodeFileSystemDeps): FileSystem {
   };
 
   const trash = async (path: string): Promise<void> => {
-    if (platform === "darwin") {
+    if (systemTrash) {
       try {
-        await trashViaFinder(path);
+        await systemTrash(path);
         return;
       } catch {
-        // Finder automation may be denied/unavailable; fall back to the
-        // daemon-owned trash dir so delete still works and stays reversible.
+        // The system trash may be denied/unavailable (Finder automation); fall
+        // back to the daemon-owned trash dir so delete still works and stays reversible.
         await trashIntoDir(path, trashDir);
         return;
       }

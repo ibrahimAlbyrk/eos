@@ -25,6 +25,7 @@ import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { GitDirs } from "../../../core/src/ports/GitInfo.ts";
 import type { GitChangeKind, GitChangeSink, GitWatcher } from "../../../core/src/ports/GitWatcher.ts";
 import { IGNORED_ENTRIES } from "../../../core/src/domain/fsIgnore.ts";
+import { hostPlatform } from "../platform/index.ts";
 
 const DEBOUNCE_MS = 200;
 
@@ -98,9 +99,10 @@ function makeWorktreeIgnore(root: string): (p: string) => boolean {
 // chokidar v4 holds a kqueue fd per watched FILE on macOS, so a few checkouts
 // push the daemon past fd 10240 — where macOS's posix_spawn rejects every new
 // child (claude, git) with EBADF. Native watches cost no fds: a plain dir watch
-// is one FSEvents/inotify entry, and on macOS a recursive one rides the same
-// shared FSEvents stream. Only recursive targets off macOS stay on chokidar.
-const NATIVE_RECURSIVE_WATCH = process.platform === "darwin";
+// is one FSEvents/inotify entry, and where the system has a cheap recursive
+// watch (macOS's shared FSEvents stream) a recursive one rides it too. Only
+// recursive targets elsewhere stay on chokidar.
+const NATIVE_RECURSIVE_WATCH = hostPlatform.nativeRecursiveWatch;
 
 // recursive = the whole subtree; otherwise the dir's direct entries only.
 function openTarget(root: string, recursive: boolean, ignore?: (p: string) => boolean): Opener {

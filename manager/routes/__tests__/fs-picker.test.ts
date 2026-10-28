@@ -1,12 +1,13 @@
 // POST /fs/open-in — path-based reveal/open. argv construction is unit-tested
 // via the pure openInArgv helper (no spawn); the route tests only exercise the
-// guard paths, which return before execFileSync.
+// guard paths, which return before anything opens.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { Router } from "../Router.ts";
-import { registerFsPickerRoutes, openInArgv, installedEditors } from "../fs-picker.ts";
+import { registerFsPickerRoutes } from "../fs-picker.ts";
+import { openInArgv, installedEditors } from "../../../infra/src/filesystem/DarwinFsHelpers.ts";
 import type { Container } from "../../container.ts";
 import type { RouteContext } from "../Router.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";

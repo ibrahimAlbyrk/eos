@@ -5,6 +5,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { hostPlatform } from "../platform/index.ts";
 
 const exec = promisify(execFile);
 
@@ -28,7 +29,9 @@ export interface ShellResult {
 
 export async function runShell(cmd: string, cwd: string, timeoutMs: number, signal?: AbortSignal): Promise<ShellResult> {
   try {
-    const { stdout, stderr } = await exec("/bin/sh", ["-c", cmd], { cwd, timeout: timeoutMs, maxBuffer: MAX_BUFFER, signal });
+    const sh = hostPlatform.scriptShell();
+    if (!sh) return { exitCode: 127, output: "no POSIX shell on this system (install Git for Windows)" };
+    const { stdout, stderr } = await exec(sh, ["-c", cmd], { cwd, timeout: timeoutMs, maxBuffer: MAX_BUFFER, signal });
     return { exitCode: 0, output: combine(stdout, stderr) };
   } catch (e) {
     const err = e as { code?: unknown; name?: unknown; stdout?: string; stderr?: string };

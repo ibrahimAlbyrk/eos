@@ -125,8 +125,8 @@ import { buildMicroTasks } from "./services/micro-tasks/registry.ts";
 import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
-import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
-import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
+import type { FsHelpers } from "../infra/src/filesystem/FsHelpers.ts";
+import { hostPlatform } from "../infra/src/platform/index.ts";
 import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
 import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
 import { TreeSitterSymbolIndex } from "../infra/src/symbols/TreeSitterSymbolIndex.ts";
@@ -430,12 +430,10 @@ export function buildContainer() {
   });
 
   // FS helpers (platform-specific) -----------------------------------------
-  const fs: FsHelpers = process.platform === "darwin"
-    ? createDarwinFsHelpers({
-        helperScript: join(config.paths.repoRoot, "manager", "scripts", "macos-default-app.swift"),
-        iconCacheDir: join(config.daemon.home, "icon-cache"),
-      })
-    : noopFsHelpers;
+  const fs: FsHelpers = hostPlatform.createFsHelpers({
+    repoRoot: config.paths.repoRoot,
+    iconCacheDir: join(config.daemon.home, "icon-cache"),
+  });
 
   // Files explorer: generic file ops + a native directory watcher whose
   // change batches are published on the bus → SSE → web (the Files tab
@@ -443,7 +441,7 @@ export function buildContainer() {
   // clients so a dropped tab releases them.
   const files = createNodeFileSystem({
     trashDir: join(config.daemon.home, ".eos-trash"),
-    platform: process.platform,
+    systemTrash: hostPlatform.trash,
   });
   const fileWatcher = new NodeFileWatcher({
     clock: systemClock,

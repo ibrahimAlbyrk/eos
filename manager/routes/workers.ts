@@ -30,7 +30,6 @@ import {
   OpenInRequestSchema,
   ResolveConflictRequestSchema,
   WorkerChangesDiscardRequestSchema,
-  type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 import { computeContextPct } from "../../core/src/domain/context-usage.ts";
@@ -63,6 +62,7 @@ import { archivePurgeDeps } from "../shared/archive-purge.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 import { decidePullPlan, isActionablePullPlan } from "../../core/src/domain/pull-plan.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
+import { repoRelative } from "./fs-shared.ts";
 
 // Window in which a SessionEnd(clear) hook is treated as a duplicate of a
 // conversation_cleared the /clear slash command just appended (command → hook
@@ -843,10 +843,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   const uiTokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
     constantTimeEqual(req.headers["x-eos-ui-token"], c.uiToken);
 
-  // Reject absolute paths and `..` traversal — every git path the UI sends is
-  // repo-relative (same guard as the /changes/file route below).
-  const repoRelative = (p: string): boolean => !!p && !p.startsWith("/") && !p.split("/").includes("..");
-
   const tryRefOf = (id: string): { ref?: { repoRoot: string; worktreeDir: string | null; branch: string; workerId: string }; status: number; error?: string } => {
     const w = c.workers.findById(id);
     if (!w) return { status: 404, error: "worker not found" };
@@ -974,11 +970,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   // Breadcrumb "Open in" — launches a host app on the agent's working dir.
   // The dir is resolved server-side from the row (never from the request).
-  const OPEN_TARGETS: Record<OpenInRequest["target"], string[]> = {
-    finder: [],
-    vscode: ["-a", "Visual Studio Code"],
-  };
-
   r.post(/^\/workers\/(?<id>[^/]+)\/open$/, async ({ params, req, res }) => {
     if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
     const body = validate(OpenInRequestSchema, await readBody(req));
@@ -987,8 +978,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const dir = gitDirOf(w);
     if (!dir || !existsSync(dir)) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
     try {
-      const { execFileSync } = await import("node:child_process");
-      execFileSync("open", [...OPEN_TARGETS[body.target], dir]);
+      // finder opens the folder itself (not revealed in its parent).
+      await (body.target === "finder" ? c.fs.openPath(dir) : c.fs.openIn(body.target, dir));
       writeJson(res, 200, { ok: true });
     } catch (e) {
       writeJson(res, 500, { error: errMsg(e) });
@@ -1034,7 +1025,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       path: url.searchParams.get("path") ?? undefined,
       oldPath: url.searchParams.get("oldPath") ?? undefined,
     });
-    if (q.path.startsWith("/") || q.path.split("/").includes("..")) {
+    if (!repoRelative(q.path)) {
       writeJson(res, 400, { error: "path must be repo-relative" });
       return;
     }

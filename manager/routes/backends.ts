@@ -20,7 +20,7 @@ import type { BackendDescriptor } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolvedAuth } from "../../core/src/ports/AuthResolver.ts";
 import { TestBackendRequestSchema, type TestBackendRequest, type TestBackendResponse } from "../../contracts/src/http.ts";
 import { normalizeBaseOrigin, modelsPathFor } from "../../infra/src/backends/base-url.ts";
-import { writeKeychainSecret } from "../../infra/src/auth/SubscriptionAuthResolver.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 import { billedProfileNeedsPrice, type ModelPrice, type ModelPriceSpec } from "../shared/config.ts";
 import { PROVIDER_PRESETS, findPreset, fallbackModelsForBaseUrl, type ProviderPreset } from "../shared/provider-presets.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -276,7 +276,7 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
     const resolvedAuth = prepared.profile.auth;
     if (resolvedAuth?.kind === "keychain" && resolvedAuth.ref && body.apiKey) {
       try {
-        writeKeychainSecret(resolvedAuth.ref, body.apiKey);
+        hostPlatform.credentials.writeSecret(resolvedAuth.ref, body.apiKey);
       } catch (e) {
         writeJson(res, 500, { error: `failed to store API key in Keychain: ${errMsg(e)}` });
         return;

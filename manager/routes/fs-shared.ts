@@ -17,7 +17,7 @@ export interface FsEntry {
 export const IGNORED = IGNORED_ENTRIES;
 
 export function isSafeAbsPath(p: unknown): p is string {
-  return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
+  return typeof p === "string" && isAbsolute(p) && !p.includes("\0");
 }
 
 // ext → mime for raw image responses (/fs/image, /fs/blob). Unknown extensions
@@ -29,9 +29,10 @@ export const IMAGE_MIME: Record<string, string> = {
 };
 
 // Reject absolute paths and `..` traversal — every git path the UI sends is
-// repo-relative (same predicate as the worker changes/file routes).
+// repo-relative (same predicate as the worker changes/file routes). Either
+// separator counts: Windows takes both.
 export function repoRelative(p: string): boolean {
-  return p.length > 0 && !p.startsWith("/") && !p.split("/").includes("..");
+  return p.length > 0 && !isAbsolute(p) && !p.split(/[\\/]/).includes("..");
 }
 
 // UI-origin token gate. Mutating /fs git routes (branch admin, fetch, pull,

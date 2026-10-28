@@ -12,6 +12,14 @@ import type {
   ProcessRunOptions,
   BackgroundReadResult,
 } from "../../../core/src/ports/ProcessRunner.ts";
+import { hostPlatform } from "../platform/index.ts";
+
+// Agents write their commands for sh; a system without one fails each run clearly.
+function scriptShell(): string {
+  const sh = hostPlatform.scriptShell();
+  if (!sh) throw new Error("no POSIX shell on this system (install Git for Windows)");
+  return sh;
+}
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 // Cap on how much of one stream we retain in memory so a runaway command can't grow
@@ -70,7 +78,7 @@ export function createNodeProcessRunner(): ProcessRunner {
       return new Promise((resolve) => {
         // stdin: "ignore" so a command that reads stdin (e.g. a path-less `rg`, `cat`)
         // gets EOF instead of blocking on a never-closed pipe.
-        const child = spawn(command, { cwd: opts.cwd, shell: "/bin/sh", stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn(command, { cwd: opts.cwd, shell: scriptShell(), stdio: ["ignore", "pipe", "pipe"] });
         let stdout = "";
         let stderr = "";
         let timedOut = false;
@@ -99,7 +107,7 @@ export function createNodeProcessRunner(): ProcessRunner {
       // from holding the daemon's event loop open on its own; output capture is
       // unaffected (the stdout/stderr pipe handles stay referenced until the child
       // closes them).
-      const child = spawn(command, { cwd: opts.cwd, shell: "/bin/sh", detached: true, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(command, { cwd: opts.cwd, shell: scriptShell(), detached: true, stdio: ["ignore", "pipe", "pipe"] });
       child.unref();
       const shell: BgShell = { child, stdout: "", stderr: "", outCursor: 0, errCursor: 0, running: true, exitCode: null, owner: opts.owner };
       // Honor timeoutMs for background shells too (previously ignored): a runaway

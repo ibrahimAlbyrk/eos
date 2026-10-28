@@ -10,6 +10,7 @@ export * from "./persistence/SqliteEventRepo.ts";
 export * from "./persistence/SqlitePendingRepo.ts";
 export * from "./ipc/HttpWorkerClient.ts";
 export * from "./policy/YamlPolicyLoader.ts";
+export * from "./filesystem/FsHelpers.ts";
 export * from "./filesystem/DarwinFsHelpers.ts";
 export * from "./filesystem/NoopFsHelpers.ts";
 export * from "./git/ChildProcessGitInfo.ts";

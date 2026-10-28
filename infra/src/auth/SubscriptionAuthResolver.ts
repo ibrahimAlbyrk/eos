@@ -1,17 +1,16 @@
 // AuthResolver adapter. subscription -> the Eos Claude sign-in (Claude Max/Pro);
 // env/keychain -> a provider API key. Lazy at launch, never persisted, never
-// logged. The login is read here (Node: Keychain / filesystem), so core stays free
+// logged. The login is read here (the system's credential store), so core stays free
 // of those concerns.
 
-import { execFile, execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
-import { homedir } from "node:os";
+import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { AuthResolver, ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
 import { buildSubscriptionChildEnv } from "../../../core/src/domain/env-allowlist.ts";
+import { hostPlatform } from "../platform/index.ts";
 
 const NONE: ResolvedAuth = { scheme: "none" };
 
@@ -20,7 +19,7 @@ const NONE: ResolvedAuth = { scheme: "none" };
 // every claude it runs sees only the Eos sign-in, never the Mac's Claude Code login.
 export const CLAUDE_STORE_ENV = "CLAUDE_SECURESTORAGE_CONFIG_DIR";
 
-// A Claude Code login store (macOS Keychain / <dir>/.credentials.json), read live on
+// A Claude Code login store (the system's credential store), read live on
 // every call so a sign-in or refresh is picked up without a restart. `present` is
 // any claude.ai login — even one whose access token lapsed, since the claude binary
 // refreshes that itself. `token` is the access token only while it is still valid.
@@ -33,19 +32,10 @@ export interface ClaudeCodeLogin {
 
 const NO_LOGIN: ClaudeCodeLogin = { present: false, token: null };
 
-// The Keychain item the claude binary keeps a store's login in: a store dir set
-// through CLAUDE_STORE_ENV gets its own item, suffixed with a hash of that dir.
-export function claudeStoreService(storeDir?: string): string {
-  if (!storeDir) return "Claude Code-credentials";
-  return `Claude Code-credentials-${createHash("sha256").update(storeDir.normalize("NFC")).digest("hex").slice(0, 8)}`;
-}
-
 function readClaudeStore(storeDir?: string): Record<string, unknown> | null {
   try {
-    const raw =
-      process.platform === "darwin"
-        ? execFileSync("security", ["find-generic-password", "-s", claudeStoreService(storeDir), "-w"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] })
-        : readFileSync(join(storeDir ?? join(homedir(), ".claude"), ".credentials.json"), "utf8");
+    const raw = hostPlatform.credentials.readClaudeStore(storeDir);
+    if (!raw) return null;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     return (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
   } catch {
@@ -83,15 +73,7 @@ export function readClaudeAccountEmail(storeDir: string): string | undefined {
 
 // Signing out removes the store's login, as `claude auth logout` does.
 export function clearClaudeLogin(storeDir: string): void {
-  if (process.platform === "darwin") {
-    try {
-      execFileSync("security", ["delete-generic-password", "-s", claudeStoreService(storeDir)], { stdio: "ignore" });
-    } catch {
-      // No item: already signed out.
-    }
-    return;
-  }
-  rmSync(join(storeDir, ".credentials.json"), { force: true });
+  hostPlatform.credentials.clearClaudeStore(storeDir);
 }
 
 const execFileAsync = promisify(execFile);
@@ -118,31 +100,6 @@ export async function refreshClaudeLogin(storeDir: string, binary: string): Prom
   });
 }
 
-function readKeychainSecret(service: string): string | null {
-  try {
-    const v = execFileSync("security", ["find-generic-password", "-s", service, "-w"], { encoding: "utf8" }).trim();
-    return v || null;
-  } catch {
-    return null;
-  }
-}
-
-// Companion to readKeychainSecret: store a provider API key in the macOS Keychain
-// under `service`, BY REFERENCE — the POST /api/backends route persists only the
-// auth:{kind:"keychain",ref:service} reference to config.json, never the raw key.
-// `-U` updates an existing item so re-adding a provider rotates the key in place.
-// Throws on non-darwin or a security(1) failure (the route surfaces it).
-// NOTE (m5): the secret is passed via argv (`-w <secret>`), briefly visible to a
-// same-user `ps`. `security add-generic-password` exposes no stdin/file channel for
-// the password, so there is no clean mitigation — accepted as a same-user-only
-// exposure; the key never reaches config.json/SQLite/logs/events.
-export function writeKeychainSecret(service: string, secret: string): void {
-  if (process.platform !== "darwin") {
-    throw new Error("Keychain storage is only supported on macOS");
-  }
-  execFileSync("security", ["add-generic-password", "-U", "-s", service, "-a", service, "-w", secret], { encoding: "utf8" });
-}
-
 export function createSubscriptionAuthResolver(deps?: { readLogin?: () => ClaudeCodeLogin }): AuthResolver {
   const readLogin = deps?.readLogin ?? readClaudeCodeLogin;
   return {
@@ -158,7 +115,7 @@ export function createSubscriptionAuthResolver(deps?: { readLogin?: () => Claude
         return key ? { scheme: "apikey", apiKey: key } : NONE;
       }
       if (kind === "keychain") {
-        const key = auth?.ref ? readKeychainSecret(auth.ref) : null;
+        const key = auth?.ref ? hostPlatform.credentials.readSecret(auth.ref) : null;
         return key ? { scheme: "apikey", apiKey: key } : NONE;
       }
       return NONE;

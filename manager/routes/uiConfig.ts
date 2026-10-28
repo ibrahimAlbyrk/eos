@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 // The backend names the operator actually wrote to ~/.eos/config.json, or null when
 // the file is missing/unreadable or declares no `backends`. config.backends is the
@@ -64,6 +65,7 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
       // (modelSource:"profile") — name+kind+model+label. Filtered to the operator's
       // own on-disk backends (not the shipped DEFAULT_BACKENDS config merges in).
       backendProfiles: filterBackendProfiles(allProfiles, onDiskKeys),
+      features: hostPlatform.features,
     });
   });
 }

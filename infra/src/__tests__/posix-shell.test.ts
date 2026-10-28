@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildShellInvocation } from "../shell-invocation.ts";
+import { buildShellInvocation, posixShell } from "../platform/posix-shell.ts";
 
 describe("buildShellInvocation", () => {
   it("zsh gets -i so .zshrc is sourced", () => {
@@ -29,5 +29,24 @@ describe("buildShellInvocation", () => {
       file: "/opt/weird/shell",
       args: ["-l", "-c", "ls"],
     });
+  });
+});
+
+describe("posixShell", () => {
+  it("opens a login shell, running a command first and staying open after it", () => {
+    const prev = process.env.SHELL;
+    process.env.SHELL = "/bin/zsh";
+    try {
+      assert.deepEqual(posixShell.interactive(), { file: "/bin/zsh", args: ["-l"] });
+      assert.deepEqual(posixShell.interactive({ command: "top" }), { file: "/bin/zsh", args: ["-l", "-i", "-c", "top; exec '/bin/zsh' -l"] });
+      assert.deepEqual(posixShell.interactive({ command: "top", exitAfterCommand: true }), { file: "/bin/zsh", args: ["-l", "-i", "-c", "top"] });
+    } finally {
+      if (prev === undefined) delete process.env.SHELL;
+      else process.env.SHELL = prev;
+    }
+  });
+
+  it("falls back with ||", () => {
+    assert.equal(posixShell.orElse("a", "b"), "a || b");
   });
 });

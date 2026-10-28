@@ -652,6 +652,11 @@ export const UiConfigResponseSchema = z.object({
   backends: z.array(UiBackendDescriptorSchema).default([]),
   // Configured named profiles (config.backends) for the profile-lane picker.
   backendProfiles: z.array(UiBackendProfileSchema).default([]),
+  // What Eos offers on this computer's system (infra HostPlatform.features);
+  // the dashboard hides what's off. remote = pairing with other computers and
+  // phones (Machines, Remote access, Transfer). posixShell = agents' sh commands
+  // can run (false: Windows without Git for Windows — the dashboard says so).
+  features: z.object({ remote: z.boolean(), posixShell: z.boolean() }).default({ remote: true, posixShell: true }),
 });
 export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 
