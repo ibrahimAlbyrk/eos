@@ -20,7 +20,7 @@
 import chokidar from "chokidar";
 import { watch } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { sep } from "node:path";
+import { join, sep } from "node:path";
 import type { Dirent } from "node:fs";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { GitDirs } from "../../../core/src/ports/GitInfo.ts";
@@ -155,7 +155,7 @@ async function withinDirBudget(root: string, ignore: (p: string) => boolean, bud
     }
     for (const e of entries) {
       if (!e.isDirectory()) continue;
-      const full = `${dir}/${e.name}`;
+      const full = `${dir}${sep}${e.name}`;
       if (ignore(full)) continue;
       if (++count > budget) return false;
       stack.push(full);
@@ -247,7 +247,7 @@ export class ChokidarGitWatcher implements GitWatcher {
   private metaTargets(dirs: GitDirs): Array<{ path: string; recursive: boolean; classify: Classifier }> {
     const targets: Array<{ path: string; recursive: boolean; classify: Classifier }> = [
       { path: dirs.gitDir, recursive: false, classify: classifyGitDir },
-      { path: `${dirs.commonDir}/refs`, recursive: true, classify: classifyRefs },
+      { path: join(dirs.commonDir, "refs"), recursive: true, classify: classifyRefs },
     ];
     if (dirs.commonDir !== dirs.gitDir) {
       targets.push({ path: dirs.commonDir, recursive: false, classify: classifyCommonTop });
