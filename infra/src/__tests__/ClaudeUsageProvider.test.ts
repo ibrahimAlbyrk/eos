@@ -63,6 +63,20 @@ describe("ClaudeUsageProvider", () => {
     assert.equal(usage.fetchedAt, "2026-07-17T20:00:00.000Z");
   });
 
+  it("a sign-in's provider is keyed by it and tags its snapshots", async () => {
+    let label = "Personal";
+    const provider = createClaudeUsageProvider({
+      getTokens: () => [cand("eos", "tok")],
+      fetchImpl: async () => jsonResponse(LIVE_BODY),
+      login: () => ({ id: "lg-1", label }),
+    });
+    assert.equal(provider.id, "claude:lg-1");
+    label = "Work";
+    const usage = await provider.fetchUsage();
+    assert.equal(usage.loginId, "lg-1");
+    assert.equal(usage.label, "Work");
+  });
+
   it("keeps an idle 5-hour window (no reset time yet) as 0% not started", async () => {
     const provider = createClaudeUsageProvider({
       getTokens: () => [cand("keychain", "tok")],

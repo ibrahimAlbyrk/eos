@@ -64,6 +64,10 @@ export interface AgentCapabilities {
    *  transcript, a running turn keeps going. Callers gate on this flag, never
    *  on kind — a backend without it never gets askSide() called. */
   readonly sideQuestion?: boolean;
+  /** True when the live session can move onto another plan sign-in and pick
+   *  its turn back up (switchAccount) — the plan-limit auto-switch. Callers gate
+   *  on this flag, never on kind. */
+  readonly accountSwitch?: boolean;
 }
 
 // What the UI model picker shows for a provider. claude-cli + claude share
@@ -215,6 +219,10 @@ export interface AgentSession {
   // The question and answer never enter the conversation; aborting `signal`
   // cancels the answer.
   askSide?(question: string, opts?: { signal?: AbortSignal }): Promise<SideAnswer>;
+  // Restart the live session, same conversation, on another credential
+  // (capabilities.accountSwitch). Every later launch of the session (/clear,
+  // compaction, recall) stays on it.
+  switchAccount?(credential: SessionCredential): Promise<{ ok: boolean; reason?: string }>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. LIVE in-session
@@ -228,6 +236,10 @@ export interface AgentSession {
   stop(graceMs?: number): void;
   isAlive(): boolean;
 }
+
+// What a session's launches bill: a plan sign-in's credential store, or the
+// provider's API key (per token — only ever the user's explicit choice).
+export type SessionCredential = { readonly storeDir: string } | { readonly apiKey: true };
 
 export interface AgentBackend {
   readonly kind: string; // "claude-cli" | "anthropic-api" | …

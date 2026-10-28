@@ -13,9 +13,17 @@ import { validate } from "../middleware/validate.ts";
 import { uiTokenOk } from "./fs-shared.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { ROUTES } from "../../contracts/src/http.ts";
-import { SignInCodeRequestSchema } from "../../contracts/src/accounts.ts";
+import {
+  AutoSwitchRequestSchema, DefaultLoginRequestSchema, PlanLoginRenameRequestSchema, PlanResumeRequestSchema,
+  SignInCodeRequestSchema, SignInStartRequestSchema,
+} from "../../contracts/src/accounts.ts";
 
 const SIGN_IN = /^\/api\/accounts\/(?<provider>[^/]+)\/sign-in$/;
+const LOGIN = /^\/api\/accounts\/(?<provider>[^/]+)\/logins\/(?<id>[^/]+)$/;
+const DEFAULT_LOGIN = /^\/api\/accounts\/(?<provider>[^/]+)\/default-login$/;
+const AUTO_SWITCH = /^\/api\/accounts\/(?<provider>[^/]+)\/auto-switch$/;
+const PLAN_RESUME = /^\/workers\/(?<id>[^/]+)\/plan-resume$/;
+const API_KEY_CONTINUE = /^\/workers\/(?<id>[^/]+)\/api-key-continue$/;
 const SESSION = /^\/api\/sign-ins\/(?<id>[^/]+)$/;
 const SESSION_CODE = /^\/api\/sign-ins\/(?<id>[^/]+)\/code$/;
 
@@ -31,11 +39,55 @@ export function registerAccountRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { accounts: await c.accounts.list() });
   });
 
-  r.post(SIGN_IN, ({ req, res, params }) => {
+  // The provider named in the path, when it holds several sign-ins; else a 404.
+  const severalOf = (res: ServerResponse, raw: string): string | null => {
+    const provider = decodeURIComponent(raw);
+    if (c.signIns.holdsSeveral(provider)) return provider;
+    writeJson(res, 404, { error: `"${provider}" holds a single sign-in` });
+    return null;
+  };
+
+  r.post(SIGN_IN, async ({ req, res, params }) => {
     if (denied(req, res)) return;
     const provider = decodeURIComponent(params.provider);
     if (!c.signIns.supports(provider)) { writeJson(res, 404, { error: `sign-in is not supported for "${provider}"` }); return; }
-    writeJson(res, 202, c.signIns.start(provider));
+    const { loginId } = validate(SignInStartRequestSchema, await readBody(req));
+    writeJson(res, 202, c.signIns.start(provider, { loginId }));
+  });
+
+  r.put(LOGIN, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const provider = severalOf(res, params.provider);
+    if (!provider) return;
+    const { label } = validate(PlanLoginRenameRequestSchema, await readBody(req));
+    c.loginRegistry.rename(provider, decodeURIComponent(params.id), label);
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.del(LOGIN, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const provider = severalOf(res, params.provider);
+    if (!provider) return;
+    await c.signIns.removeLogin(provider, decodeURIComponent(params.id));
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.put(DEFAULT_LOGIN, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const provider = severalOf(res, params.provider);
+    if (!provider) return;
+    const { loginId } = validate(DefaultLoginRequestSchema, await readBody(req));
+    c.loginRegistry.setDefault(provider, loginId);
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.put(AUTO_SWITCH, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const provider = severalOf(res, params.provider);
+    if (!provider) return;
+    const { enabled } = validate(AutoSwitchRequestSchema, await readBody(req));
+    c.loginRegistry.setAutoSwitch(provider, enabled);
+    writeJson(res, 200, { ok: true });
   });
 
   r.del(SIGN_IN, async ({ req, res, params }) => {
@@ -49,6 +101,22 @@ export function registerAccountRoutes(r: Router, c: Container): void {
       return;
     }
     writeJson(res, 200, { ok: true });
+  });
+
+  // An accounts_exhausted row's actions.
+  r.put(PLAN_RESUME, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const { rowId, on } = validate(PlanResumeRequestSchema, await readBody(req));
+    const workerId = decodeURIComponent(params.id);
+    if (!on) { c.planResume.cancel(workerId, rowId); writeJson(res, 200, { ok: true }); return; }
+    const r2 = c.planResume.schedule(workerId, rowId);
+    writeJson(res, r2.ok ? 200 : 409, r2.ok ? { ok: true } : { error: r2.error });
+  });
+
+  r.post(API_KEY_CONTINUE, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    const r2 = await c.continueWorkerOnApiKey(decodeURIComponent(params.id));
+    writeJson(res, r2.ok ? 200 : 409, r2.ok ? { ok: true } : { error: r2.error });
   });
 
   r.get(SESSION, ({ req, res, params }) => {

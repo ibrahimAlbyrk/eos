@@ -68,6 +68,19 @@ export function readClaudeCodeLogin(storeDir?: string): ClaudeCodeLogin {
   };
 }
 
+// The email of the account signed in to `storeDir`. A sign-in runs with
+// CLAUDE_CONFIG_DIR at the store, so the CLI records the account in its own
+// <storeDir>/.claude.json.
+export function readClaudeAccountEmail(storeDir: string): string | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(join(storeDir, ".claude.json"), "utf8")) as { oauthAccount?: { emailAddress?: unknown } };
+    const email = parsed.oauthAccount?.emailAddress;
+    return typeof email === "string" && email.trim() ? email.trim() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 // Signing out removes the store's login, as `claude auth logout` does.
 export function clearClaudeLogin(storeDir: string): void {
   if (process.platform === "darwin") {

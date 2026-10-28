@@ -146,3 +146,32 @@ describe("UsageService", () => {
     assert.deepEqual(res.providers, [{ ...snapshot(), stale: true }]);
   });
 });
+
+describe("UsageService — a provider list read live, one snapshot per sign-in", () => {
+  const snap = (loginId: string, used: number) => ({
+    provider: "claude", loginId, label: loginId, windows: { fiveHour: { utilization: used, resetsAt: null } }, fetchedAt: "t",
+  });
+  const provider = (loginId: string, used: number) => ({ id: `claude:${loginId}`, fetchUsage: async () => snap(loginId, used) });
+
+  it("serves each sign-in's snapshot, picks up a new one and drops a removed one", async () => {
+    let list = [provider("a", 10)];
+    let now = 0;
+    const svc = new UsageService({ providers: () => list, clock: { now: () => now }, minIntervalMs: 1 });
+    assert.deepEqual((await svc.getUsage()).providers.map((p) => p.loginId), ["a"]);
+    list = [provider("a", 10), provider("b", 60)];
+    now = 10;
+    assert.deepEqual((await svc.getUsage()).providers.map((p) => p.loginId), ["a", "b"]);
+    assert.deepEqual(svc.peek().map((p) => p.windows.fiveHour?.utilization), [10, 60]);
+    list = [provider("b", 60)];
+    assert.deepEqual(svc.peek().map((p) => p.loginId), ["b"]);
+  });
+
+  it("a saved snapshot comes back under its sign-in", () => {
+    const svc = new UsageService({
+      providers: () => [provider("a", 0)],
+      clock: { now: () => 0 },
+      store: { load: () => [snap("a", 42)], save: () => {} },
+    });
+    assert.equal(svc.peek()[0].windows.fiveHour?.utilization, 42);
+  });
+});

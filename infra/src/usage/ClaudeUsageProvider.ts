@@ -16,7 +16,7 @@
 // adapter CLAMPS to [0,100] rather than rescaling — applying a "×100 if ≤1"
 // heuristic would corrupt a genuine sub-1% reading.
 
-import { NoUsageAccountError, type SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
+import { NoUsageAccountError, usageKey, type SubscriptionUsageProvider } from "../../../core/src/ports/SubscriptionUsageProvider.ts";
 import type { ModelUsageWindow, ProviderUsage, UsageWindow } from "../../../contracts/src/usage.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 
@@ -51,6 +51,8 @@ export interface ClaudeUsageProviderDeps {
   userAgent?: string;
   /** The plan's display name ("Max", "Pro") when known — the endpoint doesn't say. */
   plan?: () => string | undefined;
+  /** The Claude sign-in these tokens belong to, when there are several. */
+  login?: () => { id: string; label: string };
   /** Injectable clock for the snapshot timestamp (tests pin it). */
   now?: () => Date;
 }
@@ -134,8 +136,10 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
       return r ? toWindow(r.utilization, r.resets_at, limits.find((l) => l.kind === kind)?.severity) : null;
     };
     const weeklyByModel = toModelWindows(limits);
+    const login = deps.login?.();
     return {
       provider: "claude",
+      ...(login ? { loginId: login.id, label: login.label } : {}),
       ...(plan ? { plan } : {}),
       windows: {
         fiveHour: slot(data.five_hour, "session"),
@@ -177,7 +181,7 @@ export function createClaudeUsageProvider(deps: ClaudeUsageProviderDeps): Subscr
   }
 
   return {
-    id: "claude",
+    id: usageKey("claude", deps.login?.().id),
     async fetchUsage(): Promise<ProviderUsage> {
       const candidates = await deps.getTokens();
       if (!candidates.length) throw new NoUsageAccountError(NO_TOKEN_REASON);

@@ -17,18 +17,30 @@ function containerWith() {
     uiToken: TOKEN,
     accounts: { list: async () => [{ id: "anthropic" }] },
     signIns: {
-      supports: (p: string) => p === "anthropic",
-      start: (p: string) => { calls.push(`start:${p}`); return session; },
+      supports: (p: string) => p === "anthropic" || p === "openai",
+      holdsSeveral: (p: string) => p === "anthropic",
+      start: (p: string, o: { loginId?: string } = {}) => { calls.push(`start:${p}${o.loginId ? `:${o.loginId}` : ""}`); return session; },
       signOut: async (p: string) => { calls.push(`signOut:${p}`); },
+      removeLogin: async (p: string, id: string) => { calls.push(`remove:${p}:${id}`); },
       get: (id: string) => (id === "s1" ? session : null),
       cancel: (id: string) => { calls.push(`cancel:${id}`); return id === "s1"; },
       submitCode: (id: string, code: string) => { calls.push(`code:${id}:${code}`); return id === "s1"; },
+    },
+    planResume: {
+      schedule: (w: string, row: number) => { calls.push(`resume:${w}:${row}`); return row === 1 ? { ok: true } : { ok: false, error: "nope" }; },
+      cancel: (w: string, row: number) => { calls.push(`cancel-resume:${w}:${row}`); },
+    },
+    continueWorkerOnApiKey: async (w: string) => { calls.push(`api-key:${w}`); return { ok: true }; },
+    loginRegistry: {
+      rename: (p: string, id: string, label: string) => { calls.push(`rename:${p}:${id}:${label}`); },
+      setDefault: (p: string, id: string) => { calls.push(`default:${p}:${id}`); },
+      setAutoSwitch: (p: string, on: boolean) => { calls.push(`auto:${p}:${on}`); },
     },
   } as unknown as Container;
   return { c, calls };
 }
 
-async function dispatch(c: Container, method: "GET" | "POST" | "DELETE", path: string, opts: { body?: unknown; token?: string } = {}) {
+async function dispatch(c: Container, method: "GET" | "POST" | "PUT" | "DELETE", path: string, opts: { body?: unknown; token?: string } = {}) {
   const router = new Router();
   registerAccountRoutes(router, c);
   const m = router.match(method, path);
@@ -61,6 +73,12 @@ describe("accounts routes", () => {
       ["GET", "/api/sign-ins/s1"],
       ["DELETE", "/api/sign-ins/s1"],
       ["POST", "/api/sign-ins/s1/code"],
+      ["PUT", "/api/accounts/anthropic/logins/l1"],
+      ["DELETE", "/api/accounts/anthropic/logins/l1"],
+      ["PUT", "/api/accounts/anthropic/default-login"],
+      ["PUT", "/api/accounts/anthropic/auto-switch"],
+      ["PUT", "/workers/w1/plan-resume"],
+      ["POST", "/workers/w1/api-key-continue"],
     ] as const;
     for (const [method, path] of routes) {
       assert.equal((await dispatch(c, method, path, { body: { code: "x" } })).status, 403, `${method} ${path}`);
@@ -78,7 +96,31 @@ describe("accounts routes", () => {
     const { c, calls } = containerWith();
     assert.equal((await dispatch(c, "POST", "/api/accounts/anthropic/sign-in", { token: TOKEN })).status, 202);
     assert.equal((await dispatch(c, "POST", "/api/accounts/xai/sign-in", { token: TOKEN })).status, 404);
-    assert.deepEqual(calls, ["start:anthropic"]);
+    assert.equal((await dispatch(c, "POST", "/api/accounts/anthropic/sign-in", { token: TOKEN, body: { loginId: "l1" } })).status, 202);
+    assert.equal((await dispatch(c, "POST", "/api/accounts/anthropic/sign-in", { token: TOKEN, body: { other: 1 } })).status, 400);
+    assert.deepEqual(calls, ["start:anthropic", "start:anthropic:l1"]);
+  });
+
+  it("renames, removes and picks the default sign-in of a provider that holds several", async () => {
+    const { c, calls } = containerWith();
+    assert.equal((await dispatch(c, "PUT", "/api/accounts/anthropic/logins/l1", { token: TOKEN, body: { label: " Work " } })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/api/accounts/anthropic/logins/l1", { token: TOKEN, body: { label: "" } })).status, 400);
+    assert.equal((await dispatch(c, "DELETE", "/api/accounts/anthropic/logins/l1", { token: TOKEN })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/api/accounts/anthropic/default-login", { token: TOKEN, body: { loginId: "l2" } })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/api/accounts/anthropic/auto-switch", { token: TOKEN, body: { enabled: false } })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/api/accounts/anthropic/auto-switch", { token: TOKEN, body: { enabled: "no" } })).status, 400);
+    assert.equal((await dispatch(c, "DELETE", "/api/accounts/openai/logins/l1", { token: TOKEN })).status, 404);
+    assert.deepEqual(calls, ["rename:anthropic:l1:Work", "remove:anthropic:l1", "default:anthropic:l2", "auto:anthropic:false"]);
+  });
+
+  it("an exhausted row schedules or cancels the resume, or moves the session to the API key", async () => {
+    const { c, calls } = containerWith();
+    assert.equal((await dispatch(c, "PUT", "/workers/w1/plan-resume", { token: TOKEN, body: { rowId: 1, on: true } })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/workers/w1/plan-resume", { token: TOKEN, body: { rowId: 2, on: true } })).status, 409);
+    assert.equal((await dispatch(c, "PUT", "/workers/w1/plan-resume", { token: TOKEN, body: { rowId: 1, on: false } })).status, 200);
+    assert.equal((await dispatch(c, "PUT", "/workers/w1/plan-resume", { token: TOKEN, body: { rowId: "x", on: true } })).status, 400);
+    assert.equal((await dispatch(c, "POST", "/workers/w1/api-key-continue", { token: TOKEN })).status, 200);
+    assert.deepEqual(calls, ["resume:w1:1", "resume:w1:2", "cancel-resume:w1:1", "api-key:w1"]);
   });
 
   it("signs out", async () => {

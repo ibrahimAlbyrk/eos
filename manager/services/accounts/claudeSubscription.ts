@@ -94,20 +94,29 @@ export function startClaudeLogin(deps: ClaudeLoginDeps, handlers: { onUrl(url: s
   };
 }
 
+// Claude holds several sign-ins, each signed in to its own Eos store.
 export function createClaudeSubscription(
-  deps: ClaudeLoginDeps & {
+  deps: Omit<ClaudeLoginDeps, "env"> & {
+    /** The sign-in's env for the store it signs in to (CLAUDE_STORE_ENV). */
+    env(storeDir: string): ClaudeLoginDeps["env"];
     /** The pre-store sign-in kept a setup-token in config; a new sign-in or a sign-out retires it. */
     clearLegacyToken(): void;
-    clearLogin(): void;
+    clearLogin(storeDir: string): void;
+    describe(storeDir: string): { email?: string };
   },
 ): SubscriptionProvider {
   return {
     id: "anthropic",
     acceptsCode: true,
-    startSignIn: (handlers) => startClaudeLogin(deps, handlers),
+    multiLogin: true,
+    startSignIn: (handlers, storeDir) => {
+      if (!storeDir) throw new Error("A Claude sign-in needs a store to sign in to.");
+      return startClaudeLogin({ ...deps, env: deps.env(storeDir) }, handlers);
+    },
     saveCredential: () => deps.clearLegacyToken(),
-    signOut: () => {
-      deps.clearLogin();
+    describe: (storeDir) => deps.describe(storeDir),
+    signOut: (storeDir) => {
+      if (storeDir) deps.clearLogin(storeDir);
       deps.clearLegacyToken();
     },
   };

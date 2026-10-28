@@ -65,6 +65,11 @@ interface SdkMsg {
   // structurally (unknown) and narrowed defensively via parseStructuredPatch: the
   // runtime shape is unverified, so a missing/garbage sidecar just yields no patch.
   tool_use_result?: unknown;
+  // assistant: why the CLI wrote this message itself instead of the model
+  // answering (SDKAssistantMessageError — "rate_limit", "authentication_failed", …).
+  error?: string;
+  // rate_limit_event: the plan's limit state (SDKRateLimitInfo).
+  rate_limit_info?: { status?: string; resetsAt?: number };
 }
 
 // Cache-creation tokens split by TTL tier (the price table charges 1h higher
@@ -310,12 +315,37 @@ export interface SdkEventMapper {
   // Workflow run, shell and Monitor as stopped (once), so none is left showing
   // as running.
   stopLiveSubagents(): AgentEvent[];
+  // Why the turn that just ended couldn't run on its plan sign-in, if that is why
+  // it ended — with the CLI's own notice, left out of that turn's events; null
+  // otherwise. Cleared by reading it.
+  takeUnusable(): (PlanUnusable & { notice: AgentEvent[] }) | null;
 }
+
+// A turn ended on its plan sign-in: the plan's limit (the CLI reported it as
+// rejected) or a sign-in that stopped working.
+export interface PlanUnusable {
+  reason: "limit" | "expired";
+  // When the limit lifts (epoch ms), if the plan said.
+  resetsAt?: number;
+}
+
+// The CLI writes these assistant messages itself when the plan can't answer.
+const PLAN_FAILURES = new Set(["rate_limit", "authentication_failed"]);
+
+// The plan reports its reset time in epoch seconds; accept ms as well.
+const epochMs = (t: number | undefined): number | undefined =>
+  typeof t === "number" && t > 0 ? (t < 1e12 ? t * 1000 : t) : undefined;
 
 export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEventMapper {
   let turnActive = false;
   let sessionId: string | null = null;
   let lastAssistantUuid: string | null = null;
+  // This turn's plan failure: the CLI's own message is held until the turn ends,
+  // so a session that moves to another sign-in never shows it.
+  let planFailure: { error: string; held: AgentEvent[] } | null = null;
+  // The plan reported its limit as reached during this turn.
+  let limitRejected: { resetsAt?: number } | null = null;
+  let unusable: (PlanUnusable & { notice: AgentEvent[] }) | null = null;
   // blockId -> channel + streamed text of open live blocks. The text is kept so a
   // block the turn cut off (no durable message will come) can still be persisted.
   const openedBlocks = new Map<string, { channel: "reasoning" | "text"; text: string }>();
@@ -516,6 +546,11 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
   return {
     get sessionId() { return sessionId; },
     get lastAssistantUuid() { return lastAssistantUuid; },
+    takeUnusable() {
+      const u = unusable;
+      unusable = null;
+      return u;
+    },
     get liveSubagents() { return [...bgAgents.values()].filter(isLive).length + [...workflows.values()].filter(isLiveWorkflow).length; },
     stopLiveSubagents(): AgentEvent[] {
       const out: AgentEvent[] = [];
@@ -695,10 +730,11 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             return out;
           }
           startTurn(out);
+          const failure = msg.error && PLAN_FAILURES.has(msg.error) ? msg.error : null;
           // Track the last completed top-level assistant message uuid — the recall
           // anchor (the entry the SDK transcript is sliced to on recall). Subagent
-          // messages returned above never set it.
-          if (msg.uuid) lastAssistantUuid = msg.uuid;
+          // messages returned above never set it, nor does the CLI's own failure notice.
+          if (msg.uuid && !failure) lastAssistantUuid = msg.uuid;
           // Same anchor the live deltas used (message id), so durable blockIds
           // match and the UI hands off live -> durable instead of double-rendering.
           const msgId = msg.message?.id ?? blockBase();
@@ -719,7 +755,11 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // subagent inner tools (the parent_tool_use_id branch above), which have
           // no standalone block.
           const blocks = durableBlocks(msgId, content, startIdx);
-          if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
+          if (failure) {
+            planFailure = { error: failure, held: [...(planFailure?.held ?? []), ...(blocks.length ? [{ type: "message" as const, role: "assistant" as const, blocks }] : [])] };
+          } else if (blocks.length) {
+            out.push({ type: "message", role: "assistant", blocks });
+          }
           // Remember top-level subagent-spawning callIds — the gate for mapping
           // this call's async stub / task notifications to subagent events.
           for (const b of content) {
@@ -893,6 +933,17 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           openedBlocks.clear();
           for (const blockId of [...genuiBlocks.keys()]) stopGenui(blockId);
           if (cut.length) out.push({ type: "message", role: "assistant", blocks: cut });
+          // A plan failure hands the CLI's notice to the backend, which decides
+          // whether it shows; any other failure's notice ends the turn as usual.
+          if (planFailure) {
+            const hit: PlanUnusable | null = planFailure.error === "authentication_failed"
+              ? { reason: "expired" }
+              : limitRejected ? { reason: "limit", ...(limitRejected.resetsAt ? { resetsAt: limitRejected.resetsAt } : {}) } : null;
+            if (hit) unusable = { ...hit, notice: planFailure.held };
+            else out.push(...planFailure.held);
+          }
+          planFailure = null;
+          limitRejected = null;
           out.push({ type: "usage", usage: toCanonicalUsage(msg.usage ?? {}, msg.model ?? null) });
           turnActive = false;
           currentMsgId = null; // next turn's message_start re-anchors
@@ -902,6 +953,14 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // if it succeeded; success ends the turn normally.
           const errored = typeof msg.subtype === "string" && msg.subtype.startsWith("error");
           out.push(errored ? { type: "turn", phase: "error", reason: msg.subtype } : { type: "turn", phase: "ended" });
+          return out;
+        }
+
+        case "rate_limit_event": {
+          if (msg.rate_limit_info?.status === "rejected") {
+            const resetsAt = epochMs(msg.rate_limit_info.resetsAt);
+            limitRejected = resetsAt ? { resetsAt } : {};
+          }
           return out;
         }
 

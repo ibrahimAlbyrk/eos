@@ -2631,8 +2631,20 @@ export const ROUTES = {
   // Settings › Accounts — loopback + ui-token only, redacted (contracts/src/
   // accounts.ts). GET lists every provider's AccountStatus.
   accounts: "/api/accounts",
-  // POST starts a browser sign-in (→ SignInSession); DELETE signs the provider out.
+  // POST { loginId? } starts a browser sign-in (→ SignInSession); DELETE signs the
+  // provider out of every sign-in.
   accountSignIn: (provider: string): string => `/api/accounts/${provider}/sign-in`,
+  // One sign-in of a provider that holds several: PUT { label } renames it,
+  // DELETE signs it out and removes it.
+  accountLogin: (provider: string, id: string): string => `/api/accounts/${provider}/logins/${id}`,
+  // PUT { loginId } — the sign-in new sessions start on.
+  accountDefaultLogin: (provider: string): string => `/api/accounts/${provider}/default-login`,
+  // PUT { enabled } — move a session to another sign-in when its own runs out.
+  accountAutoSwitch: (provider: string): string => `/api/accounts/${provider}/auto-switch`,
+  // An accounts_exhausted row's actions (ui-token): PUT { rowId, on } schedules or
+  // cancels resuming at the next reset; POST moves the session to the API key.
+  workerPlanResume: (id: string): string => `/workers/${id}/plan-resume`,
+  workerApiKeyContinue: (id: string): string => `/workers/${id}/api-key-continue`,
   // GET polls a sign-in in flight; DELETE cancels it.
   signIn: (id: string): string => `/api/sign-ins/${id}`,
   // POST { code } — the code the provider's page shows when its redirect fails.

@@ -1,6 +1,7 @@
 // AccountsService — the read side of Settings › Accounts: one redacted
-// AccountStatus per provider. Claude comes first, followed by every provider
-// preset, whose API key lives in the Keychain behind a config.backends profile.
+// AccountStatus per provider. Claude comes first, with every sign-in it holds,
+// followed by every provider preset, whose API key lives in the Keychain behind a
+// config.backends profile.
 // Only sign-ins made through Eos count — a Claude Code, Codex or Gemini CLI login
 // elsewhere on this Mac is ignored, since Eos neither bills nor reads usage from
 // it. The route each account bills is the Accounts rule (core/domain/billing-route)
@@ -9,10 +10,12 @@
 // A legacy Eos setup-token is checked against the API (cached) so a revoked or
 // expired token shows as "expired" and blocks, rather than failing inside a session.
 
-import type { AccountStatus, AccountSubscription } from "../../../contracts/src/accounts.ts";
+import type { AccountStatus, AccountSubscription, PlanLogin } from "../../../contracts/src/accounts.ts";
 import type { BackendProfile } from "../../../contracts/src/backend.ts";
 import type { ClaudeCodeLogin } from "../../../infra/src/auth/SubscriptionAuthResolver.ts";
 import type { TokenProbeResult } from "../../../infra/src/auth/claudeTokenProbe.ts";
+import type { PlanLoginReader } from "../../../core/src/services/PlanLoginService.ts";
+import type { PlanLimitLedger } from "../../../core/src/services/PlanLimitLedger.ts";
 import type { ProviderPreset } from "../../shared/provider-presets.ts";
 import { resolveBillingRoute } from "../../../core/src/domain/billing-route.ts";
 
@@ -24,8 +27,14 @@ const PROBE_TTL_MS = 10 * 60_000;
 
 export interface AccountsServiceDeps {
   getConfig(): { anthropic: { apiKey?: string; authToken?: string }; backends: Record<string, BackendProfile> };
-  /** The Claude login in Eos's own credential store. */
-  readClaudeLogin(): ClaudeCodeLogin;
+  /** Claude's sign-ins, each in an Eos credential store. */
+  claudeLogins: PlanLoginReader;
+  /** Which of them can't run right now (a plan limit, or a sign-in that stopped working). */
+  claudeLimits: Pick<PlanLimitLedger, "blocked" | "readiness">;
+  /** Live sessions running on a store right now. */
+  sessionsOn?(storeDir: string): number;
+  /** The Claude login in one of those stores. */
+  readClaudeLogin(storeDir: string): ClaudeCodeLogin;
   probe(token: string): Promise<TokenProbeResult>;
   presets: readonly ProviderPreset[];
   supportsSignIn(provider: string): boolean;
@@ -58,10 +67,34 @@ export class AccountsService {
     const apiKey = anthropic.apiKey?.trim();
     const supported = this.deps.supportsSignIn("anthropic");
 
+    const { claudeLogins, claudeLimits } = this.deps;
+    const records = claudeLogins.list("anthropic");
+    const reads = new Map(records.map((r) => [r.id, this.deps.readClaudeLogin(r.storeDir)]));
+    const logins: PlanLogin[] = records.map((r) => {
+      const read = reads.get(r.id)!;
+      const mark = claudeLimits.blocked(r.id);
+      const inUse = this.deps.sessionsOn?.(r.storeDir) ?? 0;
+      return {
+        id: r.id,
+        label: r.label,
+        ...(r.email ? { email: r.email } : {}),
+        ...(read.plan ? { plan: read.plan } : {}),
+        state: mark?.reason === "expired" ? "expired" : read.present ? "signed_in" : "signed_out",
+        ...(mark?.reason === "limit" && mark.until ? { limitedUntil: new Date(mark.until).toISOString() } : {}),
+        ...(inUse > 0 ? { inUse } : {}),
+      };
+    });
+    // The provider bills the sign-in new sessions start on; sign-ins that all
+    // stopped working block rather than fall back to the key.
+    const active = claudeLogins.runnableLogin("anthropic", (r) => claudeLimits.readiness(r.id, reads.get(r.id)?.present ?? false));
+    const defaultLoginId = claudeLogins.defaultId("anthropic");
+
     let subscription: AccountSubscription;
-    const login = this.deps.readClaudeLogin();
-    if (login.present) {
-      subscription = { supported, state: "signed_in", source: "eos", ...(login.plan ? { plan: login.plan } : {}) };
+    if (active) {
+      const plan = reads.get(active.id)?.plan;
+      subscription = { supported, state: "signed_in", source: "eos", ...(plan ? { plan } : {}) };
+    } else if (records.length > 0) {
+      subscription = { supported, state: "expired", source: "eos" };
     } else if (token) {
       const probe = await this.probeCached(token);
       subscription = { supported, state: probe === "rejected" ? "expired" : "signed_in", source: "eos" };
@@ -75,6 +108,9 @@ export class AccountsService {
       subscription,
       apiKey: { set: Boolean(apiKey), ...(apiKey ? { hint: apiKey.slice(-4) } : {}) },
       route: resolveBillingRoute(subscription.state, Boolean(apiKey)),
+      logins,
+      ...(defaultLoginId ? { defaultLoginId } : {}),
+      autoSwitch: claudeLogins.autoSwitch("anthropic"),
     };
   }
 

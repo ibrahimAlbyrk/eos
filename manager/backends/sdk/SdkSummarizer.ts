@@ -15,8 +15,8 @@ export interface SdkSummarizerDeps {
   authResolver: Pick<AuthResolver, "resolve">;
   daemonUrl: string;
   getAnthropicConfig?(): { apiKey?: string; authToken?: string };
-  /** Eos's claude credential store (see buildBillingGuardEnv). */
-  claudeStore?: string;
+  /** Eos's claude credential store a summary runs on (see buildBillingGuardEnv). */
+  claudeStore?: () => string;
   /** Used when the compacted agent's row has no model. */
   defaultModel: string;
   cwd: string;
@@ -49,7 +49,7 @@ export function createSdkSummarizer(deps: SdkSummarizerDeps): ConversationSummar
       cwd: deps.cwd,
       env: buildBillingGuardEnv({
         auth, anthropic, workerId: "compaction-summarizer",
-        daemonUrl: deps.daemonUrl, disableAutoCompact: true, claudeStore: deps.claudeStore,
+        daemonUrl: deps.daemonUrl, disableAutoCompact: true, claudeStore: deps.claudeStore?.(),
       }),
       systemPrompt: input.system,
       tools: [],

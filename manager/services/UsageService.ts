@@ -10,7 +10,7 @@
 
 import type { ProviderUsage, UsageResponse } from "../../contracts/src/usage.ts";
 import {
-  NoUsageAccountError, type SubscriptionUsageProvider, type UsageSnapshotStore,
+  NoUsageAccountError, usageKey, type SubscriptionUsageProvider, type UsageSnapshotStore,
 } from "../../core/src/ports/SubscriptionUsageProvider.ts";
 import type { Clock } from "../../core/src/ports/Clock.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -19,7 +19,8 @@ const MIN_INTERVAL_MS = 180_000;
 const MAX_BACKOFF_MS = 15 * 60_000;
 
 export interface UsageServiceDeps {
-  providers: SubscriptionUsageProvider[];
+  /** Read on every fetch, so a sign-in added or removed is picked up. */
+  providers: SubscriptionUsageProvider[] | (() => SubscriptionUsageProvider[]);
   clock: Clock;
   minIntervalMs?: number;
   store?: UsageSnapshotStore;
@@ -43,11 +44,12 @@ export class UsageService {
   constructor(deps: UsageServiceDeps) {
     this.deps = deps;
     this.floorMs = deps.minIntervalMs ?? MIN_INTERVAL_MS;
-    for (const p of deps.providers) this.states.set(p.id, { last: null, error: null, failures: 0, retryAt: 0 });
-    for (const snap of deps.store?.load() ?? []) {
-      const s = this.states.get(snap.provider);
-      if (s) s.last = snap;
-    }
+    for (const snap of deps.store?.load() ?? []) this.stateOf(usageKey(snap.provider, snap.loginId)).last = snap;
+  }
+
+  // The last good snapshot of every current provider, without fetching.
+  peek(): ProviderUsage[] {
+    return this.providers().flatMap((p) => this.states.get(p.id)?.last ?? []);
   }
 
   // Serve cache within the floor; otherwise fetch fresh. A refresh is honored the
@@ -65,8 +67,8 @@ export class UsageService {
     const providers: UsageResponse["providers"] = [];
     const errors: NonNullable<UsageResponse["errors"]> = [];
     let changed = false;
-    for (const p of this.deps.providers) {
-      const s = this.states.get(p.id)!;
+    for (const p of this.providers()) {
+      const s = this.stateOf(p.id);
       if (now >= s.retryAt) changed = (await this.refresh(p, s, now)) || changed;
       if (s.last) providers.push(s.error ? { ...s.last, stale: true } : s.last);
       if (s.error) errors.push({ provider: p.id, reason: s.error });
@@ -102,8 +104,22 @@ export class UsageService {
     }
   }
 
+  private providers(): SubscriptionUsageProvider[] {
+    return typeof this.deps.providers === "function" ? this.deps.providers() : this.deps.providers;
+  }
+
+  private stateOf(id: string): ProviderState {
+    let s = this.states.get(id);
+    if (!s) {
+      s = { last: null, error: null, failures: 0, retryAt: 0 };
+      this.states.set(id, s);
+    }
+    return s;
+  }
+
   private save(): void {
-    const snapshots = [...this.states.values()].flatMap((s) => (s.last ? [s.last] : []));
+    const current = new Set(this.providers().map((p) => p.id));
+    const snapshots = [...this.states].flatMap(([id, s]) => (s.last && current.has(id) ? [s.last] : []));
     // Best effort: a failed write only costs the snapshot across a restart.
     try { this.deps.store?.save(snapshots); } catch { /* ignore */ }
   }

@@ -104,16 +104,31 @@ describe("startClaudeLogin", () => {
 });
 
 describe("createClaudeSubscription", () => {
-  it("a sign-in retires the legacy token; a sign-out clears the store and the token", () => {
+  const subscription = (calls: string[], pty = fakePty()) => createClaudeSubscription({
+    spawnPty: pty.spawnPty, cwd: "/home",
+    env: (dir) => ({ CLAUDE_SECURESTORAGE_CONFIG_DIR: dir }),
+    clearLegacyToken: () => calls.push("token"),
+    clearLogin: (dir) => calls.push(`store:${dir}`),
+    describe: (dir) => ({ email: `${dir}@x` }),
+  });
+
+  it("a sign-in retires the legacy token; a sign-out clears its store and the token", () => {
     const calls: string[] = [];
-    const sub = createClaudeSubscription({
-      spawnPty: fakePty().spawnPty, cwd: "/home", env: {},
-      clearLegacyToken: () => calls.push("token"),
-      clearLogin: () => calls.push("store"),
-    });
+    const sub = subscription(calls);
+    assert.equal(sub.multiLogin, true);
     sub.saveCredential("");
     assert.deepEqual(calls, ["token"]);
+    sub.signOut("/acc/claude-1");
     sub.signOut();
-    assert.deepEqual(calls, ["token", "store", "token"]);
+    assert.deepEqual(calls, ["token", "store:/acc/claude-1", "token", "token"]);
+    assert.deepEqual(sub.describe?.("/acc/claude-1"), { email: "/acc/claude-1@x" });
+  });
+
+  it("signs in to the store it is given, and refuses none", () => {
+    const pty = fakePty();
+    const sub = subscription([], pty);
+    assert.throws(() => sub.startSignIn({ onUrl() {} }), /needs a store/);
+    sub.startSignIn({ onUrl() {} }, "/acc/claude-1");
+    assert.equal(pty.opts?.env?.CLAUDE_SECURESTORAGE_CONFIG_DIR, "/acc/claude-1");
   });
 });

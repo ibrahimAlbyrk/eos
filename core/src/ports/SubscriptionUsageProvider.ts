@@ -10,10 +10,14 @@
 import type { ProviderUsage } from "../../../contracts/src/usage.ts";
 
 export interface SubscriptionUsageProvider {
-  /** Stable provider id, echoed into ProviderUsage.provider + any error entry. */
+  /** Stable id, echoed into any error entry — usageKey() of the snapshots it makes. */
   readonly id: string;
   fetchUsage(): Promise<ProviderUsage>;
 }
+
+// What a snapshot is kept and served under: the provider, and the sign-in when
+// the provider holds several.
+export const usageKey = (provider: string, loginId?: string): string => (loginId ? `${provider}:${loginId}` : provider);
 
 // Thrown when there is no account to read usage for (not signed in). Unlike an
 // upstream failure it means the last snapshot no longer belongs to anyone, so

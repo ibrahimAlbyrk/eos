@@ -5,10 +5,10 @@
 import { existsSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-export function writeFileAtomic(path: string, data: string | Uint8Array): void {
+export function writeFileAtomic(path: string, data: string | Uint8Array, mode?: number): void {
   mkdirSync(dirname(path), { recursive: true });
   const tmp = `${path}.tmp`;
-  writeFileSync(tmp, data);
+  writeFileSync(tmp, data, mode === undefined ? undefined : { mode });
   renameSync(tmp, path);
 }
 

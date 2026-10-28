@@ -94,6 +94,15 @@ export const WorkerEventTypeSchema = z.enum([
   "compaction_started",
   "compaction_completed",
   "compaction_failed",
+  // The session moved to another credential, same transcript: its Claude
+  // sign-in hit its limit or stopped working mid-turn, a limit lifted, or the
+  // user chose the API key. Payload: { provider, from?, to, reason: "limit" |
+  // "expired" | "reset" | "api_key", resetsAt? } — labels at the time.
+  "account_switched",
+  // Every Claude sign-in of the session's provider is out mid-turn. Payload:
+  // { provider, nextResetAt?, apiKey, resumeAt?, resumed? } — the row offers to
+  // resume at nextResetAt (resumeAt once scheduled) or on the API key.
+  "accounts_exhausted",
   "try_applied",
   "try_kept",
   "try_discarded",

@@ -13,8 +13,9 @@ import { query as realQuery, forkSession as realForkSession } from "@anthropic-a
 import type { Options, McpServerConfig, HookCallback } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
-  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
+  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, SessionCredential, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
+import type { PlanOutcome } from "../../../core/src/use-cases/SwitchSessionAccount.ts";
 import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { RewindResult } from "../../../core/src/ports/WorkerClient.ts";
 import { computeRewindTargets, rewindSliceAnchor, type RewindTarget } from "../../../core/src/domain/rewind-targets.ts";
@@ -22,10 +23,12 @@ import { parseClaudeTranscript } from "../../../core/src/domain/claude-transcrip
 import { claudeTranscriptPath } from "../../shared/claude-transcript-path.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
-import { createSdkEventMapper, type BackgroundTaskUpdate, type SdkEventMapper } from "./SdkEventMapper.ts";
+import { createSdkEventMapper, type BackgroundTaskUpdate, type PlanUnusable, type SdkEventMapper } from "./SdkEventMapper.ts";
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import type { GenuiDelta } from "../../../contracts/src/genui/spec.ts";
 import type { WorkflowRunProgress } from "../../../contracts/src/workflow-run.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
+import { CLAUDE_STORE_ENV } from "../../../infra/src/auth/SubscriptionAuthResolver.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
 import { disallowedBuiltinToolsFor } from "../../../contracts/src/tool-scope.ts";
@@ -63,6 +66,9 @@ const CAPS: AgentCapabilities = {
   // Claude Code's own /btw: the binary answers from its live messages with no
   // tools, sharing the prompt cache, and records nothing. See askSide.
   sideQuestion: true,
+  // Transcripts are shared by every Claude sign-in's store, so a session resumes
+  // on another sign-in as it is. See switchAccount.
+  accountSwitch: true,
 };
 
 const SDK_DESCRIPTOR: BackendDescriptor = {
@@ -110,8 +116,17 @@ export interface ClaudeSdkBackendDeps {
    *  authToken (OAuth) wins over apiKey; injected into the child env by
    *  buildBillingGuardEnv. Omitted (tests/spikes) ⇒ no config-provided creds. */
   getAnthropicConfig?: () => { apiKey?: string; authToken?: string };
-  /** Eos's claude credential store (see buildBillingGuardEnv). */
-  claudeStore?: string;
+  /** Eos's claude credential store a new session runs on (see buildBillingGuardEnv). */
+  claudeStore?: () => string;
+  /** A turn ended because its credential store's plan sign-in can't run (its
+   *  limit, or a sign-in that stopped working). switched: the session moved to
+   *  another store meanwhile (switchAccount) and that turn's end is dropped;
+   *  exhausted: the daemon recorded its own notice, so the CLI's is dropped;
+   *  kept: the turn ends as it did. Absent → kept. */
+  onPlanUnusable?(workerId: string, hit: PlanUnusable & { storeDir: string }): Promise<PlanOutcome>;
+  /** The credential store a session's latest launch runs on — null once it
+   *  runs on the API key or has ended. Lets the daemon count sessions per sign-in. */
+  onLaunchCredential?(workerId: string, storeDir: string | null): void;
   /** Build the per-spec ToolContext (identity bound from the spec, never
    *  process.env) — supplies the loopback `api` + cwd + git probe. */
   makeToolContext(spec: AgentLaunchSpec): ToolContext;
@@ -217,6 +232,10 @@ interface Live {
   mapper?: SdkEventMapper;
   // The worker's cwd — the project dir forkSession scopes its transcript search to.
   cwd?: string;
+  // The claude credential store every launch of this session runs on — or,
+  // once the user chose it for this session, the API key instead.
+  store?: string;
+  apiKey?: boolean;
 }
 
 // A launch's process is ending: its background subagents die with it, so they
@@ -389,6 +408,23 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
 
       return { ok: true, uuid: target.uuid, text: target.text, display: target.display, index };
     },
+    // The same conversation on another credential: transcripts are shared by
+    // every store, so the relaunch resumes the session as it is.
+    async switchAccount(credential: SessionCredential) {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      const sessionId = s.mapper?.sessionId ?? s.resumedFrom ?? null;
+      if (!sessionId) return { ok: false, reason: "no session id captured yet" };
+      if ("apiKey" in credential) {
+        if (!deps.getAnthropicConfig?.().apiKey?.trim()) return { ok: false, reason: "no API key is set" };
+        s.apiKey = true;
+      } else {
+        s.apiKey = false;
+        s.store = credential.storeDir;
+      }
+      await swapLaunch(s, () => s.relaunchResume?.(sessionId));
+      return { ok: true };
+    },
     // Runtime model switch via the SDK Query control method (streaming-input
     // only). effort is ignored HERE — the SDK has no live /effort equivalent; it's
     // persisted by the caller and applied at start()/resume via Options.effort.
@@ -403,6 +439,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const s = live.get(workerId);
       if (!s || !s.alive) return;
       s.alive = false;
+      deps.onLaunchCredential?.(workerId, null);
       // End the IN-FLIGHT turn, not just future input: interrupt is the graceful
       // path, abort the hard one (the SDK closes stdin, then kills the subprocess
       // after its ~2s grace window). Without these a stopped/deleted agent keeps
@@ -452,9 +489,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const focused = opts.spec?.role === FOCUSED_ROLE;
       const auth = await deps.authResolver.resolve(opts.auth);
       const anthropic = deps.getAnthropicConfig?.() ?? {};
+      // The credential store rides each launch (rec.store), so a switch moves it.
       const env = buildBillingGuardEnv({
         auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl,
-        disableAutoCompact: deps.disableAutoCompact?.() ?? false, claudeStore: deps.claudeStore,
+        disableAutoCompact: deps.disableAutoCompact?.() ?? false,
         fullSurface: focused,
       });
       const ctx = deps.makeToolContext(spec);
@@ -564,10 +602,24 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // mode from the DB on every call.
       } as Options;
 
-      const rec: Live = { q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false, onExit: cb?.onExit, onEvent: cb?.onEvent, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
+      const store = deps.claudeStore?.();
+      const rec: Live = {
+        q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false,
+        onExit: cb?.onExit, onEvent: cb?.onEvent, ...(spec.cwd ? { cwd: spec.cwd } : {}), ...(store ? { store } : {}),
+      };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
+
+      // The credential rides each launch: the session's store, or the API key
+      // (it shadows any OAuth login in the binary, and no token goes alongside it).
+      const launchEnv = (): Record<string, string> => {
+        if (rec.apiKey) {
+          const { CLAUDE_CODE_OAUTH_TOKEN: _token, ...rest } = env;
+          return { ...rest, ANTHROPIC_API_KEY: deps.getAnthropicConfig?.().apiKey?.trim() ?? "" };
+        }
+        return rec.store ? { ...env, [CLAUDE_STORE_ENV]: rec.store } : env;
+      };
 
       // Launch (or, on /clear, relaunch) a query. Each launch owns its own input
       // stream + mapper; the consume loop guards on `rec.input === input`, so a
@@ -581,7 +633,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const abort = new AbortController();
         rec.abort = abort;
         const { mcpServers, allowedTools } = buildMcpServers();
-        const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
+        const options = {
+          ...baseOptions,
+          env: launchEnv(),
+          mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}),
+        } as Options;
         const publishGenui = deps.publishGenuiDelta;
         const publishWorkflow = deps.publishWorkflowProgress;
         const publishTask = deps.publishBackgroundTask;
@@ -594,36 +650,63 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         rec.resumedFrom = resume;
         const q = queryFn({ prompt: input.iterable, options });
         rec.q = q;
+        deps.onLaunchCredential?.(spec.workerId, rec.apiKey ? null : rec.store ?? null);
         if (initialPrompt) input.push(initialPrompt);
         if (seed) input.push(seed, { shouldQuery: false });
         const isCurrent = (): boolean => rec.input === input;
+        const emit = (events: AgentEvent[]): void => {
+          for (const e of events) {
+            // The SDK has no dedicated "interrupted" result subtype — a
+            // user-requested interrupt ends the turn with subtype
+            // "error_during_execution", which the mapper (unaware of the
+            // interrupt) surfaces as turn:error. Recognize that ONLY while
+            // WE set rec.interrupting, and translate to turn:aborted — the
+            // same convention as the m1 precedent in ToolRuntime. Other
+            // error_* subtypes (error_max_turns, or error_during_execution
+            // with no interrupt in flight) must keep flowing as turn:error.
+            if (rec.interrupting && e.type === "turn" && e.phase === "error" && e.reason === "error_during_execution") {
+              rec.interrupting = false;
+              cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" });
+              continue;
+            }
+            cb?.onEvent?.(e);
+          }
+        };
+        // A turn that ended on its sign-in's plan: the end waits for the daemon's
+        // call — moved to another sign-in, this launch is no longer current and
+        // the end (with the CLI's own notice) never shows. Not awaited inline, so
+        // the stream keeps draining while the switch closes this launch.
+        const onUnusable = deps.onPlanUnusable;
+        const settleUnusable = (hit: PlanUnusable & { notice: AgentEvent[] }, events: AgentEvent[]): void => {
+          const { notice, ...plan } = hit;
+          const storeDir = rec.store;
+          if (!onUnusable || !storeDir || rec.apiKey) { emit([...notice, ...events]); return; }
+          void onUnusable(spec.workerId, { ...plan, storeDir })
+            .catch((e): PlanOutcome => {
+              deps.log?.warn("plan switch failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
+              return "kept";
+            })
+            .then((outcome) => {
+              if (!isCurrent()) return;
+              emit(outcome === "exhausted" ? events : [...notice, ...events]);
+            });
+        };
         // Consume the SDK stream in the background — the session is "started", not
         // "settled"; turn completion is observed via the event stream (turn:ended).
         void (async () => {
           try {
             for await (const msg of q) {
               if (!isCurrent()) return; // superseded by a /clear restart → stay silent
-              for (const e of mapper.map(msg as SdkMsg)) {
-                // The SDK has no dedicated "interrupted" result subtype — a
-                // user-requested interrupt ends the turn with subtype
-                // "error_during_execution", which the mapper (unaware of the
-                // interrupt) surfaces as turn:error. Recognize that ONLY while
-                // WE set rec.interrupting, and translate to turn:aborted — the
-                // same convention as the m1 precedent in ToolRuntime. Other
-                // error_* subtypes (error_max_turns, or error_during_execution
-                // with no interrupt in flight) must keep flowing as turn:error.
-                if (rec.interrupting && e.type === "turn" && e.phase === "error" && e.reason === "error_during_execution") {
-                  rec.interrupting = false;
-                  cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" });
-                  continue;
-                }
-                cb?.onEvent?.(e);
-              }
+              const events = mapper.map(msg as SdkMsg);
+              const unusable = mapper.takeUnusable();
+              if (unusable) settleUnusable(unusable, events);
+              else emit(events);
             }
             if (!isCurrent()) return;
             if (rec.alive) {
               rec.alive = false;
               live.delete(spec.workerId);
+              deps.onLaunchCredential?.(spec.workerId, null);
               reportLostSubagents(rec, mapper);
               // The input stream stays open across interrupt(), so the loop should
               // not end on a mere interrupt; if it did, report it as an interrupt
@@ -639,6 +722,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
               deps.log?.warn("claude query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
               rec.alive = false;
               live.delete(spec.workerId);
+              deps.onLaunchCredential?.(spec.workerId, null);
               reportLostSubagents(rec, mapper);
               // onExit BEFORE the ended event: the exit handler reads the row
               // state to suspend a resumable session, and the ended event would

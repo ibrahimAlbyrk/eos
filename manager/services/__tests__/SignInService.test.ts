@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { SignInService, type SignInFlow, type SubscriptionProvider } from "../accounts/SignInService.ts";
+import { PlanLoginService } from "../../../core/src/services/PlanLoginService.ts";
+import { EMPTY_PLAN_LOGINS, type PlanLoginRegistry } from "../../../core/src/domain/plan-logins.ts";
 
 function controllableProvider(id = "anthropic") {
   const saved: string[] = [];
@@ -30,10 +32,10 @@ function controllableProvider(id = "anthropic") {
 
 const tick = () => new Promise((r) => setImmediate(r));
 
-function service(p = controllableProvider()) {
+function service(p = controllableProvider(), keepFinishedMs?: number) {
   let n = 0;
   let changes = 0;
-  const svc = new SignInService({ providers: [p.provider], newId: () => `s${++n}`, onChange: () => { changes++; }, keepFinishedMs: 10 });
+  const svc = new SignInService({ providers: [p.provider], newId: () => `s${++n}`, onChange: () => { changes++; }, keepFinishedMs });
   return { svc, p, get changes() { return changes; } };
 }
 
@@ -115,10 +117,109 @@ describe("SignInService", () => {
   });
 
   it("forgets finished sessions after the keep window", async () => {
-    const t = service();
+    const t = service(undefined, 10);
     const s = t.svc.start("anthropic");
     t.svc.cancel(s.id);
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(t.svc.get(s.id), null);
+  });
+});
+
+// A Claude-like provider that holds several sign-ins, over a real registry with
+// in-memory store dirs.
+function multiService(emails: Record<string, string> = {}) {
+  const p = controllableProvider();
+  const stores: Array<string | undefined> = [];
+  const signedOutOf: Array<string | undefined> = [];
+  const start = p.provider.startSignIn;
+  Object.assign(p.provider, {
+    multiLogin: true,
+    startSignIn: (h: { onUrl(u: string): void }, storeDir?: string) => { stores.push(storeDir); return start(h); },
+    describe: (dir: string) => ({ email: emails[dir] }),
+    signOut: (dir?: string) => { signedOutOf.push(dir); },
+  });
+  const dirs = { created: [] as string[], discarded: [] as string[], trashed: [] as string[] };
+  let reg: PlanLoginRegistry = EMPTY_PLAN_LOGINS;
+  let n = 0;
+  const logins = new PlanLoginService({
+    store: { load: () => reg, save: (r) => { reg = r; } },
+    dirs: {
+      create: (_p, id) => { const d = `/acc/claude-${id}`; dirs.created.push(d); return d; },
+      discard: (d) => { dirs.discarded.push(d); },
+      trash: (d) => { dirs.trashed.push(d); },
+    },
+    clock: { now: () => 0 },
+    newId: () => `l${++n}`,
+  });
+  let m = 0;
+  const svc = new SignInService({ providers: [p.provider], newId: () => `s${++m}`, logins });
+  return { svc, p, logins, stores, signedOutOf, dirs };
+}
+
+describe("SignInService — a provider holding several sign-ins", () => {
+  it("adds a sign-in from a fresh store, named by its email", async () => {
+    const t = multiService({ "/acc/claude-l1": "me@example.com" });
+    const s = t.svc.start("anthropic");
+    assert.equal(s.loginId, undefined);
+    assert.deepEqual(t.stores, ["/acc/claude-l1"]);
+    t.p.flows[0].resolve("");
+    await tick();
+    assert.equal(t.svc.get(s.id)?.state, "succeeded");
+    assert.deepEqual(t.logins.list("anthropic").map((l) => [l.id, l.label, l.storeDir]), [["l1", "me@example.com", "/acc/claude-l1"]]);
+    assert.equal(t.logins.defaultId("anthropic"), "l1");
+  });
+
+  it("a sign-in that fails or is cancelled leaves no store behind", async () => {
+    const t = multiService();
+    t.svc.start("anthropic");
+    t.p.flows[0].reject(new Error("nope"));
+    await tick();
+    const c = t.svc.start("anthropic");
+    t.svc.cancel(c.id);
+    assert.deepEqual(t.dirs.discarded, ["/acc/claude-l1", "/acc/claude-l2"]);
+    assert.deepEqual(t.logins.list("anthropic"), []);
+  });
+
+  it("signing in again renews a listed sign-in in its own store", async () => {
+    const t = multiService({ "/acc/claude-l1": "me@example.com" });
+    t.svc.start("anthropic");
+    t.p.flows[0].resolve("");
+    await tick();
+    const again = t.svc.start("anthropic", { loginId: "l1" });
+    assert.equal(again.loginId, "l1");
+    assert.deepEqual(t.stores, ["/acc/claude-l1", "/acc/claude-l1"]);
+    t.p.flows[1].reject(new Error("closed"));
+    await tick();
+    assert.deepEqual(t.dirs.discarded, []);
+    assert.equal(t.logins.list("anthropic").length, 1);
+  });
+
+  it("a fresh sign-in to a listed account takes its place and retires the old store", async () => {
+    const t = multiService({ "/acc/claude-l1": "me@example.com", "/acc/claude-l2": "ME@example.com" });
+    t.svc.start("anthropic");
+    t.p.flows[0].resolve("");
+    await tick();
+    t.svc.start("anthropic");
+    t.p.flows[1].resolve("");
+    await tick();
+    assert.deepEqual(t.logins.list("anthropic").map((l) => [l.id, l.storeDir]), [["l1", "/acc/claude-l2"]]);
+    assert.deepEqual(t.signedOutOf, ["/acc/claude-l1"]);
+    assert.deepEqual(t.dirs.trashed, ["/acc/claude-l1"]);
+  });
+
+  it("removes one sign-in, or signs the provider out of all of them", async () => {
+    const t = multiService({ "/acc/claude-l1": "a@x", "/acc/claude-l2": "b@x" });
+    for (const i of [0, 1]) {
+      t.svc.start("anthropic");
+      t.p.flows[i].resolve("");
+      await tick();
+    }
+    await t.svc.removeLogin("anthropic", "l1");
+    assert.deepEqual(t.logins.list("anthropic").map((l) => l.id), ["l2"]);
+    assert.equal(t.logins.defaultId("anthropic"), "l2");
+    await t.svc.signOut("anthropic");
+    assert.deepEqual(t.logins.list("anthropic"), []);
+    assert.deepEqual(t.signedOutOf, ["/acc/claude-l1", "/acc/claude-l2", undefined]);
+    await assert.rejects(() => t.svc.removeLogin("anthropic", "l9"), /not found/);
   });
 });

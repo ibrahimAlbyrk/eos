@@ -36,7 +36,15 @@ import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
 import { createSdkCommandCatalog } from "./backends/sdk/SdkCommandCatalog.ts";
 import { buildBillingGuardEnv } from "./backends/sdk/billing-env.ts";
-import { createSubscriptionAuthResolver, readClaudeCodeLogin, clearClaudeLogin, refreshClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver, readClaudeCodeLogin, readClaudeAccountEmail, clearClaudeLogin, refreshClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createPlanLoginDirs } from "../infra/src/auth/planLoginDirs.ts";
+import { FilePlanLoginStore } from "../infra/src/persistence/FilePlanLoginStore.ts";
+import { PlanLoginService } from "../core/src/services/PlanLoginService.ts";
+import { PlanLimitLedger } from "../core/src/services/PlanLimitLedger.ts";
+import { switchSessionAccount } from "../core/src/use-cases/SwitchSessionAccount.ts";
+import { continueOnApiKey } from "../core/src/use-cases/ContinueOnApiKey.ts";
+import { PlanResumeService } from "./services/PlanResumeService.ts";
+import type { PlanLoginRecord } from "../core/src/domain/plan-logins.ts";
 import { probeClaudeToken } from "../infra/src/auth/claudeTokenProbe.ts";
 import { AccountsService } from "./services/accounts/AccountsService.ts";
 import { SignInService } from "./services/accounts/SignInService.ts";
@@ -58,6 +66,7 @@ import { spawnPtyHost } from "../spawner/pty-host.ts";
 import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { createFileUsageSnapshotStore } from "../infra/src/usage/FileUsageSnapshotStore.ts";
+import type { SubscriptionUsageProvider } from "../core/src/ports/SubscriptionUsageProvider.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
@@ -646,7 +655,30 @@ export function buildContainer() {
   const codexHomeDir = join(accountsDir, "codex");
   const geminiCliHome = join(accountsDir, "gemini");
   for (const dir of [claudeStoreDir, codexHomeDir, geminiCliHome]) mkdirSync(dir, { recursive: true, mode: 0o700 });
-  const readEosClaudeLogin = (): ClaudeCodeLogin => readClaudeCodeLogin(claudeStoreDir);
+  // Claude holds several sign-ins, each in its own store; the one Claude had
+  // before (accounts/claude) becomes the first, in place.
+  const loginRegistry = new PlanLoginService({
+    store: new FilePlanLoginStore(join(accountsDir, "logins.json")),
+    dirs: createPlanLoginDirs(accountsDir),
+    clock: systemClock,
+    newId: () => `lg-${randomBytes(6).toString("hex")}`,
+  });
+  if (readClaudeCodeLogin(claudeStoreDir).present) loginRegistry.adopt("anthropic", claudeStoreDir, readClaudeAccountEmail(claudeStoreDir));
+  // Sign-ins that hit their plan limit or stopped working mid-turn (in memory).
+  const planLimits = new PlanLimitLedger(systemClock);
+  const claudeSignedIn = (l: PlanLoginRecord): boolean => readClaudeCodeLogin(l.storeDir).present;
+  const claudeApiKeySet = (): boolean => Boolean(config.anthropic?.apiKey?.trim());
+  // What moving a session to another credential needs. Read at call time: the
+  // backend registry is built further down.
+  const planMoveDeps = () => ({
+    workers, events, bus, clock: systemClock, backends, log,
+    continuation: () => prompts.render("accounts/continue"),
+  });
+  // The store every new claude run uses: the default sign-in while it can run,
+  // else the oldest one that can — with every one at its limit, one of those.
+  const claudeStore = (): string =>
+    loginRegistry.runnableLogin("anthropic", (l) => planLimits.readiness(l.id, claudeSignedIn(l)))?.storeDir ?? claudeStoreDir;
+  const readEosClaudeLogin = (): ClaudeCodeLogin => readClaudeCodeLogin(claudeStore());
   const claudeBinary = resolveCliBinary({ name: "claude", overrideVar: "EOS_CLAUDE_BIN" });
 
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
@@ -657,7 +689,7 @@ export function buildContainer() {
     bus,
     defaultCwd: config.paths.repoRoot,
     claudeEnv: () => {
-      const env = { ...process.env, [CLAUDE_STORE_ENV]: claudeStoreDir };
+      const env = { ...process.env, [CLAUDE_STORE_ENV]: claudeStore() };
       const token = config.anthropic?.authToken?.trim();
       return token && !readEosClaudeLogin().present ? { ...env, CLAUDE_CODE_OAUTH_TOKEN: token } : env;
     },
@@ -969,36 +1001,63 @@ export function buildContainer() {
   // off `config` so a Settings write is picked up without a restart. The
   // UsageService owns the cache + 180s upstream floor; the last good snapshots
   // live in ~/.eos/usage-cache.json (regenerable).
-  const usage = new UsageService({
-    providers: [
-      createClaudeUsageProvider({
-        // The Eos login's token — renewed first when it lapsed while no session
-        // ran — then a legacy setup-token, which the endpoint rejects for scope
-        // (the UI turns that into "sign in again").
+  // A Claude store's usage token — renewed first when it lapsed while no session
+  // ran.
+  const claudeUsageToken = async (store: string): Promise<string | null> => {
+    let login = readClaudeCodeLogin(store);
+    if (login.present && !login.token && claudeBinary) {
+      await refreshClaudeLogin(store, claudeBinary)
+        .catch((e) => log.warn("claude login refresh failed", { error: errMsg(e) }));
+      login = readClaudeCodeLogin(store);
+    }
+    return login.token;
+  };
+  const planTitle = (plan: string | undefined) => (plan ? `${plan[0].toUpperCase()}${plan.slice(1)}` : undefined);
+  // One usage provider per Claude sign-in, kept per login so each remembers the
+  // token source that worked. With no sign-ins, the one provider reads the legacy
+  // setup-token, which the endpoint rejects for scope (the UI turns that into
+  // "sign in again").
+  const claudeUsageByLogin = new Map<string, SubscriptionUsageProvider>();
+  const claudeUsageOf = (l: PlanLoginRecord): SubscriptionUsageProvider => {
+    let p = claudeUsageByLogin.get(l.id);
+    if (!p) {
+      p = createClaudeUsageProvider({
         getTokens: async () => {
-          let login = readEosClaudeLogin();
-          if (login.present && !login.token && claudeBinary) {
-            await refreshClaudeLogin(claudeStoreDir, claudeBinary)
-              .catch((e) => log.warn("claude login refresh failed", { error: errMsg(e) }));
-            login = readEosClaudeLogin();
-          }
-          const legacy = config.anthropic?.authToken?.trim();
-          return [
-            ...(login.token ? [{ source: "eos", token: login.token }] : []),
-            ...(legacy ? [{ source: "config", token: legacy }] : []),
-          ];
+          const token = await claudeUsageToken(l.storeDir);
+          return token ? [{ source: "eos", token }] : [];
         },
-        plan: () => {
-          const plan = readEosClaudeLogin().plan;
-          return plan ? `${plan[0].toUpperCase()}${plan.slice(1)}` : undefined;
-        },
-      }),
-      // ChatGPT plan limits, read through the Codex app-server while signed in.
-      createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin(codexEnv()).present, open: openAppServer }),
-    ],
+        plan: () => planTitle(readClaudeCodeLogin(l.storeDir).plan),
+        login: () => ({ id: l.id, label: loginRegistry.list("anthropic").find((r) => r.id === l.id)?.label ?? l.label }),
+      });
+      claudeUsageByLogin.set(l.id, p);
+    }
+    return p;
+  };
+  const legacyClaudeUsage = createClaudeUsageProvider({
+    getTokens: () => {
+      const legacy = config.anthropic?.authToken?.trim();
+      return legacy ? [{ source: "config", token: legacy }] : [];
+    },
+  });
+  // ChatGPT plan limits, read through the Codex app-server while signed in.
+  const codexUsage = createCodexUsageProvider({ binary: codexBinary, env: codexEnv, signedIn: () => readCodexLogin(codexEnv()).present, open: openAppServer });
+  const usage = new UsageService({
+    providers: () => {
+      const logins = loginRegistry.list("anthropic");
+      return [...(logins.length ? logins.map(claudeUsageOf) : [legacyClaudeUsage]), codexUsage];
+    },
     clock: systemClock,
     store: createFileUsageSnapshotStore(join(config.daemon.home, "usage-cache.json")),
   });
+  // How much of its 5-hour window a sign-in has used, from the last snapshot (a
+  // window whose reset passed has rolled over).
+  const claudeUsed = (l: PlanLoginRecord): number | undefined => {
+    const w = usage.peek().find((u) => u.loginId === l.id)?.windows.fiveHour;
+    if (!w) return undefined;
+    return w.resetsAt && Date.parse(w.resetsAt) <= Date.now() ? 0 : w.utilization;
+  };
+  // Live claude sessions → the store their latest launch runs on.
+  const liveClaudeStores = new Map<string, string>();
 
   // Settings › Accounts. Sign in with Claude runs the official `claude auth login`
   // (a one-shot PTY with the billing-stripped env, so no ambient key or nested-
@@ -1012,7 +1071,10 @@ export function buildContainer() {
   };
   const accounts = new AccountsService({
     getConfig: () => config,
-    readClaudeLogin: readEosClaudeLogin,
+    claudeLogins: loginRegistry,
+    claudeLimits: planLimits,
+    sessionsOn: (storeDir) => [...liveClaudeStores.values()].filter((d) => d === storeDir).length,
+    readClaudeLogin: readClaudeCodeLogin,
     probe: (token) => probeClaudeToken(token),
     presets: PROVIDER_PRESETS,
     supportsSignIn: (provider) => signIns.supports(provider),
@@ -1023,12 +1085,13 @@ export function buildContainer() {
       createClaudeSubscription({
         spawnPty: spawnPtyHost,
         cwd: homedir(),
-        env: { ...buildSubscriptionChildEnv(process.env), [CLAUDE_STORE_ENV]: claudeStoreDir, CLAUDE_CONFIG_DIR: claudeStoreDir },
+        env: (storeDir) => ({ ...buildSubscriptionChildEnv(process.env), [CLAUDE_STORE_ENV]: storeDir, CLAUDE_CONFIG_DIR: storeDir }),
         clearLegacyToken: () => {
           patchAnthropicConfig(config.daemon.home, { authToken: "" });
           config = reloadConfigFromDisk();
         },
-        clearLogin: () => clearClaudeLogin(claudeStoreDir),
+        clearLogin: clearClaudeLogin,
+        describe: (storeDir) => ({ email: readClaudeAccountEmail(storeDir) }),
       }),
       ...(codexBinary
         ? [createCodexSubscription({
@@ -1042,6 +1105,8 @@ export function buildContainer() {
         : []),
     ],
     newId: () => randomBytes(8).toString("hex"),
+    logins: loginRegistry,
+    onSignedIn: (_provider, loginId) => planLimits.clear(loginId),
     onChange: () => accounts.invalidate(),
   });
 
@@ -1332,7 +1397,16 @@ export function buildContainer() {
     // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
     // save is picked up on the next spawn without restarting the daemon.
     getAnthropicConfig: () => config.anthropic,
-    claudeStore: claudeStoreDir,
+    claudeStore,
+    // A turn that ran out of its sign-in's plan moves the session to another one.
+    onPlanUnusable: (workerId, hit) => switchSessionAccount(
+      { ...planMoveDeps(), logins: loginRegistry, ledger: planLimits, signedIn: claudeSignedIn, apiKeySet: claudeApiKeySet, used: claudeUsed },
+      { workerId, provider: "anthropic", storeDir: hit.storeDir, reason: hit.reason, resetsAt: hit.resetsAt },
+    ),
+    onLaunchCredential: (workerId, storeDir) => {
+      if (storeDir) liveClaudeStores.set(workerId, storeDir);
+      else liveClaudeStores.delete(workerId);
+    },
     makeToolContext,
     resolveSdkMcpServers,
     // Looked up per launch, so a project edit reaches the next spawn/resume/clear.
@@ -1362,7 +1436,7 @@ export function buildContainer() {
   const claudeCommands = createSdkCommandCatalog({
     buildEnv: async () => buildBillingGuardEnv({
       auth: await authResolver.resolve(undefined), anthropic: config.anthropic,
-      workerId: "command-catalog", daemonUrl: sdkDaemonUrl, claudeStore: claudeStoreDir, fullSurface: true,
+      workerId: "command-catalog", daemonUrl: sdkDaemonUrl, claudeStore: claudeStore(), fullSurface: true,
     }),
     log,
   });
@@ -1433,7 +1507,7 @@ export function buildContainer() {
     toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
-    claudeStore: claudeStoreDir,
+    claudeStore,
     makeToolContext,
     // assembleAppendPrompt OMITTED → boots with only the stock claude_code preset.
     log,
@@ -1501,6 +1575,12 @@ export function buildContainer() {
     has(kind: string) { return backendMap.has(kind); },
     descriptors() { return [...backendMap.values()].map((b) => b.descriptor); },
   };
+  // An exhausted-accounts row's actions: resume when a limit lifts, or go on
+  // the API key.
+  const planResume = new PlanResumeService({ ...planMoveDeps(), logins: loginRegistry, ledger: planLimits, signedIn: claudeSignedIn });
+  const continueWorkerOnApiKey = (workerId: string) =>
+    continueOnApiKey({ ...planMoveDeps(), apiKeySet: claudeApiKeySet }, { workerId, provider: "anthropic" });
+
   // Slash-command allowlist — intercepted at the dispatch chokepoint. Adding a
   // command is one entry here (the registry is open/closed); the side effects it
   // may touch are wired in dispatch-deps from the services below.
@@ -1513,7 +1593,7 @@ export function buildContainer() {
     authResolver,
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
-    claudeStore: claudeStoreDir,
+    claudeStore,
     defaultModel: "sonnet",
     cwd: config.paths.repoRoot,
   });
@@ -1579,7 +1659,9 @@ export function buildContainer() {
     bus,
     signedIn: () => readEosClaudeLogin().present || Boolean(config.anthropic?.authToken?.trim()),
     usage: async () => {
-      const claude = (await usage.getUsage()).providers.find((p) => p.provider === "claude");
+      // The sign-in a dream would run on (claudeStore()).
+      const loginId = loginRegistry.list("anthropic").find((l) => l.storeDir === claudeStore())?.id;
+      const claude = (await usage.getUsage()).providers.find((p) => p.provider === "claude" && p.loginId === loginId);
       const used = [claude?.windows.fiveHour?.utilization, claude?.windows.sevenDay?.utilization]
         .filter((n): n is number => typeof n === "number");
       return used.length ? Math.max(...used) / 100 : null;
@@ -1833,6 +1915,9 @@ export function buildContainer() {
     claudeCommands,
     accounts,
     signIns,
+    loginRegistry,
+    planResume,
+    continueWorkerOnApiKey,
     cleanupMcpConfig,
     // Kill/purge cascade leak cleanup: drop a session's ~/.eos conversation
     // transcript. Closure keeps core Node-free (DIP — wired at composition root).

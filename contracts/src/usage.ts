@@ -31,6 +31,10 @@ const WindowSlotSchema = UsageWindowSchema.nullable().optional();
 
 export const ProviderUsageSchema = z.object({
   provider: z.string(), // "claude"
+  // The plan sign-in this snapshot is for, when the provider holds several
+  // (Claude) — its id and its label at the time.
+  loginId: z.string().optional(),
+  label: z.string().optional(),
   plan: z.string().optional(), // e.g. "Max" — omitted when unknown
   windows: z.object({
     fiveHour: WindowSlotSchema, // rolling 5-hour session limit
