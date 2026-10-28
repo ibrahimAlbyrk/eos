@@ -4,6 +4,7 @@ import { createCodexBackend, type CodexBackendDeps } from "../CodexBackend.ts";
 import type { AgentEvent } from "../../../../contracts/src/canonical.ts";
 import type { AgentLaunchSpec } from "../../../../core/src/ports/AgentBackend.ts";
 import { fakeAppServer, type FakeAppServer } from "./fakeAppServer.ts";
+import { resolve } from "node:path";
 
 const tick = () => new Promise((r) => setImmediate(r));
 
@@ -126,8 +127,8 @@ describe("CodexBackend", () => {
     const patch = await t.server.serverRequest("item/fileChange/requestApproval", { itemId: "f1" });
     assert.deepEqual(patch, { decision: "accept" });
     assert.deepEqual(t.decisions.slice(1), [
-      { toolName: "Edit", input: { file_path: "/repo/src/a.ts" } },
-      { toolName: "Write", input: { file_path: "/repo/src/b.ts" } },
+      { toolName: "Edit", input: { file_path: resolve("/repo", "src/a.ts") } },
+      { toolName: "Write", input: { file_path: resolve("/repo", "src/b.ts") } },
     ]);
 
     t.setAllow(false);

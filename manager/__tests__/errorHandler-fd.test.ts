@@ -4,6 +4,7 @@ import type { ServerResponse } from "node:http";
 
 import { handleError } from "../middleware/errorHandler.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
+import { fdStats } from "../../infra/src/util/fd-stats.ts";
 
 const noop = (): void => {};
 const log: Logger = { debug: noop, info: noop, warn: noop, error: noop, child: () => log };
@@ -26,7 +27,8 @@ describe("handleError fd exhaustion", () => {
     handleError(res, e, { requestId: "r-1", method: "POST", path: "/orchestrators", log });
     assert.equal(out.status, 503);
     assert.equal(out.body?.code, "EBADF");
-    assert.match(out.body!.error, /fds open/);
+    // The count is known only where the fd table can be read (not on Windows).
+    if (fdStats().open !== null) assert.match(out.body!.error, /fds open/);
     assert.doesNotMatch(out.body!.error, /ulimit/);
   });
 });

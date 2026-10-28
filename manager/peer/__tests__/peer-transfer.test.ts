@@ -35,7 +35,8 @@ function endpoint(home: string): FsTransferEndpoint {
   });
 }
 
-describe("file transfer over a real peer link", () => {
+// Pairing and transfer are off on Windows until they ship there (docs/windows plan, Phase 5).
+describe("file transfer over a real peer link", { skip: process.platform === "win32" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "eos-peer-xfer-"));
   const here = join(dir, "here");
   const there = join(dir, "there");

@@ -2,12 +2,13 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { claudeLaunch, createOscScanner } from "../pty/claudeLaunch.ts";
 import { CLAUDE_COMMAND } from "../../../contracts/src/http.ts";
+import { posixShell } from "../../../infra/src/platform/posix-shell.ts";
 
 const SID = "123e4567-e89b-42d3-a456-426614174000";
 
 describe("claudeLaunch", () => {
   it("pins a fresh conversation id and reports it through the session hook", () => {
-    const { command, claudeSessionId } = claudeLaunch();
+    const { command, claudeSessionId } = claudeLaunch(undefined, posixShell);
     assert.match(claudeSessionId, /^[0-9a-f-]{36}$/);
     assert.ok(command.startsWith(`EOS_TTY=$(tty) ${CLAUDE_COMMAND} --session-id ${claudeSessionId} --settings '`));
     assert.ok(command.includes("SessionStart"));
@@ -16,7 +17,7 @@ describe("claudeLaunch", () => {
   });
 
   it("resumes a conversation, falling back to a fresh one under the same id", () => {
-    const { command, claudeSessionId } = claudeLaunch(SID);
+    const { command, claudeSessionId } = claudeLaunch(SID, posixShell);
     assert.equal(claudeSessionId, SID);
     const [resume, fresh] = command.split("' || EOS_TTY");
     assert.ok(resume.includes(`--resume ${SID}`));

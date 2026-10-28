@@ -51,7 +51,8 @@ function get(port: number, path: string): Promise<{ status: number; body: string
   });
 }
 
-describe("peer link through the relay", () => {
+// Pairing and transfer are off on Windows until they ship there (docs/windows plan, Phase 5).
+describe("peer link through the relay", { skip: process.platform === "win32" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "eos-relay-"));
   const socketPath = join(dir, "h.sock");
   let relay: ReturnType<typeof createRelay>;

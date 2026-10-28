@@ -21,7 +21,7 @@ import {
   mkdirSync,
   existsSync,
 } from "node:fs";
-import { join, basename, resolve, relative, isAbsolute } from "node:path";
+import { join, basename, resolve, relative, isAbsolute, sep } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { Template, TemplateAttachment } from "../../contracts/src/http.ts";
@@ -127,13 +127,13 @@ export class UserTemplateService {
       const abs = isAbsolute(att.path) ? att.path : join(this.dir, att.path);
       if (!existsSync(abs)) continue;
       if (isInside(assetDir, abs)) {
-        out.push({ ...att, path: relative(this.dir, abs) });
+        out.push({ ...att, path: storedPath(this.dir, abs) });
         continue;
       }
       mkdirSync(assetDir, { recursive: true });
       const dest = uniqueDest(assetDir, basename(abs).replace(/[/\0]/g, "_"));
       copyFileSync(abs, dest);
-      out.push({ ...att, path: relative(this.dir, dest) });
+      out.push({ ...att, path: storedPath(this.dir, dest) });
     }
     return out;
   }
@@ -141,6 +141,12 @@ export class UserTemplateService {
 
 function assertName(name: string): void {
   if (!TEMPLATE_NAME_RE.test(name)) throw new Error(`invalid template name: ${name}`);
+}
+
+// A template's relative paths are written with "/" on every system: templates
+// sync between computers, and Windows reads "/" too.
+function storedPath(dir: string, abs: string): string {
+  return relative(dir, abs).split(sep).join("/");
 }
 
 function isInside(dir: string, target: string): boolean {

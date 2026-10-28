@@ -58,7 +58,8 @@ describe("makeRouteDispatch — binary capture without utf-8 corruption (C6)", (
     }
   });
 
-  it("waits for a STREAMING handler (createReadStream().pipe(res)) and captures intact bytes", async () => {
+  // Phone control is off on Windows until pairing ships there (docs/windows plan, Phase 5).
+  it("waits for a STREAMING handler (createReadStream().pipe(res)) and captures intact bytes", { skip: process.platform === "win32" }, async () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-asset-"));
     try {
       const file = join(dir, "blob.bin");

@@ -1,5 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 
 // loadConfig() memoizes on first call, so we use a fresh dynamic import per
 // test via the ?nocache query trick. esbuild/tsx don't honor query strings;
@@ -55,7 +56,7 @@ describe("loadConfig — defaults", () => {
   it("derives gatewayScript from repoRoot", async () => {
     delete process.env.EOS_REPO_ROOT;
     const cfg = await freshLoad();
-    assert.ok(cfg.paths.gatewayScript.endsWith("gateway/server.ts"));
+    assert.ok(cfg.paths.gatewayScript.endsWith(join("gateway", "server.ts")));
   });
   it("seeds Anthropic-style model prices", async () => {
     const cfg = await freshLoad();
@@ -115,9 +116,9 @@ describe("loadConfig — env overrides", () => {
     process.env.EOS_HOME = "/tmp/test-eos";
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.home, "/tmp/test-eos");
-    assert.equal(cfg.daemon.logDir, "/tmp/test-eos/logs");
-    assert.equal(cfg.daemon.dbFile, "/tmp/test-eos/state.db");
-    assert.equal(cfg.daemon.pidFile, "/tmp/test-eos/daemon.pid");
+    assert.equal(cfg.daemon.logDir, join("/tmp/test-eos", "logs"));
+    assert.equal(cfg.daemon.dbFile, join("/tmp/test-eos", "state.db"));
+    assert.equal(cfg.daemon.pidFile, join("/tmp/test-eos", "daemon.pid"));
   });
 });
 

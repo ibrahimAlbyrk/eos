@@ -51,7 +51,8 @@ function get(port: number, path: string, opts: { method?: string; headers?: Reco
   });
 }
 
-describe("peer link — pair, proxy, stream, revoke", () => {
+// Pairing and transfer are off on Windows until they ship there (docs/windows plan, Phase 5).
+describe("peer link — pair, proxy, stream, revoke", { skip: process.platform === "win32" }, () => {
   const dir = mkdtempSync(join(tmpdir(), "eos-peer-"));
   const socketPath = join(dir, "host.sock");
   const seen: Array<{ path: string; token: string | undefined; device: string | undefined; body: string }> = [];

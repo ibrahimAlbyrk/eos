@@ -49,7 +49,8 @@ describe("probeDaemon — classifies why the daemon did not answer", () => {
 });
 
 describe("probeDaemon — unix socket first", () => {
-  const sockPath = join(tmpdir(), `eos-probe-test-${process.pid}.sock`);
+  // Windows serves a named pipe, never a socket file (infra/src/platform/control-socket.ts).
+  const sockPath = process.platform === "win32" ? `\\\\.\\pipe\\eos-probe-test-${process.pid}` : join(tmpdir(), `eos-probe-test-${process.pid}.sock`);
   let server: Server;
 
   before(async () => {

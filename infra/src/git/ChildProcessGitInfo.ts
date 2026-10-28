@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
-import { join, isAbsolute, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import type { GitInfo, DiffStat, SyncStatus, ConflictEntry, GitDirs, StashOpResult } from "../../../core/src/ports/GitInfo.ts";
 import type { PushState } from "../../../core/src/domain/push-plan.ts";
 import type { PullState } from "../../../core/src/domain/pull-plan.ts";
@@ -122,13 +122,16 @@ export const childProcessGitInfo: GitInfo = {
 
   async gitDirs(cwd: string): Promise<GitDirs | null> {
     try {
-      const toplevel = (await runGit(cwd, ["rev-parse", "--show-toplevel"])).trim();
-      const gitDir = (await runGit(cwd, ["rev-parse", "--absolute-git-dir"])).trim();
-      if (!toplevel || !gitDir) return null;
+      // resolve(): git prints C:/x on Windows; Eos's own paths are C:\x.
+      const toplevelRaw = (await runGit(cwd, ["rev-parse", "--show-toplevel"])).trim();
+      const gitDirRaw = (await runGit(cwd, ["rev-parse", "--absolute-git-dir"])).trim();
+      if (!toplevelRaw || !gitDirRaw) return null;
+      const toplevel = resolve(toplevelRaw);
+      const gitDir = resolve(gitDirRaw);
       // --git-common-dir prints an absolute path in a linked worktree but one
       // relative to cwd in the main checkout (often ".git") — normalize both.
       const commonRaw = (await runGit(cwd, ["rev-parse", "--git-common-dir"])).trim();
-      const commonDir = commonRaw ? (isAbsolute(commonRaw) ? commonRaw : resolve(cwd, commonRaw)) : gitDir;
+      const commonDir = commonRaw ? resolve(cwd, commonRaw) : gitDir;
       return { toplevel, gitDir, commonDir };
     } catch {
       return null;

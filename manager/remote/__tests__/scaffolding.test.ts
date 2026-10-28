@@ -31,8 +31,11 @@ describe("RoomSecrets (relay v3 capability)", () => {
     const dir = tmp();
     try {
       new RoomSecrets(dir);
-      assert.equal(statSync(join(dir, "room.id")).mode & 0o777, 0o600);
-      assert.equal(statSync(join(dir, "bearer.secret")).mode & 0o777, 0o600);
+      // Windows has no POSIX modes: the profile ACL protects the files.
+      if (process.platform !== "win32") {
+        assert.equal(statSync(join(dir, "room.id")).mode & 0o777, 0o600);
+        assert.equal(statSync(join(dir, "bearer.secret")).mode & 0o777, 0o600);
+      }
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 

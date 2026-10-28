@@ -114,7 +114,8 @@ describe("daemonApi — throwing variant", () => {
 // this branch is that it never touches the TCP stack (no ephemeral port, so no
 // TIME_WAIT saturation). `fetch` is sabotaged to prove the socket is used.
 describe("daemonFetch — unix socket transport", () => {
-  const sockPath = join(tmpdir(), `eos-http-test-${process.pid}.sock`);
+  // Windows serves a named pipe, never a socket file (infra/src/platform/control-socket.ts).
+  const sockPath = process.platform === "win32" ? `\\\\.\\pipe\\eos-http-test-${process.pid}` : join(tmpdir(), `eos-http-test-${process.pid}.sock`);
   let server: Server;
   let seen: { method: string; url: string; body: string } | null = null;
 

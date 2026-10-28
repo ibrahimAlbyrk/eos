@@ -35,7 +35,8 @@ function host(id: string, name: string, state: HostView["link"]["state"] = "live
     link: { state, route: "direct", rttMs: 3, since: 0, attempt: 0, error: null }, info: null } as unknown as HostView;
 }
 
-describe("TransferService", () => {
+// Pairing and transfer are off on Windows until they ship there (docs/windows plan, Phase 5).
+describe("TransferService", { skip: process.platform === "win32" }, () => {
   let root: string;
   let here: string;
   let there: string;

@@ -73,7 +73,8 @@ describe("openInArgv", () => {
   });
 });
 
-describe("installedEditors", () => {
+// macOS editor install paths (DarwinFsHelpers).
+describe("installedEditors", { skip: process.platform === "win32" }, () => {
   it("keeps the editors whose app bundle exists, in EDITOR_APPS order", () => {
     const present = new Set(["/Applications/Cursor.app", "/Applications/Visual Studio Code.app"]);
     assert.deepEqual(installedEditors((p) => present.has(p)), [

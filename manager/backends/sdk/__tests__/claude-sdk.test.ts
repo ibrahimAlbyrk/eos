@@ -1349,7 +1349,7 @@ describe("ClaudeSdkBackend — context compaction", () => {
     while (!ready.hit) await new Promise((r) => setTimeout(r, 1));
     const t = await session.readTranscript!();
     assert.deepEqual(t?.entries, [{ kind: "user", text: "build it" }, { kind: "assistant", text: "built" }]);
-    assert.match(t?.path ?? "", /\.claude\/projects\/.+\/sess-1\.jsonl$/);
+    assert.match(t?.path ?? "", /\.claude[\\/]projects[\\/].+[\\/]sess-1\.jsonl$/);
     session.stop();
   });
 

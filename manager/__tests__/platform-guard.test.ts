@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const SCANNED = ["contracts/src", "core/src", "infra/src", "manager", "spawner", "gateway", "app/src", "app/ui/src"];
@@ -29,7 +29,7 @@ test("process.platform is read only inside the platform seams", () => {
   const offenders: string[] = [];
   for (const top of SCANNED) {
     for (const file of sources(join(ROOT, top))) {
-      const rel = relative(ROOT, file);
+      const rel = relative(ROOT, file).split(sep).join("/");
       if (ALLOWED.some((a) => rel.startsWith(a))) continue;
       const lines = readFileSync(file, "utf8").split("\n");
       lines.forEach((line, i) => {

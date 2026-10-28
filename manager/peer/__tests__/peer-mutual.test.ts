@@ -119,7 +119,8 @@ async function machine(root: string, name: string, cfg: PeerConfig) {
 
 type Machine = Awaited<ReturnType<typeof machine>>;
 
-describe("reverse tunnel — reaching a Mac with no path of your own", () => {
+// Pairing and transfer are off on Windows until they ship there (docs/windows plan, Phase 5).
+describe("reverse tunnel — reaching a Mac with no path of your own", { skip: process.platform === "win32" }, () => {
   const root = mkdtempSync(join(tmpdir(), "eos-mutual-"));
   let air: Machine;
   let pro: Machine;
@@ -185,7 +186,7 @@ describe("reverse tunnel — reaching a Mac with no path of your own", () => {
   });
 });
 
-describe("one pairing, both directions", () => {
+describe("one pairing, both directions", { skip: process.platform === "win32" }, () => {
   const root = mkdtempSync(join(tmpdir(), "eos-both-"));
   const machines: Machine[] = [];
   const boot = async (name: string, cfg: PeerConfig): Promise<Machine> => {
