@@ -78,7 +78,7 @@ attention color (selection rings, attention pulses), **not** the running color.
 ## 2. The liquid-glass recipe
 
 The app has one canonical glass card recipe, reused everywhere (`.side-island`,
-`.q-card`, `.glass-pop`, `.update-card`, `.pane-picker`, `.page-find`, composer).
+`.q-card`, `.glass-pop`, `.pane-picker`, `.page-find`, composer).
 There are **three densities**, keyed off the blur scale.
 
 ### Blur + saturation scale (`styles.css:78-80`)

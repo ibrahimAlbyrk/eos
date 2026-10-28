@@ -220,10 +220,6 @@ export const ROUTES = {
   // Subscription usage snapshot (Settings > Usage) — open read; daemon serves a
   // cached-or-fresh UsageResponse (min 180s between upstream calls).
   usage: "/api/usage",
-  updateStatus: "/api/updates/status",
-  updateCheck: "/api/updates/check",
-  updateApply: "/api/updates/apply",
-  updateDefer: "/api/updates/defer",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
   // A configured provider's available models (two-level composer picker).

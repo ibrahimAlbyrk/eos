@@ -21,8 +21,6 @@ import { SSEClient } from "./sse";
 import { FleetFeed } from "./fleet";
 import { TrayController } from "./tray";
 import { makeNotifier } from "./notifications";
-import { checkUpdateStatus } from "./updater";
-import { initBinaryAutoUpdate } from "./updater-binary";
 import { initBrowserHost } from "./browser";
 import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
@@ -346,13 +344,6 @@ function rebuildMenu(): void {
 // Non-critical, main-process, read-only wiring — deferred past first paint so the
 // window is interactive immediately (§C6), especially on the fast adopt path.
 async function startBackgroundServices(token: string): Promise<void> {
-  try {
-    const upd = await checkUpdateStatus(DAEMON_URL);
-    console.log("[eos-electron] update status:", JSON.stringify(upd));
-  } catch (e) {
-    console.error("[eos-electron] update check failed:", e instanceof Error ? e.message : String(e));
-  }
-
   tray = new TrayController({
     wc: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null),
     showWindow: showMainWindow,
@@ -398,10 +389,6 @@ async function startBackgroundServices(token: string): Promise<void> {
   });
   fleet.start();
   sse.start();
-
-  // Shell-binary auto-update hook (electron-updater) — inert unless packaged +
-  // EOS_UPDATE_FEED set + electron-updater installed (§G layer 2 / M6).
-  initBinaryAutoUpdate();
 }
 
 app.whenReady().then(async () => {

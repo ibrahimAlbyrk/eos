@@ -38,17 +38,12 @@ read-only against the running daemon):
 - Lifecycle: `requestSingleInstanceLock` (2nd launch focuses the 1st), close
   HIDES (background-app, web state survives), activate re-shows, tray Quit.
 
-M5 adds the launch splash + update flow:
+M5 adds the launch splash:
 - `src/main/splash.ts` — a frameless vibrancy panel (`vibrancy:"popover"` +
   `visualEffectState:"active"` — the ONE window where native vibrancy is correct;
   the main window stays opaque) reproducing the Swift splash (64px floating logo,
   "Eos", sweeping indeterminate bar, 30px corners), grown+faded on dismiss. See
   `verify/m5-splash.png`.
-- `src/main/updater.ts` — the check→apply→relaunch state machine driven by the
-  daemon's `/api/updates/status` + `/health` sourceStamp, ending in reload-in-place
-  or `app.relaunch()`. **The destructive apply (`POST /api/updates/apply`, which
-  rebuilds+restarts the daemon) is STUBBED — never called; binary apply + a signed
-  release feed via electron-updater is M6.**
 
 M6 adds packaging: `npm run make` produces a packaged `Eos.app` in
 `out/` (product "Eos", bundle id `com.ibrahimalbyrk.eos`) with the built
@@ -77,7 +72,7 @@ On launch the app probes the daemon socket-first (`~/.eos/daemon.sock`), then TC
 On quit (`before-quit`) the app SIGTERMs ONLY the daemon it spawned, by its exact
 pid — never a process-group or pattern kill — and the daemon runs its own graceful
 shutdown (suspend workers, kill children, unlink pid + socket). An adopted daemon
-is left running. Non-critical init (tray, update check, fleet/SSE) is deferred
+is left running. Non-critical init (tray, fleet/SSE) is deferred
 past first paint so the window is interactive immediately.
 
 ### Packaged standalone — follow-up (NOT done in this pass)
@@ -146,14 +141,6 @@ like a new app and every permission was asked again.
   publishes `Eos-darwin-arm64.zip` as a GitHub release. `install.sh` installs that
   zip on Apple Silicon Macs (`--from-source` builds instead).
 
-### Binary auto-update (electron-updater) — inert hook
-
-`src/main/updater-binary.ts` wires the shell-binary update path (Squirrel.Mac).
-It is INERT unless the app is packaged, `EOS_UPDATE_FEED` is set to a generic
-release feed, AND `electron-updater` is installed (`npm i electron-updater` — it's
-intentionally not a dependency, to keep the build lean). A production binary
-auto-update needs a signed app + a published, versioned release feed.
-
 Packaging/signing polish + parity audit is M7.
 
 ## Dev run
@@ -189,9 +176,6 @@ Requires the Eos daemon to already be running (start Eos.app first). This scaffo
 | `EOS_ELECTRON_SAVEFILE_NOOPEN=1` | `saveFile` writes to ~/Downloads but skips the `shell.openPath` (avoids launching an app during tests). |
 | `EOS_ELECTRON_M4=1` | Render + save tray frames, test the notification focus gate + close-hides/activate, then hold for an external single-instance test. |
 | `EOS_ELECTRON_M4_HOLD=<ms>` | How long the M4 verify holds on-screen (default 30000). |
-| `EOS_ELECTRON_M5=1` | Splash + update-flow self-test (splash only, no main window/tray): shows the splash, logs state transitions, then reload or relaunch. |
-| `EOS_ELECTRON_M5_RELAUNCH=1` | With M5: exercise the `app.relaunch()` path (a `--m5-relaunched` marker prevents a loop). |
-| `EOS_ELECTRON_M5_HOLD=<ms>` | How long the splash holds before the flow runs (default 9000). |
 
 Verification snapshot used for the M1 gate:
 

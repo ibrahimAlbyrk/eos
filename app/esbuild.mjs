@@ -8,7 +8,7 @@ const common = {
   platform: "node",
   target: "node24",
   format: "cjs",
-  external: ["electron", "electron-updater"],
+  external: ["electron"],
   sourcemap: true,
   logLevel: "info",
 };

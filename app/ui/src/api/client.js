@@ -1095,21 +1095,7 @@ export const api = {
     return postJson(ROUTES.signInCode(id), { code }, uiTokenHeader());
   },
 
-  // Auto-update — status is an open read; apply is uiToken-gated (an agent must
-  // not self-update the host). Returns the postJson envelope; the banner reads
-  // `.body.started` via useLive.
-  async updateStatus() {
-    const r = await getJson(ROUTES.updateStatus);
-    return r.ok ? r.body : null;
-  },
-  async applyUpdate(relaunchApp = true) {
-    return postJson(ROUTES.updateApply, { relaunchApp }, uiTokenHeader());
-  },
-  async deferUpdate() {
-    return postJson(ROUTES.updateDefer);
-  },
-
-  // Subscription usage (Settings > Usage) — open read like updateStatus. The
+  // Subscription usage (Settings > Usage) — open read. The
   // daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
   // calls; the refresh button just re-hits this). Null on transport failure.
   async getUsage() {

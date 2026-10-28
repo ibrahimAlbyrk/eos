@@ -1,5 +1,5 @@
-// Subscription usage route (Settings > Usage). Open read like /api/updates/status
-// — the response carries no secrets (the OAuth token stays server-side), only
+// Subscription usage route (Settings > Usage). Open read — the
+// response carries no secrets (the OAuth token stays server-side), only
 // normalized utilization percentages + reset times. The UsageService owns the
 // cache + 180s upstream floor, so hitting this on every pane-open / refresh is safe.
 

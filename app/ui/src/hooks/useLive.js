@@ -73,7 +73,6 @@ export function useLive() {
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState([]);
   const [uiConfig, setUiConfig] = useState(null);
-  const [update, setUpdate] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
@@ -195,9 +194,6 @@ export function useLive() {
         setHealth(true);
       } catch { setHealth(false); }
     })();
-    // Update status rides its own fetch — a missing/old daemon endpoint must
-    // never fail the main load.
-    api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {});
   }, []);
 
   // poll fallback
@@ -235,8 +231,6 @@ export function useLive() {
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
-          // A newer build appeared — refresh the banner status (not a worker delta).
-          if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
           if (data.reason === "state:patch") { applyStatePatch(data.payload?.changes); return; }
           // Peering: a controlled computer's link changed (Machines menu), or a
           // computer connected to / left this Mac (the "… connected" chip).
@@ -521,18 +515,6 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
-  const applyUpdate = useCallback(async () => {
-    const r = await api.applyUpdate(true);
-    // Refused (disabled/not-available) → refresh so the banner reflects it; on
-    // success the app shell relaunches once the rebuilt daemon is up.
-    if (!r.ok || r.body?.started === false) api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {});
-    return r.body ?? { started: r.ok };
-  }, []);
-  const deferUpdate = useCallback(async () => {
-    setUpdate((u) => (u ? { ...u, deferred: true } : u));
-    await api.deferUpdate();
-  }, []);
-
   const {
     pendingPermissions,
     setPendingPermissions,
@@ -576,9 +558,6 @@ export function useLive() {
     approvePending,
     alwaysAllowPending,
     denyPending,
-    update,
-    applyUpdate,
-    deferUpdate,
     eventSignal,
   };
 }

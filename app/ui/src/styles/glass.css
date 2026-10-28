@@ -53,7 +53,7 @@
 .slash-info, .paste-info, .cb-chip-dd, .attach-popover, .tpl-popover, .tpl-modal,
 .me-panel, .accept-popover, .model-popover, .ca-pop,
 .drag-affordance-label, .pane-picker, .fv-openwith, .page-find, .turn-card,
-.q-card, .update-card, .side-handle-popup) {
+.q-card, .side-handle-popup) {
   isolation: isolate;
   background: transparent;
   border: 0;
@@ -87,7 +87,7 @@
     mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0);
   }
 }
-.tpl-modal, .q-card, .update-card,
+.tpl-modal, .q-card,
 .head-menu > .ctx-menu.menu-pane { position: relative; }
 
 /* Scroll containers can't carry pseudo layers (they'd scroll away with the

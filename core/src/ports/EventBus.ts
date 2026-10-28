@@ -47,7 +47,6 @@ export type EventBusTopic =
   | "loop:check"
   | "fs:change"
   | "git:change"
-  | "update:available"
   // Peering, host side: the set of paired devices connected to this Mac changed
   // (payload { devices: [{ fp, name }] }) — the "… connected" indicator.
   | "peer:presence"

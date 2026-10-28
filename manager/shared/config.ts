@@ -105,12 +105,6 @@ export interface DaemonConfig {
     orchestrator: { backend: string };
     worker: { backend: string };
   };
-  // Auto-update: the daemon polls the configured git remote and offers a newer
-  // build to the app (banner + native launch splash). See UpdateService.
-  updates: {
-    enabled: boolean;
-    checkIntervalMs: number;
-  };
   // Dynamic loops. Defaults applied when a loop is attached without explicit
   // args, plus the safety + judge knobs. NO token/wall-clock budget — the
   // no-progress detector (noProgressWindow + stopOnNoProgress) is the only net
@@ -408,10 +402,6 @@ export function defaults(): DaemonConfig {
       orchestrator: { backend: "claude-opus" },
       worker: { backend: "claude-opus" },
     },
-    updates: {
-      enabled: envStr("EOS_UPDATES_ENABLED", "1") !== "0",
-      checkIntervalMs: envNum("EOS_UPDATES_CHECK_INTERVAL_MS", 30 * 60 * 1000),
-    },
     loop: {
       enabled: false,
       maxAttempts: null,
@@ -638,10 +628,6 @@ export const DaemonConfigOverrideSchema = z.object({
   defaults: z.object({
     orchestrator: z.object({ backend: z.string() }).partial(),
     worker: z.object({ backend: z.string() }).partial(),
-  }).partial().optional(),
-  updates: z.object({
-    enabled: z.boolean(),
-    checkIntervalMs: z.number().int().positive(),
   }).partial().optional(),
   loop: z.object({
     enabled: z.boolean(),

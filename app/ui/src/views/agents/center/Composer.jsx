@@ -44,7 +44,6 @@ import { ReplyCard } from "./ReplyCard.jsx";
 import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { PermissionBanner } from "./PermissionBanner.jsx";
-import { UpdateBanner } from "./UpdateBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { PasteInfoPopover } from "../popovers/PasteInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
@@ -1131,7 +1130,6 @@ export function Composer({ live, worker, paneId, focused }) {
   return (
     <div className="composer-wrap" ref={wrapRef}>
       <div className="composer-inner">
-        <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
         {hasPermission ? (
           <PermissionBanner
             permissions={slotPermissions}

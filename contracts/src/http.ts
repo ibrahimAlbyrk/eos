@@ -2193,54 +2193,6 @@ export type WorkerDefinitionCatalogEntry = z.infer<typeof WorkerDefinitionCatalo
 
 export const WorkerDefinitionListResponseSchema = z.array(WorkerDefinitionCatalogEntrySchema);
 
-// ---- Auto-update (git-based; see manager/services/UpdateService.ts) ---------
-
-export const UpdateRevisionSchema = z.object({
-  sha: z.string(),
-  subject: z.string(),
-});
-export type UpdateRevision = z.infer<typeof UpdateRevisionSchema>;
-
-export const UpdateStatusSchema = z.object({
-  enabled: z.boolean(),
-  // behind > 0 AND a clean tree — the only state that shows the banner / arms
-  // the launch splash. A dirty checkout (a dev working copy) is never offered.
-  available: z.boolean(),
-  // The banner was dismissed with "later" — session-scoped, hides the banner
-  // until the next daemon run; the launch splash keys on `available`, not this.
-  deferred: z.boolean(),
-  dirty: z.boolean(),
-  behind: z.number().int().nonnegative(),
-  branch: z.string(),
-  currentSha: z.string(),
-  latestSha: z.string(),
-  // Commits that would be pulled, newest first.
-  notes: z.array(UpdateRevisionSchema),
-  checkedAt: z.number().nullable(),
-});
-export type UpdateStatus = z.infer<typeof UpdateStatusSchema>;
-
-export const UpdateApplyRequestSchema = z.object({
-  // true (banner): let `eos build` reload/relaunch the running app. false
-  // (native launch splash): the app drives its own reload, so the build must
-  // not quit it mid-update — `eos build --no-relaunch`.
-  relaunchApp: z.boolean().default(true),
-});
-export type UpdateApplyRequest = z.infer<typeof UpdateApplyRequestSchema>;
-
-export const UpdateApplyResponseSchema = z.object({
-  started: z.boolean(),
-  // started=false → disabled | not-available.
-  reason: z.string().optional(),
-});
-export type UpdateApplyResponse = z.infer<typeof UpdateApplyResponseSchema>;
-
-export const UpdateDeferResponseSchema = z.object({
-  ok: z.literal(true),
-  deferred: z.boolean(),
-});
-export type UpdateDeferResponse = z.infer<typeof UpdateDeferResponseSchema>;
-
 // ---- Integrate workers (orchestrator fan-in) -------------------------------
 // The orchestrator merges all its workers' worktree branches into its own
 // checkout. Disjoint work auto-merges as unstaged edits; a genuine overlap is
@@ -2562,10 +2514,6 @@ export const ROUTES = {
   genuiPlaces: "/api/genui/places",
   // GET → LocationResponse via the app (local-only; 403 unless location.share is on).
   location: "/api/location",
-  updateStatus: "/api/updates/status",
-  updateCheck: "/api/updates/check",
-  updateApply: "/api/updates/apply",
-  updateDefer: "/api/updates/defer",
   // Loopback + ui-token only (arm a pairing offer / read remote status / arm the
   // remote edge live). Never remote-reachable — the remote control surface is the
   // /ws gateway.
@@ -2609,7 +2557,7 @@ export const ROUTES = {
   // field-merges { apiKey?, authToken? } into ~/.eos/config.json's `anthropic`
   // key then reloads. Loopback + ui-token only (an agent can't self-write creds).
   anthropicConfig: "/api/anthropic/config",
-  // Subscription usage snapshot (Settings > Usage). Open read like updateStatus —
+  // Subscription usage snapshot (Settings > Usage). Open read —
   // the daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
   // calls; the endpoint 429s aggressively) and never echoes the OAuth token.
   usage: "/api/usage",

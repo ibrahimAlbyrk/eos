@@ -45,7 +45,6 @@ const EXPECTED_KEYS = [
   "settings", "settingsArchive", "settingsCompaction", "settingsGenui",
   "genuiViews", "genuiView", "genuiViewState", "genuiApps", "genuiMediaImg", "genuiMediaOg", "genuiMediaIcon",
   "genuiMap", "genuiGeocode", "genuiPlaces", "location",
-  "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair", "peerReverse",
   "hosts", "host", "hostReconnect", "hostViewToken", "hostProxyPrefix",

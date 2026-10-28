@@ -40,7 +40,7 @@ const RULES: TierRule[] = [
     "/health", "/fs/branches", "/fs/unpushed", "/fs/commit", "/fs/recents", "/fs/read",
     "/fs/list", "/fs/stat", "/fs/image", "/fs/icon", "/fs/default-app", "/api/ui-config",
     "/api/settings", "/commands", "/api/templates", "/api/prompts", "/worker-definitions",
-    "/api/updates/status", "/api/backends/:name/models",
+    "/api/backends/:name/models",
   ].map((p) => R("GET", p, "READ")),
 
   // Path-style binary asset reads (served out-of-band as `asset` frames). /fs/raw
@@ -109,14 +109,11 @@ const RULES: TierRule[] = [
   R("POST", "/fs/branch/delete", "HIGH", true),
   R("POST", "/fs/fetch", "HIGH", true),
   R("POST", "/fs/remote-branch/delete", "HIGH", true),
-  R("POST", "/api/updates/apply", "HIGH", true),
   R("POST", "/api/policy/rule", "HIGH"),
   R("POST", "/api/templates", "HIGH"),
   R("PUT", "/api/templates/:name", "HIGH"),
   R("DELETE", "/api/templates/:name", "HIGH"),
   R("PUT", "/api/settings", "HIGH"),
-  R("POST", "/api/updates/check", "HIGH"),
-  R("POST", "/api/updates/defer", "HIGH"),
 
   // ---- Code-view terminals (✦ — the handlers are ui-token gated) ----
   // No resize: a device mirrors the PTY at the desktop's size, never reshapes it.

@@ -135,8 +135,8 @@ module.exports = {
     // dev/build artifacts — otherwise Forge sweeps app/ui/node_modules into the
     // bundle (hundreds of MB). Return true to EXCLUDE (packager path-relative to app/).
     // node_modules is excluded too: main/preload are fully bundled by esbuild
-    // (only electron + electron-updater are external — electron is the runtime,
-    // electron-updater is lazy/optional), so the app needs no node_modules at all.
+    // (only electron is external — it is the runtime), so the app needs no
+    // node_modules at all.
     // The daemon bundle tree ships via extraResource (→ Resources/daemon), so keep
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
     // .forge-build/{main,preload}.js stay IN — they are the app entry.

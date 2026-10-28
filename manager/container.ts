@@ -143,8 +143,6 @@ import { childProcessConflictResolution } from "../infra/src/git/ChildProcessCon
 import { childProcessBranchAdmin } from "../infra/src/git/ChildProcessBranchAdmin.ts";
 import { childProcessWorkingTreeRestore } from "../infra/src/git/ChildProcessWorkingTreeRestore.ts";
 import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.ts";
-import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
-import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
 import { FilePageStore } from "../infra/src/persistence/FilePageStore.ts";
@@ -212,7 +210,6 @@ import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemo
 import { UserTemplateService, TEMPLATE_NAME_RE } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
-import { UpdateService } from "./services/UpdateService.ts";
 import { UsageService } from "./services/UsageService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
@@ -947,20 +944,6 @@ export function buildContainer() {
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const projectMemory = new FileProjectMemoryStore();
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
-
-  // Auto-update — polls the configured git remote and offers a newer build to
-  // the app (banner + native launch splash). Apply is a detached git pull +
-  // eos build that outlives the daemon restart it triggers.
-  const updates = new UpdateService({
-    source: gitUpdateSource,
-    applier: createDetachedBuildApplier({ logDir: config.daemon.logDir }),
-    bus,
-    clock: systemClock,
-    repoRoot: config.paths.repoRoot,
-    enabled: config.updates.enabled,
-    log,
-  });
-  updates.start(config.updates.checkIntervalMs);
 
   // Shared in-process tooling, used by BOTH the claude lane and the Eos-hosted
   // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
@@ -1910,7 +1893,6 @@ export function buildContainer() {
     userSettings,
     modelCatalog,
     modelPricing,
-    updates,
     usage,
     claudeCommands,
     accounts,
