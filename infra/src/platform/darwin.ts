@@ -62,4 +62,6 @@ export const darwinPlatform: HostPlatform = {
   shell: posixShell,
 
   scriptShell: () => "/bin/sh",
+
+  killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
 };

@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
 
 import { createNodeToolFileSystem } from "../tools/NodeToolFileSystem.ts";
 import { createNodeProcessRunner } from "../tools/NodeProcessRunner.ts";
@@ -82,7 +83,10 @@ describe("Write / Edit — overwrite + unique old_string", () => {
   });
 });
 
-describe("Grep — ripgrep semantics", () => {
+// The in-process Grep runs ripgrep from PATH; a machine without it has nothing to test.
+const HAS_RG = spawnSync("rg", ["--version"]).status === 0;
+
+describe("Grep — ripgrep semantics", { skip: !HAS_RG }, () => {
   it("default output_mode lists files with matches", async () => {
     await call("Write", { file_path: "hit.txt", content: "find the needle here" });
     await call("Write", { file_path: "miss.txt", content: "only hay" });

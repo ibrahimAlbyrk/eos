@@ -71,4 +71,6 @@ export interface HostPlatform {
    * system has none.
    */
   scriptShell(): string | null;
+  /** Ends a process and everything it started (a detached child leads its own group). Throws when `pid` is gone. */
+  killProcessTree(pid: number): void;
 }

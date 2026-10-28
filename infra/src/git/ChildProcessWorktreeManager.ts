@@ -12,7 +12,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { realpathSync, existsSync, rmSync, mkdirSync } from "node:fs";
-import { join, dirname, sep } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import type { WorktreeManager, WorktreeRef, WorktreeEntry, WorktreeCreateInput, WorktreeCreateResult } from "../../../core/src/ports/WorktreeManager.ts";
 import { hydrateWorktree } from "./hydrateWorktree.ts";
@@ -133,7 +133,8 @@ export const childProcessWorktreeManager: WorktreeManager = {
     for (const line of r.stdout.split("\n")) {
       if (line.startsWith("worktree ")) {
         flush();
-        cur = { path: line.slice("worktree ".length).trim(), isMain: first };
+        // resolve(): git writes C:/x on Windows; Eos's own paths are C:\x.
+        cur = { path: resolve(line.slice("worktree ".length).trim()), isMain: first };
         first = false;
       } else if (cur && line.startsWith("branch ")) {
         cur.branch = line.slice("branch ".length).trim().replace(/^refs\/heads\//, "");

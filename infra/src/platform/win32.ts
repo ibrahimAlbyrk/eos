@@ -1,5 +1,6 @@
 // Windows.
 
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -70,4 +71,9 @@ export const win32Platform: HostPlatform = {
   shell: win32Shell,
 
   scriptShell: gitBash,
+
+  // No process groups: taskkill walks the tree.
+  killProcessTree(pid) {
+    execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  },
 };

@@ -20,6 +20,7 @@
 import chokidar from "chokidar";
 import { watch } from "node:fs";
 import { readdir } from "node:fs/promises";
+import { sep } from "node:path";
 import type { Dirent } from "node:fs";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { GitDirs } from "../../../core/src/ports/GitInfo.ts";
@@ -58,7 +59,7 @@ interface TargetWatch {
 }
 
 function baseName(p: string): string {
-  return p.slice(p.lastIndexOf("/") + 1);
+  return p.slice(p.lastIndexOf(sep) + 1);
 }
 
 // Loose meta files at a git dir's top level. COMMIT_EDITMSG / config / the logs
@@ -91,8 +92,8 @@ function classifyRefs(p: string): GitChangeKind | null {
 function makeWorktreeIgnore(root: string): (p: string) => boolean {
   return (p) => {
     if (p === root) return false;
-    const rel = p.startsWith(root + "/") ? p.slice(root.length + 1) : p;
-    return rel.split("/").some((seg) => seg === ".eos" || IGNORED_ENTRIES.has(seg));
+    const rel = p.startsWith(root + sep) ? p.slice(root.length + 1) : p;
+    return rel.split(sep).some((seg) => seg === ".eos" || IGNORED_ENTRIES.has(seg));
   };
 }
 
@@ -109,7 +110,7 @@ function openTarget(root: string, recursive: boolean, ignore?: (p: string) => bo
   if (!recursive || NATIVE_RECURSIVE_WATCH) {
     return (onFire, onError) => {
       const watcher = watch(root, { recursive }, (_event, name) => {
-        const path = name ? `${root}/${name}` : root;
+        const path = name ? `${root}${sep}${name}` : root;
         if (!ignore?.(path)) onFire(path);
       });
       watcher.on("error", onError);

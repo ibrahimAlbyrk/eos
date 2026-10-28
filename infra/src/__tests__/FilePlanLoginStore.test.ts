@@ -17,7 +17,8 @@ describe("FilePlanLoginStore", () => {
     assert.deepEqual(store.load(), EMPTY_PLAN_LOGINS);
     store.save({ logins: [login], defaults: { anthropic: "l1" } });
     assert.deepEqual(store.load(), { logins: [login], defaults: { anthropic: "l1" } });
-    assert.equal(statSync(join(dir, "logins.json")).mode & 0o777, 0o600);
+    // Windows has no POSIX modes: the profile ACL protects the file.
+    if (process.platform !== "win32") assert.equal(statSync(join(dir, "logins.json")).mode & 0o777, 0o600);
     writeFileSync(join(dir, "logins.json"), "{nope");
     assert.deepEqual(store.load(), EMPTY_PLAN_LOGINS);
   });
@@ -34,7 +35,7 @@ describe("plan login store dirs", () => {
     const dirs = createPlanLoginDirs(acc);
     const fresh = dirs.create("anthropic", "lg-1");
     assert.equal(fresh, join(acc, "claude-lg-1"));
-    assert.equal(statSync(fresh).mode & 0o777, 0o700);
+    if (process.platform !== "win32") assert.equal(statSync(fresh).mode & 0o777, 0o700);
     dirs.discard(fresh);
     assert.equal(existsSync(fresh), false);
 

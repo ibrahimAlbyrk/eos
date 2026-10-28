@@ -56,7 +56,8 @@ describe("NodeProcessRunner — background shell lifecycle (MJ2)", () => {
     assert.equal(proc.readBackground("bash_does_not_exist"), null);
   });
 
-  it("honors timeoutMs for a background shell (no forever-running orphan)", async () => {
+  // POSIX signals and process groups: Windows ends a tree with taskkill and reports no signal.
+  it("honors timeoutMs for a background shell (no forever-running orphan)", { skip: process.platform === "win32" }, async () => {
     const proc = createNodeProcessRunner();
     const id = proc.startBackground("sleep 30", { cwd: process.cwd(), timeoutMs: 150 });
     const killed = await waitUntil(() => proc.readBackground(id)?.running === false, 3000);
@@ -71,7 +72,7 @@ describe("NodeProcessRunner — background shell lifecycle (MJ2)", () => {
     assert.equal(proc.killBackground(id), false, "a second kill is a no-op (already gone)");
   });
 
-  it("reap group-kills a detached descendant, not just the /bin/sh (N2)", async () => {
+  it("reap group-kills a detached descendant, not just the /bin/sh (N2)", { skip: process.platform === "win32" }, async () => {
     const proc = createNodeProcessRunner();
     // The shell backgrounds a long-lived grandchild and prints its PID, then exits
     // immediately — so a PID-only reap would leave the grandchild orphaned/alive.

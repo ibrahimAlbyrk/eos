@@ -55,7 +55,7 @@ function killTree(child: ChildProcess): void {
     return;
   }
   try {
-    process.kill(-child.pid, "SIGKILL");
+    hostPlatform.killProcessTree(child.pid);
   } catch {
     try { child.kill("SIGKILL"); } catch { /* already gone */ }
   }

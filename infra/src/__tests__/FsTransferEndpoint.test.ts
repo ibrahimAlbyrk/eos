@@ -13,7 +13,8 @@ function rejectsWith(code: string): (e: unknown) => boolean {
   return (e) => e instanceof TransferError && e.code === code;
 }
 
-describe("FsTransferEndpoint", () => {
+// File transfer is off on Windows until pairing ships (docs/windows plan, Phase 5).
+describe("FsTransferEndpoint", { skip: process.platform === "win32" }, () => {
   let root: string;
   let src: string;
   let dest: string;

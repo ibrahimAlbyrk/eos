@@ -1,10 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { controlSocketPath } from "../platform/control-socket.ts";
 
 describe("controlSocketPath", () => {
   it("is daemon.sock in the Eos home", () => {
-    assert.equal(controlSocketPath("/Users/me/.eos", "socket"), "/Users/me/.eos/daemon.sock");
+    assert.equal(controlSocketPath("/Users/me/.eos", "socket"), join("/Users/me/.eos", "daemon.sock"));
   });
 
   it("is one named pipe per Eos home on Windows, whatever the home's letter case", () => {

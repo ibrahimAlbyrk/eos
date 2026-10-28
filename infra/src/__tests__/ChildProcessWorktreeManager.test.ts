@@ -19,11 +19,12 @@ function addWorktree(branch: string): string {
   mkdirSync(join(repo, ".eos", "worktrees"), { recursive: true });
   const r = git(repo, "worktree", "add", dir, "-b", branch);
   assert.equal(r.code, 0, `worktree add failed: ${r.out}`);
-  return realpathSync(dir);
+  return realpathSync.native(dir);
 }
 
 before(() => {
-  repo = realpathSync(mkdtempSync(join(tmpdir(), "eos-wm-")));
+  // native: Windows' temp dir is an 8.3 short name; git reports the long one.
+  repo = realpathSync.native(mkdtempSync(join(tmpdir(), "eos-wm-")));
   assert.equal(git(repo, "init").code, 0);
   git(repo, "config", "user.email", "t@t.t");
   git(repo, "config", "user.name", "t");

@@ -110,13 +110,15 @@ async function defaultReadFile(path: string): Promise<string> {
 // Bare filenames (no separator) are skipped on purpose — matching every
 // "word.word" would catch version strings / prose; URLs are skipped too. A
 // trailing sentence period or slash is trimmed so "... at /tmp/h.txt." resolves.
-const PATH_TOKEN_RE = /[\w./~-]+/g;
+// A Windows path (C:\x\y.txt, C:/x) is one token; its drive letter can't follow
+// another word character, so "Note:/tmp/x" still reads as /tmp/x.
+const PATH_TOKEN_RE = /(?<!\w)[A-Za-z]:[\\/][\w.\\/~-]+|[\w./~-]+/g;
 function extractPaths(text: string): string[] {
   const out: string[] = [];
   for (const m of text.matchAll(PATH_TOKEN_RE)) {
     if (m[0].includes("://") || m[0].startsWith("//")) continue;
-    const t = m[0].replace(/[./]+$/, "");
-    if (t.includes("/")) out.push(t);
+    const t = m[0].replace(/[./\\]+$/, "");
+    if (t.includes("/") || t.includes("\\")) out.push(t);
   }
   return out;
 }

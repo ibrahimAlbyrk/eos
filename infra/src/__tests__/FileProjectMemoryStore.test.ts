@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { FileProjectMemoryStore } from "../persistence/FileProjectMemoryStore.ts";
 
 function freshDir(): string {
@@ -30,7 +30,7 @@ test("list parses frontmatter and skips MEMORY.md", async () => {
   const alpha = list.find((e) => e.name === "alpha");
   assert.equal(alpha.description, "first one");
   assert.equal(alpha.type, "project");
-  assert.ok(alpha.path.endsWith("/alpha.md"));
+  assert.ok(alpha.path.endsWith(`${sep}alpha.md`));
   assert.equal(list.find((e) => e.name === "beta").type, "feedback");
 });
 

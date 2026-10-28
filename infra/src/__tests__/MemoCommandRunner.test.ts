@@ -12,7 +12,8 @@ describe("createMemoCommandRunner", () => {
     const d = dir();
     const hits = join(d, "hits");
     const runner = createMemoCommandRunner();
-    const cmd = `printf x >> ${hits}`;
+    // The command runs in sh (Git Bash on Windows): forward slashes, quoted.
+    const cmd = `printf x >> '${hits.replaceAll("\\", "/")}'`;
     const r1 = await runner.run(cmd, d);
     const r2 = await runner.run(cmd, d);
     assert.equal(r1.exitCode, 0);
@@ -24,7 +25,7 @@ describe("createMemoCommandRunner", () => {
     const d = dir();
     const hits = join(d, "hits");
     const runner = createMemoCommandRunner();
-    const cmd = `printf x >> ${hits}`;
+    const cmd = `printf x >> '${hits.replaceAll("\\", "/")}'`;
     await Promise.all([runner.run(cmd, d), runner.run(cmd, d), runner.run(cmd, d)]);
     assert.equal(readFileSync(hits, "utf8"), "x");
   });
@@ -44,7 +45,7 @@ describe("createMemoCommandRunner", () => {
     const d = dir();
     const hits = join(d, "hits");
     const runner = createMemoCommandRunner();
-    const cmd = `printf x >> ${hits}`;
+    const cmd = `printf x >> '${hits.replaceAll("\\", "/")}'`;
     const ac = new AbortController();
     ac.abort();
     const aborted = await runner.run(cmd, d, ac.signal);

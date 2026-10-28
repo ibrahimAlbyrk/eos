@@ -39,19 +39,37 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # Tests compare file bytes; the runner's git would write CRLF into the
+      # repos they create (Eos itself follows the user's git config).
+      - name: Git line endings
+        run: git config --global core.autocrlf false
+
       - name: Install packages
-        run: bash scripts/bootstrap.sh
+        run: |
+          bash scripts/bootstrap.sh
+          (cd relay && npm install)
 
       # The suites were written on macOS; until they pass on Windows (plan
       # Phase 0) a failure is reported without blocking the package.
       - name: Test
         continue-on-error: true
+        timeout-minutes: 60
         run: |
           failed=""
-          for pkg in contracts core infra spawner manager app/ui; do
+          for pkg in contracts core infra spawner app/ui; do
             (cd "$pkg" && npm test) || failed="$failed $pkg"
           done
-          [ -z "$failed" ] || { echo "::error::failing suites:$failed"; exit 1; }
+          # manager file by file, each with a deadline, so a hang names its file.
+          cd manager
+          files=$(node -p 'require("./package.json").scripts.test.replace(/^tsx --test /, "")')
+          for f in $files; do
+            timeout 300 npx tsx --test "$f" > ../test-out.log 2>&1; code=$?
+            if [ $code -eq 124 ]; then echo "::error::TIMEOUT $f"; failed="$failed manager:$f"
+            elif [ $code -ne 0 ]; then echo "::group::FAIL $f"; grep -E "✖|Error|expected|actual" ../test-out.log | head -40; echo "::endgroup::"; failed="$failed manager:$f"
+            fi
+          done
+          cd ..
+          [ -z "$failed" ] || { echo "::error::failing:$failed"; exit 1; }
 
       - name: Package
         working-directory: app

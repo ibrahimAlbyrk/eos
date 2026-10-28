@@ -100,7 +100,7 @@ describe("ChokidarGitWatcher", () => {
       resolveDirs: (cwd) => gitInfo.gitDirs(cwd),
     });
     try {
-      assert.ok(wtDir.includes("/.eos/worktrees/feat"), "worktree root must contain a .eos segment");
+      assert.ok(wtDir.includes(join(".eos", "worktrees", "feat")), "worktree root must contain a .eos segment");
       w.watch(wtDir);
       await sleep(900); // chokidar ready + async resolveDirs
 

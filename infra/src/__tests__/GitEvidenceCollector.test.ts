@@ -22,6 +22,9 @@ function fileCollector(disk: Record<string, string>) {
   });
 }
 
+// These criteria name POSIX paths; Windows resolves them under its drive.
+const POSIX = { skip: process.platform === "win32" };
+
 describe("GitEvidenceCollector", () => {
   it("runs each verify command into a machine signal (exit code captured); skips no-verify criteria", async () => {
     const goal: GoalSpec = { summary: "g", criteria: [
@@ -51,7 +54,7 @@ describe("GitEvidenceCollector", () => {
     assert.equal(bundle.reportClaim, "my claim");
   });
 
-  it("reads an absolute file a criterion references — a valid artifact becomes real evidence", async () => {
+  it("reads an absolute file a criterion references — a valid artifact becomes real evidence", POSIX, async () => {
     const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "A valid haiku exists at /tmp/haiku.txt." }] };
     const bundle = await fileCollector({ "/tmp/haiku.txt": "old pond\na frog leaps in\nwater's sound" })
       .collect(goal, { workerId: "w-1", attempt: 0 });
@@ -60,7 +63,7 @@ describe("GitEvidenceCollector", () => {
     assert.match(bundle.files![0].content, /frog leaps/);
   });
 
-  it("resolves a relative path against the worktree dir", async () => {
+  it("resolves a relative path against the worktree dir", POSIX, async () => {
     const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "see ./out/result.json" }] };
     const bundle = await fileCollector({ "/wt/out/result.json": "{\"ok\":true}" })
       .collect(goal, { workerId: "w-1", attempt: 0, worktreeDir: "/wt" });
@@ -68,7 +71,7 @@ describe("GitEvidenceCollector", () => {
     assert.equal(bundle.files?.[0].path, "/wt/out/result.json");
   });
 
-  it("resolves a relative path against ctx.cwd when there is no worktree (Fix 6a)", async () => {
+  it("resolves a relative path against ctx.cwd when there is no worktree (Fix 6a)", POSIX, async () => {
     const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "see ./out/result.json" }] };
     const bundle = await fileCollector({ "/checkout/out/result.json": "{}" })
       .collect(goal, { workerId: "w-1", attempt: 0, cwd: "/checkout" });
