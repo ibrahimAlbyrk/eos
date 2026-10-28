@@ -9,7 +9,7 @@
 // single file would break:
 //   - @anthropic-ai/claude-agent-sdk  → require.resolve() of its platform `claude` binary
 //   - web-tree-sitter / @vscode/tree-sitter-wasm → createRequire() of *.wasm grammars
-//   - @homebridge/node-pty-prebuilt-multiarch → native .node (no esbuild loader)
+//   - node-pty → native .node (no esbuild loader)
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
@@ -20,7 +20,7 @@ const repoRoot = resolve(scriptDir, "..", "..");
 const outDir = join(repoRoot, "app", ".forge-build", "daemon");
 
 export const DAEMON_EXTERNALS = [
-  "@homebridge/node-pty-prebuilt-multiarch",
+  "node-pty",
   "@anthropic-ai/claude-agent-sdk",
   "web-tree-sitter",
   "@vscode/tree-sitter-wasm",

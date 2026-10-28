@@ -157,16 +157,6 @@ module.exports = {
     ...(osxSign ? { osxSign } : {}),
     ...(osxNotarize ? { osxNotarize } : {}),
   },
-  // node-pty ships as a native addon and must match Electron's module ABI (146),
-  // not the system Node's. onlyModules scopes the rebuild to it. NOTE (Stage 3):
-  // node-pty lives in spawner/node_modules and is shipped under
-  // Resources/daemon/node_modules by the (pending) resource-assembly hook; the
-  // electron-rebuild there must target that assembled tree. This declaration
-  // covers the case where it is present in a rebuild-visible node_modules.
-  rebuildConfig: {
-    onlyModules: ["node-pty", "@homebridge/node-pty-prebuilt-multiarch"],
-    force: true,
-  },
   makers: [
     { name: "@electron-forge/maker-zip", platforms: ["darwin", "win32"] },
     // Per-user Setup.exe (no admin): installs under %LOCALAPPDATA%\Eos, adds the

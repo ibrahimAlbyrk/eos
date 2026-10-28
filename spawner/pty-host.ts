@@ -10,7 +10,7 @@
 // platform's interactive shell (on macOS the user's LOGIN shell with a TTY, so
 // rc files are sourced and the real prompt renders).
 
-import { spawn as ptySpawn, type IPty } from "@homebridge/node-pty-prebuilt-multiarch";
+import { spawn as ptySpawn, type IPty } from "node-pty";
 import { hostPlatform } from "../infra/src/platform/index.ts";
 
 export interface PtyHostOptions {

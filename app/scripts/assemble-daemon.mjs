@@ -1,15 +1,14 @@
 // Assembles the shippable Resources/daemon tree next to the esbuild bundles:
-// a real node_modules holding the 4 externals kept out of the bundles (their
-// transitive closure is trivial — see below), then rebuilds node-pty for
-// Electron's module ABI. Forge's extraResource copies the whole dir into
+// a real node_modules holding the externals kept out of the bundles (their
+// transitive closure is trivial — see below). node-pty's prebuilds are N-API,
+// so the one for this system loads under Electron's Node as is. Forge's extraResource copies the whole dir into
 // Contents/Resources/daemon, which is where the Stage-2 packaged-mode gating
 // (EOS_BUNDLES_DIR) resolves everything at runtime.
 //
 // Run by forge.config.js prePackage AFTER bundle-daemon.mjs. Safe to run standalone.
-import { rebuild } from "@electron/rebuild";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
-import { cpSync, rmSync, existsSync, mkdirSync, statSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, rmSync, existsSync, mkdirSync, statSync, readdirSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -28,7 +27,7 @@ const sdkBinary = `@anthropic-ai/claude-agent-sdk-${target}`;
 const COPY = [
   { from: "manager/node_modules/@anthropic-ai/claude-agent-sdk", to: "@anthropic-ai/claude-agent-sdk" },
   { from: `manager/node_modules/${sdkBinary}`, to: sdkBinary },
-  { from: "spawner/node_modules/@homebridge/node-pty-prebuilt-multiarch", to: "@homebridge/node-pty-prebuilt-multiarch" },
+  { from: "spawner/node_modules/node-pty", to: "node-pty" },
   { from: "infra/node_modules/web-tree-sitter", to: "web-tree-sitter" },
   { from: "infra/node_modules/@vscode/tree-sitter-wasm", to: "@vscode/tree-sitter-wasm" },
 ];
@@ -49,47 +48,22 @@ for (const { from, to } of COPY) {
 }
 
 // Prune node-pty's prebuilds for other systems — dead weight in this build.
-const ptyPrebuilds = join(nmDir, "@homebridge/node-pty-prebuilt-multiarch/prebuilds");
+const ptyPrebuilds = join(nmDir, "node-pty", "prebuilds");
 if (existsSync(ptyPrebuilds)) {
   for (const d of readdirSync(ptyPrebuilds)) {
-    if (!d.startsWith(process.platform)) rmSync(join(ptyPrebuilds, d), { recursive: true, force: true });
+    if (d !== target) rmSync(join(ptyPrebuilds, d), { recursive: true, force: true });
   }
 }
 
-// @electron/rebuild reads a package.json at buildPath to locate deps. The shipped
-// daemon dir has none (it's bundles + node_modules), so write a minimal manifest.
-writeFileSync(join(daemonDir, "package.json"), JSON.stringify({
-  name: "eos-daemon-bundle",
-  version: "0.0.0",
-  private: true,
-  dependencies: { "@homebridge/node-pty-prebuilt-multiarch": "*" },
-}, null, 2));
-
-const electronVersion = JSON.parse(readFileSync(join(repoRoot, "app/node_modules/electron/package.json"), "utf8")).version;
-
-// Rebuild node-pty for Electron's ABI (reproducible across machines). Best-effort:
-// the prebuilt already dlopens under Electron-node here, so a failure is a
-// reproducibility gap, not a hard blocker — reported either way.
-let rebuildStatus = "ok";
-try {
-  await rebuild({
-    buildPath: daemonDir,
-    electronVersion,
-    arch: process.arch,
-    onlyModules: ["@homebridge/node-pty-prebuilt-multiarch"],
-    force: true,
-  });
-} catch (e) {
-  rebuildStatus = `FAILED: ${e instanceof Error ? e.message : String(e)}`;
-}
-
+const ptyBinary = join(nmDir, "node-pty", "prebuilds", target, process.platform === "win32" ? "conpty.node" : "pty.node");
 const du = (p) => { try { return execSync(`du -sh ${JSON.stringify(p)}`, { encoding: "utf8" }).split("\t")[0]; } catch { return "?"; } };
-const ptyNode = join(nmDir, "@homebridge/node-pty-prebuilt-multiarch/build/Release/pty.node");
 console.log(
   `\nassembled -> ${nmDir}\n` +
     `  node_modules total: ${du(nmDir)}\n` +
     `  claude binary: ${du(join(nmDir, sdkBinary))}\n` +
-    `  pty.node present: ${existsSync(ptyNode) ? statSync(ptyNode).size + " bytes" : "MISSING"}\n` +
-    `  electron-rebuild (v${electronVersion}, ${process.arch}, node-pty): ${rebuildStatus}`,
+    `  node-pty ${target}: ${existsSync(ptyBinary) ? statSync(ptyBinary).size + " bytes" : "MISSING"}`,
 );
-if (rebuildStatus !== "ok") process.exitCode = 0; // non-fatal; reported above
+if (!existsSync(ptyBinary)) {
+  console.error(`assemble-daemon: node-pty has no prebuild for ${target}`);
+  process.exit(1);
+}

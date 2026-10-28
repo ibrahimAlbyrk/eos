@@ -90,7 +90,7 @@ export default [
       "no-restricted-imports": ["error", {
         patterns: [
           { group: ["node:*"], message: "core/ must not import node built-ins. Define a port in core/ports/ and implement it in infra/." },
-          { group: ["chokidar", "@homebridge/node-pty-prebuilt-multiarch", "@modelcontextprotocol/sdk*", "yaml", "marked", "highlight.js", "dompurify", "diff", "ink", "react"], message: "core/ must not import 3rd-party infrastructure modules. Define a port and implement in infra/." },
+          { group: ["chokidar", "node-pty", "@modelcontextprotocol/sdk*", "yaml", "marked", "highlight.js", "dompurify", "diff", "ink", "react"], message: "core/ must not import 3rd-party infrastructure modules. Define a port and implement in infra/." },
           { group: ["../../infra/*", "../../../infra/*", "../../manager/*", "../../../manager/*", "../../spawner/*", "../../../spawner/*", "../../gateway/*", "../../../gateway/*"], message: "core/ must not depend on outer layers (infra/, manager/, spawner/, gateway/). Dependency direction is inward." },
         ],
       }],
