@@ -55,6 +55,18 @@ export function AgentsView({ live }) {
     },
   }, [ui.setSelectedId]);
 
+  // Cmd+/ → the focused pane's /btw side question, its field focused. Shift is
+  // allowed: "/" is Shift+7 on a Turkish keyboard. A focused code editor keeps
+  // Cmd+/ for its toggle-comment.
+  useKeybinding({
+    match: (e) => Boolean(e.metaKey) && !e.ctrlKey && !e.altKey && e.key === "/",
+    when: () => !document.activeElement?.closest?.(".cm-editor"),
+    run: (ctx, e) => {
+      e.preventDefault();
+      ui.openPanel("btw", { focus: Date.now() });
+    },
+  }, [ui.openPanel]);
+
   // Last agent removed → reset to the clean new-session state, in ANY layout.
   // `live.loaded` so an empty list during the initial fetch isn't mistaken for
   // "all deleted". Both cleanup effects below bail when the list is empty, so

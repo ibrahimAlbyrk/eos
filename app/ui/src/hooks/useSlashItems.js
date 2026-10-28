@@ -8,6 +8,7 @@ export const BUILTIN_COMMANDS = [
   { name: "clear", description: "Clear conversation history (agent context + chat)", source: "builtin" },
   { name: "compact", description: "Summarize the conversation into a fresh context. Text after the command steers what the summary keeps.", source: "builtin" },
   { name: "export", description: "Export conversation as HTML", source: "builtin" },
+  { name: "btw", description: "Ask a quick side question about this chat. Read-only; it never enters the conversation, and the agent keeps working.", argumentHint: "<question>", source: "builtin" },
 ];
 
 // The full slash universe for a cwd: builtins + daemon commands + templates.

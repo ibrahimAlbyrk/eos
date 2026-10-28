@@ -288,6 +288,15 @@ export const api = {
   async stopWorkflowRun(workerId, callId) {
     return postJson(ROUTES.workerWorkflowRunStop(workerId, callId), {}, uiTokenHeader());
   },
+  // The /btw side question; aborting `signal` cancels the answer.
+  async askSideQuestion(workerId, question, { signal } = {}) {
+    return fetchJson(`${DAEMON}${ROUTES.workerSideQuestion(workerId)}`, {
+      method: "POST",
+      headers: { ...JSON_HEADERS, ...uiTokenHeader() },
+      body: JSON.stringify({ question }),
+      signal,
+    });
+  },
   // Background jobs (contracts/src/background-job.ts), all ui-token.
   async listJobs() {
     const r = await getJson(ROUTES.jobs, { headers: uiTokenHeader() });

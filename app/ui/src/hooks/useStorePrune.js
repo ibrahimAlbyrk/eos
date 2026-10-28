@@ -6,9 +6,10 @@ import { pruneExcept as pruneTerminal } from "../state/terminalStore.js";
 import { pruneExcept as pruneThinking } from "../state/thinkingStore.js";
 import { reconcile as reconcileLoopCheck } from "../state/loopCheckStore.js";
 import { pruneExcept as pruneGenuiStreams } from "../genui/streamStore.js";
+import { pruneExcept as pruneSideQuestions } from "../state/sideQuestionStore.js";
 
-// Per-worker caches (diff/conflict/git/terminal/thinking/genui streams) are purged on explicit archive
-// (useArchiveAgent), but a worker that auto-shutdowns, dies in a cascade, or
+// Per-worker caches (diff/conflict/git/terminal/thinking/genui streams/side
+// questions) are purged on explicit archive (useArchiveAgent), but a worker that auto-shutdowns, dies in a cascade, or
 // vanishes on daemon restart never hits that path — its cached patch text /
 // output strings would linger. One reconcile pass per workers update drops any
 // entry whose worker has left the live list. Empty list is skipped (boot /
@@ -23,6 +24,7 @@ export function useStorePrune(workers) {
     pruneTerminal(present);
     pruneThinking(present);
     pruneGenuiStreams(present);
+    pruneSideQuestions(present);
     // State-aware: also clears a pending check whose worker has left its IDLE
     // window (a missed "verdict" can't strand the "checking" badge).
     reconcileLoopCheck(workers);

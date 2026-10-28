@@ -23,7 +23,9 @@ import { tokenRegions, tokenAt, atomicCaretTarget } from "../../../lib/composerT
 import { shouldCollapsePaste, makePasteLabel, pasteLineCount, pastePreview } from "../../../lib/pasteTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { parentScope } from "../../../lib/mentionQuery.js";
-import { providerSpawn } from "../../../lib/backendCaps.js";
+import { backendCaps, providerSpawn } from "../../../lib/backendCaps.js";
+import { parseSideQuestion } from "../../../lib/sideQuestion.js";
+import { askSideQuestion } from "../../../state/sideQuestionStore.js";
 import { composerCwd } from "../../../lib/composerFolder.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes.js";
@@ -140,6 +142,12 @@ export function Composer({ live, worker, paneId, focused }) {
   // (builtins/templates included), unlike cmdMap (daemon commands only,
   // drives argument hints and token deletion).
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
+  // /btw is offered only for an agent whose backend can answer side questions.
+  const canAskSide = Boolean(selected) && backendCaps(selected.backend_kind).sideQuestion === true;
+  const menuItems = useMemo(
+    () => (canAskSide ? slashItems : slashItems.filter((c) => !(c.source === "builtin" && c.name === "btw"))),
+    [slashItems, canAskSide],
+  );
   const branches = useBranchNames(cwd);
 
   const uploadFailedRef = useRef(() => {});
@@ -214,7 +222,7 @@ export function Composer({ live, worker, paneId, focused }) {
   const { slashCtx, atCtx, atIntent, hashCtx, filtered, atResults, branchResults, activeMenu } = useCompletion({
     text,
     cursorPos,
-    commands: slashItems,
+    commands: menuItems,
     cwd,
     selected,
     workers: live.workers,
@@ -234,13 +242,14 @@ export function Composer({ live, worker, paneId, focused }) {
       if (text[i] !== "/") continue;
       let end = i + 1;
       while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-      const cmd = cmdMap.get(text.slice(i + 1, end));
+      const name = text.slice(i + 1, end);
+      const cmd = cmdMap.get(name) ?? slashMap.get(name);
       if (!cmd?.argumentHint) continue;
       const after = text.slice(end);
       if (after === " ") return cmd.argumentHint;
     }
     return null;
-  }, [text, cmdMap]);
+  }, [text, cmdMap, slashMap]);
 
   // Template queued by the picker popover or the ⌘K palette — replaces the
   // whole input, then enters placeholder navigation. pendingTemplate/pendingText
@@ -601,6 +610,19 @@ export function Composer({ live, worker, paneId, focused }) {
       setTextAndSync("", 0, "reset");
       const tree = !!selected.is_orchestrator;
       api.exportWorker(selected.id, { tree }).catch((e) => console.error("export failed", e));
+      return;
+    }
+
+    // "/btw <question>" asks this agent a read-only side question in the side
+    // panel. It never reaches the conversation, so it never waits in the queue.
+    // A bare /btw just opens the tab; an agent that can't answer gets the tab's
+    // explanation instead.
+    if (mode !== "term" && !gitMode && parseSideQuestion(t)) {
+      if (!canAskSide) { ui.openPanel("btw"); return; }
+      const { agentText } = await prepareMessage();
+      const { question } = parseSideQuestion(agentText) ?? { question: "" };
+      if (question) askSideQuestion(selected.id, question);
+      ui.openPanel("btw", question ? undefined : { focus: Date.now() });
       return;
     }
 

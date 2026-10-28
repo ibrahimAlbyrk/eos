@@ -40,6 +40,8 @@ export const ROUTES = {
   jobStop: (id) => `/api/jobs/${encodeURIComponent(id)}/stop`,
   jobDismiss: (id) => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
   workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
+  // The /btw side question (contracts/src/side-question.ts), ui-token.
+  workerSideQuestion: (id) => `/workers/${id}/btw`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,
