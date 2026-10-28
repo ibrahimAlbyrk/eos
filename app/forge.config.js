@@ -33,6 +33,9 @@ const claudeEntitlements = path.resolve(__dirname, "build", "entitlements.claude
 // `xcrun notarytool store-credentials eos-notary --key … --key-id … --issuer …`.
 const notarize = Boolean(signingIdentity) && process.env.EOS_NOTARIZE === "1";
 
+const isMac = process.platform === "darwin";
+const isWindows = process.platform === "win32";
+
 const osxSign = signingIdentity
   ? {
       identity: signingIdentity,
@@ -57,16 +60,18 @@ module.exports = {
   hooks: {
     // The app OWNS its UI build: produce a fresh app/ui/dist before packaging so
     // extraResource copies current assets (eos build no longer builds the web UI).
-    // Runs for `package`/`make`; dev `npm start` ensures dist via the ensure:ui script.
+    // Runs for `package`/`make`; dev `npm start` ensures dist via scripts/ensure-dev.mjs.
     prePackage: async () => {
-      execFileSync("npm", ["run", "build"], { cwd: path.resolve(__dirname, "ui"), stdio: "inherit" });
+      // npm is npm.cmd on Windows, which only a shell runs.
+      execFileSync("npm", ["run", "build"], { cwd: path.resolve(__dirname, "ui"), stdio: "inherit", shell: isWindows });
       // Assemble the standalone backend that ships under Contents/Resources/daemon:
       // esbuild-bundle the daemon + subprocess entries, then copy the external
       // node_modules (incl. the claude binary) and rebuild node-pty for Electron's ABI.
       execFileSync("node", ["scripts/bundle-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
       execFileSync("node", ["scripts/assemble-daemon.mjs"], { cwd: __dirname, stdio: "inherit" });
-      execFileSync("node", ["scripts/build-saver.mjs"], { cwd: __dirname, stdio: "inherit" });
-      execFileSync("node", ["scripts/build-location.mjs"], { cwd: __dirname, stdio: "inherit" });
+      // This system's native helpers (macOS: screen saver + CoreLocation; Windows: EosHelper).
+      const helpers = isMac ? ["build-saver.mjs", "build-location.mjs"] : isWindows ? ["build-helper.mjs"] : [];
+      for (const script of helpers) execFileSync("node", [`scripts/${script}`], { cwd: __dirname, stdio: "inherit" });
     },
     // Ad-hoc identifier fix (the DURABLE Dock-icon fix). Without a Developer ID,
     // Forge does no signing and the app keeps Electron's linker-signed default,
@@ -80,7 +85,7 @@ module.exports = {
     // identity is set — osxSign already produced a proper Developer ID signature
     // (also identified by CFBundleIdentifier), so re-signing would only downgrade it.
     postPackage: async (_config, { outputPaths }) => {
-      if (process.platform !== "darwin" || signingIdentity) return;
+      if (!isMac || signingIdentity) return;
       for (const outDir of outputPaths) {
         const appPath = path.join(outDir, "Eos.app");
         execFileSync("codesign", ["--force", "--deep", "--sign", "-", appPath], { stdio: "inherit" });
@@ -110,7 +115,7 @@ module.exports = {
     // any native addon (node-pty's pty.node) so dlopen() can load it from a real
     // path — .node files cannot be loaded from inside an asar archive.
     asar: { unpack: "**/*.node" },
-    icon: path.resolve(__dirname, "build", "icon"), // packager appends .icns
+    icon: path.resolve(__dirname, "build", "icon"), // packager appends .icns / .ico
     // Bundle the built web UI into Contents/Resources/dist so the packaged app
     // serves eos://app/ without the source tree (config.ts resolveUiRoot). The UI
     // is the nested package at app/ui.
@@ -123,11 +128,15 @@ module.exports = {
       path.resolve(__dirname, ".forge-build", "daemon"),
       path.resolve(__dirname, "..", "manager", "prompts"),
       path.resolve(__dirname, "..", "manager", "workers"),
-      path.resolve(__dirname, ".forge-build", "Eos.saver"),
-      // The CoreLocation helper behind location sharing (main/location.ts runs it).
-      path.resolve(__dirname, ".forge-build", "EosLocation.app"),
-      // Native notifications play it by name (main/notifications.ts); macOS finds it in Contents/Resources.
-      path.resolve(__dirname, "build", "eos-notification.aiff"),
+      ...(isMac ? [
+        path.resolve(__dirname, ".forge-build", "Eos.saver"),
+        // The CoreLocation helper behind location sharing (main/location.ts runs it).
+        path.resolve(__dirname, ".forge-build", "EosLocation.app"),
+        // Native notifications play it by name (main/notifications.ts); macOS finds it in Contents/Resources.
+        path.resolve(__dirname, "build", "eos-notification.aiff"),
+      ] : []),
+      // DPAPI secrets, Recycle Bin, keep-awake, location (main/platform/win32.ts, infra/src/platform/win32.ts).
+      ...(isWindows ? [path.resolve(__dirname, ".forge-build", "EosHelper.exe")] : []),
     ],
     // The packaged app.asar needs only package.json + the bundled entry
     // (.forge-build/{main,preload}.js). Exclude the nested UI package (its
@@ -141,8 +150,8 @@ module.exports = {
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
     // .forge-build/{main,preload}.js stay IN — they are the app entry.
     ignore: (p) =>
-      /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location)(\/|$)/.test(p) ||
-      /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app)(\/|$)/.test(p) ||
+      /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location|helper-win)(\/|$)/.test(p) ||
+      /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app|EosHelper\.exe)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
     ...(osxSign ? { osxSign } : {}),
@@ -159,7 +168,19 @@ module.exports = {
     force: true,
   },
   makers: [
-    { name: "@electron-forge/maker-zip", platforms: ["darwin"] },
+    { name: "@electron-forge/maker-zip", platforms: ["darwin", "win32"] },
+    // Per-user Setup.exe (no admin): installs under %LOCALAPPDATA%\Eos, adds the
+    // Start menu + desktop shortcuts (main/platform/win32/squirrel.ts).
+    {
+      name: "@electron-forge/maker-squirrel",
+      platforms: ["win32"],
+      config: {
+        name: "Eos",
+        setupExe: `Eos-Setup-${process.arch}.exe`,
+        setupIcon: path.resolve(__dirname, "build", "icon.ico"),
+        noMsi: true,
+      },
+    },
     // DMG needs the native `appdmg`; opt in with EOS_DMG=1.
     ...(process.env.EOS_DMG === "1" ? [{ name: "@electron-forge/maker-dmg", config: { format: "ULFO" } }] : []),
   ],

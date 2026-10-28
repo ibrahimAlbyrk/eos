@@ -9,7 +9,7 @@
 import { rebuild } from "@electron/rebuild";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
-import { cpSync, rmSync, existsSync, mkdirSync, statSync, readdirSync, writeFileSync } from "node:fs";
+import { cpSync, rmSync, existsSync, mkdirSync, statSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { execSync } from "node:child_process";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -17,12 +17,17 @@ const repoRoot = resolve(scriptDir, "..", "..");
 const daemonDir = join(repoRoot, "app", ".forge-build", "daemon");
 const nmDir = join(daemonDir, "node_modules");
 
-// Closure (verified): SDK deps {} + its darwin-arm64 binary sibling; node-pty
+// The tree is built on (and for) the machine packaging it: CI builds each
+// system + arch on its own runner, since node-pty can't be cross-built.
+const target = `${process.platform}-${process.arch}`;
+const sdkBinary = `@anthropic-ai/claude-agent-sdk-${target}`;
+
+// Closure (verified): SDK deps {} + its platform binary sibling; node-pty
 // needs node-addon-api/prebuild-install only at build/install time; tree-sitter
 // packages are zero-dep. So a flat copy of these 5 dirs is the full runtime set.
 const COPY = [
   { from: "manager/node_modules/@anthropic-ai/claude-agent-sdk", to: "@anthropic-ai/claude-agent-sdk" },
-  { from: "manager/node_modules/@anthropic-ai/claude-agent-sdk-darwin-arm64", to: "@anthropic-ai/claude-agent-sdk-darwin-arm64" },
+  { from: `manager/node_modules/${sdkBinary}`, to: sdkBinary },
   { from: "spawner/node_modules/@homebridge/node-pty-prebuilt-multiarch", to: "@homebridge/node-pty-prebuilt-multiarch" },
   { from: "infra/node_modules/web-tree-sitter", to: "web-tree-sitter" },
   { from: "infra/node_modules/@vscode/tree-sitter-wasm", to: "@vscode/tree-sitter-wasm" },
@@ -43,11 +48,11 @@ for (const { from, to } of COPY) {
   cpSync(src, dest, { recursive: true, dereference: true });
 }
 
-// Prune node-pty's Linux prebuilds — dead weight on macOS.
+// Prune node-pty's prebuilds for other systems — dead weight in this build.
 const ptyPrebuilds = join(nmDir, "@homebridge/node-pty-prebuilt-multiarch/prebuilds");
 if (existsSync(ptyPrebuilds)) {
   for (const d of readdirSync(ptyPrebuilds)) {
-    if (d.startsWith("linux")) rmSync(join(ptyPrebuilds, d), { recursive: true, force: true });
+    if (!d.startsWith(process.platform)) rmSync(join(ptyPrebuilds, d), { recursive: true, force: true });
   }
 }
 
@@ -60,9 +65,7 @@ writeFileSync(join(daemonDir, "package.json"), JSON.stringify({
   dependencies: { "@homebridge/node-pty-prebuilt-multiarch": "*" },
 }, null, 2));
 
-const electronVersion = JSON.parse(
-  execSync("cat " + JSON.stringify(join(repoRoot, "app/node_modules/electron/package.json")), { encoding: "utf8" }),
-).version;
+const electronVersion = JSON.parse(readFileSync(join(repoRoot, "app/node_modules/electron/package.json"), "utf8")).version;
 
 // Rebuild node-pty for Electron's ABI (reproducible across machines). Best-effort:
 // the prebuilt already dlopens under Electron-node here, so a failure is a
@@ -72,7 +75,7 @@ try {
   await rebuild({
     buildPath: daemonDir,
     electronVersion,
-    arch: "arm64",
+    arch: process.arch,
     onlyModules: ["@homebridge/node-pty-prebuilt-multiarch"],
     force: true,
   });
@@ -85,8 +88,8 @@ const ptyNode = join(nmDir, "@homebridge/node-pty-prebuilt-multiarch/build/Relea
 console.log(
   `\nassembled -> ${nmDir}\n` +
     `  node_modules total: ${du(nmDir)}\n` +
-    `  claude binary: ${du(join(nmDir, "@anthropic-ai/claude-agent-sdk-darwin-arm64"))}\n` +
+    `  claude binary: ${du(join(nmDir, sdkBinary))}\n` +
     `  pty.node present: ${existsSync(ptyNode) ? statSync(ptyNode).size + " bytes" : "MISSING"}\n` +
-    `  electron-rebuild (v${electronVersion}, arm64, node-pty): ${rebuildStatus}`,
+    `  electron-rebuild (v${electronVersion}, ${process.arch}, node-pty): ${rebuildStatus}`,
 );
 if (rebuildStatus !== "ok") process.exitCode = 0; // non-fatal; reported above

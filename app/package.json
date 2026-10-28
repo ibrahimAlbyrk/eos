@@ -10,19 +10,18 @@
   "scripts": {
     "bundle": "node esbuild.mjs",
     "build:ui": "npm --prefix ui run build",
-    "ensure:ui": "test -f ui/dist/index.html || npm run build:ui",
     "build:saver": "node scripts/build-saver.mjs",
-    "ensure:saver": "test -d .forge-build/Eos.saver || npm run build:saver",
     "build:location": "node scripts/build-location.mjs",
-    "ensure:location": "test -d .forge-build/EosLocation.app || npm run build:location",
+    "build:helper": "node scripts/build-helper.mjs",
     "typecheck": "tsc --noEmit",
-    "start": "npm run ensure:ui && npm run bundle && npm run ensure:saver && npm run ensure:location && electron-forge start",
+    "start": "npm run bundle && node scripts/ensure-dev.mjs && electron-forge start",
     "package": "npm run bundle && electron-forge package",
     "make": "npm run bundle && electron-forge make",
-    "clean": "rm -rf .forge-build out"
+    "clean": "node -e \"for (const d of ['.forge-build', 'out']) require('fs').rmSync(d, { recursive: true, force: true })\""
   },
   "devDependencies": {
     "@electron-forge/cli": "7.11.2",
+    "@electron-forge/maker-squirrel": "7.11.2",
     "@electron-forge/maker-zip": "7.11.2",
     "@types/node": "^24.0.0",
     "electron": "42.10.1",

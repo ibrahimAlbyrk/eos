@@ -1,0 +1,75 @@
+# Windows builds: tests + a packaged Setup.exe and zip per arch. native modules
+# (node-pty) and EosHelper's native AOT build only on the arch they target, so
+# each arch has its own runner. A published release (scripts/release.sh tags it
+# from the Mac) gets the Windows files attached next to the Mac zip.
+name: windows
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-latest, arch: x64 }
+          - { runner: windows-11-arm, arch: arm64 }
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install packages
+        run: bash scripts/bootstrap.sh
+
+      # The suites were written on macOS; until they pass on Windows (plan
+      # Phase 0) a failure is reported without blocking the package.
+      - name: Test
+        continue-on-error: true
+        run: |
+          (cd contracts && npm test)
+          (cd infra && npm test)
+          (cd manager && npm test)
+          (cd app/ui && npm test)
+
+      - name: Package
+        working-directory: app
+        run: npm run make
+
+      - name: Collect
+        id: files
+        run: |
+          mkdir dist-win
+          cp app/out/make/squirrel.windows/${{ matrix.arch }}/Eos-Setup-${{ matrix.arch }}.exe dist-win/
+          cp app/out/make/zip/win32/${{ matrix.arch }}/*.zip "dist-win/Eos-win32-${{ matrix.arch }}.zip"
+          ls -la dist-win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eos-win32-${{ matrix.arch }}
+          path: dist-win/
+
+      - name: Attach to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" dist-win/* --clobber
