@@ -7,10 +7,14 @@
 // Exit code 0 = done; non-zero with a message on stderr.
 
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using Windows.Devices.Geolocation;
+
+// Every P/Invoke here takes plain integers and pointers.
+[assembly: DisableRuntimeMarshalling]
 
 namespace EosHelper;
 
@@ -62,7 +66,9 @@ internal static partial class Program
     private const uint FO_DELETE = 3;
     private const ushort FOF_SILENT = 0x0004, FOF_NOCONFIRMATION = 0x0010, FOF_ALLOWUNDO = 0x0040, FOF_NOERRORUI = 0x0400;
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    // Every field is a pointer or an integer (pFrom is marshalled by hand), so the
+    // struct is blittable; 64-bit layout only (natural packing).
+    [StructLayout(LayoutKind.Sequential)]
     private struct SHFILEOPSTRUCT
     {
         public IntPtr hwnd;

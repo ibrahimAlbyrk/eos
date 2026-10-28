@@ -1,0 +1,3 @@
+# Text files are LF on every checkout. Windows' git would otherwise turn them
+# into CRLF, which reaches prompts, snapshots and the packaged app's resources.
+* text=auto eol=lf

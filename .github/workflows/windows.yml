@@ -47,10 +47,11 @@ jobs:
       - name: Test
         continue-on-error: true
         run: |
-          (cd contracts && npm test)
-          (cd infra && npm test)
-          (cd manager && npm test)
-          (cd app/ui && npm test)
+          failed=""
+          for pkg in contracts core infra spawner manager app/ui; do
+            (cd "$pkg" && npm test) || failed="$failed $pkg"
+          done
+          [ -z "$failed" ] || { echo "::error::failing suites:$failed"; exit 1; }
 
       - name: Package
         working-directory: app
