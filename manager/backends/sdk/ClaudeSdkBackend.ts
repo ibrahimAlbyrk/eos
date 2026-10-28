@@ -60,6 +60,9 @@ const CAPS: AgentCapabilities = {
   // The bundled binary (driven by the SDK) expands prompt-template .md slash-commands
   // itself — Eos must NOT double-expand (DispatchMessage gates on this, never kind).
   expandsSlashTemplates: true,
+  // Claude Code's own /btw: the binary answers from its live messages with no
+  // tools, sharing the prompt cache, and records nothing. See askSide.
+  sideQuestion: true,
 };
 
 const SDK_DESCRIPTOR: BackendDescriptor = {
@@ -83,6 +86,10 @@ export interface SdkQueryHandle extends AsyncIterable<unknown> {
   // Stops one background task (a Workflow run). We declare perTaskStopAffordance,
   // so an interrupt spares those tasks and this is the only way to stop one.
   stopTask?(taskId: string): Promise<void>;
+  // Claude Code's /btw. Present on the real Query but missing from the SDK's
+  // typings, so it is declared here; null = the model gave no answer.
+  // `synthetic` marks a reply the binary made up (an error text), not the model's.
+  askSideQuestion?(question: string, options?: { signal?: AbortSignal }): Promise<{ response: string; synthetic: boolean } | null>;
   // Ends the query and terminates its CLI subprocess.
   close?(): void;
 }
@@ -416,6 +423,21 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       if (!s.q?.stopTask) return { ok: false, reason: "stopTask unavailable" };
       try { await s.q.stopTask(taskId); return { ok: true }; }
       catch (e) { return { ok: false, reason: e instanceof Error ? e.message : String(e) }; }
+    },
+    // Asked on the live query, so it sees the conversation as it is right now,
+    // a turn in progress included, and that turn keeps running.
+    async askSide(question: string, opts?: { signal?: AbortSignal }) {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      if (!s.q?.askSideQuestion) return { ok: false, reason: "side questions unavailable" };
+      try {
+        const r = await s.q.askSideQuestion(question, opts?.signal ? { signal: opts.signal } : undefined);
+        if (!r) return { ok: false, reason: "no answer" };
+        if (r.synthetic) return { ok: false, reason: r.response || "no answer" };
+        return { ok: true, answer: r.response };
+      } catch (e) {
+        return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+      }
     },
   });
 

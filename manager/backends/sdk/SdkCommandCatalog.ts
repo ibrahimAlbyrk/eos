@@ -13,7 +13,7 @@ import type { CommandItem } from "../../../contracts/src/http.ts";
 // would leave it out of sync), and the ones whose UX needs a terminal.
 const HIDDEN_BUILTINS = new Set([
   "clear", "compact", "export", "model", "effort", "fast", "rename", "autocompact",
-  "doctor", "color", "focus", "reload-plugins",
+  "doctor", "color", "focus", "reload-plugins", "btw",
 ]);
 
 const TTL_MS = 10 * 60_000;

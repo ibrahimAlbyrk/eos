@@ -2342,6 +2342,9 @@ export const ROUTES = {
   workerWorkflowRunStop: (id: string, callId: string): string => `/workers/${id}/workflow-runs/${callId}/stop`,
   // GET → WorkflowAgentRows (one agent's transcript).
   workerWorkflowAgent: (id: string, callId: string, agentId: string): string => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
+  // POST (ui-token) SideQuestionRequest → SideQuestionAnswer (contracts/src/side-question.ts).
+  // 409 when the agent can't answer one right now.
+  workerSideQuestion: (id: string): string => `/workers/${id}/btw`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,

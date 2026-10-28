@@ -1786,6 +1786,7 @@ export function buildContainer() {
     genuiMedia,
     workflowRuns,
     backgroundJobs,
+    inProcessSession,
     genuiSettings,
     viewTokens: new ViewTokens(uiToken),
     recents,

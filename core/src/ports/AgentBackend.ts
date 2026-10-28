@@ -59,6 +59,11 @@ export interface AgentCapabilities {
    *  (the bundled claude binary does; the in-process lane does not). DispatchMessage
    *  gates an Eos-side template expander on this flag, never on kind. Consumed in M6. */
   readonly expandsSlashTemplates?: boolean;
+  /** True when the backend can answer a side question (/btw) from the live
+   *  conversation without touching it: no tools, nothing added to the
+   *  transcript, a running turn keeps going. Callers gate on this flag, never
+   *  on kind — a backend without it never gets askSide() called. */
+  readonly sideQuestion?: boolean;
 }
 
 // What the UI model picker shows for a provider. claude-cli + claude share
@@ -158,6 +163,8 @@ export interface AgentStartCallbacks {
   onEvent?(event: AgentEvent): void;
 }
 
+export type SideAnswer = { ok: true; answer: string } | { ok: false; reason: string };
+
 export interface AgentSession {
   readonly workerId: string;
   readonly handle: WorkerHandle;
@@ -204,6 +211,10 @@ export interface AgentSession {
   // touching the turn or the session. Omitted by lanes that can't; callers gate
   // on the method's presence.
   stopTask?(taskId: string): Promise<{ ok: boolean; reason?: string }>;
+  // Answer a side question from the live conversation (capabilities.sideQuestion).
+  // The question and answer never enter the conversation; aborting `signal`
+  // cancels the answer.
+  askSide?(question: string, opts?: { signal?: AbortSignal }): Promise<SideAnswer>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. LIVE in-session

@@ -5,6 +5,7 @@ import { ROUTES } from "../http.ts";
 const EXPECTED_KEYS = [
   "health", "stream", "streamFocus", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerAttachments", "workerPromptEvents", "workerSubagentEvents", "workerMessage",
   "workerWorkflowRuns", "workerWorkflowRun", "workerWorkflowRunStop", "workerWorkflowAgent",
+  "workerSideQuestion",
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
   "orchestrators", "orchestratorMessage", "orchestratorIntegrate",

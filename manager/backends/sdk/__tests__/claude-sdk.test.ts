@@ -1061,6 +1061,40 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(r.reason, "session gone");
   });
 
+  // The /btw side question rides the live query's askSideQuestion control
+  // request; a synthetic reply (the binary's own error text) or no reply is a
+  // failure, never an answer.
+  it("askSide forwards to the live query and maps its reply", async () => {
+    const replies: Array<{ response: string; synthetic: boolean } | null> = [
+      { response: "because", synthetic: false },
+      { response: "API Error: overloaded", synthetic: true },
+      null,
+    ];
+    const asked: Array<{ question: string; signal?: AbortSignal }> = [];
+    const q = {
+      askSideQuestion: async (question: string, o?: { signal?: AbortSignal }) => { asked.push({ question, signal: o?.signal }); return replies.shift() ?? null; },
+      [Symbol.asyncIterator]() { return { next: () => new Promise<IteratorResult<unknown>>(() => {}) }; },
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    const session = await be.start(spec(), {});
+    assert.equal(session.capabilities.sideQuestion, true);
+    const signal = new AbortController().signal;
+    assert.deepEqual(await session.askSide!("why?", { signal }), { ok: true, answer: "because" });
+    assert.deepEqual(await session.askSide!("again?"), { ok: false, reason: "API Error: overloaded" });
+    assert.deepEqual(await session.askSide!("and?"), { ok: false, reason: "no answer" });
+    assert.deepEqual(asked.map((a) => a.question), ["why?", "again?", "and?"]);
+    assert.equal(asked[0].signal, signal);
+    session.stop();
+    assert.deepEqual(await session.askSide!("gone?"), { ok: false, reason: "session gone" });
+  });
+
   // Inherited/external MCP servers reach query().mcpServers MERGED with the Eos
   // builtin; strictMcpConfig:true keeps MCP isolated to that explicit complete set
   // (never re-enabling native MCP discovery), independent of settingSources.
