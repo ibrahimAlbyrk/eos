@@ -3,6 +3,7 @@ import { basename } from "../../lib/path.js";
 import { CLAUDE_COMMAND, KINDS, launch, setCwd } from "../../state/codeWorkspaceStore.js";
 import { FolderMenu } from "./FolderMenu.jsx";
 import { ClaudeGlyph, TerminalGlyph, FolderGlyph, ChevronGlyph } from "./icons.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 const SHELL_NAME = "login shell";
 
@@ -46,7 +47,7 @@ export function TermLauncher({ live, leafId, cwd, error, compact }) {
               <span className="cw-card__label">Claude Code</span>
               <span className="cw-card__sub mono" title={CLAUDE_COMMAND}>{CLAUDE_COMMAND}</span>
             </span>
-            <kbd className="cw-card__kbd">⌘T</kbd>
+            <kbd className="cw-card__kbd">{shortcutLabel("mod+t")}</kbd>
           </button>
           <button className="cw-card" disabled={!cwd} onClick={() => start(KINDS.shell)}>
             <span className="cw-card__ic"><TerminalGlyph size={16} /></span>
@@ -54,7 +55,7 @@ export function TermLauncher({ live, leafId, cwd, error, compact }) {
               <span className="cw-card__label">Terminal</span>
               <span className="cw-card__sub">{SHELL_NAME}</span>
             </span>
-            <kbd className="cw-card__kbd">⇧⌘T</kbd>
+            <kbd className="cw-card__kbd">{shortcutLabel("shift+mod+t")}</kbd>
           </button>
         </div>
 

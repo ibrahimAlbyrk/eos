@@ -17,6 +17,7 @@ import { groupColorHex } from "../../../lib/groupColors.js";
 import { GroupList } from "./GroupList.jsx";
 import { HistoryList } from "./HistoryList.jsx";
 import { ClaudeGlyph, TerminalGlyph, FolderGlyph, KindGlyph, CloseGlyph, PlusGlyph } from "../icons.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 function CollapseIcon() {
   return (
@@ -82,8 +83,8 @@ export function CodeSidebar({ live, variant = "full" }) {
       <EosSwitcher />
 
       <div className="sb-nav">
-        <NavRow icon={<ClaudeGlyph />} label="New Claude Code" meta="⌘T" strong onClick={() => openTerminal(KINDS.claude)} />
-        <NavRow icon={<TerminalGlyph />} label="New terminal" meta="⇧⌘T" onClick={() => openTerminal(KINDS.shell)} />
+        <NavRow icon={<ClaudeGlyph />} label="New Claude Code" meta={shortcutLabel("mod+t")} strong onClick={() => openTerminal(KINDS.claude)} />
+        <NavRow icon={<TerminalGlyph />} label="New terminal" meta={shortcutLabel("shift+mod+t")} onClick={() => openTerminal(KINDS.shell)} />
         <NavRow icon={<FolderGlyph />} label="Open folder…" onClick={browse} />
       </div>
 
@@ -163,7 +164,7 @@ function SessionRow({ leafId, index, term, focused }) {
       <span className="cw-row__text">
         <span className="cw-row__name">{paneTitle(term)}</span>
       </span>
-      <span className="cw-row__meta">⌘{index + 1}</span>
+      <span className="cw-row__meta">{shortcutLabel(`mod+${index + 1}`)}</span>
       <button
         className="cw-row__act"
         title="Close session"

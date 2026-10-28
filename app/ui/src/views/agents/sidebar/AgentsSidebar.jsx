@@ -9,6 +9,7 @@ import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../../state/archiveStore.js";
 import { useProjects } from "../../../state/projectsStore.js";
+import { hostOS } from "../../../lib/platform.js";
 
 // The dynamic section label mirrors the grouping (Projects / Recent / Groups),
 // or "Archived" when the archived-only list is showing.
@@ -66,7 +67,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
   // Empty-state gating + label reflect what's actually being shown.
   const loaded = showActive && showArchived ? (live.loaded && archivedLoaded)
     : showArchived ? archivedLoaded : live.loaded;
-  const emptyLabel = status === "archived" ? "No archived agents — Cmd+W archives the selected one" : undefined;
+  const emptyLabel = status === "archived" ? `No archived agents — ${hostOS() === "mac" ? "Cmd" : "Ctrl"}+W archives the selected one` : undefined;
 
   // Archived rows now render in the sidebar without the main ArchiveView mounted,
   // so fetch them here whenever they're shown — mount + each SSE change ping.

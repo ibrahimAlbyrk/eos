@@ -6,6 +6,7 @@ import { useComposer } from "./composer.jsx";
 import { useSelection } from "./selection.jsx";
 import { notify } from "../lib/notify.js";
 import { setGenuiSettings } from "../genui/runtime/genuiSettings.js";
+import { modifiers } from "../lib/platform.js";
 
 const SettingsContext = createContext(null);
 
@@ -136,7 +137,8 @@ export function SettingsProvider({ children }) {
 
   useEffect(() => {
     const onKey = (e) => {
-      const meta = e.metaKey || e.ctrlKey;
+      const m = modifiers(e);
+      const meta = m.mod || m.ctrl;
       if (!meta || e.altKey || e.shiftKey) return;
       if (e.key !== "," && e.key !== "ö" && e.key !== "Ö") return;
       e.preventDefault();

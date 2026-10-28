@@ -56,7 +56,7 @@ export function MemoryView() {
 
   return (
     <div className="mem-view">
-      <div className="pane-head pane-head--topleft">
+      <div className="pane-head pane-head--topleft pane-head--topright">
         <span className="pane-head-inset" aria-hidden="true" />
         <div className="crumb">
           {page === "log"

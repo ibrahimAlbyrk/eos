@@ -46,6 +46,7 @@ import { applyUserMemoryChange, resyncUserMemories } from "../state/userMemorySt
 import { applyDreamChange, resyncDreams } from "../state/dreamStore.js";
 import { applySyncChange, resyncSync } from "../state/syncStore.js";
 import { applyTransferChange, resyncTransfers } from "../state/transfersStore.js";
+import { applyFeatures } from "../state/featuresStore.js";
 import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
 import { applyWorkflowProgress, resyncWorkflowRuns } from "../state/workflowRunsStore.js";
 import { applyJobsChange, resyncJobs } from "../state/jobsStore.js";
@@ -190,6 +191,7 @@ export function useLive() {
         applyCatalog(cfg?.modelCatalog);
         applyDescriptors(cfg?.backends);
         applyProfiles(cfg?.backendProfiles);
+        applyFeatures(cfg?.features);
         setUiConfig(cfg);
         setHealth(true);
       } catch { setHealth(false); }

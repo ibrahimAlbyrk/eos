@@ -6,8 +6,10 @@ import {
   switchMachine, openMachineWindow, reconnectMachine, canSwitchMachines,
 } from "../../state/hostsStore.js";
 import { currentHost, isRemoteView } from "../../lib/host.js";
+import { useFeature } from "../../state/featuresStore.js";
 import { MachineGlyph } from "./MachineGlyph.jsx";
 import { CloudIcon, HomeIcon, LanIcon, LockIcon, RefreshIcon, WindowIcon } from "./icons.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 function ConnectionCard({ host, anchor, onClose, triggerRef }) {
   const ref = useRef(null);
@@ -42,7 +44,7 @@ function ConnectionCard({ host, anchor, onClose, triggerRef }) {
       <div className="acct-sep" />
       {canSwitchMachines() && <button type="button" className="acct-action" onClick={act(() => openMachineWindow(host.id))}><WindowIcon />Open in new window</button>}
       <button type="button" className="acct-action" onClick={act(() => reconnectMachine(host.id))}><RefreshIcon />Reconnect</button>
-      {canSwitchMachines() && <button type="button" className="acct-action" onClick={act(() => switchMachine(null))}><HomeIcon />Back to This Mac<span className="acct-kbd">⌃1</span></button>}
+      {canSwitchMachines() && <button type="button" className="acct-action" onClick={act(() => switchMachine(null))}><HomeIcon />Back to This Mac<span className="acct-kbd">{shortcutLabel("ctrl+1")}</span></button>}
     </div>,
     document.body,
   );
@@ -52,11 +54,12 @@ function ConnectionCard({ host, anchor, onClose, triggerRef }) {
 // computer, and how the link is doing. This Mac's own window shows nothing here.
 export function HostChip() {
   const { hosts } = useHosts();
+  const remote = useFeature("remote");
   const [anchor, setAnchor] = useState(null);
   const triggerRef = useRef(null);
   const close = useCallback(() => setAnchor(null), []);
   useEffect(() => { ensureHostsLoaded(); }, []);
-  if (!isRemoteView()) return null;
+  if (!remote || !isRemoteView()) return null;
   const desc = currentHost();
   const host = hosts.find((h) => h.id === desc?.id) ?? { ...desc, link: null };
   const tone = linkTone(host.link);

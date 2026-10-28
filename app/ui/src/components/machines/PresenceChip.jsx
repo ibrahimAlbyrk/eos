@@ -4,6 +4,7 @@ import { api } from "../../api/client.js";
 import { useOutsideClose } from "./useOutsideClose.js";
 import { usePeer, ensurePeerLoaded, refreshPeer } from "../../state/peerStore.js";
 import { isRemoteView } from "../../lib/host.js";
+import { useFeature } from "../../state/featuresStore.js";
 import { PowerIcon, ShieldIcon } from "./icons.jsx";
 
 function PresenceCard({ devices, anchor, onClose, triggerRef }) {
@@ -39,11 +40,12 @@ function PresenceCard({ devices, anchor, onClose, triggerRef }) {
 // one click from being cut off.
 export function PresenceChip() {
   const { presence } = usePeer();
+  const remote = useFeature("remote");
   const [anchor, setAnchor] = useState(null);
   const triggerRef = useRef(null);
   const close = useCallback(() => setAnchor(null), []);
   useEffect(() => { ensurePeerLoaded(); }, []);
-  if (isRemoteView() || presence.length === 0) return null;
+  if (!remote || isRemoteView() || presence.length === 0) return null;
   const label = presence.length === 1 ? `${presence[0].name} connected` : `${presence.length} computers connected`;
   return (
     <>

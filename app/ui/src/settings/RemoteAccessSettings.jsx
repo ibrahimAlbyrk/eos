@@ -13,6 +13,7 @@ import { MachineGlyph } from "../components/machines/MachineGlyph.jsx";
 import { CopyIcon, LinkIcon, QrIcon } from "../components/machines/icons.jsx";
 import { RemoteSettings } from "./RemoteSettings.jsx";
 import { timeAgo } from "../lib/timeAgo.js";
+import { shortcutLabel } from "../lib/platform.js";
 
 const Toggle = CONTROLS.toggle;
 const Text = CONTROLS.text;
@@ -121,7 +122,7 @@ export function RemoteAccessSettings() {
     return (
       <>
         <h2 className="stg-title">Remote access</h2>
-        <div className="stg-row__desc">Who may control a computer is set on that computer. Switch to it with ⌃1 to change this Mac's.</div>
+        <div className="stg-row__desc">Who may control a computer is set on that computer. Switch to it with {shortcutLabel("ctrl+1")} to change this Mac's.</div>
       </>
     );
   }

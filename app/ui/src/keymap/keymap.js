@@ -8,10 +8,13 @@
 // binding — the listener never changes). No DOM here: events are matched as
 // plain objects, so the whole thing is unit-testable without a browser.
 
-// Plain-⌘ guard (the app is mac-only): Cmd down, no other modifier. Exported
+import { modifiers } from "../lib/platform.js";
+
+// Plain command-key guard: ⌘ (Ctrl on Windows) down, no other modifier. Exported
 // for bindings whose key set isn't a single combo (e.g. the Cmd+1..9 range).
 export function isMod(e) {
-  return Boolean(e.metaKey) && !e.ctrlKey && !e.altKey && !e.shiftKey;
+  const m = modifiers(e);
+  return m.mod && !m.ctrl && !m.alt && !m.shift;
 }
 
 function matchKey(e, token, useCode) {
@@ -26,7 +29,7 @@ function matchKey(e, token, useCode) {
 }
 
 // Build a match(e) from a combo spec like "mod+g", "mod+ctrl+t", "mod+shift+enter".
-// mod = metaKey. Modifiers must match EXACTLY (a modifier not named must be UP) —
+// mod = the command key (lib/platform.js modifiers). Modifiers must match EXACTLY (a modifier not named must be UP) —
 // this preserves the strict guards the per-hook listeners used, e.g. plain Cmd+T
 // must stay disjoint from Cmd+Ctrl+T. opts.code matches e.code (layout
 // independent) instead of e.key.
@@ -39,12 +42,11 @@ export function combo(spec, opts = {}) {
     shift: parts.includes("shift"),
   };
   const key = parts[parts.length - 1];
-  return (e) =>
-    Boolean(e.metaKey) === want.mod &&
-    Boolean(e.ctrlKey) === want.ctrl &&
-    Boolean(e.altKey) === want.alt &&
-    Boolean(e.shiftKey) === want.shift &&
-    matchKey(e, key, Boolean(opts.code));
+  return (e) => {
+    const m = modifiers(e);
+    return m.mod === want.mod && m.ctrl === want.ctrl && m.alt === want.alt && m.shift === want.shift &&
+      matchKey(e, key, Boolean(opts.code));
+  };
 }
 
 export function createKeymap() {

@@ -12,6 +12,7 @@ import { FileTree } from "./tree/FileTree.jsx";
 import { FilesContextMenu } from "./FilesContextMenu.jsx";
 import { FolderPicker } from "./picker/FolderPicker.jsx";
 import { useExplorerKeys } from "./useExplorerKeys.js";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // The explorer store is a module singleton shared by every Files-panel mount, so
 // watches must only pause when the LAST panel unmounts.
@@ -60,7 +61,7 @@ export function FilesPanel({ live }) {
           <span className="empty-state__title">No folder open</span>
           <span className="empty-state__subtitle">Open a folder to browse files.</span>
           <button className="empty-state__action" onClick={openFolder}>
-            Open folder<kbd>⌘O</kbd>
+            Open folder<kbd>{shortcutLabel("mod+o")}</kbd>
           </button>
         </div>
       </PanelShell>

@@ -6,6 +6,7 @@ import {
   createGroup, switchGroup, renameGroup, setGroupColor, deleteGroup,
 } from "../../../state/codeWorkspaceStore.js";
 import { PlusGlyph, MoreGlyph } from "../icons.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 // ⌃1..9 reach the first nine groups (CodeView hotkeys).
 const HOTKEY_GROUPS = 9;
@@ -30,7 +31,7 @@ export function GroupList({ ws }) {
           <GroupRow
             key={g.id}
             group={g}
-            hotkey={i < HOTKEY_GROUPS ? `⌃${i + 1}` : null}
+            hotkey={i < HOTKEY_GROUPS ? shortcutLabel(`ctrl+${i + 1}`) : null}
             sessions={leaves(g.tree).filter((l) => ws.terms[l.id]).length}
             active={g.id === ws.activeGroupId}
             menuOpen={menuFor === g.id}

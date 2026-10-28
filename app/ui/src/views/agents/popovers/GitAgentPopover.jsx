@@ -8,6 +8,7 @@ import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { hasUnintegratedWork } from "../../../lib/workState.js";
 import { requestStashFocus } from "../../../state/gitDiffIntent.js";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 const EMPTY = { isGit: true, current: null, branches: [], remoteUrl: null, ahead: 0, behind: 0, conflicts: 0 };
 
@@ -406,7 +407,7 @@ export function GitAgentPopover({ live, worker, cwd, wtStatus }) {
           <button className="menu-item" onClick={startCustom}>
             <PencilIcon />
             Custom git task…
-            <kbd>⌘G</kbd>
+            <kbd>{shortcutLabel("mod+g")}</kbd>
           </button>
         </>
       )}

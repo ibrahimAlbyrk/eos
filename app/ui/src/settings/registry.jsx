@@ -1,6 +1,7 @@
 // Settings registry — the single place sections and their items live.
 // SettingsSection contract (documented, not enforced — plain objects):
-//   { id, label, Icon, groups: [{ title, items: [SettingItem] }] }
+//   { id, label, Icon, groups: [{ title, items: [SettingItem] }],
+//     requires?: feature }   // shown only where this computer offers it (featuresStore)
 // SettingItem:
 //   { key, label, description?, control: { type, ...props }, defaultValue,
 //     visibleWhen?: (settings) => bool }   // conditional rows (e.g. mode-dependent)
@@ -13,6 +14,7 @@
 import { useState } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
+import { getFeatures } from "../state/featuresStore.js";
 import { AccountsSettings } from "./AccountsSettings.jsx";
 import { ProfileSettings } from "./ProfileSettings.jsx";
 import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
@@ -21,6 +23,7 @@ import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
 import { MachinesSettings } from "./MachinesSettings.jsx";
 import { SyncSettings } from "./SyncSettings.jsx";
 import { EditorSelect } from "./EditorSelect.jsx";
+import { modLabel, shortcutLabel } from "../lib/platform.js";
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -257,9 +260,9 @@ export const SETTINGS_SECTIONS = [
           },
           {
             key: "archive.cmdW",
-            label: "⌘W action",
+            label: `${shortcutLabel("mod+w")} action`,
             description:
-              "What ⌘W does to the selected agent. Archive is reversible from the Archive view; Delete permanently removes the agent and its subtree without asking.",
+              `What ${shortcutLabel("mod+w")} does to the selected agent. Archive is reversible from the Archive view; Delete permanently removes the agent and its subtree without asking.`,
             control: {
               type: "select",
               options: [
@@ -327,6 +330,7 @@ export const SETTINGS_SECTIONS = [
     // peering, /api/peer) and the iPhone relay section. Owns no settings.json
     // keys (config.peer / config.remote live in config.json).
     Component: RemoteAccessSettings,
+    requires: "remote",
   },
   {
     id: "machines",
@@ -334,6 +338,7 @@ export const SETTINGS_SECTIONS = [
     Icon: MachinesIcon,
     // Custom Component: the computers this Mac controls (/api/hosts).
     Component: MachinesSettings,
+    requires: "remote",
   },
   {
     id: "code",
@@ -385,7 +390,7 @@ export const SETTINGS_SECTIONS = [
           {
             key: "paths.clickOpens",
             label: "Click a path",
-            description: "Where clicking a file or folder in the chat opens it. ⌥-click opens it the other way.",
+            description: `Where clicking a file or folder in the chat opens it. ${modLabel("alt")}-click opens it the other way.`,
             control: {
               type: "segmented",
               options: [
@@ -474,6 +479,10 @@ export const SETTINGS_SECTIONS = [
     ],
   },
 ];
+
+// The sections this computer offers — what the modal and the palette list.
+export const visibleSections = (features = getFeatures()) =>
+  SETTINGS_SECTIONS.filter((s) => !s.requires || features[s.requires] !== false);
 
 export const SETTING_DEFAULTS = {
   ...Object.fromEntries(

@@ -7,6 +7,7 @@ import { setMemoryViewing } from "../../../state/memoryViewStore.js";
 import { setPref } from "../../../state/sidebarPrefsStore.js";
 import { HostChip } from "../../../components/machines/HostChip.jsx";
 import { PresenceChip } from "../../../components/machines/PresenceChip.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 // Sidebar top chrome + primary nav, matching the reference IA:
 //   full variant → traffic lights + collapse button (the .side-top strip)
@@ -102,7 +103,7 @@ export function SidebarHead({ live, variant, archiveMode = false }) {
       <EosSwitcher />
 
       <div className="sb-nav">
-        <NavRow icon={<PencilIcon />} label="New task" meta="⌘T" strong onClick={newTask} />
+        <NavRow icon={<PencilIcon />} label="New task" meta={shortcutLabel("mod+t")} strong onClick={newTask} />
         <NavRow icon={<BranchIcon />} label="Changes" meta={changeCount > 0 ? String(changeCount) : null} onClick={openChanges} />
         <NavRow icon={<TrayIcon />} label="Archive" selected={archiveMode} strong={archiveMode} onClick={toggleArchive} />
       </div>

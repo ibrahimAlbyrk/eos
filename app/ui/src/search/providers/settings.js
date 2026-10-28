@@ -1,4 +1,4 @@
-import { SETTINGS_SECTIONS } from "../../settings/registry.jsx";
+import { visibleSections } from "../../settings/registry.jsx";
 
 // Settings sections as palette results. Selecting one opens the settings
 // modal focused on that section.
@@ -6,7 +6,7 @@ export const settingsProvider = {
   id: "settings",
   label: "Settings",
   getResults() {
-    return SETTINGS_SECTIONS.map((s) => ({
+    return visibleSections().map((s) => ({
       id: `settings:${s.id}`,
       icon: "settings",
       title: `Settings: ${s.label}`,

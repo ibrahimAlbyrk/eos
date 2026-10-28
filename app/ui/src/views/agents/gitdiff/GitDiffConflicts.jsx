@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../api/client.js";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { useWorkerConflicts } from "../../../hooks/useWorkerConflicts.js";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 // Merge-conflict resolution, folded into the Git Diff panel as a prominent
 // section above the file list. Ported verbatim from the former standalone
@@ -164,7 +165,7 @@ function ContentResolver({ workerId, file, doc, refresh, reload }) {
   if (doc.style === "unparseable") {
     return (
       <div className="cr-note cr-note-warn">
-        These conflict markers couldn't be parsed automatically. Resolve with the git button (⌘G) or edit the file directly.
+        These conflict markers couldn't be parsed automatically. Resolve with the git button ({shortcutLabel("mod+g")}) or edit the file directly.
       </div>
     );
   }

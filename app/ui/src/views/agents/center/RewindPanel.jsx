@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
 import { confirmSubagentStop, useSubagentStopRequest } from "../../../state/subagentStopConfirm.js";
+import { modDown, shortcutLabel } from "../../../lib/platform.js";
 
 // Double-Esc rewind panel (Claude Code parity). Lists the user prompts on the
 // agent's active transcript branch; Enter restores the conversation to before
@@ -83,7 +84,7 @@ export function RewindPanel({ live }) {
       } else if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        doRewind(e.metaKey ? "both" : "conversation");
+        doRewind(modDown(e) ? "both" : "conversation");
       }
     };
     window.addEventListener("keydown", onKey, true);
@@ -141,8 +142,8 @@ export function RewindPanel({ live }) {
             <span className="rw-status">Rewinding…</span>
           ) : (
             <>
-              <span><kbd>↵</kbd> conversation</span>
-              <span><kbd>⌘↵</kbd> code + conversation</span>
+              <span><kbd>{shortcutLabel("return")}</kbd> conversation</span>
+              <span><kbd>{shortcutLabel("mod+return")}</kbd> code + conversation</span>
               <span><kbd>esc</kbd> close</span>
             </>
           )}

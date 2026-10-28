@@ -18,6 +18,7 @@ import { useUi } from "../../state/ui.jsx";
 import { PaneScopeContext } from "../../state/paneScope.js";
 import { PanelHostContext } from "../../state/panelHost.js";
 import { SidePanel } from "../agents/panes/SidePanel.jsx";
+import { modifiers } from "../../lib/platform.js";
 
 // The view's single right side panel is keyed under this id in the per-pane
 // panel state, so it stays put whichever terminal pane is focused. Its tabs skip
@@ -48,12 +49,18 @@ function useCodeHotkeys() {
     const bindings = HOTKEYS.map(({ keys, run }) => ({ match: combo(keys), run }));
     // ⌘1..9 → focus the Nth pane.
     bindings.push({
-      match: (e) => e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
+      match: (e) => {
+        const m = modifiers(e);
+        return m.mod && !m.alt && !m.ctrl && !m.shift && /^Digit[1-9]$/.test(e.code);
+      },
       run: (e) => focusPaneByIndex(Number(e.code.slice(5)) - 1),
     });
     // ⌃1..9 → show the Nth pane group.
     bindings.push({
-      match: (e) => e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
+      match: (e) => {
+        const m = modifiers(e);
+        return m.ctrl && !m.alt && !m.mod && !m.shift && /^Digit[1-9]$/.test(e.code);
+      },
       run: (e) => switchGroupByIndex(Number(e.code.slice(5)) - 1),
     });
     const offs = bindings.map(({ match, run }) => keymap.register({

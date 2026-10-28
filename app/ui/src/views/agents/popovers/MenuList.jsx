@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { modifiers } from "../../../lib/platform.js";
 
 const FLY_GAP = 10;
 const EDGE = 8;
@@ -49,6 +50,7 @@ export function MenuList({ items, onClose }) {
   };
 
   const onKeyDown = (e) => {
+    const m = modifiers(e);
     let handled = true;
     if (e.key === "ArrowDown") {
       if (subItems) setSubActive((i) => step(i, 1, subItems));
@@ -66,7 +68,7 @@ export function MenuList({ items, onClose }) {
     } else if (e.key === "Enter") {
       if (subItems) run(subItems[subActive]);
       else select(items[active]);
-    } else if (e.key.length === 1 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    } else if (e.key.length === 1 && !m.mod && !m.ctrl && !m.alt) {
       const pool = subItems ?? items.filter(isItem);
       const hit = pool.find((it) => it.kbd?.toLowerCase() === e.key.toLowerCase());
       if (hit) run(hit);

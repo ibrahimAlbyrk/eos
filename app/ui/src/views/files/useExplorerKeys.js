@@ -4,6 +4,7 @@ import { useOriginPane, useSidePanelVisible } from "../../state/paneScope.js";
 import { explorer } from "../../state/explorerStore.js";
 import { flattenVisible } from "../../lib/explorerNodes.js";
 import { parentDir } from "../../lib/explorerApi.js";
+import { modifiers } from "../../lib/platform.js";
 
 // Tree keyboard navigation for the docked Files panel. Armed only while the
 // host pane is focused AND the panel region owns focus (FileViewer's ⌘F gate
@@ -32,6 +33,7 @@ export function useExplorerKeys() {
       const sel = st.selection.anchor ?? [...st.selection.ids][0] ?? null;
       const idx = sel ? list.findIndex((n) => n.path === sel) : -1;
       const cur = idx >= 0 ? list[idx] : null;
+      const m = modifiers(e);
 
       switch (e.key) {
         case "ArrowDown":
@@ -73,7 +75,7 @@ export function useExplorerKeys() {
           break;
         }
         default:
-          if ((e.metaKey || e.ctrlKey) && (e.key === "a" || e.key === "A")) {
+          if ((m.mod || m.ctrl) && (e.key === "a" || e.key === "A")) {
             e.preventDefault();
             explorer.setSelection(list.map((n) => n.path), st.selection.anchor);
           }

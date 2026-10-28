@@ -8,6 +8,7 @@ import {
   beginStroke, extendStroke, makeText, undoStrokes, clearStrokes,
   drawStrokes, exportAnnotation,
 } from "./annotationExport.js";
+import { modifiers } from "../../lib/platform.js";
 
 // Pencil palette: the two neutrals (ink black, paper white) plus seven evenly
 // spaced hues, so every common annotation colour is one click away. Index 0
@@ -159,7 +160,8 @@ export function AnnotationLayer({ paneId, sessionKey, composerPane, tabId }) {
   useEffect(() => {
     const onKey = (e) => {
       if (textEdit) return;
-      if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+      const m = modifiers(e);
+      if ((e.key === "z" || e.key === "Z") && (m.mod || m.ctrl) && !e.shiftKey) {
         e.preventDefault();
         setStrokes((s) => undoStrokes(s));
       }

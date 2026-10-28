@@ -3434,6 +3434,12 @@
 }
 .perm-shortcut { font-family: var(--font-mono); font-size: 12px; opacity: 0.6; }
 
+/* ── GitBashNotice (Windows without Git for Windows) ── */
+.gitbash-notice { flex-direction: row; align-items: center; gap: 12px; font-size: 13.5px; color: var(--fg-mid); }
+.gitbash-notice span { flex: 1; min-width: 0; }
+.gitbash-link { flex-shrink: 0; color: var(--accent); font-weight: 500; text-decoration: none; }
+.gitbash-link:hover { text-decoration: underline; }
+
 /* ── QuestionBanner ── */
 .q-banner { margin: 0 0 10px; }
 .q-card {

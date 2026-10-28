@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { AgentName } from "../../../lib/agentName.js";
+import { modDown, shortcutLabel } from "../../../lib/platform.js";
 
 function parseInput(raw) {
   if (!raw) return {};
@@ -18,7 +19,7 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
   useEffect(() => {
     if (!current) return;
     const handler = (e) => {
-      if (e.metaKey && e.key === "Enter") {
+      if (modDown(e) && e.key === "Enter") {
         e.preventDefault();
         onApprove(current.id);
       }
@@ -65,7 +66,7 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
                 Always allow
               </button>
               <button className="perm-btn perm-allow" disabled={busy} onClick={() => handle(() => onApprove(current.id))}>
-                Allow once <span className="perm-shortcut">⌘↵</span>
+                Allow once <span className="perm-shortcut">{shortcutLabel("mod+return")}</span>
               </button>
             </div>
           </div>

@@ -20,6 +20,7 @@ import { ArchiveView } from "../archive/ArchiveView.jsx";
 import { MemoryView } from "../memory/MemoryView.jsx";
 import { useMemoryViewing } from "../../state/memoryViewStore.js";
 import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
+import { modifiers } from "../../lib/platform.js";
 
 export function AgentsView({ live }) {
   const ui = useUi();
@@ -59,7 +60,10 @@ export function AgentsView({ live }) {
   // allowed: "/" is Shift+7 on a Turkish keyboard. A focused code editor keeps
   // Cmd+/ for its toggle-comment.
   useKeybinding({
-    match: (e) => Boolean(e.metaKey) && !e.ctrlKey && !e.altKey && e.key === "/",
+    match: (e) => {
+      const m = modifiers(e);
+      return m.mod && !m.ctrl && !m.alt && e.key === "/";
+    },
     when: () => !document.activeElement?.closest?.(".cm-editor"),
     run: (ctx, e) => {
       e.preventDefault();

@@ -3,6 +3,7 @@ import { api } from "../../api/client.js";
 import { useHosts, closeConnectSheet, refreshHosts, switchMachine, canSwitchMachines } from "../../state/hostsStore.js";
 import { readInvite } from "../../lib/peerInvite.js";
 import { refreshPeer } from "../../state/peerStore.js";
+import { useFeature } from "../../state/featuresStore.js";
 import { CONTROLS } from "../../settings/controls.jsx";
 import { MachineGlyph } from "./MachineGlyph.jsx";
 import { CheckIcon, CloseIcon, CloudIcon, LanIcon, LockIcon } from "./icons.jsx";
@@ -16,6 +17,7 @@ const Toggle = CONTROLS.toggle;
 
 export function ConnectMachineSheet() {
   const { connectOpen } = useHosts();
+  const remote = useFeature("remote");
   const [link, setLink] = useState("");
   const [alias, setAlias] = useState("");
   const [mutual, setMutual] = useState(false);
@@ -32,7 +34,7 @@ export function ConnectMachineSheet() {
   }, [connectOpen]);
 
   const preview = useMemo(() => readInvite(link), [link]);
-  if (!connectOpen) return null;
+  if (!connectOpen || !remote) return null;
   const ready = preview && !preview.error && !busy;
 
   const connect = async () => {

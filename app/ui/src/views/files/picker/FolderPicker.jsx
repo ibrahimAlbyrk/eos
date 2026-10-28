@@ -6,6 +6,7 @@ import { baseName } from "../../../lib/explorerApi.js";
 import { CheckIcon } from "../../../lib/gitIconKit.jsx";
 import { FolderGlyph } from "../../code/icons.jsx";
 import { projectFolders } from "../../code/FolderMenu.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 const MAX_RECENTS = 5;
 
@@ -41,7 +42,7 @@ export function FolderPicker({ live, agentDir }) {
       <button className="menu-item" onClick={openNative}>
         <OpenIcon />
         <span className="sm-label">Open folder…</span>
-        <span className="kbd">⌘O</span>
+        <span className="kbd">{shortcutLabel("mod+o")}</span>
       </button>
       {recents.length > 0 && <div className="sm-sec">Recent</div>}
       {recents.map((p) => (

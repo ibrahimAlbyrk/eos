@@ -5,6 +5,7 @@ import { hasLocalScreen } from "../../lib/host.js";
 import { notify } from "../../lib/notify.js";
 import { explorer } from "../../state/explorerStore.js";
 import { parentDir } from "../../lib/explorerApi.js";
+import { fileManagerName } from "../../lib/platform.js";
 
 // Right-click menu for tree rows. Reads ui.popoverData.paths (the selection at
 // click time). Mirrors AgentContextMenu: a positioned .ctx-menu with
@@ -54,7 +55,7 @@ export function FilesContextMenu() {
   return createPortal(
     <div className="ctx-menu glass-pop open" data-popover="fx-ctx" style={{ display: "block", left, top }}>
       {single && <Item onClick={open}>Open<span className="kbd">⏎</span></Item>}
-      {single && hasLocalScreen() && <Item onClick={reveal}>Reveal in Finder</Item>}
+      {single && hasLocalScreen() && <Item onClick={reveal}>Reveal in {fileManagerName()}</Item>}
       {single && <div className="menu-sep" />}
       {single && <Item onClick={rename} kbd="F2">Rename</Item>}
       {files.length > 0 && <Item onClick={attach}>{files.length > 1 ? `Attach ${files.length} as context` : "Attach as context"}</Item>}

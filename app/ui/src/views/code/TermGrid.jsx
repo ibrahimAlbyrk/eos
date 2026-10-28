@@ -11,6 +11,7 @@ import { useDropSplit, DropPreview, Divider } from "../agents/panes/PaneGrid.jsx
 import { useUi } from "../../state/ui.jsx";
 import { TermLauncher } from "./TermLauncher.jsx";
 import { KindGlyph, SplitRightGlyph, SplitDownGlyph, CloseGlyph } from "./icons.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // dataTransfer type for a terminal pane dragged from the Code sidebar.
 export const TERM_PANE_TYPE = "application/x-eos-term-pane";
@@ -106,7 +107,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
   }, [sessionId]);
 
   const cls = ["pane", focused && !single ? "is-focused" : "", corner ? "cw-corner" : ""].filter(Boolean).join(" ");
-  const headCls = ["pane-head", "cw-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
+  const headCls = ["pane-head", "cw-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : "", corner ? "pane-head--topright" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -125,7 +126,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
           <div className="pane-head-actions">
             <button
               className="pane-split-btn"
-              title="Split right (⌘D)"
+              title={`Split right (${shortcutLabel("mod+d")})`}
               aria-label="Split right"
               disabled={!canSplit}
               onClick={(e) => { e.stopPropagation(); splitPane(leafId, "row", term?.kind ?? KINDS.claude); }}
@@ -134,7 +135,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
             </button>
             <button
               className="pane-split-btn"
-              title="Split down (⇧⌘D)"
+              title={`Split down (${shortcutLabel("shift+mod+d")})`}
               aria-label="Split down"
               disabled={!canSplit}
               onClick={(e) => { e.stopPropagation(); splitPane(leafId, "col", term?.kind ?? KINDS.claude); }}
@@ -145,7 +146,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
             {(term || !single) && (
               <button
                 className="pane-close"
-                title={single ? "End session (⌘W)" : "Close pane (⌘W)"}
+                title={single ? `End session (${shortcutLabel("mod+w")})` : `Close pane (${shortcutLabel("mod+w")})`}
                 aria-label="Close pane"
                 onClick={(e) => { e.stopPropagation(); closePane(leafId); }}
               >

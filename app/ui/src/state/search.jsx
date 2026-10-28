@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { modifiers } from "../lib/platform.js";
 
 const SearchContext = createContext(null);
 
@@ -12,7 +13,8 @@ export function SearchProvider({ children }) {
 
   useEffect(() => {
     const onKey = (e) => {
-      const meta = e.metaKey || e.ctrlKey;
+      const m = modifiers(e);
+      const meta = m.mod || m.ctrl;
       if (!meta || e.altKey || e.shiftKey) return;
       if (e.key !== "k" && e.key !== "K") return;
       e.preventDefault();

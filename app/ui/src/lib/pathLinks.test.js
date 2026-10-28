@@ -175,3 +175,94 @@ describe("withPathChips", () => {
     expect(render("`src/a.ts`", { title: true })).toContain('title="/repo/src/a.ts"');
   });
 });
+
+describe("Windows paths", () => {
+  const cwd = "C:\\Users\\me\\repo";
+  const paths = (text, opts) => findPathCandidates(text, opts).map((c) => c.path);
+
+  it("finds drive and UNC paths whatever the agent's folder", () => {
+    expect(paths("open C:\\Users\\me\\a.ts or C:/Users/me/b.ts and \\\\server\\share\\c.txt"))
+      .toEqual(["C:\\Users\\me\\a.ts", "C:/Users/me/b.ts", "\\\\server\\share\\c.txt"]);
+  });
+  it("finds backslash-relative paths only under a Windows folder", () => {
+    expect(paths("src\\lib\\a.ts .\\b.ts ..\\c.md", { cwd })).toEqual(["src\\lib\\a.ts", ".\\b.ts", "..\\c.md"]);
+    expect(paths("cat My\\ Docs/a.md", { cwd: "/Users/me" })).toEqual(["Docs/a.md"]);
+  });
+  it("reads a :line[:col] or range after a drive path, never the drive colon", () => {
+    expect(findPathCandidates("at C:\\repo\\a.ts:12:3.")).toEqual([{ index: 3, length: 17, path: "C:\\repo\\a.ts", line: 12, column: 3 }]);
+    expect(findPathCandidates("src\\a.ts:4-9", { cwd })).toEqual([{ index: 0, length: 12, path: "src\\a.ts", line: 4, endLine: 9 }]);
+    expect(codeSpanPath("C:\\repo\\a.ts:12")).toEqual({ path: "C:\\repo\\a.ts", line: 12 });
+  });
+  it("skips a bare drive, colons in prose and URLs", () => {
+    for (const opts of [{}, { cwd }]) {
+      expect(paths("C: and C:\\ and a:b, ratio 3:4, https://x/y and \\\\server", opts)).toEqual([]);
+    }
+  });
+
+  it("resolves against a Windows folder with Windows semantics, always with backslashes", () => {
+    expect(resolvePath("src\\..\\lib\\.\\a.ts", cwd)).toBe("C:\\Users\\me\\repo\\lib\\a.ts");
+    expect(resolvePath("src/a.ts", cwd)).toBe("C:\\Users\\me\\repo\\src\\a.ts");
+    expect(resolvePath(".\\a.ts", cwd)).toBe("C:\\Users\\me\\repo\\a.ts");
+    expect(resolvePath("..\\a.ts", cwd)).toBe("C:\\Users\\me\\a.ts");
+    expect(resolvePath("c:/Repo/x/../a.ts", null)).toBe("C:\\Repo\\a.ts");
+    expect(resolvePath("\\tmp\\a.ts", cwd)).toBe("C:\\tmp\\a.ts");
+    expect(resolvePath("~/.claude/x.md", cwd)).toBe("C:\\Users\\me\\.claude\\x.md");
+    expect(resolvePath("a.txt", "\\\\server\\share\\dir")).toBe("\\\\server\\share\\dir\\a.txt");
+    expect(resolvePath("..\\..\\..\\a.ts", "D:\\x")).toBe("D:\\a.ts");
+    expect(resolvePath("C:\\", null)).toBe("C:\\");
+  });
+  it("can't resolve a Windows-relative path without a Windows folder", () => {
+    expect(resolvePath("src\\a.ts", undefined)).toBeNull();
+    expect(resolvePath("~/x.md", "D:\\work")).toBeNull();
+  });
+
+  it("reads code spans, file:// URIs and encoded link targets", () => {
+    expect(codeSpanPath("C:\\Program Files\\App\\a.dll")).toEqual({ path: "C:\\Program Files\\App\\a.dll" });
+    expect(codeSpanPath("\\\\srv\\share\\a.txt")).toEqual({ path: "\\\\srv\\share\\a.txt" });
+    expect(codeSpanPath("src\\lib\\a.ts", { cwd })).toEqual({ path: "src\\lib\\a.ts" });
+    expect(codeSpanPath("file:///C:/My%20Docs/a.md")).toEqual({ path: "C:/My Docs/a.md" });
+    expect(codeSpanPath("file://srv/share/a.txt", { cwd })).toEqual({ path: "\\\\srv\\share\\a.txt" });
+    expect(codeSpanPath("C:%5Crepo%5Ca.ts")).toEqual({ path: "C:\\repo\\a.ts" });
+  });
+  it("rejects a bare drive, a lone server and backslashes outside Windows paths", () => {
+    for (const s of ["C:", "C:\\", "C:12", "\\\\server", "a:b", "src\\a.ts", "npm run C:\\x"]) {
+      expect(codeSpanPath(s), s).toBeNull();
+    }
+    expect(codeSpanPath("src\\a b.ts", { cwd })).toBeNull();
+  });
+  it("treats drive links as local", () => {
+    expect(isLocalHref("C:/x/a.md")).toBe(true);
+    expect(isLocalHref("C:%5Cx%5Ca.md")).toBe(true);
+    expect(isLocalHref("c:")).toBe(false);
+  });
+
+  it("displays with the agent's folder dropped and home as ~, either separator", () => {
+    expect(displayParts("C:\\Users\\me\\repo\\src\\a.ts", { cwd })).toEqual({ dir: "src\\", base: "a.ts" });
+    expect(displayParts("c:/users/me/repo/src/a.ts", { cwd })).toEqual({ dir: "src/", base: "a.ts" });
+    expect(displayParts("C:\\Users\\me\\.eos\\config.json", { cwd })).toEqual({ dir: "~\\.eos\\", base: "config.json" });
+    expect(displayParts("Assets\\Editor\\", { cwd, type: "directory" })).toEqual({ dir: "Assets\\", base: "Editor\\" });
+    expect(displayParts("C:\\Users\\me\\repo\\src\\a.ts", { cwd, shorten: false })).toEqual({ dir: "C:\\Users\\me\\repo\\src\\", base: "a.ts" });
+    const long = "D:\\tmp\\claude-501\\-Users-me-Projects-x\\91ddbca0-23be\\scratchpad\\unity-integration-guideline.md";
+    expect(displayParts(long, { cwd })).toEqual({ dir: "…\\scratchpad\\", base: "unity-integration-guideline.md" });
+  });
+
+  it("collects and chips Windows paths in prose against a Windows folder", () => {
+    const html = markdownToHtml("See `C:\\repo\\a.ts:12`, src\\b.ts and [c](C:\\repo\\c.md).");
+    expect(collectPathRefs(html, { cwd: "C:\\repo" })).toEqual([
+      { path: "C:\\repo\\a.ts", line: 12, from: "code" },
+      { path: "src\\b.ts", from: "text" },
+      { path: "C:\\repo\\c.md", from: "link" },
+    ]);
+    const files = {
+      "C:\\repo\\a.ts": { abs: "C:\\repo\\a.ts", type: "file" },
+      "src\\b.ts": { abs: "C:\\repo\\src\\b.ts", type: "file" },
+      "C:\\gone.ts": { abs: "C:\\gone.ts", missing: true },
+    };
+    const out = withPathChips(html, (p) => files[p] ?? null, { cwd: "C:\\repo" });
+    expect(out).toContain('data-path="C:\\repo\\a.ts" data-type="file" data-line="12"');
+    expect(out).toContain('<span class="path-chip-base">a.ts</span><span class="path-chip-loc">:12</span>');
+    expect(out).toContain('<span class="path-chip-dir">src\\</span><span class="path-chip-base">b.ts</span>');
+    expect(withPathChips(markdownToHtml("`C:\\gone.ts`"), (p) => files[p] ?? null, { cwd: "C:\\repo" }))
+      .toContain('<code class="path-missing" title="Not found">C:\\gone.ts</code>');
+  });
+});

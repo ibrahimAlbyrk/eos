@@ -63,6 +63,16 @@ html.native .side-handle-zone { display: none !important; }
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; max-width: calc(300px - 16px - 12px); }
 html.native.fullscreen .side-island--agents { padding-top: 16px; }
 
+/* WINDOWS TITLEBAR — no traffic lights on the left (the toggle sits where it
+   does in macOS fullscreen); Windows draws minimize/maximize/close over the
+   top-right corner (Window Controls Overlay), so the top-right pane's header
+   leaves their width free. */
+html.native[data-os="windows"] .native-toggle-zone { left: 16px; top: 7px; max-width: calc(300px - 16px - 12px); }
+html.native[data-os="windows"] .side-island--agents { padding-top: 46px; }
+html.native[data-os="windows"] .pane-head--topright {
+  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px);
+}
+
 /* ============================================================================
    COLLAPSED SIDEBAR — the expand handle (web) + hover flyout card.
    ============================================================================ */
@@ -1093,6 +1103,8 @@ html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset 
 .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 21px; }
 html.native .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 95px; }
 html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
+html.native[data-os="windows"] .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 6px; }
+html.native[data-os="windows"] .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
 
 /* Breadcrumb (project / chain / current agent) — truncates, never wraps. */
 .pane-head .crumb {

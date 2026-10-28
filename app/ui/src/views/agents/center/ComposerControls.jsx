@@ -13,6 +13,7 @@ import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/compos
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 import { composerCwd } from "../../../lib/composerFolder.js";
 import { SubmitButton } from "./SubmitButton.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 // The combined Model·Effort trigger's level word (xHigh, not the model catalog's
 // "Extra"; ultracode is folded into Max since the rail drops it).
@@ -138,7 +139,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
         <div className="git-wrap" style={{ position: "relative" }}>
           <button
             className={"iconbtn git-agent-btn" + (gitMode ? " on" : "")}
-            title={gitMode ? "Exit git mode (⌘G)" : "Git"}
+            title={gitMode ? `Exit git mode (${shortcutLabel("mod+g")})` : "Git"}
             onClick={(e) => {
               if (gitMode) {
                 e.stopPropagation();

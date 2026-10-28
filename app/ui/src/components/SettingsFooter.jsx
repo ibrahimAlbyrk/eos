@@ -5,6 +5,7 @@ import { AccountMenu } from "./AccountMenu.jsx";
 import { useAccounts, ensureAccountsLoaded, accountTone, isSignedIn } from "../state/accountsStore.js";
 import { metaFor } from "./accounts/providerMeta.js";
 import { MachineRow } from "./machines/MachineRow.jsx";
+import { useFeature } from "../state/featuresStore.js";
 import { ProfileAvatar } from "./profile/ProfileAvatar.jsx";
 import { useProfile, ensureProfileLoaded } from "../state/profileStore.js";
 import { useUserMemories, ensureUserMemoriesLoaded, pendingMemories } from "../state/userMemoryStore.js";
@@ -26,9 +27,10 @@ function useAccountSummary() {
 
 // Bottom row of every view's sidebar: the avatar that opens the Account menu
 // (accounts, plan usage, total cost, Settings) — the way into Settings besides
-// ⌘, — then the machine row.
+// ⌘, — then the machine row (where this computer can pair).
 export function SettingsFooter({ live }) {
   const { openSettings } = useSettings();
+  const remote = useFeature("remote");
   const ui = useUi();
   const ref = useRef(null);
   const summary = useAccountSummary();
@@ -78,7 +80,7 @@ export function SettingsFooter({ live }) {
             ? <span className="sb-settings__alert sb-settings__alert--dream" aria-hidden="true" />
             : pending > 0 && <span className="sb-settings__alert sb-settings__alert--pending" aria-hidden="true" />}
       </button>
-      <MachineRow live={live} />
+      {remote && <MachineRow live={live} />}
       {anchor && (
         <AccountMenu
           anchor={anchor}

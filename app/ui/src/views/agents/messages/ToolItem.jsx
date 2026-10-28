@@ -7,6 +7,7 @@ import { DisclosureRow } from "./DisclosureRow.jsx";
 import { Collapse } from "./Collapse.jsx";
 import { useImagePeek } from "./ImagePeek.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
+import { modDown } from "../../../lib/platform.js";
 
 // The single tool-render dispatcher: every tool (bespoke or generic fallback,
 // including the worker-management tools) resolves through getToolView and renders
@@ -37,7 +38,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
     if (!filePath) return;
     e.stopPropagation();
     peek.close();
-    ui.openFile(filePath, undefined, { tab: e.metaKey });
+    ui.openFile(filePath, undefined, { tab: modDown(e) });
   };
 
   return (

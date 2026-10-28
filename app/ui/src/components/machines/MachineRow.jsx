@@ -11,6 +11,7 @@ import { currentHost, isRemoteView } from "../../lib/host.js";
 import { MachineGlyph } from "./MachineGlyph.jsx";
 import { MachinesMenu } from "./MachinesMenu.jsx";
 import { UpDownIcon } from "./icons.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // The sidebar footer's machine row — which computer this window is driving, and
 // the way to every other one (like VS Code's remote indicator, bottom-left).
@@ -52,7 +53,7 @@ export function MachineRow({ live }) {
         data-popover-trigger="machines-menu"
         aria-haspopup="menu"
         aria-expanded={open}
-        title="Machines (⌘⇧M)"
+        title={`Machines (${shortcutLabel("mod+shift+m")})`}
       >
         <MachineGlyph name={remote ? host?.name ?? name : local?.name} platform={remote ? host?.platform : local?.platform} tone={tone} />
         <span className="machine-row__name">{name}</span>

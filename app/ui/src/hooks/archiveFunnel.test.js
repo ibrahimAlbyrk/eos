@@ -53,7 +53,7 @@ describe("Cmd+W funnel archives; delete is menu-only and shares the funnel", () 
   it("archive stays confirm-free and non-danger in both menus", () => {
     // The archive item runs the funnel directly — no confirm state in between.
     expect(ctxMenuSrc).toMatch(/className="menu-item" onClick={archive}/);
-    expect(headMenuSrc).toMatch(/id: "archive", label: "Archive", kbd: "⌘W", run/);
+    expect(headMenuSrc).toMatch(/id: "archive", label: "Archive", kbd: shortcutLabel\("mod\+w"\), run/);
   });
 
   it("delete is danger-styled and confirm-gated in both menus", () => {

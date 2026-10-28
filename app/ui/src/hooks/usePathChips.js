@@ -16,7 +16,7 @@ const signature = (targets) =>
 // check re-renders only when an answer changed.
 export function usePathChips(html, cwd, { plainText = true, shorten = true, title = false } = {}) {
   const targets = useMemo(
-    () => collectPathRefs(html, { plainText })
+    () => collectPathRefs(html, { plainText, cwd })
       .map((r) => ({ written: r.path, abs: resolvePath(r.path, cwd) }))
       .filter((t) => t.abs),
     [html, cwd, plainText],

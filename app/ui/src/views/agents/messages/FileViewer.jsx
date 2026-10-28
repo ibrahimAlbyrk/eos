@@ -20,6 +20,7 @@ import { getFileViewer } from "./fileViewers.jsx";
 import { SymbolRefsPanel } from "./SymbolRefsPanel.jsx";
 import { useFileWatch } from "../../../state/fileWatchStore.js";
 import { filePathOf } from "../../../lib/panelTabs.js";
+import { shortcutLabel, fileManagerName } from "../../../lib/platform.js";
 
 // Above this size the editor opens read-only with the lightweight extension
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
@@ -289,8 +290,8 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
             {isText && (dirty ? (
               <>
                 <button className="fv-btn" onMouseDown={keepFocus} onClick={handleCancel}>Cancel</button>
-                <button className="fv-btn fv-btn--save" onMouseDown={keepFocus} onClick={handleSave} disabled={saving} title="Save (⌘S)">
-                  Save<span className="fv-btn-kbd">⌘S</span>
+                <button className="fv-btn fv-btn--save" onMouseDown={keepFocus} onClick={handleSave} disabled={saving} title={`Save (${shortcutLabel("mod+s")})`}>
+                  Save<span className="fv-btn-kbd">{shortcutLabel("mod+s")}</span>
                 </button>
               </>
             ) : (
@@ -311,7 +312,7 @@ export function FileView({ path, live, reveal, findActive, findPriority = 10, on
                       </div>
                       <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{hasLocalScreen() ? (defaultApp?.appName ?? "Default App") : "This Mac (copy)"}</button>
                       {hasLocalScreen() && <div className="fv-ow-sep" />}
-                      {hasLocalScreen() && <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>}
+                      {hasLocalScreen() && <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in {fileManagerName()}</button>}
                     </div>
                   )}
                 </span>

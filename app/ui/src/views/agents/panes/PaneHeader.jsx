@@ -35,7 +35,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   const vWrapRef = useRef(null);
   const envOpen = useEnvPanelOpen(ui.paneId);
 
-  const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
+  const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : "", topRight ? "pane-head--topright" : ""]
     .filter(Boolean)
     .join(" ");
   const insetEl = topLeft ? <span className="pane-head-inset" aria-hidden="true" /> : null;

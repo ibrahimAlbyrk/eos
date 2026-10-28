@@ -10,6 +10,7 @@ import {
 } from "../state/hostsStore.js";
 import { MachineGlyph } from "../components/machines/MachineGlyph.jsx";
 import { PlusIcon } from "../components/machines/icons.jsx";
+import { shortcutLabel } from "../lib/platform.js";
 
 const Text = CONTROLS.text;
 
@@ -21,7 +22,7 @@ export function MachinesSettings() {
     return (
       <>
         <h2 className="stg-title">Machines</h2>
-        <div className="stg-row__desc">Machines are managed from this Mac's own window — switch back with ⌃1.</div>
+        <div className="stg-row__desc">Machines are managed from this Mac's own window — switch back with {shortcutLabel("ctrl+1")}.</div>
       </>
     );
   }

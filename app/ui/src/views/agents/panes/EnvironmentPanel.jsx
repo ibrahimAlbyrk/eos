@@ -16,6 +16,7 @@ import { ToolIcon } from "../messages/ToolIcon.jsx";
 import { useArtifacts } from "../../../state/artifactsStore.js";
 import { artifactLabel } from "../../../lib/artifactLink.js";
 import { openFolder } from "../../files/openFolder.js";
+import { modDown } from "../../../lib/platform.js";
 
 // Environment & changes panel, toggled from the header's checklist button. Opens
 // in the pane's right gutter; the transcript + composer column slides left only
@@ -178,7 +179,7 @@ function SourcesSection({ ui, workerId }) {
   const attachments = snap.attachments;
   const open = (att, e) => {
     if (att.kind === "folder") openFolder(ui, att.path);
-    else ui.openFile(att.path, undefined, { tab: e.metaKey });
+    else ui.openFile(att.path, undefined, { tab: modDown(e) });
   };
 
   return (

@@ -4,6 +4,7 @@ import { buildDiffHunks, patchToHunks, parseAskAnswers } from "../../../lib/diff
 import { skillFilePath } from "../../../lib/skillBody.js";
 import { failureKind } from "../../../lib/toolFailure.js";
 import { DisclosureRow } from "./DisclosureRow.jsx";
+import { modDown } from "../../../lib/platform.js";
 
 // Per-tool expanded detail components. Routing (tool name → Detail) and the
 // header labels live in ./toolViews.jsx; this file only owns the bodies.
@@ -141,7 +142,7 @@ export function WriteDetail({ tool }) {
   };
 
   const openInViewer = (e) => {
-    if (filePath) ui.openFile(filePath, undefined, { tab: e.metaKey });
+    if (filePath) ui.openFile(filePath, undefined, { tab: modDown(e) });
   };
 
   return (
@@ -259,7 +260,7 @@ export function SkillDetail({ tool }) {
   };
 
   const openInViewer = (e) => {
-    if (skillFile) ui.openFile(skillFile, undefined, { tab: e.metaKey });
+    if (skillFile) ui.openFile(skillFile, undefined, { tab: modDown(e) });
   };
 
   const copyBtn = body ? (

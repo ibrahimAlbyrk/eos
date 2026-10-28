@@ -4,6 +4,7 @@ import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
 import { notify } from "../../../lib/notify.js";
 import { MenuList } from "../popovers/MenuList.jsx";
+import { fileManagerName } from "../../../lib/platform.js";
 
 // Right-click menu shared by the file-tree rows and the diff-card headers:
 // Copy path + an "Open in →" flyout (VS Code / Finder). Uses the shared popover
@@ -37,7 +38,7 @@ export function GitDiffFileMenu() {
       label: "Open in",
       submenu: [
         { id: "vscode", label: "VS Code", kbd: "1", run: () => openIn("vscode") },
-        { id: "finder", label: "Finder", kbd: "2", run: () => openIn("finder") },
+        { id: "finder", label: fileManagerName(), kbd: "2", run: () => openIn("finder") },
       ],
     },
   ].filter(Boolean);

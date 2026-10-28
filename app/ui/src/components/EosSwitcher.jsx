@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigation, useSearch } from "../state/ui.jsx";
 import { visibleTabs } from "../views/tabs.js";
+import { shortcutLabel } from "../lib/platform.js";
 
 // The sidebar's top workspace switcher, shared by the Agents and Code sidebars:
 // the active view's name ("Agents ▾" / "Code ▾") whose click opens the view menu, plus a search icon (⌘K / command palette) at the row's right.
@@ -74,7 +75,7 @@ export function EosSwitcher() {
         )}
       </div>
       <span className="side-eos__spacer" />
-      <button className="eos-search" title="Search (⌘K)" aria-label="Search" onClick={() => openSearch()}>
+      <button className="eos-search" title={`Search (${shortcutLabel("mod+k")})`} aria-label="Search" onClick={() => openSearch()}>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
           <circle cx="7" cy="7" r="5" />
           <path d="m13 13-2.5-2.5" />

@@ -5,6 +5,7 @@ import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { subscribe, getSnapshot, attach } from "../../state/chatAttachmentsStore.js";
 import { requestReveal } from "../../state/transcriptReveal.js";
 import { openFolder } from "../files/openFolder.js";
+import { modDown } from "../../lib/platform.js";
 
 // Videos arrive from the parser as kind "file" (there is no "video" kind); we
 // group common video extensions into their own section for a clearer list, but
@@ -60,7 +61,7 @@ function FileRow({ att, section, workerId }) {
 
   const open = useCallback((e) => {
     if (att.kind === "folder") openFolder(ui, att.path);
-    else ui.openFile(att.path, undefined, { tab: e.metaKey });
+    else ui.openFile(att.path, undefined, { tab: modDown(e) });
   }, [att.kind, att.path, ui]);
 
   const inner = (

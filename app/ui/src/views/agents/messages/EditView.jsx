@@ -12,6 +12,7 @@ import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
 import { setCodeLensDeco, codeLensField, buildCodeLensDeco, visibleDefNames } from "../../../lib/cmCodeLens.js";
 import { menuUndo } from "../../../lib/cmMenuUndo.js";
 import { minimalChange } from "../../../lib/minimalChange.js";
+import { modifiers } from "../../../lib/platform.js";
 
 const setFindDeco = StateEffect.define();
 const findDecoField = StateField.define({
@@ -84,7 +85,8 @@ export function EditView({ editContent, setEditContent, findQuery, findSeed = nu
     const symbolNavExt = symbolNavEnabled ? [EditorView.domEventHandlers({
       mousedown(e, view) {
         const nav = symbolNavRef.current;
-        if (!nav || e.button !== 0 || !(e.metaKey || e.ctrlKey)) return false;
+        const m = modifiers(e);
+        if (!nav || e.button !== 0 || !(m.mod || m.ctrl)) return false;
         const word = wordAtEvent(view, e);
         if (!word) return false;
         e.preventDefault();

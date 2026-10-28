@@ -1,5 +1,6 @@
 import { useUi } from "../../../state/ui.jsx";
 import { AgentName } from "../../../lib/agentName.js";
+import { hostOS, modDown } from "../../../lib/platform.js";
 
 // The one affordance for a name that references another Eos agent: clicking
 // selects it; Cmd-click toggles it as a split pane — identical to a sidebar row
@@ -17,10 +18,10 @@ export function AgentLink({ id, name, workers, className = "ti-file", fallback =
   return (
     <span
       className={(className ? className + " " : "") + "ti-link"}
-      title="Click to open · Cmd-click to open in a split"
+      title={`Click to open · ${hostOS() === "mac" ? "Cmd" : "Ctrl"}-click to open in a split`}
       onClick={(e) => {
         e.stopPropagation();
-        if (e.metaKey) ui.togglePaneForAgent(live.id);
+        if (modDown(e)) ui.togglePaneForAgent(live.id);
         else ui.selectAgent(live.id);
       }}
     ><AgentName worker={w} /></span>

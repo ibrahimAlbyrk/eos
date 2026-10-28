@@ -16,6 +16,7 @@ import { createPathLinkProvider, openTerminalLink, oscLinkHandler } from "./term
 import { claimNextDrop } from "../../lib/nativeBridge.js";
 import { isRemoteView } from "../../lib/host.js";
 import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessionOsc.js";
+import { hostOS, modifiers } from "../../lib/platform.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
@@ -104,7 +105,8 @@ export function TerminalView({
     // native selectors (main.swift) drive the same paths — this is the
     // browser/dev fallback.
     term.attachCustomKeyEventHandler((e) => {
-      if (shiftEnter && e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const m = modifiers(e);
+      if (shiftEnter && e.key === "Enter" && e.shiftKey && !m.mod && !m.ctrl && !m.alt) {
         if (e.type === "keydown") { inputBuf += shiftEnter; flushInput(); }
         e.preventDefault();
         return false;
@@ -112,7 +114,7 @@ export function TerminalView({
       if (e.type !== "keydown") return true;
       const editBytes = macEditBytes(e);
       if (editBytes) { inputBuf += editBytes; flushInput(); e.preventDefault(); return false; }
-      if (!(e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey)) return true;
+      if (!(m.mod && !m.ctrl && !m.alt && !m.shift)) return true;
       const key = e.key.toLowerCase();
       if (key === "c" || key === "x") {
         if (!term.hasSelection()) return true; // nothing to copy → let it pass
@@ -125,7 +127,8 @@ export function TerminalView({
         e.preventDefault();
         return false;
       }
-      if (key === "a") { term.selectAll(); e.preventDefault(); return false; }
+      // Ctrl+A is the shell's line start on Windows; select-all is a Mac idiom.
+      if (key === "a" && hostOS() === "mac") { term.selectAll(); e.preventDefault(); return false; }
       return true;
     });
 
@@ -139,7 +142,8 @@ export function TerminalView({
     const wheelSteps = createWheelAccumulator();
     term.attachCustomWheelEventHandler((e) => {
       const mode = term.modes.mouseTrackingMode;
-      if (!sgrMouse || mode === "none" || mode === "x10" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return true;
+      const m = modifiers(e);
+      if (!sgrMouse || mode === "none" || mode === "x10" || m.shift || m.alt || m.ctrl || m.mod) return true;
       const screen = term.element?.querySelector(".xterm-screen");
       if (!screen) return true;
       e.preventDefault();

@@ -3,6 +3,7 @@ import { parsePatch } from "../../../lib/patch.js";
 import { foldGaps, splitPairs } from "../../../lib/diffLayout.js";
 import { inlineDiffRanges } from "../../../lib/diff.jsx";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
+import { modifiers, shortcutLabel } from "../../../lib/platform.js";
 
 // Initial row budget per file; further rows stream in as the sentinel below
 // the rendered window scrolls into reach — no all-at-once "Show all" commit.
@@ -286,12 +287,13 @@ function CommentBox({ onSend, onCancel }) {
         aria-label="Comment"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
+          const m = modifiers(e);
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); }
+          if (e.key === "Enter" && (m.mod || m.ctrl)) { e.preventDefault(); void submit(); }
         }}
       />
       <div className="dv-cmt__actions">
-        <span className="dv-cmt__hint">⌘↵ to send</span>
+        <span className="dv-cmt__hint">{shortcutLabel("mod+return")} to send</span>
         <span className="sp-spacer" />
         <button type="button" className="dv-cmt__btn" onClick={onCancel}>Cancel</button>
         <button type="button" className="dv-cmt__btn dv-cmt__btn--send" disabled={!text.trim() || busy} onClick={submit}>Send to agent</button>

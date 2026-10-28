@@ -8,11 +8,28 @@ import { glyphSvg } from "./fileGlyphs.js";
 
 // Path-looking runs of text, with an optional :line[:col] or :line-endLine
 // suffix (Claude Code's "src/a.ts:42") that stays part of the link but not of
-// the path.
-const PATH_RUN = /[\p{L}\p{N}_.~@+%=\-/]+(?::\d+(?:[-–]\d+)?){0,2}/gu;
+// the path. A Windows drive or UNC root ("C:\", "\\server") starts a run that
+// may use either separator wherever it appears; a backslash elsewhere counts
+// only when the agent's folder is a Windows one — on a Mac it is a shell escape
+// ("My\ Docs").
+const RUN_CHARS = String.raw`\p{L}\p{N}_.~@+%=\-/`;
+const RUN_LOCATION = String.raw`(?::\d+(?:[-–]\d+)?){0,2}`;
+const WIN_RUN = String.raw`(?<![\p{L}\p{N}_.~@+%=\-/\\:])(?:[A-Za-z]:[\\/]|\\\\(?=[\p{L}\p{N}]))[${RUN_CHARS}\\]*${RUN_LOCATION}`;
+const PATH_RUN = new RegExp(`${WIN_RUN}|[${RUN_CHARS}]+${RUN_LOCATION}`, "gu");
+const WIN_PATH_RUN = new RegExp(`${WIN_RUN}|[${RUN_CHARS}\\\\]+${RUN_LOCATION}`, "gu");
 const LOCATION = /:(\d+)(?:[-–](\d+)|:(\d+))?$/;
 const HOME = /^\/(?:Users|home)\/[^/]+/;
+const WIN_HOME = /^[A-Za-z]:[\\/]Users[\\/][^\\/]+/i;
 const HAS_EXT = /\.[\p{L}\p{N}]+$/u;
+const DRIVE = /^[A-Za-z]:[\\/]/;
+// "C:" or "\\server\share" (either separator) at the start of a Windows path.
+const WIN_ROOT = /^(?:[A-Za-z]:|[\\/]{2}[^\\/]+[\\/][^\\/]+)/;
+
+// A path written the Windows way from its root: "C:\…", "C:/…" or "\\server\share…".
+export const isWindowsRooted = (path) => DRIVE.test(path) || path.startsWith("\\\\");
+
+// Is this agent folder on a Windows computer — its paths resolve the Windows way.
+export const isWindowsPath = (cwd) => typeof cwd === "string" && (/^[A-Za-z]:(?:[\\/]|$)/.test(cwd) || cwd.startsWith("\\\\"));
 
 // "src/a.ts:42:7" → { path: "src/a.ts", line: 42, column: 7 };
 // "src/a.ts:42-47" → { path, line: 42, endLine: 47 }; no suffix → { path }.
@@ -26,23 +43,28 @@ export function parseLocation(raw) {
 }
 
 // Could this name a file or folder: it has letters and a slash or an extension,
-// and is not a URL's //host.
-function pathShaped(path) {
+// and is not a URL's //host. A Windows root needs a name after it ("C:\" alone
+// and "\\server" without a share are not enough).
+function pathShaped(path, windows = false) {
+  if (DRIVE.test(path)) return /\p{L}/u.test(path.slice(3));
+  if (path.startsWith("\\\\")) return /^\\\\[^\\/]+[\\/][^\\/]+/.test(path) && /\p{L}/u.test(path);
   if (!/\p{L}/u.test(path) || path.startsWith("//")) return false;
-  return path.includes("/") || HAS_EXT.test(path);
+  return path.includes("/") || (windows && path.includes("\\")) || HAS_EXT.test(path);
 }
 
 // → [{ index, length, path, line?, column?, endLine? }] for runs that could
-// name a file or folder. Whether it exists is checked later.
-export function findPathCandidates(text) {
+// name a file or folder. Whether it exists is checked later. `cwd` (the agent's
+// folder) tells whether a backslash separates folders.
+export function findPathCandidates(text, { cwd } = {}) {
+  const windows = isWindowsPath(cwd);
   const out = [];
-  for (const m of text.matchAll(PATH_RUN)) {
+  for (const m of text.matchAll(windows ? WIN_PATH_RUN : PATH_RUN)) {
     let raw = m[0];
     let index = m.index;
     if (raw.startsWith("@")) { raw = raw.slice(1); index++; } // Claude Code's @file mentions
     raw = raw.replace(/\.+$/, ""); // sentence-ending period
     const loc = parseLocation(raw);
-    if (!pathShaped(loc.path)) continue;
+    if (!pathShaped(loc.path, windows)) continue;
     out.push({ index, length: raw.length, ...loc });
   }
   return out;
@@ -50,27 +72,63 @@ export function findPathCandidates(text) {
 
 // The whole text of an inline code span (or a link's href) as a path, or null:
 // `file://` URIs and @mentions included; spaces only in an absolute or ~ path;
-// globs, code and URLs are not paths.
-export function codeSpanPath(text) {
+// globs, code and URLs are not paths. A backslash is a separator only in a
+// Windows path (rooted, or relative to a Windows `cwd`).
+export function codeSpanPath(text, { cwd } = {}) {
+  const windows = isWindowsPath(cwd);
   let raw = text.trim();
+  // marked percent-encodes a backslash in a link's href.
+  if (windows || /^[A-Za-z]:%5C/i.test(raw)) raw = raw.replace(/%5C/gi, "\\");
   if (raw.startsWith("file://")) {
-    try { raw = decodeURIComponent(new URL(raw).pathname); } catch { return null; }
+    let url;
+    try { url = new URL(raw); raw = decodeURIComponent(url.pathname); } catch { return null; }
+    if (/^\/[A-Za-z]:\//.test(raw)) raw = raw.slice(1); // file:///C:/…
+    else if (windows && url.host && url.host !== "localhost") raw = `\\\\${url.host}${raw}`.replace(/\//g, "\\");
   } else if (raw.startsWith("@")) {
     raw = raw.slice(1);
   }
-  if (!raw || raw.length > 1024 || /[\n<>"'`|*?{};,=$\\]/.test(raw)) return null;
-  if (/\s/.test(raw) && !/^~?\//.test(raw)) return null;
+  const win = windows || isWindowsRooted(raw);
+  if (!raw || raw.length > 1024 || (win ? /[\n<>"'`|*?{};,=$]/ : /[\n<>"'`|*?{};,=$\\]/).test(raw)) return null;
+  if (/\s/.test(raw) && !/^~?\//.test(raw) && !(win && (isWindowsRooted(raw) || /^~?\\/.test(raw)))) return null;
   const loc = parseLocation(raw);
-  if (/^[a-z][a-z0-9+.-]*:/i.test(loc.path)) return null; // a URL scheme
-  return pathShaped(loc.path) ? loc : null;
+  if (!DRIVE.test(loc.path) && /^[a-z][a-z0-9+.-]*:/i.test(loc.path)) return null; // a URL scheme
+  return pathShaped(loc.path, windows) ? loc : null;
 }
 
-// "/Users/me" from a folder under it, or null.
-export const homeOf = (cwd) => cwd?.match(HOME)?.[0] ?? null;
+// "/Users/me" (or "C:\Users\me") from a folder under it, or null.
+export const homeOf = (cwd) => cwd?.match(isWindowsPath(cwd) ? WIN_HOME : HOME)?.[0] ?? null;
+
+// Node's path.win32.resolve, for the shapes chat names: a rooted path as is, a
+// "\x" from the root of the cwd's drive or share, anything else under the cwd;
+// `.`/`..` folded. → "C:\a\b" or "\\server\share\a" — always backslashes and
+// an upper-case drive, so one file has one key wherever it was written.
+function resolveWindows(path, cwd) {
+  let abs;
+  if (isWindowsRooted(path)) abs = path;
+  else if (path === "~" || /^~[\\/]/.test(path)) {
+    const home = homeOf(cwd);
+    if (!home) return null;
+    abs = home + path.slice(1);
+  } else if (!isWindowsPath(cwd)) return null;
+  else if (/^[\\/]/.test(path)) abs = (cwd.match(WIN_ROOT)?.[0] ?? "") + path;
+  else abs = `${cwd}\\${path}`;
+  const root = abs.match(WIN_ROOT)?.[0];
+  if (!root) return null;
+  const parts = [];
+  for (const seg of abs.slice(root.length).split(/[\\/]/)) {
+    if (!seg || seg === ".") continue;
+    if (seg === "..") parts.pop();
+    else parts.push(seg);
+  }
+  const head = root.length === 2 ? root.toUpperCase() : root.replace(/\//g, "\\");
+  return `${head}\\${parts.join("\\")}`;
+}
 
 // → normalized absolute path, or null when it can't be resolved (relative with
-// no cwd, ~ when the cwd isn't under a home folder).
+// no cwd, ~ when the cwd isn't under a home folder). A Windows path, or any
+// path under a Windows cwd, resolves the Windows way (resolveWindows).
 export function resolvePath(path, cwd) {
+  if (isWindowsRooted(path) || isWindowsPath(cwd)) return resolveWindows(path, cwd);
   let abs;
   if (path.startsWith("/")) abs = path;
   else if (path === "~" || path.startsWith("~/")) {
@@ -90,7 +148,8 @@ export function resolvePath(path, cwd) {
 
 // An absolute or ~ path names one place whatever the agent's folder — only
 // those can be called missing.
-export const isRootedPath = (path) => path.startsWith("/") || path === "~" || path.startsWith("~/");
+export const isRootedPath = (path) =>
+  path.startsWith("/") || path === "~" || path.startsWith("~/") || isWindowsRooted(path) || path.startsWith("~\\");
 
 const MAX_SHOWN = 48;
 
@@ -99,6 +158,7 @@ const MAX_SHOWN = 48;
 // the parent folder and the name stay. `shorten: false` keeps it as written.
 // → { dir, base } (a folder's base ends in "/").
 export function displayParts(path, { cwd, type, shorten = true } = {}) {
+  if (isWindowsRooted(path) || isWindowsPath(cwd)) return displayWindowsParts(path, { cwd, type, shorten });
   let shown = path;
   if (shorten && shown.startsWith("/")) {
     const home = homeOf(cwd);
@@ -113,6 +173,34 @@ export function displayParts(path, { cwd, type, shorten = true } = {}) {
   if (shorten && dir.length + base.length > MAX_SHOWN) {
     const parent = dir.slice(0, -1).split("/").pop();
     dir = parent && parent.length + base.length + 3 <= MAX_SHOWN ? `…/${parent}/` : "…/";
+  }
+  return { dir, base };
+}
+
+// Windows paths compare without regard to the separator or an ASCII letter's
+// case; the key keeps the length, so it slices the path as written.
+const winKey = (s) => s.replace(/\\/g, "/").replace(/[A-Z]/g, (c) => c.toLowerCase());
+
+// displayParts for a Windows path: either separator, the folder marked with the
+// one the path uses.
+function displayWindowsParts(path, { cwd, type, shorten }) {
+  let shown = path;
+  if (shorten && isWindowsRooted(shown)) {
+    const key = winKey(shown);
+    const folder = cwd?.replace(/[\\/]+$/, "");
+    const home = homeOf(cwd);
+    if (folder && key.startsWith(winKey(folder) + "/")) shown = shown.slice(folder.length + 1);
+    else if (home && (key === winKey(home) || key.startsWith(winKey(home) + "/"))) shown = "~" + shown.slice(home.length);
+  }
+  const sep = shown.includes("\\") ? "\\" : "/";
+  const trimmed = shown.replace(/[\\/]+$/, "");
+  if (!trimmed) return { dir: "", base: shown };
+  const cut = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+  let dir = trimmed.slice(0, cut + 1);
+  const base = trimmed.slice(cut + 1) + (type === "directory" ? sep : "");
+  if (shorten && dir.length + base.length > MAX_SHOWN) {
+    const parent = dir.slice(0, -1).split(/[\\/]/).pop();
+    dir = parent && parent.length + base.length + 3 <= MAX_SHOWN ? `…${sep}${parent}${sep}` : `…${sep}`;
   }
   return { dir, base };
 }
@@ -179,7 +267,7 @@ const attrOf = (tag, name) => {
 // absolute path), or file://. Fragment-only links stay in the page.
 export function isLocalHref(href) {
   if (!href || href.startsWith("#")) return false;
-  return href.startsWith("file://") || !/^[a-z][a-z0-9+.-]*:/i.test(href);
+  return href.startsWith("file://") || /^[A-Za-z]:(?:[\\/]|%5C)/i.test(href) || !/^[a-z][a-z0-9+.-]*:/i.test(href);
 }
 
 // Walks sanitized markdown HTML (marked + DOMPurify, so well-formed) and hands
@@ -189,7 +277,7 @@ export function isLocalHref(href) {
 //   link(tag, loc)      — an <a> whose href is a path (returns a new open tag)
 // Code blocks, links' insides and buttons (copy buttons, artifact chips) are
 // left alone.
-function walkProse(html, visit) {
+function walkProse(html, visit, { cwd } = {}) {
   const parts = html.split(/(<[^>]*>)/);
   let pre = 0;
   let code = 0;
@@ -207,14 +295,14 @@ function walkProse(html, visit) {
         anchor += closing ? -1 : 1;
         if (!closing && visit.link) {
           const href = attrOf(part, "href");
-          const loc = isLocalHref(href) ? codeSpanPath(href) : null;
+          const loc = isLocalHref(href) ? codeSpanPath(href, { cwd }) : null;
           const next = loc && visit.link(part, loc);
           if (next) { out += next; continue; }
         }
       } else if (tag === "code") {
         if (!closing && !pre && !anchor && !button && parts[i + 2] === "</code>") {
           const inner = parts[i + 1];
-          const loc = codeSpanPath(decodeHtml(inner));
+          const loc = codeSpanPath(decodeHtml(inner), { cwd });
           const next = loc && visit.code?.(part + inner + parts[i + 2], loc);
           if (next) { out += next; i += 2; continue; }
         }
@@ -225,7 +313,7 @@ function walkProse(html, visit) {
     }
     if (pre || code || anchor || button || !part || !visit.text) { out += part; continue; }
     const text = decodeHtml(part);
-    const cands = findPathCandidates(text);
+    const cands = findPathCandidates(text, { cwd });
     const next = cands.length ? visit.text(text, cands) : null;
     out += next ?? part;
   }
@@ -233,8 +321,9 @@ function walkProse(html, visit) {
 }
 
 // Every path the prose names, as written: [{ path, line?, column?, endLine?, from }]
-// with from = "code" | "text" | "link". `plainText: false` skips prose text.
-export function collectPathRefs(html, { plainText = true, limit = 40 } = {}) {
+// with from = "code" | "text" | "link". `plainText: false` skips prose text;
+// `cwd` is the agent's folder (Windows or not).
+export function collectPathRefs(html, { plainText = true, limit = 40, cwd } = {}) {
   if (!html) return [];
   const seen = new Set();
   const refs = [];
@@ -247,7 +336,7 @@ export function collectPathRefs(html, { plainText = true, limit = 40 } = {}) {
     code: (_, loc) => { add(loc, "code"); return null; },
     link: (_, loc) => { add(loc, "link"); return null; },
     text: plainText ? (_, cands) => { for (const { index: _i, length: _l, ...loc } of cands) add(loc, "text"); return null; } : null,
-  });
+  }, { cwd });
   return refs;
 }
 
@@ -283,5 +372,5 @@ export function withPathChips(html, lookup, { cwd, shorten = true, title = false
         return at === 0 ? null : out + escapeHtml(text.slice(at));
       }
       : null,
-  });
+  }, { cwd });
 }

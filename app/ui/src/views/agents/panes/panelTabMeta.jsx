@@ -1,5 +1,6 @@
 import { SubagentsIcon } from "../subagents/SubagentsIcon.jsx";
 import { JobsTabIcon } from "../../jobs/JobsTabIcon.jsx";
+import { shortcutLabel } from "../../../lib/platform.js";
 
 // Icon, label and shortcut per side-panel tab type — shared by the tab bar and
 // the new-tab launcher's tool tiles.
@@ -36,4 +37,4 @@ export const TAB_LABELS = {
   btw: "/btw",
 };
 
-export const TAB_KBD = { terminal: "⌃`", files: "⌘P", btw: "⌘/" };
+export const TAB_KBD = { terminal: shortcutLabel("ctrl+`"), files: shortcutLabel("mod+p"), btw: shortcutLabel("mod+/") };

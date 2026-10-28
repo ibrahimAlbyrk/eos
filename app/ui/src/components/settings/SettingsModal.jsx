@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSettings } from "../../state/settings.jsx";
-import { SETTINGS_SECTIONS } from "../../settings/registry.jsx";
+import { visibleSections } from "../../settings/registry.jsx";
+import { useFeatures } from "../../state/featuresStore.js";
 import { CONTROLS } from "../../settings/controls.jsx";
 
 function itemMatches(item, q) {
@@ -88,8 +89,9 @@ export function SettingsModal() {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [settingsOpen, closeSettings]);
 
+  const features = useFeatures();
   const q = query.trim().toLowerCase();
-  const visible = useMemo(() => filterSections(SETTINGS_SECTIONS, q), [q]);
+  const visible = useMemo(() => filterSections(visibleSections(features), q), [q, features]);
 
   if (!settingsOpen) return null;
 

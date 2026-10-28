@@ -9,6 +9,7 @@ import { subscribe as subscribeDiff, getSnapshot as getDiff, revalidate as reval
 import { useSubagents } from "../../state/subagentsStore.js";
 import { isActive, useTransfers } from "../../state/transfersStore.js";
 import { explorer } from "../../state/explorerStore.js";
+import { useFeature } from "../../state/featuresStore.js";
 import { resolveOmnibox } from "../../lib/omnibox.js";
 import { pageTabId } from "../../lib/panelTabs.js";
 import { fmtTimeAgo } from "../../lib/format.js";
@@ -16,6 +17,7 @@ import { notify } from "../../lib/notify.js";
 import { useBrowserSessionKey } from "../browser/useBrowserSessionKey.js";
 import { usePageScope } from "../pages/usePageScope.js";
 import { TAB_ICONS, TAB_KBD, TAB_LABELS } from "../agents/panes/panelTabMeta.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // New-tab launcher: one field (an address or a web search opens the browser;
 // "#" finds pages, "@" files, "?" asks the agent), the panel's tools, the
@@ -42,6 +44,8 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
   const [text, setText] = useState("");
   const inputRef = useRef(null);
   const mode = resolveOmnibox(text);
+  // Transfer moves files between paired computers — not where this one can't pair.
+  const remote = useFeature("remote");
 
   // Ready to type when opened from the panel (the + button) — but never pull
   // focus out of the composer when a launcher merely shows up on load.
@@ -123,7 +127,7 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
         <section className="nt-section" aria-label="Tools">
           <h2 className="nt-label">Tools</h2>
           <div className="nt-tools">
-            {tools.filter((t) => t !== "browser").map((type) => (
+            {tools.filter((t) => t !== "browser" && (remote || t !== "transfer")).map((type) => (
               <button key={type} type="button" className="nt-tool" onClick={() => openTool(type)}>
                 <span className="nt-tool__icon">{TAB_ICONS[type]}</span>
                 <span className="nt-tool__text">
@@ -181,7 +185,7 @@ function Hint({ icon, text, active }) {
     <div className={"nt-result" + (active ? " is-active" : "")}>
       <span className="nt-result__icon">{icon}</span>
       <span className="nt-result__text">{text}</span>
-      {active && <kbd className="nt-kbd">↵</kbd>}
+      {active && <kbd className="nt-kbd">{shortcutLabel("return")}</kbd>}
     </div>
   );
 }

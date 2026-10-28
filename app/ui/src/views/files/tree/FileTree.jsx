@@ -12,6 +12,7 @@ import { relToRoot, kindGlyph } from "../../../lib/symbols.js";
 import { FileRow } from "./FileRow.jsx";
 import { FileIcon } from "../FileIcon.jsx";
 import { RenameInput } from "../../../components/RenameInput.jsx";
+import { modifiers } from "../../../lib/platform.js";
 
 export function FileTree() {
   const ui = useUi();
@@ -55,7 +56,8 @@ export function FileTree() {
 
   const onRowClick = useCallback((path, e) => {
     const list = visibleRef.current.filter((n) => n.kind === "entry");
-    if (e.metaKey || e.ctrlKey) { explorer.toggleSelect(path); return; }
+    const m = modifiers(e);
+    if (m.mod || m.ctrl) { explorer.toggleSelect(path); return; }
     const anchor = selRef.current.anchor;
     if (e.shiftKey && anchor) {
       const a = list.findIndex((n) => n.path === anchor);

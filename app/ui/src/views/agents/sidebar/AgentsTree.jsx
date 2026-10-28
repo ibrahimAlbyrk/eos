@@ -18,6 +18,7 @@ import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { useProjects } from "../../../state/projectsStore.js";
 import { useHoverCard } from "../../../hooks/useHoverCard.js";
 import { api } from "../../../api/client.js";
+import { modDown } from "../../../lib/platform.js";
 
 // A fully transparent 1×1 image to suppress the browser's native drag ghost — the
 // custom DragAffordance (PaneGrid) is what the user sees during a drag instead.
@@ -310,7 +311,7 @@ function TreeNode({ node, onRename, variant = "full", signals, lead = null }) {
     // fresh leaf; already single-pane, swap the agent in place (keep-alive, no
     // remount). Either way, drop the active layout-group marker — the tree no
     // longer matches a saved group.
-    if (e.metaKey) { ui.togglePaneForAgent(node.id); return; }
+    if (modDown(e)) { ui.togglePaneForAgent(node.id); return; }
     if (ui.paneCount > 1) ui.setLayout(leaf(node.id));
     else ui.selectAgent(node.id);
     setActiveGroup(null);

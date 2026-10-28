@@ -8,6 +8,7 @@ import { useSyncStatus, refreshSync, setSyncStatus } from "../state/syncStore.js
 import { isRemoteView } from "../lib/host.js";
 import { timeAgo } from "../lib/timeAgo.js";
 import { CopyIcon } from "../components/machines/icons.jsx";
+import { shortcutLabel } from "../lib/platform.js";
 
 const LABELS = { memory: ["memory", "memories"], page: ["page", "pages"], template: ["template", "templates"], worker: ["worker", "workers"] };
 
@@ -35,7 +36,7 @@ export function SyncSettings() {
     return (
       <>
         <h2 className="stg-title">Sync</h2>
-        <div className="stg-row__desc">Sync is set up on each computer. Switch to it with ⌃1 to change this Mac's.</div>
+        <div className="stg-row__desc">Sync is set up on each computer. Switch to it with {shortcutLabel("ctrl+1")} to change this Mac's.</div>
       </>
     );
   }

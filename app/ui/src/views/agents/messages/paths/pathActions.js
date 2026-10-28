@@ -8,6 +8,7 @@ import { notify } from "../../../../lib/notify.js";
 import { transfers } from "../../../../lib/transferClient.js";
 import { noteTransfer } from "../../../../state/transfersStore.js";
 import { openFolder } from "../../../files/openFolder.js";
+import { modDown, fileManagerName } from "../../../../lib/platform.js";
 
 const errText = (e) => (e instanceof Error ? e.message : String(e));
 const reportFailure = (r, what) => {
@@ -32,7 +33,7 @@ export async function openWithDefaultApp(ref) {
 }
 
 export async function revealInFinder(ref) {
-  try { reportFailure(await api.revealFile(ref.path), "show it in Finder"); } catch (e) { notify.error(errText(e)); }
+  try { reportFailure(await api.revealFile(ref.path), `show it in ${fileManagerName()}`); } catch (e) { notify.error(errText(e)); }
 }
 
 export async function copyText(text) {
@@ -67,5 +68,5 @@ export async function sendToMac(ui, ref, peer) {
 export function openPath(ui, ref, e, { clickOpens, editor }) {
   const toEditor = editor && hasLocalScreen() && (clickOpens === "editor") !== e.altKey;
   if (toEditor) void openInEditor(ref, editor);
-  else openInPanel(ui, ref, { tab: e.metaKey });
+  else openInPanel(ui, ref, { tab: modDown(e) });
 }

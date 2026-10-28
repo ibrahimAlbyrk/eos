@@ -44,6 +44,7 @@ import { ReplyCard } from "./ReplyCard.jsx";
 import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { PermissionBanner } from "./PermissionBanner.jsx";
+import { GitBashNotice } from "./GitBashNotice.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { PasteInfoPopover } from "../popovers/PasteInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
@@ -53,6 +54,7 @@ import { CollapsedComposer } from "./CollapsedComposer.jsx";
 import { useCompacting } from "../../../state/compactionStore.js";
 import { confirmSubagentStop } from "../../../state/subagentStopConfirm.js";
 import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
+import { modifiers } from "../../../lib/platform.js";
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
@@ -743,15 +745,16 @@ export function Composer({ live, worker, paneId, focused }) {
   };
 
   const onKey = (e) => {
+    const m = modifiers(e);
     // Undo / redo — the contentEditable's native history is wiped by every
     // re-color (innerHTML rebuild), so we drive our own debounced stack.
-    if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.altKey) {
+    if ((e.key === "z" || e.key === "Z") && (m.mod || m.ctrl) && !e.altKey) {
       e.preventDefault();
       e.stopPropagation();
       if (e.shiftKey) redo(); else undo();
       return;
     }
-    if ((e.key === "y" || e.key === "Y") && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+    if ((e.key === "y" || e.key === "Y") && (m.mod || m.ctrl) && !e.altKey && !e.shiftKey) {
       e.preventDefault();
       e.stopPropagation();
       redo();
@@ -845,7 +848,7 @@ export function Composer({ live, worker, paneId, focused }) {
     // move instead of char-by-char into it. Shift+Arrow extends the selection
     // across it; Option/Cmd+Arrow keep native word/line nav. Non-collapsed + no
     // Shift falls through to native collapse.
-    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !showMenu && !showFileMenu && !showBranchMenu && !e.altKey && !e.metaKey) {
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !showMenu && !showFileMenu && !showBranchMenu && !e.altKey && !m.mod) {
       const el = editorRef.current;
       const sel = window.getSelection();
       if (el && sel?.rangeCount && (e.shiftKey || sel.isCollapsed)) {
@@ -1130,6 +1133,7 @@ export function Composer({ live, worker, paneId, focused }) {
   return (
     <div className="composer-wrap" ref={wrapRef}>
       <div className="composer-inner">
+        <GitBashNotice />
         {hasPermission ? (
           <PermissionBanner
             permissions={slotPermissions}

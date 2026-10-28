@@ -8,6 +8,7 @@ import { usePathPrefs } from "./pathPrefs.js";
 import { openInEditor, openInPanel, openPath, revealInFinder } from "./pathActions.js";
 import { PathPeek } from "./PathPeek.jsx";
 import { PathContextMenu, PATH_MENU } from "./PathContextMenu.jsx";
+import { modDown } from "../../../../lib/platform.js";
 
 // Clicks, right-clicks and hovers on every path chip (lib/pathLinks.js) and
 // changed-file chip under the element the handlers go on — prose chips are
@@ -46,10 +47,10 @@ export function usePathLinks({ cwd }) {
     const href = a?.getAttribute("href");
     if (!isLocalHref(href)) return;
     e.preventDefault();
-    const loc = codeSpanPath(href);
+    const loc = codeSpanPath(href, { cwd });
     const abs = loc && resolvePath(loc.path, cwd);
     if (!abs) return;
-    const mods = { altKey: e.altKey, metaKey: e.metaKey };
+    const mods = { altKey: e.altKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
     statPath(abs).then((s) => { if (s) open({ ...loc, path: abs, type: s.type }, mods); });
   };
 
@@ -84,7 +85,7 @@ export function usePathLinks({ cwd }) {
           onEnter={card.enterCard}
           onLeave={card.leave}
           onClose={card.close}
-          onOpen={(ref, e) => { card.close(); openInPanel(ui, ref, { tab: e.metaKey }); }}
+          onOpen={(ref, e) => { card.close(); openInPanel(ui, ref, { tab: modDown(e) }); }}
           onEditor={(ref) => { card.close(); void openInEditor(ref, editor); }}
           onReveal={(ref) => { card.close(); void revealInFinder(ref); }}
           onMore={(ref, box) => openMenu(ref, box.left, box.bottom + 4)}

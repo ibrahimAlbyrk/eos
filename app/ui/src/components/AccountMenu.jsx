@@ -9,6 +9,7 @@ import { GeneralIcon } from "../settings/registry.jsx";
 import { useProfile } from "../state/profileStore.js";
 import { useUsage } from "../state/usageStore.js";
 import { ProfileMenuHeader, MemoryReviewRow, DreamReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
+import { shortcutLabel } from "../lib/platform.js";
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
@@ -119,7 +120,7 @@ export function AccountMenu({
         <MemoryIcon />Memory
       </button>
       <button className="acct-action" role="menuitem" onClick={() => onOpenSettings()}>
-        <GeneralIcon />Settings<span className="acct-kbd">⌘,</span>
+        <GeneralIcon />Settings<span className="acct-kbd">{shortcutLabel("mod+,")}</span>
       </button>
     </div>,
     document.body,

@@ -9,6 +9,7 @@ import { isMarkdownPath } from "../../../../lib/markdownPreview.js";
 import { displayParts } from "../../../../lib/pathLinks.js";
 import { statPath } from "../../../../lib/pathStat.js";
 import { FileIcon } from "../../../files/FileIcon.jsx";
+import { modLabel, fileManagerName } from "../../../../lib/platform.js";
 
 const PEEK_W = 380;
 const PEEK_H = 280;
@@ -124,11 +125,11 @@ export function PathPeek({ anchor, target, cwd, editor, onEnter, onLeave, onClos
         </button>
         {local && editor && (
           <button type="button" className="path-peek-act" onClick={() => onEditor(target)}>
-            {editor.name}<span className="path-peek-kbd">⌥ click</span>
+            {editor.name}<span className="path-peek-kbd">{modLabel("alt")} click</span>
           </button>
         )}
         {local && (
-          <button type="button" className="path-peek-act" onClick={() => onReveal(target)}>Reveal in Finder</button>
+          <button type="button" className="path-peek-act" onClick={() => onReveal(target)}>Reveal in {fileManagerName()}</button>
         )}
         <button
           type="button"

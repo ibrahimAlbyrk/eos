@@ -11,6 +11,7 @@ import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConf
 import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
 import { MenuList } from "./MenuList.jsx";
+import { shortcutLabel, fileManagerName } from "../../../lib/platform.js";
 
 // Breadcrumb chevron dropdown — acts on the pane's agent (passed in by the
 // PaneHeader that owns it), scoped to that pane's popover state.
@@ -57,7 +58,7 @@ export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
       label: "Open in",
       submenu: [
         { id: "vscode", label: "VS Code", kbd: "1", run: () => openIn("vscode") },
-        { id: "finder", label: "Finder", kbd: "2", run: () => openIn("finder") },
+        { id: "finder", label: fileManagerName(), kbd: "2", run: () => openIn("finder") },
       ],
     }, "sep"] : []),
     { id: "rename", label: "Rename", kbd: "R", run: () => onRename(agent.id) },
@@ -66,7 +67,7 @@ export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
     "sep",
     // kbd "⌘W" is display-only (MenuList's single-keypress match never fires
     // on a multi-char kbd) — it advertises the real hotkey, not a menu key.
-    { id: "archive", label: "Archive", kbd: "⌘W", run: () => archiveAgent(agent.id) },
+    { id: "archive", label: "Archive", kbd: shortcutLabel("mod+w"), run: () => archiveAgent(agent.id) },
     // "Don't ask again" suppresses the confirm — kill directly.
     { id: "delete", label: "Delete", danger: true, run: () => (shouldConfirmDelete(settings) ? setConfirming(true) : killAgent(agent.id)) },
   ];

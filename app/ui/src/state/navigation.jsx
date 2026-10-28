@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { visibleTabs } from "../views/tabs.js";
+import { useFeatures } from "./featuresStore.js";
 
 const NavigationContext = createContext(null);
 
@@ -18,7 +19,13 @@ export function NavigationProvider({ children }) {
     if (id) localStorage.setItem("cm:activeView", id);
   }, []);
 
-  const value = useMemo(() => ({ activeViewId, setActiveView }), [activeViewId, setActiveView]);
+  // The first view also stands in for one this computer turns out not to offer
+  // (Machines, once the daemon says it can't pair).
+  useFeatures();
+  const tabs = visibleTabs();
+  const shownId = tabs.some((t) => t.id === activeViewId) ? activeViewId : tabs[0].id;
+
+  const value = useMemo(() => ({ activeViewId: shownId, setActiveView }), [shownId, setActiveView]);
   return <NavigationContext.Provider value={value}>{children}</NavigationContext.Provider>;
 }
 

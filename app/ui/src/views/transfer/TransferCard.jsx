@@ -7,6 +7,7 @@ import { openFolder } from "../files/openFolder.js";
 import { CheckIcon, CloseIcon, WarnIcon } from "../../components/machines/icons.jsx";
 import { IntoIcon, OutIcon, PauseIcon, PlayIcon } from "./icons.jsx";
 import { etaLabel, folderName, namesOf, percentOf, rateLabel, routeWord, tildify } from "./text.js";
+import { fileManagerName } from "../../lib/platform.js";
 
 const act = (p) => p.then(noteTransfer).catch(() => {});
 
@@ -34,7 +35,7 @@ export function TransferCard({ t, label, onDismiss }) {
           {transferMode() === "local" && t.to === "local" && (
             <button type="button" className="m-btn m-btn--quiet m-btn--sm" onClick={() => openFolder(ui, t.destDir)}>Open in Files</button>
           )}
-          {transfers.canReveal(t) && <button type="button" className="m-btn m-btn--sm" onClick={() => void transfers.reveal(t)}>Show in Finder</button>}
+          {transfers.canReveal(t) && <button type="button" className="m-btn m-btn--sm" onClick={() => void transfers.reveal(t)}>Show in {fileManagerName()}</button>}
           <Dismiss onClick={onDismiss} />
         </div>
       </div>

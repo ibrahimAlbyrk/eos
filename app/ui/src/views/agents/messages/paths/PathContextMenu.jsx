@@ -4,11 +4,13 @@ import { useEditors } from "../../../../state/editorsStore.js";
 import { hasLocalScreen } from "../../../../lib/host.js";
 import { locationLabel } from "../../../../lib/pathLinks.js";
 import { transferMode } from "../../../../lib/transferClient.js";
+import { useFeature } from "../../../../state/featuresStore.js";
 import { useMachines } from "../../../transfer/useMachines.js";
 import { MenuList } from "../../popovers/MenuList.jsx";
 import {
   attachAsContext, copyText, openInEditor, openInPanel, openWithDefaultApp, revealInFinder, sendToMac,
 } from "./pathActions.js";
+import { fileManagerName } from "../../../../lib/platform.js";
 
 export const PATH_MENU = "path-ctx";
 
@@ -35,6 +37,7 @@ export function PathContextMenu({ owner, cwd }) {
   const ui = useUi();
   const editors = useEditors();
   const machines = useMachines();
+  const remote = useFeature("remote");
   if (ui.openPopover !== PATH_MENU || ui.popoverData?.owner !== owner) return null;
   const ref = ui.popoverData.ref;
   if (!ref?.path) return null;
@@ -43,7 +46,7 @@ export function PathContextMenu({ owner, cwd }) {
   const isDir = ref.type === "directory";
   const loc = locationLabel(ref).replace("–", "-");
   const rel = cwd && ref.path.startsWith(cwd + "/") ? ref.path.slice(cwd.length + 1) : null;
-  const peers = transferMode() === "local" ? machines.peers : [];
+  const peers = remote && transferMode() === "local" ? machines.peers : [];
 
   const items = tidy([
     { id: "open", label: isDir ? "Open in Files" : "Open", run: () => openInPanel(ui, ref) },
@@ -56,7 +59,7 @@ export function PathContextMenu({ owner, cwd }) {
       ],
     },
     local && editors.length === 0 && { id: "default-app", label: "Open with default app", run: () => openWithDefaultApp(ref) },
-    local && { id: "reveal", label: "Reveal in Finder", run: () => revealInFinder(ref) },
+    local && { id: "reveal", label: `Reveal in ${fileManagerName()}`, run: () => revealInFinder(ref) },
     "sep",
     { id: "copy", label: "Copy path", run: () => copyText(ref.path) },
     loc && { id: "copy-loc", label: `Copy path${loc}`, run: () => copyText(ref.path + loc) },

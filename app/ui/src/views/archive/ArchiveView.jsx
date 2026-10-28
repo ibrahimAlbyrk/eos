@@ -5,6 +5,7 @@ import { breadcrumbFor } from "../../lib/breadcrumb.js";
 import { nameOf } from "../../lib/agentName.js";
 import { fmtTimeAgo } from "../../lib/format.js";
 import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../state/archiveStore.js";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // The archive title bar: same .pane-head strip the live single pane uses (32px
 // inset, native drag strip, bottom rule). Shows the archived agent's name + a
@@ -12,7 +13,7 @@ import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from 
 // selected states.
 function ArchiveHead({ name, meta }) {
   return (
-    <div className="pane-head pane-head--topleft">
+    <div className="pane-head pane-head--topleft pane-head--topright">
       <span className="pane-head-inset" aria-hidden="true" />
       <div className="crumb">
         <span className="cur">{name}</span>
@@ -67,7 +68,7 @@ export function ArchiveView({ live }) {
               </svg>
             </span>
             <span className="empty-state__title">{isEmpty ? "Archive is empty" : "Select an archived agent"}</span>
-            {isEmpty && <span className="empty-state__subtitle">⌘W archives an agent instead of deleting it.</span>}
+            {isEmpty && <span className="empty-state__subtitle">{shortcutLabel("mod+w")} archives an agent instead of deleting it.</span>}
           </div>
         </div>
       </div>

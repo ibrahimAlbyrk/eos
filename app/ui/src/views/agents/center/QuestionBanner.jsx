@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../../api/client.js";
+import { modifiers, shortcutLabel } from "../../../lib/platform.js";
 
 
 export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
@@ -95,12 +96,13 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
   useEffect(() => {
     const handler = (e) => {
       if (submitting) return;
-      if (e.metaKey && e.key === "Enter") {
+      const m = modifiers(e);
+      if (m.mod && e.key === "Enter") {
         e.preventDefault();
         handleNext();
         return;
       }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (m.mod || m.ctrl || m.alt) return;
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       const num = parseInt(e.key);
@@ -187,7 +189,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
               disabled={submitting || !hasAnswer}
             >
               {submitting ? "Sending…" : (isLast ? "Submit" : "Next")}{" "}
-              {!submitting && <span className="q-shortcut">⌘↵</span>}
+              {!submitting && <span className="q-shortcut">{shortcutLabel("mod+return")}</span>}
             </button>
           </div>
         </div>

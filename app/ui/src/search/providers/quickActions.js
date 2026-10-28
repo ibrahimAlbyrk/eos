@@ -1,5 +1,6 @@
 import { api } from "../../api/client.js";
 import { explorer } from "../../state/explorerStore.js";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // Reference "Quick actions" palette group (EOS.dc.html:2184): New task ⌘T,
 // Open folder ⌘O, Search files ⌘P. Always present (no live data needed);
@@ -13,7 +14,7 @@ export const quickActionsProvider = {
         id: "quick:new-task",
         icon: "newtask",
         title: "New task",
-        meta: "⌘T",
+        meta: shortcutLabel("mod+t"),
         keywords: ["new", "task", "spawn", "orchestrator"],
         onSelect: (ctx) => {
           ctx.setActiveView("agents");
@@ -24,7 +25,7 @@ export const quickActionsProvider = {
         id: "quick:open-folder",
         icon: "folder",
         title: "Open folder",
-        meta: "⌘O",
+        meta: shortcutLabel("mod+o"),
         keywords: ["open", "folder", "directory", "project"],
         onSelect: async (ctx) => {
           ctx.setActiveView("agents");
@@ -39,7 +40,7 @@ export const quickActionsProvider = {
         id: "quick:search-files",
         icon: "search",
         title: "Search files",
-        meta: "⌘P",
+        meta: shortcutLabel("mod+p"),
         keywords: ["search", "files", "symbols", "find"],
         onSelect: (ctx) => {
           ctx.setActiveView("agents");

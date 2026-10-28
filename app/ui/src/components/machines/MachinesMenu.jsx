@@ -8,9 +8,10 @@ import { currentHost, isRemoteView } from "../../lib/host.js";
 import { summarizeSessions } from "../../lib/machineSessions.js";
 import { MachineGlyph } from "./MachineGlyph.jsx";
 import { CheckIcon, GridIcon, PlusIcon, ShieldIcon } from "./icons.jsx";
+import { shortcutLabel } from "../../lib/platform.js";
 
 // Only these ids get a ⌃N shortcut — the shell's Machines menu binds the same.
-const shortcut = (i) => (i < 9 ? `⌃${i + 1}` : null);
+const shortcut = (i) => (i < 9 ? shortcutLabel(`ctrl+${i + 1}`) : null);
 
 function SessionRows({ summary }) {
   if (!summary?.rows.length) return null;
@@ -69,7 +70,7 @@ export function MachinesMenu({ anchor, live, onSwitch, onConnect, onAllMachines,
 
   return createPortal(
     <div className="machines-menu" data-popover="machines-menu" role="menu" aria-label="Machines" style={pos}>
-      <div className="machines-menu__label">Machines<span className="acct-kbd">⌘⇧M</span></div>
+      <div className="machines-menu__label">Machines<span className="acct-kbd">{shortcutLabel("mod+shift+m")}</span></div>
 
       <button type="button" className="mc-card" role="menuitemradio" aria-checked={!remote} onClick={() => onSwitch(null)}>
         <span className="mc-card__head">
@@ -79,7 +80,7 @@ export function MachinesMenu({ anchor, live, onSwitch, onConnect, onAllMachines,
             <span className="mc-card__sub">This Mac</span>
           </span>
           {!remote && <span className="mc-card__check"><CheckIcon /></span>}
-          <span className="mc-card__kbd">⌃1</span>
+          <span className="mc-card__kbd">{shortcutLabel("ctrl+1")}</span>
         </span>
         {!remote && <Stats summary={ownSummary} />}
       </button>

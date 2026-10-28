@@ -5,6 +5,7 @@ import {
   CONFIDENCE_LABEL, KIND_META, dreamProposals, evidenceOf, proposalKind, scopeLine, supportLine, whyOf,
 } from "../../lib/dreamProposals.js";
 import { ConfidenceBars, EvidenceQuote, KindTag, MoonIcon, ProposalText } from "../../views/memory/DreamProposal.jsx";
+import { modifiers } from "../../lib/platform.js";
 
 function Key({ k }) {
   return <kbd className="dr-kbd">{k}</kbd>;
@@ -52,7 +53,8 @@ export function DreamReview({ onClose }) {
   }, [finished, current]);
 
   const onKeyDown = (e) => {
-    if (editing || e.metaKey || e.ctrlKey || e.altKey) return;
+    const m = modifiers(e);
+    if (editing || m.mod || m.ctrl || m.alt) return;
     const k = e.key.toLowerCase();
     if (k === "escape") { e.preventDefault(); onClose(); return; }
     if (finished) return;

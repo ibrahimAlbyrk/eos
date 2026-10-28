@@ -52,7 +52,7 @@ export function createPathLinkProvider(term, getCwd) {
       if (!line) { callback(undefined); return; }
       const { text, cells } = lineCells(line);
       const cwd = getCwd();
-      const found = findPathCandidates(text)
+      const found = findPathCandidates(text, { cwd })
         .map((c) => ({ ...c, abs: resolvePath(c.path, cwd) }))
         .filter((c) => c.abs);
       Promise.all(found.map((c) => exists(c.abs))).then((ok) => {
