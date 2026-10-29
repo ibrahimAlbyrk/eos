@@ -4,12 +4,13 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { createWindowsFsHelpers } from "../filesystem/WindowsFsHelpers.ts";
 import { fileClaudeStore } from "./claude-file-store.ts";
 import { controlSocketPath } from "./control-socket.ts";
 import { runEosHelper, startEosHelper } from "./eos-helper.ts";
 import { gitBash, win32Shell } from "./win32-shell.ts";
+import { WinAppBundleCheck } from "../update/WinAppBundleCheck.ts";
 import type { HostPlatform } from "./HostPlatform.ts";
 
 // Provider API keys, each sealed with DPAPI for this Windows user (only this
@@ -90,5 +91,13 @@ export const win32Platform: HostPlatform = {
   // No process groups: taskkill walks the tree.
   killProcessTree(pid) {
     execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+  },
+
+  appUpdates: {
+    feedPlatform: process.arch === "arm64" ? "win32-arm64" : "win32-x64",
+    // …\Programs\Eos\Eos.exe → …\Programs\Eos
+    bundleRoot: (execPath) => (/^eos\.exe$/i.test(basename(execPath)) ? dirname(execPath) : null),
+    bundleCheck: new WinAppBundleCheck(),
+    fileModes: false,
   },
 };

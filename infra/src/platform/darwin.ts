@@ -8,7 +8,8 @@ import { startCaffeinate } from "./caffeinate.ts";
 import { controlSocketPath } from "./control-socket.ts";
 import { claudeStoreService, deleteKeychainItem, readKeychainItem, writeKeychainItem } from "./keychain.ts";
 import { posixShell } from "./posix-shell.ts";
-import type { HostPlatform } from "./HostPlatform.ts";
+import { MacAppBundleCheck } from "../update/MacAppBundleCheck.ts";
+import type { AppUpdatePlatform, HostPlatform } from "./HostPlatform.ts";
 
 // <sys/syslimits.h> OPEN_MAX
 const OPEN_MAX = 10240;
@@ -67,4 +68,20 @@ export const darwinPlatform: HostPlatform = {
   spawnCommand: (file, args) => ({ file, args }),
 
   killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
+
+  // Releases are built for Apple Silicon only.
+  appUpdates: process.arch === "arm64" ? macAppUpdates() : null,
 };
+
+function macAppUpdates(): AppUpdatePlatform {
+  return {
+    feedPlatform: "darwin-arm64",
+    // …/Eos.app/Contents/MacOS/Eos → …/Eos.app
+    bundleRoot(execPath) {
+      const m = /^(.+\.app)\/Contents\/MacOS\/[^/]+$/.exec(execPath);
+      return m ? m[1] : null;
+    },
+    bundleCheck: new MacAppBundleCheck(),
+    fileModes: true,
+  };
+}

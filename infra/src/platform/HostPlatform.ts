@@ -2,7 +2,20 @@
 // `hostPlatform` (index.ts) is chosen once from process.platform; callers read
 // what the system can do from here and never compare platform names themselves.
 
+import type { UpdatePlatform } from "../../../contracts/src/update.ts";
+import type { AppBundleCheck } from "../../../core/src/ports/Updates.ts";
 import type { FsHelpers } from "../filesystem/FsHelpers.ts";
+
+/** How the installed app takes in a new release on this system. */
+export interface AppUpdatePlatform {
+  /** The update feed's name for this system and CPU. */
+  readonly feedPlatform: UpdatePlatform;
+  /** The installed app the running executable belongs to, or null when it isn't inside one. */
+  bundleRoot(execPath: string): string | null;
+  readonly bundleCheck: AppBundleCheck;
+  /** Files keep their permission bits here, so a staged copy's modes must match the release. */
+  readonly fileModes: boolean;
+}
 
 export interface CredentialStore {
   /** Raw JSON of a Claude Code login store; no `storeDir` = the user's own Claude Code login. */
@@ -84,4 +97,6 @@ export interface HostPlatform {
   spawnCommand(file: string, args: string[]): SpawnCommand;
   /** Ends a process and everything it started (a detached child leads its own group). Throws when `pid` is gone. */
   killProcessTree(pid: number): void;
+  /** In-app updates; null where Eos can't update itself yet. */
+  readonly appUpdates: AppUpdatePlatform | null;
 }
