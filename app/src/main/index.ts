@@ -188,7 +188,9 @@ async function createWindow(token: string): Promise<BrowserWindow> {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
-      backgroundThrottling: false, // live SSE dashboard must keep drawing (doc 30 Claim 3.1)
+      // A hidden, minimized or covered window draws no frames; the UI keeps up
+      // with the stream while document.hidden (lib/viewVisibility.js).
+      backgroundThrottling: true,
       additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`, `--eos-os=${shellPlatform.uiOS}`],
     },
   });
