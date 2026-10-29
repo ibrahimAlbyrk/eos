@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { denyGeolocation } from "./permissions";
 import { shellPlatform } from "./platform";
+import { reportMaximized } from "./windowControls";
 
 // Other computers this Mac controls, each in its own isolated view INSIDE the
 // main window: switching is showing a different, already-live view — no reload,
@@ -231,6 +232,7 @@ export class HostViews {
       webPreferences: await this.webPreferences(id),
     });
     this.lockdown(win.webContents);
+    reportMaximized(win);
     this.windows.add(win);
     this.windowHosts.set(win, id);
     win.on("closed", () => { this.windows.delete(win); this.windowHosts.delete(win); });

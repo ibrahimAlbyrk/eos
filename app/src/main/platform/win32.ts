@@ -11,9 +11,6 @@ import type { ShellPlatform } from "./ShellPlatform";
 // forge.config.js packagerConfig.appBundleId — toasts are keyed by it.
 const APP_USER_MODEL_ID = "com.ibrahimalbyrk.eos";
 
-// The dashboard's title-bar row (styles: the header the traffic lights sit in on a Mac).
-const TITLE_BAR_HEIGHT = 40;
-
 // Packaged: shipped under resources/. Dev: built into .forge-build.
 function bundled(name: string): string {
   return app.isPackaged ? path.join(process.resourcesPath, name) : path.join(app.getAppPath(), ".forge-build", name);
@@ -32,12 +29,9 @@ export const win32Shell: ShellPlatform = {
 
   appMenu: false,
 
-  // Frameless, with Windows' own minimize/maximize/close drawn over the top-right
-  // corner of the dashboard (Window Controls Overlay).
-  windowFrame: () => ({
-    titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#00000000", symbolColor: "#d4d4d4", height: TITLE_BAR_HEIGHT },
-  }),
+  // No title bar and no system controls (Snap still works from the edges and
+  // Win+Z): the dashboard draws its own (ui WindowControls).
+  windowFrame: () => ({ titleBarStyle: "hidden" }),
 
   // Windows 11's acrylic; Windows 10 shows the splash card as drawn.
   splashMaterial: () => ({ backgroundMaterial: "acrylic" }),

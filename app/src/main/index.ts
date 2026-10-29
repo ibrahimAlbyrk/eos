@@ -26,6 +26,7 @@ import { initArtifactPreview } from "./artifactPreview";
 import { HostViews } from "./hosts";
 import { TransferBridge } from "./transfers";
 import { shellPlatform } from "./platform";
+import { registerWindowControls, reportMaximized } from "./windowControls";
 import { installMainWindowPermissions } from "./permissions";
 import { installGenuiTokenHeader } from "./genuiToken";
 import { readLocation } from "./location";
@@ -192,6 +193,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
   wireNavigationLockdown(win);
   wireRendererRecovery(win);
   registerBridge(win); // inbound webkit.messageHandlers + native DnD (M3)
+  reportMaximized(win);
   // Background-app semantics: closing the window HIDES it (web app + scroll state
   // survive), matching isReleasedWhenClosed=false (doc 10 §b/§e). Real quit goes
   // through quitApp() (tray → quitting=true).
@@ -384,6 +386,7 @@ async function startBackgroundServices(token: string): Promise<void> {
 app.whenReady().then(async () => {
   if (!gotLock) return; // a second instance already handed off to the first
   installEosProtocol(UI_ROOT, CSP);
+  registerWindowControls();
   installMainWindowPermissions(session.defaultSession, mainContents);
   installGenuiTokenHeader(session.defaultSession, DAEMON_URL, () => mainUiToken);
 

@@ -10,6 +10,7 @@ import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
 import { ProjectModalHost } from "./components/project/ProjectModal.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
+import { WindowControls } from "./components/layout/WindowControls.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
 import { getViewComponent, getViewSidebar, keepsMounted } from "./views/registry.js";
@@ -115,6 +116,7 @@ function Shell() {
         return <View key={id} live={live} active={id === ui.activeViewId} />;
       })}
       <NativeToggleZone popup={popup} hasAttention={hasAttention} />
+      <WindowControls />
       <SideHandle popup={popup} hasAttention={hasAttention} />
       <CommandPalette live={live} />
       <SettingsModal />

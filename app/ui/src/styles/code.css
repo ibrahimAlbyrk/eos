@@ -32,7 +32,7 @@ html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bot
 .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 28px; }
 html.native .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 102px; }
 html.native.fullscreen .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 22px; }
-html.native[data-os="windows"] .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 22px; }
+html.native[data-os="windows"] .app.split.side-collapsed .cw-grid .pane-head--topleft .pane-head-inset { width: 52px; }
 
 /* ── Grid + the view's one side panel, docked at the far right ───────────── */
 .cw-main {

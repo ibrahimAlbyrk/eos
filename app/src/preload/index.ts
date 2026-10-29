@@ -119,6 +119,20 @@ if (!hostView) contextBridge.exposeInMainWorld("eosNotify", {
   show: (n: { title: string; body: string }) => ipcRenderer.send("eos:notify", n),
 });
 
+// The window's own minimize / maximize / close (ui WindowControls) — on Windows,
+// where the shell draws no system controls.
+if (argValue("eos-os") === "windows") contextBridge.exposeInMainWorld("eosWindow", {
+  minimize: () => ipcRenderer.send("eosWindow:minimize"),
+  toggleMaximize: () => ipcRenderer.send("eosWindow:toggleMaximize"),
+  close: () => ipcRenderer.send("eosWindow:close"),
+  isMaximized: (): Promise<boolean> => ipcRenderer.invoke("eosWindow:isMaximized"),
+  onMaximizedChange: (cb: (maximized: boolean) => void): (() => void) => {
+    const listener = (_e: unknown, maximized: boolean): void => cb(maximized);
+    ipcRenderer.on("eosWindow:maximized", listener);
+    return () => { ipcRenderer.removeListener("eosWindow:maximized", listener); };
+  },
+});
+
 // Artifact link previews: the renderer asks main to render a published claude.ai
 // artifact in Eos's own claude.ai session and hand back a JPEG. Withheld from a
 // controlled computer's view — the login + render happen on THIS Mac.

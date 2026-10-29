@@ -16,7 +16,7 @@ export interface ShellPlatform {
    * dashboard — a terminal's Ctrl+C stays an interrupt.
    */
   readonly appMenu: boolean;
-  /** Title bar of the main window and host windows (frameless, content to the top edge). */
+  /** Title bar of the main window and host windows (content to the top edge; where it has no system controls the dashboard draws them). */
   windowFrame(): BrowserWindowConstructorOptions;
   /** Material behind the boot splash's transparent window. */
   splashMaterial(): BrowserWindowConstructorOptions;

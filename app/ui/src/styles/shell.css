@@ -63,15 +63,42 @@ html.native .side-handle-zone { display: none !important; }
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; max-width: calc(300px - 16px - 12px); }
 html.native.fullscreen .side-island--agents { padding-top: 16px; }
 
-/* WINDOWS TITLEBAR — no traffic lights on the left (the toggle sits where it
-   does in macOS fullscreen); Windows draws minimize/maximize/close over the
-   top-right corner (Window Controls Overlay), so the top-right pane's header
-   leaves their width free. */
-html.native[data-os="windows"] .native-toggle-zone { left: 16px; top: 7px; max-width: calc(300px - 16px - 12px); }
-html.native[data-os="windows"] .side-island--agents { padding-top: 46px; }
-html.native[data-os="windows"] .pane-head--topright {
-  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 8px);
+/* WINDOWS TITLEBAR — no traffic lights: the sidebar toggle opens the top-left
+   corner, and the app draws its own window controls (WindowControls) in the
+   top-right one, on the same row and in the same chip style as the pane
+   header's icons. What sits in the top-right corner (the side-panel toggle,
+   the panel's tab bar, the header's actions) moves in by --wc-reserve. */
+/* Both corners center on the header's icon row (no traffic lights to line up with). */
+html.native[data-os="windows"] { --wc-width: 113px; --wc-top: 14px; }
+html.native[data-os="windows"] :is(.single-pane, .cw-main, .pane:has(.pane-head--topright)) { --wc-reserve: calc(var(--wc-width) + 8px); }
+html.native[data-os="windows"].fullscreen :is(.single-pane, .cw-main, .pane:has(.pane-head--topright)) { --wc-reserve: 0px; }
+.pane-head--topright .pane-head-actions { margin-right: var(--wc-reserve, 0px); }
+html.native[data-os="windows"] .native-toggle-zone { left: 12px; top: var(--wc-top); max-width: calc(300px - 12px - 12px); }
+html.native[data-os="windows"] .side-island--agents { padding-top: 52px; }
+.window-controls { display: none; }
+html.native[data-os="windows"] .window-controls {
+  position: fixed; top: var(--wc-top); right: 10px; z-index: 300;
+  display: flex; align-items: center; gap: 4px;
+  --app-region: no-drag;
 }
+/* A hairline between the pane's own actions and the window's. */
+html.native[data-os="windows"] .window-controls::before {
+  content: ""; width: 1px; height: 14px; margin-right: 4px;
+  background: var(--line);
+}
+html.native[data-os="windows"].fullscreen .window-controls { display: none; }
+.wc-btn {
+  width: 32px; height: 26px; border-radius: var(--r-icon);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-dim2); background: transparent; border: 0; cursor: default;
+  transition: background 120ms ease, color 120ms ease;
+}
+.wc-btn:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); color: var(--fg); }
+.wc-btn:active { background: var(--lg-chip-on-bg); }
+/* Windows' own convention: close turns red. */
+.wc-btn.wc-close:hover { background: #c42b1c; box-shadow: none; color: #fff; }
+.wc-btn.wc-close:active { background: #b22a1d; }
+.wc-btn:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 
 /* ============================================================================
    COLLAPSED SIDEBAR — the expand handle (web) + hover flyout card.
@@ -731,7 +758,7 @@ html.native .single-pane { --spt-top: 12px; }
 .sp-toggle {
   position: absolute;
   top: var(--spt-top);
-  right: var(--spt-right);
+  right: calc(var(--spt-right) + var(--wc-reserve, 0px));
   z-index: 25;
 }
 /* Invisible col-resize strip along the panel's left edge. It sits inside the
@@ -770,7 +797,7 @@ html.native .single-pane { --spt-top: 12px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: calc(var(--spt-top) + (var(--spt-size) - 26px) / 2) calc(var(--spt-right) + var(--spt-size) + 4px) 6px 14px;
+  padding: calc(var(--spt-top) + (var(--spt-size) - 26px) / 2) calc(var(--spt-right) + var(--wc-reserve, 0px) + var(--spt-size) + 4px) 6px 14px;
   flex-shrink: 0;
 }
 .sp-tab {
@@ -1103,8 +1130,8 @@ html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset 
 .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 21px; }
 html.native .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 95px; }
 html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
-html.native[data-os="windows"] .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 6px; }
-html.native[data-os="windows"] .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
+html.native[data-os="windows"] .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 36px; }
+html.native[data-os="windows"] .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 45px; }
 
 /* Breadcrumb (project / chain / current agent) — truncates, never wraps. */
 .pane-head .crumb {
