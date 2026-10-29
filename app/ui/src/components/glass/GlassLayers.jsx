@@ -42,11 +42,28 @@ const CHANNELS = [
 ];
 
 function GlassFilter({ id, glass }) {
-  const { w, h, scale, blur, fill, disp, shade } = glass;
-  const image = (href, result) => (
-    <feImage key={result} href={href} x="0" y="0" width={w + SHADOW_PAD * 2} height={h + SHADOW_PAD * 2}
+  const { scale, blur, fill, maps } = glass;
+  const image = (href, [x, y, width, height], result) => (
+    <feImage key={result} href={href} x={x} y={y} width={width} height={height}
       preserveAspectRatio="none" result={result} />
   );
+  // a map whole, or as its tiles (lib/liquidGlass.js glassTiles): each drawn,
+  // cut to its crop, the crops (which never overlap) merged
+  const map = (tiles, result) => {
+    if (!tiles[0].crop) return [image(tiles[0].href, tiles[0].place, result)];
+    return [
+      ...tiles.flatMap((t, i) => {
+        const [x, y, width, height] = t.crop;
+        return [
+          image(t.href, t.place, result + i + "i"),
+          <feOffset key={result + i} in={result + i + "i"} x={x} y={y} width={width} height={height} result={result + i} />,
+        ];
+      }),
+      <feMerge key={result} result={result}>
+        {tiles.map((_, i) => <feMergeNode key={i} in={result + i} />)}
+      </feMerge>,
+    ];
+  };
   const matrix = (input, values, result) => (
     <feColorMatrix key={result} in={input} type="matrix" values={values} result={result} />
   );
@@ -68,8 +85,8 @@ function GlassFilter({ id, glass }) {
   return (
     <svg className="lg-filter-svg" width="0" height="0" aria-hidden="true">
       <filter id={id} x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
-        {CHANNELS.map(([c], i) => image(disp[i], c + "m"))}
-        {image(shade, "shade")}
+        {CHANNELS.map(([c], i) => map(maps[i], c + "m"))}
+        {map(maps[3], "shade")}
         <feGaussianBlur in="SourceGraphic" stdDeviation={blur} edgeMode="duplicate" result="blurred" />
         {refract("SourceGraphic", "sharp")}
         {refract("blurred", "frost")}
@@ -131,8 +148,14 @@ function cachedGlass(preset, w, h, dpr, radius) {
     sizes.delete(key);
   } else {
     const g = glassMaps(w, h, dpr, radius, preset);
-    const url = (data) => pngUrl(data, g.width, g.height);
-    glass = { w, h, scale: g.scale, blur: g.blur, fill: preset.fill, disp: g.disp.map(url), shade: url(g.shade), shadow: url(g.shadow) };
+    const url = (data, width = g.width, height = g.height) => pngUrl(data, width, height);
+    // tile seams must fall on whole device px
+    const tiles = Number.isInteger(dpr) ? g.tiles() : null;
+    const css = (rect) => rect.map((v) => v / dpr);
+    const maps = tiles
+      ? tiles.map((ts) => ts.map((t) => ({ href: url(t.data, t.width, t.height), place: css(t.place), crop: css(t.crop) })))
+      : [...g.disp, g.shade].map((data) => [{ href: url(data), place: [0, 0, w + SHADOW_PAD * 2, h + SHADOW_PAD * 2] }]);
+    glass = { w, h, scale: g.scale, blur: g.blur, fill: preset.fill, maps, shadow: url(g.shadow) };
     if (sizes.size >= CACHED_SIZES) sizes.delete(sizes.keys().next().value);
   }
   sizes.set(key, glass);

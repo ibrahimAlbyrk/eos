@@ -136,7 +136,8 @@ export function glassMaps(w, h, dpr, radius, cfg = FROSTED_GLASS) {
   const offsets = new Float32Array(n * 6);
   const mask = new Float32Array(n);
   const blurMix = new Float32Array(n).fill(1);
-  const shade = new Uint8ClampedArray(n * 4);
+  // the shade as fractions: gain / GAIN_MAX and 1 − light (0, 0 outside)
+  const gain = new Float32Array(n), unlit = new Float32Array(n);
   const shadow = new Uint8ClampedArray(n * 4);
   const out = new Float64Array(7);
   let max = 1e-6;
@@ -160,25 +161,113 @@ export function glassMaps(w, h, dpr, radius, cfg = FROSTED_GLASS) {
       }
       mask[p] = 1 - smoothstep(-1.5, 0.5, sdf);
       blurMix[p] = out[6];
-      shade[p * 4] = shade[p * 4 + 1] = shade[p * 4 + 2] = 255 * (out[4] / GAIN_MAX);
-      shade[p * 4 + 3] = 255 * (1 - out[5]);
+      gain[p] = out[4] / GAIN_MAX;
+      unlit[p] = 1 - out[5];
     }
   }
 
   const scale = max * 2;
-  const disp = [0, 1, 2].map((c) => {
-    const data = new Uint8ClampedArray(n * 4);
-    for (let p = 0; p < n; p++) {
-      data[p * 4] = 255 * (offsets[p * 6 + c * 2] / scale + 0.5);
-      data[p * 4 + 1] = 255 * (offsets[p * 6 + c * 2 + 1] / scale + 0.5);
-      data[p * 4 + 2] = 128;
-      // alpha — red: the blur mix; green: the mask squared (the reference writes
-      // (fin · mask, alpha mask) with SRC_ALPHA blending, so the edge shows
-      // fin · mask³ at alpha mask²)
-      data[p * 4 + 3] = 255 * [blurMix[p], mask[p] ** 2, 1][c];
+  // map m's (0–2: disp red/green/blue, 3: shade) four channels at pixel p,
+  // unrounded: the full maps and every tile are written from it
+  const texel = (m, p, px) => {
+    if (m === 3) {
+      px[0] = px[1] = px[2] = 255 * gain[p];
+      px[3] = 255 * unlit[p];
+      return px;
     }
+    px[0] = 255 * (offsets[p * 6 + m * 2] / scale + 0.5);
+    px[1] = 255 * (offsets[p * 6 + m * 2 + 1] / scale + 0.5);
+    px[2] = 128;
+    // alpha — red: the blur mix; green: the mask squared (the reference writes
+    // (fin · mask, alpha mask) with SRC_ALPHA blending, so the edge shows
+    // fin · mask³ at alpha mask²)
+    px[3] = 255 * (m === 0 ? blurMix[p] : m === 1 ? mask[p] ** 2 : 1);
+    return px;
+  };
+  const px = new Float64Array(4);
+  const [disp0, disp1, disp2, shade] = [0, 1, 2, 3].map((m) => {
+    const data = new Uint8ClampedArray(n * 4);
+    for (let p = 0; p < n; p++) data.set(texel(m, p, px), p * 4);
     return data;
   });
+  // past `band` map px inside the rim every term but the pull to the centre is
+  // flat (bevel and its ±2 px gradient, edge, depth, lighting), and the pull is
+  // linear in x and y
+  const band = Math.ceil(Math.max(zR + 2, Math.min(hx, hy) * 0.35 + 1, r)) + 3;
 
-  return { width: SW, height: SH, scale: scale / dpr, blur: blurSigma(cfg.blurAmount) / dpr, disp, shade, shadow };
+  return {
+    width: SW, height: SH, scale: scale / dpr, blur: blurSigma(cfg.blurAmount) / dpr,
+    disp: [disp0, disp1, disp2], shade, shadow,
+    tiles: () => glassTiles(SW, SH, pad, band, texel),
+  };
+}
+
+// Chromium copies every <feImage> bitmap into each compositor frame — the
+// renderer serializes its pixels, the GPU process reads them back, at the
+// display's rate whenever anything animates — so a map goes out as the few
+// tiles that hold its detail: the four corners at full resolution, and the
+// middle column and two side strips between them, which are linear along
+// their length, as a few texels that <feImage>'s (cubic) upscale rebuilds
+// exactly. The ring outside the panel is masked away, so it stays transparent.
+// Each tile is cropped (an <feOffset> subregion) and carries an APRON of real
+// texels past its crop, so the sampling at a seam sees what the full map has;
+// no image reaches past the filter region (Blink would draw a subset of it).
+// Rects are map px [x, y, w, h]: `place` is where the image is drawn, `crop`
+// the part kept. null when the panel is too small to split.
+const OUT = 2, APRON = 2;
+function glassTiles(SW, SH, pad, band, texel) {
+  const x = [pad - OUT, pad + band, SW - pad - band, SW - pad + OUT];
+  const y = [pad - OUT, pad + band, SH - pad - band, SH - pad + OUT];
+  const wide = x[1] <= x[2], tall = y[1] <= y[2];
+  if (!(wide || tall) || x[0] < APRON || y[0] < APRON) return null;
+  const px = new Float64Array(4), qx = new Float64Array(4);
+  let clipped = false;
+  const full = (m, [cx, cy, cw, ch]) => {
+    const ix = cx - APRON, iy = cy - APRON, iw = cw + APRON * 2, ih = ch + APRON * 2;
+    const data = new Uint8ClampedArray(iw * ih * 4);
+    for (let j = 0; j < ih; j++) {
+      for (let i = 0; i < iw; i++) data.set(texel(m, (iy + j) * SW + ix + i, px), (j * iw + i) * 4);
+    }
+    return { place: [ix, iy, iw, ih], crop: [cx, cy, cw, ch], data, width: iw, height: ih };
+  };
+  // linear along x (alongX) or y: n texels s apart, from 2.5 s before the crop
+  // to 2.5 s past it, so no cubic tap inside the crop reaches the image's edge;
+  // extrapolated from the crop's first and last pixel
+  const linear = (m, [cx, cy, cw, ch], alongX) => {
+    const len = alongX ? cw : ch;
+    const room = alongX ? Math.min(cx, SW - cx - cw) : Math.min(cy, SH - cy - ch);
+    const n = Math.ceil(len / (room / 2.5)) + 5, s = len / (n - 5);
+    const across = (alongX ? ch : cw) + APRON * 2;
+    const data = new Uint8ClampedArray(n * across * 4);
+    for (let k = 0; k < across; k++) {
+      const at = (t) => (alongX ? (cy - APRON + k) * SW + cx + t : (cy + t) * SW + cx - APRON + k);
+      texel(m, at(0), px);
+      texel(m, at(len - 1), qx);
+      for (let i = 0; i < n; i++) {
+        // texel i's centre as an offset from the crop's first pixel centre
+        const f = len > 1 ? ((i - 2) * s - 0.5) / (len - 1) : 0;
+        const d = (alongX ? k * n + i : i * across + k) * 4;
+        for (let c = 0; c < 4; c++) {
+          const v = px[c] + (qx[c] - px[c]) * f;
+          if (v < -0.5 || v > 255.5) clipped = true;
+          data[d + c] = v;
+        }
+      }
+    }
+    const place = alongX ? [cx - 2.5 * s, cy - APRON, n * s, across] : [cx - APRON, cy - 2.5 * s, across, n * s];
+    return { place, crop: [cx, cy, cw, ch], data, width: alongX ? n : across, height: alongX ? across : n };
+  };
+  const span = (e, i, j) => [e[i], e[j] - e[i]];
+  const rect = ([rx, rw], [ry, rh]) => [rx, ry, rw, rh];
+  const maps = [0, 1, 2, 3].map((m) => {
+    const tiles = [];
+    // a short panel's bands meet: its left and right columns go whole
+    const rows = tall ? [span(y, 0, 1), span(y, 2, 3)] : [span(y, 0, 3)];
+    const cols = wide ? [span(x, 0, 1), span(x, 2, 3)] : [span(x, 0, 3)];
+    for (const c of cols) for (const r of rows) tiles.push(full(m, rect(c, r)));
+    if (wide && x[2] > x[1]) tiles.push(linear(m, rect(span(x, 1, 2), span(y, 0, 3)), true));
+    if (tall && y[2] > y[1]) for (const c of cols) tiles.push(linear(m, rect(c, span(y, 1, 2)), false));
+    return tiles;
+  });
+  return clipped ? null : maps;
 }
