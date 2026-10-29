@@ -32,6 +32,9 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/workers/:id/transfers/*"],
   // Where this Mac is — never readable from another computer.
   ["*", "/api/location"],
+  // This Mac's Claude accounts' artifacts.
+  ["*", "/api/artifacts"],
+  ["*", "/api/artifacts/*"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];

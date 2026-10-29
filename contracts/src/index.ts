@@ -17,6 +17,8 @@ export * from "./route-planes.ts";
 export * from "./anthropic.ts";
 export * from "./accounts.ts";
 export * from "./usage.ts";
+export * from "./artifacts.ts";
+export * from "./artifact-ids.ts";
 export * from "./profile.ts";
 export * from "./dream.ts";
 export * from "./sync.ts";

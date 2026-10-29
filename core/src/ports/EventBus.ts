@@ -87,6 +87,9 @@ export type EventBusTopic =
   // A background job started, moved on or ended, or finished ones were dropped
   // (payload BackgroundJobChange) — the header beacon and the Jobs tab.
   | "jobs:change"
+  // The artifact catalog changed or started/stopped re-reading (payload only
+  // { refreshing }; the catalog is read from GET /api/artifacts — contracts ARTIFACTS_TOPIC).
+  | "artifacts:change"
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

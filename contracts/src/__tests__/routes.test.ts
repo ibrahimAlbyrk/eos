@@ -48,7 +48,7 @@ const EXPECTED_KEYS = [
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair", "peerReverse",
   "hosts", "host", "hostReconnect", "hostViewToken", "hostProxyPrefix",
-  "anthropicConfig", "usage",
+  "anthropicConfig", "usage", "artifacts", "artifactsRefresh",
   "accounts", "accountSignIn", "accountLogin", "accountDefaultLogin", "accountAutoSwitch", "workerPlanResume", "workerApiKeyContinue", "signIn", "signInCode",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
   "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserShow", "browserTab", "browserNavigate",

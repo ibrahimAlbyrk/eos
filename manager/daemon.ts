@@ -84,6 +84,7 @@ import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerAnthropicRoutes } from "./routes/anthropic.ts";
 import { registerAccountRoutes } from "./routes/accounts.ts";
 import { registerUsageRoutes } from "./routes/usage.ts";
+import { registerArtifactRoutes } from "./routes/artifacts.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerExportRoutes } from "./routes/export.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
@@ -150,6 +151,7 @@ registerSettingsRoutes(router, c);
 registerAnthropicRoutes(router, c);
 registerAccountRoutes(router, c);
 registerUsageRoutes(router, c);
+registerArtifactRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);

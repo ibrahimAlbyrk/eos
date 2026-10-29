@@ -2568,6 +2568,11 @@ export const ROUTES = {
   // between upstream calls; the endpoint 429s aggressively). Never echoes the
   // OAuth token.
   usage: "/api/usage",
+  // Every artifact of every Claude sign-in (contracts/src/artifacts.ts). GET →
+  // the cached ArtifactCatalog, refreshed in the background once stale; POST
+  // .../refresh re-reads every sign-in now. Both fan out artifacts:change.
+  artifacts: "/api/artifacts",
+  artifactsRefresh: "/api/artifacts/refresh",
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.

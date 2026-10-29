@@ -67,6 +67,10 @@ import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { createFileUsageSnapshotStore } from "../infra/src/usage/FileUsageSnapshotStore.ts";
 import type { SubscriptionUsageProvider } from "../core/src/ports/SubscriptionUsageProvider.ts";
+import { createFrameApiArtifactSource } from "../infra/src/artifacts/FrameApiArtifactSource.ts";
+import { ArtifactCatalogService } from "../core/src/services/ArtifactCatalogService.ts";
+import { announcesArtifact } from "../core/src/domain/artifact-catalog.ts";
+import { ARTIFACTS_TOPIC } from "../contracts/src/artifacts.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
@@ -988,9 +992,9 @@ export function buildContainer() {
   // UsageService owns the cache + 180s upstream floor and pushes each refresh
   // (usage:change); the last good snapshots live in ~/.eos/usage-cache.json
   // (regenerable).
-  // A Claude store's usage token — renewed first when it lapsed while no session
-  // ran.
-  const claudeUsageToken = async (store: string): Promise<string | null> => {
+  // A Claude store's OAuth access token, for Eos's own reads on that sign-in's
+  // behalf (usage, artifacts) — renewed first when it lapsed while no session ran.
+  const claudeAccessToken = async (store: string): Promise<string | null> => {
     let login = readClaudeCodeLogin(store);
     if (login.present && !login.token && claudeBinary) {
       await refreshClaudeLogin(store, claudeBinary)
@@ -1010,7 +1014,7 @@ export function buildContainer() {
     if (!p) {
       p = createClaudeUsageProvider({
         getTokens: async () => {
-          const token = await claudeUsageToken(l.storeDir);
+          const token = await claudeAccessToken(l.storeDir);
           return token ? [{ source: "eos", token }] : [];
         },
         plan: () => planTitle(readClaudeCodeLogin(l.storeDir).plan),
@@ -1046,6 +1050,29 @@ export function buildContainer() {
   };
   // Live claude sessions → the store their latest launch runs on.
   const liveClaudeStores = new Map<string, string>();
+
+  // Every claude.ai Artifact of every Claude sign-in, read with that sign-in's
+  // own token (plan docs/artifacts/00-ARTIFACTS-PLAN.md).
+  const claudeLoginOf = (loginId: string): PlanLoginRecord | undefined =>
+    loginRegistry.list("anthropic").find((l) => l.id === loginId);
+  const artifacts = new ArtifactCatalogService({
+    source: createFrameApiArtifactSource({
+      token: async (loginId) => {
+        const l = claudeLoginOf(loginId);
+        return l ? claudeAccessToken(l.storeDir) : null;
+      },
+      ...(claudeBinary ? {
+        renew: async (loginId: string) => {
+          const l = claudeLoginOf(loginId);
+          if (l) await refreshClaudeLogin(l.storeDir, claudeBinary);
+        },
+      } : {}),
+    }),
+    logins: () => loginRegistry.list("anthropic").map((l) => ({ id: l.id, label: l.label, email: l.email })),
+    clock: systemClock,
+    // A bare signal: the stream reaches paired computers, the catalog only this Mac's route.
+    publish: (catalog) => bus.publish(ARTIFACTS_TOPIC, { refreshing: catalog.refreshing }),
+  });
 
   // Settings › Accounts. Sign in with Claude runs the official `claude auth login`
   // (a one-shot PTY with the billing-stripped env, so no ambient key or nested-
@@ -1690,6 +1717,12 @@ export function buildContainer() {
     if (event.type === "message" && event.role === "assistant") {
       turnOutput.markSeen(workerId);
     }
+    // An agent published a claude.ai Artifact: re-read the sign-in it runs on
+    // (every one when that's unknown).
+    if (announcesArtifact(event)) {
+      const store = liveClaudeStores.get(workerId);
+      artifacts.invalidate(store ? loginRegistry.list("anthropic").find((l) => l.storeDir === store)?.id : undefined);
+    }
     if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
     if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
       backgroundJobs.observe(workerId, event);
@@ -1899,6 +1932,7 @@ export function buildContainer() {
     modelCatalog,
     modelPricing,
     usage,
+    artifacts,
     claudeCommands,
     accounts,
     signIns,
