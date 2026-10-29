@@ -7,10 +7,13 @@
 # the notarytool keychain profile `eos-notary` (app/README.md › Signing). Other Macs
 # install the published zip through install.sh — they never build or sign.
 #
-# Steps: bump app/package.json → `npm run make` with EOS_NOTARIZE=1 (sign +
-# notarize + staple) → check Gatekeeper accepts it → commit + tag v<version> → push
-# → `gh release create` with Eos-darwin-arm64.zip, the fixed name install.sh
-# downloads from releases/latest.
+# Steps: bump app/package.json + the iPhone app's version → `npm run make` with
+# EOS_NOTARIZE=1 (sign + notarize + staple) → check Gatekeeper accepts it → commit +
+# tag v<version> → push → `gh release create` with Eos-darwin-arm64.zip (the fixed
+# name install.sh downloads from releases/latest) and the iPhone app's source.
+# Title and body come from docs/release/notes/v<version>.md, written by the rules in
+# docs/release/00-RELEASE-NOTES.md. The Windows workflow attaches its builds once
+# the release is published.
 set -euo pipefail
 
 version="${1:-}"
@@ -19,6 +22,7 @@ tag="v$version"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP="$ROOT/app"
 PROFILE="${EOS_NOTARY_PROFILE:-eos-notary}"
+NOTES="$ROOT/docs/release/notes/$tag.md"
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -31,11 +35,15 @@ security find-identity -v -p codesigning | grep -q '"Developer ID Application: '
 xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1 \
   || die "notarytool profile '$PROFILE' is missing — see app/README.md › Signing"
 gh auth status >/dev/null 2>&1 || die "gh is not signed in (gh auth login)"
+[ -f "$NOTES" ] || die "no release notes at ${NOTES#$ROOT/} — write them from docs/release/00-RELEASE-NOTES.md"
+title="$(head -1 "$NOTES" | sed -E 's/^# +//')"
+[[ "$title" == "Eos $version — "* ]] || die "the notes' first line must be '# Eos $version — <theme>'"
 
 # A failed build must not leave the version bump behind.
-trap 'git -C "$ROOT" checkout -q -- app/package.json app/package-lock.json' EXIT
+trap 'git -C "$ROOT" checkout -q -- app/package.json app/package-lock.json ios/project.yml' EXIT
 
 (cd "$APP" && npm version "$version" --no-git-tag-version >/dev/null)
+sed -i '' -E "s/^( *MARKETING_VERSION: ).*/\1\"$version\"/" "$ROOT/ios/project.yml"
 (cd "$APP" && EOS_NOTARIZE=1 npm run make)
 
 built="$APP/out/Eos-darwin-arm64/Eos.app"
@@ -46,8 +54,13 @@ xcrun stapler validate "$built" >/dev/null || die "the notarization ticket is no
 asset="$APP/out/make/Eos-darwin-arm64.zip"
 cp "$APP/out/make/zip/darwin/arm64/Eos-darwin-arm64-$version.zip" "$asset"
 
-git -C "$ROOT" commit -qm "release: $tag" -- app/package.json app/package-lock.json
+git -C "$ROOT" commit -qm "release: $tag" -- app/package.json app/package-lock.json ios/project.yml
 git -C "$ROOT" tag "$tag"
+
+# Eos Remote has no store build: its source at this tag, built with BUILD.md.
+ios_asset="$APP/out/make/Eos-Remote-iOS-source.zip"
+git -C "$ROOT" archive --format=zip --prefix=eos-remote/ -o "$ios_asset" "$tag" ios
+
 git -C "$ROOT" push -q origin HEAD "$tag"
-gh release create "$tag" "$asset" --title "Eos $version" --generate-notes
+gh release create "$tag" "$asset" "$ios_asset" --title "$title" --notes-file <(tail -n +2 "$NOTES")
 echo "released $tag"

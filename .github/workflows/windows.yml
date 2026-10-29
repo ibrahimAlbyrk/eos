@@ -51,7 +51,9 @@ jobs:
 
       # The suites were written on macOS; until they pass on Windows (plan
       # Phase 0) a failure is reported without blocking the package.
+      # A release builds a tag whose commits already passed on dev.
       - name: Test
+        if: github.event_name != 'release'
         continue-on-error: true
         timeout-minutes: 60
         run: |
