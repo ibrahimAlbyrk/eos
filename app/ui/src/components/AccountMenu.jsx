@@ -8,6 +8,7 @@ import { metaFor, planName } from "./accounts/providerMeta.js";
 import { GeneralIcon } from "../settings/registry.jsx";
 import { useProfile } from "../state/profileStore.js";
 import { useUsage } from "../state/usageStore.js";
+import { useTweenedNumber } from "../hooks/useTweenedNumber.js";
 import { ProfileMenuHeader, MemoryReviewRow, DreamReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
 import { shortcutLabel } from "../lib/platform.js";
 
@@ -30,20 +31,22 @@ function UsageRing({ pct }) {
           transform="rotate(-90 21 21)"
         />
       </svg>
-      <span className="acct-ring__pct">{pct}<span className="acct-ring__unit">%</span></span>
+      <span className="acct-ring__pct">{Math.round(pct)}<span className="acct-ring__unit">%</span></span>
     </span>
   );
 }
 
 // The ring shows what's left of the limit (it drains as you use it). Session
 // limits count down ("in 2h 15m"), weekly ones name the moment; the tooltip
-// carries the long label + reset.
+// carries the long label + reset. A refresh landing while the menu is open
+// glides the ring and its number to the new value.
 function UsageStat({ row }) {
   const used = Math.round(row.window.utilization);
   const left = Math.max(0, 100 - used);
+  const shownLeft = useTweenedNumber(left);
   return (
     <div className={"acct-stat" + (isUsageWarn(row.window) ? " is-warn" : "")} title={`${row.label} · ${left}% left · ${formatRowReset(row)}`}>
-      <UsageRing pct={left} />
+      <UsageRing pct={shownLeft} />
       <span className="acct-stat__text">
         <span className="acct-stat__label">{row.short}</span>
         <span className="acct-stat__reset">{formatRowReset(row, { short: true })}</span>
@@ -89,8 +92,9 @@ export function PlanCards({ accounts, usage, now }) {
 // Opened from the sidebar's Account row: the plan cards, total cost across
 // agents, then Settings. Fixed above the row (`anchor` = its rect)
 // and portal'd to <body>; data-popover keeps clicks inside it "inside" for the
-// outside-click handler. Mounted only while open, so usage is refreshed per open
-// (the last response shows meanwhile; the daemon caches upstream with a 180s floor).
+// outside-click handler. Mounted only while open; usage shows from the store at
+// once, and opening sets off the daemon's refresh when its snapshot is past the
+// 180s floor (the new numbers arrive as usage:change).
 export function AccountMenu({
   anchor, totalCostUsd, pendingMemories = 0, dreamProposals = 0, onReviewDream, onOpenSettings, onOpenMemory, onSetUpProfile,
 }) {
