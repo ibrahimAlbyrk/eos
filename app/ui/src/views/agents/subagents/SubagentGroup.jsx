@@ -3,6 +3,7 @@ import { useClockTick } from "../../../hooks/useClockTick.js";
 import { batchSummary, isRunning, launchVerb } from "../../../lib/subagentRuns.js";
 import { DisclosureRow } from "../messages/DisclosureRow.jsx";
 import { Collapse } from "../messages/Collapse.jsx";
+import { Sheen } from "../messages/Sheen.jsx";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 import { SubagentMeta, subagentActivity } from "./SubagentStatus.jsx";
 import { openSubagents } from "./openSubagents.js";
@@ -45,7 +46,11 @@ function SubagentRail({ runs, workerId }) {
         <button key={r.toolUseId} type="button" className="sa-rail-row" onClick={() => openSubagents(ui, workerId, r.toolUseId)}>
           <SubagentGlyph identity={r.identity} status={r.status} />
           <span className="sa-rail-row__name">{r.description}</span>
-          <span className="sa-activity ti-shimmer">{isRunning(r) ? subagentActivity(r) : null}</span>
+          {isRunning(r) ? (
+            <span className="sa-activity ti-sheen-host">{subagentActivity(r)}<Sheen>{subagentActivity(r)}</Sheen></span>
+          ) : (
+            <span className="sa-activity" />
+          )}
           <SubagentMeta run={r} now={now} />
         </button>
       ))}

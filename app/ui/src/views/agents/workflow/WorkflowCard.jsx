@@ -3,6 +3,7 @@
 // script's log. "Open live view" opens the run's side-panel tab (design B).
 
 import { useEffect, useMemo } from "react";
+import { Sheen } from "../messages/Sheen.jsx";
 import { useUi } from "../../../state/ui.jsx";
 import { useClockTick } from "../../../hooks/useClockTick.js";
 import { fetchWorkflowRun, noteWorkflowCall, useWorkflowRun } from "../../../state/workflowRunsStore.js";
@@ -46,7 +47,10 @@ export function WorkflowCard({ block, workerId, cwd, workers }) {
     <div className="wr">
       <div className="wr-call">
         <WorkflowIcon />
-        <span className={"wr-call__verb" + (model.active ? " ti-shimmer" : "")}>{CALL_VERB[model.status]}</span>
+        <span className={"wr-call__verb" + (model.active ? " ti-sheen-host" : "")}>
+          {CALL_VERB[model.status]}
+          {model.active && <Sheen>{CALL_VERB[model.status]}</Sheen>}
+        </span>
         <span className="wr-call__name">{model.name}</span>
       </div>
       <section className="wr-card" aria-label={`Workflow ${model.name}`}>

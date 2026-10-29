@@ -658,9 +658,45 @@
 /* `b` listed too: it must outrank `.tg-summary b` */
 .ti-shimmer *, .ti-shimmer b { color: transparent; }
 @keyframes ti-sheen { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+/* The same sweep without repainting the text (Sheen.jsx): the host's text in
+   the base tone, a bright copy under a masked window. The crest travels
+   -55% → 155% of the width with a ±25% ramp, as the background sweep does. */
+.ti-sheen-host {
+  --sb: var(--shim-base, var(--fg-dim2));
+  position: relative;
+  color: var(--sb);
+}
+.ti-sheen-host *, .ti-sheen-host b { color: inherit; }
+.ti-sheen {
+  display: inherit;
+  align-items: inherit;
+  gap: inherit;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 50%, transparent 75%);
+  mask-image: linear-gradient(90deg, transparent 25%, #000 50%, transparent 75%);
+  animation: ti-sheen-window 2.2s linear infinite;
+}
+.ti-sheen-host .ti-sheen__copy {
+  display: inherit;
+  align-items: inherit;
+  gap: inherit;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--shim-hi, var(--fg-strong));
+  animation: ti-sheen-copy 2.2s linear infinite;
+}
+@keyframes ti-sheen-window { from { transform: translateX(-105%); } to { transform: translateX(105%); } }
+@keyframes ti-sheen-copy { from { transform: translateX(105%); } to { transform: translateX(-105%); } }
 @media (prefers-reduced-motion: reduce) {
   .ti-shimmer { animation: none; background: none; color: var(--fg-mid); }
   .ti-shimmer *, .ti-shimmer b { color: inherit; }
+  .ti-sheen { display: none; }
+  .ti-sheen-host { color: var(--fg-mid); }
   .ti-icon .ti-spin { animation-duration: 2.4s; }
 }
 
@@ -1315,7 +1351,18 @@
 .al-star .al-ray-hi { fill: var(--al-hi, #5d5d5d); }
 .al-star .al-core { fill: var(--al-core, var(--fg-faint)); }
 
-.activity-line:is(.is-busy, .is-check) .al-star { animation: al-halo 2.4s ease-in-out infinite; }
+/* The halo breathes on a blurred copy of the rays (ActivityStar's .al-glow),
+   by opacity, so it runs on the compositor. An animated drop-shadow can't (a
+   filter that moves pixels): it would ask the renderer for a full main frame
+   — style, SVG layout, paint, layerize — on every display refresh while the
+   agent works. */
+.al-star .al-glow { display: none; }
+.al-star .al-glow rect { fill: var(--al-ray, var(--fg-mute)); }
+.activity-line:is(.is-busy, .is-check) .al-glow {
+  display: inline;
+  filter: drop-shadow(0 0 3.5px rgba(var(--al-glow), 0.85));
+  animation: al-halo 2.4s ease-in-out infinite;
+}
 .activity-line:is(.is-busy, .is-check) :is(.al-rays, .al-core) { transform: none; }
 /* is-done keeps the same spin, paused, so the star stops where it is rather
    than snapping upright; going busy again resumes it from there. */
@@ -1333,10 +1380,7 @@
 .activity-line.is-done .al-core { animation: al-set-core 0.8s cubic-bezier(.33, 1, .68, 1) both; }
 
 @keyframes al-spin { to { transform: rotate(360deg); } }
-@keyframes al-halo {
-  0%, 100% { filter: drop-shadow(0 0 1px rgba(var(--al-glow), 0.4)); }
-  50% { filter: drop-shadow(0 0 3.5px rgba(var(--al-glow), 0.85)); }
-}
+@keyframes al-halo { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 /* 16° on this ease-out over 0.8s starts at the busy spin's 60°/s — no hitch. */
 @keyframes al-set-rays { from { transform: none; } to { transform: rotate(16deg) scale(0.86); } }
 @keyframes al-set-glow { from { filter: drop-shadow(0 0 2px rgba(var(--al-blue-glow), 0.6)); } }

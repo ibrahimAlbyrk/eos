@@ -1,6 +1,7 @@
 import { ToolItem } from "./ToolItem.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 import { Collapse } from "./Collapse.jsx";
+import { Sheen } from "./Sheen.jsx";
 
 // "Read 3 files, ran 2 shell commands" → the counted phrases ("3 files",
 // "2 shell commands") lifted to the brighter object tone.
@@ -15,7 +16,10 @@ export function ToolGroup({ summary, tools, open, onToggle, cwd, workers }) {
   return (
     <div className="tool-group">
       <DisclosureRow expanded={open} onToggle={onToggle} className="tool-group-header">
-        <span className={"tg-summary" + (running ? " ti-shimmer" : "")}>{emphasizeCounts(summary)}</span>
+        <span className={"tg-summary" + (running ? " ti-sheen-host" : "")}>
+          {emphasizeCounts(summary)}
+          {running && <Sheen>{emphasizeCounts(summary)}</Sheen>}
+        </span>
       </DisclosureRow>
       <Collapse open={open}>
         <div className="tool-group-list">

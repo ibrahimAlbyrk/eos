@@ -1,3 +1,4 @@
+import { Sheen } from "../messages/Sheen.jsx";
 import { splitByStatus } from "../../../lib/subagentRuns.js";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 import { SubagentsIcon } from "./SubagentsIcon.jsx";
@@ -22,7 +23,7 @@ export function SubagentList({ runs, now, onOpen }) {
       {active.length === 0 && <div className="sa-list__none">No active subagents</div>}
       {active.map((r) => (
         <SubagentRow key={r.toolUseId} run={r} now={now} onOpen={onOpen}>
-          <span className="sa-activity ti-shimmer">{subagentActivity(r)}</span>
+          <span className="sa-activity ti-sheen-host">{subagentActivity(r)}<Sheen>{subagentActivity(r)}</Sheen></span>
         </SubagentRow>
       ))}
       {done.length > 0 && <div className="sa-list__head">Done · {done.length}</div>}

@@ -7,6 +7,13 @@ export function ActivityStar() {
   return (
     <svg className="al-star" viewBox="-100 -100 200 200" width="14" height="14" aria-hidden="true">
       <g className="al-spin">
+        {/* The busy halo: a blurred copy of the ray silhouettes that breathes
+            by opacity, under the rays. */}
+        <g className="al-glow">
+          {RAY_ANGLES.map((deg) => (
+            <rect key={deg} transform={`rotate(${deg})`} x="-13" y="-96" width="26" height="78" rx="13" />
+          ))}
+        </g>
         <g className="al-rays">
           {RAY_ANGLES.map((deg) => (
             <g key={deg} transform={`rotate(${deg})`}>

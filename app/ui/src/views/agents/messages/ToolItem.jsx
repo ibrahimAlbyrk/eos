@@ -8,6 +8,7 @@ import { Collapse } from "./Collapse.jsx";
 import { useImagePeek } from "./ImagePeek.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
 import { modDown } from "../../../lib/platform.js";
+import { Sheen } from "./Sheen.jsx";
 
 // The single tool-render dispatcher: every tool (bespoke or generic fallback,
 // including the worker-management tools) resolves through getToolView and renders
@@ -50,7 +51,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
         className={"tool-item-header" + (isRunning ? " ti-running" : "")}
       >
         {/* one span so a running row's shine sweeps verb + object + hint as a single line */}
-        <span className={"ti-text" + (isRunning ? " ti-shimmer" : "")}>
+        <span className={"ti-text" + (isRunning ? " ti-sheen-host" : "")}>
           <span className="ti-verb">{label.verb}</span>
           {agentRef ? (
             <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
@@ -59,6 +60,17 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
           )}
           {peek.layer}
           {summary && <span className="ti-arg-summary">{summary}</span>}
+          {isRunning && (
+            <Sheen>
+              <span className="ti-verb">{label.verb}</span>
+              {agentRef ? (
+                <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
+              ) : (
+                <span className={"ti-file" + (view.mono ? " ti-mono" : "")}>{label.file}</span>
+              )}
+              {summary && <span className="ti-arg-summary">{summary}</span>}
+            </Sheen>
+          )}
         </span>
         {headerBadge}
         {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
