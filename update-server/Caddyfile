@@ -1,0 +1,20 @@
+# The eos-updates container's own config: static files only, no TLS (the main
+# Caddy in front owns ACME and proxies updates.ibrahimalbyrk.dev here).
+{
+	admin off
+	auto_https off
+}
+
+:80 {
+	respond /health "ok" 200
+
+	root * /srv
+
+	# The signed pointer changes every release; everything it points at never does.
+	@pointer path /stable/*
+	header @pointer Cache-Control "no-cache"
+	@immutable path /releases/* /packs/* /notes/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	file_server
+}
