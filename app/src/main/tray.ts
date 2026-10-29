@@ -6,6 +6,12 @@ import type { Completion } from "./fleet";
 
 const ease = (t: number): number => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
 
+// Every setImage makes AppKit re-snapshot the status item into each display's
+// menu-bar replicant (~0.75 ms of main-thread CPU per frame): an endless 14–21 fps
+// breath would hold the main process at 11–17 % of a core while any agent works.
+// The star breathes for a few cycles when the running face changes, then holds still.
+const BREATH_HOLD_MS = 6000;
+
 interface TrayHooks {
   wc: () => WebContents | null;
   showWindow: () => void;
@@ -23,8 +29,12 @@ export class TrayController {
   private playingPill = false;
   private breathTimer: ReturnType<typeof setInterval> | null = null;
   private pillTimer: ReturnType<typeof setInterval> | null = null;
+  private holdTimer: ReturnType<typeof setTimeout> | null = null;
   private gen = 0; // cancels stale async frame renders
   private last = { running: false, count: 0, connected: true };
+  // The running face on screen (or being rendered): the fleet re-reports the same
+  // state on every poll and worker frame, which must not restart the breath.
+  private face: string | null = null;
 
   constructor(private readonly hooks: TrayHooks) {}
 
@@ -69,7 +79,8 @@ export class TrayController {
   private clearTimers(): void {
     if (this.breathTimer) clearInterval(this.breathTimer);
     if (this.pillTimer) clearInterval(this.pillTimer);
-    this.breathTimer = this.pillTimer = null;
+    if (this.holdTimer) clearTimeout(this.holdTimer);
+    this.breathTimer = this.pillTimer = this.holdTimer = null;
   }
 
   // Fleet running state → idle star / breathing star + count. Ignored while a
@@ -77,8 +88,11 @@ export class TrayController {
   async renderRunning(running: boolean, count: number, connected: boolean): Promise<void> {
     this.last = { running, count, connected };
     if (this.playingPill) return;
+    const face = `${running}|${count}|${connected}`;
+    if (face === this.face) return;
     const wc = this.hooks.wc();
     if (!wc) return;
+    this.face = face;
     const gen = ++this.gen;
     this.clearTimers();
 
@@ -100,7 +114,7 @@ export class TrayController {
         if (gen !== this.gen) return; // superseded
         if (img) frames.push(img);
       }
-      if (!frames.length) return;
+      if (!frames.length) { this.face = null; return; }
       const breath = Math.max(1.25, 1.9 - count * 0.09);
       const interval = Math.max(30, ((breath / 2) / (N - 1)) * 1000);
       let idx = 0;
@@ -112,15 +126,24 @@ export class TrayController {
         else if (idx <= 0) dir = 1;
         this.setImage(frames[idx]);
       }, interval);
+      // Then hold the full star (the top of the breath) until the face changes.
+      this.holdTimer = setTimeout(() => {
+        if (this.breathTimer) clearInterval(this.breathTimer);
+        this.breathTimer = this.holdTimer = null;
+        this.setImage(frames[frames.length - 1]);
+      }, BREATH_HOLD_MS);
     } else {
       const img = await renderTrayImage(wc, { mode: "icon", running, count, connected, scale: 1, opacity: 1 });
-      if (gen === this.gen) this.setImage(img);
+      if (gen !== this.gen) return;
+      if (img) this.setImage(img);
+      else this.face = null;
     }
   }
 
   // Completion toast with a draining underline, played over `dwellMs`.
   async announce(c: Completion, remaining: number, dwellMs: number): Promise<void> {
     this.playingPill = true;
+    this.face = null; // the pill covers the running face; drained() redraws it
     const wc = this.hooks.wc();
     if (!wc) return;
     const gen = ++this.gen;
