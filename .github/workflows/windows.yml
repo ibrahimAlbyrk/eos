@@ -81,7 +81,7 @@ jobs:
       # on its named pipe, with SQLite and the bundled claude) and that daemon
       # answers /health.
       - name: Smoke
-        timeout-minutes: 6
+        timeout-minutes: 8
         run: |
           export EOS_HOME="$RUNNER_TEMP/eos-home"
           app/out/Eos-win32-${{ matrix.arch }}/Eos.exe > smoke-app.log 2>&1 &
@@ -94,6 +94,22 @@ jobs:
           echo "--- app"; tail -40 smoke-app.log || true
           echo "--- daemon"; tail -60 "$EOS_HOME/logs/daemon.log" || true
           grep -q "socket listening" "$EOS_HOME/logs/daemon.log" || { echo "::error::daemon never opened its named pipe"; ok=""; }
+          # Sign in with Claude on a machine without Claude Code: the bundled
+          # claude must start and hand out its sign-in page.
+          if [ -n "$ok" ]; then
+            api=http://127.0.0.1:7400; tok=$(cat "$EOS_HOME/ui-token")
+            id=$(curl -fsS -X POST -H "x-eos-ui-token: $tok" -H "content-type: application/json" -d '{}' "$api/api/accounts/anthropic/sign-in" | node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).id')
+            signin=""
+            for i in $(seq 1 45); do
+              s=$(curl -fsS -H "x-eos-ui-token: $tok" "$api/api/sign-ins/$id")
+              echo "$s" | grep -q '"url"' && { signin=1; break; }
+              echo "$s" | grep -qE '"state":"(failed|cancelled)"' && break
+              sleep 2
+            done
+            echo "--- sign-in"; echo "$s"
+            curl -fsS -X DELETE -H "x-eos-ui-token: $tok" "$api/api/sign-ins/$id" > /dev/null || true
+            [ -n "$signin" ] || { echo "::error::Sign in with Claude never offered its sign-in page"; ok=""; }
+          fi
           taskkill //IM Eos.exe //T //F > /dev/null 2>&1 || true
           [ -n "$ok" ] || { echo "::error::the packaged app's daemon never answered /health"; exit 1; }
 
