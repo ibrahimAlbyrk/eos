@@ -8,9 +8,11 @@
 # install the published zip through install.sh — they never build or sign.
 #
 # Steps: bump app/package.json + the iPhone app's version → `npm run make` with
-# EOS_NOTARIZE=1 (sign + notarize + staple) → check Gatekeeper accepts it → commit +
+# EOS_NOTARIZE=1 (sign + notarize + staple) and EOS_UPDATE_CHANNEL=stable (marks it
+# a release build that updates itself) → check Gatekeeper accepts it → commit +
 # tag v<version> → push → `gh release create` with Eos-darwin-arm64.zip (the fixed
-# name install.sh downloads from releases/latest) and the iPhone app's source.
+# name install.sh downloads from releases/latest) and the iPhone app's source →
+# publish the same Eos.app to the in-app update feed (scripts/publish-update.sh).
 # Title and body come from docs/release/notes/v<version>.md, written by the rules in
 # docs/release/00-RELEASE-NOTES.md. The Windows workflow attaches its builds once
 # the release is published.
@@ -35,6 +37,8 @@ security find-identity -v -p codesigning | grep -q '"Developer ID Application: '
 xcrun notarytool history --keychain-profile "$PROFILE" >/dev/null 2>&1 \
   || die "notarytool profile '$PROFILE' is missing — see app/README.md › Signing"
 gh auth status >/dev/null 2>&1 || die "gh is not signed in (gh auth login)"
+security find-generic-password -s eos-update-signing >/dev/null 2>&1 || [ -n "${EOS_UPDATE_SIGNING_KEY:-}" ] \
+  || die "no update signing key (Keychain eos-update-signing) — see docs/updates/00-UPDATES-PLAN.md"
 [ -f "$NOTES" ] || die "no release notes at ${NOTES#$ROOT/} — write them from docs/release/00-RELEASE-NOTES.md"
 title="$(head -1 "$NOTES" | sed -E 's/^# +//')"
 [[ "$title" == "Eos $version — "* ]] || die "the notes' first line must be '# Eos $version — <theme>'"
@@ -44,7 +48,7 @@ trap 'git -C "$ROOT" checkout -q -- app/package.json app/package-lock.json ios/p
 
 (cd "$APP" && npm version "$version" --no-git-tag-version >/dev/null)
 sed -i '' -E "s/^( *MARKETING_VERSION: ).*/\1\"$version\"/" "$ROOT/ios/project.yml"
-(cd "$APP" && EOS_NOTARIZE=1 npm run make)
+(cd "$APP" && EOS_NOTARIZE=1 EOS_UPDATE_CHANNEL=stable npm run make)
 
 built="$APP/out/Eos-darwin-arm64/Eos.app"
 spctl -a -vv "$built" 2>&1 | grep -q "source=Notarized Developer ID" \
@@ -63,4 +67,8 @@ git -C "$ROOT" archive --format=zip --prefix=eos-remote/ -o "$ios_asset" "$tag" 
 
 git -C "$ROOT" push -q origin HEAD "$tag"
 gh release create "$tag" "$asset" "$ios_asset" --title "$title" --notes-file <(tail -n +2 "$NOTES")
+
+# Installed apps pick it up from here; a failure leaves the GitHub release as is
+# and can be re-run: bash scripts/publish-update.sh <version> --app <Eos.app> --notes <notes>.
+bash "$ROOT/scripts/publish-update.sh" "$version" --app "$built" --notes "$NOTES"
 echo "released $tag"

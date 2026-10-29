@@ -79,6 +79,10 @@ jobs:
 
       - name: Package
         working-directory: app
+        # A release build carries Resources/update.json, so it updates itself
+        # (docs/updates/00-UPDATES-PLAN.md); push builds stay builds from source.
+        env:
+          EOS_UPDATE_CHANNEL: ${{ github.event_name == 'release' && 'stable' || '' }}
         run: npm run make
 
       # Eos Setup on this system: it installs, the installed Eos starts its own

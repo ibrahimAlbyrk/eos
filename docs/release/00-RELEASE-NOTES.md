@@ -72,7 +72,7 @@ its first line (`# …`) is the release title, the rest is the body.
 - **macOS:** unzip and move `Eos.app` to Applications.
 - **Windows:** run `Eos-Setup-<arch>.exe` — it installs for your user, no admin rights needed.
 - **iPhone:** unzip `Eos-Remote-iOS-source.zip` and follow `ios/BUILD.md` (Xcode + your own Apple ID).
-- There's no auto-update: download new versions from this page.
+- **Updating:** Eos 0.1.3 and later update themselves — only what changed is downloaded, and Eos asks before it restarts. (macOS)
 
 **Full changelog:** https://github.com/ibrahimAlbyrk/eos/compare/v<prev>...v<version>
 ```
