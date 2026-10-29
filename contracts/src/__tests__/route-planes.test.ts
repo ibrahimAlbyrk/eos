@@ -18,6 +18,14 @@ describe("isLocalOnlyRoute", () => {
     }
   });
 
+  it("keeps this Mac's own updates local: no other computer updates or restarts it", () => {
+    for (const [m, p] of [["GET", "/api/update"], ["POST", "/api/update/check"], ["POST", "/api/update/restart"],
+      ["POST", "/api/update/dismiss"], ["PUT", "/api/settings/updates"]] as const) {
+      assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
+    }
+    assert.equal(isLocalOnlyRoute("PUT", "/api/settings/archive"), false);
+  });
+
   it("keeps this Mac's transfer engine local; each Mac's own endpoint crosses", () => {
     for (const [m, p] of [["GET", "/api/transfers"], ["POST", "/api/transfers"], ["POST", "/api/transfers/tr-abcdefgh/cancel"],
       ["POST", "/api/transfers/destination"], ["POST", "/workers/w1/transfers"], ["GET", "/workers/w1/transfers/tr-abcdefgh"]] as const) {

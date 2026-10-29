@@ -87,6 +87,12 @@ export type EventBusTopic =
   // A background job started, moved on or ended, or finished ones were dropped
   // (payload BackgroundJobChange) — the header beacon and the Jobs tab.
   | "jobs:change"
+  // In-app update state moved on (payload UpdateState) — the update beacon and
+  // Settings › Updates.
+  | "update:change"
+  // A verified new version is ready to swap in now (payload UpdateApply) — the
+  // app quits and its applier takes over.
+  | "update:apply"
   // The artifact catalog changed or started/stopped re-reading (payload only
   // { refreshing }; the catalog is read from GET /api/artifacts — contracts ARTIFACTS_TOPIC).
   | "artifacts:change"

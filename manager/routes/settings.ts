@@ -1,5 +1,3 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { z } from "zod";
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
@@ -10,7 +8,7 @@ import { errMsg } from "../../contracts/src/util.ts";
 
 import { ROUTES, SettingsPatchRequestSchema, type UserSettings } from "../../contracts/src/http.ts";
 import { GENUI_SETTING_KEYS, GenuiSettingsPatchSchema } from "../../contracts/src/genui/spec.ts";
-import { CompactionConfigSchema } from "../shared/config.ts";
+import { CompactionConfigSchema, patchConfigFile } from "../shared/config.ts";
 import { uiTokenOk } from "./fs-shared.ts";
 
 // Partial archive-config patch (Settings > General). Mirrors the archive
@@ -96,13 +94,7 @@ export function patchConfigBlock(
   res: Parameters<typeof writeJson>[0],
 ): boolean {
   try {
-    const path = join(c.config.daemon.home, "config.json");
-    const existing = readConfigJson(path);
-    const block = existing[key] && typeof existing[key] === "object"
-      ? (existing[key] as Record<string, unknown>)
-      : {};
-    existing[key] = { ...block, ...patch };
-    writeFileSync(path, JSON.stringify(existing, null, 2));
+    patchConfigFile(c.config.daemon.home, key, patch);
     c.reloadConfig();
     return true;
   } catch (e) {
@@ -111,12 +103,3 @@ export function patchConfigBlock(
   }
 }
 
-function readConfigJson(path: string): Record<string, unknown> {
-  if (!existsSync(path)) return {};
-  try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
-    return parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-  } catch {
-    return {};
-  }
-}

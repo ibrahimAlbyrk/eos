@@ -175,6 +175,13 @@ export interface DaemonConfig {
     purgeOnAppClose: boolean;
     cmdW: "archive" | "delete";
   };
+  // In-app updates (docs/updates/00-UPDATES-PLAN.md). autoDownload: new
+  // releases download in the background; off = the beacon offers them.
+  // feedUrl: where a signed pointer moved the feed (null = UPDATE_FEED_URL).
+  updates: {
+    autoDownload: boolean;
+    feedUrl: string | null;
+  };
   // iOS remote-control edge (relay v3). OFF by default — absent config = no
   // remote surface. The wire contract is
   // docs/mobile-redesign/01-plaintext-relay-protocol.md.
@@ -436,6 +443,10 @@ export function defaults(): DaemonConfig {
       purgeOnAppClose: false,
       cmdW: "archive",
     },
+    updates: {
+      autoDownload: true,
+      feedUrl: null,
+    },
     remote: {
       // OFF by default (relay-only, v3). The rate-limit + lease defaults below
       // only take effect once an operator arms remote (enabled + relay.url) in
@@ -665,6 +676,10 @@ export const DaemonConfigOverrideSchema = z.object({
     purgeOnAppClose: z.boolean(),
     cmdW: z.enum(["archive", "delete"]),
   }).partial().optional(),
+  updates: z.object({
+    autoDownload: z.boolean(),
+    feedUrl: z.string().url().startsWith("https://").nullable(),
+  }).partial().optional(),
   // v3 shape (.partial) so a config.json may set just `relay.url` without
   // restating `enabled`; mergeConfig field-merges over the default. Legacy v2
   // blocks are normalized by migrateRemoteConfig in loadConfig BEFORE this parse.
@@ -831,6 +846,24 @@ export function loadConfig(): DaemonConfig {
   try { mkdirSync(cached.daemon.home, { recursive: true }); } catch {}
   try { mkdirSync(cached.daemon.logDir, { recursive: true }); } catch {}
   return cached;
+}
+
+// Merges `patch` into one block of ~/.eos/config.json (creating the file when
+// missing); the caller reloads the config to see it.
+export function patchConfigFile(home: string, key: string, patch: Record<string, unknown>): void {
+  const path = join(home, "config.json");
+  let existing: Record<string, unknown> = {};
+  if (existsSync(path)) {
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8"));
+      if (parsed && typeof parsed === "object") existing = parsed as Record<string, unknown>;
+    } catch {
+      existing = {};
+    }
+  }
+  const block = existing[key] && typeof existing[key] === "object" ? (existing[key] as Record<string, unknown>) : {};
+  existing[key] = { ...block, ...patch };
+  writeFileSync(path, JSON.stringify(existing, null, 2));
 }
 
 export function reloadConfig(): DaemonConfig {

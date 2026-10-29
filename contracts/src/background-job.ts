@@ -9,7 +9,7 @@
 import { z } from "zod";
 
 export const BackgroundJobKindSchema = z.enum([
-  "shell", "monitor", "workflow", "transfer", "compaction", "dream", "sync",
+  "shell", "monitor", "workflow", "transfer", "compaction", "dream", "sync", "update",
 ]);
 export type BackgroundJobKind = z.infer<typeof BackgroundJobKindSchema>;
 

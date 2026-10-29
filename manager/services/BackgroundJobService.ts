@@ -7,6 +7,7 @@ import {
 } from "../../contracts/src/background-job.ts";
 import type { DreamChangeEvent, DreamStatus } from "../../contracts/src/dream.ts";
 import type { SyncStatusResponse } from "../../contracts/src/sync.ts";
+import type { UpdateState } from "../../contracts/src/update.ts";
 import type { TransferChangeEvent } from "../../contracts/src/transfer.ts";
 import type { WorkflowRunProgress } from "../../contracts/src/workflow-run.ts";
 import {
@@ -204,6 +205,28 @@ export class BackgroundJobService {
     if (change.status === "skipped") { this.drop(e.job.id); return; }
     const end: BackgroundJobStatus = change.status === "failed" ? "failed" : change.status === "stopped" ? "stopped" : "completed";
     this.finish(e, end, { progress: null });
+  }
+
+  // A new version downloading or being prepared; gone once it is ready or failed
+  // (the update beacon carries it from there).
+  onUpdate(state: UpdateState): void {
+    const id = jobIdOf("update", null, "update");
+    const { phase, version, done, bytes } = state.status;
+    if (phase !== "downloading" && phase !== "staging") {
+      this.drop(id);
+      return;
+    }
+    let e = this.entries.get(id);
+    const isNew = !e;
+    if (!e) {
+      e = this.start("update", null, "update", { title: `Downloading Eos ${version}`, command: null, callId: null }, { type: "none" });
+      e.ambient = true;
+    }
+    this.update(e, {
+      title: phase === "staging" ? `Preparing Eos ${version}` : `Downloading Eos ${version}`,
+      detail: phase === "staging" ? "Building the new version beside this one" : null,
+      progress: phase === "downloading" && bytes ? { done: done ?? 0, total: bytes } : null,
+    }, isNew);
   }
 
   onSync(status: SyncStatusResponse): void {

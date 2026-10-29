@@ -2448,6 +2448,14 @@ export const ROUTES = {
   jobOutput: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/output`,
   jobStop: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/stop`,
   jobDismiss: (id: string): string => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
+  // In-app updates (contracts/src/update.ts), all ui-token and local-only.
+  update: "/api/update",
+  updateCheck: "/api/update/check",
+  updateDownload: "/api/update/download",
+  updateRestart: "/api/update/restart",
+  updateLater: "/api/update/later",
+  updateDismiss: "/api/update/dismiss",
+  settingsUpdates: "/api/settings/updates",
   // Dreaming (contracts/src/dream.ts). GET runs · POST = dream now (ui-token).
   dreams: "/api/dreams",
   dream: (id: string): string => `/api/dreams/${id}`,

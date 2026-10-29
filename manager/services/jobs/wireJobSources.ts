@@ -2,10 +2,11 @@ import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { DreamChangeEvent, DreamStatus } from "../../../contracts/src/dream.ts";
 import type { SyncStatusResponse } from "../../../contracts/src/sync.ts";
 import type { TransferChangeEvent, TransferRecord } from "../../../contracts/src/transfer.ts";
+import type { UpdateState } from "../../../contracts/src/update.ts";
 import type { BackgroundJobService } from "../BackgroundJobService.ts";
 
 // The jobs registry's bus-borne sources: `!` commands, transfers, dreams, sync,
-// and removed workers. Agent tasks, compaction and Workflow progress report to
+// in-app updates and removed workers. Agent tasks, compaction and Workflow progress report to
 // the service directly (container.ts). Seeds what is already running.
 export function wireJobSources(deps: {
   bus: Pick<EventBus, "subscribe">;
@@ -27,6 +28,7 @@ export function wireJobSources(deps: {
     bus.subscribe("transfer:change", (m) => jobs.onTransfer(m.payload as TransferChangeEvent)),
     bus.subscribe("dream:change", (m) => jobs.onDream(m.payload as DreamChangeEvent, deps.dreamStatus())),
     bus.subscribe("sync:change", (m) => jobs.onSync(m.payload as SyncStatusResponse)),
+    bus.subscribe("update:change", (m) => jobs.onUpdate(m.payload as UpdateState)),
     bus.subscribe("worker:removed", (m) => {
       const id = (m.payload as { workerId?: string } | null)?.workerId;
       if (id) jobs.forgetWorker(id);

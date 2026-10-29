@@ -8,9 +8,9 @@ import { randomBytes } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync, mkdirSync } from "node:fs";
 
-import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
+import { loadConfig, patchConfigFile, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
-import { nodeBin, nodeRunEnv, tsRuntimeFlags } from "./shared/packaging.ts";
+import { isPackaged, nodeBin, nodeRunEnv, tsRuntimeFlags } from "./shared/packaging.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
@@ -233,6 +233,15 @@ import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/Spa
 import { SyncService } from "./services/sync/SyncService.ts";
 import { createProjectKeys } from "./services/sync/project-keys.ts";
 import { TransferService } from "./services/transfer/TransferService.ts";
+import { UpdateService } from "./services/update/UpdateService.ts";
+import { resolveInstall } from "./services/update/install.ts";
+import { UPDATE_FEED_URL, UPDATE_PUBLIC_KEYS } from "../contracts/src/update.ts";
+import { checkForUpdate } from "../core/src/use-cases/update/CheckForUpdate.ts";
+import { downloadUpdate } from "../core/src/use-cases/update/DownloadUpdate.ts";
+import { Ed25519UpdateSignature } from "../infra/src/update/ed25519.ts";
+import { FsBundleIndexer } from "../infra/src/update/FsBundleIndexer.ts";
+import { FsUpdateWorkspace } from "../infra/src/update/FsUpdateWorkspace.ts";
+import { HttpUpdateFeed } from "../infra/src/update/HttpUpdateFeed.ts";
 import { PeerEndpoint } from "./services/transfer/PeerEndpoint.ts";
 import { avatarDomain, memoryDomain, pageDomain, profileDomain } from "./services/sync/service-domains.ts";
 import { fileDirDomain } from "./services/sync/file-dir-domain.ts";
@@ -1832,6 +1841,36 @@ export function buildContainer() {
   });
   transfers.boot();
 
+  // In-app updates (docs/updates/00-UPDATES-PLAN.md): only a packaged release
+  // build updates itself, from the signed feed, through ~/.eos/updates
+  // (regenerable — not listed in shared/user-data.ts).
+  const appUpdates = hostPlatform.appUpdates;
+  const updateWorkspace = new FsUpdateWorkspace(join(config.daemon.home, "updates"), { fileModes: appUpdates?.fileModes ?? true });
+  const feedUrl = (): string => config.updates.feedUrl ?? UPDATE_FEED_URL;
+  const updateFeed = new HttpUpdateFeed({ baseUrl: feedUrl });
+  const updateSignature = new Ed25519UpdateSignature(UPDATE_PUBLIC_KEYS);
+  const updates = new UpdateService({
+    ...resolveInstall({ packaged: isPackaged(), resourcesDir: config.paths.repoRoot, execPath: process.execPath, platform: appUpdates }),
+    check: async (install) => {
+      const pointer = await checkForUpdate({ feed: updateFeed, signature: updateSignature }, { platform: install.platform, current: install.version });
+      if (pointer?.feedUrl && pointer.feedUrl !== feedUrl()) {
+        patchConfigFile(config.daemon.home, "updates", { feedUrl: pointer.feedUrl });
+        config = reloadConfigFromDisk();
+      }
+      return pointer;
+    },
+    download: (input, signal) => downloadUpdate({
+      feed: updateFeed, indexer: new FsBundleIndexer(), workspace: updateWorkspace, bundleCheck: appUpdates!.bundleCheck,
+    }, input, signal),
+    verifyStaged: (staged, installed) => appUpdates!.bundleCheck.verify(staged, installed),
+    workspace: updateWorkspace,
+    autoDownload: () => config.updates.autoDownload,
+    workingAgents: () => workers.listActive().filter((w) => !w.parent_id && w.state === "WORKING").length,
+    bus,
+    clock: systemClock,
+    log: log.child({ svc: "update" }),
+  });
+
   const container = {
     get config() { return config; },
     log,
@@ -1884,6 +1923,7 @@ export function buildContainer() {
     sync,
     transferEndpoint,
     transfers,
+    updates,
     genuiViews,
     genuiPresent,
     genuiMedia,
