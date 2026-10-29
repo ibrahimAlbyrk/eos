@@ -23,6 +23,7 @@ export * from "./profile.ts";
 export * from "./dream.ts";
 export * from "./sync.ts";
 export * from "./transfer.ts";
+export * from "./update.ts";
 export * from "./workflow-run.ts";
 export * from "./side-question.ts";
 export * from "./background-job.ts";
