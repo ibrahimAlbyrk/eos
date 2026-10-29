@@ -370,14 +370,16 @@ describe("getToolView", () => {
     expect(body("git push origin dev")).toContain("bash-cmd");
   });
 
-  it("renders a published artifact as one chip line and other Artifact calls generically", () => {
+  it("renders a published artifact as the verb over its card and other Artifact calls generically", () => {
     const view = getToolView("Artifact");
     const url = "https://claude.ai/artifact/YBc8tWaK41fiYSKdCZ88EM";
-    const published = { input: { title: "Cards" }, result: { text: `Created a new Artifact at ${url} (version 1)` } };
+    const published = { input: { title: "Cards" }, result: { text: `Created a new Artifact at ${url} (version 1)` }, ts: 5 };
     expect(view.label(published)).toEqual({ verb: "Published", file: "" });
     expect(view.expandable(published, {})).toBe(false);
     expect(view.summary(published)).toBe(null);
-    expect(view.headerBadge(published, {}).props).toEqual({ url, title: "Cards" });
+    expect(view.headerBadge(published, {}).props.artifact).toEqual({
+      url, slug: "fc8663b5-9f93-4ff4-8a4b-ada56eec16fa", title: "Cards", verb: "Published", ts: 5,
+    });
     expect(view.runningLabel({ input: { title: "Cards" } })).toEqual({ verb: "Publishing", file: "Cards" });
 
     const quickstart = { name: "Artifact", input: { action: "quickstart", intent: "design" }, result: { text: "Quickstart…" } };

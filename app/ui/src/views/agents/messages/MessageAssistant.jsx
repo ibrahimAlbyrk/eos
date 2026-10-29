@@ -2,7 +2,6 @@ import { useMemo, useRef } from "react";
 import { renderMarkdown } from "../../../lib/markdown.js";
 import { withCopyButtons } from "../../../lib/codeBlockCopy.js";
 import { withArtifactChips } from "../../../lib/artifactLink.js";
-import { useArtifactPeek } from "./ArtifactPeek.jsx";
 import { useMermaid, useResolvedTheme } from "../../../hooks/useMermaid.js";
 import { usePathChips } from "../../../hooks/usePathChips.js";
 import { usePathPrefs } from "./paths/pathPrefs.js";
@@ -28,27 +27,23 @@ function onCopyClick(e) {
 }
 
 // `cwd` (the agent's folder) resolves the relative paths it names; the
-// surrounding view's usePathLinks handles the chips they become.
+// surrounding view's usePathLinks / useArtifactLinks handle the path and
+// artifact chips.
 export function MessageAssistant({ text, cwd = null }) {
   const ref = useRef(null);
   const prefs = usePathPrefs();
   const base = useMemo(() => withArtifactChips(withCopyButtons(renderMarkdown(text))), [text]);
   const html = usePathChips(base, cwd, { plainText: prefs.plainText, shorten: prefs.shorten, title: !prefs.peek });
   const theme = useResolvedTheme();
-  const peek = useArtifactPeek();
 
   useMermaid(ref, html, theme);
 
   return (
-    <>
-      <div
-        ref={ref}
-        className="msg-asst md-prose"
-        onClick={onCopyClick}
-        {...peek.handlers}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-      {peek.layer}
-    </>
+    <div
+      ref={ref}
+      className="msg-asst md-prose"
+      onClick={onCopyClick}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

@@ -5,6 +5,8 @@ import { markdownToHtml } from "./markdown.js";
 const PAGE = "https://claude.ai/artifact/YBc8tWaK41fiYSKdCZ88EM";
 const CODE_PAGE = "https://claude.ai/code/artifact/9e41c7d2-1b3a-4c5d-8e9f-0a1b2c3d4e5f";
 const TYPE = "https://claude.ai/artifact/QKN21svewxgyPb6SYRqWnd";
+const PAGE_SLUG = "fc8663b5-9f93-4ff4-8a4b-ada56eec16fa";
+const CODE_SLUG = "9e41c7d2-1b3a-4c5d-8e9f-0a1b2c3d4e5f";
 
 describe("isArtifactUrl", () => {
   it("accepts artifact pages on claude.ai / claude.com, incl. preview. and a tail", () => {
@@ -39,7 +41,7 @@ describe("artifactFromTool", () => {
       { action: "publish", type_url: TYPE, title: "Subagent Chips & Panel" },
       `Created a new Artifact at ${PAGE} (version 1-a) from the Artifact type ${TYPE} (release 2-b).`,
     );
-    expect(artifactFromTool(t)).toEqual({ url: PAGE, title: "Subagent Chips & Panel", verb: "Published" });
+    expect(artifactFromTool(t)).toEqual({ url: PAGE, slug: PAGE_SLUG, title: "Subagent Chips & Panel", verb: "Published" });
   });
 
   it("marks an update and leaves a typed artifact's data file out of the title", () => {
@@ -47,12 +49,12 @@ describe("artifactFromTool", () => {
       { url: PAGE, root: "/tmp/canvas", file_path: "/tmp/canvas/project/Main.dc.html" },
       `Updated the Artifact at ${PAGE} (Version 3, version id 3-c)`,
     );
-    expect(artifactFromTool(t)).toEqual({ url: PAGE, title: null, verb: "Updated" });
+    expect(artifactFromTool(t)).toEqual({ url: PAGE, slug: PAGE_SLUG, title: null, verb: "Updated" });
   });
 
   it("titles a plain page publish by its basename", () => {
     const t = tool({ file_path: "/x/release-notes.html" }, `Published /x/release-notes.html at ${CODE_PAGE}`);
-    expect(artifactFromTool(t)).toEqual({ url: CODE_PAGE, title: "release-notes", verb: "Published" });
+    expect(artifactFromTool(t)).toEqual({ url: CODE_PAGE, slug: CODE_SLUG, title: "release-notes", verb: "Published" });
   });
 
   it("chips an open and a running update (url known up front)", () => {
@@ -83,9 +85,18 @@ describe("collectArtifacts", () => {
       { kind: "tool", tool: publish({ action: "quickstart" }, `type_url: ${TYPE}`, 6) },
     ];
     expect(collectArtifacts(blocks)).toEqual([
-      { url: PAGE, title: "Cards", ts: 4 },
-      { url: CODE_PAGE, title: "notes", ts: 3 },
+      { url: PAGE, slug: PAGE_SLUG, title: "Cards", ts: 4 },
+      { url: CODE_PAGE, slug: CODE_SLUG, title: "notes", ts: 3 },
     ]);
+  });
+
+  it("merges an artifact's two URL forms into one entry", () => {
+    const shortForm = `https://claude.ai/artifact/LYT7DezY9NMo1GzECapRkz`;
+    const blocks = [
+      { kind: "tool", tool: publish({ file_path: "/x/notes.html" }, `Published /x/notes.html at ${CODE_PAGE}`, 1) },
+      { kind: "tool", tool: publish({ url: shortForm, file_path: "/x/notes.html" }, `Updated the Artifact at ${shortForm}`, 2) },
+    ];
+    expect(collectArtifacts(blocks)).toEqual([{ url: CODE_PAGE, slug: CODE_SLUG, title: "notes", ts: 2 }]);
   });
 });
 
@@ -95,6 +106,11 @@ describe("artifactChipHtml", () => {
     expect(html).toContain('href="' + PAGE + '?a=&quot;b&quot;&amp;c"');
     expect(html).toContain('data-title="Q&amp;A &lt;b&gt;&quot;x&quot;&lt;/b&gt;"');
     expect(html).toContain('<span class="art-chip-title">Q&amp;A &lt;b&gt;"x"&lt;/b&gt;</span>');
+  });
+
+  it("carries the artifact's uuid, and none for an id that doesn't decode", () => {
+    expect(artifactChipHtml({ url: PAGE, title: "x" })).toContain(`data-art-slug="${PAGE_SLUG}"`);
+    expect(artifactChipHtml({ url: "https://claude.ai/artifact/short", title: "x" })).not.toContain("data-art-slug");
   });
 
   it("falls back to the short link when there is no title", () => {

@@ -159,6 +159,18 @@ describe("view tabs", () => {
   });
 });
 
+describe("artifact tabs", () => {
+  it("an artifact's tab is keyed by its uuid, apart from the list tab", async () => {
+    const { artifactTabId, artifactSlugOf } = await import("./panelTabs.js");
+    const slug = "9e41c7d2-1b3a-4c5d-8e9f-0a1b2c3d4e5f";
+    expect(artifactTabId(slug)).toBe(`artifact:${slug}`);
+    expect(tabType(artifactTabId(slug))).toBe("artifact");
+    expect(artifactSlugOf(artifactTabId(slug))).toBe(slug);
+    expect(artifactSlugOf("artifacts")).toBe(null);
+    expect(artifactSlugOf(null)).toBe(null);
+  });
+});
+
 describe("workflow tabs", () => {
   it("a Workflow run's tab names its conversation and call", async () => {
     const { workflowTabId, workflowRefOf } = await import("./panelTabs.js");

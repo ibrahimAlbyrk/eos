@@ -1104,6 +1104,19 @@ export const api = {
     return r.ok ? r.body : null;
   },
 
+  // The artifact catalog (contracts/src/artifacts.ts ArtifactCatalog), ui-token.
+  async getArtifacts() {
+    const r = await getJson(ROUTES.artifacts, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `getArtifacts → ${r.status}`);
+    return r.body;
+  },
+  // Re-reads every sign-in now and answers with the new catalog.
+  async refreshArtifacts() {
+    const r = await postJson(ROUTES.artifactsRefresh, {}, uiTokenHeader());
+    if (!r.ok) throw new Error(r.body?.error ?? `refreshArtifacts → ${r.status}`);
+    return r.body;
+  },
+
   async getWorkerDiff(id, { signal } = {}) {
     try {
       const r = await getJson(ROUTES.workerDiff(id), { signal });

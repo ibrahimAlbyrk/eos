@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { useUi } from "../../../state/ui.jsx";
 import { SidePanelScopeContext, SidePanelVisibleContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType, filePathOf, pageIdOf, viewIdOf, workflowRefOf } from "../../../lib/panelTabs.js";
+import { tabType, filePathOf, pageIdOf, viewIdOf, workflowRefOf, artifactSlugOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
@@ -11,6 +11,7 @@ import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js"
 import { fetchViewRecord, getViewRecord, useViewRecordsVersion, viewTitleOf } from "../../../genui/panel/viewRecords.js";
 import { fetchWorkflowRun, getWorkflowRun, useWorkflowRunsVersion } from "../../../state/workflowRunsStore.js";
 import { workflowNameOf } from "../../../lib/workflowRuns.js";
+import { ensureArtifactCatalog, getArtifactCatalog, useArtifactCatalog } from "../../../state/artifactCatalogStore.js";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
 import { SidePanelTabs } from "./SidePanelTabs.jsx";
@@ -40,14 +41,14 @@ const DEFAULT_PANEL_FRAC = 0.4; // of the window
 
 // The launcher's tools, in order. The Code view passes its own subset (no
 // agent-bound tabs).
-const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "transfer", "jobs", "btw"];
+const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "artifacts", "transfer", "jobs", "btw"];
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
 
 // Pill label for a tab id. A file tab shows its file name, a page its title.
 // Terminals are numbered ("Terminal 1", "Terminal 2") only when more than one is
 // open; a lone one keeps the bare name.
-function labelFor(id, openTabs) {
+function labelFor(id, openTabs, panelData) {
   const filePath = filePathOf(id);
   if (filePath) return baseName(filePath);
   const pageId = pageIdOf(id);
@@ -60,6 +61,11 @@ function labelFor(id, openTabs) {
   if (viewId) {
     const title = viewTitleOf(viewId);
     return title ? `View · ${title}` : TAB_LABELS.view;
+  }
+  const slug = artifactSlugOf(id);
+  if (slug) {
+    const entry = getArtifactCatalog().artifacts.find((a) => a.slug === slug);
+    return entry?.title || panelData?.[id]?.title || TAB_LABELS.artifact;
   }
   const run = workflowRefOf(id);
   if (run) {
@@ -130,6 +136,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
   useViewRecordsVersion();
   // Workflow tabs are labelled by the run's name, fetched the same way.
   useWorkflowRunsVersion();
+  // Artifact tabs by the artifact's title, from the catalog.
+  useArtifactCatalog({ load: false });
   const tabsKey = openTabs.join("\n");
   useEffect(() => {
     for (const id of tabsKey.split("\n")) {
@@ -137,6 +145,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
       if (viewId && !getViewRecord(viewId)) void fetchViewRecord(viewId);
       const run = workflowRefOf(id);
       if (run) void fetchWorkflowRun(run.workerId, run.callId);
+      if (artifactSlugOf(id)) ensureArtifactCatalog();
     }
   }, [tabsKey]);
 
@@ -229,7 +238,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
             <TabPill
               key={id}
               id={id}
-              label={labelFor(id, openTabs)}
+              label={labelFor(id, openTabs, ui.panelData)}
               active={id === activeTab}
               onSelect={() => ui.setTab(id)}
               onClose={() => closeTabById(id)}

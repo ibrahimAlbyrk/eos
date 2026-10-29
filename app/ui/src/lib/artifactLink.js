@@ -1,7 +1,9 @@
-// claude.ai Artifact links (pages published with Claude Code's Artifact tool)
-// rendered as a small glass chip: in the Artifact tool's row and in place of an
-// artifact link in assistant prose. Hover peeks (ArtifactPeek.jsx), click opens.
+// claude.ai Artifact links (pages published with Claude Code's Artifact tool):
+// the Artifact tool call's page (its row shows views/artifacts/ArtifactCard.jsx)
+// and a small glass chip in place of an artifact link in assistant prose. Both
+// carry data-art-slug, which hooks/useArtifactLinks.jsx reads to peek and open.
 import { escapeHtml } from "./markdown.js";
+import { artifactSlugFromUrl } from "../../../../contracts/src/artifact-ids.ts";
 
 const ARTIFACT_URL = /https:\/\/(?:preview\.)?claude\.(?:ai|com)\/(?:code\/)?artifact\/[A-Za-z0-9-]+/;
 const ARTIFACT_HREF = new RegExp(`^${ARTIFACT_URL.source}(?:[/?#][^\\s]*)?$`);
@@ -21,6 +23,7 @@ export function artifactLabel(url) {
 // The page an Artifact tool call points at, or null. Only `publish` (the default
 // action) and `open` name a page — quickstart/list/read results also carry
 // claude.ai/artifact links (types, other pages) that must not become chips.
+// `slug` is the artifact's uuid (null for a URL whose id doesn't decode).
 export function artifactFromTool(t) {
   const input = t?.input ?? {};
   const action = input.action ?? "publish";
@@ -33,26 +36,33 @@ export function artifactFromTool(t) {
   // a plain page's basename is its title when none is given; a typed artifact's
   // file_path (under `root`) is a data file, not a name
   const title = input.title ?? (input.root ? null : PAGE_FILE.exec(input.file_path ?? "")?.[1]) ?? null;
-  return { url, title, verb };
+  return { url, slug: artifactSlugFromUrl(url), title, verb };
 }
 
 // Every artifact this transcript published or opened — its own Artifact calls
-// and its subagents' — one entry per page, newest activity first. A page keeps
-// the first title it was given (later updates of a typed artifact carry none).
+// and its subagents' — one entry per page (either URL form), newest activity
+// first. A page keeps the first title it was given (later updates of a typed
+// artifact carry none).
 export function collectArtifacts(blocks) {
-  const byUrl = new Map();
+  const byKey = new Map();
   const visit = (tool) => {
     if (tool?.name !== "Artifact") return;
     const artifact = artifactFromTool(tool);
     if (!artifact) return;
-    const prev = byUrl.get(artifact.url);
-    byUrl.set(artifact.url, { url: artifact.url, title: prev?.title ?? artifact.title, ts: tool.ts ?? prev?.ts ?? 0 });
+    const key = artifact.slug ?? artifact.url;
+    const prev = byKey.get(key);
+    byKey.set(key, {
+      url: prev?.url ?? artifact.url,
+      slug: artifact.slug,
+      title: prev?.title ?? artifact.title,
+      ts: tool.ts ?? prev?.ts ?? 0,
+    });
   };
   for (const b of blocks) {
     if (b.kind === "tool") visit(b.tool);
     else if (b.kind === "toolGroup" || b.kind === "agentRun") b.tools?.forEach(visit);
   }
-  return [...byUrl.values()].sort((a, b) => b.ts - a.ts);
+  return [...byKey.values()].sort((a, b) => b.ts - a.ts);
 }
 
 const WINDOW_ICON =
@@ -62,16 +72,19 @@ const ARROW_ICON =
 
 const escapeAttr = (s) => escapeHtml(s).replace(/"/g, "&quot;");
 
-// The one chip markup, shared by the tool row (React) and prose (HTML string).
+// A prose chip. Without data-art-slug (an id that doesn't decode) it stays a
+// plain link to claude.ai.
 export function artifactChipHtml({ url, title }) {
+  const slug = artifactSlugFromUrl(url);
+  const dataSlug = slug ? ` data-art-slug="${slug}"` : "";
   const dataTitle = title ? ` data-title="${escapeAttr(title)}"` : "";
-  return `<a class="art-chip" href="${escapeAttr(url)}"${dataTitle}>`
+  return `<a class="art-chip" href="${escapeAttr(url)}" target="_blank" rel="noopener noreferrer"${dataSlug}${dataTitle}>`
     + `<span class="art-chip-thumb">${WINDOW_ICON}</span>`
     + `<span class="art-chip-title">${escapeHtml(title || artifactLabel(url))}</span>`
     + `${ARROW_ICON}</a>`;
 }
 
-const ENTITIES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
+const ENTITIES = { "&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&#39;": "'", "&nbsp;": " " };
 const decodeHtml = (s) => s.replace(/&(?:amp|lt|gt|quot|#39|nbsp);/g, (m) => ENTITIES[m]);
 const looksLikeUrl = (text) => /^(?:https?:\/\/)?(?:preview\.)?claude\.(?:ai|com)\//.test(text);
 

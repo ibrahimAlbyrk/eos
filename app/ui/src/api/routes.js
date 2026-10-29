@@ -220,6 +220,10 @@ export const ROUTES = {
   // Subscription usage snapshot (Settings > Usage) — open read; daemon answers
   // from its held UsageResponse at once (`?wait=1` waits for a stale one's refresh).
   usage: "/api/usage",
+  // Every artifact of every Claude sign-in (contracts/src/artifacts.ts) —
+  // ui-token, this Mac only.
+  artifacts: "/api/artifacts",
+  artifactsRefresh: "/api/artifacts/refresh",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
   // A configured provider's available models (two-level composer picker).

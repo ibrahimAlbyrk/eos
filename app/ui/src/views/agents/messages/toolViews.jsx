@@ -28,7 +28,7 @@ import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText, killedBranch } from "./WorkerToolCard.jsx";
 import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
 import { artifactFromTool } from "../../../lib/artifactLink.js";
-import { ArtifactChip } from "./ArtifactChip.jsx";
+import { ArtifactCard } from "../../artifacts/ArtifactCard.jsx";
 import { WebSearchDetail, WebFetchDetail } from "./WebToolCards.jsx";
 import { parseWebSearch, groupBySite, splitUrl } from "../../../lib/webSources.js";
 import { PAGE_TOOL_VIEWS } from "./PageToolViews.jsx";
@@ -187,9 +187,9 @@ register("WebFetch", {
   Detail: WebFetchDetail,
 });
 
-// A published/opened claude.ai artifact is one line: verb + the link chip (hover
-// peeks, click opens) — nothing to expand. Every other Artifact call
-// (quickstart, list, read, uploads, failures) keeps the generic row.
+// A published/opened claude.ai artifact is the verb over the artifact's card
+// (hover peeks, click opens its tab) — nothing to expand. Every other Artifact
+// call (quickstart, list, read, uploads, failures) keeps the generic row.
 register("Artifact", {
   label: (t) => {
     const artifact = artifactFromTool(t);
@@ -202,7 +202,7 @@ register("Artifact", {
   expandable: (t) => !artifactFromTool(t) && genericExpandable(t),
   headerBadge: (t) => {
     const artifact = artifactFromTool(t);
-    return artifact && <ArtifactChip url={artifact.url} title={artifact.title} />;
+    return artifact && <ArtifactCard artifact={{ ...artifact, ts: t.ts }} />;
   },
 });
 

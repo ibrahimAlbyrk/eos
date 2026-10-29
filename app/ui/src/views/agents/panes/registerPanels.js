@@ -19,6 +19,8 @@ import { ViewPanel } from "../../../genui/panel/ViewPanel.jsx";
 import { WorkflowPanel } from "../workflow/WorkflowPanel.jsx";
 import { JobsPanel } from "../../jobs/JobsPanel.jsx";
 import { SideQuestionPanel } from "../../btw/SideQuestionPanel.jsx";
+import { ArtifactPanel } from "../../artifacts/ArtifactPanel.jsx";
+import { ArtifactsPanel } from "../../artifacts/ArtifactsPanel.jsx";
 
 registerPanel({ type: "review", label: "Changes", Component: GitDiffViewer });
 registerPanel({ type: "files", label: "Files", Component: FilesPanel });
@@ -40,3 +42,9 @@ registerPanel({ type: "btw", label: "/btw", Component: SideQuestionPanel });
 registerPanel({ type: "view", label: "View", Component: ViewPanel });
 // A Workflow run's live view, opened from its card (workflow:<workerId>/<callId>).
 registerPanel({ type: "workflow", label: "Workflow", Component: WorkflowPanel });
+// A claude.ai artifact (artifact:<slug>). Kept mounted while hidden, unlike the
+// browser: its native view is shown and hidden through the bridge (setVisible),
+// and staying mounted keeps it attached for an instant switch back.
+registerPanel({ type: "artifact", label: "Artifact", Component: ArtifactPanel });
+// Every artifact of every Claude sign-in.
+registerPanel({ type: "artifacts", label: "Artifacts", Component: ArtifactsPanel });

@@ -47,6 +47,15 @@ export function viewIdOf(id) {
   return id && tabType(id) === "view" ? id.slice("view:".length) : null;
 }
 
+// A claude.ai Artifact, keyed by its uuid (one tab per artifact).
+export function artifactTabId(slug) {
+  return `artifact:${slug}`;
+}
+
+export function artifactSlugOf(id) {
+  return id && tabType(id) === "artifact" ? id.slice("artifact:".length) : null;
+}
+
 // A Workflow run's live view, keyed by the conversation and the Workflow call
 // (the tab rebuilds from GET /workers/:id/workflow-runs/:callId).
 export function workflowTabId(workerId, callId) {

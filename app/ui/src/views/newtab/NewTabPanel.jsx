@@ -10,6 +10,7 @@ import { useSubagents } from "../../state/subagentsStore.js";
 import { isActive, useTransfers } from "../../state/transfersStore.js";
 import { explorer } from "../../state/explorerStore.js";
 import { useFeature } from "../../state/featuresStore.js";
+import { useArtifactCatalog } from "../../state/artifactCatalogStore.js";
 import { resolveOmnibox } from "../../lib/omnibox.js";
 import { pageTabId } from "../../lib/panelTabs.js";
 import { fmtTimeAgo } from "../../lib/format.js";
@@ -25,7 +26,7 @@ import { shortcutLabel } from "../../lib/platform.js";
 // opens takes this tab's place (ui.replaceTab). `tabId` is null when it stands
 // in for an empty panel — then it opens a tab instead.
 
-const AGENT_TOOLS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "transfer"];
+const AGENT_TOOLS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "artifacts", "transfer"];
 const SIGIL_CHIPS = [
   { sigil: "#", label: "Pages" },
   { sigil: "@", label: "Files" },
@@ -46,6 +47,8 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
   const mode = resolveOmnibox(text);
   // Transfer moves files between paired computers — not where this one can't pair.
   const remote = useFeature("remote");
+  // The artifact list is this Mac's own — not in a view of another computer.
+  const artifacts = useArtifactCatalog({ load: false }).available;
 
   // Ready to type when opened from the panel (the + button) — but never pull
   // focus out of the composer when a launcher merely shows up on load.
@@ -127,7 +130,7 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
         <section className="nt-section" aria-label="Tools">
           <h2 className="nt-label">Tools</h2>
           <div className="nt-tools">
-            {tools.filter((t) => t !== "browser" && (remote || t !== "transfer")).map((type) => (
+            {tools.filter((t) => t !== "browser" && (remote || t !== "transfer") && (artifacts || t !== "artifacts")).map((type) => (
               <button key={type} type="button" className="nt-tool" onClick={() => openTool(type)}>
                 <span className="nt-tool__icon">{TAB_ICONS[type]}</span>
                 <span className="nt-tool__text">
@@ -213,6 +216,7 @@ function ToolMeta({ type, scope }) {
   if (type === "review") return <DiffMeta workerId={scope.workerId} />;
   if (type === "subagents") return <SubagentMeta workerId={scope.workerId} />;
   if (type === "transfer") return <TransferMeta />;
+  if (type === "artifacts") return <ArtifactsMeta />;
   const folder = baseName(scope.project);
   const text = {
     terminal: folder ? `Shell in ${folder}` : "Shell",
@@ -252,6 +256,11 @@ function TransferMeta() {
   const list = useTransfers();
   const moving = (list ?? []).filter(isActive).length;
   return <span className="nt-tool__meta">{moving ? `${moving} copying` : "Between your Macs"}</span>;
+}
+
+function ArtifactsMeta() {
+  const { loaded, artifacts } = useArtifactCatalog({ load: false });
+  return <span className="nt-tool__meta">{loaded && artifacts.length ? `${artifacts.length} on claude.ai` : "From your Claude accounts"}</span>;
 }
 
 function Suggested({ onOpen }) {

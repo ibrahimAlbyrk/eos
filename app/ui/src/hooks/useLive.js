@@ -51,6 +51,7 @@ import { applyFeatures } from "../state/featuresStore.js";
 import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
 import { applyWorkflowProgress, resyncWorkflowRuns } from "../state/workflowRunsStore.js";
 import { applyJobsChange, resyncJobs } from "../state/jobsStore.js";
+import { applyArtifactsChange, resyncArtifactCatalog } from "../state/artifactCatalogStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
 
 const POLL_MS = 4000;
@@ -231,6 +232,7 @@ export function useLive() {
         resyncGenuiStreams();
         resyncWorkflowRuns();
         resyncJobs();
+        resyncArtifactCatalog();
       },
       onChange: (e) => {
         try {
@@ -299,6 +301,9 @@ export function useLive() {
           if (data.reason === "workflow:progress") { applyWorkflowProgress(data.payload ?? {}); return; }
           // A background job started, moved on or ended — the beacon and the Jobs tab.
           if (data.reason === "jobs:change") { applyJobsChange(data.payload); return; }
+          // The artifact catalog changed (a sign-in re-read, an agent published) —
+          // a bare signal; the catalog itself is read from this Mac's route.
+          if (data.reason === "artifacts:change") { applyArtifactsChange(); return; }
           // The `!` command's start feeds only the jobs registry; its run arrives as terminal:chunk.
           if (data.reason === "terminal:start") return;
           // Transient goal-check progress (loop tick) — drive the live "checking"

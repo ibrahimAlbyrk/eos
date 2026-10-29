@@ -1,0 +1,366 @@
+/* claude.ai artifacts (views/artifacts/): the Artifact tool row's card, the
+   glass hover peek, the artifact tab's slot and the Artifacts list. The live
+   page is a native view main places over the peek's slot and the tab's slot —
+   what's drawn there is only what shows under it (the still, a tinted tile).
+   The tab's floating toolbar lives inside that view (app preload), not here.
+   Before glass.css, after menus.css: .art-peek's position wins over .glass-pop's. */
+
+/* ── tints ─────────────────────────────────────────────────────────────────
+   claude.ai names an artifact's colour; map the names onto the palette.
+   Accounts get distinct avatar tints by their place in the catalog. */
+:is(.art-tile, .art-peek__under, .art-tab-ph) {
+  &:is([data-tint="blue"], [data-tint="sky"], [data-tint="cyan"], [data-tint="indigo"]) { --art-c: var(--accent); }
+  &:is([data-tint="violet"], [data-tint="purple"], [data-tint="lavender"], [data-tint="magenta"]) { --art-c: var(--violet); }
+  &:is([data-tint="green"], [data-tint="teal"], [data-tint="emerald"], [data-tint="lime"], [data-tint="mint"]) { --art-c: var(--ok); }
+  &:is([data-tint="yellow"], [data-tint="amber"], [data-tint="orange"], [data-tint="gold"], [data-tint="sand"]) { --art-c: var(--warn); }
+  &:is([data-tint="red"], [data-tint="pink"], [data-tint="rose"], [data-tint="coral"], [data-tint="clay"]) { --art-c: var(--err); }
+}
+.art-av[data-av="0"] { --av-c: var(--accent); }
+.art-av[data-av="1"] { --av-c: var(--violet); }
+.art-av[data-av="2"] { --av-c: var(--ok); }
+.art-av[data-av="3"] { --av-c: var(--warn); }
+.art-av[data-av="4"] { --av-c: var(--err); }
+
+/* ── shared pieces ─────────────────────────────────────────────────────── */
+.art-thumb,
+.art-tile {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid rgba(var(--tint), 0.06);
+}
+.art-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.art-tile {
+  color: color-mix(in srgb, var(--art-c, var(--fg-dim2)) 75%, var(--fg-strong));
+  background: color-mix(in srgb, var(--art-c, var(--fg-mute)) 14%, var(--panel));
+}
+.art-tile__emoji { font-size: 16px; line-height: 1; }
+
+.art-av {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: var(--r-pill);
+  font-weight: 600;
+  line-height: 1;
+  color: color-mix(in srgb, var(--av-c, var(--fg-dim)) 70%, var(--fg-strong));
+  background: color-mix(in srgb, var(--av-c, var(--fg-mute)) 22%, var(--panel));
+}
+.art-av--md { width: 20px; height: 20px; font-size: 11px; }
+.art-av--sm { width: 16px; height: 16px; font-size: 10px; }
+
+.art-dot { flex-shrink: 0; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--fg-dim2); }
+.art-dot--live { background: var(--ok); }
+.art-dot--warn { background: var(--warn); }
+.art-dot--err { background: var(--err); }
+.art-dot--loading { animation: d-breathe 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .art-dot--loading { animation: none; } }
+
+.art-kbd { font-size: 11px; color: var(--fg-dim); }
+
+.sp-tab-icon .art-tab-glyph { color: var(--accent-hover); }
+
+/* ── card (Artifact tool row) ─────────────────────────────────────────────
+   The row's header wraps so the card sits on its own line under the verb. */
+.tool-item-header:has(> .art-card) { flex-wrap: wrap; row-gap: 6px; padding-bottom: 6px; }
+.tool-item-header > .art-card { flex: 1 0 100%; max-width: 420px; }
+.art-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 420px;
+  max-width: 100%;
+  padding: 9px 12px 9px 9px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--pop);
+  color: inherit;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+.art-card:hover {
+  border-color: rgba(var(--tint), 0.13);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.art-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.art-card__thumb { width: 46px; height: 36px; border-radius: 7px; }
+.art-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.art-card__title,
+.art-card__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-card__title { font-weight: 500; color: var(--fg-strong); }
+.art-card__meta { font-size: var(--text-xs); color: var(--fg-dim2); }
+.art-card__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  transition: color 160ms ease;
+}
+.art-card:hover .art-card__open { color: var(--fg); }
+
+/* ── hover peek ───────────────────────────────────────────────────────────
+   Fixed size (lib/artifacts.js PEEK_W × PEEK_H): main sizes the live view to
+   the slot's rect when it opens, so the host never rises — only its content
+   fades in. */
+.art-peek {
+  position: fixed;
+  z-index: 420;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  width: 420px;
+  height: 274px;
+  padding: 8px;
+  border-radius: var(--r-modal);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--fg);
+  text-decoration: none;
+  animation: none;
+}
+.art-peek > * { animation: lg-fade-in 160ms ease backwards; }
+@media (prefers-reduced-motion: reduce) { .art-peek > * { animation: none; } }
+.art-peek__slot {
+  position: relative;
+  flex: 0 0 226px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.06);
+}
+.art-peek__under {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 200ms ease;
+}
+.art-peek__under[data-tint] { background: color-mix(in srgb, var(--art-c, transparent) 8%, var(--bg)); }
+.art-peek__slot.is-live .art-peek__under { opacity: 0; }
+.art-peek__still { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top center; }
+.art-peek__ph {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 0 24px;
+  box-sizing: border-box;
+  color: var(--fg-dim2);
+}
+.art-peek__emoji { font-size: 28px; line-height: 1; }
+.art-peek__ph-title {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.art-peek__foot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 0;
+  white-space: nowrap;
+}
+.art-peek__status { color: var(--fg-mid); }
+.art-peek__acct { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--fg-dim2); }
+.art-peek__hint { margin-left: auto; flex-shrink: 0; color: var(--fg-dim2); }
+.art-peek:hover .art-peek__hint { color: var(--fg-mid); }
+
+/* ── artifact tab ─────────────────────────────────────────────────────────
+   The slot main lays the live view over (radius 12). Its left margin clears
+   the side panel's resize strip, which the native view would cover. */
+.panel-shell--artifact { display: flex; flex-direction: column; }
+.art-tab-slot {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  margin: 2px 8px 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.art-tab-still {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  pointer-events: none;
+  user-select: none;
+}
+.art-tab-ph {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 32px 8vh;
+  color: var(--fg-mute);
+}
+.art-tab-ph[data-tint] { background: color-mix(in srgb, var(--art-c, transparent) 6%, var(--bg)); }
+.art-tab-ph__emoji { font-size: 36px; line-height: 1; }
+.art-tab-ph__title { font-size: var(--text-md); font-weight: 500; color: var(--fg-dim); text-align: center; }
+.art-tab-ph__note { font-size: var(--text-sm); }
+.art-tab-msg { max-width: 420px; margin: 0 auto; }
+.art-tab-msg .empty-state__action:disabled { cursor: default; opacity: 0.6; }
+
+/* ── Artifacts list ───────────────────────────────────────────────────── */
+.panel-shell--artifacts { display: flex; flex-direction: column; }
+.art-list-head { display: flex; flex-direction: column; gap: 10px; padding: 6px 16px 10px; }
+.art-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: var(--r-card);
+  background: var(--raised);
+  color: var(--fg-dim2);
+  cursor: text;
+  transition: box-shadow 160ms ease;
+}
+.art-search:focus-within { box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.12); }
+.art-search__input { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--fg); }
+.art-search__input::-webkit-search-cancel-button { display: none; }
+
+.art-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: var(--text-xs); }
+.art-filters__spacer { flex: 1; }
+.art-fchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-pill);
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.art-fchip--acct { padding-left: 3px; }
+.art-fchip:hover { color: var(--fg-mid); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.art-fchip.is-on { border-color: transparent; color: var(--fg-strong); background: var(--chip); box-shadow: none; }
+.art-fchip:focus-visible,
+.art-rel:has(:focus-visible),
+.art-refresh:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.art-rel {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 7px;
+  color: var(--fg-dim);
+  transition: background 160ms ease, color 160ms ease;
+}
+.art-rel:hover { color: var(--fg-mid); background: var(--lg-chip-bg); }
+.art-rel__select {
+  appearance: none;
+  height: 24px;
+  padding: 0 24px 0 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-xs);
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+}
+.art-rel > svg { position: absolute; right: 7px; pointer-events: none; }
+
+.art-list { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; padding: 0 8px 8px; }
+.art-list__loading { padding: 18px 10px; font-size: var(--text-sm); color: var(--fg-faint); }
+.art-list__empty { padding-top: 48px; }
+.art-group { display: flex; flex-direction: column; padding-bottom: 10px; }
+.art-group__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 10px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-dim2);
+}
+.art-group__label { flex-shrink: 0; }
+.art-group__count { flex-shrink: 0; font-weight: 400; letter-spacing: 0; }
+.art-group__err {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--warn);
+}
+.art-group__rule { flex: 1 1 16px; min-width: 16px; height: 1px; background: var(--line); }
+
+.art-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: var(--r-item);
+  color: inherit;
+  text-decoration: none;
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+.art-row:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.art-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.art-row__thumb { width: 48px; height: 32px; border-radius: var(--r-icon); }
+.art-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.art-row__title,
+.art-row__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-row__title { font-weight: 500; color: var(--fg-strong); }
+.art-row__meta { font-size: var(--text-xs); color: var(--fg-dim2); }
+.art-row__here {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  color: var(--accent-hover);
+  background: var(--accent-soft);
+}
+.art-row__ago { flex-shrink: 0; width: 72px; text-align: right; white-space: nowrap; font-size: var(--text-xs); color: var(--fg-dim2); }
+
+.art-list-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px 12px 18px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--fg-dim2);
+}
+.art-list-foot__text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-refresh {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim);
+  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease;
+}
+.art-refresh:hover:not(:disabled) { color: var(--fg-mid); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
+.art-refresh:disabled { cursor: default; }
+.art-refresh.is-spinning > svg { animation: eos-spin 0.9s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .art-refresh.is-spinning > svg { animation: none; } }

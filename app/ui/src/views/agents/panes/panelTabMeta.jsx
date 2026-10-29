@@ -18,6 +18,8 @@ export const TAB_ICONS = {
   jobs: <JobsTabIcon />,
   view: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2.5" width="12" height="11" rx="2.5" /><path d="M2 6h12M6 6v7.5" /></svg>,
   workflow: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"><circle cx="3.5" cy="8" r="2" /><circle cx="12.5" cy="3.5" r="2" /><circle cx="12.5" cy="12.5" r="2" /><path d="M5.5 8H8M8 3.5v9M8 3.5h2.5M8 12.5h2.5" /></svg>,
+  artifact: <svg className="art-tab-glyph" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5" /><path d="M2.5 6h11" /></svg>,
+  artifacts: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="2.5" y="9" width="4.5" height="4.5" rx="1" /><rect x="9" y="9" width="4.5" height="4.5" rx="1" /></svg>,
   btw: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M13.5 7.5a5.5 5.5 0 0 1-8.1 4.8L2.5 13.5l1.1-2.8A5.5 5.5 0 1 1 13.5 7.5Z" /><path d="M6.7 6.2a1.4 1.4 0 1 1 1.9 1.3c-.4.2-.6.5-.6.9v.2" /><path d="M8 10.4h.01" /></svg>,
 };
 
@@ -34,6 +36,8 @@ export const TAB_LABELS = {
   jobs: "Jobs",
   view: "View",
   workflow: "Workflow",
+  artifact: "Artifact",
+  artifacts: "Artifacts",
   btw: "/btw",
 };
 

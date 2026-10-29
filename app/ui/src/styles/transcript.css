@@ -1643,10 +1643,9 @@
 .md-prose a { color: var(--accent); text-decoration: none; }
 .md-prose a:hover { text-decoration: underline; }
 
-/* ── artifact chip — a claude.ai artifact link as a small glass pill, in the
-   Artifact tool row and in prose (lib/artifactLink.js); hover opens .art-peek
-   (menus.css) ───────────────────────────────────────────────────────────── */
-.art-chip-host { display: inline-flex; min-width: 0; }
+/* ── artifact chip — a claude.ai artifact link in prose as a small glass pill
+   (lib/artifactLink.js); hover opens .art-peek, the Artifact tool row's card
+   is .art-card (artifacts.css) ──────────────────────────────────────────── */
 .art-chip,
 .md-prose a.art-chip {
   display: inline-flex;

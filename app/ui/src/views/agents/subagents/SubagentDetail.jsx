@@ -10,6 +10,8 @@ import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageRow } from "../messages/MessageRow.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
 import { usePathLinks } from "../messages/paths/usePathLinks.jsx";
+import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
+import { joinHandlers } from "../../../lib/joinHandlers.js";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 
 // Inner tools as transcript blocks (lone tools and grouped runs), in ToolItem's
@@ -37,6 +39,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const pathLinks = usePathLinks({ cwd });
+  const artifactLinks = useArtifactLinks();
   const effort = run.effort ? EFFORT_LABELS[run.effort] ?? run.effort : null;
   const meta = [run.subagentType, modelName(run.model), effort].filter(Boolean).join(" · ");
 
@@ -52,7 +55,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
       </div>
       <ScrollHoldContext.Provider value={stick.hold}>
         <div className="sa-detail__scroll" ref={stick.scrollerRef}>
-          <div className="sa-detail__body" ref={stick.contentRef} {...pathLinks.handlers}>
+          <div className="sa-detail__body" ref={stick.contentRef} {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
             {run.runs.map((r, i) => (
               <Fragment key={r.toolUseId}>
                 {i > 0 && <div className="sa-detail__sep" />}
@@ -60,6 +63,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
               </Fragment>
             ))}
             {pathLinks.layer}
+            {artifactLinks.layer}
           </div>
         </div>
       </ScrollHoldContext.Provider>

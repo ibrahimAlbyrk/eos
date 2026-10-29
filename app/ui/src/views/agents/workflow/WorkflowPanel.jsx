@@ -15,6 +15,8 @@ import { fmtTokens } from "../../../lib/format.js";
 import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
 import { usePathLinks } from "../messages/paths/usePathLinks.jsx";
+import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
+import { joinHandlers } from "../../../lib/joinHandlers.js";
 import { AgentGlyph, StatusChip, StopButton, WorkflowIcon, fmtTime, totalsLine } from "./parts.jsx";
 import { RunLog } from "./WorkflowCard.jsx";
 
@@ -170,6 +172,7 @@ function AgentDrawer({ agent, phase, workerId, callId, cwd, workers }) {
   ].filter(Boolean).join(" · ");
   const outcome = agent.state === "error" ? agent.error : agent.resultPreview;
   const pathLinks = usePathLinks({ cwd });
+  const artifactLinks = useArtifactLinks();
 
   return (
     <section className="wr-drawer" aria-label={agent.label}>
@@ -201,11 +204,12 @@ function AgentDrawer({ agent, phase, workerId, callId, cwd, workers }) {
               : blocks.length === 0
                 ? <p className="wr-drawer__note">No activity yet.</p>
                 : (
-                  <div className="wr-activity" {...pathLinks.handlers}>
+                  <div className="wr-activity" {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
                     {blocks.map((b, i) => (b.kind === "assistant"
                       ? <div key={`a${i}`} className="wr-activity__text"><MessageAssistant text={b.text} cwd={cwd} /></div>
                       : <ToolBlock key={(b.tool ?? b.tools[0]).id} block={b} cwd={cwd} workers={workers} />))}
                     {pathLinks.layer}
+                    {artifactLinks.layer}
                   </div>
                 )}
         </div>

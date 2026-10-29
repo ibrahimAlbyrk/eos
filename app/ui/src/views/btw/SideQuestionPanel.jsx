@@ -8,6 +8,8 @@ import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { MessageAssistant } from "../agents/messages/MessageAssistant.jsx";
 import { usePathLinks } from "../agents/messages/paths/usePathLinks.jsx";
+import { useArtifactLinks } from "../artifacts/useArtifactLinks.jsx";
+import { joinHandlers } from "../../lib/joinHandlers.js";
 
 // Side-panel tab: the /btw side question for this pane's agent — the question,
 // its read-only answer from the agent's live conversation, and a field to ask
@@ -27,6 +29,7 @@ export function SideQuestionPanel({ live }) {
   const inputRef = useRef(null);
   const focusAt = ui.panelData?.btw?.focus ?? null;
   const pathLinks = usePathLinks({ cwd: worker?.cwd ?? null });
+  const artifactLinks = useArtifactLinks();
 
   useEffect(() => { if (focusAt) inputRef.current?.focus(); }, [focusAt]);
   useEffect(() => {
@@ -61,9 +64,10 @@ export function SideQuestionPanel({ live }) {
             )}
             {entry.status === "done" && (
               <>
-                <div className="btw__answer" {...pathLinks.handlers}>
+                <div className="btw__answer" {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
                   <MessageAssistant text={entry.answer} cwd={worker?.cwd ?? null} />
                   {pathLinks.layer}
+                  {artifactLinks.layer}
                 </div>
                 <div className="btw__actions">
                   <button type="button" className="btw__add" onClick={addToChat}>

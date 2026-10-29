@@ -73,6 +73,9 @@ import { GenuiHostContext } from "../../../genui/runtime/host.jsx";
 import { stableGenuiIndex, isFinalViewBlock } from "../../../genui/runtime/conversation.js";
 import { subscribe as subscribeGenui, streamsFor as liveViewsFor, dropStream as dropViewStream } from "../../../genui/streamStore.js";
 import { usePathLinks } from "./paths/usePathLinks.jsx";
+import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
+import { NewestArtifactContext } from "../../artifacts/ArtifactCard.jsx";
+import { joinHandlers } from "../../../lib/joinHandlers.js";
 import { AccountSwitchLine } from "./AccountSwitchLine.jsx";
 import { AccountsExhaustedRow } from "./AccountsExhaustedRow.jsx";
 
@@ -577,6 +580,7 @@ export function Messages({ live, agentId, isActive = true }) {
   }, [items]);
   const blockIndex = useMemo(() => new Map(blocks.map((b, i) => [b, i])), [blocks]);
   const pathLinks = usePathLinks({ cwd: selectedWorker?.cwd ?? null });
+  const artifactLinks = useArtifactLinks();
 
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
@@ -725,10 +729,11 @@ export function Messages({ live, agentId, isActive = true }) {
   return (
     <ScrollHoldContext.Provider value={stick.hold}>
     <GenuiHostContext.Provider value={genuiHost}>
+    <NewestArtifactContext.Provider value={artifacts[0]?.slug ?? null}>
     <div className="messages-frame">
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
-      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef} {...pathLinks.handlers}>
+      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef} {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
         {!selectedId && <NewTaskHero project={newSessionProject(ui.composer, live.recents, projects).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
@@ -749,6 +754,7 @@ export function Messages({ live, agentId, isActive = true }) {
         {items.map((it) => (it.kind === "fold" ? renderFold(it) : renderRow(it.block, it.index)))}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
         {pathLinks.layer}
+        {artifactLinks.layer}
         {showAnchor && !showCheck && !compaction.pending && (
           <ProcessingLine
             busy={agentBusy}
@@ -765,6 +771,7 @@ export function Messages({ live, agentId, isActive = true }) {
       <TurnRail turns={turns} scrollerRef={wrapRef} contentRef={contentRef} busy={agentBusy} onJump={jumpToTurn} />
     )}
     </div>
+    </NewestArtifactContext.Provider>
     </GenuiHostContext.Provider>
     </ScrollHoldContext.Provider>
   );

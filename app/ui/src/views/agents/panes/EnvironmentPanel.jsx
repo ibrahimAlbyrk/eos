@@ -15,6 +15,7 @@ import { openSubagents } from "../subagents/openSubagents.js";
 import { ToolIcon } from "../messages/ToolIcon.jsx";
 import { useArtifacts } from "../../../state/artifactsStore.js";
 import { artifactLabel } from "../../../lib/artifactLink.js";
+import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
 import { openFolder } from "../../files/openFolder.js";
 import { modDown } from "../../../lib/platform.js";
 
@@ -98,7 +99,7 @@ function EnvPanel({ ui, live, worker }) {
       </button>
 
       <SubagentsSection ui={ui} workerId={worker.id} />
-      <ArtifactsSection workerId={worker.id} />
+      <ArtifactsSection ui={ui} workerId={worker.id} />
       <SourcesSection ui={ui} workerId={worker.id} />
     </div>
   );
@@ -143,22 +144,39 @@ function GlyphStack({ runs }) {
 }
 
 // The claude.ai artifacts this chat published, newest first; a row opens the
-// page. Hidden until the agent has published one. Capped like Sources.
-function ArtifactsSection({ workerId }) {
+// artifact's tab (useArtifactLinks: ⌥ for claude.ai, hover peeks), the last
+// one every artifact. Hidden until the agent has published one. Capped like
+// Sources.
+function ArtifactsSection({ ui, workerId }) {
   const artifacts = useArtifacts(workerId);
+  const links = useArtifactLinks();
   if (artifacts.length === 0) return null;
   return (
     <>
       <div className="env-head env-head--artifacts"><span>Artifacts</span></div>
-      <div className="env-sources">
+      <div className="env-sources" {...links.handlers}>
         {artifacts.map((a) => (
-          <a key={a.url} className="env-row" href={a.url} title={a.url}>
+          <a
+            key={a.slug ?? a.url}
+            className="env-row"
+            href={a.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-art-slug={a.slug ?? undefined}
+            data-title={a.title ?? undefined}
+          >
             <WindowIcon />
             <span className="env-label">{a.title ?? artifactLabel(a.url)}</span>
-            <ExternalIcon />
+            <ChevronRight />
           </a>
         ))}
+        {links.layer}
       </div>
+      <button className="env-row" onClick={() => ui.openPanel("artifacts")}>
+        <GridIcon />
+        <span className="env-label">All artifacts</span>
+        <ChevronRight />
+      </button>
     </>
   );
 }
@@ -260,10 +278,11 @@ function WindowIcon() {
     </svg>
   );
 }
-function ExternalIcon() {
+function GridIcon() {
   return (
-    <svg className="env-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4.5 11.5l7-7M5.5 4.5h6v6" />
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" />
+      <rect x="2.5" y="9" width="4.5" height="4.5" rx="1" /><rect x="9" y="9" width="4.5" height="4.5" rx="1" />
     </svg>
   );
 }
