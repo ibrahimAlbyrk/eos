@@ -1,0 +1,174 @@
+/* In-app updates: the header's update beacon and its glass popover
+   (views/update/), and the status card of Settings › Updates
+   (settings/UpdatesSettings.jsx). Design: "Eos Updates" canvas, B. */
+
+/* ── Beacon ─────────────────────────────────────────────────────────────── */
+.up-beacon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 12px 0 10px;
+  box-sizing: border-box;
+  border-radius: var(--r-pill);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pane .up-beacon { height: 24px; padding: 0 9px 0 8px; gap: 6px; }
+.up-beacon:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); backdrop-filter: var(--lg-chip-fx); color: var(--fg); }
+.up-beacon.is-open { background: var(--lg-chip-on-bg); box-shadow: var(--lg-chip-on-sh); color: var(--fg); }
+.up-beacon.is-ready, .up-beacon.is-updated { color: var(--fg); }
+
+.up-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent), 0 0 10px color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.up-dot.is-error { background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 18%, transparent); }
+.up-glyph { flex-shrink: 0; }
+.up-glyph.is-wait { color: var(--warn); }
+.up-glyph.is-ok { color: var(--ok); }
+
+.up-ring { flex-shrink: 0; }
+.up-ring__track { stroke: rgba(var(--tint), 0.12); }
+.up-ring__fill { stroke: var(--accent); transition: stroke-dasharray 300ms ease; }
+
+.up-spin {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid rgba(var(--tint), 0.15);
+  border-top-color: var(--accent);
+  animation: up-spin 0.9s linear infinite;
+}
+@keyframes up-spin { to { transform: rotate(360deg); } }
+
+/* ── Popover ────────────────────────────────────────────────────────────── */
+.up-pop {
+  position: fixed;
+  z-index: 400;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border-radius: var(--r-menu);
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+.up-mark {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: #0f1014;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 0.5px rgba(var(--tint), 0.1);
+}
+.up-mark svg { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--accent) 65%, transparent)); }
+
+.up-head { display: flex; align-items: center; gap: 12px; }
+.up-head__text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.up-head__title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); }
+.up-head__detail { font-size: var(--text-xs); color: var(--fg-dim); overflow-wrap: anywhere; }
+
+.up-size { display: flex; flex-direction: column; gap: 8px; }
+.up-size__row { display: flex; align-items: baseline; justify-content: space-between; font-size: var(--text-xs); color: var(--fg-dim); }
+.up-size__n { font-family: var(--font-mono); color: var(--fg-mid); }
+.up-size__of { color: var(--fg-dim2); }
+.up-note { font-size: var(--text-xs); color: var(--fg-dim2); }
+
+.up-meter { height: 6px; border-radius: var(--r-pill); background: rgba(var(--tint), 0.07); overflow: hidden; }
+.up-meter__fill {
+  height: 100%;
+  min-width: 12px;
+  border-radius: inherit;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 60%, transparent);
+  transition: width 300ms ease;
+}
+
+.up-sep { height: 1px; background: var(--lg-sep); }
+
+.up-row-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  margin: -6px;
+  padding: 0 10px;
+  border-radius: var(--r-item);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  text-align: left;
+  cursor: pointer;
+}
+.up-row-link svg { flex-shrink: 0; color: var(--fg-dim2); }
+.up-row-link svg:last-child { margin-left: auto; }
+.up-row-link:hover { background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); color: var(--fg); }
+
+.up-agents { display: flex; flex-direction: column; gap: 6px; font-size: var(--text-xs); color: var(--fg-dim); }
+.up-agents__title { color: var(--warn); }
+.up-agent { display: flex; align-items: center; gap: 8px; }
+.up-agent::before { content: ""; flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+.up-actions { display: flex; gap: 8px; }
+.up-btn {
+  flex: 1;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--r-pill);
+  background: rgba(var(--tint), 0.07);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.up-btn:hover { background: rgba(var(--tint), 0.11); color: var(--fg); }
+.up-btn--primary { background: var(--accent); color: var(--accent-fg); font-weight: 500; }
+.up-btn--primary:hover { background: var(--accent-hover); color: var(--accent-fg); }
+
+/* ── Settings › Updates ─────────────────────────────────────────────────── */
+.up-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 26px;
+  padding: 16px 16px 16px 14px;
+  border-radius: 14px;
+  background: var(--lg-chip-on-bg), var(--pop);
+  box-shadow: var(--lg-chip-on-sh);
+}
+.up-card .up-mark { width: 46px; height: 46px; border-radius: 12px; }
+.up-card.is-accent .up-mark { box-shadow: inset 0 0 0 0.5px rgba(var(--tint), 0.1), 0 0 30px -6px color-mix(in srgb, var(--accent) 35%, transparent); }
+.up-card.is-quiet .up-mark svg, .up-card.is-error .up-mark svg { filter: none; opacity: 0.55; }
+.up-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.up-card__title { font-size: var(--text-md); font-weight: 500; color: var(--fg-strong); }
+.up-card__detail { font-size: var(--text-sm); color: var(--fg-dim); overflow-wrap: anywhere; }
+.up-card.is-error .up-card__detail { color: var(--err); }
+.up-card__meter { margin-top: 6px; }
+.up-card .up-btn { flex: 0 0 auto; }
+
+.up-version { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg-dim); }
+.up-link { font: inherit; font-size: var(--text-sm); color: var(--accent-hover); cursor: pointer; }
+.up-link:hover { color: var(--fg-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  .up-spin { animation: none; }
+  .up-ring__fill, .up-meter__fill { transition: none; }
+}

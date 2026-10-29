@@ -18,7 +18,7 @@ export const JOB_FILTERS = [
   { id: "all", label: "All", kinds: null },
   { id: "shells", label: "Shells", kinds: ["shell", "monitor"] },
   { id: "workflows", label: "Workflows", kinds: ["workflow"] },
-  { id: "eos", label: "Eos", kinds: ["transfer", "compaction", "dream", "sync"] },
+  { id: "eos", label: "Eos", kinds: ["transfer", "compaction", "dream", "sync", "update"] },
 ];
 
 export function filterJobs(jobs, filterId) {

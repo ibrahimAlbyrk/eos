@@ -10,6 +10,7 @@ import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js
 import { PlanChip } from "./PlanChip.jsx";
 import { ContextChip } from "./ContextChip.jsx";
 import { JobsBeacon } from "../../jobs/JobsBeacon.jsx";
+import { UpdateBeacon } from "../../update/UpdateBeacon.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
 // the background-jobs beacon (top-right pane only), Environment & changes (git
@@ -47,6 +48,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   const actions = (
     <div className="pane-head-actions">
       {topRight && <JobsBeacon live={live} />}
+      {topRight && <UpdateBeacon live={live} />}
       {worker && (
         <button
           className={"pane-split-btn" + (envOpen ? " is-active" : "")}

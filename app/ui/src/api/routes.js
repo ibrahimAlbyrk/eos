@@ -39,6 +39,14 @@ export const ROUTES = {
   jobOutput: (id) => `/api/jobs/${encodeURIComponent(id)}/output`,
   jobStop: (id) => `/api/jobs/${encodeURIComponent(id)}/stop`,
   jobDismiss: (id) => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
+  // In-app updates (contracts/src/update.ts), ui-token, this Mac only.
+  update: "/api/update",
+  updateCheck: "/api/update/check",
+  updateDownload: "/api/update/download",
+  updateRestart: "/api/update/restart",
+  updateLater: "/api/update/later",
+  updateDismiss: "/api/update/dismiss",
+  settingsUpdates: "/api/settings/updates",
   workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
   // The /btw side question (contracts/src/side-question.ts), ui-token.
   workerSideQuestion: (id) => `/workers/${id}/btw`,

@@ -9,6 +9,7 @@ const KIND_PATHS = {
   compaction: <path d="M3 9.5h3.5V13M13 6.5H9.5V3M9.5 6.5l4-4M2.5 13.5l4-4" />,
   dream: <path d="M13.5 9.6A5.6 5.6 0 1 1 6.4 2.5a4.4 4.4 0 0 0 7.1 7.1z" />,
   sync: <path d="M13 7a5 5 0 0 0-9-2.6L3 5.5M3 2.5v3h3M3 9a5 5 0 0 0 9 2.6l1-1.1M13 13.5v-3h-3" />,
+  update: <><circle cx="8" cy="8" r="5.5" /><path d="M8 5.2v5.6M5.6 8.4 8 10.8l2.4-2.4" /></>,
 };
 
 export function JobGlyph({ kind }) {

@@ -22,6 +22,7 @@ import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
 import { MachinesSettings } from "./MachinesSettings.jsx";
 import { SyncSettings } from "./SyncSettings.jsx";
+import { UpdatesSettings } from "./UpdatesSettings.jsx";
 import { EditorSelect } from "./EditorSelect.jsx";
 import { modLabel, shortcutLabel } from "../lib/platform.js";
 
@@ -74,6 +75,13 @@ const SyncIcon = () => (
     <path d="M4 4v4h4" />
     <path d="M4 13a8 8 0 0 0 14.3 4.9L20 16" />
     <path d="M20 20v-4h-4" />
+  </svg>
+);
+
+const UpdatesIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 8v8M8.5 12.5 12 16l3.5-3.5" />
   </svg>
 );
 
@@ -478,6 +486,7 @@ export const SETTINGS_SECTIONS = [
       },
     ],
   },
+  { id: "updates", label: "Updates", Icon: UpdatesIcon, Component: UpdatesSettings },
 ];
 
 // The sections this computer offers — what the modal and the palette list.

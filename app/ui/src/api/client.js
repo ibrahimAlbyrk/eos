@@ -313,6 +313,19 @@ export const api = {
   async stopJob(id) { return postJson(ROUTES.jobStop(id), {}, uiTokenHeader()); },
   async dismissJob(id) { return postJson(ROUTES.jobDismiss(id), {}, uiTokenHeader()); },
   async clearJobs() { return postJson(ROUTES.jobsClear, {}, uiTokenHeader()); },
+  // In-app updates (contracts/src/update.ts), ui-token. Every action answers with
+  // the new UpdateState.
+  async getUpdate() {
+    const r = await getJson(ROUTES.update, { headers: uiTokenHeader() });
+    if (!r.ok) throw new Error(r.body?.error ?? `getUpdate → ${r.status}`);
+    return r.body;
+  },
+  async checkForUpdate() { return postJson(ROUTES.updateCheck, {}, uiTokenHeader()); },
+  async downloadUpdate() { return postJson(ROUTES.updateDownload, {}, uiTokenHeader()); },
+  async restartToUpdate(when) { return postJson(ROUTES.updateRestart, { when }, uiTokenHeader()); },
+  async updateLater() { return postJson(ROUTES.updateLater, {}, uiTokenHeader()); },
+  async dismissUpdateNotice() { return postJson(ROUTES.updateDismiss, {}, uiTokenHeader()); },
+  async patchUpdateSettings(patch) { return putJson(ROUTES.settingsUpdates, patch, uiTokenHeader()); },
   // action: a visual answer's send action ({viewId, actionId, label, viewTitle?,
   // item?, state?}) — the chat shows its label as a reply chip.
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy, replyTo, action } = {}) {
