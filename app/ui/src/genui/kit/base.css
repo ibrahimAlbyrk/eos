@@ -76,10 +76,19 @@
 .gv-chev { flex-shrink: 0; transition: rotate .16s ease; }
 .gv-chev.is-open { rotate: 90deg; }
 
-@keyframes gv-kit-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-.gv-shimmer {
-  background: linear-gradient(90deg, var(--gv-shim-a) 0%, var(--gv-shim-b) 40%, var(--gv-shim-a) 80%);
-  background-size: 200% 100%;
+/* The sweep moves a layer (transform), never the background: a
+   background-position animation runs on the main thread, and a placeholder
+   scrolled out of view (a lazy image never loads there) would keep the
+   renderer running a full main frame at the display rate. */
+@keyframes gv-kit-shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+:where(.gv-shimmer) { position: relative; overflow: hidden; }
+.gv-shimmer { background: var(--gv-shim-a); }
+.gv-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--gv-shim-b) 50%, transparent);
   animation: gv-kit-shimmer 1.8s linear infinite;
 }
 
@@ -935,6 +944,6 @@ button.gv-list-main:hover { background: var(--gv-hover); }
 /* ── motion ────────────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .gv-card, .gv-chev, .gv-seg-opt, .gv-media-img, .gv-list-item, .gv-hero, .gv-code-copy { transition: none; }
-  .gv-shimmer { animation: none; }
+  .gv-shimmer::after { animation: none; display: none; }
   .gv-status-running .gv-status-dot { animation: none; }
 }
