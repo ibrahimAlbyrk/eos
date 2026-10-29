@@ -199,7 +199,14 @@ markNative();
 // custom properties inherit — so resolving `var(--app-region)` per element
 // reproduces exactly the WKWebView JS-bridge drag map. insertCSS injects a user
 // stylesheet, so it is not subject to the page CSP.
-webFrame.insertCSS("html.native * { -webkit-app-region: var(--app-region, no-drag); }");
+// The transcript is never under a strip, so it takes no part: Chromium maps
+// every region to window coordinates on each layout, and while a reply streams
+// that is thousands of transcript elements every frame. (`initial`, not `none`:
+// Chromium reads the `none` keyword as no-drag.)
+webFrame.insertCSS(
+  "html.native * { -webkit-app-region: var(--app-region, no-drag); }" +
+    " html.native .messages-wrap, html.native .messages-wrap * { -webkit-app-region: initial; }",
+);
 
 // While a controlled computer's view covers this page, the page must claim no
 // drag strips: Electron hit-tests every view's drag regions in attach order,
