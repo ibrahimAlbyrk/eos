@@ -133,13 +133,45 @@ if (argValue("eos-os") === "windows") contextBridge.exposeInMainWorld("eosWindow
   },
 });
 
-// Artifact link previews: the renderer asks main to render a published claude.ai
-// artifact in Eos's own claude.ai session and hand back a JPEG. Withheld from a
-// controlled computer's view — the login + render happen on THIS Mac.
-if (!hostView) contextBridge.exposeInMainWorld("eosArtifactPreview", {
-  status: (): Promise<{ signedIn: boolean }> => ipcRenderer.invoke("artifactPreview:status"),
-  get: (url: string): Promise<{ state: string; dataUrl?: string }> => ipcRenderer.invoke("artifactPreview:get", url),
-  connect: (): Promise<{ signedIn: boolean }> => ipcRenderer.invoke("artifactPreview:connect"),
+// claude.ai Artifacts as native views (main/artifacts): the renderer reports where
+// a view goes (the hover peek, a side-panel tab) and main places the live page
+// there, in the claude.ai session of the Eos sign-in that owns it. Withheld from
+// a controlled computer's view — the sessions and the views are THIS Mac's.
+type ArtifactRef = { slug: string; loginId: string | null; url: string; version?: string; title?: string };
+type ArtifactRect = { x: number; y: number; width: number; height: number };
+type ArtifactViewState = "idle" | "loading" | "ready" | "signin" | "error";
+type ArtifactAccount = { signedIn: boolean; email?: string };
+// A DOMRect's fields are prototype getters, which the bridge wouldn't copy.
+const artifactRect = (r: ArtifactRect): ArtifactRect => ({ x: r?.x, y: r?.y, width: r?.width, height: r?.height });
+if (!hostView) contextBridge.exposeInMainWorld("eosArtifacts", {
+  warm: (ref: ArtifactRef): void => ipcRenderer.send("eosArtifacts:warm", { ref }),
+  peek: (ref: ArtifactRef, rect: ArtifactRect): void => ipcRenderer.send("eosArtifacts:peek", { ref, rect: artifactRect(rect) }),
+  unpeek: (): void => ipcRenderer.send("eosArtifacts:unpeek"),
+  attach: (tabKey: string, ref: ArtifactRef, rect: ArtifactRect): void =>
+    ipcRenderer.send("eosArtifacts:attach", { tabKey, ref, rect: artifactRect(rect) }),
+  setBounds: (tabKey: string, rect: ArtifactRect): void => ipcRenderer.send("eosArtifacts:setBounds", { tabKey, rect: artifactRect(rect) }),
+  setVisible: (tabKey: string, visible: boolean): void => ipcRenderer.send("eosArtifacts:setVisible", { tabKey, visible }),
+  detach: (tabKey: string): void => ipcRenderer.send("eosArtifacts:detach", { tabKey }),
+  reload: (slug: string): void => ipcRenderer.send("eosArtifacts:reload", { slug }),
+  setToolbar: (slug: string, info: { initial: string; account: string; meta: string }): void =>
+    ipcRenderer.send("eosArtifacts:setToolbar", { slug, info }),
+  still: (ref: ArtifactRef): Promise<string | null> => ipcRenderer.invoke("eosArtifacts:still", ref),
+  state: (slug: string): Promise<ArtifactViewState> => ipcRenderer.invoke("eosArtifacts:state", slug),
+  onState: (cb: (e: { slug: string; state: ArtifactViewState; error?: string }) => void): (() => void) => {
+    const h = (_e: unknown, payload: { slug: string; state: ArtifactViewState; error?: string }): void => cb(payload);
+    ipcRenderer.on("eosArtifacts:stateChanged", h);
+    return () => { ipcRenderer.removeListener("eosArtifacts:stateChanged", h); };
+  },
+  onAction: (cb: (e: { slug: string; action: "all-artifacts" | "open" }) => void): (() => void) => {
+    const h = (_e: unknown, payload: { slug: string; action: "all-artifacts" | "open" }): void => cb(payload);
+    ipcRenderer.on("eosArtifacts:action", h);
+    return () => { ipcRenderer.removeListener("eosArtifacts:action", h); };
+  },
+  account: (loginId: string | null, expectedEmail?: string): Promise<ArtifactAccount> =>
+    ipcRenderer.invoke("eosArtifacts:account", { loginId, expectedEmail }),
+  signIn: (loginId: string | null, expectedEmail?: string): Promise<ArtifactAccount> =>
+    ipcRenderer.invoke("eosArtifacts:signIn", { loginId, expectedEmail }),
+  signOut: (loginId: string | null): Promise<void> => ipcRenderer.invoke("eosArtifacts:signOut", loginId),
 });
 
 // html.native gates ~30 CSS rules (titlebar/traffic-light insets, sidebar chrome);

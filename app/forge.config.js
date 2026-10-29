@@ -146,7 +146,7 @@ module.exports = {
       ...(isWindows ? [path.resolve(__dirname, ".forge-build", "EosHelper.exe")] : []),
     ],
     // The packaged app.asar needs only package.json + the bundled entry
-    // (.forge-build/{main,preload}.js). Exclude the nested UI package (its
+    // (.forge-build/{main,preload,artifactOverlay}.js). Exclude the nested UI package (its
     // node_modules + source ship via extraResource as dist), the TS source, and
     // dev/build artifacts — otherwise Forge sweeps app/ui/node_modules into the
     // bundle (hundreds of MB). Return true to EXCLUDE (packager path-relative to app/).
@@ -155,7 +155,7 @@ module.exports = {
     // node_modules at all.
     // The daemon bundle tree ships via extraResource (→ Resources/daemon), so keep
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
-    // .forge-build/{main,preload}.js stay IN — they are the app entry.
+    // .forge-build/{main,preload,artifactOverlay}.js stay IN — they are the app entry.
     ignore: (p) =>
       /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location|helper-win|installer-win)(\/|$)/.test(p) ||
       /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app|EosHelper\.exe)(\/|$)/.test(p) ||

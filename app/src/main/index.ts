@@ -22,7 +22,8 @@ import { FleetFeed } from "./fleet";
 import { TrayController } from "./tray";
 import { makeNotifier } from "./notifications";
 import { initBrowserHost } from "./browser";
-import { initArtifactPreview } from "./artifactPreview";
+import { initArtifactHost } from "./artifacts";
+import type { ArtifactViewHost } from "./artifacts/ArtifactViewHost";
 import { HostViews } from "./hosts";
 import { TransferBridge } from "./transfers";
 import { shellPlatform } from "./platform";
@@ -36,6 +37,8 @@ const DAEMON_URL = resolveDaemonUrl();
 const RAW_URL = resolveRawUrl(DAEMON_URL);
 const UI_ROOT = resolveUiRoot();
 const PRELOAD = path.join(__dirname, "preload.js");
+// The floating toolbar inside claude.ai artifact views (preload/artifactOverlay.ts).
+const ARTIFACT_OVERLAY = path.join(__dirname, "artifactOverlay.js");
 
 // Scoped CSP on the entry document. Egress is pinned to the eos:// scheme and
 // loopback (the daemon HTTP/SSE + ws + the 7401 raw origin) — the real
@@ -90,6 +93,7 @@ let mainWindow: BrowserWindow | null = null;
 // The token the main window runs with — the genui media/map header uses it.
 let mainUiToken: string | null = null;
 let hostViews: HostViews | null = null;
+let artifactViews: ArtifactViewHost | null = null;
 let transferBridge: TransferBridge | null = null;
 let tray: TrayController | null = null;
 let quitting = false;
@@ -416,7 +420,9 @@ app.whenReady().then(async () => {
   // the menu's edit commands act on whichever view is showing.
   hostViews = new HostViews({
     win, daemonUrl: DAEMON_URL, rawUrl: RAW_URL, uiToken: token, uiRoot: UI_ROOT, preload: PRELOAD,
-    csp: hostCsp, onChange: rebuildMenu,
+    csp: hostCsp,
+    // Artifact views sit in this window too: hidden while another computer's view covers it.
+    onChange: () => { rebuildMenu(); artifactViews?.relayout(); },
   });
   rebuildMenu();
   void hostViews.refresh();
@@ -449,8 +455,13 @@ app.whenReady().then(async () => {
     },
   });
 
-  // Artifact link previews render in Eos's own claude.ai session (artifactPreview.ts).
-  initArtifactPreview(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null));
+  // claude.ai Artifacts as native views in the side panel and the hover peek, each
+  // in the claude.ai session of the Eos sign-in that owns it (artifacts/).
+  artifactViews = initArtifactHost({
+    getWin: () => (mainWindow && !mainWindow.isDestroyed() ? mainWindow : null),
+    overlayPreload: ARTIFACT_OVERLAY,
+    covered: () => hostViews?.current() != null,
+  });
 
   // Defer the rest so it can't block time-to-first-frame.
   setImmediate(() => void startBackgroundServices(token));

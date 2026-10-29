@@ -1,6 +1,6 @@
 // Bundles the main and preload processes into single CJS files under
 // .forge-build/ (doc 30 Claim 3.6: one bundled main, require() cost paid once).
-// Sandboxed preloads must be CommonJS, so both targets are format:"cjs".
+// Sandboxed preloads must be CommonJS, so every target is format:"cjs".
 import { build } from "esbuild";
 
 const common = {
@@ -15,5 +15,7 @@ const common = {
 
 await build({ ...common, entryPoints: ["src/main/index.ts"], outfile: ".forge-build/main.js" });
 await build({ ...common, entryPoints: ["src/preload/index.ts"], outfile: ".forge-build/preload.js" });
+// The claude.ai artifact views' own preload (their floating toolbar).
+await build({ ...common, entryPoints: ["src/preload/artifactOverlay.ts"], outfile: ".forge-build/artifactOverlay.js" });
 
-console.log("bundled main + preload -> .forge-build/");
+console.log("bundled main + preloads -> .forge-build/");

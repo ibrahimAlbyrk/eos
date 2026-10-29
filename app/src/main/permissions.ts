@@ -45,7 +45,8 @@ export function installMainWindowPermissions(ses: Session, mainContents: () => W
   });
 }
 
-// Any other session (controlled computers' views, the claude.ai preview).
+// Any other session (controlled computers' views). The claude.ai artifact
+// sessions deny every permission instead (artifacts/sessions.ts).
 export function denyGeolocation(ses: Session): void {
   install(ses, () => false);
 }
