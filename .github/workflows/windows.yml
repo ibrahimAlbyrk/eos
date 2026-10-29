@@ -75,6 +75,26 @@ jobs:
         working-directory: app
         run: npm run make
 
+      # The packaged app on this system: it starts its own daemon (supervised,
+      # on its named pipe, with SQLite and the bundled claude) and that daemon
+      # answers /health.
+      - name: Smoke
+        timeout-minutes: 6
+        run: |
+          export EOS_HOME="$RUNNER_TEMP/eos-home"
+          app/out/Eos-win32-${{ matrix.arch }}/Eos.exe > smoke-app.log 2>&1 &
+          ok=""
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:7400/health > health.json 2>/dev/null; then ok=1; break; fi
+            sleep 2
+          done
+          echo "--- /health"; cat health.json 2>/dev/null || true; echo
+          echo "--- app"; tail -40 smoke-app.log || true
+          echo "--- daemon"; tail -60 "$EOS_HOME/logs/daemon.log" || true
+          grep -q "socket listening" "$EOS_HOME/logs/daemon.log" || { echo "::error::daemon never opened its named pipe"; ok=""; }
+          taskkill //IM Eos.exe //T //F > /dev/null 2>&1 || true
+          [ -n "$ok" ] || { echo "::error::the packaged app's daemon never answered /health"; exit 1; }
+
       - name: Collect
         id: files
         run: |
