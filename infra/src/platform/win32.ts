@@ -19,6 +19,10 @@ function secretFile(service: string): string {
   return join(home, "secrets", `${createHash("sha256").update(service).digest("hex").slice(0, 32)}.dpapi`);
 }
 
+function cmdQuote(arg: string): string {
+  return /[\s"&|<>^()%!]/.test(arg) || arg === "" ? `"${arg.replace(/"/g, '""')}"` : arg;
+}
+
 export const win32Platform: HostPlatform = {
   os: "win32",
   // A pipe has no file mode, so access rests on its default DACL (only this
@@ -71,6 +75,17 @@ export const win32Platform: HostPlatform = {
   shell: win32Shell,
 
   scriptShell: gitBash,
+
+  // A native build first; npm installs a CLI as a .cmd shim (next to a
+  // Unix-shell script of the bare name, which Windows can't run).
+  executableNames: (name) => [`${name}.exe`, `${name}.cmd`],
+
+  spawnCommand(file, args) {
+    if (!/\.(cmd|bat)$/i.test(file)) return { file, args };
+    // Node refuses to spawn a .cmd without a shell; quoted as cmd /s /c reads it.
+    const line = [file, ...args].map(cmdQuote).join(" ");
+    return { file: process.env.ComSpec || "cmd.exe", args: ["/d", "/s", "/c", `"${line}"`], windowsVerbatimArguments: true };
+  },
 
   // No process groups: taskkill walks the tree.
   killProcessTree(pid) {

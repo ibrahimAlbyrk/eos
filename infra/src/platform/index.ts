@@ -5,7 +5,7 @@ import { genericPlatform } from "./generic.ts";
 import { win32Platform } from "./win32.ts";
 import type { HostPlatform } from "./HostPlatform.ts";
 
-export type { Argv, CredentialStore, HostFeatures, HostPlatform, KeepAwakeOptions, TerminalShell } from "./HostPlatform.ts";
+export type { Argv, CredentialStore, HostFeatures, HostPlatform, KeepAwakeOptions, SpawnCommand, TerminalShell } from "./HostPlatform.ts";
 
 const ADAPTERS: Record<string, HostPlatform> = { darwin: darwinPlatform, win32: win32Platform };
 

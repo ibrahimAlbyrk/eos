@@ -27,6 +27,8 @@ export function genericPlatform(os: string): HostPlatform {
     createFsHelpers: () => noopFsHelpers,
     shell: posixShell,
     scriptShell: () => "/bin/sh",
+    executableNames: (name) => [name],
+    spawnCommand: (file, args) => ({ file, args }),
     killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
   };
 }

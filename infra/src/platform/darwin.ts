@@ -63,5 +63,8 @@ export const darwinPlatform: HostPlatform = {
 
   scriptShell: () => "/bin/sh",
 
+  executableNames: (name) => [name],
+  spawnCommand: (file, args) => ({ file, args }),
+
   killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
 };

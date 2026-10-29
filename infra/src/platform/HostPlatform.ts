@@ -46,6 +46,13 @@ export interface TerminalShell {
   readonly ttyHooks: boolean;
 }
 
+/** How to start an executable: what spawn() gets. */
+export interface SpawnCommand {
+  file: string;
+  args: string[];
+  windowsVerbatimArguments?: boolean;
+}
+
 export interface HostPlatform {
   /** The system's name as Node reports it — shown to paired devices, never branched on. */
   readonly os: string;
@@ -71,6 +78,10 @@ export interface HostPlatform {
    * system has none.
    */
   scriptShell(): string | null;
+  /** The file names a CLI called `name` is installed under, in the order to look for them. */
+  executableNames(name: string): string[];
+  /** spawn() arguments that run `file` with `args` (a Windows .cmd shim only runs through cmd). */
+  spawnCommand(file: string, args: string[]): SpawnCommand;
   /** Ends a process and everything it started (a detached child leads its own group). Throws when `pid` is gone. */
   killProcessTree(pid: number): void;
 }

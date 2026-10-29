@@ -127,6 +127,7 @@ import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import type { FsHelpers } from "../infra/src/filesystem/FsHelpers.ts";
 import { hostPlatform } from "../infra/src/platform/index.ts";
+import { appendToPath } from "../infra/src/util/path-env.ts";
 import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
 import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
 import { TreeSitterSymbolIndex } from "../infra/src/symbols/TreeSitterSymbolIndex.ts";
@@ -675,6 +676,10 @@ export function buildContainer() {
     loginRegistry.runnableLogin("anthropic", (l) => planLimits.readiness(l.id, claudeSignedIn(l)))?.storeDir ?? claudeStoreDir;
   const readEosClaudeLogin = (): ClaudeCodeLogin => readClaudeCodeLogin(claudeStore());
   const claudeBinary = resolveCliBinary({ name: "claude", overrideVar: "EOS_CLAUDE_BIN" });
+  // Terminals that run `claude` (sign-in, Code-view) find the one Eos runs agents
+  // with when the user has none on PATH — on Windows Eos ships its own.
+  const withEosClaude = (env: Record<string, string | undefined>): Record<string, string | undefined> =>
+    claudeBinary ? appendToPath(env, dirname(claudeBinary)) : env;
 
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
   // daemon project root; a create request may override it.
@@ -684,7 +689,7 @@ export function buildContainer() {
     bus,
     defaultCwd: config.paths.repoRoot,
     claudeEnv: () => {
-      const env = { ...process.env, [CLAUDE_STORE_ENV]: claudeStore() };
+      const env = withEosClaude({ ...process.env, [CLAUDE_STORE_ENV]: claudeStore() });
       const token = config.anthropic?.authToken?.trim();
       return token && !readEosClaudeLogin().present ? { ...env, CLAUDE_CODE_OAUTH_TOKEN: token } : env;
     },
@@ -1066,7 +1071,7 @@ export function buildContainer() {
       createClaudeSubscription({
         spawnPty: spawnPtyHost,
         cwd: homedir(),
-        env: (storeDir) => ({ ...buildSubscriptionChildEnv(process.env), [CLAUDE_STORE_ENV]: storeDir, CLAUDE_CONFIG_DIR: storeDir }),
+        env: (storeDir) => withEosClaude({ ...buildSubscriptionChildEnv(process.env), [CLAUDE_STORE_ENV]: storeDir, CLAUDE_CONFIG_DIR: storeDir }),
         clearLegacyToken: () => {
           patchAnthropicConfig(config.daemon.home, { authToken: "" });
           config = reloadConfigFromDisk();

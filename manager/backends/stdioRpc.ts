@@ -9,6 +9,7 @@
 import { spawn as nodeSpawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createInterface } from "node:readline";
 import { errMsg } from "../../contracts/src/util.ts";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 type Params = Record<string, unknown>;
 type NotificationHandler = (method: string, params: Params) => void;
@@ -28,6 +29,12 @@ export interface StdioRpcClient {
 
 export type SpawnFn = (cmd: string, args: string[], opts: { env: Record<string, string | undefined>; cwd?: string }) => ChildProcessWithoutNullStreams;
 
+// Starts a provider CLI with piped stdio, the way this system runs it.
+export const spawnCli: SpawnFn = (cmd, args, o) => {
+  const c = hostPlatform.spawnCommand(cmd, args);
+  return nodeSpawn(c.file, c.args, { env: o.env, cwd: o.cwd, stdio: ["pipe", "pipe", "pipe"], windowsVerbatimArguments: c.windowsVerbatimArguments });
+};
+
 export interface StdioRpcOptions {
   command: string;
   args: string[];
@@ -41,7 +48,7 @@ export interface StdioRpcOptions {
 const STDERR_TAIL = 4096;
 
 export function spawnStdioRpc(opts: StdioRpcOptions): StdioRpcClient {
-  const spawnFn = opts.spawnFn ?? ((cmd, args, o) => nodeSpawn(cmd, args, { env: o.env, cwd: o.cwd, stdio: ["pipe", "pipe", "pipe"] }));
+  const spawnFn = opts.spawnFn ?? spawnCli;
   const child = spawnFn(opts.command, opts.args, { env: opts.env, ...(opts.cwd ? { cwd: opts.cwd } : {}) });
 
   let nextId = 1;

@@ -7,10 +7,9 @@
 // picked, as it names Eos rather than the Codex CLI as the client. Signing out is
 // the app-server's account/logout.
 
-import { spawn as nodeSpawn } from "node:child_process";
 import { errMsg } from "../../../contracts/src/util.ts";
 import type { AppServerClient, AppServerOptions } from "../../backends/codex/AppServerClient.ts";
-import type { SpawnFn } from "../../backends/stdioRpc.ts";
+import { spawnCli, type SpawnFn } from "../../backends/stdioRpc.ts";
 import type { SignInFlow, SubscriptionProvider } from "./SignInService.ts";
 
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
@@ -39,7 +38,7 @@ export function startCodexSignIn(deps: CodexSubscriptionDeps, handlers: { onUrl(
     return { result, submitCode() {}, cancel() {} };
   }
 
-  const spawnFn = deps.spawnFn ?? ((cmd, args, o) => nodeSpawn(cmd, args, { env: o.env, stdio: ["pipe", "pipe", "pipe"] }));
+  const spawnFn = deps.spawnFn ?? spawnCli;
   const child = spawnFn(deps.binary, ["login"], { env: deps.env() });
   child.stdin.end();
 

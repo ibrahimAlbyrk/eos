@@ -5,6 +5,7 @@
 import { accessSync, constants } from "node:fs";
 import { homedir } from "node:os";
 import { delimiter, join } from "node:path";
+import { hostPlatform } from "../../infra/src/platform/index.ts";
 
 // The daemon may run with a launchd-minimal PATH, so the usual install dirs are
 // searched too.
@@ -30,9 +31,12 @@ export function resolveCliBinary(cli: CliLocation, env: Record<string, string | 
   const override = env[cli.overrideVar]?.trim();
   if (override) return executable(override) ? override : null;
   const dirs = [...(env.PATH ?? "").split(delimiter).filter(Boolean), ...EXTRA_DIRS];
+  const names = hostPlatform.executableNames(cli.name);
   for (const dir of dirs) {
-    const candidate = join(dir, cli.name);
-    if (executable(candidate)) return candidate;
+    for (const name of names) {
+      const candidate = join(dir, name);
+      if (executable(candidate)) return candidate;
+    }
   }
   return cli.bundles?.find(executable) ?? null;
 }

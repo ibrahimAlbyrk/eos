@@ -32,8 +32,9 @@ export function parseLoginUrl(raw: string): string | undefined {
 // Why the CLI ended without signing in, in words the UI can show.
 export function loginFailure(raw: string, exitCode: number): string {
   const text = stripAnsi(raw);
-  if (/command not found: claude|claude: command not found|claude: not found/.test(text)) {
-    return "Claude Code isn't installed on this Mac — install it, then sign in again.";
+  // zsh/bash, then PowerShell's "The term 'claude' is not recognized…".
+  if (/command not found: claude|claude: command not found|claude: not found|'claude' is not recognized/.test(text)) {
+    return "Claude Code isn't installed on this computer — install it, then sign in again.";
   }
   const last = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).at(-1);
   return last ? `Sign-in ended: ${last.slice(0, 200)}` : `Sign-in ended (exit ${exitCode}).`;

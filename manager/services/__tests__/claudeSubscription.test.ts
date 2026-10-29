@@ -45,6 +45,7 @@ describe("parseLoginUrl", () => {
 describe("loginFailure", () => {
   it("names a missing Claude Code install", () => {
     assert.match(loginFailure("zsh: command not found: claude\r\n", 127), /isn't installed/);
+    assert.match(loginFailure("claude : The term 'claude' is not recognized as the name of a cmdlet, function, script file, or operable program.\r\n", 1), /isn't installed/);
   });
 
   it("falls back to the last line the CLI printed", () => {
