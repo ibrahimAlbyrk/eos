@@ -121,6 +121,16 @@ function decodeRow(row: Record<string, unknown>): AgentSnapshot {
   };
 }
 
+// worker:change also fires for every logged event row and context ping (LogEvent /
+// ProcessAgentSignal: a `type`, never a `state`) — ~97 % of worker frames while an
+// agent works, and none of them moves state, name or exit code. Everything else
+// (transitions, spawn/exit/removed, renames) refetches; the 4 s poll covers a miss.
+export function mayChangeFleet(reason: string, payload: unknown): boolean {
+  if (reason !== "worker:change" || !payload || typeof payload !== "object") return true;
+  const p = payload as { type?: unknown; state?: unknown };
+  return !(typeof p.type === "string" && p.state === undefined);
+}
+
 export interface FleetCallbacks {
   onRunning: (running: boolean, count: number, connected: boolean) => void;
   onAnnounce: (c: Completion, remaining: number) => void;
@@ -162,7 +172,8 @@ export class FleetFeed {
   }
 
   // Called by the SSE client on a worker:* frame — debounce a burst (0.12s).
-  onWorkerFrame(): void {
+  onWorkerFrame(reason: string, payload: unknown): void {
+    if (!mayChangeFleet(reason, payload)) return;
     if (this.debounce) clearTimeout(this.debounce);
     this.debounce = setTimeout(() => void this.refetch(), 120);
   }
@@ -180,7 +191,8 @@ export class FleetFeed {
 
   private async refetch(): Promise<void> {
     try {
-      const res = await fetch(`${this.base}/workers`, { headers: { "x-eos-ui-token": this.token } });
+      // brief: the tray reads id/state/name/exit_code — never the prompts (half the bytes).
+      const res = await fetch(`${this.base}/workers?brief=1`, { headers: { "x-eos-ui-token": this.token } });
       if (!res.ok) return;
       const arr = (await res.json()) as Record<string, unknown>[];
       if (!Array.isArray(arr)) return;

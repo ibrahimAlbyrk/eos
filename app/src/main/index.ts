@@ -379,7 +379,7 @@ async function startBackgroundServices(token: string): Promise<void> {
   let hostsRefresh: ReturnType<typeof setTimeout> | null = null;
   const sse = new SSEClient(`${DAEMON_URL}/stream`, token, {
     onEvent: (reason, payload) => {
-      if (reason.startsWith("worker:")) fleet.onWorkerFrame();
+      if (reason.startsWith("worker:")) fleet.onWorkerFrame(reason, payload);
       else if (reason === "notification:fire") notifier(payload);
       else if (reason === "transfer:change") transferBridge?.forward(payload);
       else if (reason === "update:apply") void applyUpdate(payload, quitApp);
