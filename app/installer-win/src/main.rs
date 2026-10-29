@@ -8,6 +8,7 @@
 
 mod install;
 mod payload;
+mod update;
 mod winapi;
 
 use std::borrow::Cow;
@@ -63,6 +64,9 @@ fn main() {
 
     if flag("--uninstall") {
         return uninstall(&exe, flag("--silent"));
+    }
+    if let Some(pending) = value("--apply") {
+        return update::apply(Path::new(&pending));
     }
     let payload = match payload::find(&exe) {
         Ok(Some(p)) => p,

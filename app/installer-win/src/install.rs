@@ -211,7 +211,7 @@ fn remove_files(dir: &Path, files: &[String]) {
 }
 
 // Eos's files are locked while it runs — its daemon is Eos.exe too.
-fn stop_running_eos() {
+pub(crate) fn stop_running_eos() {
     let _ = Command::new("taskkill").args(["/IM", APP_EXE, "/T", "/F"]).creation_flags(CREATE_NO_WINDOW).output();
     std::thread::sleep(Duration::from_millis(400));
 }
@@ -263,6 +263,38 @@ fn set_startup(app: Option<&Path>) -> io::Result<()> {
             _ => Ok(()),
         },
     }
+}
+
+/// After an in-app update moved a new version into `to`: the install record
+/// (now listing the new files) and the uninstaller come along from `from`, and
+/// Windows shows the new version in Settings › Apps.
+pub fn carry_over(from: &Path, to: &Path, version: &str) -> io::Result<()> {
+    let mut manifest = read_manifest(from);
+    manifest.version = version.to_string();
+    manifest.files = files_under(to, Path::new(""))?;
+    fs::copy(from.join(UNINSTALLER), to.join(UNINSTALLER))?;
+    manifest.files.push(UNINSTALLER.to_string());
+    fs::write(to.join(MANIFEST), serde_json::to_vec_pretty(&manifest).map_err(io::Error::other)?)?;
+    set_display_version(version)
+}
+
+pub fn set_display_version(version: &str) -> io::Result<()> {
+    let (key, _) = RegKey::predef(HKEY_CURRENT_USER).create_subkey(UNINSTALL_KEY)?;
+    key.set_value("DisplayVersion", &version)
+}
+
+fn files_under(root: &Path, rel: &Path) -> io::Result<Vec<String>> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(root.join(rel))? {
+        let entry = entry?;
+        let path = rel.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            files.extend(files_under(root, &path)?);
+        } else {
+            files.push(path.to_string_lossy().into_owned());
+        }
+    }
+    Ok(files)
 }
 
 pub fn launch(dir: &Path) -> io::Result<()> {
