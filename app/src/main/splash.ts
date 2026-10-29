@@ -24,7 +24,8 @@ function logoDataUri(): string {
 // Ports the Swift splash content + animations (main.swift:643-695): 64px logo with
 // a 16px radius floating y 0→-5 (1.6s), "Eos" 16pt semibold kern 2.5, a 168×3 bar
 // with an 84px blue highlight sweeping x -90→174 (1.25s). 30px panel radius.
-function splashHtml(): string {
+// `caption` (an update's "Updating · 0.1.2 → 0.1.3") sits under the bar.
+function splashHtml(caption?: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><style>
   html,body{margin:0;height:100%;background:transparent;overflow:hidden;-webkit-user-select:none;cursor:default;}
   .panel{position:fixed;inset:0;border-radius:30px;display:flex;flex-direction:column;
@@ -37,17 +38,23 @@ function splashHtml(): string {
   .bar::after{content:"";position:absolute;top:0;left:0;width:84px;height:3px;
     background:linear-gradient(90deg,transparent,rgba(107,158,255,1),transparent);
     animation:sweep 1.25s ease-in-out infinite;}
+  .caption{font:500 12px ui-monospace,SFMono-Regular,monospace;color:rgba(255,255,255,0.62);margin-top:-6px;}
   @keyframes floaty{from{transform:translateY(0)}to{transform:translateY(-5px)}}
   @keyframes sweep{from{transform:translateX(-90px)}to{transform:translateX(174px)}}
   </style></head><body><div class="panel">
     <img class="logo" src="${logoDataUri()}"/><div class="name">Eos</div><div class="bar"></div>
+    ${caption ? `<div class="caption">${escapeHtml(caption)}</div>` : ""}
   </div></body></html>`;
 }
 
-export function createSplash(): BrowserWindow {
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+}
+
+export function createSplash(caption?: string): BrowserWindow {
   const win = new BrowserWindow({
     width: 280,
-    height: 200,
+    height: caption ? 224 : 200,
     frame: false,
     transparent: true,
     resizable: false,
@@ -67,7 +74,7 @@ export function createSplash(): BrowserWindow {
   // the all-spaces collection behavior (splash still shows over fullscreen) while
   // leaving the app a regular Dock-owning app.
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
-  void win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(splashHtml()));
+  void win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(splashHtml(caption)));
   win.once("ready-to-show", () => win.show());
   return win;
 }

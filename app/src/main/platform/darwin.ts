@@ -6,6 +6,7 @@ import { copiedFilePaths } from "./darwin/clipboard";
 import { startLaunchdDaemon, stopLaunchdDaemon } from "./darwin/launch";
 import { rebuildAndRelaunch } from "./darwin/rebuild";
 import { installScreenSaver, lockScreen } from "./darwin/screensaver";
+import { startMacUpdate } from "./darwin/update";
 import { controlSocketPath } from "../../../../infra/src/platform/control-socket";
 import type { ShellPlatform } from "./ShellPlatform";
 
@@ -65,4 +66,5 @@ export const darwinShell: ShellPlatform = {
   rebuild: rebuildAndRelaunch,
 
   screenSaver: { lock: lockScreen, install: installScreenSaver },
+  applyUpdate: startMacUpdate,
 };

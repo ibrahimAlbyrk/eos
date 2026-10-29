@@ -1,5 +1,6 @@
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
+const { readFileSync, rmSync, writeFileSync } = require("node:fs");
 
 // Canonical Eos identity — the Electron app IS Eos now that the migration is
 // completing. Output goes to app/out/ ONLY; it never writes to or launches
@@ -32,6 +33,12 @@ const claudeEntitlements = path.resolve(__dirname, "build", "entitlements.claude
 // Credentials are a notarytool keychain profile, created once with
 // `xcrun notarytool store-credentials eos-notary --key … --key-id … --issuer …`.
 const notarize = Boolean(signingIdentity) && process.env.EOS_NOTARIZE === "1";
+
+// In-app updates (docs/updates/00-UPDATES-PLAN.md): only a release build —
+// release.sh sets EOS_UPDATE_CHANNEL=stable — carries Resources/update.json;
+// any other build (eos build, a contributor's make) never updates itself.
+const updateChannel = process.env.EOS_UPDATE_CHANNEL || null;
+const updateInfoPath = path.resolve(__dirname, ".forge-build", "update.json");
 
 const isMac = process.platform === "darwin";
 const isWindows = process.platform === "win32";
@@ -72,6 +79,12 @@ module.exports = {
       // This system's native helpers (macOS: screen saver + CoreLocation; Windows: EosHelper).
       const helpers = isMac ? ["build-saver.mjs", "build-location.mjs"] : isWindows ? ["build-helper.mjs"] : [];
       for (const script of helpers) execFileSync("node", [`scripts/${script}`], { cwd: __dirname, stdio: "inherit" });
+      if (updateChannel) {
+        const { version } = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
+        writeFileSync(updateInfoPath, JSON.stringify({ version, channel: updateChannel, platform: `${process.platform}-${process.arch}` }));
+      } else {
+        rmSync(updateInfoPath, { force: true });
+      }
     },
     // Ad-hoc identifier fix (the DURABLE Dock-icon fix). Without a Developer ID,
     // Forge does no signing and the app keeps Electron's linker-signed default,
@@ -144,6 +157,8 @@ module.exports = {
       ] : []),
       // DPAPI secrets, Recycle Bin, keep-awake, location (main/platform/win32.ts, infra/src/platform/win32.ts).
       ...(isWindows ? [path.resolve(__dirname, ".forge-build", "EosHelper.exe")] : []),
+      // Marks a release build: the daemon updates only such an install (manager/services/update/install.ts).
+      ...(updateChannel ? [updateInfoPath] : []),
     ],
     // The packaged app.asar needs only package.json + the bundled entry
     // (.forge-build/{main,preload,artifactOverlay}.js). Exclude the nested UI package (its
@@ -158,7 +173,7 @@ module.exports = {
     // .forge-build/{main,preload,artifactOverlay}.js stay IN — they are the app entry.
     ignore: (p) =>
       /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location|helper-win|installer-win)(\/|$)/.test(p) ||
-      /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app|EosHelper\.exe)(\/|$)/.test(p) ||
+      /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app|EosHelper\.exe|update\.json)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
     ...(osxSign ? { osxSign } : {}),

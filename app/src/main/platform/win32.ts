@@ -4,6 +4,7 @@ import { app } from "electron";
 import path from "node:path";
 import { copiedFilePaths } from "./win32/clipboard";
 import { startSupervisedDaemon, stopSupervisedDaemon } from "./win32/supervise";
+import { startWindowsUpdate } from "./win32/update";
 import { controlSocketPath } from "../../../../infra/src/platform/control-socket";
 import type { ShellPlatform } from "./ShellPlatform";
 
@@ -51,4 +52,5 @@ export const win32Shell: ShellPlatform = {
   rebuild: null,
 
   screenSaver: null,
+  applyUpdate: startWindowsUpdate,
 };

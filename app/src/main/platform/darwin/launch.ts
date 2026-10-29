@@ -7,7 +7,7 @@ import { eosHome, type DaemonLaunch } from "../../daemon";
 const APP_BUNDLE_ID = "com.ibrahimalbyrk.eos";
 
 // Above the daemon's own shutdown deadline (5s) and launchd's ExitTimeOut (10s).
-const DAEMON_STOP_TIMEOUT_MS = 12_000;
+export const DAEMON_STOP_TIMEOUT_MS = 12_000;
 
 const shellArg = (a: string): string => (path.isAbsolute(a) ? JSON.stringify(a) : a);
 

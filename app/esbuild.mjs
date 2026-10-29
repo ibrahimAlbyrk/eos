@@ -17,5 +17,7 @@ await build({ ...common, entryPoints: ["src/main/index.ts"], outfile: ".forge-bu
 await build({ ...common, entryPoints: ["src/preload/index.ts"], outfile: ".forge-build/preload.js" });
 // The claude.ai artifact views' own preload (their floating toolbar).
 await build({ ...common, entryPoints: ["src/preload/artifactOverlay.ts"], outfile: ".forge-build/artifactOverlay.js" });
+// The in-app update applier: copied out of app.asar and run as plain Node (main/updates.ts).
+await build({ ...common, entryPoints: ["src/updater/apply.ts"], outfile: ".forge-build/apply.js", sourcemap: false });
 
-console.log("bundled main + preloads -> .forge-build/");
+console.log("bundled main + preloads + updater -> .forge-build/");

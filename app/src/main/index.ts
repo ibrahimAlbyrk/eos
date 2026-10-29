@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, dialog, ipcMain, session } from "electron";
+import { app, BrowserWindow, shell, dialog, ipcMain, powerMonitor, session } from "electron";
 import path from "node:path";
 import { registerEosSchemePrivileges, installEosProtocol } from "./scheme";
 import { resolveUiRoot, resolveDaemonUrl, resolveRawUrl, themeBackground } from "./config";
@@ -31,6 +31,7 @@ import { registerWindowControls, reportMaximized } from "./windowControls";
 import { installMainWindowPermissions } from "./permissions";
 import { installGenuiTokenHeader } from "./genuiToken";
 import { readLocation } from "./location";
+import { applyUpdate, markUpdateBooted, nudgeUpdateCheck } from "./updates";
 import type { MenuItemConstructorOptions } from "electron";
 
 const DAEMON_URL = resolveDaemonUrl();
@@ -205,6 +206,8 @@ async function createWindow(token: string): Promise<BrowserWindow> {
     e.preventDefault();
     win.hide();
   });
+  // Opening Eos — at launch, or from the Dock or tray later — looks for a new version.
+  win.on("show", () => nudgeUpdateCheck(DAEMON_URL, token, "opened"));
   win.once("ready-to-show", () => {
     void daemonReady.then(() => {
       if (win.isDestroyed()) return;
@@ -215,6 +218,8 @@ async function createWindow(token: string): Promise<BrowserWindow> {
         dismissSplash(splashWin);
         splashWin = null;
       }
+      // The daemon answers and the window is up: a new version is safe to keep.
+      markUpdateBooted();
     });
   });
   await win.loadURL("eos://app/index.html");
@@ -375,6 +380,7 @@ async function startBackgroundServices(token: string): Promise<void> {
       if (reason.startsWith("worker:")) fleet.onWorkerFrame();
       else if (reason === "notification:fire") notifier(payload);
       else if (reason === "transfer:change") transferBridge?.forward(payload);
+      else if (reason === "update:apply") void applyUpdate(payload, quitApp);
       else if (reason === "hosts:change" && !hostsRefresh) {
         // Link state ticks (latency) arrive in bursts — coalesce the refetch.
         hostsRefresh = setTimeout(() => { hostsRefresh = null; void hostViews?.refresh(); }, 150);
@@ -384,6 +390,8 @@ async function startBackgroundServices(token: string): Promise<void> {
   });
   fleet.start();
   sse.start();
+  // A Mac that slept missed the half-hourly checks; give the network a moment first.
+  powerMonitor.on("resume", () => setTimeout(() => nudgeUpdateCheck(DAEMON_URL, token, "woke"), 10_000));
 }
 
 app.whenReady().then(async () => {

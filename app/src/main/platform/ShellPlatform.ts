@@ -3,6 +3,7 @@
 // the system can do from here and never compares platform names itself.
 
 import type { BrowserWindowConstructorOptions } from "electron";
+import type { UpdateApply } from "../../../../contracts/src/update";
 import type { DaemonLaunch } from "../daemon";
 
 export interface ShellPlatform {
@@ -38,4 +39,10 @@ export interface ShellPlatform {
   readonly rebuild: ((busyAgents: number) => Promise<void>) | null;
   /** Lock with the Eos screen saver, or null on a system without one. */
   readonly screenSaver: { lock(): void; install(): Promise<void> } | null;
+  /**
+   * Swaps in a verified new version (in-app updates): stops the daemon and
+   * starts the detached applier, which takes over once the app quits; null
+   * where the shell can't update itself yet.
+   */
+  readonly applyUpdate: ((apply: UpdateApply, updatesDir: string) => Promise<void>) | null;
 }
