@@ -22,7 +22,9 @@ export function wantsGenuiToken(url: string, resourceType: string, prefixes: rea
 
 export function installGenuiTokenHeader(ses: Session, daemonUrl: string, token: () => string | null): void {
   const prefixes = genuiTokenPrefixes(daemonUrl);
-  ses.webRequest.onBeforeSendHeaders((details, callback) => {
+  // The filter keeps every other request of the window (all its daemon calls) off
+  // this process's JS thread; the listener still checks the exact prefix.
+  ses.webRequest.onBeforeSendHeaders({ urls: prefixes.map((p) => `${p}*`) }, (details, callback) => {
     const t = token();
     const hit = !!t && wantsGenuiToken(details.url, details.resourceType, prefixes);
     callback({ requestHeaders: hit ? { ...details.requestHeaders, "x-eos-ui-token": t as string } : details.requestHeaders });
