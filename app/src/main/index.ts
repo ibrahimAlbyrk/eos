@@ -75,13 +75,12 @@ if (process.env.EOS_ELECTRON_USER_DATA?.trim()) app.setPath("userData", process.
 // Must run before app.ready.
 registerEosSchemePrivileges();
 
-// Per-system setup; false = this launch only answered an installer event.
-const launching = shellPlatform.init();
+shellPlatform.init();
 
 // Single-instance: a second launch focuses the existing window (LaunchServices
 // gives the Swift app this implicitly; Electron needs it explicitly — §C6/E3).
-const gotLock = launching && app.requestSingleInstanceLock();
-if (!gotLock && launching) app.quit();
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) app.quit();
 else app.on("second-instance", () => {
   console.log("[eos-electron] second-instance: focusing existing window");
   showMainWindow();

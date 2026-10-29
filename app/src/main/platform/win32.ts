@@ -3,7 +3,6 @@
 import { app } from "electron";
 import path from "node:path";
 import { copiedFilePaths } from "./win32/clipboard";
-import { handleSquirrelEvent } from "./win32/squirrel";
 import { startSupervisedDaemon, stopSupervisedDaemon } from "./win32/supervise";
 import { controlSocketPath } from "../../../../infra/src/platform/control-socket";
 import type { ShellPlatform } from "./ShellPlatform";
@@ -21,10 +20,9 @@ const helper = (): string => bundled("EosHelper.exe");
 export const win32Shell: ShellPlatform = {
   uiOS: "windows",
 
+  // Eos Setup puts the same id on the Start menu shortcut (installer-win/src/winapi.rs).
   init() {
-    if (handleSquirrelEvent()) return false;
     app.setAppUserModelId(APP_USER_MODEL_ID);
-    return true;
   },
 
   appMenu: false,

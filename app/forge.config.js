@@ -91,6 +91,13 @@ module.exports = {
         execFileSync("codesign", ["--force", "--deep", "--sign", "-", appPath], { stdio: "inherit" });
       }
     },
+    // Windows: Eos Setup carries the zip (installer-win/, scripts/build-installer.mjs).
+    postMake: async (_config, makeResults) => {
+      if (!isWindows) return makeResults;
+      const zip = makeResults.flatMap((r) => r.artifacts).find((a) => a.endsWith(".zip"));
+      execFileSync("node", ["scripts/build-installer.mjs", zip], { cwd: __dirname, stdio: "inherit" });
+      return makeResults;
+    },
   },
   packagerConfig: {
     // name drives CFBundleName + CFBundleDisplayName + CFBundleExecutable — all
@@ -150,7 +157,7 @@ module.exports = {
     // it OUT of app.asar (else ~248 MB incl. the claude binary is duplicated).
     // .forge-build/{main,preload}.js stay IN — they are the app entry.
     ignore: (p) =>
-      /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location|helper-win)(\/|$)/.test(p) ||
+      /^\/(ui|src|verify|out|build|node_modules|scripts|saver|location|helper-win|installer-win)(\/|$)/.test(p) ||
       /^\/\.forge-build\/(daemon|Eos\.saver|EosLocation\.app|EosHelper\.exe)(\/|$)/.test(p) ||
       /\.(map|md)$/.test(p) ||
       /^\/(esbuild\.mjs|tsconfig\.json|forge\.config\.js|\.gitignore|package-lock\.json)$/.test(p),
@@ -159,18 +166,6 @@ module.exports = {
   },
   makers: [
     { name: "@electron-forge/maker-zip", platforms: ["darwin", "win32"] },
-    // Per-user Setup.exe (no admin): installs under %LOCALAPPDATA%\Eos, adds the
-    // Start menu + desktop shortcuts (main/platform/win32/squirrel.ts).
-    {
-      name: "@electron-forge/maker-squirrel",
-      platforms: ["win32"],
-      config: {
-        name: "Eos",
-        setupExe: `Eos-Setup-${process.arch}.exe`,
-        setupIcon: path.resolve(__dirname, "build", "icon.ico"),
-        noMsi: true,
-      },
-    },
     // DMG needs the native `appdmg`; opt in with EOS_DMG=1.
     ...(process.env.EOS_DMG === "1" ? [{ name: "@electron-forge/maker-dmg", config: { format: "ULFO" } }] : []),
   ],

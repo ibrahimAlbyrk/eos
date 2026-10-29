@@ -39,6 +39,9 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      # Eos Setup (app/installer-win) is Rust.
+      - uses: dtolnay/rust-toolchain@stable
+
       # Tests compare file bytes; the runner's git would write CRLF into the
       # repos they create (Eos itself follows the user's git config).
       - name: Git line endings
@@ -52,8 +55,9 @@ jobs:
       # The suites were written on macOS; until they pass on Windows (plan
       # Phase 0) a failure is reported without blocking the package.
       # A release builds a tag whose commits already passed on dev.
+      # "[skip tests]" in a commit message on a ci/** branch: package + smoke only.
       - name: Test
-        if: github.event_name != 'release'
+        if: github.event_name != 'release' && !contains(github.event.head_commit.message, '[skip tests]')
         continue-on-error: true
         timeout-minutes: 60
         run: |
@@ -77,14 +81,23 @@ jobs:
         working-directory: app
         run: npm run make
 
-      # The packaged app on this system: it starts its own daemon (supervised,
-      # on its named pipe, with SQLite and the bundled claude) and that daemon
-      # answers /health.
+      # Eos Setup on this system: it installs, the installed Eos starts its own
+      # daemon (supervised, on its named pipe, with SQLite and the bundled claude)
+      # that answers /health, and the uninstaller removes it again.
       - name: Smoke
         timeout-minutes: 8
         run: |
           export EOS_HOME="$RUNNER_TEMP/eos-home"
-          app/out/Eos-win32-${{ matrix.arch }}/Eos.exe > smoke-app.log 2>&1 &
+          # Install the way a user does (Eos Setup, silent mode), then run the installed Eos.
+          dest="$(cygpath -w "$RUNNER_TEMP")\\Eos"
+          app/out/make/Eos-Setup-${{ matrix.arch }}.exe --silent --dir "$dest" --no-launch
+          app="$RUNNER_TEMP/Eos"
+          for f in Eos.exe "Uninstall Eos.exe" .eos-install.json resources/app.asar; do
+            [ -e "$app/$f" ] || { echo "::error::Eos Setup didn't install $f"; exit 1; }
+          done
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Eos' //v DisplayVersion || { echo "::error::Eos isn't registered with Windows"; exit 1; }
+          [ -e "$(cygpath -u "$APPDATA")/Microsoft/Windows/Start Menu/Programs/Eos.lnk" ] || { echo "::error::no Start menu shortcut"; exit 1; }
+          "$app/Eos.exe" > smoke-app.log 2>&1 &
           ok=""
           for i in $(seq 1 120); do
             if curl -fsS http://127.0.0.1:7400/health > health.json 2>/dev/null; then ok=1; break; fi
@@ -112,12 +125,17 @@ jobs:
           fi
           taskkill //IM Eos.exe //T //F > /dev/null 2>&1 || true
           [ -n "$ok" ] || { echo "::error::the packaged app's daemon never answered /health"; exit 1; }
+          # And it uninstalls cleanly.
+          "$app/Uninstall Eos.exe" --uninstall --silent
+          sleep 6
+          [ ! -e "$app/Eos.exe" ] || { echo "::error::Uninstall left Eos.exe behind"; exit 1; }
+          ! reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Eos' > /dev/null 2>&1 || { echo "::error::Uninstall left Eos registered"; exit 1; }
 
       - name: Collect
         id: files
         run: |
           mkdir dist-win
-          cp app/out/make/squirrel.windows/${{ matrix.arch }}/Eos-Setup-${{ matrix.arch }}.exe dist-win/
+          cp app/out/make/Eos-Setup-${{ matrix.arch }}.exe dist-win/
           cp app/out/make/zip/win32/${{ matrix.arch }}/*.zip "dist-win/Eos-win32-${{ matrix.arch }}.zip"
           ls -la dist-win
 

@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eos Setup</title>
+<style>
+@font-face { font-family: Geist; src: url("assets/geist.woff2") format("woff2"); font-weight: 100 900; }
+@font-face { font-family: "IBM Plex Mono"; src: url("assets/plex-mono.woff2") format("woff2"); font-weight: 400; }
+:root {
+  --bg: #101010; --rail: #141414; --panel: #171717; --pop: #1c1c1c; --row-on: #1f1f1f;
+  --line: #242424; --chip: #2f2f2f; --mute: #474747;
+  --fg-strong: #f5f5f5; --fg: #e9e9e9; --fg-mid: #d4d4d4; --fg-dim: #a8a8a8; --fg-dim2: #8b8b8b; --fg-faint: #737373;
+  --accent: #6ea4e8; --accent-fg: #0b1018; --ok: #6fae86; --err: #e0796f;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: 13px/1.4 Geist, system-ui, sans-serif; -webkit-font-smoothing: antialiased; user-select: none; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { height: 100%; display: flex; }
+
+/* Left rail */
+.rail { width: 236px; flex-shrink: 0; background: var(--rail); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 20px 20px 22px; position: relative; overflow: hidden; }
+.rail::after { content: ""; position: absolute; left: -80px; bottom: -120px; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(closest-side, rgba(110,164,232,var(--glow, .14)), rgba(110,164,232,0)); pointer-events: none; transition: --glow 400ms; }
+.brand { display: flex; align-items: center; gap: 10px; position: relative; z-index: 1; }
+.brand img { width: 30px; height: 30px; border-radius: 8px; display: block; box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 4px 14px rgba(110,164,232,.18); }
+.brand span { font-size: 15px; font-weight: 600; color: var(--fg-strong); letter-spacing: -.01em; }
+.steps { list-style: none; margin: 40px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; position: relative; z-index: 1; }
+.steps li { display: flex; align-items: center; gap: 12px; height: 40px; padding: 0 10px; border-radius: 10px; color: var(--fg-dim2); transition: background 200ms, color 200ms; }
+.steps .num { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--chip); color: var(--fg-faint); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; transition: all 200ms; }
+.steps li.on { background: var(--row-on); color: var(--fg-strong); font-weight: 500; }
+.steps li.on .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.steps li.done { color: var(--fg-dim); }
+.steps li.done .num { background: rgba(111,174,134,.16); border-color: transparent; color: transparent; position: relative; }
+.steps li.done .num::after { content: ""; position: absolute; width: 8px; height: 4px; border: solid var(--ok); border-width: 0 0 1.7px 1.7px; transform: translate(0, -1px) rotate(-45deg); }
+.version { margin-top: auto; display: flex; flex-direction: column; gap: 4px; position: relative; z-index: 1; }
+.version b { font-weight: 400; font-size: 12px; color: var(--fg-dim); }
+.version span { font: 11px var(--mono); color: var(--fg-faint); }
+
+/* Main column */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.titlebar { height: 40px; flex-shrink: 0; display: flex; align-items: center; justify-content: flex-end; padding: 0 8px; gap: 4px; }
+.wc { width: 32px; height: 26px; border: 0; border-radius: 7px; background: transparent; color: var(--fg-dim2); display: inline-flex; align-items: center; justify-content: center; transition: background 120ms, color 120ms; }
+.wc:hover { background: var(--pop); color: var(--fg); }
+.wc.close:hover { background: #c42b1c; color: #fff; }
+.screen { display: none; flex: 1; min-height: 0; flex-direction: column; animation: enter 260ms cubic-bezier(.2,.7,.3,1); }
+.screen.on { display: flex; }
+@keyframes enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.pad { padding-left: 36px; padding-right: 36px; }
+h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; color: var(--fg-strong); }
+.sub { margin: 6px 0 0; color: var(--fg-dim); }
+.label { font-size: 12px; font-weight: 500; color: var(--fg-mid); }
+.hint { font-size: 12px; color: var(--fg-faint); }
+.hint.bad { color: var(--err); }
+.footer { margin-top: auto; display: flex; align-items: center; gap: 8px; padding: 16px 36px 22px; }
+.btn { height: 38px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--chip); background: var(--pop); color: var(--fg-mid); font-weight: 500; display: inline-flex; align-items: center; gap: 8px; transition: background 120ms, border-color 120ms; }
+.btn:hover { background: #232323; }
+.btn.ghost { border-color: transparent; background: transparent; color: var(--fg-dim); }
+.btn.ghost:hover { background: var(--pop); color: var(--fg); }
+.btn.primary { border: 0; padding: 0 22px; background: var(--accent); color: var(--accent-fg); font-weight: 600; box-shadow: 0 6px 20px rgba(110,164,232,.22); }
+.btn.primary:hover { background: #7fb1ee; }
+.btn.primary:disabled { opacity: .45; box-shadow: none; }
+
+/* Options */
+.dir { display: flex; gap: 8px; margin-top: 8px; }
+.dir input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--chip); border-radius: 10px; background: var(--panel); color: var(--fg); font: 12px var(--mono); user-select: text; }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 10px; }
+.tile { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); transition: background 150ms, border-color 150ms; }
+.tile input { appearance: none; position: absolute; inset: 0; margin: 0; border-radius: 12px; cursor: default; }
+.tile .row { display: flex; justify-content: space-between; align-items: center; color: var(--fg-dim); }
+.tile .box { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--mute); display: inline-flex; align-items: center; justify-content: center; transition: all 150ms; }
+.tile .box svg { opacity: 0; }
+.tile .name { font-size: 13px; font-weight: 500; color: var(--fg-mid); }
+.tile:has(input:checked) { background: rgba(110,164,232,.08); border-color: var(--accent); }
+.tile:has(input:checked) .row { color: var(--fg-mid); }
+.tile:has(input:checked) .box { background: var(--accent); border-color: var(--accent); }
+.tile:has(input:checked) .box svg { opacity: 1; }
+.tile:has(input:checked) .name { color: var(--fg-strong); }
+.tile:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Installing */
+.pct { font-size: 56px; font-weight: 600; letter-spacing: -.04em; color: var(--fg-strong); font-variant-numeric: tabular-nums; line-height: 1; }
+.pct small { font-size: 28px; color: var(--fg-faint); letter-spacing: 0; }
+.bar { position: relative; height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar > div { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: 999px; background: var(--accent); overflow: hidden; transition: width 200ms linear; }
+.bar > div::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; background: linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,.35), rgba(255,255,255,0)); animation: sheen 1.6s ease-in-out infinite; }
+@keyframes sheen { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+.meta { display: flex; justify-content: space-between; margin-top: 10px; font: 11px var(--mono); color: var(--fg-faint); }
+.log { margin: 22px 36px 0; flex: 1; min-height: 0; background: #0c0c0c; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; justify-content: flex-end; gap: 6px; overflow: hidden; font: 11.5px/1.4 var(--mono); }
+.log div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--mute); }
+.log div:nth-last-child(2) { color: var(--fg-faint); }
+.log div:last-child { color: var(--fg-mid); }
+.log div:last-child::after { content: "▍"; color: var(--accent); margin-left: 6px; animation: blink 1.2s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+
+/* Ready */
+.hero { display: flex; gap: 28px; align-items: center; }
+.preview { width: 196px; height: 128px; flex-shrink: 0; border-radius: 10px; background: #0c0c0c; border: 1px solid var(--chip); box-shadow: 0 18px 40px rgba(0,0,0,.5), 0 0 0 6px rgba(110,164,232,.06); display: flex; overflow: hidden; animation: rise 3.2s ease-in-out infinite; }
+@keyframes rise { 50% { transform: translateY(-4px) scale(1.015); } }
+.preview .side { width: 54px; background: var(--panel); border-right: 1px solid var(--line); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; }
+.preview .side i, .preview .body i { display: block; height: 5px; border-radius: 3px; background: var(--chip); }
+.preview .body { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
+.preview .body img { width: 26px; height: 26px; border-radius: 7px; }
+.summary { margin: 24px 36px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+.summary div { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid #1f1f1f; color: var(--fg-mid); }
+.summary div:first-child { border-top: 0; }
+.summary div.off { color: var(--fg-dim2); }
+.summary code { margin-left: auto; font: 11.5px var(--mono); color: var(--fg-dim2); max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Error */
+.errbox { margin: 22px 36px 0; padding: 14px 16px; border-radius: 12px; background: rgba(224,121,111,.08); border: 1px solid rgba(224,121,111,.35); color: var(--fg-mid); font: 12px/1.5 var(--mono); user-select: text; white-space: pre-wrap; max-height: 150px; overflow: auto; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="rail" id="rail">
+    <div class="brand"><img src="assets/logo.png" alt=""><span>Eos</span></div>
+    <ol class="steps">
+      <li id="s1" class="on"><span class="num">1</span>Choose</li>
+      <li id="s2"><span class="num">2</span>Install</li>
+      <li id="s3"><span class="num">3</span>Open Eos</li>
+    </ol>
+    <div class="version"><b id="ver">Version</b><span id="plat">Windows</span></div>
+  </aside>
+
+  <main class="main">
+    <div class="titlebar" data-drag>
+      <button class="wc" aria-label="Minimize" data-cmd="minimize"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><line x1="1" y1="5" x2="9" y2="5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg></button>
+      <button class="wc close" aria-label="Close" data-cmd="close"><svg width="10" height="10" viewBox="0 0 10 10" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" aria-hidden="true"><line x1="1.5" y1="1.5" x2="8.5" y2="8.5"/><line x1="8.5" y1="1.5" x2="1.5" y2="8.5"/></svg></button>
+    </div>
+
+    <section class="screen on" id="options">
+      <div class="pad" data-drag>
+        <h1>Set up Eos your way</h1>
+        <p class="sub">The defaults work for most people — change anything you like.</p>
+      </div>
+      <div class="pad" style="margin-top: 22px">
+        <label class="label" for="dir">Install location</label>
+        <div class="dir">
+          <input id="dir" type="text" spellcheck="false">
+          <button class="btn" data-cmd="browse"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z"/></svg>Browse</button>
+        </div>
+        <div class="hint" id="space" style="margin-top: 8px">&nbsp;</div>
+      </div>
+      <div class="pad" style="margin-top: 20px">
+        <span class="label">Add Eos to</span>
+        <div class="tiles">
+          <label class="tile"><input type="checkbox" id="desktop" checked aria-label="Desktop">
+            <span class="row"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="14" height="9.5" rx="1.6"/><path d="M6.5 15.5h5M9 12.5v3"/></svg><span class="box"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#0b1018" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.2l2 2 4-4.4"/></svg></span></span>
+            <span class="name">Desktop</span></label>
+          <label class="tile"><input type="checkbox" id="startMenu" checked aria-label="Start menu">
+            <span class="row"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="2.5" width="5.5" height="5.5" rx="1.2"/><rect x="10" y="2.5" width="5.5" height="5.5" rx="1.2"/><rect x="2.5" y="10" width="5.5" height="5.5" rx="1.2"/><rect x="10" y="10" width="5.5" height="5.5" rx="1.2"/></svg><span class="box"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#0b1018" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.2l2 2 4-4.4"/></svg></span></span>
+            <span class="name">Start menu</span></label>
+          <label class="tile"><input type="checkbox" id="startup" aria-label="Startup">
+            <span class="row"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M9 2.5v6"/><path d="M5.2 5a5.5 5.5 0 1 0 7.6 0"/></svg><span class="box"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="#0b1018" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 5.2l2 2 4-4.4"/></svg></span></span>
+            <span class="name">Startup</span></label>
+        </div>
+      </div>
+      <div class="footer" style="justify-content: flex-end">
+        <button class="btn ghost" data-cmd="close">Cancel</button>
+        <button class="btn primary" id="install" data-cmd="install">Install Eos<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6h7M6.5 3l3 3-3 3"/></svg></button>
+      </div>
+    </section>
+
+    <section class="screen" id="installing">
+      <div class="pad" style="padding-top: 8px" data-drag>
+        <span class="label" style="color: var(--fg-dim)" id="stepLabel">Installing Eos</span>
+        <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: 4px">
+          <span class="pct"><span id="pct">0</span><small>%</small></span>
+          <span style="font: 12px var(--mono); color: var(--fg-dim)" id="eta"></span>
+        </div>
+      </div>
+      <div class="pad" style="margin-top: 18px">
+        <div class="bar"><div id="bar"></div></div>
+        <div class="meta"><span id="bytes">0 / 0 MB</span><span id="rate"></span></div>
+      </div>
+      <div class="log" id="log"></div>
+      <div class="footer" style="justify-content: space-between">
+        <span class="hint">Shortcuts come next, then Eos opens.</span>
+        <button class="btn" data-cmd="cancel" id="cancel">Cancel</button>
+      </div>
+    </section>
+
+    <section class="screen" id="ready">
+      <div class="pad hero" style="padding-top: 10px" data-drag>
+        <div style="flex: 1; min-width: 0">
+          <h1 style="font-size: 26px; letter-spacing: -.02em">You're all set</h1>
+          <p class="sub" style="line-height: 1.5">Eos is installed and opening now. Sign in with your Claude plan to start your first agent.</p>
+        </div>
+        <div class="preview" aria-hidden="true">
+          <div class="side"><i style="width: 26px"></i><i style="width: 34px"></i><i style="width: 30px; background: var(--accent); opacity: .7"></i><i style="width: 22px"></i></div>
+          <div class="body"><img src="assets/logo.png" alt=""><i style="width: 64px"></i><i style="width: 100px; height: 14px; border-radius: 6px; background: var(--pop); border: 1px solid var(--chip); margin-top: 10px"></i></div>
+        </div>
+      </div>
+      <div class="summary" id="summary"></div>
+      <div class="footer" style="justify-content: space-between">
+        <span style="display: inline-flex; align-items: center; gap: 10px; color: var(--fg-mid)" id="opening"><svg class="spin" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="6" stroke="#2f2f2f" stroke-width="2"/><path d="M14 8a6 6 0 0 0-6-6" stroke="#6ea4e8" stroke-width="2" stroke-linecap="round"/></svg>Opening Eos…</span>
+        <button class="btn" data-cmd="close">Close setup</button>
+      </div>
+    </section>
+
+    <section class="screen" id="failed">
+      <div class="pad" data-drag>
+        <h1>Eos couldn't be installed</h1>
+        <p class="sub">Nothing was left half-done. Fix the problem below and try again.</p>
+      </div>
+      <div class="errbox" id="error"></div>
+      <div class="footer" style="justify-content: flex-end">
+        <button class="btn ghost" data-cmd="close">Close</button>
+        <button class="btn primary" data-cmd="back">Try again</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+// The page talks to the installer (src/main.rs) with JSON messages:
+// window.ipc.postMessage({cmd, ...}) out, window.eos.on(event) in.
+const $ = (id) => document.getElementById(id);
+const send = (msg) => window.ipc.postMessage(JSON.stringify(msg));
+const mb = (b) => (b / 1048576).toFixed(0);
+const gb = (b) => (b / 1073741824).toFixed(1);
+let needed = 0;
+let started = 0;
+
+function show(screen, step) {
+  for (const s of document.querySelectorAll(".screen")) s.classList.toggle("on", s.id === screen);
+  ["s1", "s2", "s3"].forEach((id, i) => {
+    $(id).classList.toggle("on", i + 1 === step);
+    $(id).classList.toggle("done", i + 1 < step);
+  });
+  $("rail").style.setProperty("--glow", step === 3 ? ".24" : step === 2 ? ".18" : ".14");
+}
+
+function logLine(text) {
+  const log = $("log");
+  const div = document.createElement("div");
+  div.textContent = text;
+  log.append(div);
+  while (log.children.length > 8) log.firstChild.remove();
+}
+
+function check(text, on, path) {
+  const row = document.createElement("div");
+  if (!on) row.className = "off";
+  row.innerHTML = on
+    ? '<svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="#6fae86" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.2l2.2 2.2 4.8-5"/></svg>'
+    : '<svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="#737373" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 6h6"/></svg>';
+  row.append(document.createTextNode(text));
+  if (path) { const code = document.createElement("code"); code.textContent = path; row.append(code); }
+  return row;
+}
+
+window.eos = {
+  on(e) {
+    if (e.type === "init") {
+      needed = e.needed;
+      $("ver").textContent = `Version ${e.version}`;
+      $("plat").textContent = e.platform;
+      $("dir").value = e.dir;
+      this.on({ type: "space", ...e.space });
+    } else if (e.type === "space") {
+      const hint = $("space");
+      hint.classList.toggle("bad", !e.ok);
+      hint.textContent = e.ok ? `Needs ${mb(needed)} MB · ${gb(e.free)} GB free on ${e.drive}` : e.reason;
+      $("install").disabled = !e.ok;
+    } else if (e.type === "dir") {
+      $("dir").value = e.dir;
+    } else if (e.type === "step") {
+      $("stepLabel").textContent = e.label;
+      logLine(e.label.toLowerCase());
+    } else if (e.type === "progress") {
+      const pct = e.total ? Math.floor((e.done / e.total) * 100) : 0;
+      $("pct").textContent = pct;
+      $("bar").style.width = pct + "%";
+      $("bytes").textContent = `${mb(e.done)} / ${mb(e.total)} MB`;
+      const secs = (performance.now() - started) / 1000;
+      const rate = secs > 0.5 ? e.done / secs : 0;
+      $("rate").textContent = rate ? `${(rate / 1048576).toFixed(1)} MB/s` : "";
+      $("eta").textContent = rate && pct < 100 ? `about ${Math.max(1, Math.round((e.total - e.done) / rate))} s left` : "";
+      if (e.file) logLine(`copied ${e.file}`);
+    } else if (e.type === "done") {
+      const s = $("summary");
+      s.replaceChildren(
+        check("Installed to", true, e.dir),
+        check(e.desktop && e.startMenu ? "Shortcuts on the desktop and in Start" : e.desktop ? "Shortcut on the desktop" : e.startMenu ? "Shortcut in Start" : "No shortcuts", e.desktop || e.startMenu),
+        check(e.startup ? "Opens when you sign in to Windows" : "Doesn't open at sign-in", e.startup),
+      );
+      show("ready", 3);
+    } else if (e.type === "opened") {
+      $("opening").textContent = "Eos is open — this window closes in a moment.";
+    } else if (e.type === "error") {
+      $("error").textContent = e.message;
+      show("failed", 1);
+    } else if (e.type === "cancelled") {
+      show("options", 1);
+    }
+  },
+};
+
+document.addEventListener("click", (ev) => {
+  const el = ev.target.closest("[data-cmd]");
+  if (!el || el.disabled) return;
+  const cmd = el.dataset.cmd;
+  if (cmd === "install") {
+    started = performance.now();
+    $("log").replaceChildren();
+    show("installing", 2);
+    send({ cmd, dir: $("dir").value.trim(), desktop: $("desktop").checked, startMenu: $("startMenu").checked, startup: $("startup").checked });
+  } else if (cmd === "back") {
+    show("options", 1);
+  } else if (cmd === "cancel") {
+    $("cancel").disabled = true;
+    send({ cmd });
+  } else {
+    send({ cmd });
+  }
+});
+document.addEventListener("mousedown", (ev) => {
+  if (ev.button === 0 && ev.target.closest("[data-drag]") && !ev.target.closest("button, input, label")) send({ cmd: "drag" });
+});
+let dirTimer = 0;
+$("dir").addEventListener("input", () => {
+  clearTimeout(dirTimer);
+  dirTimer = setTimeout(() => send({ cmd: "dir", dir: $("dir").value.trim() }), 250);
+});
+document.addEventListener("contextmenu", (ev) => { if (!ev.target.closest("input")) ev.preventDefault(); });
+send({ cmd: "ready" });
+</script>
+</body>
+</html>

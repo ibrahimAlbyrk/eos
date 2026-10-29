@@ -91,7 +91,7 @@ and everything above it (core, routes, UI) never asks which OS it is on.
 | Keys | ⌘ / ⌃ | Ctrl / Win; the terminal's Mac line-editing remaps and ⌘A select-all are off |
 | Clipboard file paths | `NSFilenamesPboardType` | `FileNameW` (the first copied item) |
 | Screen saver, rebuild | tray items | absent |
-| Installer events | — | `--squirrel-*` handled in `win32/squirrel.ts` (Start menu + desktop shortcuts) |
+| Installer | — | Eos Setup (`app/installer-win`, see *Eos Setup*) |
 
 Unchanged: core, contracts, SQLite, SSE, sync, genui, the React UI's design.
 Fonts are bundled and liquid glass is Chromium's own `backdrop-filter`.
@@ -129,10 +129,33 @@ profile ACL (user, SYSTEM, Administrators); `chmod` is a no-op there.
   the Mac) gets them attached.
 - `forge.config.js`: native helpers per system in `prePackage`
   (`build-helper.mjs` needs the .NET 8 SDK), per-system `extraResource`,
-  `maker-squirrel` (per-user, no admin) + `maker-zip`, `build/icon.ico`.
+  `maker-zip`, then a `postMake` hook wraps the zip in Eos Setup
+  (`scripts/build-installer.mjs`), `build/icon.ico`.
 - `scripts/assemble-daemon.mjs` ships the claude package and rebuilds node-pty
   for the machine it runs on; `scripts/ensure-dev.mjs` prepares `npm start` on
   either system.
+
+## Eos Setup
+
+The Windows installer, `app/installer-win` (Rust: tao + wry over WebView2,
+which Windows 10 and 11 ship). Its window is `ui/index.html` — the design's
+three steps (Choose · Install · Open Eos) plus a failure screen — talking to
+`src/main.rs` over JSON messages; fonts and the logo are embedded, nothing is
+fetched. `scripts/build-installer.mjs` builds it per arch and appends Forge's
+zip behind it with a footer (`src/payload.rs`): `Eos-Setup-<arch>.exe`.
+
+- **Where:** `%LOCALAPPDATA%\Programs\Eos` by default, or any empty folder
+  (a folder that isn't empty and isn't Eos's is refused). Per user, no admin.
+- **What it adds:** Desktop and Start menu shortcuts (with Eos's
+  AppUserModelID, which toasts need), the Run key for "Startup", an
+  Apps & features entry, and `Uninstall Eos.exe` — the same exe without its
+  payload. All of it is listed in `<dir>\.eos-install.json`; reinstall,
+  upgrade and uninstall delete only what that lists.
+- **Flow:** stops a running Eos, uninstalls a 0.1.x Squirrel install, copies
+  with live progress (cancel undoes the copy), adds the rest, opens Eos and
+  steps aside.
+- **Modes:** `--silent [--dir D] [--no-launch]` (CI, managed installs);
+  `Uninstall Eos.exe --uninstall [--silent]`.
 
 ## Phases
 
@@ -149,7 +172,7 @@ profile ACL (user, SYSTEM, Administrators); `chmod` is a no-op there.
    overlay height and the top-right inset against real screenshots; Windows
    bindings for the ⌃-combos (Win+digit belongs to the taskbar); the composer's
    undo without an app menu.
-4. **Packaging + CI + release.** Written: workflow, Squirrel, icon, helper
+4. **Packaging + CI + release.** Written: workflow, Eos Setup, icon, helper
    build. Exit: a clean install from a GitHub release in the VM on both arches.
 5. **Next release: pairing.** Turn `features.remote` on, firewall flow for the
    peer port, keep-awake, phone control of a Windows host, Mac ↔ Windows peering
@@ -163,6 +186,6 @@ profile ACL (user, SYSTEM, Administrators); `chmod` is a no-op there.
 3. `delivery.ts` bracketed paste + `claudeKeys.ts` sequences under ConPTY.
 4. node-pty for the Electron 42 ABI on win32-arm64.
 5. Bun gateway on win32-arm64.
-6. `maker-squirrel` arm64 output (fallback: WiX MSI).
+6. ~~`maker-squirrel` arm64 output~~ — replaced by Eos Setup.
 7. EosHelper's native AOT build with CsWinRT (location) on both runners.
 8. Liquid glass frame cost on typical Windows GPUs.

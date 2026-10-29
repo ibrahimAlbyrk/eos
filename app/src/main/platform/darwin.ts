@@ -31,7 +31,7 @@ const LOCATION_HELPER = path.join("EosLocation.app", "Contents", "MacOS", "eos-l
 export const darwinShell: ShellPlatform = {
   uiOS: "mac",
 
-  init: () => true,
+  init: () => {},
 
   appMenu: true,
 

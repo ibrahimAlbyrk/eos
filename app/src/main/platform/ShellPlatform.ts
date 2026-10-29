@@ -8,8 +8,8 @@ import type { DaemonLaunch } from "../daemon";
 export interface ShellPlatform {
   /** The desktop conventions the dashboard follows (command key, shortcut labels, window controls): <html data-os>. */
   readonly uiOS: "mac" | "windows";
-  /** Runs first, before the app is ready. false = this launch was only an installer event and the app quits. */
-  init(): boolean;
+  /** Runs first, before the app is ready. */
+  init(): void;
   /**
    * The app-wide menu bar (menu.ts) is the system's: on a Mac its accelerators
    * own ⌘C/⌘V/⌘Z. Without one, no menu is installed, so every key reaches the
