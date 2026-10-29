@@ -2563,8 +2563,10 @@ export const ROUTES = {
   // key then reloads. Loopback + ui-token only (an agent can't self-write creds).
   anthropicConfig: "/api/anthropic/config",
   // Subscription usage snapshot (Settings > Usage). Open read —
-  // the daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
-  // calls; the endpoint 429s aggressively) and never echoes the OAuth token.
+  // the daemon answers from its held UsageResponse at once and refreshes a stale
+  // one in the background (usage:change); `?wait=1` waits for it (min 180s
+  // between upstream calls; the endpoint 429s aggressively). Never echoes the
+  // OAuth token.
   usage: "/api/usage",
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then

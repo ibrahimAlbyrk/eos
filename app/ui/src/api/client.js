@@ -1095,11 +1095,12 @@ export const api = {
     return postJson(ROUTES.signInCode(id), { code }, uiTokenHeader());
   },
 
-  // Subscription usage (Settings > Usage) — open read. The
-  // daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
-  // calls; the refresh button just re-hits this). Null on transport failure.
-  async getUsage() {
-    const r = await getJson(ROUTES.usage);
+  // Subscription usage (Settings > Usage) — open read. The daemon answers from
+  // what it holds and refreshes a stale snapshot in the background (usage:change);
+  // `wait` (the refresh button) waits for that refresh, min 180s between upstream
+  // calls. Null on transport failure.
+  async getUsage({ wait = false } = {}) {
+    const r = await getJson(wait ? `${ROUTES.usage}?wait=1` : ROUTES.usage);
     return r.ok ? r.body : null;
   },
 

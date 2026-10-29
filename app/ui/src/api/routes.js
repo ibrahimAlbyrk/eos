@@ -217,8 +217,8 @@ export const ROUTES = {
   // Claude creds for the claude lane (Settings › Accounts) — loopback +
   // ui-token only. GET returns redacted { apiKeySet, authTokenSet }; PUT persists.
   anthropicConfig: "/api/anthropic/config",
-  // Subscription usage snapshot (Settings > Usage) — open read; daemon serves a
-  // cached-or-fresh UsageResponse (min 180s between upstream calls).
+  // Subscription usage snapshot (Settings > Usage) — open read; daemon answers
+  // from its held UsageResponse at once (`?wait=1` waits for a stale one's refresh).
   usage: "/api/usage",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",

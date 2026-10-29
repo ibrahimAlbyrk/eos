@@ -1,15 +1,15 @@
 // Usage panel — the Settings "Usage" tab. Shows every signed-in plan's limits
 // (Claude, ChatGPT…: 5-hour session + weekly windows) as thin progress bars with
 // reset times, one group per plan, styled to match Claude's own usage screen
-// using the existing settings tokens/classes. Read-only: it loads GET /api/usage on open through
-// state/usageStore.js (the daemon owns the cache + 180s upstream floor) and offers a
-// manual refresh that just re-hits the same route. A failed refresh keeps the last
-// data on screen and says so in the footer.
+// using the existing settings tokens/classes. Read-only: it reads state/usageStore.js
+// (the daemon owns the cache + 180s upstream floor and pushes each refresh) and
+// offers a manual refresh that waits for the daemon's upstream round-trip. A failed
+// refresh keeps the last data on screen and says so in the footer.
 //
 // Custom Component (no registry `groups`), like AccountsSettings/RemoteSettings —
 // it owns no settings.json keys (the data is fetched live, never persisted).
 
-import { loadUsage, useUsage } from "../state/usageStore.js";
+import { refreshUsage, useUsage } from "../state/usageStore.js";
 import {
   USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, planUsageSections,
 } from "../lib/usageFormat.js";
@@ -90,7 +90,7 @@ export function UsageSettings() {
           <div className="stg-row stg-row--stack">
             <div className="stg-prov-err">Couldn’t reach the daemon to load usage.</div>
           </div>
-          <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
+          <button type="button" className="stg-prov-save" disabled={busy} onClick={refreshUsage}>
             {busy ? "Retrying…" : "Retry"}
           </button>
         </div>
@@ -150,7 +150,7 @@ export function UsageSettings() {
             </div>
           ))}
           {!sections.length && (
-            <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
+            <button type="button" className="stg-prov-save" disabled={busy} onClick={refreshUsage}>
               {busy ? "Refreshing…" : "Try again"}
             </button>
           )}
@@ -165,7 +165,7 @@ export function UsageSettings() {
           <span className="stg-row__desc">
             Last updated: {formatAgo(lastUpdated)}{outdated ? " · couldn’t refresh, retrying" : ""}
           </span>
-          <button type="button" className="stg-prov-save" disabled={busy} onClick={loadUsage}>
+          <button type="button" className="stg-prov-save" disabled={busy} onClick={refreshUsage}>
             {busy ? "Refreshing…" : "Refresh"}
           </button>
         </div>

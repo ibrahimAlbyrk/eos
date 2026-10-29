@@ -20,6 +20,7 @@ import { WelcomeScreen } from "./components/accounts/WelcomeScreen.jsx";
 import { useOpenMemory } from "./hooks/useOpenMemory.js";
 import { ProfileInterview } from "./components/profile/ProfileInterview.jsx";
 import { useProfile, ensureProfileLoaded } from "./state/profileStore.js";
+import { loadUsage } from "./state/usageStore.js";
 import { useInterviewOpen, openProfileInterview, closeProfileInterview } from "./state/interviewStore.js";
 import { shouldOfferInterview } from "./lib/profileInterview.js";
 import { DreamReview } from "./components/profile/DreamReview.jsx";
@@ -60,7 +61,7 @@ function Shell() {
   const interviewOpen = useInterviewOpen();
   const dreamReviewOpen = useDreamReviewOpen();
   const [welcome, setWelcome] = useState("pending"); // pending → open | closed
-  useEffect(() => { ensureAccountsLoaded(); ensureProfileLoaded(); }, []);
+  useEffect(() => { ensureAccountsLoaded(); ensureProfileLoaded(); loadUsage(); }, []);
   useEffect(() => {
     if (welcome !== "pending" || !settingsLoaded || !accounts || !profileLoaded) return;
     const showWelcome = !settings["onboarding.dismissed"] && noAccountConnected(accounts);

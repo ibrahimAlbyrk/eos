@@ -6,7 +6,8 @@
 // fails the whole response — and the provider's last good snapshot keeps being
 // served (marked `stale`) while it retries with a growing backoff. The last good
 // snapshots are saved so they survive a daemon restart; only "not signed in"
-// (NoUsageAccountError) drops them.
+// (NoUsageAccountError) drops them. Every upstream round-trip is handed to
+// onChange (the usage:change topic), so open surfaces move to the new numbers live.
 
 import type { ProviderUsage, UsageResponse } from "../../contracts/src/usage.ts";
 import {
@@ -24,6 +25,7 @@ export interface UsageServiceDeps {
   clock: Clock;
   minIntervalMs?: number;
   store?: UsageSnapshotStore;
+  onChange?: (usage: UsageResponse) => void;
 }
 
 interface ProviderState {
@@ -52,6 +54,17 @@ export class UsageService {
     return this.providers().flatMap((p) => this.states.get(p.id)?.last ?? []);
   }
 
+  // What is held now, without waiting on upstream: past the floor, a refresh
+  // starts in the background and arrives through onChange. Only with nothing
+  // held yet (never fetched, no saved snapshot) does it wait for the fetch.
+  async current(): Promise<UsageResponse> {
+    const held = this.cache ?? (this.peek().length ? this.response() : null);
+    if (!held) return this.getUsage();
+    // A no-op inside the floor; a failed round-trip keeps the last snapshot.
+    this.getUsage().catch(() => {});
+    return held;
+  }
+
   // Serve cache within the floor; otherwise fetch fresh. A refresh is honored the
   // same way — it can't bust the floor (that's what protects the 429ing endpoint).
   async getUsage(): Promise<UsageResponse> {
@@ -64,19 +77,27 @@ export class UsageService {
   }
 
   private async fetchAll(now: number): Promise<UsageResponse> {
-    const providers: UsageResponse["providers"] = [];
-    const errors: NonNullable<UsageResponse["errors"]> = [];
     let changed = false;
     for (const p of this.providers()) {
       const s = this.stateOf(p.id);
       if (now >= s.retryAt) changed = (await this.refresh(p, s, now)) || changed;
-      if (s.last) providers.push(s.error ? { ...s.last, stale: true } : s.last);
-      if (s.error) errors.push({ provider: p.id, reason: s.error });
     }
     if (changed) this.save();
     this.lastFetchAt = now;
-    this.cache = errors.length ? { providers, errors } : { providers };
+    this.cache = this.response();
+    this.deps.onChange?.(this.cache);
     return this.cache;
+  }
+
+  private response(): UsageResponse {
+    const providers: UsageResponse["providers"] = [];
+    const errors: NonNullable<UsageResponse["errors"]> = [];
+    for (const p of this.providers()) {
+      const s = this.states.get(p.id);
+      if (s?.last) providers.push(s.error ? { ...s.last, stale: true } : s.last);
+      if (s?.error) errors.push({ provider: p.id, reason: s.error });
+    }
+    return errors.length ? { providers, errors } : { providers };
   }
 
   // Fetch one provider into its state; true when its saved snapshot changed.

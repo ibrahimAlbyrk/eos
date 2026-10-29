@@ -46,6 +46,7 @@ import { applyUserMemoryChange, resyncUserMemories } from "../state/userMemorySt
 import { applyDreamChange, resyncDreams } from "../state/dreamStore.js";
 import { applySyncChange, resyncSync } from "../state/syncStore.js";
 import { applyTransferChange, resyncTransfers } from "../state/transfersStore.js";
+import { applyUsageChange, resyncUsage } from "../state/usageStore.js";
 import { applyFeatures } from "../state/featuresStore.js";
 import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
 import { applyWorkflowProgress, resyncWorkflowRuns } from "../state/workflowRunsStore.js";
@@ -225,6 +226,7 @@ export function useLive() {
         resyncDreams();
         resyncSync();
         if (!isRemoteView()) resyncTransfers();
+        resyncUsage();
         resyncViewStates();
         resyncGenuiStreams();
         resyncWorkflowRuns();
@@ -253,6 +255,9 @@ export function useLive() {
           // A file transfer moved on. A view of another Mac hears that Mac's
           // engine here, not ours — its transfers come through the shell's bridge.
           if (data.reason === "transfer:change") { if (!isRemoteView()) applyTransferChange(data.payload); return; }
+          // Plan usage after the daemon's upstream refresh — the account menu and
+          // Settings › Usage render the payload.
+          if (data.reason === "usage:change") { applyUsageChange(data.payload); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
           if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }

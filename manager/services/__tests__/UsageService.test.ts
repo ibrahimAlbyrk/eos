@@ -147,6 +147,70 @@ describe("UsageService", () => {
   });
 });
 
+describe("UsageService.current — answers at once, refreshes behind", () => {
+  // A provider whose fetches resolve only when the test says so.
+  function gated() {
+    let calls = 0;
+    let used = 41;
+    const opens: Array<() => void> = [];
+    const provider: SubscriptionUsageProvider = {
+      id: "claude",
+      async fetchUsage() {
+        calls++;
+        await new Promise<void>((r) => opens.push(r));
+        return { ...snapshot(), windows: { fiveHour: { utilization: used, resetsAt: null } } };
+      },
+    };
+    return {
+      provider,
+      calls: () => calls,
+      setUsed: (n: number) => { used = n; },
+      open: async () => { opens.splice(0).forEach((r) => r()); await new Promise((r) => setImmediate(r)); },
+    };
+  }
+
+  it("waits for the first fetch when nothing is held yet", async () => {
+    const p = gated();
+    const svc = new UsageService({ providers: [p.provider], clock: fakeClock(0) });
+    const res = svc.current();
+    await p.open();
+    assert.equal((await res).providers[0].windows.fiveHour?.utilization, 41);
+  });
+
+  it("serves the held snapshot past the floor and hands the refresh to onChange", async () => {
+    const p = gated();
+    const clock = fakeClock(0);
+    const changes: number[] = [];
+    const svc = new UsageService({
+      providers: [p.provider], clock, minIntervalMs: 1000,
+      onChange: (u) => changes.push(u.providers[0].windows.fiveHour?.utilization ?? -1),
+    });
+    const first = svc.current();
+    await p.open();
+    await first;
+
+    clock.advance(999);
+    await svc.current();
+    assert.equal(p.calls(), 1); // inside the floor: no refresh
+
+    clock.advance(1);
+    p.setUsed(70);
+    const held = await svc.current(); // answered before the refresh resolves
+    assert.equal(held.providers[0].windows.fiveHour?.utilization, 41);
+    assert.equal(p.calls(), 2);
+    await p.open();
+    assert.deepEqual(changes, [41, 70]);
+  });
+
+  it("serves a saved snapshot after a restart without waiting on upstream", async () => {
+    const p = gated();
+    const store = { load: () => [snapshot()], save: () => {} };
+    const svc = new UsageService({ providers: [p.provider], clock: fakeClock(0), store });
+    assert.deepEqual((await svc.current()).providers, [snapshot()]);
+    assert.equal(p.calls(), 1); // never fetched in this process → refreshing behind
+  });
+});
+
 describe("UsageService — a provider list read live, one snapshot per sign-in", () => {
   const snap = (loginId: string, used: number) => ({
     provider: "claude", loginId, label: loginId, windows: { fiveHour: { utilization: used, resetsAt: null } }, fetchedAt: "t",

@@ -985,8 +985,9 @@ export function buildContainer() {
 
   // Subscription usage (Settings > Usage), from the Eos sign-ins only. Read live
   // off `config` so a Settings write is picked up without a restart. The
-  // UsageService owns the cache + 180s upstream floor; the last good snapshots
-  // live in ~/.eos/usage-cache.json (regenerable).
+  // UsageService owns the cache + 180s upstream floor and pushes each refresh
+  // (usage:change); the last good snapshots live in ~/.eos/usage-cache.json
+  // (regenerable).
   // A Claude store's usage token — renewed first when it lapsed while no session
   // ran.
   const claudeUsageToken = async (store: string): Promise<string | null> => {
@@ -1034,6 +1035,7 @@ export function buildContainer() {
     },
     clock: systemClock,
     store: createFileUsageSnapshotStore(join(config.daemon.home, "usage-cache.json")),
+    onChange: (res) => bus.publish("usage:change", res),
   });
   // How much of its 5-hour window a sign-in has used, from the last snapshot (a
   // window whose reset passed has rolled over).

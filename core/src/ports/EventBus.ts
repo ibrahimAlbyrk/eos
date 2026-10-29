@@ -71,6 +71,9 @@ export type EventBusTopic =
   // A file transfer between Macs moved on, or finished ones were cleared
   // (payload TransferChangeEvent) — the Transfer tab renders the payload.
   | "transfer:change"
+  // Subscription usage after an upstream round-trip (payload UsageResponse) —
+  // the account menu and Settings › Usage render the payload.
+  | "usage:change"
   // A visual answer's tool input while the model writes it (claude SDK lane;
   // payload GenuiDelta: workerId, callId, name, phase, text). Its own topic so
   // agent:delta consumers (LiveText, phones) never see tool JSON. Ephemeral.
