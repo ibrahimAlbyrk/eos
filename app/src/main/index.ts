@@ -17,7 +17,7 @@ import { createSplash, dismissSplash } from "./splash";
 import { loadPersistedTheme } from "./theme";
 import { registerBridge } from "./bridge";
 import { buildAppMenu } from "./menu";
-import { SSEClient } from "./sse";
+import { SSEClient, MAIN_STREAM_TOPICS } from "./sse";
 import { FleetFeed } from "./fleet";
 import { TrayController } from "./tray";
 import { makeNotifier } from "./notifications";
@@ -377,7 +377,7 @@ async function startBackgroundServices(token: string): Promise<void> {
   // The dashboard's own errors/warnings (ui lib/notify.js) take the same native path.
   ipcMain.on("eos:notify", (_e, payload: unknown) => void notifier(payload));
   let hostsRefresh: ReturnType<typeof setTimeout> | null = null;
-  const sse = new SSEClient(`${DAEMON_URL}/stream`, token, {
+  const sse = new SSEClient(`${DAEMON_URL}/stream?topics=${MAIN_STREAM_TOPICS.join(",")}`, token, {
     onEvent: (reason, payload) => {
       if (reason.startsWith("worker:")) fleet.onWorkerFrame(reason, payload);
       else if (reason === "notification:fire") notifier(payload);
