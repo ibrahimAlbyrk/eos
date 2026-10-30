@@ -1,7 +1,7 @@
 {
   "name": "eos-electron",
   "productName": "Eos",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Eos desktop app (Electron). Serves app/ui/dist over a re-registered eos:// scheme and connects to the already-running local daemon. Builds/runs only inside this dir — never touches /Applications/Eos.app.",
   "main": ".forge-build/main.js",
