@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DARK_GLASS, GAIN_MAX, SHADOW_PAD, glassMaps } from "./liquidGlass.js";
+import { DARK_GLASS, GAIN_MAX, SHADOW_PAD, glassMaps, placeTiles } from "./liquidGlass.js";
 
 const PAD = SHADOW_PAD;
 
@@ -90,5 +90,42 @@ describe("glassMaps", () => {
     expect(a(W / 2, H / 2)).toBe(0);
     expect(a(W / 2, H + 1)).toBeGreaterThan(a(W / 2, H + 12));
     expect(a(W / 2, H + 1)).toBeGreaterThan(a(W / 2, -2));
+  });
+});
+
+describe("placeTiles", () => {
+  const W = 760, H = 110;
+  const g = glassMaps(W, H, 1, 22);
+  const { specs, maps } = g.tiles();
+  const built = maps[0].map(({ place, crop }) => ({ place, crop }));
+  const sizeOf = (w, h) => [w + g.pad * 2, h + g.pad * 2];
+  const replaced = (w, h) => placeTiles(specs, ...sizeOf(w, h), g.pad, g.band);
+  const corners = (rects) => rects.filter((_, i) => specs[i].n === undefined);
+
+  it("re-places at the built size exactly where glassTiles put them", () => {
+    expect(replaced(W, H).map(({ place, crop }) => ({ place, crop }))).toEqual(built);
+  });
+
+  it("keeps the corners' size and moves them with their edge as the panel widens", () => {
+    const wider = corners(replaced(W + 120, H));
+    corners(built).forEach((b, i) => {
+      expect(wider[i].place[2]).toBe(b.place[2]);
+      expect(wider[i].place[0] - b.place[0]).toBe(b.place[0] > W / 2 ? 120 : 0);
+    });
+  });
+
+  it("keeps every image inside the filter region while it can follow", () => {
+    const [SW, SH] = sizeOf(W * 1.4, H);
+    for (const { place: [x, y, w, h] } of placeTiles(specs, SW, SH, g.pad, g.band)) {
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(x + w).toBeLessThanOrEqual(SW);
+      expect(y).toBeGreaterThanOrEqual(0);
+      expect(y + h).toBeLessThanOrEqual(SH);
+    }
+  });
+
+  it("gives up past the strips' growth room, or when the panel splits differently", () => {
+    expect(replaced(W * 2, H)).toBeNull();
+    expect(replaced(80, H)).toBeNull();
   });
 });

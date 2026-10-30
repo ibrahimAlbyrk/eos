@@ -184,20 +184,28 @@ export function glassMaps(w, h, dpr, radius, cfg = FROSTED_GLASS) {
     px[3] = 255 * (m === 0 ? blurMix[p] : m === 1 ? mask[p] ** 2 : 1);
     return px;
   };
-  const px = new Float64Array(4);
-  const [disp0, disp1, disp2, shade] = [0, 1, 2, 3].map((m) => {
-    const data = new Uint8ClampedArray(n * 4);
-    for (let p = 0; p < n; p++) data.set(texel(m, p, px), p * 4);
-    return data;
-  });
+  // the full maps are written only when read: a panel that splits into tiles
+  // never needs them
+  let full = null;
+  const fullMaps = () => {
+    if (full) return full;
+    const px = new Float64Array(4);
+    full = [0, 1, 2, 3].map((m) => {
+      const data = new Uint8ClampedArray(n * 4);
+      for (let p = 0; p < n; p++) data.set(texel(m, p, px), p * 4);
+      return data;
+    });
+    return full;
+  };
   // past `band` map px inside the rim every term but the pull to the centre is
   // flat (bevel and its ±2 px gradient, edge, depth, lighting), and the pull is
   // linear in x and y
   const band = Math.ceil(Math.max(zR + 2, Math.min(hx, hy) * 0.35 + 1, r)) + 3;
 
   return {
-    width: SW, height: SH, scale: scale / dpr, blur: blurSigma(cfg.blurAmount) / dpr,
-    disp: [disp0, disp1, disp2], shade, shadow,
+    width: SW, height: SH, scale: scale / dpr, blur: blurSigma(cfg.blurAmount) / dpr, pad, band, shadow,
+    get disp() { return fullMaps().slice(0, 3); },
+    get shade() { return fullMaps()[3]; },
     tiles: () => glassTiles(SW, SH, pad, band, texel),
   };
 }
@@ -213,30 +221,65 @@ export function glassMaps(w, h, dpr, radius, cfg = FROSTED_GLASS) {
 // texels past its crop, so the sampling at a seam sees what the full map has;
 // no image reaches past the filter region (Blink would draw a subset of it).
 // Rects are map px [x, y, w, h]: `place` is where the image is drawn, `crop`
-// the part kept. null when the panel is too small to split.
+// the part kept. null when the panel is too small to split; else the tile
+// layout (`specs`, which placeTiles re-places for another size) and per map
+// its tiles, in the specs' order.
 const OUT = 2, APRON = 2;
-function glassTiles(SW, SH, pad, band, texel) {
-  const x = [pad - OUT, pad + band, SW - pad - band, SW - pad + OUT];
-  const y = [pad - OUT, pad + band, SH - pad - band, SH - pad + OUT];
+// A strip's texels are spaced for this much growth, so re-placed for a wider
+// or taller panel it still starts inside the filter region.
+const GROWTH = 1.5;
+
+// The tiles a SW × SH map splits into, as index pairs into the x / y edges:
+// the corners whole, the middle column and the side strips linear.
+function tileLayout(SW, SH, pad, band) {
+  const edges = (S) => [pad - OUT, pad + band, S - pad - band, S - pad + OUT];
+  const x = edges(SW), y = edges(SH);
   const wide = x[1] <= x[2], tall = y[1] <= y[2];
   if (!(wide || tall) || x[0] < APRON || y[0] < APRON) return null;
+  // a short panel's bands meet: its left and right columns go whole
+  const rows = tall ? [[0, 1], [2, 3]] : [[0, 3]];
+  const cols = wide ? [[0, 1], [2, 3]] : [[0, 3]];
+  const specs = [];
+  for (const c of cols) for (const r of rows) specs.push({ cols: c, rows: r });
+  if (wide && x[2] > x[1]) specs.push({ cols: [1, 2], rows: [0, 3], alongX: true });
+  if (tall && y[2] > y[1]) for (const c of cols) specs.push({ cols: c, rows: [1, 2], alongX: false });
+  return { x, y, specs };
+}
+
+// A tile's rects on the given edges. A linear tile (`n` texels) spans 2.5
+// texel spacings past both ends of its crop, so no cubic tap inside the crop
+// reaches the image's edge.
+function tileRects({ cols, rows, alongX, n }, x, y) {
+  const [cx, cy] = [x[cols[0]], y[rows[0]]], [cw, ch] = [x[cols[1]] - cx, y[rows[1]] - cy];
+  const crop = [cx, cy, cw, ch];
+  if (n === undefined) return { place: [cx - APRON, cy - APRON, cw + APRON * 2, ch + APRON * 2], crop };
+  const s = (alongX ? cw : ch) / (n - 5);
+  const place = alongX ? [cx - 2.5 * s, cy - APRON, n * s, ch + APRON * 2] : [cx - APRON, cy - 2.5 * s, cw + APRON * 2, n * s];
+  return { place, crop, s };
+}
+
+function glassTiles(SW, SH, pad, band, texel) {
+  const layout = tileLayout(SW, SH, pad, band);
+  if (!layout) return null;
+  const { x, y, specs } = layout;
+  for (const t of specs) {
+    if (t.alongX === undefined) continue;
+    const [cx, cy, cw, ch] = tileRects(t, x, y).crop;
+    const room = t.alongX ? Math.min(cx, SW - cx - cw) : Math.min(cy, SH - cy - ch);
+    t.n = Math.ceil(((t.alongX ? cw : ch) * GROWTH) / (room / 2.5)) + 5;
+  }
   const px = new Float64Array(4), qx = new Float64Array(4);
   let clipped = false;
-  const full = (m, [cx, cy, cw, ch]) => {
-    const ix = cx - APRON, iy = cy - APRON, iw = cw + APRON * 2, ih = ch + APRON * 2;
+  const full = (m, { place: [ix, iy, iw, ih] }) => {
     const data = new Uint8ClampedArray(iw * ih * 4);
     for (let j = 0; j < ih; j++) {
       for (let i = 0; i < iw; i++) data.set(texel(m, (iy + j) * SW + ix + i, px), (j * iw + i) * 4);
     }
-    return { place: [ix, iy, iw, ih], crop: [cx, cy, cw, ch], data, width: iw, height: ih };
+    return { data, width: iw, height: ih };
   };
-  // linear along x (alongX) or y: n texels s apart, from 2.5 s before the crop
-  // to 2.5 s past it, so no cubic tap inside the crop reaches the image's edge;
   // extrapolated from the crop's first and last pixel
-  const linear = (m, [cx, cy, cw, ch], alongX) => {
+  const linear = (m, { crop: [cx, cy, cw, ch], s }, alongX, n) => {
     const len = alongX ? cw : ch;
-    const room = alongX ? Math.min(cx, SW - cx - cw) : Math.min(cy, SH - cy - ch);
-    const n = Math.ceil(len / (room / 2.5)) + 5, s = len / (n - 5);
     const across = (alongX ? ch : cw) + APRON * 2;
     const data = new Uint8ClampedArray(n * across * 4);
     for (let k = 0; k < across; k++) {
@@ -254,20 +297,23 @@ function glassTiles(SW, SH, pad, band, texel) {
         }
       }
     }
-    const place = alongX ? [cx - 2.5 * s, cy - APRON, n * s, across] : [cx - APRON, cy - 2.5 * s, across, n * s];
-    return { place, crop: [cx, cy, cw, ch], data, width: alongX ? n : across, height: alongX ? across : n };
+    return { data, width: alongX ? n : across, height: alongX ? across : n };
   };
-  const span = (e, i, j) => [e[i], e[j] - e[i]];
-  const rect = ([rx, rw], [ry, rh]) => [rx, ry, rw, rh];
-  const maps = [0, 1, 2, 3].map((m) => {
-    const tiles = [];
-    // a short panel's bands meet: its left and right columns go whole
-    const rows = tall ? [span(y, 0, 1), span(y, 2, 3)] : [span(y, 0, 3)];
-    const cols = wide ? [span(x, 0, 1), span(x, 2, 3)] : [span(x, 0, 3)];
-    for (const c of cols) for (const r of rows) tiles.push(full(m, rect(c, r)));
-    if (wide && x[2] > x[1]) tiles.push(linear(m, rect(span(x, 1, 2), span(y, 0, 3)), true));
-    if (tall && y[2] > y[1]) for (const c of cols) tiles.push(linear(m, rect(c, span(y, 1, 2)), false));
-    return tiles;
-  });
-  return clipped ? null : maps;
+  const rects = specs.map((t) => tileRects(t, x, y));
+  const maps = [0, 1, 2, 3].map((m) =>
+    specs.map((t, i) => ({ ...rects[i], ...(t.n === undefined ? full(m, rects[i]) : linear(m, rects[i], t.alongX, t.n)) })));
+  return clipped ? null : { specs, maps };
+}
+
+// The rects of tiles laid out by glassTiles, re-placed for another size of the
+// same panel (SW × SH map px): the corners keep their size and move with their
+// edges, the strips stretch. null when that size splits differently or a strip
+// would reach past the filter region.
+export function placeTiles(specs, SW, SH, pad, band) {
+  const layout = tileLayout(SW, SH, pad, band);
+  const same = (a, b) => a.cols.join() === b.cols.join() && a.rows.join() === b.rows.join() && a.alongX === b.alongX;
+  if (!layout || layout.specs.length !== specs.length || !specs.every((t, i) => same(t, layout.specs[i]))) return null;
+  const rects = specs.map((t) => tileRects(t, layout.x, layout.y));
+  const inside = ({ place: [px, py, pw, ph] }) => px >= 0 && py >= 0 && px + pw <= SW && py + ph <= SH;
+  return rects.every(inside) ? rects : null;
 }

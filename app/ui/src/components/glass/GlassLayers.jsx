@@ -1,6 +1,6 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { FROSTED_GLASS, GAIN_MAX, SHADOW_PAD, glassMaps } from "../../lib/liquidGlass.js";
+import { FROSTED_GLASS, GAIN_MAX, SHADOW_PAD, glassMaps, placeTiles } from "../../lib/liquidGlass.js";
 
 // A liquid-glass surface (the composer card + pill, the scroll-to-bottom drop):
 // ybouane/liquidglass, see lib/liquidGlass.js. Render it as the FIRST child of
@@ -113,25 +113,58 @@ function GlassFilter({ id, glass }) {
   );
 }
 
-// The maps are built before paint — on mount and on every resize — so a
-// surface never shows a frame without glass, or with maps for its old size.
+// The maps are built before paint on mount, so a surface never shows a frame
+// without glass. A build takes tens of ms, so while the size keeps changing (a
+// divider drag, a pane's reflow) the built maps are only re-placed for each new
+// size, and rebuilt once a size has held for SETTLE_MS.
+const SETTLE_MS = 120;
+
 function useGlassMaps(hostRef, preset) {
   const [glass, setGlass] = useState(null);
   useLayoutEffect(() => {
     const host = hostRef.current;
     if (!host) return undefined;
-    const build = () => {
-      const w = host.offsetWidth, h = host.offsetHeight, dpr = window.devicePixelRatio || 1;
-      if (w < 2 || h < 2) return;
-      const radius = parseFloat(getComputedStyle(host).borderTopLeftRadius) || 0;
-      setGlass(cachedGlass(preset, w, h, dpr, radius));
+    let shown = null, settle = 0;
+    const measure = () => {
+      const w = host.offsetWidth, h = host.offsetHeight;
+      if (w < 2 || h < 2) return null;
+      return { w, h, dpr: window.devicePixelRatio || 1, radius: parseFloat(getComputedStyle(host).borderTopLeftRadius) || 0 };
     };
-    const ro = new ResizeObserver(() => flushSync(build));
+    const show = (g) => { shown = g; setGlass(g); };
+    const build = () => {
+      const m = measure();
+      if (m) show(cachedGlass(preset, m));
+    };
+    const follow = () => {
+      const m = measure();
+      if (!m || (shown && shown.w === m.w && shown.h === m.h)) return;
+      clearTimeout(settle);
+      const moved = shown && replacedGlass(shown, m);
+      if (!moved) return build();
+      show(moved);
+      settle = setTimeout(() => flushSync(build), SETTLE_MS);
+    };
+    const ro = new ResizeObserver(() => flushSync(follow));
     ro.observe(host);
     build();
-    return () => ro.disconnect();
+    return () => {
+      clearTimeout(settle);
+      ro.disconnect();
+    };
   }, [hostRef, preset]);
   return glass;
+}
+
+// The same maps re-placed for another size of the panel (SVG attributes only):
+// tiles through placeTiles, a whole map stretched. null when they can't follow.
+function replacedGlass(glass, { w, h, dpr, radius }) {
+  if (dpr !== glass.dpr || radius !== glass.radius) return null;
+  if (!glass.specs) return { ...glass, w, h, maps: glass.maps.map(([t]) => [{ ...t, place: [0, 0, w + SHADOW_PAD * 2, h + SHADOW_PAD * 2] }]) };
+  const SW = Math.round(w * dpr) + glass.pad * 2, SH = Math.round(h * dpr) + glass.pad * 2;
+  const rects = placeTiles(glass.specs, SW, SH, glass.pad, glass.band);
+  if (!rects) return null;
+  const css = (rect) => rect.map((v) => v / dpr);
+  return { ...glass, w, h, maps: glass.maps.map((ts) => ts.map((t, i) => ({ ...t, place: css(rects[i].place), crop: css(rects[i].crop) }))) };
 }
 
 // Building takes tens of ms, so the last few sizes per preset are kept: a menu
@@ -139,7 +172,7 @@ function useGlassMaps(hostRef, preset) {
 const CACHED_SIZES = 16;
 const cache = new WeakMap();
 
-function cachedGlass(preset, w, h, dpr, radius) {
+function cachedGlass(preset, { w, h, dpr, radius }) {
   let sizes = cache.get(preset);
   if (!sizes) cache.set(preset, (sizes = new Map()));
   const key = `${w}x${h}@${dpr}r${radius}`;
@@ -153,9 +186,12 @@ function cachedGlass(preset, w, h, dpr, radius) {
     const tiles = Number.isInteger(dpr) ? g.tiles() : null;
     const css = (rect) => rect.map((v) => v / dpr);
     const maps = tiles
-      ? tiles.map((ts) => ts.map((t) => ({ href: url(t.data, t.width, t.height), place: css(t.place), crop: css(t.crop) })))
+      ? tiles.maps.map((ts) => ts.map((t) => ({ href: url(t.data, t.width, t.height), place: css(t.place), crop: css(t.crop) })))
       : [...g.disp, g.shade].map((data) => [{ href: url(data), place: [0, 0, w + SHADOW_PAD * 2, h + SHADOW_PAD * 2] }]);
-    glass = { w, h, scale: g.scale, blur: g.blur, fill: preset.fill, maps, shadow: url(g.shadow) };
+    glass = {
+      w, h, dpr, radius, pad: g.pad, band: g.band, specs: tiles?.specs,
+      scale: g.scale, blur: g.blur, fill: preset.fill, maps, shadow: url(g.shadow),
+    };
     if (sizes.size >= CACHED_SIZES) sizes.delete(sizes.keys().next().value);
   }
   sizes.set(key, glass);
