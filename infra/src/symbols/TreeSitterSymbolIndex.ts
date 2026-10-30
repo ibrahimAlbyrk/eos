@@ -7,9 +7,12 @@
 //
 // Design (dim03 §2b):
 //  - Candidate set = the same listCandidateFiles() filename search uses (DRY).
-//  - Reads files from disk daemon-side with the same binary/size sniff as /fs/read.
+//  - Reads files from disk daemon-side with the same binary sniff as /fs/read.
+//    Vendored, minified and >512 KB files stay out (filename search keeps them).
 //  - In-memory per root: Map<name, SymbolOccurrence[]> + a per-file index for
-//    incremental invalidation off the fs:change bus.
+//    incremental invalidation off the fs:change bus. lineText is read from disk
+//    for the rows a query returns, so the index never holds the source lines.
+//  - The build yields to the event loop every SLICE_MS of parsing.
 //  - Lazy ensureIndexed keyed by root; coarse dirty-and-rebuild for stale roots;
 //    LRU cap + release(root) bound multi-root memory.
 //  - Language participation is DATA: a language works iff its grammar WASM + a
@@ -17,7 +20,9 @@
 //    crash — the UI falls back to filename search.
 
 import { readFileSync, statSync } from "node:fs";
-import { dirname, extname, join } from "node:path";
+import { readFile } from "node:fs/promises";
+import { performance } from "node:perf_hooks";
+import { dirname, extname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { Parser, Language, Query } from "web-tree-sitter";
@@ -73,8 +78,14 @@ export interface TreeSitterSymbolIndexDeps {
   notify?: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
-const TEXT_MAX_BYTES = 8 * 1024 * 1024;
+const MAX_FILE_BYTES = 512 * 1024;
 const LINE_TEXT_MAX = 500;
+const SLICE_MS = 10;
+// Conventional homes of code a project ships but doesn't write.
+const VENDOR_DIRS = new Set(["vendor", "vendors", "vendored", "third_party", "third-party", "thirdparty", "node_modules", "bower_components"]);
+// Bytes per line above which a file is minified or generated, not written
+// (hand-written source averages well under 100).
+const MINIFIED_BYTES_PER_LINE = 300;
 
 export class TreeSitterSymbolIndex implements SymbolIndex {
   private readonly listFiles: (root: string) => Promise<string[]>;
@@ -100,7 +111,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     this.wasmDir = deps.wasmDir ?? dirname(require.resolve("@vscode/tree-sitter-wasm"));
     this.scmDir = fileURLToPath(new URL("./grammars/", import.meta.url));
     this.maxResidentRoots = deps.maxResidentRoots ?? 6;
-    this.maxFileBytes = deps.maxFileBytes ?? TEXT_MAX_BYTES;
+    this.maxFileBytes = deps.maxFileBytes ?? MAX_FILE_BYTES;
     this.maxFiles = deps.maxFiles ?? 20000;
     this.notify = deps.notify ?? (() => {});
   }
@@ -111,29 +122,28 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     await this.ensureIndexed(root);
     const occ = this.indexes.get(root)?.byName.get(name) ?? [];
     const defs = occ.filter((o) => o.role === "definition");
-    if (!fromPath || defs.length < 2) return defs;
+    if (!fromPath || defs.length < 2) return withLineText(defs);
     // Rank a same-file, then same-dir definition first — the tier is syntactic,
     // so this is a heuristic for the common case, not resolution.
     const fromDir = dirname(fromPath);
-    return [...defs].sort((a, b) => this.proximity(a.path, fromPath, fromDir) - this.proximity(b.path, fromPath, fromDir));
+    return withLineText(defs.sort((a, b) => this.proximity(a.path, fromPath, fromDir) - this.proximity(b.path, fromPath, fromDir)));
   }
 
   async references(root: string, name: string): Promise<SymbolOccurrence[]> {
     await this.ensureIndexed(root);
     // The full occurrence list — definitions and references both (name-matched).
-    return this.indexes.get(root)?.byName.get(name) ?? [];
+    return withLineText(this.indexes.get(root)?.byName.get(name) ?? []);
   }
 
   // Enumerate every definition in one file with a single parse — reuses the same
   // tags extraction as the whole-root build, without forcing a full-root index
-  // (CodeLens on one open file shouldn't index the whole repo). `root` is unused
-  // in the syntactic tier; a semantic adapter would use it for project resolution.
-  async definitionsInFile(_root: string, path: string): Promise<SymbolOccurrence[]> {
+  // (CodeLens on one open file shouldn't index the whole repo).
+  async definitionsInFile(root: string, path: string): Promise<SymbolOccurrence[]> {
     await this.ensureGrammars();
     const parser = new Parser();
     try {
-      const occ = this.parseFile(parser, path);
-      return (occ ?? []).filter((o) => o.role === "definition");
+      const occ = this.parseFile(parser, root, path);
+      return withLineText((occ ?? []).filter((o) => o.role === "definition"));
     } finally {
       parser.delete?.();
     }
@@ -155,7 +165,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     scored.sort(
       (a, b) => b.score - a.score || a.occ.name.localeCompare(b.occ.name) || a.occ.path.localeCompare(b.occ.path),
     );
-    return scored.slice(0, limit).map((s) => s.occ);
+    return withLineText(scored.slice(0, limit).map((s) => s.occ));
   }
 
   // ---- SymbolIndexLifecycle -----------------------------------------------
@@ -168,15 +178,17 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     }
     let p = this.building.get(root);
     if (!p) {
+      // Cleared up front: a markDirty while this build yields leaves its result stale.
+      this.dirty.delete(root);
       p = this.build(root)
         .then((idx) => {
           this.indexes.set(root, idx);
-          this.dirty.delete(root);
           this.building.delete(root);
           this.evictIfNeeded();
         })
         .catch((e) => {
           this.building.delete(root);
+          if (this.indexes.has(root)) this.dirty.add(root);
           throw e;
         });
       this.building.set(root, p);
@@ -187,14 +199,18 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
   }
 
   async invalidate(root: string, changedPaths: string[]): Promise<void> {
+    // A build in flight may already have read these files' old content.
+    await this.building.get(root)?.catch(() => {});
     const idx = this.indexes.get(root);
     if (!idx) return; // nothing resident to update
     await this.ensureGrammars();
     const parser = new Parser();
+    const slice = timeSlicer();
     try {
       for (const abs of changedPaths) {
+        await slice();
         this.removeFile(idx, abs);
-        const occ = this.parseFile(parser, abs);
+        const occ = this.parseFile(parser, root, abs);
         if (occ && occ.length) {
           idx.byFile.set(abs, occ);
           for (const o of occ) this.pushOccurrence(idx.byName, o);
@@ -212,17 +228,17 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
 
   // ---- Concrete wiring helpers (not on the port) --------------------------
 
-  // Resident roots — the container routes an fs:change/git:change batch to the
-  // subset of roots it actually touches.
+  // Resident roots, and those being built — the container routes an
+  // fs:change/git:change batch to the subset of roots it actually touches.
   residentRoots(): string[] {
-    return [...this.indexes.keys()];
+    return [...new Set([...this.indexes.keys(), ...this.building.keys()])];
   }
 
   // Coarse freshness fallback: mark a resident root stale so the next query does
   // a full rebuild. Driven by the recursive git-state watcher for edits the
   // shallow explorer watcher never emits (dim03 §2b / §5).
   markDirty(root: string): void {
-    if (this.indexes.has(root)) this.dirty.add(root);
+    if (this.indexes.has(root) || this.building.has(root)) this.dirty.add(root);
   }
 
   // ---- internals ----------------------------------------------------------
@@ -257,6 +273,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     const byName = new Map<string, SymbolOccurrence[]>();
     const byFile = new Map<string, SymbolOccurrence[]>();
     const parser = new Parser();
+    const slice = timeSlicer();
     let parsed = 0;
     let capped = 0;
     try {
@@ -267,7 +284,8 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
           capped++;
           continue;
         }
-        const occ = this.parseFile(parser, abs);
+        await slice();
+        const occ = this.parseFile(parser, root, abs);
         if (occ === null) continue;
         parsed++;
         if (!occ.length) continue;
@@ -282,10 +300,10 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
   }
 
   // Parse one file into occurrences, or null if it is not a participating
-  // language / unreadable / binary / oversized (same sniff as /fs/read).
-  private parseFile(parser: Parser, abs: string): SymbolOccurrence[] | null {
+  // language / vendored / unreadable / binary / oversized / minified.
+  private parseFile(parser: Parser, root: string, abs: string): SymbolOccurrence[] | null {
     const grammar = this.extToGrammar.get(extname(abs).toLowerCase());
-    if (!grammar) return null;
+    if (!grammar || isVendored(relative(root, abs))) return null;
     let size: number;
     try {
       size = statSync(abs).size;
@@ -300,6 +318,9 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
       return null;
     }
     if (buf.subarray(0, 8192).includes(0)) return null; // binary
+    let lines = 1;
+    for (let i = buf.indexOf(10); i !== -1; i = buf.indexOf(10, i + 1)) lines++;
+    if (buf.length / lines > MINIFIED_BYTES_PER_LINE) return null;
     const text = buf.toString("utf8");
     parser.setLanguage(grammar.lang);
     let tree;
@@ -309,7 +330,6 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
       return null;
     }
     if (!tree) return null;
-    const srcLines = text.split("\n");
     const out: SymbolOccurrence[] = [];
     try {
       for (const match of grammar.query.matches(tree.rootNode)) {
@@ -332,16 +352,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
           }
         }
         if (!name || !role) continue;
-        const line = srcLines[row] ?? "";
-        out.push({
-          name,
-          kind,
-          role,
-          path: abs,
-          line: row + 1,
-          column: column + 1,
-          lineText: line.length > LINE_TEXT_MAX ? line.slice(0, LINE_TEXT_MAX) : line,
-        });
+        out.push({ name, kind, role, path: abs, line: row + 1, column: column + 1 });
       }
     } finally {
       tree.delete?.();
@@ -396,6 +407,43 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
       this.notify("symbol index evicted (LRU cap)", { root: victim, cap: this.maxResidentRoots });
     }
   }
+}
+
+// A vendor-dir segment under the root, or a minified file name.
+function isVendored(rel: string): boolean {
+  const parts = rel.split(/[\\/]/);
+  const file = parts.pop() ?? "";
+  return /\.min\.[^.]+$/i.test(file) || parts.some((p) => VENDOR_DIRS.has(p.toLowerCase()));
+}
+
+// Copies of `occ` with each row's source line, one read per file.
+async function withLineText(occ: SymbolOccurrence[]): Promise<SymbolOccurrence[]> {
+  const files = new Map<string, Promise<string[]>>();
+  const linesOf = (path: string): Promise<string[]> => {
+    let lines = files.get(path);
+    if (!lines) {
+      lines = readFile(path, "utf8").then((t) => t.split("\n"), () => []);
+      files.set(path, lines);
+    }
+    return lines;
+  };
+  return Promise.all(
+    occ.map(async (o) => {
+      const line = (await linesOf(o.path))[o.line - 1] ?? "";
+      return { ...o, lineText: line.length > LINE_TEXT_MAX ? line.slice(0, LINE_TEXT_MAX) : line };
+    }),
+  );
+}
+
+// Each call resolves at once until SLICE_MS of synchronous work has run since
+// the last yield, then after a macrotask.
+function timeSlicer(): () => Promise<void> {
+  let since = performance.now();
+  return async () => {
+    if (performance.now() - since < SLICE_MS) return;
+    await new Promise((r) => setImmediate(r));
+    since = performance.now();
+  };
 }
 
 // Symbol-name ranking, mirroring fs-shared.ts scoreMatch so symbol search ranks
