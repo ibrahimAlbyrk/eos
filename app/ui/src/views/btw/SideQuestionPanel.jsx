@@ -7,6 +7,7 @@ import { askSideQuestion, useSideQuestion } from "../../state/sideQuestionStore.
 import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { MessageAssistant } from "../agents/messages/MessageAssistant.jsx";
+import { Sheen } from "../agents/messages/Sheen.jsx";
 import { usePathLinks } from "../agents/messages/paths/usePathLinks.jsx";
 import { useArtifactLinks } from "../artifacts/useArtifactLinks.jsx";
 import { joinHandlers } from "../../lib/joinHandlers.js";
@@ -53,7 +54,7 @@ export function SideQuestionPanel({ live }) {
         {entry ? (
           <>
             <p className="btw__question">{entry.question}</p>
-            {entry.status === "asking" && <div className="btw__status ti-shimmer">Thinking…</div>}
+            {entry.status === "asking" && <div className="btw__status ti-sheen-host">Thinking…<Sheen>Thinking…</Sheen></div>}
             {entry.status === "error" && (
               <div className="btw__error" role="alert">
                 <span>{entry.error}</span>

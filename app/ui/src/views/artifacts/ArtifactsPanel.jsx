@@ -13,6 +13,7 @@ import { combo } from "../../keymap/index.js";
 import { useKeybinding } from "../../keymap/useKeymap.js";
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
+import { Sheen } from "../agents/messages/Sheen.jsx";
 import { AccountAvatar, ArtifactThumb, ChevronDown, GridGlyph, RefreshGlyph, SearchGlyph } from "./ArtifactParts.jsx";
 import { useArtifactLinks } from "./useArtifactLinks.jsx";
 
@@ -108,7 +109,7 @@ export function ArtifactsPanel() {
         ) : !catalog.loaded ? (
           catalog.error
             ? <Empty title="Couldn't load artifacts" subtitle={catalog.error} action={{ label: "Retry", run: revalidateArtifactCatalog }} />
-            : <div className="art-list__loading ti-shimmer">Loading artifacts…</div>
+            : <div className="art-list__loading ti-sheen-host">Loading artifacts…<Sheen>Loading artifacts…</Sheen></div>
         ) : accounts.length === 0 ? (
           <Empty title="Sign in to Claude in Settings › Accounts" subtitle="Every artifact of every Claude account you sign in to shows up here." action={{ label: "Open Settings", run: () => ui.openSettings("accounts") }} />
         ) : groups.length === 0 ? (

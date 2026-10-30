@@ -89,12 +89,25 @@
 }
 
 /* streaming: the shape of a view before its first element closes */
-@keyframes gv-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* The sweep moves a layer (transform), never the background — a
+   background-position animation repaints on the main thread every frame. The
+   layer repeats the old 200%-wide tile at the old phase and travels the same
+   4 widths per cycle. */
+@keyframes gv-shimmer { 0% { transform: translateX(-40%); } 100% { transform: translateX(40%); } }
 @keyframes gv-breathe { 50% { opacity: .4; } }
 .gv-shim {
   display: block;
-  background: linear-gradient(90deg, #1b1b1b 0%, #272727 40%, #1b1b1b 80%);
-  background-size: 200% 100%;
+  position: relative;
+  overflow: hidden;
+}
+.gv-shim::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -200%;
+  width: 500%;
+  background: linear-gradient(90deg, #1b1b1b 0%, #272727 40%, #1b1b1b 80%) 0 0 / 40% 100%;
   animation: gv-shimmer 1.8s linear infinite;
 }
 .gv-skel { display: flex; flex-direction: column; gap: 12px; padding: 2px 0 4px; }
@@ -107,7 +120,7 @@
 .gv-skel-row .gv-shim { flex: 1; height: 100px; border-radius: 12px; }
 .gv-skel-note { font-size: 12px; color: var(--fg-faint); animation: gv-breathe 1.4s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) {
-  .gv-shim, .gv-skel-note { animation: none; }
+  .gv-shim::after, .gv-skel-note { animation: none; }
 }
 .gv-body .gv-skel { padding: 0 2px; }
 

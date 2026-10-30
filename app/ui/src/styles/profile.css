@@ -280,24 +280,35 @@
 .intv-card__line.is-current { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .intv-card__value { font-size: var(--text-base); color: var(--fg); text-wrap: pretty; }
 .intv-card__skel {
+  position: relative;
+  overflow: hidden;
   display: block;
   width: 70%;
   height: 10px;
   margin: 4px 0;
   border-radius: 5px;
-  background: linear-gradient(90deg, var(--raised) 0%, var(--chip) 50%, var(--raised) 100%);
-  background-size: 400px 100%;
+}
+/* The 400px tile on a layer moved by transform (a background-position
+   animation repaints on the main thread every frame). */
+.intv-card__skel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -400px;
+  right: -400px;
+  background: linear-gradient(90deg, var(--raised) 0%, var(--chip) 50%, var(--raised) 100%) 0 0 / 400px 100%;
   animation: intv-shimmer 1.6s linear infinite;
 }
 .intv__note { position: relative; margin: 0; max-width: 340px; text-align: center; font-size: var(--text-sm); color: var(--fg-dim2); text-wrap: pretty; }
 
 @keyframes intv-rise { from { transform: translateY(10px); opacity: 0; } }
-@keyframes intv-shimmer { from { background-position: -200px 0; } to { background-position: 200px 0; } }
+@keyframes intv-shimmer { from { transform: translateX(-200px); } to { transform: translateX(200px); } }
 
 @media (max-width: 900px) {
   .intv__main { padding: 56px 28px 32px; overflow: visible; }
   .intv__side { flex: none; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .intv__question, .intv-card__skel { animation: none; }
+  .intv__question, .intv-card__skel::after { animation: none; }
 }

@@ -11,6 +11,7 @@ import { artifactInfo, artifactRef, artifactToolbar } from "../../lib/artifacts.
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { useOcclusion } from "../browser/useOcclusion.js";
 import { WindowGlyph } from "./ArtifactParts.jsx";
+import { Sheen } from "../agents/messages/Sheen.jsx";
 
 // The `artifact:<slug>` side-panel tab. Main shows the artifact's live view (a
 // native WebContentsView, with its floating toolbar) over the slot; this keeps
@@ -158,7 +159,7 @@ function ArtifactTab({ tabId, info }) {
           <div className="art-tab-ph" data-tint={info.tint ?? undefined} aria-hidden="true">
             {info.favicon ? <span className="art-tab-ph__emoji">{info.favicon}</span> : <WindowGlyph size={24} />}
             <span className="art-tab-ph__title">{info.title}</span>
-            {view.state !== "ready" && <span className="art-tab-ph__note ti-shimmer">Loading…</span>}
+            {view.state !== "ready" && <span className="art-tab-ph__note ti-sheen-host">Loading…<Sheen>Loading…</Sheen></span>}
           </div>
         )}
       </div>

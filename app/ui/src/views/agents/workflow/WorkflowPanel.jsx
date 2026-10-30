@@ -14,6 +14,7 @@ import { buildBlocks } from "../../../lib/messageParser.js";
 import { fmtTokens } from "../../../lib/format.js";
 import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
+import { Sheen } from "../messages/Sheen.jsx";
 import { usePathLinks } from "../messages/paths/usePathLinks.jsx";
 import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
 import { joinHandlers } from "../../../lib/joinHandlers.js";
@@ -130,7 +131,10 @@ function WorkflowGraph({ phases, selected, onSelect }) {
                   <AgentGlyph agent={a} />
                   <span className="wr-node__text">
                     <span className={"wr-node__label" + (a.state === "queued" ? " is-queued" : "")}>{a.label}</span>
-                    <span className={"wr-node__activity" + (a.state === "running" ? " ti-shimmer" : a.state === "error" ? " is-error" : "")}>{a.activity}</span>
+                    <span className={"wr-node__activity" + (a.state === "running" ? " ti-sheen-host" : a.state === "error" ? " is-error" : "")}>
+                      {a.activity}
+                      {a.state === "running" && <Sheen>{a.activity}</Sheen>}
+                    </span>
                   </span>
                   <span className="wr-node__time">{a.state === "queued" ? "queued" : fmtTime(a.elapsedMs)}</span>
                 </button>

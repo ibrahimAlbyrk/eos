@@ -6,6 +6,7 @@ import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { ScrollHoldContext } from "../messages/scrollHoldContext.js";
 import { DisclosureRow } from "../messages/DisclosureRow.jsx";
 import { Collapse } from "../messages/Collapse.jsx";
+import { Sheen } from "../messages/Sheen.jsx";
 import { ToolBlock } from "../messages/ToolBlock.jsx";
 import { MessageRow } from "../messages/MessageRow.jsx";
 import { MessageAssistant } from "../messages/MessageAssistant.jsx";
@@ -80,7 +81,11 @@ function SubagentRunWork({ run, now, cwd, workers }) {
   return (
     <>
       <DisclosureRow expanded={open} onToggle={() => setOpen((o) => !o)} className="sa-worked">
-        <span className={running ? "ti-shimmer" : undefined}>{subagentStatusPhrase(run, now)}</span>
+        {running ? (
+          <span className="ti-sheen-host">{subagentStatusPhrase(run, now)}<Sheen>{subagentStatusPhrase(run, now)}</Sheen></span>
+        ) : (
+          <span>{subagentStatusPhrase(run, now)}</span>
+        )}
       </DisclosureRow>
       <Collapse open={open}>
         <div className="sa-work">

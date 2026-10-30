@@ -100,36 +100,41 @@
 }
 .web-icon-btn:hover { color: var(--fg); background: var(--lg-chip-bg); box-shadow: var(--lg-chip-sh); }
 
-/* running: a light sweeps the query bar; a thin bar runs under the address */
+/* running: a light sweeps the query bar; a thin bar runs under the address.
+   The light is a layer moved by transform inside a clipping track
+   (.web-bar__sweep, rendered while running) — a background-position animation
+   would repaint on the main thread every frame. The old sweep ran the light's
+   background-position -60% → 160%, i.e. across 0.68 (search) / 0.70 (fetch)
+   of the track: in the light's own widths, the translations below. */
 .ws-bar.is-running .web-bar-icon { color: var(--accent); }
-.web-bar.is-running::after {
+.web-bar__sweep {
+  position: absolute;
+  overflow: hidden;
+  pointer-events: none;
+}
+.web-bar__sweep::before {
   content: "";
   position: absolute;
-  pointer-events: none;
-  background-repeat: no-repeat;
-}
-.ws-bar.is-running::after {
-  inset: 0;
-  border-radius: inherit;
-  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 14%, transparent), transparent);
-  background-size: 32% 100%;
-  animation: web-sweep 2s var(--lg-ease) infinite;
-}
-.fetch-bar.is-running::after {
-  left: 18px;
-  right: 18px;
+  top: 0;
   bottom: 0;
-  height: 1.5px;
+  left: 0;
+}
+.ws-bar .web-bar__sweep { inset: 0; border-radius: inherit; }
+.ws-bar .web-bar__sweep::before {
+  width: 32%;
+  background-image: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 14%, transparent), transparent);
+  animation: ws-sweep 2s var(--lg-ease) infinite;
+}
+.fetch-bar .web-bar__sweep { left: 18px; right: 18px; bottom: 0; height: 1.5px; }
+.fetch-bar .web-bar__sweep::before {
+  width: 30%;
   background-image: linear-gradient(90deg, transparent, var(--accent), transparent);
-  background-size: 30% 100%;
-  animation: web-sweep 1.4s ease-in-out infinite;
+  animation: fetch-sweep 1.4s ease-in-out infinite;
 }
-@keyframes web-sweep {
-  from { background-position: -60% 0; }
-  to { background-position: 160% 0; }
-}
+@keyframes ws-sweep { from { transform: translateX(-127.5%); } to { transform: translateX(340%); } }
+@keyframes fetch-sweep { from { transform: translateX(-140%); } to { transform: translateX(373.333%); } }
 @media (prefers-reduced-motion: reduce) {
-  .web-bar.is-running::after { animation: none; }
+  .web-bar .web-bar__sweep::before { animation: none; }
 }
 
 /* ── body ─────────────────────────────────────────────────────────────── */

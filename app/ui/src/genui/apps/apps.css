@@ -107,14 +107,30 @@
   font-size: var(--text-sm);
   text-align: center;
 }
+/* The sweep is a layer under the text (z-index -1 in the skeleton's own
+   stacking context) moved by transform: the old 200%-wide tile at the old
+   phase, one tile per cycle. A background-position animation would repaint on
+   the main thread every frame. */
 .gv-app-skeleton {
-  background: linear-gradient(100deg, transparent 30%, rgba(var(--tint), 0.04) 50%, transparent 70%) var(--panel);
-  background-size: 200% 100%;
+  z-index: 0;
+  overflow: hidden;
+  background: var(--panel);
+}
+.gv-app-skeleton::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: -200%;
+  width: 300%;
+  pointer-events: none;
+  background: linear-gradient(100deg, transparent 30%, rgba(var(--tint), 0.04) 50%, transparent 70%) 100% 0 / calc(200% / 3) 100%;
   animation: gv-app-shimmer 1.6s linear infinite;
 }
 @keyframes gv-app-shimmer {
-  from { background-position: 100% 0; }
-  to { background-position: -100% 0; }
+  from { transform: none; }
+  to { transform: translateX(calc(200% / 3)); }
 }
 
 /* ── confirmation chip ────────────────────────────────────────────────── */
@@ -237,6 +253,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .gv-app-stage { transition: none; }
-  .gv-app-skeleton { animation: none; }
+  .gv-app-skeleton::before { animation: none; }
   .gv-app-ask { animation: none; }
 }

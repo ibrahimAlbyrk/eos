@@ -2451,12 +2451,11 @@
   line-height: 1;
   letter-spacing: 0.02em;
 }
-.att-spinner-arc {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: att-spin 900ms linear infinite;
-}
-@keyframes att-spin { to { rotate: 360deg; } }
+/* The whole svg turns (its track ring looks the same at any angle): a
+   transform animation on an SVG child runs on the main thread, on the root
+   <svg> it runs on the compositor. */
+.att-spinner { animation: att-spin 900ms linear infinite; }
+@keyframes att-spin { to { transform: rotate(360deg); } }
 .att-text {
   min-width: 0;
   display: flex;
@@ -2599,7 +2598,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .att-chip, .att-remove { transition: none; }
-  .att-spinner-arc { animation: none; }
+  .att-spinner { animation: none; }
 }
 
 /* ── message attachments ── */

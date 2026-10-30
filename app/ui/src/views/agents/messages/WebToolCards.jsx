@@ -139,6 +139,7 @@ export function WebSearchDetail({ tool }) {
           {SearchIcon}
           <span className="ws-query">{tool.input?.query ?? ""}</span>
           {typeof mode === "string" && <span className="web-pill">{mode}</span>}
+          {tool.running && <span className="web-bar__sweep" aria-hidden="true" />}
         </div>
         {failed && <FailureBanner tool={tool} />}
         {!failed && hasBody && (
@@ -176,6 +177,7 @@ export function WebFetchDetail({ tool }) {
           {parts && (
             <a className="web-icon-btn" href={url} target="_blank" rel="noreferrer" title="Open in browser">{ExternalIcon}</a>
           )}
+          {tool.running && <span className="web-bar__sweep" aria-hidden="true" />}
         </div>
         {failed && <FailureBanner tool={tool} />}
         <div className="web-body">

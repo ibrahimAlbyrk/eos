@@ -88,16 +88,29 @@
   justify-content: center;
 }
 .load-older-skel {
+  position: relative;
+  overflow: hidden;
   width: min(320px, 60%);
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--panel) 30%, var(--row-on) 50%, var(--panel) 70%);
-  background-size: 300% 100%;
+}
+/* The sweep moves a layer (transform), never the background: a
+   background-position animation repaints on the main thread every frame. The
+   layer repeats the old 300%-wide tile at the old phase, so the light travels
+   the same 4 widths with the same easing. */
+.load-older-skel::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -200%;
+  width: 500%;
+  background: linear-gradient(90deg, var(--panel) 30%, var(--row-on) 50%, var(--panel) 70%) 100% 0 / 60% 100%;
   animation: load-older-sweep 1.1s ease infinite;
 }
 @keyframes load-older-sweep {
-  0% { background-position: 100% 0; }
-  100% { background-position: -100% 0; }
+  0% { transform: translateX(-40%); }
+  100% { transform: translateX(40%); }
 }
 /* scroll-to-bottom — a small frosted liquid-glass drop (ScrollToBottom.jsx),
    sticky to bottom-center of messages-wrap, just above the floating composer.
@@ -644,23 +657,11 @@
 }
 .ti-loop-detail { color: var(--accent); margin-bottom: 6px; }
 
-/* running: a light sweep across the text (a tool row's whole verb + object;
-   descendants go transparent so one sweep crosses them all) */
-.ti-shimmer {
-  --sb: var(--shim-base, var(--fg-dim2));
-  background: linear-gradient(90deg, var(--sb) 0%, var(--sb) 40%, var(--shim-hi, var(--fg-strong)) 50%, var(--sb) 60%, var(--sb) 100%);
-  background-size: 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: ti-sheen 2.2s linear infinite;
-}
-/* `b` listed too: it must outrank `.tg-summary b` */
-.ti-shimmer *, .ti-shimmer b { color: transparent; }
-@keyframes ti-sheen { from { background-position: 120% 0; } to { background-position: -20% 0; } }
-/* The same sweep without repainting the text (Sheen.jsx): the host's text in
-   the base tone, a bright copy under a masked window. The crest travels
-   -55% → 155% of the width with a ±25% ramp, as the background sweep does. */
+/* running: a light sweep across the text (Sheen.jsx), drawn without
+   repainting it — the host's text in the base tone, a bright copy under a
+   masked window, both moved by transform. The crest travels -55% → 155% of the
+   width with a ±25% ramp, as the old background-clip sweep did. The window and
+   the copy take the host's padding, so the copy sits on the host's text. */
 .ti-sheen-host {
   --sb: var(--shim-base, var(--fg-dim2));
   position: relative;
@@ -671,6 +672,7 @@
   display: inherit;
   align-items: inherit;
   gap: inherit;
+  padding: inherit;
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -683,6 +685,7 @@
   display: inherit;
   align-items: inherit;
   gap: inherit;
+  padding: inherit;
   position: absolute;
   inset: 0;
   overflow: hidden;
@@ -693,8 +696,6 @@
 @keyframes ti-sheen-window { from { transform: translateX(-105%); } to { transform: translateX(105%); } }
 @keyframes ti-sheen-copy { from { transform: translateX(105%); } to { transform: translateX(-105%); } }
 @media (prefers-reduced-motion: reduce) {
-  .ti-shimmer { animation: none; background: none; color: var(--fg-mid); }
-  .ti-shimmer *, .ti-shimmer b { color: inherit; }
   .ti-sheen { display: none; }
   .ti-sheen-host { color: var(--fg-mid); }
   .ti-icon .ti-spin { animation-duration: 2.4s; }

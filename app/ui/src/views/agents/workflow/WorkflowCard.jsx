@@ -145,12 +145,13 @@ function PhaseGroup({ phase, groupKey, onOpen }) {
 }
 
 export function AgentRow({ agent, onOpen }) {
-  const tone = agent.state === "running" ? " ti-shimmer" : agent.state === "error" ? " is-error" : agent.state === "queued" || agent.state === "cancelled" ? " is-queued" : "";
+  const running = agent.state === "running";
+  const tone = running ? " ti-sheen-host" : agent.state === "error" ? " is-error" : agent.state === "queued" || agent.state === "cancelled" ? " is-queued" : "";
   return (
     <button type="button" className="wr-row" onClick={onOpen} title={`Open ${agent.label}`}>
       <AgentGlyph agent={agent} />
       <span className={"wr-row__label" + (agent.state === "queued" ? " is-queued" : "")}>{agent.label}</span>
-      <span className={"wr-row__activity" + tone}>{agent.activity}</span>
+      <span className={"wr-row__activity" + tone}>{agent.activity}{running && <Sheen>{agent.activity}</Sheen>}</span>
       <span className="wr-row__num">{agent.tokens ? fmtTokens(agent.tokens) : ""}</span>
       <span className="wr-row__num">{agent.state === "queued" ? "queued" : fmtTime(agent.elapsedMs)}</span>
     </button>
