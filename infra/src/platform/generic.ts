@@ -30,6 +30,7 @@ export function genericPlatform(os: string): HostPlatform {
     executableNames: (name) => [name],
     spawnCommand: (file, args) => ({ file, args }),
     killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
+    chromiumBrowsers: () => [],
     appUpdates: null,
   };
 }

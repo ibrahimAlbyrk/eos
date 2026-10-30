@@ -97,6 +97,8 @@ export interface HostPlatform {
   spawnCommand(file: string, args: string[]): SpawnCommand;
   /** Ends a process and everything it started (a detached child leads its own group). Throws when `pid` is gone. */
   killProcessTree(pid: number): void;
+  /** Where a Chromium browser the browser panel can drive is usually installed, most preferred first. */
+  chromiumBrowsers(): string[];
   /** In-app updates; null where Eos can't update itself yet. */
   readonly appUpdates: AppUpdatePlatform | null;
 }

@@ -31,11 +31,7 @@ import { CdpPipeClient } from "./cdpPipe.ts";
 import { formatAXTree, roleOf, statesOf, type AXNodeLike } from "./snapshotFormatter.ts";
 import { audioGuardSource } from "./audioGuard.ts";
 import { parseChord } from "./keys.ts";
-
-const DEFAULT_CHROME_PATHS = [
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-];
+import { hostPlatform } from "../platform/index.ts";
 
 // Engine-default viewport (the "responsive" device profile). Frames stream at
 // maxWidth<=1024, so 1280x800 CSS at dsf2 caps to 1024x640.
@@ -143,7 +139,7 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   binaryPath(): string | null {
     if (this.chromePath) return existsSync(this.chromePath) ? this.chromePath : null;
-    for (const p of DEFAULT_CHROME_PATHS) if (existsSync(p)) return p;
+    for (const p of hostPlatform.chromiumBrowsers()) if (existsSync(p)) return p;
     return null;
   }
 

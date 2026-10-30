@@ -93,6 +93,15 @@ export const win32Platform: HostPlatform = {
     execFileSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
   },
 
+  // Chrome where it's installed, else Edge, which every Windows 10/11 has.
+  chromiumBrowsers: () => {
+    const roots = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LOCALAPPDATA].filter((r): r is string => Boolean(r));
+    return [
+      ...roots.map((r) => join(r, "Google", "Chrome", "Application", "chrome.exe")),
+      ...roots.map((r) => join(r, "Microsoft", "Edge", "Application", "msedge.exe")),
+    ];
+  },
+
   appUpdates: {
     feedPlatform: process.arch === "arm64" ? "win32-arm64" : "win32-x64",
     // …\Programs\Eos\Eos.exe → …\Programs\Eos

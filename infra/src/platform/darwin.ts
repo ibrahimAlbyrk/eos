@@ -69,6 +69,11 @@ export const darwinPlatform: HostPlatform = {
 
   killProcessTree: (pid) => { process.kill(-pid, "SIGKILL"); },
 
+  chromiumBrowsers: () => [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  ],
+
   // Releases are built for Apple Silicon only.
   appUpdates: process.arch === "arm64" ? macAppUpdates() : null,
 };
