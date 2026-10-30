@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Readable } from "node:stream";
 import { Router, type RouteContext } from "../Router.ts";
 import { registerWorkflowRunRoutes } from "../workflow-runs.ts";
@@ -7,8 +10,10 @@ import type { Container } from "../../container.ts";
 import { WorkflowRunService } from "../../services/WorkflowRunService.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
-const ROOT = "/Users/u/.claude/projects";
+const ROOT = mkdtempSync(join(tmpdir(), "wf-routes-"));
 const DIR = `${ROOT}/-p/s/subagents/workflows/wf_1`;
+mkdirSync(DIR, { recursive: true });
+writeFileSync(`${DIR}/agent-a8e1f3e896e86fcec.jsonl`, JSON.stringify({ type: "user", uuid: "u1", parentUuid: null, isSidechain: true, message: { role: "user", content: "go" } }));
 
 function makeContainer() {
   const stops: string[] = [];
@@ -17,9 +22,6 @@ function makeContainer() {
     agentEvents: () => [],
     session: () => ({ isAlive: () => true, stopTask: async (id: string) => { stops.push(id); return { ok: true }; } }),
     claudeProjectsDir: ROOT,
-    readFile: (p) => (p === `${DIR}/agent-a8e1f3e896e86fcec.jsonl`
-      ? JSON.stringify({ type: "user", uuid: "u1", parentUuid: null, isSidechain: true, message: { role: "user", content: "go" } })
-      : null),
   });
   workflowRuns.observe("w-1", { type: "workflow_started", callId: "toolu_1", taskId: "t1", transcriptDir: DIR });
   return { c: { uiToken: "tok", workflowRuns } as unknown as Container, stops };

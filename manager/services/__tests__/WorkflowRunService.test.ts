@@ -1,5 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { WorkerEventRow } from "../../../contracts/src/events.ts";
 import type { WorkflowRunSnapshot } from "../../../contracts/src/canonical.ts";
 import { WorkflowRunService, type WorkflowRunServiceDeps } from "../WorkflowRunService.ts";
@@ -114,28 +117,37 @@ describe("WorkflowRunService — finished runs", () => {
 });
 
 describe("WorkflowRunService — agent transcripts", () => {
+  const root = mkdtempSync(join(tmpdir(), "wf-runs-"));
+  const dir = `${root}/-p/3cad/subagents/workflows/wf_1`;
+  mkdirSync(dir, { recursive: true });
+  const started = { ...STARTED, transcriptDir: dir };
+  const file = `${dir}/agent-a8e1f3e896e86fcec.jsonl`;
   const jsonl = [
     { type: "user", uuid: "u1", parentUuid: null, isSidechain: true, message: { role: "user", content: "Review the diff" } },
     { type: "assistant", uuid: "a1", parentUuid: "u1", isSidechain: true, message: { id: "m1", role: "assistant", content: [{ type: "tool_use", id: "t1", name: "Read", input: { file_path: "a.ts" } }] } },
   ].map((o) => JSON.stringify(o)).join("\n");
 
-  it("reads an agent's rows from the run's own directory", () => {
-    const { svc, files } = setup();
-    files.set(`${DIR}/agent-a8e1f3e896e86fcec.jsonl`, jsonl);
-    svc.observe(W, STARTED);
+  it("reads an agent's rows from the run's own directory, and what the agent appends", () => {
+    const { svc } = setup({ claudeProjectsDir: root });
+    writeFileSync(file, jsonl);
+    svc.observe(W, started);
     const rows = svc.agentRows(W, "c1", "a8e1f3e896e86fcec")!;
     assert.deepEqual(rows.map((r) => r.type), ["user_message", "agent_event"]);
     assert.ok(JSON.stringify(rows[1].payload).includes('"Read"'));
+    const result = { type: "user", uuid: "r1", parentUuid: "a1", isSidechain: true, message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content: "body" }] } };
+    appendFileSync(file, `\n${JSON.stringify(result)}\n`);
+    assert.deepEqual(svc.agentRows(W, "c1", "a8e1f3e896e86fcec")!.map((r) => r.id), [1, 2, 3]);
   });
 
   it("refuses ids that aren't agent ids and dirs outside Claude's projects", () => {
-    const { svc, files, rows } = setup();
-    files.set(`${DIR}/agent-a8e1f3e896e86fcec.jsonl`, jsonl);
-    svc.observe(W, STARTED);
+    const { svc, rows } = setup({ claudeProjectsDir: root });
+    writeFileSync(file, jsonl);
+    svc.observe(W, started);
     assert.equal(svc.agentRows(W, "c1", "../../x"), null);
-    const outside = "/tmp/subagents/workflows/wf_9";
-    files.set(`${outside}/agent-a8e1f3e896e86fcec.jsonl`, jsonl);
-    rows.push(row({ ...STARTED, callId: "c9", transcriptDir: outside }));
+    const outside = mkdtempSync(join(tmpdir(), "wf-outside-")) + "/subagents/workflows/wf_9";
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(`${outside}/agent-a8e1f3e896e86fcec.jsonl`, jsonl);
+    rows.push(row({ ...started, callId: "c9", transcriptDir: outside }));
     assert.equal(svc.agentRows(W, "c9", "a8e1f3e896e86fcec"), null);
   });
 });

@@ -10,7 +10,7 @@ import {
 import {
   EMPTY_WORKFLOW_SNAPSHOT, parseWorkflowRecord, settleWorkflowSnapshot, withWorkflowRecord, workflowAgentTranscriptPath, workflowRecordPath,
 } from "../../core/src/domain/workflow-run.ts";
-import { transcriptView } from "./pty/transcriptRows.ts";
+import { TranscriptFile } from "./pty/transcriptFile.ts";
 
 // Claude Code Workflow runs, live and finished. A running run's progress is
 // held here (latest snapshot only) and relayed as workflow:progress at most
@@ -34,6 +34,7 @@ export interface WorkflowRunServiceDeps {
   session(workerId: string): StopCapable | null;
   // Claude Code's projects dir (~/.claude/projects): the only place run files are read from.
   claudeProjectsDir: string;
+  // A run's record.
   readFile?(path: string): string | null;
   now?(): number;
   throttleMs?: number;
@@ -54,12 +55,17 @@ interface LiveRun {
 
 export type StopResult = { ok: true } | { ok: false; status: 404 | 409; error: string };
 
+// Agent transcripts kept parsed, so a drawer refetching a working agent reads
+// only what the agent appended since.
+const AGENT_TRANSCRIPTS_KEPT = 4;
+
 const readOrNull = (path: string): string | null => {
   try { return readFileSync(path, "utf8"); } catch { return null; }
 };
 
 export class WorkflowRunService {
   private live = new Map<string, LiveRun>();
+  private agentTranscripts = new Map<string, TranscriptFile>(); // by path, least recently read first
   private deps: WorkflowRunServiceDeps;
   private readFile: (path: string) => string | null;
   private now: () => number;
@@ -143,9 +149,8 @@ export class WorkflowRunService {
     const dir = this.live.get(keyOf(workerId, callId))?.started?.transcriptDir
       ?? this.recorded(workerId, callId).started?.event.transcriptDir;
     const path = dir && this.isRunDir(dir) ? workflowAgentTranscriptPath(dir, agentId) : null;
-    const jsonl = path ? this.readFile(path) : null;
-    if (jsonl === null) return null;
-    return transcriptView(jsonl, { sidechain: true }).rows.slice(-WORKFLOW_AGENT_ROWS_MAX);
+    const view = path ? this.agentTranscript(path).read() : null;
+    return view ? view.rows.slice(-WORKFLOW_AGENT_ROWS_MAX) : null;
   }
 
   async stop(workerId: string, callId: string): Promise<StopResult> {
@@ -160,6 +165,15 @@ export class WorkflowRunService {
   dispose(): void {
     for (const run of this.live.values()) if (run.timer) clearTimeout(run.timer);
     this.live.clear();
+    this.agentTranscripts.clear();
+  }
+
+  private agentTranscript(path: string): TranscriptFile {
+    const t = this.agentTranscripts.get(path) ?? new TranscriptFile(path, { sidechain: true });
+    this.agentTranscripts.delete(path);
+    this.agentTranscripts.set(path, t);
+    if (this.agentTranscripts.size > AGENT_TRANSCRIPTS_KEPT) this.agentTranscripts.delete(this.agentTranscripts.keys().next().value!);
+    return t;
   }
 
   private entry(workerId: string, callId: string, taskId: string): LiveRun {

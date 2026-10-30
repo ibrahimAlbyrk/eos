@@ -59,44 +59,52 @@ function promptOf(content: unknown): Prompt {
   return classifyPrompt(text);
 }
 
-// `sidechain` reads a subagent's own transcript (a Workflow agent's agent-<id>.jsonl).
-export function transcriptView(jsonl: string, opts: { sidechain?: boolean } = {}): TranscriptView {
-  const entries = parseJsonlEntries(jsonl) as Entry[];
-  const onPath = new Set<ClaudeJsonlEntry>(activeBranchOf(entries, opts));
-  const rows: PtyConversationRow[] = [];
-  const waiting = new Map<string, PtyPending>();
-  let running = false;
+// What one entry adds to the view, worked out once: it depends only on the entry
+// and its position. A turn end counts anywhere, the rest only on the active branch.
+interface Step {
+  // Claude closes every turn with this marker (it hangs off the branch tip, so
+  // it is never on the walked path itself).
+  turnEnd?: true;
+  row?: PtyConversationRow;
+  running?: boolean;
+  opens?: PtyPending[];
+  answers?: string[];
+  // A new prompt or an interrupt means any open dialog is gone.
+  clears?: true;
+}
 
-  entries.forEach((e, i) => {
-    // Claude closes every turn with this marker (it hangs off the branch tip, so
-    // it is never on the walked path itself).
-    if (e.type === "system" && e.subtype === "turn_duration" && e.isSidechain !== true) { running = false; return; }
-    if (!onPath.has(e) || e.isMeta === true || e.isCompactSummary === true || !e.message) return;
-    const id = i + 1;
-    const ts = typeof e.timestamp === "string" ? Date.parse(e.timestamp) || 0 : 0;
-    const push = (type: string, payload: unknown): void => { rows.push({ id, ts, type, payload }); };
-    const content = e.message.content;
+function stepOf(e: Entry, i: number): Step {
+  if (e.type === "system" && e.subtype === "turn_duration" && e.isSidechain !== true) return { turnEnd: true };
+  if (e.isMeta === true || e.isCompactSummary === true || !e.message) return {};
+  const id = i + 1;
+  const ts = typeof e.timestamp === "string" ? Date.parse(e.timestamp) || 0 : 0;
+  const row = (type: string, payload: unknown): PtyConversationRow => ({ id, ts, type, payload });
+  const content = e.message.content;
 
-    if (e.type === "assistant" && Array.isArray(content)) {
-      const blocks = durableBlocks(String(e.uuid), content as RawBlock[], 0);
-      for (const b of blocks) {
-        if (b.type === "tool_call" && isDialogTool(b.name)) waiting.set(b.callId, { toolUseId: b.callId, name: b.name, input: b.input });
-      }
-      // Blocks are written as each completes, before the message's stop reason
-      // is known (null) — only a final reason other than tool_use ends the turn.
-      const stop = e.message.stop_reason;
-      running = e.isApiErrorMessage !== true && (stop === "tool_use" || stop == null);
-      if (blocks.length) push("agent_event", { type: "message", role: "assistant", blocks } satisfies AgentEvent);
-      return;
+  if (e.type === "assistant" && Array.isArray(content)) {
+    const blocks = durableBlocks(String(e.uuid), content as RawBlock[], 0);
+    const opens: PtyPending[] = [];
+    for (const b of blocks) {
+      if (b.type === "tool_call" && isDialogTool(b.name)) opens.push({ toolUseId: b.callId, name: b.name, input: b.input });
     }
-    if (e.type !== "user") return;
+    // Blocks are written as each completes, before the message's stop reason
+    // is known (null) — only a final reason other than tool_use ends the turn.
+    const stop = e.message.stop_reason;
+    return {
+      running: e.isApiErrorMessage !== true && (stop === "tool_use" || stop == null),
+      opens,
+      row: blocks.length ? row("agent_event", { type: "message", role: "assistant", blocks } satisfies AgentEvent) : undefined,
+    };
+  }
+  if (e.type !== "user") return {};
 
-    const results = Array.isArray(content) ? (content as RawBlock[]).filter((b) => b.type === "tool_result") : [];
-    if (results.length) {
-      const patch = parseStructuredPatch((e.toolUseResult as { structuredPatch?: unknown } | undefined)?.structuredPatch);
-      for (const r of results) waiting.delete(r.tool_use_id ?? "");
-      running = true;
-      push("agent_event", {
+  const results = Array.isArray(content) ? (content as RawBlock[]).filter((b) => b.type === "tool_result") : [];
+  if (results.length) {
+    const patch = parseStructuredPatch((e.toolUseResult as { structuredPatch?: unknown } | undefined)?.structuredPatch);
+    return {
+      running: true,
+      answers: results.map((r) => r.tool_use_id ?? ""),
+      row: row("agent_event", {
         type: "message",
         role: "tool",
         blocks: results.map((r) => ({
@@ -106,22 +114,68 @@ export function transcriptView(jsonl: string, opts: { sidechain?: boolean } = {}
           content: blockText(r.content),
           ...(patch ? { patch } : {}),
         })),
-      } satisfies AgentEvent);
-      return;
-    }
+      } satisfies AgentEvent),
+    };
+  }
 
-    const prompt = promptOf(content);
-    if (!prompt) return;
-    // A new prompt or an interrupt means any open dialog is gone.
-    waiting.clear();
-    if (prompt.kind === "interrupt") {
-      running = false;
-      push("agent_event", { type: "turn", phase: "aborted" } satisfies AgentEvent);
-      return;
-    }
-    running = true;
-    push("user_message", { text: prompt.text });
-  });
+  const prompt = promptOf(content);
+  if (!prompt) return {};
+  if (prompt.kind === "interrupt") return { clears: true, running: false, row: row("agent_event", { type: "turn", phase: "aborted" } satisfies AgentEvent) };
+  return { clears: true, running: true, row: row("user_message", { text: prompt.text }) };
+}
 
-  return { rows, running, pending: [...waiting.values()].pop() ?? null };
+// The fields activeBranchOf walks: all an entry keeps once its step is known.
+const branchFields = (e: Entry): ClaudeJsonlEntry => ({ type: e.type, uuid: e.uuid, parentUuid: e.parentUuid, isSidechain: e.isSidechain });
+
+// A transcript read as it grows: add() takes whole lines only, and view() walks
+// the active branch again from the newest tip over what was added.
+export class TranscriptRows {
+  private opts: { sidechain?: boolean };
+  private entries: ClaudeJsonlEntry[] = [];
+  private steps: Step[] = [];
+
+  constructor(opts: { sidechain?: boolean } = {}) {
+    this.opts = opts;
+  }
+
+  add(lines: string): void {
+    for (const e of parseJsonlEntries(lines) as Entry[]) {
+      this.steps.push(stepOf(e, this.entries.length));
+      this.entries.push(branchFields(e));
+    }
+  }
+
+  // `tail` is an unfinished last line: it counts while it parses, and is kept
+  // only once a later add() has it whole.
+  view(tail = ""): TranscriptView {
+    let { entries, steps } = this;
+    const last = tail.trim() ? (parseJsonlEntries(tail) as Entry[])[0] : undefined;
+    if (last) {
+      entries = [...entries, branchFields(last)];
+      steps = [...steps, stepOf(last, this.entries.length)];
+    }
+    const onPath = new Set<ClaudeJsonlEntry>(activeBranchOf(entries, this.opts));
+    const rows: PtyConversationRow[] = [];
+    const waiting = new Map<string, PtyPending>();
+    let running = false;
+
+    steps.forEach((s, i) => {
+      if (s.turnEnd) { running = false; return; }
+      if (!onPath.has(entries[i])) return;
+      if (s.clears) waiting.clear();
+      for (const p of s.opens ?? []) waiting.set(p.toolUseId, p);
+      for (const id of s.answers ?? []) waiting.delete(id);
+      if (s.running !== undefined) running = s.running;
+      if (s.row) rows.push(s.row);
+    });
+
+    return { rows, running, pending: [...waiting.values()].pop() ?? null };
+  }
+}
+
+// `sidechain` reads a subagent's own transcript (a Workflow agent's agent-<id>.jsonl).
+export function transcriptView(jsonl: string, opts: { sidechain?: boolean } = {}): TranscriptView {
+  const t = new TranscriptRows(opts);
+  t.add(jsonl);
+  return t.view();
 }

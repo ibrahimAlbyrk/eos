@@ -1,15 +1,16 @@
-import { readFileSync, statSync, unwatchFile, watchFile } from "node:fs";
+import { unwatchFile, watchFile } from "node:fs";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { PtyConversationRow, PtyPending, PtySession } from "../../contracts/src/http.ts";
 import { claudeTranscriptPath } from "../shared/claude-transcript-path.ts";
-import { transcriptView, type TranscriptView } from "./pty/transcriptRows.ts";
+import { TranscriptFile } from "./pty/transcriptFile.ts";
+import type { TranscriptView } from "./pty/transcriptRows.ts";
 
 // A claude pane's conversation, read from its Claude Code transcript. The file
 // is watched from the first read until the pane exits or switches conversation
 // (/clear, /resume); every change publishes pty:conversation so clients
-// refetch. A parse is cached until the file changes. An open question or plan
-// comes from the pane's own report (see claudeLaunch) when the transcript
-// doesn't have it yet.
+// refetch. A read parses only what Claude appended since the one before. An
+// open question or plan comes from the pane's own report (see claudeLaunch)
+// when the transcript doesn't have it yet.
 
 type Watch = (path: string, onChange: () => void) => () => void;
 
@@ -31,10 +32,9 @@ const pollFile: Watch = (path, onChange) => {
 const EMPTY: TranscriptView = { rows: [], running: false, pending: null };
 
 interface Watched {
-  path: string;
   claudeSessionId: string;
   stop: () => void;
-  cache: { size: number; mtimeMs: number; view: TranscriptView } | null;
+  file: TranscriptFile;
 }
 
 export type PtyConversation = TranscriptView & { claudeSessionId: string | null };
@@ -71,7 +71,7 @@ export class PtyConversationService {
     const s = this.sessions.get(ptyId);
     if (!s || s.kind !== "claude") return null;
     if (!s.claudeSessionId) return { ...EMPTY, claudeSessionId: null };
-    const view = this.read(this.watching(s, s.claudeSessionId));
+    const view = this.watching(s, s.claudeSessionId).file.read() ?? EMPTY;
     return { ...view, pending: view.pending ?? this.openDialog(ptyId, view.rows), claudeSessionId: s.claudeSessionId };
   }
 
@@ -90,22 +90,11 @@ export class PtyConversationService {
     this.forget(s.sessionId);
     const path = this.pathOf(s.cwd, claudeSessionId);
     const w: Watched = {
-      path, claudeSessionId, cache: null,
+      claudeSessionId, file: new TranscriptFile(path),
       stop: this.watch(path, () => this.bus.publish("pty:conversation", { sessionId: s.sessionId, claudeSessionId })),
     };
     this.watched.set(s.sessionId, w);
     return w;
-  }
-
-  private read(w: Watched): TranscriptView {
-    let st;
-    try { st = statSync(w.path); } catch { return EMPTY; }
-    if (w.cache && w.cache.size === st.size && w.cache.mtimeMs === st.mtimeMs) return w.cache.view;
-    let text: string;
-    try { text = readFileSync(w.path, "utf8"); } catch { return EMPTY; }
-    const view = transcriptView(text);
-    w.cache = { size: st.size, mtimeMs: st.mtimeMs, view };
-    return view;
   }
 
   private forget(ptyId: string): void {
