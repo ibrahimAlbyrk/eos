@@ -85,6 +85,9 @@ async function appFromRelease(version: string, platform: UpdatePlatform): Promis
   execFileSync("gh", ["release", "download", `v${version}`, "-p", `Eos-${platform}.zip`, "-O", zip], { cwd: ROOT, stdio: "inherit" });
   const root = join(dir, "app");
   execFileSync("ditto", ["-x", "-k", zip, root]);
+  // A zip written with `\` separators unpacks here as flat files named `a\b`.
+  const flat = (await readdir(root, { recursive: true })).find((name) => name.includes("\\"));
+  if (flat) die(`the release's zip uses \\ as its folder separator (${flat}) — rebuild it with a standard zip`);
   const top = await readdir(root, { withFileTypes: true });
   return top.length === 1 && top[0].isDirectory() ? join(root, top[0].name) : root;
 }
