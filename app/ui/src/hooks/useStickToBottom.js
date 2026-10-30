@@ -1,7 +1,8 @@
 // useStickToBottom — single owner of a chat scroller's scrollTop. Keeps the
-// view pinned to the bottom while content grows, gliding there with a rAF loop
-// whose target is re-read every frame: mid-flight growth just moves the
-// target, so the animation never restarts and never lands short.
+// view pinned to the bottom while content grows: growth lands at once, and an
+// explicit jump (scrollToBottom, a re-pin) glides there with a rAF loop whose
+// target is re-read every frame: mid-flight growth just moves the target, so
+// the animation never restarts and never lands short.
 //
 // Attribution: every own write records its value+time; a scroll event matching
 // the last write (±2px, fresh) is "self". User intent comes from input
@@ -223,7 +224,13 @@ export function useStickToBottom({
       if (act === "snap") {
         ownWrite(el, el.scrollHeight);
       } else if (act === "follow") {
-        startFollow();
+        // Pinned growth lands at once (RO runs before paint: no frame shows it
+        // short). A glide per growth costs ~0.4 s of full-rate frames — rAF,
+        // scroll write, commit, the whole transcript moving under the glass
+        // composer — for every new row. A jump's glide already in flight
+        // keeps going; it re-reads the target each frame.
+        if (rafRef.current) startFollow();
+        else ownWrite(el, el.scrollHeight);
       } else if (widthChanged) {
         // Reflow at a new width: put the previously viewed block back at its old
         // viewport offset, synchronously (RO runs before paint → no flash).
