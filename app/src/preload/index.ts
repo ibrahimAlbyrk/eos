@@ -203,9 +203,17 @@ markNative();
 // every region to window coordinates on each layout, and while a reply streams
 // that is thousands of transcript elements every frame. (`initial`, not `none`:
 // Chromium reads the `none` keyword as no-drag.)
+// The docked sidebar takes no part either. Electron folds the regions in
+// document order (drag = union, no-drag = subtract), so a no-drag box only
+// matters when it comes after a strip it overlaps — and the docked sidebar
+// precedes every strip (.pane-head), so a strip's union always lands after
+// it and wins. Its boxes would carve nothing and
+// only cost a mapping per box on every layout, and a region IPC to main
+// whenever the list scrolls or changes. The collapsed flyout is not inside it
+// (.native-toggle-zone comes after the header and keeps no-drag).
 webFrame.insertCSS(
   "html.native * { -webkit-app-region: var(--app-region, no-drag); }" +
-    " html.native .messages-wrap, html.native .messages-wrap * { -webkit-app-region: initial; }",
+    " html.native :is(.messages-wrap, .side), html.native :is(.messages-wrap, .side) * { -webkit-app-region: initial; }",
 );
 
 // While a controlled computer's view covers this page, the page must claim no
