@@ -15,6 +15,7 @@ import { Ed25519UpdateSignature, generateUpdateSigningKey, publicKeyOf, signUpda
 import { FsBundleIndexer } from "../update/FsBundleIndexer.ts";
 import { FsUpdateWorkspace, treeMismatch } from "../update/FsUpdateWorkspace.ts";
 import { HttpUpdateFeed } from "../update/HttpUpdateFeed.ts";
+import { hostPlatform } from "../platform/index.ts";
 
 function noise(n: number, seed: number): Buffer {
   const out = Buffer.allocUnsafe(n);
@@ -101,7 +102,7 @@ describe("bundle scan", () => {
     }
     const plain = await scanBundle(root, { chunks: false });
     assert.equal(plain[1].type === "file" && plain[1].sha256, big.type === "file" && big.sha256);
-    assert.equal(plain[3].type === "file" && plain[3].mode, 0o755);
+    if (hostPlatform.appUpdates?.fileModes !== false) assert.equal(plain[3].type === "file" && plain[3].mode, 0o755);
   });
 });
 

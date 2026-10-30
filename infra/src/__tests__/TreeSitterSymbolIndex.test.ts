@@ -212,7 +212,7 @@ describe("TreeSitterSymbolIndex parser process", () => {
       parserScript,
       `import { appendFileSync } from "node:fs";
 process.on("message", (r) => {
-  appendFileSync(${JSON.stringify(log)}, r.paths.map((p) => p.slice(${dir.length + 1})).join(",") + "\\n");
+  appendFileSync(${JSON.stringify(log)}, r.paths.map((p) => p.slice(${dir.length + 1}).replaceAll("\\\\", "/")).join(",") + "\\n");
   process.send({ id: r.id, paths: [], names: [], kinds: [], occ: new Int32Array(), capped: 0, notes: [] });
 });
 process.on("disconnect", () => process.exit(0));
