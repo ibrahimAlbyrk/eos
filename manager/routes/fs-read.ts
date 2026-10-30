@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, statSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, statSync, openSync, readSync, fstatSync, closeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
 
@@ -69,18 +69,25 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
   r.get("/fs/read", ({ url, res }) => {
     const qPath = url.searchParams.get("path");
     if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    let fd: number | undefined;
     try {
-      const buf = readFileSync(qPath);
-      if (buf.subarray(0, 8192).includes(0)) {
-        writeJson(res, 200, { path: qPath, binary: true, size: buf.length });
+      // Sniff and stat before reading: a binary or oversized file is answered
+      // without loading it.
+      fd = openSync(qPath, "r");
+      const head = Buffer.alloc(8192);
+      const sniffed = readSync(fd, head, 0, head.length, 0);
+      const { size } = fstatSync(fd);
+      if (head.subarray(0, sniffed).includes(0)) {
+        writeJson(res, 200, { path: qPath, binary: true, size });
         return;
       }
-      if (buf.length > TEXT_MAX_BYTES) {
+      if (size > TEXT_MAX_BYTES) {
         // Don't ship a JSON body this big to the editor — the viewer degrades
         // to a size note + external open.
-        writeJson(res, 200, { path: qPath, large: true, size: buf.length });
+        writeJson(res, 200, { path: qPath, large: true, size });
         return;
       }
+      const buf = readFileSync(fd);
       // Count newlines on the buffer — content.split("\n") would allocate an
       // array of every line just to read its length.
       let lines = 1;
@@ -88,6 +95,8 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       writeJson(res, 200, { path: qPath, content: buf.toString("utf8"), lines, size: buf.length });
     } catch (e) {
       writeJson(res, 404, { error: errMsg(e) });
+    } finally {
+      if (fd !== undefined) closeSync(fd);
     }
   });
 
