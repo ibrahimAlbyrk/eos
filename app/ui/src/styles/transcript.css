@@ -1343,7 +1343,7 @@
   --al-ray: #b98d4f; --al-hi: #f3e2c0; --al-core: #fff8ec; --al-glow: 201, 161, 99;
 }
 .al-star { flex-shrink: 0; overflow: visible; }
-.al-star .al-spin, .al-star .al-rays, .al-star .al-core { transform-box: view-box; transform-origin: 0 0; }
+.al-star .al-rays, .al-star .al-core { transform-box: view-box; transform-origin: 0 0; }
 .al-star .al-rays, .al-star .al-core { transform: scale(0.86); }
 .al-star .al-ray { fill: var(--al-ray, var(--fg-mute)); }
 /* Plain hex, not color-mix(): Chromium interpolates hex → color-mix() in oklab
@@ -1365,16 +1365,19 @@
   animation: al-halo 2.4s ease-in-out infinite;
 }
 .activity-line:is(.is-busy, .is-check) :is(.al-rays, .al-core) { transform: none; }
-/* is-done keeps the same spin, paused, so the star stops where it is rather
+/* The turn rotates the whole <svg> (an HTML-level box), not its inner <g>: a
+   transform on an SVG child is re-applied by every main frame and dirties SVG
+   layout (layout, paint, layerize); on the <svg> it stays on the compositor. The
+   core is a circle, so turning it with the rays changes nothing.
+   is-done keeps the same spin, paused, so the star stops where it is rather
    than snapping upright; going busy again resumes it from there. */
-.activity-line:is(.is-busy, .is-done) .al-spin { animation: al-spin 6s linear infinite; }
-.activity-line.is-done .al-spin { animation-play-state: paused; }
-.activity-line.is-check .al-spin { animation: al-spin 9s linear infinite; }
+.activity-line.is-busy .al-star { animation: al-spin 6s linear infinite; }
+.activity-line.is-check .al-star { animation: al-spin 9s linear infinite; }
 
 /* Busy → idle in place (ProcessingLine): a short drift carries the frozen spin
    to rest, easing out, while the blue drains — once, instead of snapping grey.
    Each `from` is the busy look; the end state is the idle rules above. */
-.activity-line.is-done .al-star { animation: al-set-glow 0.8s ease-out both; }
+.activity-line.is-done .al-star { animation: al-spin 6s linear infinite paused, al-set-glow 0.8s ease-out both; }
 .activity-line.is-done .al-rays { animation: al-set-rays 0.8s cubic-bezier(.33, 1, .68, 1) both; }
 .activity-line.is-done .al-ray { animation: al-set-ray 0.8s ease-out both; }
 .activity-line.is-done .al-ray-hi { animation: al-set-ray-hi 0.8s ease-out both; }
