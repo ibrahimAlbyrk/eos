@@ -1143,7 +1143,10 @@ export function buildContainer() {
     newId: () => randomBytes(8).toString("hex"),
     logins: loginRegistry,
     onSignedIn: (_provider, loginId) => planLimits.clear(loginId),
-    onChange: () => accounts.invalidate(),
+    onChange: () => {
+      accounts.invalidate();
+      usage.invalidate();
+    },
   });
 
   const makeToolContext = (spec: AgentLaunchSpec) => ({

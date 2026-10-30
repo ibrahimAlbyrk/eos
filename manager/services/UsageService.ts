@@ -65,6 +65,17 @@ export class UsageService {
     return held;
   }
 
+  // A sign-in was added or removed: what is held answers for the old ones, so
+  // fetch now, past the floor, and hand the result to onChange. A fetch already
+  // under way read the old sign-ins too, so this one runs after it.
+  invalidate(): void {
+    const prior = this.inflight ?? Promise.resolve();
+    prior.catch(() => {}).then(() => {
+      this.cache = null;
+      return this.getUsage();
+    }).catch(() => {});
+  }
+
   // Serve cache within the floor; otherwise fetch fresh. A refresh is honored the
   // same way — it can't bust the floor (that's what protects the 429ing endpoint).
   async getUsage(): Promise<UsageResponse> {

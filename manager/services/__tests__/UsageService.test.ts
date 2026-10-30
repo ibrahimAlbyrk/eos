@@ -230,6 +230,22 @@ describe("UsageService — a provider list read live, one snapshot per sign-in",
     assert.deepEqual(svc.peek().map((p) => p.loginId), ["b"]);
   });
 
+  it("a sign-in made inside the floor shows at once once invalidated", async () => {
+    let list: SubscriptionUsageProvider[] = [];
+    const pushed: string[][] = [];
+    const svc = new UsageService({
+      providers: () => list, clock: { now: () => 0 }, minIntervalMs: 180_000,
+      onChange: (res) => pushed.push(res.providers.map((p) => p.loginId ?? "")),
+    });
+    assert.deepEqual((await svc.current()).providers, []);
+    list = [provider("a", 10)];
+    assert.deepEqual((await svc.current()).providers, []); // the floor still holds the old answer
+    svc.invalidate();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(pushed.at(-1), ["a"]);
+    assert.deepEqual((await svc.current()).providers.map((p) => p.loginId), ["a"]);
+  });
+
   it("a saved snapshot comes back under its sign-in", () => {
     const svc = new UsageService({
       providers: () => [provider("a", 0)],
