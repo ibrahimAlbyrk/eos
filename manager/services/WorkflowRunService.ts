@@ -224,8 +224,8 @@ export class WorkflowRunService {
   }
 
   private isRunDir(dir: string): boolean {
-    const root = this.deps.claudeProjectsDir.replace(/\/+$/, "");
-    return dir.startsWith(`${root}/`) && workflowRecordPath(dir) !== null;
+    const root = this.deps.claudeProjectsDir.replace(/[\\/]+$/, "");
+    return dir.startsWith(root) && /[\\/]/.test(dir.charAt(root.length)) && workflowRecordPath(dir) !== null;
   }
 
   private recorded(workerId: string, callId: string): { started?: { event: Started; ts: number }; completed?: { event: Completed; ts: number } } {

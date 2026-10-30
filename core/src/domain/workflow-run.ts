@@ -130,16 +130,24 @@ export function withWorkflowRecord(snapshot: WorkflowRunSnapshot, record: Workfl
 // Claude Code keeps a run under the session's directory:
 //   <session>/subagents/workflows/<runId>/agent-<id>.jsonl   (transcriptDir)
 //   <session>/workflows/<runId>.json                          (the record)
-const TRANSCRIPT_DIR_RE = /^(\/.+)\/subagents\/workflows\/(wf_[A-Za-z0-9_-]+)$/;
+// An absolute path on macOS (/…) or Windows (C:\…, \\server\…); paths are
+// built with the separator the dir itself uses.
+const TRANSCRIPT_DIR_RE = /^((?:\/|[A-Za-z]:[\\/]|\\\\).+)([\\/])subagents\2workflows\2(wf_[A-Za-z0-9_-]+)$/;
+
+function parseTranscriptDir(transcriptDir: string): { session: string; sep: string; runId: string } | null {
+  const m = TRANSCRIPT_DIR_RE.exec(transcriptDir);
+  if (!m || m[1].split(/[\\/]/).includes("..")) return null;
+  return { session: m[1], sep: m[2], runId: m[3] };
+}
 
 /** The record's path for a transcriptDir, or null when the dir isn't one. */
 export function workflowRecordPath(transcriptDir: string): string | null {
-  const m = TRANSCRIPT_DIR_RE.exec(transcriptDir);
-  if (!m || m[1].split("/").includes("..")) return null;
-  return `${m[1]}/workflows/${m[2]}.json`;
+  const dir = parseTranscriptDir(transcriptDir);
+  return dir ? `${dir.session}${dir.sep}workflows${dir.sep}${dir.runId}.json` : null;
 }
 
 /** An agent's transcript inside a transcriptDir. The caller validates agentId. */
 export function workflowAgentTranscriptPath(transcriptDir: string, agentId: string): string | null {
-  return workflowRecordPath(transcriptDir) ? `${transcriptDir}/agent-${agentId}.jsonl` : null;
+  const dir = parseTranscriptDir(transcriptDir);
+  return dir ? `${transcriptDir}${dir.sep}agent-${agentId}.jsonl` : null;
 }

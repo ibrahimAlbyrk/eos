@@ -99,7 +99,10 @@ describe("workflow records", () => {
     const dir = "/Users/u/.claude/projects/-p/3cad/subagents/workflows/wf_5dc20956-fb7";
     assert.equal(workflowRecordPath(dir), "/Users/u/.claude/projects/-p/3cad/workflows/wf_5dc20956-fb7.json");
     assert.equal(workflowAgentTranscriptPath(dir, "a543b520564afb462"), `${dir}/agent-a543b520564afb462.jsonl`);
-    for (const bad of ["relative/subagents/workflows/wf_1", "/x/subagents/workflows/../wf_1", "/x/../y/subagents/workflows/wf_1", "/x/workflows/wf_1", "/x/subagents/workflows/wf_1/"]) {
+    const win = "C:\\Users\\u\\.claude\\projects\\C--p\\3cad\\subagents\\workflows\\wf_1";
+    assert.equal(workflowRecordPath(win), "C:\\Users\\u\\.claude\\projects\\C--p\\3cad\\workflows\\wf_1.json");
+    assert.equal(workflowAgentTranscriptPath(win, "a1"), `${win}\\agent-a1.jsonl`);
+    for (const bad of ["relative/subagents/workflows/wf_1", "/x/subagents/workflows/../wf_1", "/x/../y/subagents/workflows/wf_1", "/x/workflows/wf_1", "/x/subagents/workflows/wf_1/", "C:\\x\\..\\y\\subagents\\workflows\\wf_1", "x\\subagents\\workflows\\wf_1"]) {
       assert.equal(workflowRecordPath(bad), null, bad);
     }
   });
