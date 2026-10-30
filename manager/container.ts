@@ -94,7 +94,7 @@ import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
 import { spawnSync } from "node:child_process";
 import { FOCUSED_ROLE, type WorkerRow } from "../contracts/src/worker.ts";
-import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
+import { runMigrations, maybeVacuum, setIncrementalIfNew } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
 import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQueueRepo.ts";
@@ -288,6 +288,7 @@ export function buildContainer() {
 
   // Open DB + run migrations -----------------------------------------------
   const db = new DatabaseSync(config.daemon.dbFile);
+  setIncrementalIfNew(db);
   db.exec("PRAGMA journal_mode = WAL");
   runMigrations(db, log);
   deferredBoot.push({ name: "vacuum", run: () => maybeVacuum(db, log, "startup") });

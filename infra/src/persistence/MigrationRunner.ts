@@ -9,6 +9,7 @@
 // as recoverable and just record the migration.
 
 import type { DatabaseSync } from "node:sqlite";
+import { setImmediate } from "node:timers/promises";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 
@@ -455,12 +456,30 @@ export function runMigrations(db: DatabaseSync, log: Logger): number {
 }
 
 // Periodic VACUUM. SQLite never shrinks pages after a DELETE wave (worker
-// terminations) — VACUUM rebuilds the file and reclaims space. We track the
-// last run in schema_migrations under a reserved id so it survives restarts.
+// terminations) — the free pages are handed back to the filesystem here. We
+// track the last run in schema_migrations under a reserved id so it survives
+// restarts. A full VACUUM blocks the event loop ~1 s on a ~190 MB state.db, and
+// running it on another connection only moves that wait onto the next write
+// (or fails it with SQLITE_BUSY), so an auto_vacuum=INCREMENTAL file is shrunk
+// in slices that yield between them. A file created before that setting gets
+// it from one last full VACUUM.
 export const VACUUM_MARKER = "__vacuum_last_run";
 export const VACUUM_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+// ~14 µs a page (M4, 190 MB state.db), so a slice holds the event loop a few ms.
+export const VACUUM_SLICE_PAGES = 512;
+const AUTO_VACUUM_INCREMENTAL = 2;
 
-export function maybeVacuum(db: DatabaseSync, log: Logger, reason: string): void {
+const pragma = (db: DatabaseSync, name: string): number =>
+  (db.prepare(`PRAGMA ${name}`).get() as Record<string, number>)[name];
+
+// Before the WAL switch: a file takes auto_vacuum only while it has no pages.
+// Setting it on an existing file opens a write transaction, so it's left to
+// maybeVacuum's one full VACUUM.
+export function setIncrementalIfNew(db: DatabaseSync): void {
+  if (pragma(db, "page_count") === 0) db.exec("PRAGMA auto_vacuum = INCREMENTAL");
+}
+
+export async function maybeVacuum(db: DatabaseSync, log: Logger, reason: string): Promise<void> {
   const busy = db.prepare(
     "SELECT COUNT(*) AS n FROM workers WHERE state NOT IN ('DONE','KILLING','SUSPENDED')",
   ).get() as { n: number } | undefined;
@@ -472,7 +491,15 @@ export function maybeVacuum(db: DatabaseSync, log: Logger, reason: string): void
 
   try {
     const before = Date.now();
-    db.exec("VACUUM");
+    if (pragma(db, "auto_vacuum") === AUTO_VACUUM_INCREMENTAL) {
+      for (let left = pragma(db, "freelist_count"); left > 0; left -= VACUUM_SLICE_PAGES) {
+        db.exec(`PRAGMA incremental_vacuum(${VACUUM_SLICE_PAGES})`);
+        await setImmediate();
+      }
+    } else {
+      db.exec("PRAGMA auto_vacuum = INCREMENTAL");
+      db.exec("VACUUM");
+    }
     const ms = Date.now() - before;
     if (last) db.prepare("UPDATE schema_migrations SET applied_at = ? WHERE id = ?").run(now, VACUUM_MARKER);
     else db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run(VACUUM_MARKER, now);
