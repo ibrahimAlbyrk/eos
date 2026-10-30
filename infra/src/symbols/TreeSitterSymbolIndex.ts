@@ -63,7 +63,7 @@ interface RootIndex {
 
 export interface TreeSitterSymbolIndexDeps {
   // Defaults to the shared git-scoped candidate set (relative POSIX paths).
-  listFiles?: (root: string) => string[];
+  listFiles?: (root: string) => Promise<string[]>;
   // WASM grammar dir; defaults to @vscode/tree-sitter-wasm/wasm.
   wasmDir?: string;
   // Max resident root indexes before LRU eviction (multi-root memory bound).
@@ -77,7 +77,7 @@ const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 const LINE_TEXT_MAX = 500;
 
 export class TreeSitterSymbolIndex implements SymbolIndex {
-  private readonly listFiles: (root: string) => string[];
+  private readonly listFiles: (root: string) => Promise<string[]>;
   private readonly wasmDir: string;
   private readonly scmDir: string;
   private readonly maxResidentRoots: number;
@@ -260,7 +260,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     let parsed = 0;
     let capped = 0;
     try {
-      for (const rel of this.listFiles(root)) {
+      for (const rel of await this.listFiles(root)) {
         const abs = join(root, rel);
         if (!this.extToGrammar.has(extname(abs).toLowerCase())) continue; // not a participating language
         if (parsed >= this.maxFiles) {

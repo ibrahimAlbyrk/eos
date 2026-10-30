@@ -125,7 +125,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     // query → repo-wide fuzzy search (thin entries); no query → one-level tree
     // listing with metadata (isSymlink), routed through the FileSystem port.
     if (query) {
-      writeJson(res, 200, { entries: searchProject(cwd, query, limit) });
+      writeJson(res, 200, { entries: searchProject(await c.candidateFiles.list(cwd), cwd, query, limit) });
       return;
     }
     const entries = await c.files.listDir(cwd, { root: cwd, includeHidden });

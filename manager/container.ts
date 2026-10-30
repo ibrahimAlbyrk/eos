@@ -134,6 +134,7 @@ import { hostPlatform } from "../infra/src/platform/index.ts";
 import { appendToPath } from "../infra/src/util/path-env.ts";
 import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
 import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
+import { CandidateFileCache } from "../infra/src/filesystem/gitCandidateFiles.ts";
 import { TreeSitterSymbolIndex } from "../infra/src/symbols/TreeSitterSymbolIndex.ts";
 import type { FsChangeEvent } from "../core/src/ports/FileWatcher.ts";
 import { FsWatchRegistry } from "./services/FsWatchRegistry.ts";
@@ -470,11 +471,21 @@ export function buildContainer() {
   // explorer watcher (fs:change); coarsely mark a root stale on a recursive
   // git-state change (git:change) for edits that watcher never emits (dim03
   // §2b). Multi-root memory is bounded by the adapter's LRU cap + release(root).
-  const symbolIndex = new TreeSitterSymbolIndex({ notify: (msg, meta) => log.warn(msg, meta) });
+  // Both read one cached candidate list per root (Files search too), dropped
+  // when an entry under the root is added/removed or its git state changes.
+  const candidateFiles = new CandidateFileCache({ clock: systemClock });
+  const symbolIndex = new TreeSitterSymbolIndex({
+    listFiles: (root) => candidateFiles.list(root),
+    notify: (msg, meta) => log.warn(msg, meta),
+  });
   const isUnderRoot = (root: string, p: string): boolean =>
     p === root || p.startsWith(root.endsWith(sep) ? root : root + sep);
+  const overlaps = (root: string, dir: string): boolean => isUnderRoot(root, dir) || isUnderRoot(dir, root);
   bus.subscribe("fs:change", (msg) => {
     const changes = (msg.payload as { changes: FsChangeEvent[] }).changes;
+    for (const root of candidateFiles.roots()) {
+      if (changes.some((ch) => ch.kind !== "change" && isUnderRoot(root, ch.path))) candidateFiles.invalidate(root);
+    }
     for (const root of symbolIndex.residentRoots()) {
       const paths = changes.filter((ch) => isUnderRoot(root, ch.path)).map((ch) => ch.path);
       if (paths.length)
@@ -484,9 +495,8 @@ export function buildContainer() {
   bus.subscribe("git:change", (msg) => {
     const dir = (msg.payload as { dir?: string }).dir;
     if (!dir) return;
-    for (const root of symbolIndex.residentRoots()) {
-      if (isUnderRoot(root, dir) || isUnderRoot(dir, root)) symbolIndex.markDirty(root);
-    }
+    for (const root of candidateFiles.roots()) if (overlaps(root, dir)) candidateFiles.invalidate(root);
+    for (const root of symbolIndex.residentRoots()) if (overlaps(root, dir)) symbolIndex.markDirty(root);
   });
 
   // Git info + recents -----------------------------------------------------
@@ -1905,6 +1915,7 @@ export function buildContainer() {
     files,
     fileWatcher,
     fsWatchRegistry,
+    candidateFiles,
     symbolIndex,
     git,
     gitWatcher,

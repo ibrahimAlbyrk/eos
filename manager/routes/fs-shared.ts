@@ -1,7 +1,6 @@
 import { readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IGNORED_ENTRIES } from "../../core/src/domain/fsIgnore.ts";
-import { listCandidateFiles } from "../../infra/src/filesystem/gitCandidateFiles.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { constantTimeEqual } from "../shared/constant-time.ts";
 
@@ -72,10 +71,8 @@ function scoreMatch(name: string, relPath: string, query: string): number {
   return 0;
 }
 
-export function searchProject(cwd: string, query: string, limit: number): FsEntry[] {
-  // Same git-scoped candidate set the symbol index parses (DRY).
-  const fileList = listCandidateFiles(cwd);
-
+// `fileList` is the root's candidate set, the same one the symbol index parses (DRY).
+export function searchProject(fileList: string[], cwd: string, query: string, limit: number): FsEntry[] {
   const scored: { entry: FsEntry; score: number }[] = [];
   const seenDirs = new Set<string>();
 

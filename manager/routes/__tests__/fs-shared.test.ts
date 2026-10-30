@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { resolveWithinRoot } from "../fs-shared.ts";
+import { resolveWithinRoot, searchProject } from "../fs-shared.ts";
 
 function tmp(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
@@ -60,4 +60,14 @@ test("rejects non-string and null-byte inputs", () => {
   assert.equal(resolveWithinRoot(undefined, "x"), null);
   assert.equal(resolveWithinRoot(root, "a\0b"), null);
   rmSync(root, { recursive: true, force: true });
+});
+
+test("searchProject ranks dirs and files of the given list", () => {
+  const files = ["src/app/main.ts", "src/main.css", "docs/domain.md"];
+  assert.deepEqual(
+    searchProject(files, "/r", "main", 10).map((e) => [e.type, e.relativePath]),
+    [["file", "src/main.css"], ["file", "src/app/main.ts"], ["file", "docs/domain.md"]],
+  );
+  assert.deepEqual(searchProject(files, "/r", "app", 10)[0], { name: "app", absolutePath: join("/r", "src/app"), relativePath: "src/app", type: "directory" });
+  assert.equal(searchProject(files, "/r", "ma", 1).length, 1);
 });
