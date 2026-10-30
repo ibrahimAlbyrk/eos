@@ -20,19 +20,19 @@ export async function listCandidateFiles(cwd: string): Promise<string[]> {
     const [tracked, untracked] = await Promise.all([ls(), ls("--others", "--exclude-standard")]);
     return [...new Set([...tracked.stdout.split("\0"), ...untracked.stdout.split("\0")])].filter(Boolean);
   } catch {
-    return walkFiles(cwd, cwd, 5);
+    return walkFiles(cwd, "", 5);
   }
 }
 
-async function walkFiles(base: string, dir: string, maxDepth: number): Promise<string[]> {
+async function walkFiles(dir: string, rel: string, maxDepth: number): Promise<string[]> {
   if (maxDepth <= 0) return [];
   const results: string[] = [];
   try {
     for (const item of await readdir(dir, { withFileTypes: true })) {
       if (item.name.startsWith(".") || IGNORED_ENTRIES.has(item.name)) continue;
-      const full = join(dir, item.name);
-      if (item.isDirectory()) results.push(...(await walkFiles(base, full, maxDepth - 1)));
-      else results.push(full.slice(base.length + 1));
+      const path = rel ? `${rel}/${item.name}` : item.name;
+      if (item.isDirectory()) results.push(...(await walkFiles(join(dir, item.name), path, maxDepth - 1)));
+      else results.push(path);
     }
   } catch {}
   return results;
