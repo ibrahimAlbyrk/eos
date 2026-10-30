@@ -434,13 +434,18 @@ html.native[data-os="windows"].fullscreen .window-controls { display: none; }
   margin-bottom: -10px;
   background: linear-gradient(to bottom, var(--side-surface), transparent);
   /* Unscrolled, it would sit over the first row; it fades in only once the
-     list scrolls (a scroll-timeline is inactive when nothing overflows). */
-  opacity: 0;
+     list scrolls (a scroll-timeline is inactive when nothing overflows).
+     The timeline drives a registered number, not opacity itself: a scroll-
+     linked opacity animation runs on the compositor, which ticks it on every
+     display refresh for as long as the list overflows — scrolled or not. A
+     custom property animates on the main thread, only when the list scrolls. */
+  opacity: var(--sb-fade);
   animation: sb-top-fade linear both;
   animation-timeline: scroll();
   animation-range: 0 10px;
 }
-@keyframes sb-top-fade { to { opacity: 1; } }
+@property --sb-fade { syntax: "<number>"; inherits: false; initial-value: 0; }
+@keyframes sb-top-fade { to { --sb-fade: 1; } }
 .agents-section::after, .cw-side-scroll::after {
   bottom: 0;
   height: 18px;

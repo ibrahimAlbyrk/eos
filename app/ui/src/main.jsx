@@ -17,4 +17,23 @@ async function whenDaemonUp() {
   }
 }
 
-whenDaemonUp().then(() => createRoot(document.getElementById("root")).render(<App />));
+// React listens for every event type on its root and on each portal container
+// (document.body here). An animationiteration listener anywhere in the document
+// makes Blink service every running CSS animation — composited ones too — on
+// main frames for the last ~40 ms before each iteration, to fire the event: 3–5
+// main frames per iteration of every breathing dot, spin and halo. Nothing here
+// uses onAnimationIteration (a handler would never fire), so React's containers
+// never register it.
+function withoutIterationListener(el) {
+  const add = el.addEventListener;
+  el.addEventListener = function (type, ...rest) {
+    if (type === "animationiteration") return;
+    return add.call(this, type, ...rest);
+  };
+  return el;
+}
+
+const rootEl = document.getElementById("root");
+withoutIterationListener(rootEl);
+withoutIterationListener(document.body);
+whenDaemonUp().then(() => createRoot(rootEl).render(<App />));
