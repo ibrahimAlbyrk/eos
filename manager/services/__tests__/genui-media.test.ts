@@ -20,14 +20,14 @@ describe("buildGenuiMedia", () => {
       userSettings: { read: () => ({}) },
     });
     for (const k of ["media", "map", "geocoder", "places", "location"] as const) assert.ok(out[k], k);
-    assert.equal(out.location.sharing(), false);
+    assert.equal(out.location.sharing(), true);
     assert.equal(out.location.connected(), false);
   });
 
-  it("reads location sharing as off unless it is literally true", () => {
-    assert.equal(locationSharingOn({ read: () => ({}) }), false);
-    assert.equal(locationSharingOn({ read: () => ({ "location.share": "true" }) }), false);
-    assert.equal(locationSharingOn({ read: () => ({ "location.share": true }) }), true);
+  it("reads location sharing as on unless it is turned off", () => {
+    assert.equal(locationSharingOn({ read: () => ({}) }), true);
+    assert.equal(locationSharingOn({ read: () => ({ "location.share": "false" }) }), true);
+    assert.equal(locationSharingOn({ read: () => ({ "location.share": false }) }), false);
   });
 
   it("identifies itself to OpenStreetMap", () => {

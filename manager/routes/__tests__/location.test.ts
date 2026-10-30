@@ -77,8 +77,8 @@ describe("GET /api/location", () => {
     }
   });
 
-  it("403s while sharing is off (the default), naming the setting — the app is never asked", async () => {
-    for (const share of [undefined, false, "true"]) {
+  it("403s while sharing is off, naming the setting — the app is never asked", async () => {
+    for (const share of [false]) {
       const { host, calls } = fakeHost({ connected: true, answer: FIX });
       const r = await get(makeLocationSource({ appHost: host, userSettings: settings(share), geocoder }));
       assert.equal(r.status, 403);

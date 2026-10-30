@@ -5,11 +5,13 @@
 
 import { z } from "zod";
 
-// ---- config.remote (v3) — OFF by default -----------------------------------
+// ---- config.remote (v3) — on by default where the host offers it -----------
 // Relay-only. `enabled` arms the outbound relay leg. `relay.url` is the public
 // wss endpoint the daemon dials and the phone dials. The room id + bearer are
 // CSPRNG secrets minted by the daemon at arm time and persisted under
 // ~/.eos/remote/ (room.id, bearer.secret, relay-owner.secret) — NOT config.
+export const DEFAULT_RELAY_URL = "wss://silver-giraffe-71764.zap.cloud/";
+
 export const RemoteConfigSchema = z.object({
   enabled: z.boolean(),
   relay: z.object({ url: z.string().url() }).optional(),

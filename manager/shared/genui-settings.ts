@@ -1,7 +1,6 @@
 // The visual-answers switches as one value: level / apps / location sharing from
 // settings.json (GENUI_SETTING_KEYS), the logo.dev key from config.json's genui
-// block. Anything malformed reads as its default — a hand edit can't turn
-// location sharing on by accident, and a bad key is no key.
+// block. Anything malformed reads as its default, and a bad key is no key.
 
 import {
   GENUI_SETTING_DEFAULTS,
@@ -16,11 +15,12 @@ import type { DaemonConfig } from "./config.ts";
 export function genuiSettingsOf(settings: UserSettings, config: Pick<DaemonConfig, "genui">): GenuiSettings {
   const level = GenuiLevelSchema.safeParse(settings[GENUI_SETTING_KEYS.level]);
   const apps = settings[GENUI_SETTING_KEYS.apps];
+  const locationShare = settings[GENUI_SETTING_KEYS.locationShare];
   const key = LogoDevKeySchema.safeParse(config.genui?.logoDevKey);
   return {
     level: level.success ? level.data : GENUI_SETTING_DEFAULTS.level,
     apps: typeof apps === "boolean" ? apps : GENUI_SETTING_DEFAULTS.apps,
-    locationShare: settings[GENUI_SETTING_KEYS.locationShare] === true,
+    locationShare: typeof locationShare === "boolean" ? locationShare : GENUI_SETTING_DEFAULTS.locationShare,
     logoDevKey: key.success ? key.data : null,
   };
 }

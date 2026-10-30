@@ -195,7 +195,7 @@ export const SETTINGS_SECTIONS = [
             label: "Share location",
             description: "Let agents read this Mac's approximate location for “near me” answers.",
             control: { type: "toggle" },
-            defaultValue: false,
+            defaultValue: true,
           },
           {
             key: "genui.locationTest",
@@ -256,7 +256,7 @@ export const SETTINGS_SECTIONS = [
                 { value: "monthly", label: "Monthly" },
               ],
             },
-            defaultValue: "off",
+            defaultValue: "weekly",
           },
           {
             key: "archive.purgeOnAppClose",

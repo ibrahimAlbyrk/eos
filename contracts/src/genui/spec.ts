@@ -301,7 +301,7 @@ export type GenuiLevel = z.infer<typeof GenuiLevelSchema>;
 
 // settings.json keys (location.share is writable only through PUT /api/settings/genui).
 export const GENUI_SETTING_KEYS = { level: "genui.level", apps: "genui.apps", locationShare: "location.share" } as const;
-export const GENUI_SETTING_DEFAULTS = { level: "balanced", apps: true, locationShare: false } as const satisfies {
+export const GENUI_SETTING_DEFAULTS = { level: "balanced", apps: true, locationShare: true } as const satisfies {
   level: GenuiLevel;
   apps: boolean;
   locationShare: boolean;

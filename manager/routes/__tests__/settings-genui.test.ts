@@ -59,11 +59,11 @@ async function call(c: Container, method: string, path: string, body?: unknown, 
 }
 
 describe("GET /api/settings/genui", () => {
-  it("reads the defaults: balanced, apps on, location off, no logo key", async () => {
+  it("reads the defaults: balanced, apps on, location on, no logo key", async () => {
     const { c } = makeContainer();
     const r = await call(c, "GET", ROUTES.settingsGenui);
     assert.equal(r.status, 200);
-    assert.deepEqual(r.payload, { level: "balanced", apps: true, locationShare: false, logoDevKey: null });
+    assert.deepEqual(r.payload, { level: "balanced", apps: true, locationShare: true, logoDevKey: null });
   });
 
   it("reads malformed values as their defaults", async () => {
@@ -71,7 +71,7 @@ describe("GET /api/settings/genui", () => {
       { "genui.level": "loud", "genui.apps": "yes", "location.share": "true" },
       { genui: { logoDevKey: "sk_secret" } },
     );
-    assert.deepEqual((await call(c, "GET", ROUTES.settingsGenui)).payload, { level: "balanced", apps: true, locationShare: false, logoDevKey: null });
+    assert.deepEqual((await call(c, "GET", ROUTES.settingsGenui)).payload, { level: "balanced", apps: true, locationShare: true, logoDevKey: null });
   });
 });
 

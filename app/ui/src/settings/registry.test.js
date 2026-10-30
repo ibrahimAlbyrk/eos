@@ -30,7 +30,7 @@ describe("settings registry", () => {
   it("archive group lives in General: retention select, purge-on-close toggle, ⌘W action", () => {
     const keys = keysOf(section("general"));
     expect(keys).toEqual(expect.arrayContaining(["archive.retention", "archive.purgeOnAppClose", "archive.cmdW"]));
-    expect(SETTING_DEFAULTS["archive.retention"]).toBe("off");
+    expect(SETTING_DEFAULTS["archive.retention"]).toBe("weekly");
     expect(SETTING_DEFAULTS["archive.purgeOnAppClose"]).toBe(false);
     expect(SETTING_DEFAULTS["archive.cmdW"]).toBe("archive");
     const items = section("general").groups.find((g) => g.title === "Archive").items;

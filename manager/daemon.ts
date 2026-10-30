@@ -610,7 +610,7 @@ server.on("upgrade", makeBrowserHostUpgradeHandler({ host: c.appHost, uiToken: c
 
 // Remote edge (iOS, relay v3). The controller arms the outbound relay leg live:
 // the initial reconcile() arms ONLY when config.remote.enabled AND relay.url is
-// set (default disabled ⇒ no surface). Enabling later via POST /api/remote/arm is
+// set (disabled ⇒ no surface). Enabling later via POST /api/remote/arm is
 // restart-free — no reboot needed. Relay-only: the daemon dials out; there is no
 // LAN /ws surface, so nothing is bound on the HTTP server here.
 remoteController = new RemoteController(c, router);

@@ -1,6 +1,6 @@
 // Remote-gateway composition for the daemon (relay v3). Arms the outbound relay
-// leg ONLY when config.remote.enabled AND config.remote.relay.url is set (default
-// disabled ⇒ this is a no-op and nothing remote runs). Relay-only: the daemon
+// leg ONLY when config.remote.enabled AND config.remote.relay.url is set (disabled
+// ⇒ this is a no-op and nothing remote runs). Relay-only: the daemon
 // dials out via RelayConnector and demuxes per-device sessions through the same
 // GatewayConnection driver. There is no LAN-direct /ws lane in v3.
 

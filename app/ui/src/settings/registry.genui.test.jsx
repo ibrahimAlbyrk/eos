@@ -12,7 +12,7 @@ describe("Settings › General › Visual answers", () => {
     expect(item("genui.level").control.options.map((o) => o.label)).toEqual(["Rich", "Balanced", "Text only"]);
     expect(SETTING_DEFAULTS["genui.level"]).toBe("balanced");
     expect(SETTING_DEFAULTS["genui.apps"]).toBe(true);
-    expect(SETTING_DEFAULTS["genui.locationShare"]).toBe(false);
+    expect(SETTING_DEFAULTS["genui.locationShare"]).toBe(true);
   });
 
   it("apps hide at Text only; the location test shows only while sharing is on", () => {

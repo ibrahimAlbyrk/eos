@@ -4,7 +4,7 @@
 
 import { api } from "../../api/client.js";
 
-let current = { level: "balanced", apps: true, locationShare: false, logoDevKey: null };
+let current = { level: "balanced", apps: true, locationShare: true, logoDevKey: null };
 let loadStarted = false;
 const subs = new Set();
 

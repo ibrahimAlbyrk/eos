@@ -82,10 +82,10 @@ describe("loadConfig — defaults", () => {
     assert.equal("maxTokens" in cfg.loop, false);
     assert.equal("maxWallClockMs" in cfg.loop, false);
   });
-  it("seeds config.archive defaults (retention off, no purge on app close, Cmd+W archives)", async () => {
+  it("seeds config.archive defaults (weekly retention, no purge on app close, Cmd+W archives)", async () => {
     const { defaults } = await import("../config.ts");
     const cfg = defaults();
-    assert.deepEqual(cfg.archive, { retention: "off", purgeOnAppClose: false, cmdW: "archive" });
+    assert.deepEqual(cfg.archive, { retention: "weekly", purgeOnAppClose: false, cmdW: "archive" });
   });
 });
 
@@ -254,7 +254,7 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { cmdW: "delete" } }));
     const cfg = await freshLoad();
     assert.equal(cfg.archive.cmdW, "delete");
-    assert.equal(cfg.archive.retention, "off"); // untouched default preserved
+    assert.equal(cfg.archive.retention, "weekly"); // untouched default preserved
   });
 
   it("rejects an unknown archive.retention value and keeps the defaults", async () => {
@@ -262,7 +262,7 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     const path = await import("node:path");
     fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { retention: "yearly" } }));
     const cfg = await freshLoad();
-    assert.equal(cfg.archive.retention, "off");
+    assert.equal(cfg.archive.retention, "weekly");
   });
 
   it("rejects an unknown archive.cmdW value and keeps the default", async () => {
@@ -280,7 +280,7 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     const url = new URL(`../config.ts?t=${Date.now()}-${Math.random()}`, import.meta.url);
     const mod = await import(url.href);
     const before = mod.loadConfig() as ReturnType<typeof import("../config.ts").loadConfig>;
-    assert.deepEqual(before.archive, { retention: "off", purgeOnAppClose: false, cmdW: "archive" });
+    assert.deepEqual(before.archive, { retention: "weekly", purgeOnAppClose: false, cmdW: "archive" });
     fs.writeFileSync(
       path.join(tmpHome, "config.json"),
       JSON.stringify({ archive: { retention: "daily", purgeOnAppClose: true } }),

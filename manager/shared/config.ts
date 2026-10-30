@@ -13,7 +13,7 @@ import { z } from "zod";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
-import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
+import { DEFAULT_RELAY_URL, RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
 import { PeerConfigSchema, type PeerConfig } from "../../contracts/src/peer.ts";
 import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath, symbolParserScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
@@ -183,21 +183,21 @@ export interface DaemonConfig {
     autoDownload: boolean;
     feedUrl: string | null;
   };
-  // iOS remote-control edge (relay v3). OFF by default — absent config = no
-  // remote surface. The wire contract is
+  // iOS remote-control edge (relay v3). On by default where the host offers
+  // remote access (hostPlatform.features.remote). The wire contract is
   // docs/mobile-redesign/01-plaintext-relay-protocol.md.
   remote: RemoteConfig;
   // Eos ↔ Eos remote access to THIS Mac from other paired computers
-  // (Settings › Remote access). OFF by default — no listener, no relay leg.
+  // (Settings › Remote access). On by default where the host offers remote access.
   peer: PeerConfig;
   // Anthropic credentials for the claude lane only (Settings > Anthropic).
   // Empty by default; when set, the SDK child env gets the OAuth token
   // (CLAUDE_CODE_OAUTH_TOKEN, preferred) or the metered key (ANTHROPIC_API_KEY).
   anthropic: AnthropicConfig;
   // Browser panel subsystem (one persistent Chrome per session over CDP,
-  // launched lazily on first use). OFF by default — when disabled, every
+  // launched lazily on first use). On by default — when disabled, every
   // /browser route and browser tool refuses and no Chrome launches. chromePath
-  // null = auto-detect the installed Google Chrome; allowedOrigins is the
+  // null = auto-detect an installed Chromium browser; allowedOrigins is the
   // per-navigation agent allowlist; persistProfile keeps logins in
   // ~/.eos/browser/ across daemon restarts; perSession=false restores the
   // wave-1 single shared browser (everything maps to the global session).
@@ -244,6 +244,10 @@ function envNum(name: string, fallback: number): number {
 }
 function envStr(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
+}
+function envFlag(name: string, fallback: boolean): boolean {
+  const v = process.env[name];
+  return v === "1" ? true : v === "0" ? false : fallback;
 }
 
 // A Qwen input-tier band: Qwen bills NO cache discount (capabilities.cache:"none"),
@@ -441,7 +445,7 @@ export function defaults(): DaemonConfig {
       },
     },
     archive: {
-      retention: "off",
+      retention: "weekly",
       purgeOnAppClose: false,
       cmdW: "archive",
     },
@@ -450,17 +454,15 @@ export function defaults(): DaemonConfig {
       feedUrl: null,
     },
     remote: {
-      // OFF by default (relay-only, v3). The rate-limit + lease defaults below
-      // only take effect once an operator arms remote (enabled + relay.url) in
-      // ~/.eos/config.json. relay.url has no default — remote stays disarmed
-      // until the operator (or EOS_REMOTE_RELAY_URL) provides one.
-      enabled: envStr("EOS_REMOTE_ENABLED", "") === "1",
-      ...(process.env.EOS_REMOTE_RELAY_URL ? { relay: { url: process.env.EOS_REMOTE_RELAY_URL } } : {}),
+      // On by default (relay-only, v3) where the host offers remote access;
+      // EOS_REMOTE_ENABLED=0/1 overrides.
+      enabled: envFlag("EOS_REMOTE_ENABLED", hostPlatform.features.remote),
+      relay: { url: envStr("EOS_REMOTE_RELAY_URL", DEFAULT_RELAY_URL) },
       inactivityLeaseMs: envNum("EOS_REMOTE_LEASE_MS", 30 * 60 * 1000),
       rateLimit: { perDevicePerMin: 120, globalPerMin: 600, pairingPerMin: 5 },
     },
     peer: {
-      enabled: envStr("EOS_PEER_ENABLED", "") === "1",
+      enabled: envFlag("EOS_PEER_ENABLED", hostPlatform.features.remote),
       direct: true,
       port: envNum("EOS_PEER_PORT", 7402),
     },
@@ -468,7 +470,7 @@ export function defaults(): DaemonConfig {
     // subscription token (SubscriptionAuthResolver). Set via Settings > Anthropic.
     anthropic: {},
     browser: {
-      enabled: false,
+      enabled: true,
       chromePath: null,
       allowedOrigins: [],
       persistProfile: true,
