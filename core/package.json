@@ -6,7 +6,7 @@
   "description": "Pure domain + application layer. No Node-specific imports — every external dependency is expressed as a port (interface) that infrastructure adapters satisfy.",
   "main": "src/index.ts",
   "scripts": {
-    "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
+    "test": "node --no-warnings --experimental-strip-types --import ../scripts/test-env.mjs --test src/__tests__/*.test.ts"
   },
   "dependencies": {
     "@eos/contracts": "file:../contracts"

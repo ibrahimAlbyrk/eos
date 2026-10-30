@@ -6,7 +6,7 @@
   "description": "Shared zod schemas and TS types — the single source of truth for daemon/worker/gateway/hook/IPC payloads.",
   "main": "src/index.ts",
   "scripts": {
-    "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
+    "test": "node --no-warnings --experimental-strip-types --import ../scripts/test-env.mjs --test src/__tests__/*.test.ts"
   },
   "dependencies": {
     "zod": "^3.23.0"
