@@ -476,6 +476,7 @@ export function buildContainer() {
   const candidateFiles = new CandidateFileCache({ clock: systemClock });
   const symbolIndex = new TreeSitterSymbolIndex({
     listFiles: (root) => candidateFiles.list(root),
+    parserScript: config.paths.symbolParserScript,
     notify: (msg, meta) => log.warn(msg, meta),
   });
   const isUnderRoot = (root: string, p: string): boolean =>

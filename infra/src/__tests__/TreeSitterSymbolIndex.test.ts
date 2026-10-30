@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { TreeSitterSymbolIndex } from "../symbols/TreeSitterSymbolIndex.ts";
@@ -200,5 +200,53 @@ describe("TreeSitterSymbolIndex during a build", () => {
     await built;
     await index.ensureIndexed(root);
     assert.equal(lists(), 2);
+  });
+});
+
+describe("TreeSitterSymbolIndex parser process", () => {
+  it("sends only indexable files: other changes never wake the parser", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eos-sym-p-"));
+    const log = join(dir, "requests.log");
+    const parserScript = join(dir, "stub.mjs");
+    writeFileSync(
+      parserScript,
+      `import { appendFileSync } from "node:fs";
+process.on("message", (r) => {
+  appendFileSync(${JSON.stringify(log)}, r.paths.map((p) => p.slice(${dir.length + 1})).join(",") + "\\n");
+  process.send({ id: r.id, paths: [], names: [], kinds: [], occ: new Int32Array(), capped: 0, notes: [] });
+});
+process.on("disconnect", () => process.exit(0));
+`,
+    );
+    const files = ["a.ts", "README.md", "vendor/dep.ts", "lib/x.min.js", "src/b.py"];
+    const index = new TreeSitterSymbolIndex({ parserScript, listFiles: async () => files });
+    try {
+      await index.ensureIndexed(dir);
+      await index.invalidate(dir, [join(dir, "README.md"), join(dir, "vendor", "dep.ts")]);
+      await index.invalidate(dir, [join(dir, "README.md"), join(dir, "a.ts")]);
+      assert.deepEqual(await index.definitionsInFile(dir, join(dir, "lib", "x.min.js")), []);
+      assert.deepEqual(readFileSync(log, "utf8").split("\n"), ["a.ts,src/b.py", "a.ts", ""]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails the requests and logs when the parser dies; the next request forks a new one", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eos-sym-p-"));
+    const parserScript = join(dir, "crash.mjs");
+    writeFileSync(parserScript, "process.on('message', () => process.exit(3));\n");
+    const notes: unknown[] = [];
+    const index = new TreeSitterSymbolIndex({ parserScript, listFiles: async () => ["a.ts"], notify: (msg, meta) => notes.push({ msg, meta }) });
+    try {
+      await assert.rejects(index.ensureIndexed(dir), /symbol index unavailable: parser exited \(3\)/);
+      assert.deepEqual(index.residentRoots(), []);
+      await assert.rejects(index.definitionsInFile(dir, join(dir, "a.ts")), /symbol index unavailable/);
+      assert.deepEqual(notes, [
+        { msg: "symbol parser process failed — symbol index unavailable", meta: { reason: "exited (3)", pending: 1 } },
+        { msg: "symbol parser process failed — symbol index unavailable", meta: { reason: "exited (3)", pending: 1 } },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

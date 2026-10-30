@@ -52,6 +52,8 @@ export const workerMcpScriptPath = (repoRoot: string): string =>
   entry("worker-mcp.bundle.mjs", repoRoot, "manager", "worker-mcp.ts");
 export const orchestratorMcpScriptPath = (repoRoot: string): string =>
   entry("orchestrator-mcp.bundle.mjs", repoRoot, "manager", "orchestrator-mcp.ts");
+export const symbolParserScriptPath = (repoRoot: string): string =>
+  entry("symbol-parser.bundle.mjs", repoRoot, "infra", "src", "symbols", "symbolParser.ts");
 
 // The dashboard bundle this daemon serves to a paired device (GET /ui/*): the
 // app's Resources/dist when packaged (EOS_REPO_ROOT is Resources), the nested UI

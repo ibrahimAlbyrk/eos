@@ -15,7 +15,7 @@ import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/b
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
 import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
 import { PeerConfigSchema, type PeerConfig } from "../../contracts/src/peer.ts";
-import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
+import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath, symbolParserScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
 import type { GenuiConfig } from "../../contracts/src/genui/spec.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -59,6 +59,7 @@ export interface DaemonConfig {
     gatewayScript: string;   // dev: <repoRoot>/gateway/server.ts · packaged: <bundles>/gateway.bundle.mjs
     workerMcpScript: string; // dev: <repoRoot>/manager/worker-mcp.ts · packaged: <bundles>/worker-mcp.bundle.mjs
     orchestratorMcpScript: string; // dev: <repoRoot>/manager/orchestrator-mcp.ts · packaged: <bundles>/orchestrator-mcp.bundle.mjs
+    symbolParserScript: string; // dev: <repoRoot>/infra/src/symbols/symbolParser.ts · packaged: <bundles>/symbol-parser.bundle.mjs
     promptsDir: string;      // <repoRoot>/manager/prompts — DPI fragment + action-template library
     workerDefinitionsDir: string;  // <repoRoot>/manager/workers — built-in worker definition .md library
   };
@@ -365,6 +366,7 @@ export function defaults(): DaemonConfig {
       gatewayScript: gatewayScriptPath(repoRoot),
       workerMcpScript: workerMcpScriptPath(repoRoot),
       orchestratorMcpScript: orchestratorMcpScriptPath(repoRoot),
+      symbolParserScript: symbolParserScriptPath(repoRoot),
       promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
       workerDefinitionsDir: envStr("EOS_WORKER_DEFINITIONS_DIR", join(repoRoot, "manager", "workers")),
     },

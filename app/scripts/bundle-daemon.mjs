@@ -1,6 +1,6 @@
 // Bundles the Eos daemon AND every separate-process entry it spawns
-// (gateway, PTY worker, worker-mcp, orchestrator-mcp) into single ESM files the
-// packaged app runs via Electron's own Node (process.execPath +
+// (gateway, PTY worker, worker-mcp, orchestrator-mcp, symbol parser) into
+// single ESM files the packaged app runs via Electron's own Node (process.execPath +
 // ELECTRON_RUN_AS_NODE=1). Types are stripped at build time, so the shipped
 // backend needs no --experimental-strip-types and no system node/bun.
 //
@@ -33,6 +33,7 @@ const ENTRIES = [
   { entry: "gateway/server.ts", out: "gateway.bundle.mjs" },
   { entry: "manager/worker-mcp.ts", out: "worker-mcp.bundle.mjs" },
   { entry: "manager/orchestrator-mcp.ts", out: "orchestrator-mcp.bundle.mjs" },
+  { entry: "infra/src/symbols/symbolParser.ts", out: "symbol-parser.bundle.mjs" },
 ];
 
 mkdirSync(outDir, { recursive: true });

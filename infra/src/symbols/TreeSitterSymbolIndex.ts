@@ -1,64 +1,36 @@
 // TreeSitterSymbolIndex — the syntactic (name-matched) SymbolIndex adapter.
 //
-// Parses the git-scoped candidate files of a root in-process with web-tree-sitter
-// (WASM grammars from @vscode/tree-sitter-wasm) + each language's tags.scm, and
-// serves go-to-definition / find-references / symbol-search by name matching.
-// tree-sitter is MIT; no child process, no bundled CLI binary to supervise.
+// Serves go-to-definition / find-references / symbol-search by name matching
+// over tree-sitter tags. Parsing happens in the symbol parser process
+// (symbolParser.ts), forked on demand and stopped after IDLE_MS without a
+// request, so the daemon never holds tree-sitter's WASM memory.
 //
 // Design (dim03 §2b):
 //  - Candidate set = the same listCandidateFiles() filename search uses (DRY).
-//  - Reads files from disk daemon-side with the same binary sniff as /fs/read.
 //    Vendored, minified and >512 KB files stay out (filename search keeps them).
 //  - In-memory per root: Map<name, SymbolOccurrence[]> + a per-file index for
 //    incremental invalidation off the fs:change bus. lineText is read from disk
 //    for the rows a query returns, so the index never holds the source lines.
-//  - The build yields to the event loop every SLICE_MS of parsing.
+//  - A parser reply is unpacked in SLICE_MS slices between event-loop turns.
 //  - Lazy ensureIndexed keyed by root; coarse dirty-and-rebuild for stale roots;
 //    LRU cap + release(root) bound multi-root memory.
-//  - Language participation is DATA: a language works iff its grammar WASM + a
-//    tags.scm are both present. A missing/broken grammar is a logged gap, not a
-//    crash — the UI falls back to filename search.
+//  - A parser process that dies fails the requests it held (logged); the routes
+//    answer an error, the UI falls back to filename search, and the next request
+//    forks a new one.
 
-import { readFileSync, statSync } from "node:fs";
+import { fork, type ChildProcess } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
-import { dirname, extname, join, relative } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
-import { Parser, Language, Query } from "web-tree-sitter";
 import type {
   SymbolIndex,
   SymbolOccurrence,
-  SymbolRole,
 } from "../../../core/src/ports/SymbolIndex.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { listCandidateFiles } from "../filesystem/gitCandidateFiles.ts";
-
-// Priority set (dim03 §4): TS/JS, Python, Go, Rust, Java. TS/TSX inherit the JS
-// tags (the upstream TS tags.scm is the TS-only delta), so their `scm` composes
-// javascript + typescript. wasm names match @vscode/tree-sitter-wasm/wasm/.
-interface GrammarDef {
-  id: string;
-  wasm: string;
-  scm: string[];
-  exts: string[];
-}
-
-const GRAMMARS: GrammarDef[] = [
-  { id: "javascript", wasm: "tree-sitter-javascript.wasm", scm: ["javascript"], exts: [".js", ".mjs", ".cjs", ".jsx"] },
-  { id: "typescript", wasm: "tree-sitter-typescript.wasm", scm: ["javascript", "typescript"], exts: [".ts", ".mts", ".cts"] },
-  { id: "tsx", wasm: "tree-sitter-tsx.wasm", scm: ["javascript", "typescript"], exts: [".tsx"] },
-  { id: "python", wasm: "tree-sitter-python.wasm", scm: ["python"], exts: [".py", ".pyi"] },
-  { id: "go", wasm: "tree-sitter-go.wasm", scm: ["go"], exts: [".go"] },
-  { id: "rust", wasm: "tree-sitter-rust.wasm", scm: ["rust"], exts: [".rs"] },
-  { id: "java", wasm: "tree-sitter-java.wasm", scm: ["java"], exts: [".java"] },
-];
-
-interface LoadedGrammar {
-  id: string;
-  lang: Language;
-  query: Query;
-}
+import { indexable } from "./languages.ts";
+import type { ParseReply, ParseRequest } from "./symbolParser.ts";
 
 interface RootIndex {
   byName: Map<string, SymbolOccurrence[]>; // all occurrences keyed by bare name
@@ -66,54 +38,45 @@ interface RootIndex {
   lastUsed: number; // LRU cursor
 }
 
+type Notify = (msg: string, meta?: Record<string, unknown>) => void;
+
 export interface TreeSitterSymbolIndexDeps {
   // Defaults to the shared git-scoped candidate set (relative POSIX paths).
   listFiles?: (root: string) => Promise<string[]>;
-  // WASM grammar dir; defaults to @vscode/tree-sitter-wasm/wasm.
-  wasmDir?: string;
+  // The parser process entry; defaults to symbolParser.ts beside this file.
+  parserScript?: string;
   // Max resident root indexes before LRU eviction (multi-root memory bound).
   maxResidentRoots?: number;
   maxFileBytes?: number;
   maxFiles?: number;
-  notify?: (msg: string, meta?: Record<string, unknown>) => void;
+  notify?: Notify;
 }
 
 const MAX_FILE_BYTES = 512 * 1024;
 const LINE_TEXT_MAX = 500;
 const SLICE_MS = 10;
-// Conventional homes of code a project ships but doesn't write.
-const VENDOR_DIRS = new Set(["vendor", "vendors", "vendored", "third_party", "third-party", "thirdparty", "node_modules", "bower_components"]);
-// Bytes per line above which a file is minified or generated, not written
-// (hand-written source averages well under 100).
-const MINIFIED_BYTES_PER_LINE = 300;
+const IDLE_MS = 10_000;
 
 export class TreeSitterSymbolIndex implements SymbolIndex {
   private readonly listFiles: (root: string) => Promise<string[]>;
-  private readonly wasmDir: string;
-  private readonly scmDir: string;
+  private readonly parser: ParserProcess;
   private readonly maxResidentRoots: number;
   private readonly maxFileBytes: number;
   private readonly maxFiles: number;
-  private readonly notify: (msg: string, meta?: Record<string, unknown>) => void;
+  private readonly notify: Notify;
 
   private readonly indexes = new Map<string, RootIndex>();
   private readonly building = new Map<string, Promise<void>>();
   private readonly dirty = new Set<string>();
-  private readonly scmCache = new Map<string, string>();
-  private readonly extToGrammar = new Map<string, LoadedGrammar>();
-  private grammarsReady: Promise<void> | null = null;
   private clock = 0;
 
   constructor(deps: TreeSitterSymbolIndexDeps = {}) {
-    const require = createRequire(import.meta.url);
     this.listFiles = deps.listFiles ?? listCandidateFiles;
-    // Resolve the bundled WASM dir from the package's main (wasm/tree-sitter.js).
-    this.wasmDir = deps.wasmDir ?? dirname(require.resolve("@vscode/tree-sitter-wasm"));
-    this.scmDir = fileURLToPath(new URL("./grammars/", import.meta.url));
     this.maxResidentRoots = deps.maxResidentRoots ?? 6;
     this.maxFileBytes = deps.maxFileBytes ?? MAX_FILE_BYTES;
     this.maxFiles = deps.maxFiles ?? 20000;
     this.notify = deps.notify ?? (() => {});
+    this.parser = new ParserProcess(deps.parserScript ?? fileURLToPath(new URL("./symbolParser.ts", import.meta.url)), this.notify);
   }
 
   // ---- SymbolQuery (read surface) -----------------------------------------
@@ -139,14 +102,10 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
   // tags extraction as the whole-root build, without forcing a full-root index
   // (CodeLens on one open file shouldn't index the whole repo).
   async definitionsInFile(root: string, path: string): Promise<SymbolOccurrence[]> {
-    await this.ensureGrammars();
-    const parser = new Parser();
-    try {
-      const occ = this.parseFile(parser, root, path);
-      return withLineText((occ ?? []).filter((o) => o.role === "definition"));
-    } finally {
-      parser.delete?.();
-    }
+    if (!indexable(root, path)) return [];
+    const idx = emptyIndex();
+    await addReply(idx, await this.parse([path]));
+    return withLineText((idx.byFile.get(path) ?? []).filter((o) => o.role === "definition"));
   }
 
   async searchSymbols(root: string, query: string, limit: number): Promise<SymbolOccurrence[]> {
@@ -178,7 +137,7 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     }
     let p = this.building.get(root);
     if (!p) {
-      // Cleared up front: a markDirty while this build yields leaves its result stale.
+      // Cleared up front: a markDirty while this build runs leaves its result stale.
       this.dirty.delete(root);
       p = this.build(root)
         .then((idx) => {
@@ -203,22 +162,11 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     await this.building.get(root)?.catch(() => {});
     const idx = this.indexes.get(root);
     if (!idx) return; // nothing resident to update
-    await this.ensureGrammars();
-    const parser = new Parser();
-    const slice = timeSlicer();
-    try {
-      for (const abs of changedPaths) {
-        await slice();
-        this.removeFile(idx, abs);
-        const occ = this.parseFile(parser, root, abs);
-        if (occ && occ.length) {
-          idx.byFile.set(abs, occ);
-          for (const o of occ) this.pushOccurrence(idx.byName, o);
-        }
-      }
-    } finally {
-      parser.delete?.();
-    }
+    // Only source files wake the parser; any other change just leaves the index.
+    const sources = changedPaths.filter((p) => indexable(root, p));
+    const reply = sources.length ? await this.parse(sources) : null;
+    for (const abs of changedPaths) this.removeFile(idx, abs);
+    if (reply) await addReply(idx, reply);
   }
 
   release(root: string): void {
@@ -262,133 +210,18 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     idx.byFile.delete(abs);
   }
 
-  private pushOccurrence(byName: Map<string, SymbolOccurrence[]>, o: SymbolOccurrence): void {
-    const arr = byName.get(o.name);
-    if (arr) arr.push(o);
-    else byName.set(o.name, [o]);
+  private parse(paths: string[]): Promise<ParseReply> {
+    return this.parser.parse({ paths, maxFiles: this.maxFiles, maxFileBytes: this.maxFileBytes });
   }
 
   private async build(root: string): Promise<RootIndex> {
-    await this.ensureGrammars();
-    const byName = new Map<string, SymbolOccurrence[]>();
-    const byFile = new Map<string, SymbolOccurrence[]>();
-    const parser = new Parser();
-    const slice = timeSlicer();
-    let parsed = 0;
-    let capped = 0;
-    try {
-      for (const rel of await this.listFiles(root)) {
-        const abs = join(root, rel);
-        if (!this.extToGrammar.has(extname(abs).toLowerCase())) continue; // not a participating language
-        if (parsed >= this.maxFiles) {
-          capped++;
-          continue;
-        }
-        await slice();
-        const occ = this.parseFile(parser, root, abs);
-        if (occ === null) continue;
-        parsed++;
-        if (!occ.length) continue;
-        byFile.set(abs, occ);
-        for (const o of occ) this.pushOccurrence(byName, o);
-      }
-    } finally {
-      parser.delete?.();
-    }
-    if (capped > 0) this.notify("symbol index file cap hit — some files skipped", { root, cap: this.maxFiles, skipped: capped });
-    return { byName, byFile, lastUsed: ++this.clock };
-  }
-
-  // Parse one file into occurrences, or null if it is not a participating
-  // language / vendored / unreadable / binary / oversized / minified.
-  private parseFile(parser: Parser, root: string, abs: string): SymbolOccurrence[] | null {
-    const grammar = this.extToGrammar.get(extname(abs).toLowerCase());
-    if (!grammar || isVendored(relative(root, abs))) return null;
-    let size: number;
-    try {
-      size = statSync(abs).size;
-    } catch {
-      return null;
-    }
-    if (size > this.maxFileBytes) return null;
-    let buf: Buffer;
-    try {
-      buf = readFileSync(abs);
-    } catch {
-      return null;
-    }
-    if (buf.subarray(0, 8192).includes(0)) return null; // binary
-    let lines = 1;
-    for (let i = buf.indexOf(10); i !== -1; i = buf.indexOf(10, i + 1)) lines++;
-    if (buf.length / lines > MINIFIED_BYTES_PER_LINE) return null;
-    const text = buf.toString("utf8");
-    parser.setLanguage(grammar.lang);
-    let tree;
-    try {
-      tree = parser.parse(text);
-    } catch {
-      return null;
-    }
-    if (!tree) return null;
-    const out: SymbolOccurrence[] = [];
-    try {
-      for (const match of grammar.query.matches(tree.rootNode)) {
-        let name: string | undefined;
-        let role: SymbolRole | undefined;
-        let kind = "";
-        let row = 0;
-        let column = 0;
-        for (const cap of match.captures) {
-          if (cap.name === "name") {
-            name = cap.node.text;
-            row = cap.node.startPosition.row;
-            column = cap.node.startPosition.column;
-          } else if (cap.name.startsWith("definition.")) {
-            role = "definition";
-            kind = cap.name.slice("definition.".length);
-          } else if (cap.name.startsWith("reference.")) {
-            role = "reference";
-            kind = cap.name.slice("reference.".length);
-          }
-        }
-        if (!name || !role) continue;
-        out.push({ name, kind, role, path: abs, line: row + 1, column: column + 1 });
-      }
-    } finally {
-      tree.delete?.();
-    }
-    return out;
-  }
-
-  private ensureGrammars(): Promise<void> {
-    if (!this.grammarsReady) this.grammarsReady = this.loadGrammars();
-    return this.grammarsReady;
-  }
-
-  private async loadGrammars(): Promise<void> {
-    await Parser.init();
-    for (const def of GRAMMARS) {
-      try {
-        const lang = await Language.load(join(this.wasmDir, def.wasm));
-        const scmText = def.scm.map((s) => this.readScm(s)).join("\n");
-        const query = new Query(lang, scmText);
-        const loaded: LoadedGrammar = { id: def.id, lang, query };
-        for (const ext of def.exts) this.extToGrammar.set(ext, loaded);
-      } catch (e) {
-        // A missing/broken grammar disables that language only — logged gap, not
-        // a crash. Its files fall back to filename search in the UI.
-        this.notify(`symbol grammar unavailable: ${def.id}`, { error: errMsg(e) });
-      }
-    }
-  }
-
-  private readScm(name: string): string {
-    let text = this.scmCache.get(name);
-    if (text === undefined) {
-      text = readFileSync(join(this.scmDir, `${name}.scm`), "utf8");
-      this.scmCache.set(name, text);
-    }
-    return text;
+    const paths = (await this.listFiles(root)).map((rel) => join(root, rel)).filter((p) => indexable(root, p));
+    const reply = await this.parse(paths);
+    if (reply.capped > 0) this.notify("symbol index file cap hit — some files skipped", { root, cap: this.maxFiles, skipped: reply.capped });
+    const idx = emptyIndex();
+    await addReply(idx, reply);
+    idx.lastUsed = ++this.clock;
+    return idx;
   }
 
   private evictIfNeeded(): void {
@@ -409,11 +242,102 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
   }
 }
 
-// A vendor-dir segment under the root, or a minified file name.
-function isVendored(rel: string): boolean {
-  const parts = rel.split(/[\\/]/);
-  const file = parts.pop() ?? "";
-  return /\.min\.[^.]+$/i.test(file) || parts.some((p) => VENDOR_DIRS.has(p.toLowerCase()));
+// The forked symbol parser. Requests are answered in order; IDLE_MS after the
+// last answer the process is stopped, which hands tree-sitter's WASM memory
+// back to the OS. Its channel holds the event loop open only while a request
+// is out.
+class ParserProcess {
+  private readonly script: string;
+  private readonly notify: Notify;
+  private readonly waiting = new Map<number, { resolve: (r: ParseReply) => void; reject: (e: Error) => void }>();
+  private child: ChildProcess | null = null;
+  private idle: ReturnType<typeof setTimeout> | undefined;
+  private seq = 0;
+
+  constructor(script: string, notify: Notify) {
+    this.script = script;
+    this.notify = notify;
+  }
+
+  parse(req: Omit<ParseRequest, "id">): Promise<ParseReply> {
+    clearTimeout(this.idle);
+    const child = this.child ?? this.spawn();
+    child.channel?.ref();
+    const id = ++this.seq;
+    return new Promise((resolve, reject) => {
+      this.waiting.set(id, { resolve, reject });
+      child.send({ ...req, id });
+    });
+  }
+
+  private spawn(): ChildProcess {
+    const child = fork(this.script, { serialization: "advanced" });
+    this.child = child;
+    child.unref();
+    child.on("message", (reply: ParseReply) => {
+      for (const n of reply.notes) this.notify(n.msg, n.meta);
+      this.waiting.get(reply.id)?.resolve(reply);
+      this.waiting.delete(reply.id);
+      if (this.waiting.size) return;
+      child.channel?.unref();
+      this.idle = setTimeout(() => this.stop(child), IDLE_MS);
+      this.idle.unref();
+    });
+    child.on("exit", (code, signal) => this.fail(child, `exited (${signal ?? code})`));
+    child.on("error", (e) => {
+      this.fail(child, errMsg(e));
+      child.kill();
+    });
+    return child;
+  }
+
+  private stop(child: ChildProcess): void {
+    if (this.child === child) this.child = null;
+    child.kill();
+  }
+
+  private fail(child: ChildProcess, reason: string): void {
+    if (this.child !== child) return; // stopped on purpose
+    this.child = null;
+    this.notify("symbol parser process failed — symbol index unavailable", { reason, pending: this.waiting.size });
+    const err = new Error(`symbol index unavailable: parser ${reason}`);
+    for (const w of this.waiting.values()) w.reject(err);
+    this.waiting.clear();
+  }
+}
+
+function emptyIndex(): RootIndex {
+  return { byName: new Map(), byFile: new Map(), lastUsed: 0 };
+}
+
+// Adds a reply's occurrences (file then capture order), one file at a time,
+// yielding every SLICE_MS.
+async function addReply(idx: RootIndex, r: ParseReply): Promise<void> {
+  const { occ } = r;
+  let since = performance.now();
+  let file: SymbolOccurrence[] = [];
+  for (let i = 0; i < occ.length; i += 6) {
+    if (occ[i] !== occ[i - 6]) {
+      if (performance.now() - since >= SLICE_MS) {
+        await new Promise((res) => setImmediate(res));
+        since = performance.now();
+      }
+      file = [];
+      idx.byFile.set(r.paths[occ[i]], file);
+    }
+    const o: SymbolOccurrence = {
+      name: r.names[occ[i + 1]],
+      kind: r.kinds[occ[i + 2]],
+      role: occ[i + 3] ? "definition" : "reference",
+      path: r.paths[occ[i]],
+      line: occ[i + 4],
+      column: occ[i + 5],
+    };
+    file.push(o);
+    const byName = idx.byName.get(o.name);
+    if (byName) byName.push(o);
+    else idx.byName.set(o.name, [o]);
+  }
 }
 
 // Copies of `occ` with each row's source line, one read per file.
@@ -433,17 +357,6 @@ async function withLineText(occ: SymbolOccurrence[]): Promise<SymbolOccurrence[]
       return { ...o, lineText: line.length > LINE_TEXT_MAX ? line.slice(0, LINE_TEXT_MAX) : line };
     }),
   );
-}
-
-// Each call resolves at once until SLICE_MS of synchronous work has run since
-// the last yield, then after a macrotask.
-function timeSlicer(): () => Promise<void> {
-  let since = performance.now();
-  return async () => {
-    if (performance.now() - since < SLICE_MS) return;
-    await new Promise((r) => setImmediate(r));
-    since = performance.now();
-  };
 }
 
 // Symbol-name ranking, mirroring fs-shared.ts scoreMatch so symbol search ranks

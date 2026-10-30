@@ -47,6 +47,9 @@ for (const { from, to } of COPY) {
   cpSync(src, dest, { recursive: true, dereference: true });
 }
 
+// The symbol parser bundle reads its tags queries from ./grammars beside it.
+cpSync(join(repoRoot, "infra", "src", "symbols", "grammars"), join(daemonDir, "grammars"), { recursive: true });
+
 // Prune node-pty's prebuilds for other systems — dead weight in this build.
 const ptyPrebuilds = join(nmDir, "node-pty", "prebuilds");
 if (existsSync(ptyPrebuilds)) {
