@@ -30,7 +30,7 @@ describe("TreeSitterSymbolIndex", () => {
   });
 
   after(() => {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5 }); // Windows may still hold a just-closed file
   });
 
   it("definitions() returns the name-matched definition with 1-based position", async () => {
@@ -122,7 +122,7 @@ describe("TreeSitterSymbolIndex lineText and exclusions", () => {
   });
 
   after(() => {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5 });
   });
 
   it("returns each row's source line (BOM and CR kept, cut at 500 chars)", async () => {
@@ -157,7 +157,7 @@ describe("TreeSitterSymbolIndex during a build", () => {
   });
 
   after(() => {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true, maxRetries: 5 });
   });
 
   // The first build's file listing waits for open(); `listing` resolves once it started.
@@ -227,7 +227,7 @@ process.on("disconnect", () => process.exit(0));
       assert.deepEqual(await index.definitionsInFile(dir, join(dir, "lib", "x.min.js")), []);
       assert.deepEqual(readFileSync(log, "utf8").split("\n"), ["a.ts,src/b.py", "a.ts", ""]);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
     }
   });
 
@@ -246,7 +246,7 @@ process.on("disconnect", () => process.exit(0));
         { msg: "symbol parser process failed — symbol index unavailable", meta: { reason: "exited (3)", pending: 1 } },
       ]);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true, maxRetries: 5 });
     }
   });
 });
