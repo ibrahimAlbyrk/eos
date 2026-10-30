@@ -262,6 +262,11 @@ export function Messages({ live, agentId, isActive = true }) {
     loadOlder();
   };
   const [sentinelEl, setSentinelEl] = useState(null);
+  // Re-observed after every prepend: IntersectionObserver reports crossings
+  // only, so a page too short to push the sentinel out of the look-ahead zone
+  // (a folded turn renders hundreds of rows as one line) would never trip it
+  // again. observe() always reports the current state once.
+  const oldestId = events[0]?.id ?? null;
   useEffect(() => {
     if (!sentinelEl || !wrapRef.current) return;
     const io = new IntersectionObserver(
@@ -272,7 +277,7 @@ export function Messages({ live, agentId, isActive = true }) {
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
-  }, [sentinelEl]);
+  }, [sentinelEl, oldestId]);
 
   useLayoutEffect(() => {
     const anchor = prependAnchorRef.current;
