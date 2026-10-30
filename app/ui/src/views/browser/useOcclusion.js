@@ -24,15 +24,28 @@ export function isOccluded(el) {
   return false;
 }
 
-// Re-checks once per frame after any DOM change or window resize.
+// One check hit-tests ~180 points, a millisecond or more over a long transcript,
+// and while a reply streams the body mutates on nearly every frame. So a change
+// after a quiet spell is checked on the next frame, and later ones at most once
+// per MIN_GAP_MS (a trailing check, so the last change is never missed).
+const MIN_GAP_MS = 120;
+
+// Re-checks after any DOM change or window resize.
 export function useOcclusion(ref, enabled) {
   const [occluded, setOccluded] = useState(false);
   useEffect(() => {
     const el = ref.current;
     if (!enabled || !el) { setOccluded(false); return; }
     let raf = 0;
-    const check = () => { raf = 0; setOccluded(isOccluded(el)); };
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(check); };
+    let timer = 0;
+    let last = -Infinity;
+    const check = () => { raf = 0; last = performance.now(); setOccluded(isOccluded(el)); };
+    const schedule = () => {
+      if (raf || timer) return;
+      const wait = last + MIN_GAP_MS - performance.now();
+      if (wait <= 0) raf = requestAnimationFrame(check);
+      else timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(check); }, wait);
+    };
     const mo = new MutationObserver(schedule);
     mo.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["class", "style"] });
     window.addEventListener("resize", schedule);
@@ -40,6 +53,7 @@ export function useOcclusion(ref, enabled) {
     return () => {
       mo.disconnect();
       cancelAnimationFrame(raf);
+      clearTimeout(timer);
       window.removeEventListener("resize", schedule);
     };
   }, [ref, enabled]);
