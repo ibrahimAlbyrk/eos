@@ -1,6 +1,6 @@
 const path = require("node:path");
 const { execFileSync } = require("node:child_process");
-const { readFileSync, rmSync, writeFileSync } = require("node:fs");
+const { readFileSync, readdirSync, rmSync, writeFileSync } = require("node:fs");
 
 // Canonical Eos identity — the Electron app IS Eos now that the migration is
 // completing. Output goes to app/out/ ONLY; it never writes to or launches
@@ -107,7 +107,14 @@ module.exports = {
     // Windows: Eos Setup carries the zip (installer-win/, scripts/build-installer.mjs).
     postMake: async (_config, makeResults) => {
       if (!isWindows) return makeResults;
-      const zip = makeResults.flatMap((r) => r.artifacts).find((a) => a.endsWith(".zip"));
+      const result = makeResults.find((r) => r.artifacts.some((a) => a.endsWith(".zip")));
+      const zip = result.artifacts.find((a) => a.endsWith(".zip"));
+      // Forge zips through Windows PowerShell, which writes `\` separators and no
+      // folder entries — a zip only Windows reads right, and the update feed is
+      // built from it on a Mac. Windows' own bsdtar writes a standard zip.
+      const packaged = path.resolve(__dirname, "out", `Eos-win32-${result.arch}`);
+      rmSync(zip);
+      execFileSync(path.join(process.env.SystemRoot, "System32", "tar.exe"), ["-a", "-c", "-f", zip, ...readdirSync(packaged)], { cwd: packaged, stdio: "inherit" });
       execFileSync("node", ["scripts/build-installer.mjs", zip], { cwd: __dirname, stdio: "inherit" });
       return makeResults;
     },

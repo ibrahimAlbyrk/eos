@@ -83,7 +83,13 @@ jobs:
         # (docs/updates/00-UPDATES-PLAN.md); push builds stay builds from source.
         env:
           EOS_UPDATE_CHANNEL: ${{ github.event_name == 'release' && 'stable' || '' }}
-        run: npm run make
+        run: |
+          npm run make
+          # The update feed is built from this zip on a Mac: its entries must use `/`.
+          zip=$(ls out/make/zip/win32/${{ matrix.arch }}/*.zip)
+          entries=$("$(cygpath -u "$SYSTEMROOT")/System32/tar.exe" -tf "$zip")
+          ! grep -F '\' <<< "$entries" || { echo "::error::$zip has entries with \\ separators"; exit 1; }
+          grep -x 'locales/' <<< "$entries" > /dev/null || { echo "::error::$zip has no locales/ folder entry"; exit 1; }
 
       # Eos Setup on this system: it installs, the installed Eos starts its own
       # daemon (supervised, on its named pipe, with SQLite and the bundled claude)
