@@ -591,8 +591,9 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // A focused session usually has no Eos append, but it is a Claude Code
         // session all the same — its preset is never left to the SDK default.
         ...(append || focused ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, ...(append ? { append } : {}) } } : {}),
-        // spec.permissionMode is deliberately NOT forwarded (SDK runs in its
-        // 'default' mode, no auto-approvals): any SDK-side mode auto-approves
+        // Always 'default' (no auto-approvals), and spec.permissionMode is
+        // deliberately NOT forwarded. Left out, Claude Code would take the
+        // user's settings `defaultMode` (e.g. "auto"). Any SDK-side mode auto-approves
         // ahead of the canUseTool step — bypassPermissions everything,
         // acceptEdits every file edit + fs command — so those calls would never
         // reach the gateway, freezing the mode at spawn (a DB switch out of
@@ -600,6 +601,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // worker-definition editRegex/deny fences. Mode semantics live solely
         // in canUseTool → PolicyGatewayService, which resolves the worker's
         // mode from the DB on every call.
+        permissionMode: "default",
       } as Options;
 
       const store = deps.claudeStore?.();

@@ -576,7 +576,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     });
 
     await be.start(spec({ permissionMode: "bypassPermissions" }), {});
-    assert.equal(capturedOptions!.permissionMode, undefined);
+    assert.equal(capturedOptions!.permissionMode, "default");
     assert.equal(capturedOptions!.allowDangerouslySkipPermissions, undefined);
     const canUseTool = capturedOptions!.canUseTool as (name: string, input: Record<string, unknown>) => Promise<{ behavior: string }>;
     assert.equal(typeof canUseTool, "function");
@@ -589,7 +589,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
 
     capturedOptions = null;
     await be.start(spec({ workerId: "w-2", permissionMode: "acceptEdits" }), {});
-    assert.equal(capturedOptions!.permissionMode, undefined);
+    assert.equal(capturedOptions!.permissionMode, "default");
     assert.equal(capturedOptions!.allowDangerouslySkipPermissions, undefined);
   });
 
