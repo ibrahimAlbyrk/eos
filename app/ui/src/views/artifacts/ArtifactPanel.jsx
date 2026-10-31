@@ -3,20 +3,20 @@ import { useUi } from "../../state/ui.jsx";
 import { useSidePanelVisible } from "../../state/paneScope.js";
 import { useArtifactCatalog } from "../../state/artifactCatalogStore.js";
 import {
-  artifactBridge, artifactHolder, attachArtifact, detachArtifact, onArtifactAction, onPeekEnd,
+  artifactBridge, artifactHolder, attachArtifact, detachArtifact, onPeekEnd, openArtifactExternally,
   useArtifactStill, useArtifactViewState,
 } from "../../state/artifactViewStore.js";
 import { artifactSlugOf } from "../../lib/panelTabs.js";
-import { artifactInfo, artifactRef, artifactToolbar } from "../../lib/artifacts.js";
+import { artifactInfo, artifactRef, artifactTabHead } from "../../lib/artifacts.js";
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { useOcclusion } from "../browser/useOcclusion.js";
-import { WindowGlyph } from "./ArtifactParts.jsx";
+import { AccountAvatar, CheckGlyph, ExternalGlyph, GridGlyph, LinkGlyph, RefreshGlyph, WindowGlyph } from "./ArtifactParts.jsx";
 import { Sheen } from "../agents/messages/Sheen.jsx";
 
-// The `artifact:<slug>` side-panel tab. Main shows the artifact's live view (a
-// native WebContentsView, with its floating toolbar) over the slot; this keeps
-// the slot's rect, visibility and toolbar in step and draws what sits under the
-// view — the still, the sign-in card, a failed load. The artifact comes from
+// The `artifact:<slug>` side-panel tab: a header line (account, version, link,
+// actions) over the slot main lays the artifact's live view on (a native
+// WebContentsView). This keeps the slot's rect and visibility in step and draws
+// what sits under the view — the still, the sign-in card, a failed load. The artifact comes from
 // the catalog; until it is there (a restored tab, someone else's artifact),
 // from what the opener put in panelData.
 export function ArtifactPanel({ tabId }) {
@@ -29,9 +29,10 @@ export function ArtifactPanel({ tabId }) {
   return <ArtifactTab tabId={tabId} info={info} />;
 }
 
+// Inside the slot's 1px line, which stays visible around the view.
 const rectOf = (el) => {
   const r = el.getBoundingClientRect();
-  return { x: r.left, y: r.top, width: r.width, height: r.height };
+  return { x: r.left + el.clientLeft, y: r.top + el.clientTop, width: el.clientWidth, height: el.clientHeight };
 };
 const sized = (r) => r.width > 0 && r.height > 0;
 const sameRect = (a, b) => Boolean(a) && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
@@ -130,19 +131,9 @@ function ArtifactTab({ tabId, info }) {
 
   useEffect(() => () => detachArtifact(tabKey, slug), [tabKey, slug]);
 
-  const toolbar = artifactToolbar(info, now);
-  useEffect(() => {
-    if (show) bridge.setToolbar(slug, { initial: toolbar.initial, account: toolbar.account, meta: toolbar.meta });
-  }, [show, bridge, slug, toolbar.initial, toolbar.account, toolbar.meta]);
-
-  // The toolbar's "All artifacts" — answered by the tab holding the view.
-  const openPanel = ui.openPanel;
-  useEffect(() => onArtifactAction((a) => {
-    if (a?.slug === slug && a.action === "all-artifacts" && artifactHolder(slug) === tabKey) openPanel("artifacts");
-  }), [slug, tabKey, openPanel]);
-
   return (
     <div className="panel-shell panel-shell--artifact">
+      <ArtifactTabHead info={info} now={now} onReload={() => bridge.reload(slug)} onAll={() => ui.openPanel("artifacts")} />
       <div className="art-tab-slot" ref={slotRef}>
         {view.state === "signin" ? (
           <SignInCard info={info} onSignedIn={() => bridge.reload(slug)} />
@@ -163,6 +154,50 @@ function ArtifactTab({ tabId, info }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ArtifactTabHead({ info, now, onReload, onAll }) {
+  const head = artifactTabHead(info, now);
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [copied]);
+  const copy = () => {
+    void navigator.clipboard.writeText(info.url).then(() => setCopied(true), () => {});
+  };
+  const copyLabel = copied ? "Copied" : "Copy link";
+  return (
+    <div className="art-tab-head">
+      {info.account && (
+        <>
+          <AccountAvatar account={info.account} size="head" />
+          <span className="art-tab-head__acct">{info.account.label}</span>
+          <span className="art-tab-head__sep" aria-hidden="true">·</span>
+        </>
+      )}
+      {head.chip && (
+        <>
+          <span className="art-tab-head__chip">{head.chip}</span>
+          <span className="art-tab-head__sep" aria-hidden="true">·</span>
+        </>
+      )}
+      <span className="art-tab-head__link" title={info.url}>{head.link}</span>
+      <button type="button" className="fv-icon-btn" aria-label="Reload" title="Reload" onClick={onReload}>
+        <RefreshGlyph />
+      </button>
+      <button type="button" className="fv-icon-btn" aria-label={copyLabel} title={copyLabel} onClick={copy}>
+        {copied ? <CheckGlyph /> : <LinkGlyph />}
+      </button>
+      <button type="button" className="fv-icon-btn" aria-label="All artifacts" title="All artifacts" onClick={onAll}>
+        <GridGlyph />
+      </button>
+      <button type="button" className="fv-icon-btn" aria-label="Open on claude.ai" title="Open on claude.ai" onClick={() => openArtifactExternally(info.url)}>
+        <ExternalGlyph />
+      </button>
     </div>
   );
 }

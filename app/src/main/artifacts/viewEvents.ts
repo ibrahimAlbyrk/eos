@@ -4,7 +4,6 @@ import { later, type Entry, type ViewState } from "./types";
 import { isLoginUrl, isViewerUrl, isWeb } from "./viewerUrls";
 
 const READY_DELAY_MS = 600;
-const SCROLL_PING_MS = 120;
 
 export interface ViewHooks {
   setState(e: Entry, state: ViewState, error?: string): void;
@@ -68,14 +67,5 @@ export function wireView(e: Entry, hooks: ViewHooks): void {
   });
   wc.on("render-process-gone", (_ev, details) => {
     hooks.setState(e, "error", `The page stopped (${details.reason})`);
-  });
-  // The artifact scrolls inside claude.ai's cross-origin frame, out of the
-  // overlay's sight — main sees the input and tells it to fade.
-  wc.on("input-event", (_ev, input) => {
-    if (e.placement.kind !== "tab" || (input.type !== "mouseWheel" && input.type !== "gestureScrollUpdate")) return;
-    const now = Date.now();
-    if (now - e.lastScrollPing < SCROLL_PING_MS) return;
-    e.lastScrollPing = now;
-    wc.send("artifactOverlay:scroll");
   });
 }

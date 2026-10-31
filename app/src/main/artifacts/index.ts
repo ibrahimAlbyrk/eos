@@ -5,7 +5,7 @@ import path from "node:path";
 import { artifactSlugFromUrl, artifactViewerUrl, shortIdOf } from "../../../../contracts/src/artifact-ids";
 import { ArtifactViewHost } from "./ArtifactViewHost";
 import { ClaudeSessions, type AccountStatus } from "./sessions";
-import type { ArtifactRef, Rect, ToolbarInfo, ViewState } from "./types";
+import type { ArtifactRef, Rect, ViewState } from "./types";
 
 // The `eosArtifacts` bridge (preload/index.ts): claude.ai Artifacts as native
 // views in the side panel and the hover peek (ArtifactViewHost), and the
@@ -77,11 +77,6 @@ export function initArtifactHost(deps: {
     const slug = slugOf(a.slug);
     if (slug) views.reload(slug);
   });
-  on("eosArtifacts:setToolbar", (a) => {
-    const slug = slugOf(a.slug);
-    const info = a.info && typeof a.info === "object" ? (a.info as Record<string, unknown>) : null;
-    if (slug && info) views.setToolbar(slug, toolbarOf(info));
-  });
 
   ipcMain.handle("eosArtifacts:still", async (e, ref: unknown): Promise<string | null> => {
     const r = fromDashboard(e) ? refOf(ref) : null;
@@ -103,7 +98,7 @@ export function initArtifactHost(deps: {
     if (fromDashboard(e)) await sessions.signOut(loginIdOf(loginId));
   });
 
-  // The floating toolbar inside an artifact view; the host answers only its own views.
+  // A click on the peek's miniature; the host answers only its own views.
   ipcMain.on("artifactOverlay:action", (e, action: unknown) => views.overlayAction(e.sender, action));
 
   return views;
@@ -141,11 +136,6 @@ function rectOf(raw: unknown): Rect | null {
 
 function tabKeyOf(raw: unknown): string | null {
   return typeof raw === "string" && raw.length > 0 && raw.length <= 256 ? raw : null;
-}
-
-function toolbarOf(r: Record<string, unknown>): ToolbarInfo {
-  const str = (v: unknown, max: number): string => (typeof v === "string" ? v.slice(0, max) : "");
-  return { initial: str(r.initial, 4), account: str(r.account, 120), meta: str(r.meta, 160) };
 }
 
 function accountArgs(raw: unknown): { loginId: string | null; expectedEmail?: string } {

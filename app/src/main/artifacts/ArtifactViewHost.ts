@@ -1,13 +1,13 @@
-import { WebContentsView, clipboard, shell } from "electron";
+import { WebContentsView, shell } from "electron";
 import type { BrowserWindow, WebContents } from "electron";
 import { artifactViewerUrl } from "../../../../contracts/src/artifact-ids";
 import { StillCapture } from "./capture";
-import { Toolbars } from "./overlay";
+import { syncOverlay } from "./overlay";
 import { applyPlacement, hiddenRect, setZoom, syncThrottle } from "./placement";
 import { pickEvictions } from "./pool";
 import type { ClaudeSessions } from "./sessions";
 import { StillStore } from "./stills";
-import { later, newEntry, type ArtifactRef, type Entry, type Rect, type TabPlace, type ToolbarInfo, type ViewState } from "./types";
+import { later, newEntry, type ArtifactRef, type Entry, type Rect, type TabPlace, type ViewState } from "./types";
 import { wireView } from "./viewEvents";
 
 // claude.ai Artifacts as native views over the dashboard. claude.ai and the
@@ -39,7 +39,6 @@ export class ArtifactViewHost {
   private readonly stills: StillStore;
   private readonly stillCapture: StillCapture;
   private readonly entries = new Map<string, Entry>();
-  private readonly toolbars = new Toolbars();
   private peeked: Entry | null = null;
   private win: BrowserWindow | null = null;
 
@@ -47,10 +46,7 @@ export class ArtifactViewHost {
     this.deps = deps;
     this.stills = new StillStore(deps.stillsDir);
     this.stillCapture = new StillCapture(this.stills, {
-      done: (e) => {
-        this.toolbars.send(e);
-        syncThrottle(e);
-      },
+      done: (e) => syncThrottle(e),
       // Said again so a renderer that found no still on `ready` asks once more.
       written: (e) => this.send("eosArtifacts:stateChanged", { slug: e.slug, state: "ready" }),
     });
@@ -78,7 +74,7 @@ export class ArtifactViewHost {
     void setZoom(e, true);
     this.raise(e);
     this.apply(e);
-    this.toolbars.send(e);
+    syncOverlay(e);
     this.trim(e);
   }
 
@@ -103,7 +99,7 @@ export class ArtifactViewHost {
     if (wasPeek) void setZoom(e, false);
     this.raise(e);
     this.apply(e);
-    this.toolbars.send(e);
+    syncOverlay(e);
     if (wasPeek && e.stillDue) this.stillCapture.schedule(e);
     this.trim(e);
   }
@@ -139,12 +135,6 @@ export class ArtifactViewHost {
     void this.load(e, true);
   }
 
-  setToolbar(slug: string, info: ToolbarInfo): void {
-    this.toolbars.set(slug, info, (key) => this.entries.has(key));
-    const e = this.entries.get(slug);
-    if (e) this.toolbars.send(e);
-  }
-
   still(ref: ArtifactRef): Promise<string | null> {
     return this.stills.read(ref.slug, ref.version);
   }
@@ -158,28 +148,12 @@ export class ArtifactViewHost {
     for (const e of this.entries.values()) this.apply(e);
   }
 
-  // A click in a view's floating toolbar (artifactOverlay preload).
+  // A click on the peek's miniature (artifactOverlay preload's shield).
   overlayAction(sender: WebContents, action: unknown): void {
     const e = [...this.entries.values()].find((x) => x.view.webContents.id === sender.id);
-    if (!e || e.placement.kind === "none") return;
-    const url = artifactViewerUrl(e.slug);
-    // The peek's shield sends only open / external.
-    if (e.placement.kind === "peek") {
-      if (action === "open") this.send("eosArtifacts:action", { slug: e.slug, action: "open" });
-      else if (action === "external") void shell.openExternal(url);
-      return;
-    }
-    if (action === "reload") {
-      e.lastUsed = Date.now();
-      void this.load(e, true);
-    } else if (action === "copy") {
-      clipboard.writeText(url);
-      sender.send("artifactOverlay:flash", "Copied");
-    } else if (action === "external") {
-      void shell.openExternal(url);
-    } else if (action === "all-artifacts") {
-      this.send("eosArtifacts:action", { slug: e.slug, action: "all-artifacts" });
-    }
+    if (!e || e.placement.kind !== "peek") return;
+    if (action === "open") this.send("eosArtifacts:action", { slug: e.slug, action: "open" });
+    else if (action === "external") void shell.openExternal(artifactViewerUrl(e.slug));
   }
 
   disposeAll(): void {
@@ -254,7 +228,7 @@ export class ArtifactViewHost {
     this.entries.set(ref.slug, e);
     wireView(e, {
       setState: (entry, state, error) => this.setState(entry, state, error),
-      sendOverlay: (entry) => this.toolbars.send(entry),
+      sendOverlay: syncOverlay,
     });
     void this.load(e);
     return e;
@@ -324,7 +298,7 @@ export class ArtifactViewHost {
     e.lastUsed = Date.now();
     void setZoom(e, false);
     this.apply(e);
-    this.toolbars.send(e);
+    syncOverlay(e);
     if (e.stillDue) this.stillCapture.schedule(e);
   }
 
@@ -332,7 +306,7 @@ export class ArtifactViewHost {
     e.placement = { kind: "none" };
     e.lastUsed = Date.now();
     this.apply(e);
-    this.toolbars.send(e);
+    syncOverlay(e);
     if (e.stillDue) this.stillCapture.schedule(e);
   }
 
@@ -390,7 +364,6 @@ export class ArtifactViewHost {
     if (state === "ready") void this.stillCapture.prepare(e);
     else if (state !== "loading") e.capturing = false;
     this.apply(e);
-    this.toolbars.send(e);
     this.send("eosArtifacts:stateChanged", err ? { slug: e.slug, state, error: err } : { slug: e.slug, state });
   }
 

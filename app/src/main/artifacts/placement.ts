@@ -4,7 +4,7 @@ import type { Entry, Rect } from "./types";
 const HIDDEN_SIZE = { width: 1280, height: 800 };
 const PEEK_CSS = "html{zoom:.5 !important}";
 const PEEK_RADIUS = 10;
-const TAB_RADIUS = 12;
+const TAB_RADIUS = 9;
 
 export const hiddenRect = (): Rect => ({ x: 0, y: 0, ...HIDDEN_SIZE });
 

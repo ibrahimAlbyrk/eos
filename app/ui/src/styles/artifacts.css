@@ -2,7 +2,6 @@
    glass hover peek, the artifact tab's slot and the Artifacts list. The live
    page is a native view main places over the peek's slot and the tab's slot —
    what's drawn there is only what shows under it (the still, a tinted tile).
-   The tab's floating toolbar lives inside that view (app preload), not here.
    Before glass.css, after menus.css: .art-peek's position wins over .glass-pop's. */
 
 /* ── tints ─────────────────────────────────────────────────────────────────
@@ -50,6 +49,7 @@
 }
 .art-av--md { width: 20px; height: 20px; font-size: 11px; }
 .art-av--sm { width: 16px; height: 16px; font-size: 10px; }
+.art-av--head { width: 18px; height: 18px; font-size: 10px; }
 
 .art-dot { flex-shrink: 0; width: 6px; height: 6px; border-radius: var(--r-pill); background: var(--fg-dim2); }
 .art-dot--live { background: var(--ok); }
@@ -180,16 +180,53 @@
 .art-peek:hover .art-peek__hint { color: var(--fg-mid); }
 
 /* ── artifact tab ─────────────────────────────────────────────────────────
-   The slot main lays the live view over (radius 12). Its left margin clears
-   the side panel's resize strip, which the native view would cover. */
+   A header line (account · version · link, then the actions) over the slot
+   main lays the live view in — inside its 1px line, radius 9. The slot's left
+   margin clears the side panel's resize strip, which the native view would
+   cover. */
 .panel-shell--artifact { display: flex; flex-direction: column; }
+.art-tab-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 8px 8px 16px;
+  font-size: var(--text-xs);
+  flex-shrink: 0;
+  min-width: 0;
+}
+.art-tab-head__acct { color: var(--fg-dim); white-space: nowrap; }
+.art-tab-head__sep { color: var(--fg-mute); }
+.art-tab-head__chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-mid);
+  background: var(--row-on);
+  padding: 0 6px;
+  border-radius: var(--r-kbd);
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.art-tab-head__link {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.art-tab-head .fv-icon-btn { color: var(--fg-dim); }
 .art-tab-slot {
   position: relative;
   flex: 1;
   min-height: 0;
   display: flex;
-  margin: 2px 8px 8px;
-  border-radius: 12px;
+  margin: 0 8px 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
   overflow: hidden;
   background: var(--bg);
 }

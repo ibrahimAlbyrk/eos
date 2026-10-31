@@ -46,7 +46,7 @@ function setState(slug, state, error = null) {
   stateBus.emit(slug);
 }
 
-// One bridge subscription each for states and toolbar actions, fanned out here.
+// One bridge subscription each for states and actions, fanned out here.
 function wire() {
   const bridge = artifactBridge();
   if (wired || !bridge) return;
@@ -79,7 +79,7 @@ export function useArtifactViewState(slug) {
   return useSyncExternalStore(subscribe, get, get);
 }
 
-// ({ slug, action }) from a tab's floating toolbar.
+// ({ slug, action: "open" }) — a click on the hover peek's live miniature.
 export function onArtifactAction(fn) {
   wire();
   actionSubs.add(fn);
@@ -185,7 +185,7 @@ export function detachArtifact(tabKey, slug) {
   bridge.detach(tabKey);
 }
 
-// The tab that holds an artifact's view — the one its toolbar's actions are for.
+// The tab that holds an artifact's view.
 export function artifactHolder(slug) {
   return holders.get(slug) ?? null;
 }

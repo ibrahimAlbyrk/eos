@@ -96,6 +96,20 @@ describe("ArtifactsPanel", () => {
   });
 });
 
+describe("ArtifactPanel in the app", () => {
+  it("heads the tab with account, version, link and the actions", async () => {
+    await seed(catalog);
+    vi.stubGlobal("window", { eosArtifacts: {} });
+    vi.stubGlobal("document", { hidden: false });
+    const html = inPane(<ArtifactPanel tabId={`artifact:${SLUG}`} />);
+    vi.unstubAllGlobals();
+    expect(text(html)).toContain("P Personal · v3 · claude.ai/artifact/YBc8tWaK41fiYSKdCZ88EM");
+    for (const label of ["Reload", "Copy link", "All artifacts", "Open on claude.ai"]) {
+      expect(html).toContain(`aria-label="${label}"`);
+    }
+  });
+});
+
 describe("ArtifactPanel without the app's bridge", () => {
   it("offers claude.ai instead of a live view", async () => {
     await seed(catalog);

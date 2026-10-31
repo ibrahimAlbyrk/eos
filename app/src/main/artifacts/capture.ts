@@ -9,7 +9,7 @@ const STILL_QUALITY = 72;
 const CAPTURE_TIMEOUT_MS = 6000;
 
 export interface StillHooks {
-  // The load's still is in (or already was): the toolbar may show, the view may throttle.
+  // The load's still is in (or already was): a hidden view may throttle now.
   done(e: Entry): void;
   // A fresh still was written while the view is ready.
   written(e: Entry): void;

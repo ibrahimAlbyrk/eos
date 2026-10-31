@@ -3,7 +3,6 @@ import type { WebContentsView } from "electron";
 export type ViewState = "idle" | "loading" | "ready" | "signin" | "error";
 export interface ArtifactRef { slug: string; loginId: string | null; url: string; version?: string; title?: string }
 export interface Rect { x: number; y: number; width: number; height: number }
-export interface ToolbarInfo { initial: string; account: string; meta: string }
 
 export type TabPlace = { kind: "tab"; tabKey: string; rect: Rect; visible: boolean };
 // A peek remembers the tab it took the view from, and hands it back on unpeek.
@@ -33,11 +32,10 @@ export interface Entry {
   doc: number;
   zoomKey: string | null;
   zoomPending: boolean;
-  // This load's still isn't taken yet — the toolbar waits so it isn't in the shot.
+  // This load's still isn't taken yet — the view keeps painting until it is (syncThrottle).
   capturing: boolean;
   recapture: boolean;
   stillDue: boolean;
-  lastScrollPing: number;
   timers: Set<ReturnType<typeof setTimeout>>;
 }
 
@@ -47,7 +45,7 @@ export function newEntry(ref: ArtifactRef, partition: string, view: WebContentsV
     state: "idle", placement: { kind: "none" }, lastUsed: Date.now(),
     disposed: false, shown: false, radius: 0, throttled: false,
     seq: 0, domSeq: -1, doc: 0, zoomKey: null, zoomPending: false,
-    capturing: false, recapture: false, stillDue: false, lastScrollPing: 0,
+    capturing: false, recapture: false, stillDue: false,
     timers: new Set(),
   };
 }

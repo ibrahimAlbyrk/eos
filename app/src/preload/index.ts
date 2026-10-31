@@ -153,8 +153,6 @@ if (!hostView) contextBridge.exposeInMainWorld("eosArtifacts", {
   setVisible: (tabKey: string, visible: boolean): void => ipcRenderer.send("eosArtifacts:setVisible", { tabKey, visible }),
   detach: (tabKey: string): void => ipcRenderer.send("eosArtifacts:detach", { tabKey }),
   reload: (slug: string): void => ipcRenderer.send("eosArtifacts:reload", { slug }),
-  setToolbar: (slug: string, info: { initial: string; account: string; meta: string }): void =>
-    ipcRenderer.send("eosArtifacts:setToolbar", { slug, info }),
   still: (ref: ArtifactRef): Promise<string | null> => ipcRenderer.invoke("eosArtifacts:still", ref),
   state: (slug: string): Promise<ArtifactViewState> => ipcRenderer.invoke("eosArtifacts:state", slug),
   onState: (cb: (e: { slug: string; state: ArtifactViewState; error?: string }) => void): (() => void) => {
@@ -162,8 +160,8 @@ if (!hostView) contextBridge.exposeInMainWorld("eosArtifacts", {
     ipcRenderer.on("eosArtifacts:stateChanged", h);
     return () => { ipcRenderer.removeListener("eosArtifacts:stateChanged", h); };
   },
-  onAction: (cb: (e: { slug: string; action: "all-artifacts" | "open" }) => void): (() => void) => {
-    const h = (_e: unknown, payload: { slug: string; action: "all-artifacts" | "open" }): void => cb(payload);
+  onAction: (cb: (e: { slug: string; action: "open" }) => void): (() => void) => {
+    const h = (_e: unknown, payload: { slug: string; action: "open" }): void => cb(payload);
     ipcRenderer.on("eosArtifacts:action", h);
     return () => { ipcRenderer.removeListener("eosArtifacts:action", h); };
   },

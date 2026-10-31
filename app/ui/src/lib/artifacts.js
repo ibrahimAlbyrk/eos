@@ -121,12 +121,12 @@ export function artifactViewStatus(state) {
   return VIEW_STATUS[state] ?? { tone: "loading", label: "Loading" };
 }
 
-// The tab's floating toolbar (bridge setToolbar).
-export function artifactToolbar(info, now = Date.now()) {
+// The tab's header line: the version chip (its publish label, else how long
+// ago it changed) and the share link without its scheme.
+export function artifactTabHead(info, now = Date.now()) {
   return {
-    initial: info.account?.initial ?? "",
-    account: info.account?.label ?? "",
-    meta: [info.versionLabel, info.updatedAt != null ? artifactAgo(info.updatedAt, now) : null].filter(Boolean).join(" · "),
+    chip: info.versionLabel || (info.updatedAt != null ? artifactAgo(info.updatedAt, now) : null),
+    link: info.url ? info.url.replace(/^https?:\/\//, "") : null,
   };
 }
 

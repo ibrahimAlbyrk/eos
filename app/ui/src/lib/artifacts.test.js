@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   artifactAgo, accountInitial, artifactInfo, artifactRef, artifactMeta, artifactRowLine, artifactAccountLine,
-  artifactToolbar, artifactViewStatus, filterArtifacts, groupByAccount, catalogSyncedAt, placeArtifactPeek, PEEK_W, PEEK_H,
+  artifactTabHead, artifactViewStatus, filterArtifacts, groupByAccount, catalogSyncedAt, placeArtifactPeek, PEEK_W, PEEK_H,
 } from "./artifacts.js";
 
 const SLUG = "9e41c7d2-1b3a-4c5d-8e9f-0a1b2c3d4e5f";
@@ -68,11 +68,12 @@ describe("artifactInfo", () => {
     expect(artifactRef(info)).toEqual({ slug: OTHER, loginId: null, url: info.url, title: "Shared deck" });
   });
 
-  it("builds the card meta, row line, peek account line and toolbar", () => {
+  it("builds the card meta, row line, peek account line and tab header", () => {
     const info = artifactInfo(SLUG, {}, catalog);
     expect(artifactMeta(info, NOW)).toBe("Page · v3 · just now");
     expect(artifactAccountLine(info, NOW)).toBe("Personal · updated just now");
-    expect(artifactToolbar(info, NOW)).toEqual({ initial: "P", account: "Personal", meta: "v3 · just now" });
+    expect(artifactTabHead(info, NOW)).toEqual({ chip: "v3", link: info.url.replace("https://", "") });
+    expect(artifactTabHead({ ...info, versionLabel: undefined }, NOW).chip).toBe("just now");
     const shared = artifactInfo(SLUG, {}, { accounts, artifacts: [row({ kind: "Doc", rel: "shared" })] });
     expect(artifactRowLine(shared)).toBe("Doc · shared with you");
   });
