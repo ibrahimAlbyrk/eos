@@ -131,20 +131,6 @@ function parseAsyncStubText(text: string): AsyncStub | null {
   return { agentId, ...(outputFile ? { outputFile } : {}) };
 }
 
-// SendMessage to a stopped subagent runs it again: its result names the agent it
-// resumed ({ success, message: "Resuming agent …", resumedAgentId }). The
-// sidecar is preferred; the result text is the same object as JSON.
-function parseResumedAgentId(tur: unknown, text: string): string | null {
-  const fromSidecar = (tur as { resumedAgentId?: unknown } | null | undefined)?.resumedAgentId;
-  if (typeof fromSidecar === "string") return fromSidecar;
-  try {
-    const id = (JSON.parse(text) as { resumedAgentId?: unknown } | null)?.resumedAgentId;
-    return typeof id === "string" ? id : null;
-  } catch {
-    return null;
-  }
-}
-
 // The true completion also rides an injected plain user turn (<task-notification>
 // XML, origin kind "task-notification") — the only carrier of the agent's FULL
 // final text (<result>). One turn can batch several notification blocks.
@@ -377,8 +363,10 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
   const bgAgents = new Map<string, BgEntry>();
   const isLive = (entry: BgEntry): boolean => entry.announced === true && entry.done !== true;
 
-  // Continued subagents. sendCallIds: top-level SendMessage ids — the gate for
-  // reading a result as a resume. firstCallIds: agentId → the Agent/Task call
+  // Continued subagents. sendCallIds: top-level SendMessage ids — a task_started
+  // naming one is a resume: SendMessage to a stopped subagent starts a new run of
+  // the same task (a message to a running one is only queued and starts
+  // nothing). firstCallIds: agentId → the Agent/Task call
   // that first started it. The SDK keeps parenting a resumed agent's messages to
   // that first call; runOf files them under the run they belong to instead.
   const sendCallIds = new Set<string>();
@@ -634,6 +622,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             if (wf && msg.workflow_name) wf.name = msg.workflow_name;
             resolveBgEntry(msg.task_id, msg.tool_use_id);
             if (agentCallIds.has(msg.tool_use_id)) noteFirstCall(msg.task_id, msg.tool_use_id);
+            else if (sendCallIds.has(msg.tool_use_id)) announceResume(out, msg.task_id, msg.tool_use_id);
             taskCallIds.set(msg.task_id, msg.tool_use_id);
             const effort = pendingEffort.get(msg.task_id);
             if (effort) {
@@ -869,12 +858,6 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
                   });
                 }
               }
-              // A message to a still-running subagent is only queued; one to a
-              // stopped subagent resumes it.
-              const resumed = r.tool_use_id && sendCallIds.has(r.tool_use_id)
-                ? parseResumedAgentId(msg.tool_use_result, blockText(r.content))
-                : null;
-              if (resumed && r.tool_use_id) announceResume(out, resumed, r.tool_use_id);
               // A background shell/Monitor's result names its task — the start when
               // task_started was missed, and where a shell writes its output.
               const call = r.tool_use_id ? shellCalls.get(r.tool_use_id) : undefined;

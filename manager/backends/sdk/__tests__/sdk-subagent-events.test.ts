@@ -240,6 +240,15 @@ describe("SdkEventMapper — subagents continued by SendMessage", () => {
     assert.deepEqual(subagentEvents(run(mapper, [SPAWN, STUB_RESULT, SEND, queued])).slice(1), []);
   });
 
+  it("announces the resume from task_started, before (and without) the SendMessage result", () => {
+    const mapper = createSdkEventMapper();
+    run(mapper, FIRST_RUN);
+    assert.deepEqual(subagentEvents(run(mapper, [SEND, RESUME_TASK])), [
+      { type: "subagent_started", callId: SEND_ID, agentId: AGENT_ID, background: true, resumes: CALL_ID, outputFile: OUTPUT_FILE },
+    ]);
+    assert.deepEqual(subagentEvents(run(mapper, [RESUMED])), []);
+  });
+
   it("still announces and completes a run whose first call this process never saw", () => {
     const mapper = createSdkEventMapper();
     const out = subagentEvents(run(mapper, [SEND, RESUME_TASK, RESUMED, RESUME_DONE]));
