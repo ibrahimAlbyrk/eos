@@ -51,18 +51,19 @@ function RenameField({ label, onSave, onCancel }) {
   );
 }
 
-// The sign-in's 5-hour window, when its usage is known.
-function SessionUse({ row }) {
+// The sign-in's 5-hour window, or its weekly one when the plan has no 5-hour
+// limit, when its usage is known.
+function LoginUse({ row }) {
   const used = Math.round(row.window.utilization);
   return (
-    <span className={"acc-login__use" + (isUsageWarn(row.window) ? " is-warn" : "")} title={`5-hour limit · ${used}% used`}>
+    <span className={"acc-login__use" + (isUsageWarn(row.window) ? " is-warn" : "")} title={`${row.label} · ${used}% used`}>
       <span className="acc-login__bar" aria-hidden="true"><i style={{ width: `${Math.min(100, used)}%` }} /></span>
-      <span>{used}% used</span>
+      <span>{used}% {row.kind === "session" ? "used" : "weekly"}</span>
     </span>
   );
 }
 
-function LoginRow({ provider, login, index, session, sessionRow, onResult }) {
+function LoginRow({ provider, login, index, session, usageRow, onResult }) {
   const [renaming, setRenaming] = useState(false);
   const renewing = isSignInActive(session) && session.loginId === login.id;
   const signedIn = login.state === "signed_in";
@@ -90,8 +91,8 @@ function LoginRow({ provider, login, index, session, sessionRow, onResult }) {
         <span className="acc-login__state"><Spinner size={13} />Signing in</span>
       ) : state ? (
         <span className={"acc-login__state" + (state.warn ? " is-warn" : "")}>{state.text}</span>
-      ) : sessionRow ? (
-        <SessionUse row={sessionRow} />
+      ) : usageRow ? (
+        <LoginUse row={usageRow} />
       ) : (
         <span />
       )}
@@ -153,8 +154,10 @@ function ApiKeyRow({ account, onResult }) {
 export function PlanLoginsCard({ account }) {
   const { signIns } = useAccounts();
   const { usage, now } = useUsage();
-  const sessionRowOf = (loginId) =>
-    planUsageSections(usage, now).find((s) => s.loginId === loginId)?.rows.find((r) => r.kind === "session") ?? null;
+  const usageRowOf = (loginId) => {
+    const rows = planUsageSections(usage, now).find((s) => s.loginId === loginId)?.rows ?? [];
+    return rows.find((r) => r.kind === "session") ?? rows.find((r) => r.key === "sevenDay") ?? null;
+  };
   const [error, setError] = useState(null);
   const meta = metaFor(account);
   const logins = account.logins;
@@ -179,7 +182,7 @@ export function PlanLoginsCard({ account }) {
 
       <ul className="acc-logins__list">
         {logins.map((login, i) => (
-          <LoginRow key={login.id} provider={account.id} login={login} index={i} session={session} sessionRow={sessionRowOf(login.id)} onResult={onResult} />
+          <LoginRow key={login.id} provider={account.id} login={login} index={i} session={session} usageRow={usageRowOf(login.id)} onResult={onResult} />
         ))}
         {adding && (
           <li className="acc-login is-signing">
