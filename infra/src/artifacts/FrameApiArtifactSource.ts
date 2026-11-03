@@ -25,8 +25,8 @@ export const REJECTED_MESSAGE = "Claude no longer accepts this account's sign-in
 export interface FrameApiArtifactSourceDeps {
   /** The sign-in's OAuth access token; null when it has none (signed out, lapsed). */
   token: (loginId: string) => Promise<string | null>;
-  /** Renews a token the API rejected; the token is read again afterwards. */
-  renew?: (loginId: string) => Promise<void>;
+  /** Renews `rejected`, the token the API refused; the token is read again afterwards. */
+  renew?: (loginId: string, rejected: string) => Promise<void>;
   fetchImpl?: typeof fetch;
   baseUrl?: string;
 }
@@ -93,7 +93,7 @@ export function createFrameApiArtifactSource(deps: FrameApiArtifactSourceDeps): 
       let res = await get(token, signal);
       if (res.status === 401 && deps.renew) {
         try {
-          await deps.renew(loginId);
+          await deps.renew(loginId, token);
         } catch {
           throw new Error(REJECTED_MESSAGE);
         }

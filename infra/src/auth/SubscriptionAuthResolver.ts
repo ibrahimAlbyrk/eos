@@ -3,13 +3,10 @@
 // logged. The login is read here (the system's credential store), so core stays free
 // of those concerns.
 
-import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { AuthResolver, ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
-import { buildSubscriptionChildEnv } from "../../../core/src/domain/env-allowlist.ts";
 import { hostPlatform } from "../platform/index.ts";
 
 const NONE: ResolvedAuth = { scheme: "none" };
@@ -32,7 +29,8 @@ export interface ClaudeCodeLogin {
 
 const NO_LOGIN: ClaudeCodeLogin = { present: false, token: null };
 
-function readClaudeStore(storeDir?: string): Record<string, unknown> | null {
+/** The OAuth record in `storeDir` (an Eos store), or the Mac's own Claude Code login when omitted. */
+export function readClaudeStore(storeDir?: string): Record<string, unknown> | null {
   try {
     const raw = hostPlatform.credentials.readClaudeStore(storeDir);
     if (!raw) return null;
@@ -74,30 +72,6 @@ export function readClaudeAccountEmail(storeDir: string): string | undefined {
 // Signing out removes the store's login, as `claude auth logout` does.
 export function clearClaudeLogin(storeDir: string): void {
   hostPlatform.credentials.clearClaudeStore(storeDir);
-}
-
-const execFileAsync = promisify(execFile);
-const REFRESH_TIMEOUT_MS = 30_000;
-
-// A store's access token lapses while no claude session runs to renew it. The
-// binary's own "login from a refresh token" renews it and rewrites the store, so
-// Eos never handles the token exchange. CLAUDE_CONFIG_DIR keeps that login's
-// account bookkeeping out of the user's ~/.claude.json.
-export async function refreshClaudeLogin(storeDir: string, binary: string): Promise<void> {
-  const oauth = readClaudeStore(storeDir);
-  const refreshToken = typeof oauth?.refreshToken === "string" ? oauth.refreshToken : null;
-  const scopes = Array.isArray(oauth?.scopes) ? oauth.scopes.filter((s): s is string => typeof s === "string") : [];
-  if (!refreshToken || !scopes.length) return;
-  await execFileAsync(binary, ["auth", "login"], {
-    env: {
-      ...buildSubscriptionChildEnv(process.env),
-      [CLAUDE_STORE_ENV]: storeDir,
-      CLAUDE_CONFIG_DIR: storeDir,
-      CLAUDE_CODE_OAUTH_REFRESH_TOKEN: refreshToken,
-      CLAUDE_CODE_OAUTH_SCOPES: scopes.join(" "),
-    },
-    timeout: REFRESH_TIMEOUT_MS,
-  });
 }
 
 export function createSubscriptionAuthResolver(deps?: { readLogin?: () => ClaudeCodeLogin }): AuthResolver {

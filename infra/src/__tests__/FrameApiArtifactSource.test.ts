@@ -82,18 +82,18 @@ describe("FrameApiArtifactSource", () => {
 
   it("a rejected token is renewed once, read again and retried once", async () => {
     let token = "old";
-    const renewed: string[] = [];
+    const renewed: [string, string][] = [];
     const { fetchImpl, seen } = stubFetch([
       () => jsonResponse({ error: "expired" }, 401),
       () => jsonResponse({ frames: [LIVE_ROW] }),
     ]);
     const source = createFrameApiArtifactSource({
       token: async () => token,
-      renew: async (id) => { renewed.push(id); token = "new"; },
+      renew: async (id, rejected) => { renewed.push([id, rejected]); token = "new"; },
       fetchImpl,
     });
     assert.equal((await source.list("lg-1")).length, 1);
-    assert.deepEqual(renewed, ["lg-1"]);
+    assert.deepEqual(renewed, [["lg-1", "old"]]);
     assert.deepEqual(seen.map((s) => s.headers.Authorization), ["Bearer old", "Bearer new"]);
   });
 

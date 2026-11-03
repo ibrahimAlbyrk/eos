@@ -36,7 +36,8 @@ import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
 import { createSdkCommandCatalog } from "./backends/sdk/SdkCommandCatalog.ts";
 import { buildBillingGuardEnv } from "./backends/sdk/billing-env.ts";
-import { createSubscriptionAuthResolver, readClaudeCodeLogin, readClaudeAccountEmail, clearClaudeLogin, refreshClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver, readClaudeCodeLogin, readClaudeAccountEmail, clearClaudeLogin, CLAUDE_STORE_ENV, type ClaudeCodeLogin } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createClaudeLoginRefresher } from "../infra/src/auth/ClaudeLoginRefresher.ts";
 import { createPlanLoginDirs } from "../infra/src/auth/planLoginDirs.ts";
 import { FilePlanLoginStore } from "../infra/src/persistence/FilePlanLoginStore.ts";
 import { PlanLoginService } from "../core/src/services/PlanLoginService.ts";
@@ -1015,10 +1016,11 @@ export function buildContainer() {
   // (regenerable).
   // A Claude store's OAuth access token, for Eos's own reads on that sign-in's
   // behalf (usage, artifacts) — renewed first when it lapsed while no session ran.
+  const claudeRefresher = claudeBinary ? createClaudeLoginRefresher({ binary: claudeBinary }) : null;
   const claudeAccessToken = async (store: string): Promise<string | null> => {
     let login = readClaudeCodeLogin(store);
-    if (login.present && !login.token && claudeBinary) {
-      await refreshClaudeLogin(store, claudeBinary)
+    if (login.present && !login.token && claudeRefresher) {
+      await claudeRefresher.renew(store)
         .catch((e) => log.warn("claude login refresh failed", { error: errMsg(e) }));
       login = readClaudeCodeLogin(store);
     }
@@ -1082,10 +1084,10 @@ export function buildContainer() {
         const l = claudeLoginOf(loginId);
         return l ? claudeAccessToken(l.storeDir) : null;
       },
-      ...(claudeBinary ? {
-        renew: async (loginId: string) => {
+      ...(claudeRefresher ? {
+        renew: async (loginId: string, rejected: string) => {
           const l = claudeLoginOf(loginId);
-          if (l) await refreshClaudeLogin(l.storeDir, claudeBinary);
+          if (l) await claudeRefresher.renew(l.storeDir, rejected);
         },
       } : {}),
     }),
