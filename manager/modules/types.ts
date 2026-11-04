@@ -15,6 +15,11 @@ export interface DaemonModule {
   // no agent events.
   readonly plugin?: string;
   registerRoutes?(router: Router): void;
+  // Prompt variables this feature fills, read at each spawn (e.g. GENUI_LEVEL).
+  promptVariables?(): Record<string, string | boolean>;
+  // settings.json keys only this feature's own (ui-token) route may write; the
+  // flat PUT /api/settings refuses them.
+  readonly protectedSettings?: { readonly keys: readonly string[]; readonly via: string };
   // Every event an agent's session emits, before it is processed and logged.
   onAgentEvent?(workerId: string, event: AgentEvent): void;
   // The daemon is up (its routes are registered): start timers and watchers.

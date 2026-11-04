@@ -9,13 +9,13 @@
 
 import type { IncomingMessage } from "node:http";
 
-import type { Router } from "./Router.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { FOCUSED_ROLE } from "../../contracts/src/worker.ts";
-import type { LocationSource } from "../../core/src/ports/LocationSource.ts";
-import { LocationError } from "../services/genui/media.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
+import type { LocationSource } from "../../../core/src/ports/LocationSource.ts";
+import { LocationError } from "./media.ts";
 
 interface LocationCaller {
   is_orchestrator?: boolean | number | null;

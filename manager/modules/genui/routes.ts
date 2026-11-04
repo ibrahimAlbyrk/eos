@@ -8,16 +8,15 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { agentCallerOf } from "./agent-caller.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { FOCUSED_ROLE } from "../../contracts/src/worker.ts";
-import { GENUI_LIMITS } from "../../contracts/src/genui/catalog.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { agentCallerOf } from "../../routes/agent-caller.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
+import { GENUI_LIMITS } from "../../../contracts/src/genui/catalog.ts";
 import {
   CreateAppRequestSchema,
   CreateViewRequestSchema,
@@ -26,21 +25,34 @@ import {
   genuiRejection,
   type GenuiChange,
   type ViewStateResponse,
-} from "../../contracts/src/genui/spec.ts";
-import { GenuiRejectedError, presentApp, presentView } from "../../core/src/use-cases/PresentView.ts";
+} from "../../../contracts/src/genui/spec.ts";
+import { GenuiRejectedError, presentApp, presentView, type PresentViewDeps } from "../../../core/src/use-cases/PresentView.ts";
+import type { Clock } from "../../../core/src/ports/Clock.ts";
+import type { EventBus } from "../../../core/src/ports/EventBus.ts";
+import type { GenuiViewRepo } from "../../../core/src/ports/GenuiViewRepo.ts";
+import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
+
+export interface GenuiRouteDeps {
+  readonly present: PresentViewDeps;
+  readonly views: GenuiViewRepo;
+  readonly workers: Pick<WorkerRepo, "findById">;
+  readonly bus: Pick<EventBus, "publish">;
+  readonly clock: Clock;
+  readonly uiToken: string;
+}
 
 const VIEW = /^\/api\/genui\/views\/(?<id>v_[A-Za-z0-9]{12})$/;
 const VIEW_STATE = /^\/api\/genui\/views\/(?<id>v_[A-Za-z0-9]{12})\/state$/;
 // The state cap plus room for the JSON wrapper.
 const STATE_BODY_BYTES = GENUI_LIMITS.stateBytes + 4096;
 
-export function registerGenuiRoutes(r: Router, c: Container): void {
+export function registerGenuiRoutes(r: Router, c: GenuiRouteDeps): void {
   r.post(ROUTES.genuiViews, async ({ req, res }) => {
     const workerId = presenterOf(c, req);
     if (!workerId) { refusePresenter(res); return; }
     const body = validate(CreateViewRequestSchema, await readBody(req));
     try {
-      writeJson(res, 201, presentView(c.genuiPresent, workerId, body.input));
+      writeJson(res, 201, presentView(c.present, workerId, body.input));
     } catch (e) {
       if (!sendRejection(res, e)) throw e;
     }
@@ -51,22 +63,22 @@ export function registerGenuiRoutes(r: Router, c: Container): void {
     if (!workerId) { refusePresenter(res); return; }
     const body = validate(CreateAppRequestSchema, await readBody(req));
     try {
-      writeJson(res, 201, presentApp(c.genuiPresent, workerId, body.input));
+      writeJson(res, 201, presentApp(c.present, workerId, body.input));
     } catch (e) {
       if (!sendRejection(res, e)) throw e;
     }
   });
 
   r.get(VIEW, ({ res, params }) => {
-    const view = c.genuiViews.get(params.id!);
+    const view = c.views.get(params.id!);
     if (!view) { viewNotFound(res, params.id!); return; }
     writeJson(res, 200, view);
   });
 
   r.get(VIEW_STATE, ({ res, params }) => {
     const id = params.id!;
-    if (!c.genuiViews.get(id)) { viewNotFound(res, id); return; }
-    const stored = c.genuiViews.getState(id);
+    if (!c.views.get(id)) { viewNotFound(res, id); return; }
+    const stored = c.views.getState(id);
     const body: ViewStateResponse = { viewId: id, state: stored?.state ?? {}, updatedAt: stored?.updatedAt ?? null };
     writeJson(res, 200, body);
   });
@@ -76,9 +88,9 @@ export function registerGenuiRoutes(r: Router, c: Container): void {
     if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
     const id = params.id!;
     const { state } = validate(PutViewStateRequestSchema, await readBody(req, STATE_BODY_BYTES));
-    if (!c.genuiViews.get(id)) { viewNotFound(res, id); return; }
+    if (!c.views.get(id)) { viewNotFound(res, id); return; }
     const at = c.clock.now();
-    c.genuiViews.putState(id, state, at);
+    c.views.putState(id, state, at);
     const change: GenuiChange = { viewId: id, state };
     c.bus.publish(GENUI_TOPICS.change, change);
     const body: ViewStateResponse = { viewId: id, state, updatedAt: at };
@@ -89,7 +101,7 @@ export function registerGenuiRoutes(r: Router, c: Container): void {
 // Who may present: an orchestrator or a focused session — never a spawned
 // worker, even by curl (it reports to its orchestrator, which presents).
 // Declared, not authenticated, like every agent identity (agent-caller.ts).
-function presenterOf(c: Container, req: IncomingMessage): string | null {
+function presenterOf(c: GenuiRouteDeps, req: IncomingMessage): string | null {
   const caller = agentCallerOf(c, req);
   const worker = caller ? c.workers.findById(caller.id) : null;
   if (!worker) return null;

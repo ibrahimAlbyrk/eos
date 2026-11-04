@@ -69,9 +69,6 @@ import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
 import { registerDreamRoutes } from "./routes/dreams.ts";
 import { registerSyncRoutes } from "./routes/sync.ts";
 import { registerTransferRoutes } from "./routes/transfer.ts";
-import { registerGenuiRoutes } from "./routes/genui.ts";
-import { registerGenuiMediaRoutes } from "./routes/genui-media.ts";
-import { registerLocationRoutes } from "./routes/location.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
 import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
@@ -130,7 +127,7 @@ registerFsGitRoutes(router, c);
 registerProjectRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
-// Feature modules (pages, btw, artifacts, browser, auto-name, updates, …) — their paths overlap no other route.
+// Feature modules (pages, btw, artifacts, browser, auto-name, updates, genui, …) — their paths overlap no other route.
 for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(router, m.plugin) : router);
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
@@ -138,11 +135,6 @@ registerUserMemoryRoutes(router, c);
 registerDreamRoutes(router, c);
 registerSyncRoutes(router, c);
 registerTransferRoutes(router, c);
-// Visual answers: views/apps/state, then media + map + geocode + places, then the
-// app-backed location (local-only by route plane).
-registerGenuiRoutes(router, c);
-registerGenuiMediaRoutes(router, c);
-registerLocationRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
@@ -480,11 +472,6 @@ c.bus.subscribe("user-memory:change", (msg) => {
   if ((msg.payload as UserMemoryChangeEvent).by !== "sync") c.sync.noteLocalChange();
 });
 c.bus.subscribe("pages:change", () => c.sync.noteLocalChange());
-// A purged/deleted chat's visual answers go with it.
-c.bus.subscribe("worker:removed", (msg) => {
-  const id = (msg.payload as { workerId?: string })?.workerId;
-  if (id) c.genuiViews.removeByWorker(id);
-});
 c.bus.subscribe("profile:change", () => c.sync.noteLocalChange());
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an

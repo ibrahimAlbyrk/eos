@@ -4,8 +4,8 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { buildGenuiMedia, genuiUserAgent, locationSharingOn } from "../genui/media.ts";
-import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { buildGenuiMedia, genuiUserAgent, locationSharingOn } from "../media.ts";
+import type { Logger } from "../../../../core/src/ports/Logger.ts";
 
 const log: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => log };
 

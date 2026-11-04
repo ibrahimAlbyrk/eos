@@ -1,11 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { Router, type RouteContext } from "../Router.ts";
-import { registerLocationRoutes } from "../location.ts";
-import { makeLocationSource, type AppHostLike } from "../../services/genui/media.ts";
-import { LocationResponseSchema } from "../../../contracts/src/genui/spec.ts";
-import { isLocalOnlyRoute } from "../../../contracts/src/route-planes.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerLocationRoutes } from "../location-routes.ts";
+import { makeLocationSource, type AppHostLike } from "../media.ts";
+import { LocationResponseSchema } from "../../../../contracts/src/genui/spec.ts";
+import { isLocalOnlyRoute } from "../../../../contracts/src/route-planes.ts";
 
 function fakeHost(opts: { connected: boolean; answer?: unknown; error?: { name: string; message: string } }) {
   const calls: Array<[string, string, unknown[]]> = [];

@@ -4,21 +4,20 @@ import { readFileSync } from "node:fs";
 import { Readable } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
 
-import { Router, type RouteContext } from "../Router.ts";
-import { registerGenuiRoutes } from "../genui.ts";
-import type { Container } from "../../container.ts";
-import { handleError } from "../../middleware/errorHandler.ts";
-import { runMigrations } from "../../../infra/src/persistence/MigrationRunner.ts";
-import { SqliteGenuiViewRepo } from "../../../infra/src/persistence/SqliteGenuiViewRepo.ts";
-import { GENUI_APPS_OFF_TEXT, type GenuiSwitches, type PresentViewDeps } from "../../../core/src/use-cases/PresentView.ts";
-import { VIEW_ID_RE, validateView } from "../../../contracts/src/genui/catalog.ts";
-import { GENUI_OFF_TEXT, newViewId, validateApp } from "../../../contracts/src/genui/spec.ts";
-import { ROUTES } from "../../../contracts/src/http.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerGenuiRoutes, type GenuiRouteDeps } from "../routes.ts";
+import { handleError } from "../../../middleware/errorHandler.ts";
+import { runMigrations } from "../../../../infra/src/persistence/MigrationRunner.ts";
+import { SqliteGenuiViewRepo } from "../../../../infra/src/persistence/SqliteGenuiViewRepo.ts";
+import { GENUI_APPS_OFF_TEXT, type GenuiSwitches, type PresentViewDeps } from "../../../../core/src/use-cases/PresentView.ts";
+import { VIEW_ID_RE, validateView } from "../../../../contracts/src/genui/catalog.ts";
+import { GENUI_OFF_TEXT, newViewId, validateApp } from "../../../../contracts/src/genui/spec.ts";
+import { ROUTES } from "../../../../contracts/src/http.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 const noopLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child: () => noopLog };
 const fixture = (name: string): Record<string, unknown> =>
-  JSON.parse(readFileSync(new URL(`../../../contracts/src/__tests__/fixtures/genui/${name}.json`, import.meta.url), "utf8"));
+  JSON.parse(readFileSync(new URL(`../../../../contracts/src/__tests__/fixtures/genui/${name}.json`, import.meta.url), "utf8"));
 const as = (id: string) => ({ "x-eos-agent-id": id });
 
 const SMALL = {
@@ -51,13 +50,13 @@ function makeContainer(switches: GenuiSwitches = { level: "balanced", apps: true
     clock: { now: () => 9000 },
     bus: { publish: (topic: string, payload: unknown) => { published.push({ topic, payload }); } },
     workers: { findById: (id: string) => workers[id] ?? null },
-    genuiViews: repo,
-    genuiPresent,
-  } as unknown as Container;
+    views: repo,
+    present: genuiPresent,
+  } as unknown as GenuiRouteDeps;
   return { c, repo, published, switches };
 }
 
-async function call(c: Container, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+async function call(c: GenuiRouteDeps, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
   registerGenuiRoutes(router, c);
   const u = new URL("http://x" + path);

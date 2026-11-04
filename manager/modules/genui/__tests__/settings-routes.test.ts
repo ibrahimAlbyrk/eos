@@ -5,12 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
 
-import { Router, type RouteContext } from "../Router.ts";
-import { registerSettingsRoutes } from "../settings.ts";
-import type { Container } from "../../container.ts";
-import { handleError } from "../../middleware/errorHandler.ts";
-import { genuiSettingsOf } from "../../shared/genui-settings.ts";
-import { ROUTES, type UserSettings } from "../../../contracts/src/http.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerSettingsRoutes } from "../../../routes/settings.ts";
+import type { Container } from "../../../container.ts";
+import { registerGenuiSettingsRoutes } from "../settings-routes.ts";
+import { GENUI_SETTING_KEYS } from "../../../../contracts/src/genui/spec.ts";
+import { patchConfigFile } from "../../../shared/config.ts";
+import { handleError } from "../../../middleware/errorHandler.ts";
+import { genuiSettingsOf } from "../settings.ts";
+import { ROUTES, type UserSettings } from "../../../../contracts/src/http.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 const noopLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child: () => noopLog };
@@ -31,14 +34,20 @@ function makeContainer(initial: UserSettings = {}, configFile: Record<string, un
       config = { ...config, genui: raw.genui ?? {} };
     },
     userSettings: { read: () => ({ ...store }), patch: (p: UserSettings) => Object.assign(store, p) },
-    genuiSettings: () => genuiSettingsOf(store, config),
-  } as unknown as Container;
+    settings: () => genuiSettingsOf(store, config),
+    patchConfig(key: string, patch: Record<string, unknown>) {
+      patchConfigFile(home, key, patch);
+      this.reloadConfig();
+    },
+    protectedSettings: () => [{ keys: Object.values(GENUI_SETTING_KEYS), via: ROUTES.settingsGenui }],
+  } as unknown as Container & Parameters<typeof registerGenuiSettingsRoutes>[1];
   return { c, store, configFile: () => JSON.parse(readFileSync(join(home, "config.json"), "utf8")) as Record<string, any> };
 }
 
-async function call(c: Container, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+async function call(c: ReturnType<typeof makeContainer>["c"], method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
   registerSettingsRoutes(router, c);
+  registerGenuiSettingsRoutes(router, c);
   const u = new URL("http://x" + path);
   const m = router.match(method, u.pathname);
   assert.ok(m, `no ${method} route matched ${u.pathname}`);

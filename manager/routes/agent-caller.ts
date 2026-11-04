@@ -1,5 +1,5 @@
 import type { IncomingMessage } from "node:http";
-import type { Container } from "../container.ts";
+import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
 import { sessionProjectOf } from "../../core/src/services/session-root.ts";
 
 export interface AgentCaller {
@@ -13,7 +13,7 @@ export interface AgentCaller {
 // The agent behind a request — its MCP tools send x-eos-agent-id. Declared, not
 // authenticated: it attributes and scopes, it never authorizes a user-only action
 // (those need the ui-token). null = not a known agent.
-export function agentCallerOf(c: Container, req: IncomingMessage): AgentCaller | null {
+export function agentCallerOf(c: { readonly workers: Pick<WorkerRepo, "findById"> }, req: IncomingMessage): AgentCaller | null {
   const raw = req.headers["x-eos-agent-id"];
   const id = (Array.isArray(raw) ? raw[0] : raw)?.trim();
   const worker = id ? c.workers.findById(id) : null;

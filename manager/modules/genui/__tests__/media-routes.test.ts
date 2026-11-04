@@ -2,10 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 
-import { Router, type RouteContext } from "../Router.ts";
-import { registerGenuiMediaRoutes, type GenuiMediaRouteDeps } from "../genui-media.ts";
-import { GeoServiceError } from "../../../infra/src/genui/geo/NominatimGeocoder.ts";
-import { ValidationError } from "../../../core/src/errors/index.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerGenuiMediaRoutes, type GenuiMediaRouteDeps } from "../media-routes.ts";
+import { GeoServiceError } from "../../../../infra/src/genui/geo/NominatimGeocoder.ts";
+import { ValidationError } from "../../../../core/src/errors/index.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 const PNG = Buffer.from("89504e470d0a1a0a", "hex");

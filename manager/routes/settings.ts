@@ -6,10 +6,8 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
-import { ROUTES, SettingsPatchRequestSchema, type UserSettings } from "../../contracts/src/http.ts";
-import { GENUI_SETTING_KEYS, GenuiSettingsPatchSchema } from "../../contracts/src/genui/spec.ts";
+import { SettingsPatchRequestSchema } from "../../contracts/src/http.ts";
 import { CompactionConfigSchema, patchConfigFile } from "../shared/config.ts";
-import { uiTokenOk } from "./fs-shared.ts";
 
 // Partial archive-config patch (Settings > General). Mirrors the archive
 // section of DaemonConfigOverrideSchema; strict so a typoed key 400s instead
@@ -27,34 +25,16 @@ export function registerSettingsRoutes(r: Router, c: Container): void {
 
   r.put("/api/settings", async ({ req, res }) => {
     const body = validate(SettingsPatchRequestSchema, await readBody(req));
-    // This route takes no ui-token, so an agent could reach it — and undo the
-    // user's "Text only" / "Allow apps: off", or turn on location sharing.
-    const gated = Object.values(GENUI_SETTING_KEYS).filter((k) => Object.hasOwn(body.settings, k));
-    if (gated.length) {
-      writeJson(res, 403, { error: `${gated.join(", ")} ${gated.length === 1 ? "is" : "are"} set only through ${ROUTES.settingsGenui}` });
-      return;
+    // This route takes no ui-token, so an agent could reach it — and undo a
+    // choice only the user may make (a feature's protectedSettings).
+    for (const p of c.protectedSettings()) {
+      const gated = p.keys.filter((k) => Object.hasOwn(body.settings, k));
+      if (gated.length) {
+        writeJson(res, 403, { error: `${gated.join(", ")} ${gated.length === 1 ? "is" : "are"} set only through ${p.via}` });
+        return;
+      }
     }
     writeJson(res, 200, { settings: c.userSettings.patch(body.settings) });
-  });
-
-  // Visual answers (Settings › General): level / apps / location sharing are
-  // settings.json keys, the logo.dev key the config.json genui block. The PUT is
-  // the user's alone — the only way location sharing turns on.
-  r.get(ROUTES.settingsGenui, ({ res }) => {
-    writeJson(res, 200, c.genuiSettings());
-  });
-
-  r.put(ROUTES.settingsGenui, async ({ req, res }) => {
-    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
-    const patch = validate(GenuiSettingsPatchSchema.strict(), await readBody(req));
-    const settings: UserSettings = {};
-    if (patch.level !== undefined) settings[GENUI_SETTING_KEYS.level] = patch.level;
-    if (patch.apps !== undefined) settings[GENUI_SETTING_KEYS.apps] = patch.apps;
-    if (patch.locationShare !== undefined) settings[GENUI_SETTING_KEYS.locationShare] = patch.locationShare;
-    if (Object.keys(settings).length) c.userSettings.patch(settings);
-    // undefined drops the key when the block is written back: "" / null clear it.
-    if (patch.logoDevKey !== undefined && !patchConfigBlock(c, "genui", { logoDevKey: patch.logoDevKey || undefined }, res)) return;
-    writeJson(res, 200, c.genuiSettings());
   });
 
   // Archive lifecycle config lives in ~/.eos/config.json (NOT settings.json):

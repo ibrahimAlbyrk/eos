@@ -6,27 +6,30 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
-import { FilePromptSource } from "../../../infra/src/prompt/FilePromptSource.ts";
-import { PromptRegistry } from "../../../core/src/services/PromptRegistry.ts";
-import { PromptService } from "../../../core/src/services/PromptService.ts";
-import { assembleSystemPrompt, type SessionSpawnContext } from "../../../core/src/use-cases/AssembleSystemPrompt.ts";
-import { renderGenuiLevel } from "../../../core/src/services/render-genui-level.ts";
-import { catalogPrompt } from "../../../contracts/src/genui/prompt.ts";
-import { TOOL_NAME_VARS } from "../../prompt-tool-names.ts";
-import { renderToolDescriptions } from "../../tool-descriptions.ts";
-import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { FilePromptSource } from "../../../../infra/src/prompt/FilePromptSource.ts";
+import { PromptRegistry } from "../../../../core/src/services/PromptRegistry.ts";
+import { PromptService } from "../../../../core/src/services/PromptService.ts";
+import { assembleSystemPrompt, type SessionSpawnContext } from "../../../../core/src/use-cases/AssembleSystemPrompt.ts";
+import { renderGenuiLevel } from "../../../../core/src/services/render-genui-level.ts";
+import { catalogPrompt } from "../../../../contracts/src/genui/prompt.ts";
+import { genuiPromptVariables } from "../prompt.ts";
+import { TOOL_NAME_VARS } from "../../../prompt-tool-names.ts";
+import { renderToolDescriptions } from "../../../tool-descriptions.ts";
+import type { Logger } from "../../../../core/src/ports/Logger.ts";
 
 const noopLogger: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLogger; } };
-const promptsDir = join(import.meta.dirname, "..", "..", "prompts");
+const promptsDir = join(import.meta.dirname, "..", "..", "..", "prompts");
 
-function assemble(ctx: Partial<SessionSpawnContext>): { text: string; ids: string[] } {
+// genuiLevel: the user's setting, turned into the module's prompt variables as
+// the container does at spawn.
+function assemble({ genuiLevel, ...ctx }: Partial<SessionSpawnContext> & { genuiLevel?: string }): { text: string; ids: string[] } {
   const registry = new PromptRegistry(new FilePromptSource([promptsDir]), noopLogger);
   const base: SessionSpawnContext = {
     role: "worker", parentId: null, name: "demo", workerId: "w-1", model: "sonnet", effort: null,
     permissionMode: "bypassPermissions", cwd: "/repo", worktreeDir: null, branch: null, repoRoot: null,
     isAttached: false, hasMcp: false, canCollaborate: false, workerDefinition: "", workerDefinitionCatalog: "",
   };
-  const r = assembleSystemPrompt({ registry, prompts: new PromptService(registry, TOOL_NAME_VARS) }, { ...base, ...ctx });
+  const r = assembleSystemPrompt({ registry, prompts: new PromptService(registry, TOOL_NAME_VARS) }, { ...base, ...ctx, variables: genuiPromptVariables(genuiLevel) });
   return { text: r.text, ids: r.activeFragmentIds };
 }
 

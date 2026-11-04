@@ -9,23 +9,23 @@
 
 import type { ServerResponse } from "node:http";
 
-import type { Router, RouteContext } from "./Router.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
+import type { Router, RouteContext } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
 import {
   GeocodeQuerySchema,
   MediaIconQuerySchema,
   MediaImgQuerySchema,
   MediaOgQuerySchema,
   PlacesRequestSchema,
-} from "../../contracts/src/genui/spec.ts";
-import { GeoServiceError, OSM_ATTRIBUTION } from "../../infra/src/genui/geo/NominatimGeocoder.ts";
-import type { MediaBlob } from "../../infra/src/genui/GenuiMedia.ts";
-import type { MapResponse } from "../../infra/src/genui/OpenFreeMapProxy.ts";
-import type { GenuiMediaServices } from "../services/genui/media.ts";
+} from "../../../contracts/src/genui/spec.ts";
+import { GeoServiceError, OSM_ATTRIBUTION } from "../../../infra/src/genui/geo/NominatimGeocoder.ts";
+import type { MediaBlob } from "../../../infra/src/genui/GenuiMedia.ts";
+import type { MapResponse } from "../../../infra/src/genui/OpenFreeMapProxy.ts";
+import type { GenuiMediaServices } from "./media.ts";
 
 export interface GenuiMediaRouteDeps {
   uiToken: string;

@@ -23,6 +23,7 @@ import { resolveProviderIdentity } from "../manager/shared/provider-identity.ts"
 import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "../manager/shared/tier-prompt-render.ts";
 import { PROVIDER_PRESETS, findPreset } from "../manager/shared/provider-presets.ts";
 import type { ProviderIdentity } from "../core/src/domain/model-tier.ts";
+import { genuiPromptVariables } from "../manager/modules/genui/prompt.ts";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const promptsDir = join(REPO, "manager", "prompts");
@@ -82,6 +83,8 @@ export function renderPreview(opts: PreviewOpts) {
     effortSection: renderEffortSection(identity),
     defaultEffort: defaultEffortFor(identity),
     effortSupported: identity.effortSupported,
+    // What the feature modules fill at spawn, at their defaults.
+    variables: { ...genuiPromptVariables() },
   };
   const r = assembleSystemPrompt(deps(), ctx);
   return { ...r, identity, defaultEffort: ctx.defaultEffort as string };

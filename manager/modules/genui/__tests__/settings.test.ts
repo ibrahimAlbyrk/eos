@@ -4,13 +4,13 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { genuiSettingsOf } from "../genui-settings.ts";
+import { genuiSettingsOf } from "../settings.ts";
 
 // loadConfig memoizes per module instance — a fresh import per test.
 async function freshLoad() {
-  const url = new URL(`../config.ts?t=${Date.now()}-${Math.random()}`, import.meta.url);
+  const url = new URL(`../../../shared/config.ts?t=${Date.now()}-${Math.random()}`, import.meta.url);
   const mod = await import(url.href);
-  return mod.loadConfig() as ReturnType<typeof import("../config.ts").loadConfig>;
+  return mod.loadConfig() as ReturnType<typeof import("../../../shared/config.ts").loadConfig>;
 }
 
 describe("config.genui", () => {

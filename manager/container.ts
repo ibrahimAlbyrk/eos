@@ -101,12 +101,7 @@ import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRep
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
 import { SqliteDreamRepo } from "../infra/src/persistence/SqliteDreamRepo.ts";
 import { SqliteTransferRepo } from "../infra/src/persistence/SqliteTransferRepo.ts";
-import { SqliteGenuiViewRepo } from "../infra/src/persistence/SqliteGenuiViewRepo.ts";
-import type { PresentViewDeps } from "../core/src/use-cases/PresentView.ts";
-import { validateView } from "../contracts/src/genui/catalog.ts";
-import { GENUI_TOPICS, newViewId, validateApp } from "../contracts/src/genui/spec.ts";
-import { genuiSettingsOf } from "./shared/genui-settings.ts";
-import { buildGenuiMedia } from "./services/genui/media.ts";
+import { GENUI_TOPICS } from "../contracts/src/genui/spec.ts";
 import { FsTransferEndpoint } from "../infra/src/transfer/FsTransferEndpoint.ts";
 import { DreamService } from "./services/DreamService.ts";
 import { dreamOverChats } from "../core/src/use-cases/DreamOverChats.ts";
@@ -154,6 +149,7 @@ import { createBrowserModule } from "./modules/browser/index.ts";
 import { createAutoNameModule } from "./modules/auto-name/index.ts";
 import { createUpdatesModule } from "./modules/updates/index.ts";
 import { createWorkflowRunsModule } from "./modules/workflow-runs/index.ts";
+import { createGenuiModule } from "./modules/genui/index.ts";
 import type { DaemonModule } from "./modules/types.ts";
 import { createPluginHost } from "./plugins/index.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
@@ -304,11 +300,9 @@ export function buildContainer() {
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
   const messageIds = new SqliteMessageIdRepo(db);
   const dreamRepo = new SqliteDreamRepo(db);
-  const genuiViews = new SqliteGenuiViewRepo(db);
   // Up here, not with the other user-data services: spawn-time prompt assembly
   // reads the visual-answers level, and boot reconcile may already resume a session.
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
-  const genuiSettings = () => genuiSettingsOf(userSettings.read(), config);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -733,21 +727,19 @@ export function buildContainer() {
     uiToken,
   });
 
-  // Visual answers (docs/genui/00-GENUI-PLAN.md): present / present_app store
-  // through PresentView; media, map tiles, geocoding, place search and the app's
-  // location answer the dashboard and the find_places / current_location tools.
-  const genuiPresent: PresentViewDeps = {
-    views: genuiViews,
+  const genuiModule = createGenuiModule({
+    db,
+    home: config.daemon.home,
+    config: () => config,
+    patchConfig,
+    userSettings,
+    appHost,
+    workers,
+    bus,
     clock: systemClock,
-    newId: () => newViewId(),
-    validateView,
-    validateApp,
-    settings: () => {
-      const s = genuiSettings();
-      return { level: s.level, apps: s.apps };
-    },
-  };
-  const genuiMedia = buildGenuiMedia({ home: config.daemon.home, clock: systemClock, log, appHost, userSettings, config });
+    log,
+    uiToken,
+  });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
   // per reload so prompt edits apply on the next spawn without a daemon restart.
@@ -925,7 +917,7 @@ export function buildContainer() {
         defaultEffort: defaultEffortFor(identity),
         effortSupported: identity.effortSupported,
         userProfile,
-        genuiLevel: genuiSettings().level,
+        variables: Object.assign({}, ...modules.map((m) => m.promptVariables?.() ?? {})),
         disabledPlugins: pluginHost.plugins.disabledBuiltins(),
       },
       extra,
@@ -1737,7 +1729,7 @@ export function buildContainer() {
   });
 
   // Feature modules, in route-registration order.
-  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule];
+  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule];
   // A session's root was killed, archived or purged: modules drop what they
   // held for it (its browser, …).
   const endSession = (sessionKey: string): void => {
@@ -1929,18 +1921,16 @@ export function buildContainer() {
     sync,
     transferEndpoint,
     transfers,
-    genuiViews,
-    genuiPresent,
-    genuiMedia,
     jobs,
     inProcessSession,
-    genuiSettings,
     viewTokens: new ViewTokens(uiToken),
     recents,
     projects,
     pages,
     modules,
     pluginHost,
+    // settings.json keys the flat PUT /api/settings refuses (each feature's own route sets them).
+    protectedSettings: () => modules.flatMap((m) => (m.protectedSettings ? [m.protectedSettings] : [])),
     profile,
     userMemories,
     userProfilePreview,

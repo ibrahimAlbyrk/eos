@@ -8,9 +8,9 @@ import {
   GenuiLevelSchema,
   LogoDevKeySchema,
   type GenuiSettings,
-} from "../../contracts/src/genui/spec.ts";
-import type { UserSettings } from "../../contracts/src/http.ts";
-import type { DaemonConfig } from "./config.ts";
+} from "../../../contracts/src/genui/spec.ts";
+import type { UserSettings } from "../../../contracts/src/http.ts";
+import type { DaemonConfig } from "../../shared/config.ts";
 
 export function genuiSettingsOf(settings: UserSettings, config: Pick<DaemonConfig, "genui">): GenuiSettings {
   const level = GenuiLevelSchema.safeParse(settings[GENUI_SETTING_KEYS.level]);
