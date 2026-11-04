@@ -1,10 +1,10 @@
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 
-import { UpdateService, type UpdateServiceDeps } from "../update/UpdateService.ts";
-import { UpdateError } from "../../../core/src/domain/update/errors.ts";
-import type { StagedUpdate } from "../../../core/src/ports/Updates.ts";
-import type { UpdateApply, UpdateNotice, UpdatePointer, UpdateState } from "../../../contracts/src/update.ts";
+import { UpdateService, type UpdateServiceDeps } from "../UpdateService.ts";
+import { UpdateError } from "../../../../core/src/domain/update/errors.ts";
+import type { StagedUpdate } from "../../../../core/src/ports/Updates.ts";
+import type { UpdateApply, UpdateNotice, UpdatePointer, UpdateState } from "../../../../contracts/src/update.ts";
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLog; } };
 const install = { version: "0.1.2", root: "/Applications/Eos.app", platform: "darwin-arm64" as const };

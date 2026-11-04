@@ -152,6 +152,8 @@ import { createBtwModule } from "./modules/btw/index.ts";
 import { createArtifactsModule } from "./modules/artifacts/index.ts";
 import { createBrowserModule } from "./modules/browser/index.ts";
 import { createAutoNameModule } from "./modules/auto-name/index.ts";
+import { createUpdatesModule } from "./modules/updates/index.ts";
+import { createWorkflowRunsModule } from "./modules/workflow-runs/index.ts";
 import type { DaemonModule } from "./modules/types.ts";
 import { createPluginHost } from "./plugins/index.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
@@ -225,7 +227,6 @@ import { PendingPeerRequestService } from "./services/PendingPeerRequestService.
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
-import { WorkflowRunService } from "./services/WorkflowRunService.ts";
 import { BackgroundJobService } from "./services/BackgroundJobService.ts";
 import { AppBrowserHost } from "./browser-host.ts";
 
@@ -233,15 +234,6 @@ import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/Spa
 import { SyncService } from "./services/sync/SyncService.ts";
 import { createProjectKeys } from "./services/sync/project-keys.ts";
 import { TransferService } from "./services/transfer/TransferService.ts";
-import { UpdateService } from "./services/update/UpdateService.ts";
-import { resolveInstall } from "./services/update/install.ts";
-import { UPDATE_FEED_URL, UPDATE_PUBLIC_KEYS } from "../contracts/src/update.ts";
-import { checkForUpdate } from "../core/src/use-cases/update/CheckForUpdate.ts";
-import { downloadUpdate } from "../core/src/use-cases/update/DownloadUpdate.ts";
-import { Ed25519UpdateSignature } from "../infra/src/update/ed25519.ts";
-import { FsBundleIndexer } from "../infra/src/update/FsBundleIndexer.ts";
-import { FsUpdateWorkspace } from "../infra/src/update/FsUpdateWorkspace.ts";
-import { HttpUpdateFeed } from "../infra/src/update/HttpUpdateFeed.ts";
 import { PeerEndpoint } from "./services/transfer/PeerEndpoint.ts";
 import { avatarDomain, memoryDomain, pageDomain, profileDomain } from "./services/sync/service-domains.ts";
 import { fileDirDomain } from "./services/sync/file-dir-domain.ts";
@@ -263,6 +255,12 @@ function gitWorkingDirOf(w: WorkerRow): string | null {
 export function buildContainer() {
   let config: DaemonConfig = loadConfig();
   const log = createLogger("daemon");
+  // Writes one config.json block and reloads the config — how a feature saves a
+  // setting that lives in config.json. Throws when the file can't be written.
+  const patchConfig = (key: string, patch: Record<string, unknown>): void => {
+    patchConfigFile(config.daemon.home, key, patch);
+    config = reloadConfigFromDisk();
+  };
 
   // Unix-socket endpoint, published into the daemon's OWN env so every child
   // that builds its environment by spreading process.env (PTY worker, SDK child,
@@ -1400,12 +1398,14 @@ export function buildContainer() {
     const backend = backends.get(kind);
     return backend.descriptor.processModel === "in-process" ? backend.attach(workerId, { kind: "inproc", ref: workerId }) : null;
   };
-  const workflowRuns = new WorkflowRunService({
+  const workflowRunsModule = createWorkflowRunsModule({
     bus,
     agentEvents: (workerId) => events.listByType(workerId, "agent_event"),
     session: inProcessSession,
     claudeProjectsDir: join(claudeHome, "projects"),
+    uiToken,
   });
+  const { workflowRuns } = workflowRunsModule;
   // Everything running in the background, for the header beacon and the Jobs
   // tab. The bus-borne sources are wired in daemon.ts (wireJobSources).
   const backgroundJobs = new BackgroundJobService({
@@ -1724,8 +1724,21 @@ export function buildContainer() {
     session: inProcessSession,
   });
 
+  const updatesModule = createUpdatesModule({
+    home: config.daemon.home,
+    resourcesDir: config.paths.repoRoot,
+    packaged: isPackaged(),
+    config: () => config.updates,
+    patchConfig,
+    workers,
+    bus,
+    clock: systemClock,
+    log,
+    uiToken,
+  });
+
   // Feature modules, in route-registration order.
-  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule];
+  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule];
   // A session's root was killed, archived or purged: modules drop what they
   // held for it (its browser, …).
   const endSession = (sessionKey: string): void => {
@@ -1756,7 +1769,6 @@ export function buildContainer() {
     for (const m of modules) {
       if (!m.plugin || pluginHost.plugins.isEnabled(m.plugin)) m.onAgentEvent?.(workerId, event);
     }
-    if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
     if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
       backgroundJobs.observe(workerId, event);
     }
@@ -1865,36 +1877,6 @@ export function buildContainer() {
   });
   transfers.boot();
 
-  // In-app updates (docs/updates/00-UPDATES-PLAN.md): only a packaged release
-  // build updates itself, from the signed feed, through ~/.eos/updates
-  // (regenerable — not listed in shared/user-data.ts).
-  const appUpdates = hostPlatform.appUpdates;
-  const updateWorkspace = new FsUpdateWorkspace(join(config.daemon.home, "updates"), { fileModes: appUpdates?.fileModes ?? true });
-  const feedUrl = (): string => config.updates.feedUrl ?? UPDATE_FEED_URL;
-  const updateFeed = new HttpUpdateFeed({ baseUrl: feedUrl });
-  const updateSignature = new Ed25519UpdateSignature(UPDATE_PUBLIC_KEYS);
-  const updates = new UpdateService({
-    ...resolveInstall({ packaged: isPackaged(), resourcesDir: config.paths.repoRoot, execPath: process.execPath, platform: appUpdates }),
-    check: async (install) => {
-      const pointer = await checkForUpdate({ feed: updateFeed, signature: updateSignature }, { platform: install.platform, current: install.version });
-      if (pointer?.feedUrl && pointer.feedUrl !== feedUrl()) {
-        patchConfigFile(config.daemon.home, "updates", { feedUrl: pointer.feedUrl });
-        config = reloadConfigFromDisk();
-      }
-      return pointer;
-    },
-    download: (input, signal) => downloadUpdate({
-      feed: updateFeed, indexer: new FsBundleIndexer(), workspace: updateWorkspace, bundleCheck: appUpdates!.bundleCheck,
-    }, input, signal),
-    verifyStaged: (staged, installed) => appUpdates!.bundleCheck.verify(staged, installed),
-    workspace: updateWorkspace,
-    autoDownload: () => config.updates.autoDownload,
-    workingAgents: () => workers.listActive().filter((w) => !w.parent_id && w.state === "WORKING").length,
-    bus,
-    clock: systemClock,
-    log: log.child({ svc: "update" }),
-  });
-
   const container = {
     get config() { return config; },
     log,
@@ -1948,11 +1930,9 @@ export function buildContainer() {
     sync,
     transferEndpoint,
     transfers,
-    updates,
     genuiViews,
     genuiPresent,
     genuiMedia,
-    workflowRuns,
     backgroundJobs,
     inProcessSession,
     genuiSettings,
@@ -2022,6 +2002,7 @@ export function buildContainer() {
     },
     getPolicy(): Policy { return policy; },
     reloadConfig(): void { config = reloadConfigFromDisk(); },
+    patchConfig,
     async runDeferredBoot(): Promise<void> {
       for (const task of deferredBoot) {
         try { await task.run(); } catch (e) { log.warn("deferred boot task failed", { task: task.name, error: errMsg(e) }); }

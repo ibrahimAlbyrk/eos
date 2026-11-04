@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WorkerEventRow } from "../../../contracts/src/events.ts";
-import type { WorkflowRunSnapshot } from "../../../contracts/src/canonical.ts";
+import type { WorkerEventRow } from "../../../../contracts/src/events.ts";
+import type { WorkflowRunSnapshot } from "../../../../contracts/src/canonical.ts";
 import { WorkflowRunService, type WorkflowRunServiceDeps } from "../WorkflowRunService.ts";
 
 const ROOT = "/Users/u/.claude/projects";

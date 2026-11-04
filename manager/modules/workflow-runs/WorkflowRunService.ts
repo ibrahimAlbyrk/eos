@@ -1,16 +1,16 @@
 import { readFileSync } from "node:fs";
-import type { EventBus } from "../../core/src/ports/EventBus.ts";
-import type { AgentEvent, SubagentUsage, WorkflowRunSnapshot } from "../../contracts/src/canonical.ts";
-import type { PtyConversationRow } from "../../contracts/src/http.ts";
-import type { WorkerEventRow } from "../../contracts/src/events.ts";
+import type { EventBus } from "../../../core/src/ports/EventBus.ts";
+import type { AgentEvent, SubagentUsage, WorkflowRunSnapshot } from "../../../contracts/src/canonical.ts";
+import type { PtyConversationRow } from "../../../contracts/src/http.ts";
+import type { WorkerEventRow } from "../../../contracts/src/events.ts";
 import {
   WORKFLOW_AGENT_ID_RE, WORKFLOW_AGENT_ROWS_MAX, WORKFLOW_RUN_TOPICS,
   type WorkflowRunDetail, type WorkflowRunProgress,
-} from "../../contracts/src/workflow-run.ts";
+} from "../../../contracts/src/workflow-run.ts";
 import {
   EMPTY_WORKFLOW_SNAPSHOT, parseWorkflowRecord, settleWorkflowSnapshot, withWorkflowRecord, workflowAgentTranscriptPath, workflowRecordPath,
-} from "../../core/src/domain/workflow-run.ts";
-import { TranscriptFile } from "./pty/transcriptFile.ts";
+} from "../../../core/src/domain/workflow-run.ts";
+import { TranscriptFile } from "../../services/pty/transcriptFile.ts";
 
 // Claude Code Workflow runs, live and finished. A running run's progress is
 // held here (latest snapshot only) and relayed as workflow:progress at most

@@ -49,9 +49,7 @@ import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerAttachmentRoutes } from "./routes/attachments.ts";
 import { registerPromptEventRoutes } from "./routes/prompt-events.ts";
 import { registerSubagentEventRoutes } from "./routes/subagent-events.ts";
-import { registerWorkflowRunRoutes } from "./routes/workflow-runs.ts";
 import { registerJobRoutes } from "./routes/jobs.ts";
-import { registerUpdateRoutes } from "./routes/update.ts";
 import { wireJobSources } from "./services/jobs/wireJobSources.ts";
 import { registerPtyRoutes } from "./routes/pty.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
@@ -131,7 +129,7 @@ registerFsGitRoutes(router, c);
 registerProjectRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
-// Feature modules (pages, btw, artifacts, browser, auto-name) — their paths overlap no other route.
+// Feature modules (pages, btw, artifacts, browser, auto-name, updates, …) — their paths overlap no other route.
 for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(router, m.plugin) : router);
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
@@ -158,9 +156,7 @@ registerWorkerRoutes(router, c);
 registerAttachmentRoutes(router, c);
 registerPromptEventRoutes(router, c);
 registerSubagentEventRoutes(router, c);
-registerWorkflowRunRoutes(router, c);
 registerJobRoutes(router, c);
-registerUpdateRoutes(router, c);
 registerPtyRoutes(router, c);
 registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
@@ -464,10 +460,7 @@ c.bus.subscribe("worker:change", (msg) => {
   if (p?.state === "WORKING" && p.workerId && !c.workers.findById(p.workerId)?.parent_id) c.dreams.noteUserActivity();
 });
 c.dreams.start();
-// In-app updates: a top-level agent starting or ending a turn may be what a
-// "restart when they finish" waits for.
-c.bus.subscribe("worker:change", () => c.updates.agentsChanged());
-void c.updates.start().catch((e: unknown) => c.log.warn("update service failed to start", { error: e instanceof Error ? e.message : String(e) }));
+for (const m of c.modules) m.start?.();
 // Agents suggested memories → one batched banner a little later.
 const memorySuggestNotify = makeMemorySuggestNotify({
   pendingCount: () => c.userMemories.list().filter((m) => m.status === "suggested" && m.source.kind !== "dream").length,
@@ -743,7 +736,6 @@ async function shutdown(sig: string): Promise<void> {
   try { c.hostLinks.stop(); } catch {}
   try { c.sync.stop(); } catch {}
   try { c.transfers.stop(); } catch {}
-  try { c.updates.stop(); } catch {}
   void c.peerHost.stop().catch(() => {});
   // Suspend resumable in-process sessions BEFORE killing children and closing
   // the DB: their exit callbacks write rows, so this is the last safe moment —

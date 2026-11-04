@@ -4,10 +4,9 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerWorkflowRunRoutes } from "../workflow-runs.ts";
-import type { Container } from "../../container.ts";
-import { WorkflowRunService } from "../../services/WorkflowRunService.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerWorkflowRunRoutes, type WorkflowRunRouteDeps } from "../routes.ts";
+import { WorkflowRunService } from "../WorkflowRunService.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 const ROOT = mkdtempSync(join(tmpdir(), "wf-routes-"));
@@ -24,10 +23,10 @@ function makeContainer() {
     claudeProjectsDir: ROOT,
   });
   workflowRuns.observe("w-1", { type: "workflow_started", callId: "toolu_1", taskId: "t1", transcriptDir: DIR });
-  return { c: { uiToken: "tok", workflowRuns } as unknown as Container, stops };
+  return { c: { uiToken: "tok", workflowRuns } as unknown as WorkflowRunRouteDeps, stops };
 }
 
-async function call(c: Container, method: string, path: string, headers: Record<string, string> = {}) {
+async function call(c: WorkflowRunRouteDeps, method: string, path: string, headers: Record<string, string> = {}) {
   const router = new Router();
   registerWorkflowRunRoutes(router, c);
   const u = new URL("http://x" + path);

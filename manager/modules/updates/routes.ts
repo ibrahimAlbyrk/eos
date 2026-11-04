@@ -10,17 +10,23 @@
 //   PUT  /api/settings/updates    {autoDownload}
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { patchConfigBlock } from "./settings.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { UpdateCheckRequestSchema, UpdateRestartRequestSchema, UpdateSettingsPatchSchema } from "../../contracts/src/update.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { UpdateCheckRequestSchema, UpdateRestartRequestSchema, UpdateSettingsPatchSchema } from "../../../contracts/src/update.ts";
+import type { UpdateService } from "./UpdateService.ts";
 
-export function registerUpdateRoutes(r: Router, c: Container): void {
+export interface UpdateRouteDeps {
+  readonly updates: UpdateService;
+  readonly uiToken: string;
+  // Writes one config.json block and reloads the config (throws when it can't).
+  patchConfig(key: string, patch: Record<string, unknown>): void;
+}
+
+export function registerUpdateRoutes(r: Router, c: UpdateRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (uiTokenOk(req, c.uiToken)) return false;
     writeJson(res, 403, { error: "ui token required" });
@@ -71,7 +77,12 @@ export function registerUpdateRoutes(r: Router, c: Container): void {
   r.put(ROUTES.settingsUpdates, async ({ req, res }) => {
     if (denied(req, res)) return;
     const patch = validate(UpdateSettingsPatchSchema, await readBody(req));
-    if (!patchConfigBlock(c, "updates", patch, res)) return;
+    try {
+      c.patchConfig("updates", patch);
+    } catch (e) {
+      writeJson(res, 500, { error: `failed to write config: ${e instanceof Error ? e.message : String(e)}` });
+      return;
+    }
     c.updates.settingsChanged();
     state(res);
   });

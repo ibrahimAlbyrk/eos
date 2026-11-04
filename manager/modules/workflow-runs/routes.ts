@@ -5,18 +5,23 @@
 //   GET  /workers/:id/workflow-runs/:callId/agents/:agentId one agent's transcript rows
 //   POST /workers/:id/workflow-runs/:callId/stop            the dashboard's (ui-token)
 
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import type { WorkflowAgentRows, WorkflowRunList } from "../../contracts/src/workflow-run.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import type { WorkflowAgentRows, WorkflowRunList } from "../../../contracts/src/workflow-run.ts";
+import type { WorkflowRunService } from "./WorkflowRunService.ts";
+
+export interface WorkflowRunRouteDeps {
+  readonly workflowRuns: Pick<WorkflowRunService, "list" | "get" | "agentRows" | "stop">;
+  readonly uiToken: string;
+}
 
 const RUNS = /^\/workers\/(?<id>[^/]+)\/workflow-runs$/;
 const RUN = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)$/;
 const STOP = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)\/stop$/;
 const AGENT = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)\/agents\/(?<agentId>[^/]+)$/;
 
-export function registerWorkflowRunRoutes(r: Router, c: Container): void {
+export function registerWorkflowRunRoutes(r: Router, c: WorkflowRunRouteDeps): void {
   r.get(RUNS, ({ res, params }) => {
     const body: WorkflowRunList = { runs: c.workflowRuns.list(params.id) };
     writeJson(res, 200, body);
