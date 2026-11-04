@@ -9,7 +9,7 @@ import type { PluginBuild, PluginBuilder, PluginDataStore, PluginFolder, PluginW
 import { NotFoundError, ValidationError } from "../errors/index.ts";
 import {
   PLUGINS_TOPIC, PLUGIN_MANIFEST_FILE, PLUGIN_UI_ENTRIES, PluginManifestSchema, pluginSettingValues, pluginStoreTopic,
-  type PluginInfo, type PluginManifest,
+  type PluginInfo, type PluginManifest, type PluginReport,
 } from "../../../contracts/src/plugin.ts";
 
 export interface PluginServiceDeps {
@@ -42,6 +42,8 @@ export class PluginService {
   private readonly running = new Map<string, Promise<void>>();
   private readonly again = new Set<string>();
   private readonly timers = new Map<string, unknown>();
+  // The latest word from a window about each plugin's build (loaded, or failed).
+  private readonly reports = new Map<string, PluginReport>();
   private nextRev = 1;
   private stopWatching: (() => void) | null = null;
 
@@ -113,6 +115,26 @@ export class PluginService {
     return this.info(id);
   }
 
+  // A window loaded a build, or it failed / crashed there.
+  report(id: string, report: Omit<PluginReport, "at">, at: number): void {
+    this.get(id);
+    const prev = this.reports.get(id);
+    // A late "loaded" for an old build doesn't hide a newer report.
+    if (prev && prev.rev > report.rev) return;
+    // A crash after the build loaded stays the news until a newer build loads.
+    if (prev && prev.rev === report.rev && !prev.ok && report.ok) return;
+    this.reports.set(id, { ...report, at });
+  }
+
+  lastReport(id: string): PluginReport | null {
+    return this.reports.get(id) ?? null;
+  }
+
+  // A rebuild is waiting or running.
+  isBusy(id: string): boolean {
+    return this.timers.has(id) || this.running.has(id);
+  }
+
   storeValue(id: string, key: string): unknown {
     this.get(id);
     return this.deps.data.storeValue(id, key);
@@ -138,6 +160,7 @@ export class PluginService {
   private async reload(id: string): Promise<void> {
     const folder = this.deps.workspace.read(id);
     if (!folder) {
+      this.reports.delete(id);
       if (this.entries.delete(id)) this.announce(id);
       return;
     }

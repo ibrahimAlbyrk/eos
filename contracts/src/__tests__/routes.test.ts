@@ -50,7 +50,7 @@ const EXPECTED_KEYS = [
   "hostInfo", "peer", "peerInvite", "peerDevice", "peerDeviceDisconnect", "peerPair", "peerReverse",
   "hosts", "host", "hostReconnect", "hostViewToken", "hostProxyPrefix",
   "anthropicConfig", "usage", "artifacts", "artifactsRefresh",
-  "plugins", "plugin", "pluginEnabled", "pluginSettings", "pluginStore",
+  "plugins", "plugin", "pluginStatus", "pluginReport", "pluginEnabled", "pluginSettings", "pluginStore",
   "accounts", "accountSignIn", "accountLogin", "accountDefaultLogin", "accountAutoSwitch", "workerPlanResume", "workerApiKeyContinue", "signIn", "signInCode",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
   "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserShow", "browserTab", "browserNavigate",

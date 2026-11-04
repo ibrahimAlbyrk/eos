@@ -72,6 +72,15 @@ export const PluginInfoSchema = z.object({
 });
 export type PluginInfo = z.infer<typeof PluginInfoSchema>;
 
+// What a window reports after loading a build (ok) or when it failed to load or
+// a component crashed (ok: false, with the error).
+export const PluginReportRequestSchema = z.object({
+  rev: z.number().int(),
+  ok: z.boolean(),
+  error: z.string().max(8000).optional(),
+});
+export type PluginReport = z.infer<typeof PluginReportRequestSchema> & { at: number };
+
 export const PluginEnabledRequestSchema = z.object({ enabled: z.boolean() });
 export const PluginSettingsRequestSchema = z.object({ values: z.record(PluginSettingValueSchema) });
 export const PluginStoreRequestSchema = z.object({ value: z.unknown() });

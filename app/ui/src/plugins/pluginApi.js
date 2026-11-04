@@ -9,6 +9,7 @@ import { registerPanel } from "../lib/panelRegistry.js";
 import { notify } from "../lib/notify.js";
 import { getPlugin, subscribePlugins } from "./pluginsStore.js";
 import { usePluginValue } from "./pluginValues.js";
+import { reportPlugin } from "./report.js";
 
 // A plugin's component that throws while rendering shows nothing instead of
 // taking its surroundings down with it.
@@ -23,7 +24,10 @@ class PluginBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    console.error(`Plugin "${this.props.plugin}" crashed:`, error, info?.componentStack);
+    const { plugin, rev } = this.props;
+    console.error(`Plugin "${plugin}" crashed:`, error, info?.componentStack);
+    const where = info?.componentStack?.trim().split("\n").slice(0, 4).join("\n") ?? "";
+    reportPlugin(plugin, { rev, ok: false, error: `${error instanceof Error ? error.message : String(error)}${where ? `\n${where}` : ""}` });
   }
 
   render() {
@@ -31,9 +35,9 @@ class PluginBoundary extends Component {
   }
 }
 
-function guarded(pluginId, Inner) {
+function guarded(pluginId, rev, Inner) {
   function Guarded(props) {
-    return createElement(PluginBoundary, { plugin: pluginId }, createElement(Inner, props));
+    return createElement(PluginBoundary, { plugin: pluginId, rev }, createElement(Inner, props));
   }
   Guarded.displayName = `Plugin(${pluginId})`;
   return Guarded;
@@ -60,7 +64,7 @@ export function createPluginApi(plugin, disposers) {
     // pane (one per window) instead of every pane.
     // Component props: { worker, live, topRight }
     headerRight({ id, Component, order = 100, once = false }) {
-      return keep(headerRight.add({ id: ns(need(id, "id")), order, once, Component: guarded(pid, need(Component, "Component")) }));
+      return keep(headerRight.add({ id: ns(need(id, "id")), order, once, Component: guarded(pid, plugin.rev, need(Component, "Component")) }));
     },
 
     // A row in the left sidebar's nav (under New task / Changes / Archive).
@@ -68,7 +72,7 @@ export function createPluginApi(plugin, disposers) {
     // custom row: Component({ live }).
     sidebarNav({ id, label, icon = null, view, Component: Row, order = 100 }) {
       const item = Row
-        ? { id: ns(need(id, "id")), order, Component: guarded(pid, Row) }
+        ? { id: ns(need(id, "id")), order, Component: guarded(pid, plugin.rev, Row) }
         : { id: ns(need(id, "id")), order, label: need(label, "label"), icon, view: ns(need(view, "view")) };
       return keep(sidebarNav.add(item));
     },
@@ -77,7 +81,7 @@ export function createPluginApi(plugin, disposers) {
     // Component props: { live }
     mainView({ id, Component }) {
       const vid = ns(need(id, "id"));
-      const remove = mainViews.add({ id: vid, Component: guarded(pid, need(Component, "Component")) });
+      const remove = mainViews.add({ id: vid, Component: guarded(pid, plugin.rev, need(Component, "Component")) });
       return keep(() => {
         remove();
         closeMainView(vid);
@@ -95,7 +99,7 @@ export function createPluginApi(plugin, disposers) {
         type,
         label: need(label, "label"),
         icon,
-        Component: guarded(pid, need(Component, "Component")),
+        Component: guarded(pid, plugin.rev, need(Component, "Component")),
         keepAlive,
         ...(launcher ? { launcher: { order: 1000, in: ["agent", "code"] } } : {}),
       }));

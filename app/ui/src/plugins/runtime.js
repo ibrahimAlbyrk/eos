@@ -14,6 +14,7 @@ import * as ReactDOM from "react-dom";
 import * as ReactDOMClient from "react-dom/client";
 import { ensurePluginsLoaded, getPlugins, subscribePlugins } from "./pluginsStore.js";
 import { createPluginApi } from "./pluginApi.js";
+import { reportPlugin } from "./report.js";
 
 globalThis.__eosShared = {
   react: React,
@@ -83,13 +84,21 @@ async function load(plugin) {
     unload(id);
     loaded.set(id, { rev, dispose });
     setFault(id, null);
+    reportPlugin(id, { rev, ok: true });
   } catch (e) {
     dispose();
     console.error(`Plugin "${id}" failed to load:`, e);
-    setFault(id, { rev, message: e instanceof Error ? e.message : String(e) });
+    const message = e instanceof Error ? e.message : String(e);
+    setFault(id, { rev, message });
+    reportPlugin(id, { rev, ok: false, error: describeError(e) });
   } finally {
     if (loading.get(id) === rev) loading.delete(id);
   }
+}
+
+function describeError(e) {
+  if (!(e instanceof Error)) return String(e);
+  return e.stack && e.stack.includes(e.message) ? e.stack.split("\n").slice(0, 6).join("\n") : `${e.message}\n${e.stack ?? ""}`.trim();
 }
 
 function reconcile() {

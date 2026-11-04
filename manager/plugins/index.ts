@@ -26,14 +26,15 @@ export interface PluginHost {
 }
 
 export function createPluginHost(deps: PluginHostDeps): PluginHost {
+  const dir = join(deps.home, "plugins");
   const plugins = new PluginService({
-    workspace: new FsPluginWorkspace(join(deps.home, "plugins")),
+    workspace: new FsPluginWorkspace(dir),
     builder: new EsbuildPluginBuilder(),
     data: new FsPluginDataStore(join(deps.home, "plugin-data")),
     bus: deps.bus,
     log: deps.log,
   });
-  const routeDeps = { plugins, uiToken: deps.uiToken };
+  const routeDeps = { plugins, uiToken: deps.uiToken, dir };
   return {
     plugins,
     registerBundleRoutes: (router) => registerPluginBundleRoutes(router, routeDeps),

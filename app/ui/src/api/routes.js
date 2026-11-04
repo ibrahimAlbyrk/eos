@@ -235,6 +235,7 @@ export const ROUTES = {
   // Plugins (contracts/src/plugin.ts) — writes are ui-token.
   plugins: "/api/plugins",
   plugin: (id) => `/api/plugins/${encodeURIComponent(id)}`,
+  pluginReport: (id) => `/api/plugins/${encodeURIComponent(id)}/report`,
   pluginEnabled: (id) => `/api/plugins/${encodeURIComponent(id)}/enabled`,
   pluginSettings: (id) => `/api/plugins/${encodeURIComponent(id)}/settings`,
   pluginStore: (id, key) => `/api/plugins/${encodeURIComponent(id)}/store/${encodeURIComponent(key)}`,

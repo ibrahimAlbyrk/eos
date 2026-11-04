@@ -316,6 +316,9 @@ export const api = {
     if (!r.ok) throw new Error(r.body?.error ?? `plugins → ${r.status}`);
     return r.body.plugins;
   },
+  async reportPlugin(id, report) {
+    return postJson(ROUTES.pluginReport(id), report, uiTokenHeader());
+  },
   async setPluginEnabled(id, enabled) {
     return putJson(ROUTES.pluginEnabled(id), { enabled }, uiTokenHeader());
   },
