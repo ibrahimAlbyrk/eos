@@ -72,8 +72,14 @@ describe("tool-search hints on the claude lane", () => {
     }
   });
 
+  it("plugin_status is found by search, not always loaded", () => {
+    const m = meta(workerDefs.find((d) => d.name === "plugin_status")!);
+    assert.equal(typeof m?.["anthropic/searchHint"], "string");
+    assert.equal(m?.["anthropic/alwaysLoad"], undefined);
+  });
+
   it("no other tool changes how it loads", () => {
-    const hinted = new Set(["present", ...SEARCH_HINTED]);
+    const hinted = new Set(["present", ...SEARCH_HINTED, "plugin_status"]);
     for (const d of [...orchestratorDefs, ...workerDefs, ...peerDefs, ...focusedDefs]) {
       if (!hinted.has(d.name)) assert.equal(meta(d), undefined, d.name);
     }

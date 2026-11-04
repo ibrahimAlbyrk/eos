@@ -1435,6 +1435,7 @@ export function buildContainer() {
     resolveSdkMcpServers,
     // Looked up per launch, so a project edit reaches the next spawn/resume/clear.
     resolveAdditionalDirs: (spec) => additionalDirsFor(projects.list(), [spec.cwd, spec.backendOptions?.spec?.worktreeFrom]),
+    claudePlugins: [config.paths.claudePluginDir],
     // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
     // injected memory: the SDK spec carries the SpawnWorkerSpec in backendOptions.spec
     // (SpawnWorker.ts). "claude" loads nothing natively → every enabled source

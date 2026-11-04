@@ -149,12 +149,14 @@ module.exports = {
     // Ship the web UI + the standalone backend tree + the prompt/worker-definition
     // libraries into Contents/Resources so process.resourcesPath resolves everything
     // the packaged daemon reads (EOS_BUNDLES_DIR=<res>/daemon, EOS_PROMPTS_DIR=<res>/prompts,
-    // EOS_WORKER_DEFINITIONS_DIR=<res>/workers, EOS_CLAUDE_BIN under <res>/daemon/node_modules).
+    // EOS_WORKER_DEFINITIONS_DIR=<res>/workers, EOS_CLAUDE_PLUGIN_DIR=<res>/claude-plugin,
+    // EOS_CLAUDE_BIN under <res>/daemon/node_modules).
     extraResource: [
       path.resolve(__dirname, "ui", "dist"),
       path.resolve(__dirname, ".forge-build", "daemon"),
       path.resolve(__dirname, "..", "manager", "prompts"),
       path.resolve(__dirname, "..", "manager", "workers"),
+      path.resolve(__dirname, "..", "manager", "claude-plugin"),
       ...(isMac ? [
         path.resolve(__dirname, ".forge-build", "Eos.saver"),
         // The CoreLocation helper behind location sharing (main/location.ts runs it).

@@ -1014,6 +1014,17 @@
       "properties": {},
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "plugin_status": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The plugin's id (its folder name). Omit to list every plugin and the folder they live in."
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -1571,6 +1582,17 @@
         "tabId": {
           "type": "string",
           "description": "Tab to present; omit for your session's active tab"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "plugin_status": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "The plugin's id (its folder name). Omit to list every plugin and the folder they live in."
         }
       },
       "additionalProperties": false,

@@ -424,6 +424,31 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow"]);
   });
 
+  it("loads Eos's own Claude Code plugin and hides Claude Code's mod skill", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle session */ })();
+    };
+    const deps = {
+      authResolver: { resolve: async () => ({ scheme: "none" as const }) },
+      policy: { decide: async () => ({ behavior: "allow" as const }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], focusedDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s: AgentLaunchSpec): ToolContext => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    };
+    await createClaudeSdkBackend({ ...deps, claudePlugins: ["/res/claude-plugin"] }).start(spec(), {});
+    assert.deepEqual(capturedOptions!.plugins, [{ type: "local", path: "/res/claude-plugin" }]);
+    assert.deepEqual(capturedOptions!.settings, { skillOverrides: { "plugin-authoring": "off" } });
+
+    // The judge backend gets none.
+    capturedOptions = null;
+    await createClaudeSdkBackend(deps).start(spec(), {});
+    assert.equal(capturedOptions!.plugins, undefined);
+    assert.equal(capturedOptions!.settings, undefined);
+  });
+
   it("focused session: full Claude Code surface — no blocks, native MCP, Artifact, AskUserQuestion via the banner", async (t) => {
     let capturedOptions: Record<string, unknown> | null = null;
     const queryFn: SdkQueryFn = (params) => {

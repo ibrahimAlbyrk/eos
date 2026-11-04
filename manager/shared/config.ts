@@ -62,6 +62,7 @@ export interface DaemonConfig {
     symbolParserScript: string; // dev: <repoRoot>/infra/src/symbols/symbolParser.ts · packaged: <bundles>/symbol-parser.bundle.mjs
     promptsDir: string;      // <repoRoot>/manager/prompts — DPI fragment + action-template library
     workerDefinitionsDir: string;  // <repoRoot>/manager/workers — built-in worker definition .md library
+    claudePluginDir: string;  // <repoRoot>/manager/claude-plugin — Eos's own Claude Code plugin (skills)
   };
   worker: {
     portRangeStart: number;
@@ -373,6 +374,7 @@ export function defaults(): DaemonConfig {
       symbolParserScript: symbolParserScriptPath(repoRoot),
       promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
       workerDefinitionsDir: envStr("EOS_WORKER_DEFINITIONS_DIR", join(repoRoot, "manager", "workers")),
+      claudePluginDir: envStr("EOS_CLAUDE_PLUGIN_DIR", join(repoRoot, "manager", "claude-plugin")),
     },
     worker: {
       portRangeStart: envNum("EOS_WORKER_PORT_START", 7500),

@@ -147,6 +147,9 @@ export interface ClaudeSdkBackendDeps {
   /** Extra source folders granted beyond cwd (the worker's project's non-primary
    *  folders) → SDK additionalDirectories. Absent/empty → cwd only. */
   resolveAdditionalDirs?(spec: AgentLaunchSpec): string[];
+  /** Claude Code plugin folders loaded into every session (Eos's own skills —
+   *  eos-plugin-authoring). Absent on the judge backend. */
+  claudePlugins?: string[];
   queryFn?: SdkQueryFn;
   /** Recall (Layer 2) transcript-slice primitive — defaults to the SDK's
    *  forkSession. Overridden in tests. */
@@ -602,6 +605,13 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // in canUseTool → PolicyGatewayService, which resolves the worker's
         // mode from the DB on every call.
         permissionMode: "default",
+        ...(deps.claudePlugins?.length ? {
+          plugins: deps.claudePlugins.map((path) => ({ type: "local" as const, path })),
+          // Claude Code's own "mod" skill builds mods for the Claude Code UI, which
+          // never show in Eos — Eos's interface is extended by the
+          // eos-plugin-authoring skill from the plugin above.
+          settings: { skillOverrides: { "plugin-authoring": "off" } },
+        } : {}),
       } as Options;
 
       const store = deps.claudeStore?.();

@@ -60,13 +60,14 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       ...MEMORY_TOOLS,
       ...BROWSER_TOOLS,
       ...GENUI_TOOLS,
+      "plugin_status",
     ]);
   });
 
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...PAGE_TOOLS, ...MEMORY_TOOLS, ...BROWSER_TOOLS]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...PAGE_TOOLS, ...MEMORY_TOOLS, ...BROWSER_TOOLS, "plugin_status"]);
   });
 
   it("peer (collaborate-only) tools match", () => {

@@ -49,6 +49,7 @@ import { browserNewTabDef } from "./defs/browser_new_tab.ts";
 import { browserCloseTabDef } from "./defs/browser_close_tab.ts";
 import { browserMuteDef } from "./defs/browser_mute.ts";
 import { browserShowDef } from "./defs/browser_show.ts";
+import { pluginStatusDef } from "./defs/plugin_status.ts";
 
 // Browser verbs (Phase 3) — appended to BOTH the worker and orchestrator
 // surfaces, in this order. They stay on the control-plane MCP servers (so the
@@ -93,6 +94,10 @@ const memoryDefs: ToolDefinition[] = [searchMemoryDef, suggestMemoryDef];
 // orchestrator, which presents.
 const genuiDefs: ToolDefinition[] = [presentDef, presentAppDef, findPlacesDef, currentLocationDef];
 
+// Eos plugins (the eos-plugin-authoring skill) — last on BOTH surfaces: any agent
+// may be the one asked to change Eos's own interface.
+const pluginDefs: ToolDefinition[] = [pluginStatusDef];
+
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
 export const orchestratorDefs: ToolDefinition[] = [
@@ -116,10 +121,11 @@ export const orchestratorDefs: ToolDefinition[] = [
   ...memoryDefs,
   ...browserDefs,
   ...genuiDefs,
+  ...pluginDefs,
 ];
 
 // Always registered on a worker.
-export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...memoryDefs, ...browserDefs];
+export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...pageDefs, ...memoryDefs, ...browserDefs, ...pluginDefs];
 
 // Added to a focused session's worker surface only — the session the user talks
 // to directly (SdkToolHost; focused sessions always run on the claude SDK lane).

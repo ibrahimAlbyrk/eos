@@ -46,6 +46,7 @@ import { setPageTaskDef } from "./tools/defs/set_page_task.ts";
 import { searchMemoryDef } from "./tools/defs/search_memory.ts";
 import { suggestMemoryDef } from "./tools/defs/suggest_memory.ts";
 import { sendToMachineDef } from "./tools/defs/send_to_machine.ts";
+import { pluginStatusDef } from "./tools/defs/plugin_status.ts";
 import { presentDef } from "./tools/defs/present.ts";
 import { presentAppDef } from "./tools/defs/present_app.ts";
 import { findPlacesDef } from "./tools/defs/find_places.ts";
@@ -94,6 +95,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   SEARCH_MEMORY_TOOL: searchMemoryDef.name,
   SUGGEST_MEMORY_TOOL: suggestMemoryDef.name,
   SEND_TO_MACHINE_TOOL: sendToMachineDef.name,
+  PLUGIN_STATUS_TOOL: pluginStatusDef.name,
   PRESENT_TOOL: presentDef.name,
   PRESENT_APP_TOOL: presentAppDef.name,
   FIND_PLACES_TOOL: findPlacesDef.name,

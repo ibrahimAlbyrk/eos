@@ -216,6 +216,7 @@ function daemonLaunch(repoRoot: string): DaemonLaunch {
         EOS_REPO_ROOT: resources,
         EOS_PROMPTS_DIR: path.join(resources, "prompts"),
         EOS_WORKER_DEFINITIONS_DIR: path.join(resources, "workers"),
+        EOS_CLAUDE_PLUGIN_DIR: path.join(resources, "claude-plugin"),
         EOS_CLAUDE_BIN: shellPlatform.claudeBinary(bundlesDir),
       },
     };
