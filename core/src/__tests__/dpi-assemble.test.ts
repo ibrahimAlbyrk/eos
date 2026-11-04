@@ -180,3 +180,24 @@ describe("assembleSystemPrompt — own-backend identity vars", () => {
     assert.match(r.text, /You are \./); // PERSONA_NAME defaults to ""
   });
 });
+
+describe("switched-off built-in plugins", () => {
+  const ctx: SessionSpawnContext = {
+    role: "worker", parentId: "o", name: "w", workerId: "w", model: "m", effort: null, permissionMode: "acceptEdits",
+    cwd: null, worktreeDir: null, branch: null, repoRoot: null, isAttached: false, hasMcp: false, canCollaborate: false,
+    workerDefinition: "", workerDefinitionCatalog: "",
+  };
+  const reg = new PromptRegistry(
+    src([
+      { id: "pages", body: "PAGES", frontmatter: { dpi: { layer: "role", priority: 1, when: { not: { fact: "plugin-off:eos.pages" } } } } },
+      { id: "always", body: "ALWAYS", frontmatter: { dpi: { layer: "role", priority: 2 } } },
+    ]),
+    noopLogger,
+  );
+  const deps = { registry: reg, prompts: new PromptService(reg, {}) };
+
+  it("a session started while a built-in is off leaves out the fragments about it", () => {
+    assert.deepEqual(assembleSystemPrompt(deps, ctx).activeFragmentIds, ["pages", "always"]);
+    assert.deepEqual(assembleSystemPrompt(deps, { ...ctx, disabledPlugins: ["eos.pages"] }).activeFragmentIds, ["always"]);
+  });
+});

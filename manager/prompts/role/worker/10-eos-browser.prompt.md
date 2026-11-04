@@ -9,7 +9,7 @@ variables:
 dpi:
   layer: role
   priority: 55
-  when: { all: [ { fact: role, eq: worker }, { fact: isSubagent, eq: true } ] }
+  when: { all: [ { fact: role, eq: worker }, { fact: isSubagent, eq: true }, { not: { fact: "plugin-off:eos.browser" } } ] }
 ---
 
 ## Previewing what you build

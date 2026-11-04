@@ -50,13 +50,29 @@ import { browserCloseTabDef } from "./defs/browser_close_tab.ts";
 import { browserMuteDef } from "./defs/browser_mute.ts";
 import { browserShowDef } from "./defs/browser_show.ts";
 import { pluginStatusDef } from "./defs/plugin_status.ts";
+import { BUILTIN_PLUGINS } from "../../contracts/src/builtin-plugins.ts";
+
+// Marks a feature's tools as belonging to its built-in plugin.
+function ofPlugin(plugin: string, defs: ToolDefinition[]): ToolDefinition[] {
+  return defs.map((d) => ({ ...d, plugin }));
+}
+
+// The tools a session starting now gets: those of switched-off built-ins left out.
+export function withoutPlugins(defs: readonly ToolDefinition[], off: readonly string[]): ToolDefinition[] {
+  return off.length ? defs.filter((d) => !d.plugin || !off.includes(d.plugin)) : [...defs];
+}
+
+// The switched-off built-ins an MCP server process was told about at launch.
+export const DISABLED_PLUGINS_ENV = "EOS_DISABLED_PLUGINS";
+export const disabledPluginsFromEnv = (env: Record<string, string | undefined> = process.env): string[] =>
+  (env[DISABLED_PLUGINS_ENV] ?? "").split(",").filter(Boolean);
 
 // Browser verbs (Phase 3) — appended to BOTH the worker and orchestrator
 // surfaces, in this order. They stay on the control-plane MCP servers (so the
 // subagent-deny guard holds) while remaining fenceable per worker definition:
 // isBrowserTool lifts the control-tool scope exemption, and permission-mode
 // gates them as browserRead/browserWrite.
-const browserDefs: ToolDefinition[] = [
+const browserDefs: ToolDefinition[] = ofPlugin(BUILTIN_PLUGINS.browser, [
   browserNavigateDef,
   browserSnapshotDef,
   browserFindDef,
@@ -73,18 +89,18 @@ const browserDefs: ToolDefinition[] = [
   browserCloseTabDef,
   browserMuteDef,
   browserShowDef,
-];
+]);
 
 // Pages (markdown notes shared with the user) — on BOTH surfaces, just before
 // the browser verbs.
-const pageDefs: ToolDefinition[] = [
+const pageDefs: ToolDefinition[] = ofPlugin(BUILTIN_PLUGINS.pages, [
   listPagesDef,
   readPageDef,
   createPageDef,
   appendToPageDef,
   editPageDef,
   setPageTaskDef,
-];
+]);
 
 // The user's memory — on BOTH surfaces, right after the page tools.
 const memoryDefs: ToolDefinition[] = [searchMemoryDef, suggestMemoryDef];

@@ -11,7 +11,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { mcpReadyFlagName } from "../contracts/src/util.ts";
 import { resolveSession } from "./orchestrator-mcp/SessionContext.ts";
-import { orchestratorDefs } from "./tools/registry.ts";
+import { orchestratorDefs, withoutPlugins, disabledPluginsFromEnv } from "./tools/registry.ts";
 import { toMcpModule } from "./tools/projections.ts";
 import { orchestratorCtx } from "./tools/context.ts";
 import { renderToolDescriptions, withToolDescriptions } from "./tool-descriptions.ts";
@@ -21,7 +21,7 @@ const session = await resolveSession();
 // One ToolDefinition -> the MCP transport (toMcpModule). Descriptions are pulled
 // from the prompt library (prompts/tool/<name>) and injected at registration; the
 // tool definitions carry no inline description.
-const modules = orchestratorDefs.map((d) => toMcpModule(d, orchestratorCtx));
+const modules = withoutPlugins(orchestratorDefs, disabledPluginsFromEnv()).map((d) => toMcpModule(d, orchestratorCtx));
 const descriptions = renderToolDescriptions(join(import.meta.dirname, "prompts"), modules.map((t) => t.name));
 const server = new McpServer({ name: "orchestrator", version: "0.0.1" });
 const registrar = withToolDescriptions(server, descriptions);

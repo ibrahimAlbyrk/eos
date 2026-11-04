@@ -20,6 +20,7 @@ export * from "./usage.ts";
 export * from "./artifacts.ts";
 export * from "./artifact-ids.ts";
 export * from "./plugin.ts";
+export * from "./builtin-plugins.ts";
 export * from "./profile.ts";
 export * from "./dream.ts";
 export * from "./sync.ts";

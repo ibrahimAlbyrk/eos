@@ -85,7 +85,7 @@ import { buildBuiltinSurface, buildLaneSurface, taskToolItem, type LaneTooling }
 import { SKILL_TOOL_NAME, skillToolItem, buildSkillTool, renderAvailableSkills } from "./backends/skill-tooling.ts";
 import { createFileSkillCatalog } from "../infra/src/skills/FileSkillCatalog.ts";
 import { createCommandTemplateExpander } from "./backends/command-expander.ts";
-import { orchestratorDefs, workerDefs, peerDefs, focusedDefs } from "./tools/registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, focusedDefs, withoutPlugins, DISABLED_PLUGINS_ENV } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
@@ -926,6 +926,7 @@ export function buildContainer() {
         effortSupported: identity.effortSupported,
         userProfile,
         genuiLevel: genuiSettings().level,
+        disabledPlugins: pluginHost.plugins.disabledBuiltins(),
       },
       extra,
     );
@@ -1192,8 +1193,10 @@ export function buildContainer() {
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
     const collaborate = backendCollaborate(spec.backendOptions);
-    const defs = spec.isOrchestrator ? orchestratorDefs
-      : [...workerDefs, ...(collaborate ? peerDefs : [])];
+    const defs = withoutPlugins(
+      spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])],
+      pluginHost.plugins.disabledBuiltins(),
+    );
     const server = mcpServerForRole(spec.isOrchestrator);
     const descriptions = renderInprocToolDescriptions();
     const control: LaneTooling = { items: [], tools: new Map() };
@@ -1416,7 +1419,11 @@ export function buildContainer() {
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs, workerDefs, peerDefs, focusedDefs, renderDescriptions: renderInprocToolDescriptions },
+    toolHost: {
+      orchestratorDefs, workerDefs, peerDefs, focusedDefs,
+      renderDescriptions: renderInprocToolDescriptions,
+      disabledPlugins: () => pluginHost.plugins.disabledBuiltins(),
+    },
     daemonUrl: sdkDaemonUrl,
     // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
     // save is picked up on the next spawn without restarting the daemon.
@@ -1481,6 +1488,7 @@ export function buildContainer() {
         EOS_DAEMON_URL: sdkDaemonUrl,
         EOS_DAEMON_SOCK: config.daemon.socketFile,
         EOS_WORKER_ID: spec.workerId,
+        [DISABLED_PLUGINS_ENV]: pluginHost.plugins.disabledBuiltins().join(","),
         ...nodeRunEnv(),
         ...extra,
       },
@@ -1580,7 +1588,7 @@ export function buildContainer() {
     prompts,
     clock: systemClock,
     log,
-    tasks: [...autoNameModule.microTasks],
+    tasks: autoNameModule.microTasks.map((t) => pluginHost.gateTask(t, autoNameModule.plugin!)),
     subsystemEnabled: () => config.microTasks.enabled,
     configFor: (id) => config.microTasks.tasks[id],
     pauseMaxMs: () => config.microTasks.pauseMaxMs,
@@ -1745,7 +1753,9 @@ export function buildContainer() {
     if (event.type === "message" && event.role === "assistant") {
       turnOutput.markSeen(workerId);
     }
-    for (const m of modules) m.onAgentEvent?.(workerId, event);
+    for (const m of modules) {
+      if (!m.plugin || pluginHost.plugins.isEnabled(m.plugin)) m.onAgentEvent?.(workerId, event);
+    }
     if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
     if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
       backgroundJobs.observe(workerId, event);

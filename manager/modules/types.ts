@@ -10,6 +10,10 @@ import type { AgentEvent } from "../../contracts/src/canonical.ts";
 
 export interface DaemonModule {
   readonly id: string;
+  // The built-in plugin (contracts/src/builtin-plugins.ts) that switches this
+  // feature on and off. While off, its routes answer "turned off" and it hears
+  // no agent events.
+  readonly plugin?: string;
   registerRoutes?(router: Router): void;
   // Every event an agent's session emits, before it is processed and logged.
   onAgentEvent?(workerId: string, event: AgentEvent): void;

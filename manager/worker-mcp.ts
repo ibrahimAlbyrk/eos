@@ -6,7 +6,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { mcpReadyFlagName } from "../contracts/src/util.ts";
 import { resolveSession } from "./worker-mcp/SessionContext.ts";
-import { workerDefs, peerDefs } from "./tools/registry.ts";
+import { workerDefs, peerDefs, withoutPlugins, disabledPluginsFromEnv } from "./tools/registry.ts";
 import { toMcpModule } from "./tools/projections.ts";
 import { workerCtx } from "./tools/context.ts";
 import { renderToolDescriptions, withToolDescriptions } from "./tool-descriptions.ts";
@@ -15,7 +15,7 @@ const session = resolveSession();
 
 // The general worker surface, with the peer tools (list_peers / ask_peer /
 // respond_to_peer) only when collaborate=true.
-const defs = session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs;
+const defs = withoutPlugins(session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs, disabledPluginsFromEnv());
 const mods = defs.map((d) => toMcpModule(d, workerCtx));
 
 // Descriptions pulled from the prompt library (prompts/tool/<name>), injected

@@ -90,6 +90,16 @@ describe("which Eos tools a claude session gets", () => {
   const host = { orchestratorDefs, workerDefs, peerDefs, focusedDefs, renderDescriptions: () => ({}) };
   const names = (input: { isOrchestrator: boolean; collaborate: boolean; focused?: boolean }) => sdkToolDefs(host, input).map((d) => d.name);
 
+  it("a switched-off built-in plugin's tools are left out of new sessions", () => {
+    const off = { ...host, disabledPlugins: () => ["eos.pages"] };
+    const all = sdkToolDefs(host, { isOrchestrator: false, collaborate: false }).map((d) => d.name);
+    const without = sdkToolDefs(off, { isOrchestrator: false, collaborate: false }).map((d) => d.name);
+    assert.ok(all.includes("list_pages"));
+    assert.equal(without.includes("list_pages"), false);
+    assert.equal(without.includes("browser_navigate"), true);
+    assert.deepEqual(without.length, all.length - 6);
+  });
+
   it("only the focused session can send files to another Mac", () => {
     assert.ok(names({ isOrchestrator: false, collaborate: false, focused: true }).includes("send_to_machine"));
     assert.equal(names({ isOrchestrator: false, collaborate: false }).includes("send_to_machine"), false, "a spawned worker can't");

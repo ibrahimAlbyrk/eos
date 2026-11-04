@@ -10,7 +10,7 @@ variables:
 dpi:
   layer: role
   priority: 57
-  when: { fact: role, eq: worker }
+  when: { all: [ { fact: role, eq: worker }, { not: { fact: "plugin-off:eos.pages" } } ] }
 ---
 
 ## Pages

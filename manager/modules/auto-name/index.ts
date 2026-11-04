@@ -4,6 +4,7 @@
 // rename.
 
 import type { DaemonModule } from "../types.ts";
+import { BUILTIN_PLUGINS } from "../../../contracts/src/builtin-plugins.ts";
 import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { MicroTask } from "../../../core/src/ports/MicroTask.ts";
 import type { MicroTaskRunner } from "../../services/MicroTaskRunner.ts";
@@ -32,6 +33,7 @@ export function createAutoNameModule(deps: AutoNameModuleDeps): AutoNameModule {
   });
   return {
     id: "auto-name",
+    plugin: BUILTIN_PLUGINS.autoName,
     microTasks: [makeAutoNameTask(deps)],
     registerRoutes: (router) => registerRenameIntentRoutes(router, {
       pause: (workerId) => deps.runner().pause(AUTO_NAME_TASK, workerId),

@@ -5,7 +5,7 @@ import type { PluginBuild, PluginDataStore, PluginFolder } from "../ports/Plugin
 
 const manifest = (id: string, extra: Record<string, unknown> = {}) => JSON.stringify({ id, name: id, ...extra });
 
-function setup(folders: Record<string, { manifest: string | null; files?: string[] }>) {
+function setup(folders: Record<string, { manifest: string | null; files?: string[] }>, builtins: Array<{ id: string; name: string }> = []) {
   const published: Array<{ topic: string; payload: unknown }> = [];
   let onChange: (id: string) => void = () => {};
   const builds: string[] = [];
@@ -40,6 +40,7 @@ function setup(folders: Record<string, { manifest: string | null; files?: string
     },
     data,
     bus: { publish: (topic, payload) => { published.push({ topic, payload }); } },
+    builtins,
     debounceMs: 0,
   });
   return { svc, folders, published, builds, change: (id: string) => onChange(id), failNextBuild: (m: string) => { failNext = m; }, enabled };
@@ -143,5 +144,26 @@ describe("PluginService", () => {
     await a;
     await settle();
     assert.equal(t.builds.length, 2);
+  });
+
+  it("built-ins are listed without a folder or build and switch on and off", async () => {
+    const t = setup({}, [{ id: "eos.pages", name: "Pages" }]);
+    await t.svc.start();
+    const p = t.svc.get("eos.pages");
+    assert.equal(p.builtin, true);
+    assert.equal(p.state, "active");
+    assert.equal(p.hasUi, false);
+    assert.deepEqual(t.svc.disabledBuiltins(), []);
+    await t.svc.setEnabled("eos.pages", false);
+    assert.equal(t.svc.isEnabled("eos.pages"), false);
+    assert.deepEqual(t.svc.disabledBuiltins(), ["eos.pages"]);
+    assert.equal(t.builds.length, 0);
+  });
+
+  it("a folder can't take a built-in's eos. id", async () => {
+    const t = setup({ "eos.clock": { manifest: manifest("eos.clock") } });
+    await t.svc.start();
+    assert.match(t.svc.get("eos.clock").error ?? "", /reserved for Eos's built-in plugins/);
+    assert.equal(t.builds.length, 0);
   });
 });

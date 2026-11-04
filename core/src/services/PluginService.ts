@@ -7,6 +7,7 @@
 import type { EventBus } from "../ports/EventBus.ts";
 import type { PluginBuild, PluginBuilder, PluginDataStore, PluginFolder, PluginWorkspace } from "../ports/Plugins.ts";
 import { NotFoundError, ValidationError } from "../errors/index.ts";
+import { BUILTIN_PLUGIN_PREFIX } from "../../../contracts/src/builtin-plugins.ts";
 import {
   PLUGINS_TOPIC, PLUGIN_MANIFEST_FILE, PLUGIN_UI_ENTRIES, PluginManifestSchema, pluginSettingValues, pluginStoreTopic,
   type PluginInfo, type PluginManifest, type PluginReport,
@@ -17,6 +18,8 @@ export interface PluginServiceDeps {
   readonly builder: PluginBuilder;
   readonly data: PluginDataStore;
   readonly bus: Pick<EventBus, "publish">;
+  // Features that ship with Eos and switch on/off like plugins (no folder, no build).
+  readonly builtins?: readonly PluginManifest[];
   readonly log?: { warn(msg: string, meta?: Record<string, unknown>): void };
   // Quiet window after a file change before rebuilding (an editor save often
   // writes several times).
@@ -26,7 +29,8 @@ export interface PluginServiceDeps {
 }
 
 interface Entry {
-  folder: PluginFolder;
+  // null for a built-in.
+  folder: PluginFolder | null;
   manifest: PluginManifest | null;
   // Manifest or build problem; null when the plugin is healthy.
   error: string | null;
@@ -49,6 +53,20 @@ export class PluginService {
 
   constructor(deps: PluginServiceDeps) {
     this.deps = deps;
+    for (const manifest of deps.builtins ?? []) {
+      this.entries.set(manifest.id, { folder: null, manifest, error: null, build: null, rev: 0 });
+    }
+  }
+
+  isEnabled(id: string): boolean {
+    const e = this.entries.get(id);
+    return Boolean(e) && this.enabledFor(id, e!.manifest);
+  }
+
+  // The built-ins switched off, for sessions starting now (their agent tools and
+  // prompt sections are left out).
+  disabledBuiltins(): string[] {
+    return (this.deps.builtins ?? []).map((m) => m.id).filter((id) => !this.isEnabled(id));
   }
 
   // Scans every folder, builds the enabled ones, then follows changes on disk.
@@ -158,6 +176,10 @@ export class PluginService {
   }
 
   private async reload(id: string): Promise<void> {
+    if (this.isBuiltin(id)) {
+      this.announce(id);
+      return;
+    }
     const folder = this.deps.workspace.read(id);
     if (!folder) {
       this.reports.delete(id);
@@ -168,7 +190,9 @@ export class PluginService {
     const entry: Entry = { folder, manifest: null, error: null, build: prev?.build ?? null, rev: prev?.rev ?? 0 };
     this.entries.set(id, entry);
 
-    const parsed = parseManifest(folder);
+    const parsed = id.startsWith(BUILTIN_PLUGIN_PREFIX)
+      ? `the id "${id}" is reserved for Eos's built-in plugins — rename the folder (and the manifest id)`
+      : parseManifest(folder);
     if (typeof parsed === "string") {
       entry.error = parsed;
       this.announce(id);
@@ -176,7 +200,7 @@ export class PluginService {
     }
     entry.manifest = parsed;
     const entryFile = uiEntryOf(parsed, folder);
-    if (!this.isEnabled(id, parsed) || !entryFile) {
+    if (!this.enabledFor(id, parsed) || !entryFile) {
       if (!entryFile) {
         entry.build = null;
         entry.rev = 0;
@@ -195,17 +219,22 @@ export class PluginService {
     if (this.entries.get(id) === entry) this.announce(id);
   }
 
-  private isEnabled(id: string, manifest: PluginManifest | null): boolean {
+  private isBuiltin(id: string): boolean {
+    return (this.deps.builtins ?? []).some((m) => m.id === id);
+  }
+
+  private enabledFor(id: string, manifest: PluginManifest | null): boolean {
     const saved = this.deps.data.enabled()[id];
     return saved ?? !manifest?.experimental;
   }
 
   private info(id: string): PluginInfo {
     const e = this.entries.get(id)!;
-    const enabled = this.isEnabled(id, e.manifest);
+    const enabled = this.enabledFor(id, e.manifest);
     return {
       id,
-      dir: e.folder.dir,
+      builtin: e.folder === null,
+      dir: e.folder?.dir ?? "",
       manifest: e.manifest,
       enabled,
       state: e.error ? "error" : enabled ? "active" : "disabled",

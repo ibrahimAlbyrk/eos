@@ -7,6 +7,7 @@ import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { ToolDefinition, ToolContext } from "../../tools/types.ts";
 import { mcpServerForRole } from "../../tools/projections.ts";
+import { withoutPlugins } from "../../tools/registry.ts";
 
 // Kept here (not in tools/projections.ts) so the claude-cli MCP subprocess that
 // loads projections.ts never imports @anthropic-ai/claude-agent-sdk. Exported for
@@ -35,6 +36,8 @@ export interface SdkToolHostDeps {
    *  ONCE per spawn (in buildSdkToolServers) so prompt-file edits take effect on
    *  the next spawn with no daemon restart — matching the claude-cli MCP lane. */
   renderDescriptions(): Record<string, string>;
+  /** The built-in plugins switched off now — their tools are left out. */
+  disabledPlugins?(): readonly string[];
 }
 
 export interface SdkToolHostInput {
@@ -57,8 +60,10 @@ export interface SdkToolHostInput {
 // worker surface, + peer tools when collaborating, + the focused extras when it's
 // the session the user talks to directly.
 export function sdkToolDefs(deps: SdkToolHostDeps, input: Omit<SdkToolHostInput, "ctx">): readonly ToolDefinition[] {
-  if (input.isOrchestrator) return deps.orchestratorDefs;
-  return [...deps.workerDefs, ...(input.collaborate ? deps.peerDefs : []), ...(input.focused ? deps.focusedDefs : [])];
+  const defs = input.isOrchestrator
+    ? deps.orchestratorDefs
+    : [...deps.workerDefs, ...(input.collaborate ? deps.peerDefs : []), ...(input.focused ? deps.focusedDefs : [])];
+  return withoutPlugins(defs, deps.disabledPlugins?.() ?? []);
 }
 
 export function buildSdkToolServers(

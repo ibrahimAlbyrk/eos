@@ -9,6 +9,7 @@
 // isAttached). Two namespaces: FACTS (camelCase, drive `when`) vs VARIABLES
 // (UPPER_SNAKE, interpolated into bodies).
 
+import { pluginOffFact } from "../../../contracts/src/builtin-plugins.ts";
 import { SessionFactsSchema } from "../../../contracts/src/prompt.ts";
 import type { SessionFacts } from "../../../contracts/src/prompt.ts";
 import type { Fragment, VariableScope } from "../domain/prompt.ts";
@@ -57,6 +58,9 @@ export interface SessionSpawnContext {
   // GENUI_LEVEL is its guidance line; GENUI_OFF drops the rest of the
   // visual-answers fragments when the user wants text only.
   genuiLevel?: string;
+  // Built-in plugins switched off when the session started — each sets its
+  // `plugin-off:<id>` fact, so the fragments about that feature drop out.
+  disabledPlugins?: readonly string[];
 }
 
 export interface AssembleDeps {
@@ -97,6 +101,7 @@ export function assembleSystemPrompt(
 // fixed at launch, so gating on a value that can change mid-session is unsound).
 function deriveFacts(ctx: SessionSpawnContext): SessionFacts {
   return SessionFactsSchema.parse({
+    ...Object.fromEntries((ctx.disabledPlugins ?? []).map((id) => [pluginOffFact(id), true])),
     role: ctx.role,
     isSubagent: ctx.parentId !== null,
     isGitRepo: false,

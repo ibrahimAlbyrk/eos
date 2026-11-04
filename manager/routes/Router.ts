@@ -54,3 +54,24 @@ export class Router {
     return null;
   }
 }
+
+// A view of a router whose routes answer only while `isOn()` holds — otherwise
+// `refuse` answers. Routes still register in the parent, in order; a feature
+// that can be switched off at runtime registers through one of these.
+export class GuardedRouter extends Router {
+  private readonly parent: Router;
+  private readonly isOn: () => boolean;
+  private readonly refuse: RouteHandler;
+
+  constructor(parent: Router, isOn: () => boolean, refuse: RouteHandler) {
+    super();
+    this.parent = parent;
+    this.isOn = isOn;
+    this.refuse = refuse;
+  }
+
+  override on(method: string, pattern: string | RegExp, handler: RouteHandler): this {
+    this.parent.on(method, pattern, (ctx) => (this.isOn() ? handler(ctx) : this.refuse(ctx)));
+    return this;
+  }
+}

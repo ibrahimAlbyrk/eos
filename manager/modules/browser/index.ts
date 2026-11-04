@@ -13,6 +13,7 @@
 // back to headless.
 
 import type { DaemonModule } from "../types.ts";
+import { BUILTIN_PLUGINS } from "../../../contracts/src/builtin-plugins.ts";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { EventRepo } from "../../../core/src/ports/EventRepo.ts";
@@ -58,6 +59,7 @@ export function createBrowserModule(deps: BrowserModuleDeps): BrowserModule {
   deps.appHost.onDeregister(() => browser.resetEngines());
   return {
     id: "browser",
+    plugin: BUILTIN_PLUGINS.browser,
     browser,
     registerRoutes: (router) => registerBrowserRoutes(router, {
       browser,

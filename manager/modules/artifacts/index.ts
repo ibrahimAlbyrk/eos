@@ -2,6 +2,7 @@
 // own token through the frame API Claude Code's Artifact tool uses.
 
 import type { DaemonModule } from "../types.ts";
+import { BUILTIN_PLUGINS } from "../../../contracts/src/builtin-plugins.ts";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
@@ -37,6 +38,7 @@ export function createArtifactsModule(deps: ArtifactsModuleDeps): ArtifactsModul
   });
   return {
     id: "artifacts",
+    plugin: BUILTIN_PLUGINS.artifacts,
     artifacts,
     // An agent published a claude.ai Artifact: re-read the sign-in it runs on
     // (every one when that's unknown).

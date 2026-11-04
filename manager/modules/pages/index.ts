@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { randomBytes } from "node:crypto";
 
 import type { DaemonModule } from "../types.ts";
+import { BUILTIN_PLUGINS } from "../../../contracts/src/builtin-plugins.ts";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { EventBus } from "../../../core/src/ports/EventBus.ts";
 import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
@@ -34,6 +35,7 @@ export function createPagesModule(deps: PagesModuleDeps): PagesModule {
   deps.bus.subscribe("worker:removed", (msg) => pages.unlinkAgent((msg.payload as { workerId: string }).workerId));
   return {
     id: "pages",
+    plugin: BUILTIN_PLUGINS.pages,
     pages,
     registerRoutes: (router) => registerPageRoutes(router, { pages, workers: deps.workers, uiToken: deps.uiToken }),
   };

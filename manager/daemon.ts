@@ -132,7 +132,7 @@ registerProjectRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
 // Feature modules (pages, btw, artifacts, browser, auto-name) — their paths overlap no other route.
-for (const m of c.modules) m.registerRoutes?.(router);
+for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(router, m.plugin) : router);
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);

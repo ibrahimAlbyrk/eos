@@ -5,7 +5,7 @@ variables:
 dpi:
   layer: role
   priority: 65
-  when: { fact: role, eq: orchestrator }
+  when: { all: [ { fact: role, eq: orchestrator }, { not: { fact: "plugin-off:eos.browser" } } ] }
 ---
 
 ## Browser previews

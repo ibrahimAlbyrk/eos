@@ -57,6 +57,9 @@ export type PluginSettingValue = z.infer<typeof PluginSettingValueSchema>;
 
 export const PluginInfoSchema = z.object({
   id: z.string(),
+  // Ships with Eos (contracts/src/builtin-plugins.ts): no folder, no build — its
+  // UI is part of the app and follows `enabled`.
+  builtin: z.boolean(),
   dir: z.string(),
   // null when plugin.json is missing or invalid (state "error").
   manifest: PluginManifestSchema.nullable(),

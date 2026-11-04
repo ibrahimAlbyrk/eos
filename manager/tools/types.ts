@@ -34,5 +34,8 @@ export interface ToolDefinition {
   // is extra text ToolSearch matches a deferred tool on.
   readonly alwaysLoad?: boolean;
   readonly searchHint?: string;
+  // The built-in plugin this tool belongs to (contracts/src/builtin-plugins.ts):
+  // a session started while that plugin is off doesn't get it.
+  readonly plugin?: string;
   handler(ctx: ToolContext, args: Record<string, unknown>): Promise<unknown>;
 }

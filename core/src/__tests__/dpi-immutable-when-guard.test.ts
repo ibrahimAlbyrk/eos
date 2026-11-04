@@ -47,6 +47,10 @@ const IMMUTABLE_FACTS = new Set([
   "isAttached",
 ]);
 
+// plugin-off:<id> (contracts/src/builtin-plugins.ts pluginOffFact): set at spawn
+// from the built-in plugins switched off then, and never changed for the session.
+const isImmutableFact = (fact: string) => IMMUTABLE_FACTS.has(fact) || fact.startsWith("plugin-off:");
+
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -68,7 +72,7 @@ function frontmatterOf(text: string): string {
 
 function factsIn(frontmatter: string): string[] {
   const facts: string[] = [];
-  const re = /\bfact\s*:\s*["']?([A-Za-z_][A-Za-z0-9_]*)/g;
+  const re = /\bfact\s*:\s*["']?([A-Za-z_][A-Za-z0-9_.:-]*)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(frontmatter)) !== null) facts.push(m[1]);
   return facts;
@@ -93,7 +97,7 @@ describe("DPI immutable-`when` guard — no fragment gates on a mutable fact", (
           `${rel}: \`when\` gates on session-MUTABLE fact "${fact}". A fragment's \`when\` is evaluated once at spawn but this fact drifts at runtime — gate only on immutable facts (role/isSubagent/isWorktree/workerDefinition/...), and route lane/backend/model-specific text through the assembly lane parameter instead.`,
         );
         assert.ok(
-          IMMUTABLE_FACTS.has(fact),
+          isImmutableFact(fact),
           `${rel}: \`when\` references unclassified fact "${fact}". Classify it: add to IMMUTABLE_FACTS if it is set-once-at-spawn, or to MUTABLE_FACTS (and remove the gate) if it drifts.`,
         );
       });
