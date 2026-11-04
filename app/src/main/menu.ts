@@ -1,4 +1,4 @@
-import { Menu, app, clipboard } from "electron";
+import { Menu, app, clipboard, webContents } from "electron";
 import type { WebContents, MenuItemConstructorOptions } from "electron";
 import { shellPlatform } from "./platform";
 
@@ -27,7 +27,27 @@ export function buildAppMenu(
   const run = (js: string): Promise<unknown> =>
     getWC()?.executeJavaScript(js, true).catch(() => null) ?? Promise.resolve(null);
 
+  // A native view laid over the dashboard (an artifact, the browser panel)
+  // never sees the accelerators either: when it holds focus, the command runs
+  // on it directly instead of on the dashboard.
+  function embedded(): WebContents | null {
+    const focused = webContents.getFocusedWebContents();
+    return focused && focused !== getWC() ? focused : null;
+  }
+
+  function undo(): void {
+    const view = embedded();
+    if (view) view.undo();
+    else void run("window.__eosUndo && window.__eosUndo()");
+  }
+  function redo(): void {
+    const view = embedded();
+    if (view) view.redo();
+    else void run("window.__eosRedo && window.__eosRedo()");
+  }
   async function copy(): Promise<void> {
+    const view = embedded();
+    if (view) return view.copy();
     const wc = getWC();
     if (!wc) return;
     const sel = await run("window.__eosTerm?.getSelectionIfFocused() ?? null");
@@ -35,6 +55,8 @@ export function buildAppMenu(
     else wc.copy();
   }
   async function cut(): Promise<void> {
+    const view = embedded();
+    if (view) return view.cut();
     const wc = getWC();
     if (!wc) return;
     // Terminal is read-only ⇒ cut behaves as copy (doc 10 §d, main.swift:1011).
@@ -43,6 +65,8 @@ export function buildAppMenu(
     else wc.cut();
   }
   async function paste(): Promise<void> {
+    const view = embedded();
+    if (view) return view.paste();
     const wc = getWC();
     if (!wc) return;
     const focused = await run("window.__eosTerm?.isFocused() === true");
@@ -56,6 +80,8 @@ export function buildAppMenu(
     }
   }
   async function selectAll(): Promise<void> {
+    const view = embedded();
+    if (view) return view.selectAll();
     const wc = getWC();
     if (!wc) return;
     const focused = await run("window.__eosTerm?.isFocused() === true");
@@ -82,8 +108,8 @@ export function buildAppMenu(
     {
       label: "Edit",
       submenu: [
-        { label: "Undo", accelerator: "CmdOrCtrl+Z", click: () => void run("window.__eosUndo && window.__eosUndo()") },
-        { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: () => void run("window.__eosRedo && window.__eosRedo()") },
+        { label: "Undo", accelerator: "CmdOrCtrl+Z", click: undo },
+        { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: redo },
         { type: "separator" },
         { label: "Cut", accelerator: "CmdOrCtrl+X", click: cut },
         { label: "Copy", accelerator: "CmdOrCtrl+C", click: copy },
