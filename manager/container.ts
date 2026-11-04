@@ -153,6 +153,7 @@ import { createArtifactsModule } from "./modules/artifacts/index.ts";
 import { createBrowserModule } from "./modules/browser/index.ts";
 import { createAutoNameModule } from "./modules/auto-name/index.ts";
 import type { DaemonModule } from "./modules/types.ts";
+import { createPluginHost } from "./plugins/index.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { FileUserAvatarStore, FileUserProfileStore } from "../infra/src/persistence/FileUserProfileStore.ts";
 import { UserProfileService } from "../core/src/services/UserProfileService.ts";
@@ -620,6 +621,10 @@ export function buildContainer() {
       log.warn("ui-token write failed", { error: errMsg(e) });
     }
   }
+
+  // Plugins (~/.eos/plugins): built and rebuilt live, loaded by every window.
+  const pluginHost = createPluginHost({ home: config.daemon.home, bus, log, uiToken });
+  deferredBoot.push({ name: "plugins", run: () => pluginHost.plugins.start() });
 
   // Feature modules (manager/modules/*): each builds its own services and routes.
   const pagesModule = createPagesModule({ home: config.daemon.home, clock: systemClock, bus, workers, uiToken });
@@ -1945,6 +1950,7 @@ export function buildContainer() {
     projects,
     pages,
     modules,
+    pluginHost,
     profile,
     userMemories,
     userProfilePreview,

@@ -96,6 +96,10 @@ export type EventBusTopic =
   // The artifact catalog changed or started/stopped re-reading (payload only
   // { refreshing }; the catalog is read from GET /api/artifacts — contracts ARTIFACTS_TOPIC).
   | "artifacts:change"
+  // Plugins (contracts/src/plugin.ts): plugins:change {id} — one was added,
+  // removed, rebuilt, toggled or re-set; plugin:<id>:<event> — a plugin's own.
+  | "plugins:change"
+  | `plugin:${string}`
   // The dashboard's changed worker/pending rows after a burst of the topics
   // above (payload { changes: RowChange[] }, manager/remote/patcher.ts) — tabs
   // merge them instead of re-reading the lists.

@@ -2581,6 +2581,12 @@ export const ROUTES = {
   // .../refresh re-reads every sign-in now. Both fan out artifacts:change.
   artifacts: "/api/artifacts",
   artifactsRefresh: "/api/artifacts/refresh",
+  // Plugins (contracts/src/plugin.ts, manager/plugins/routes.ts) — writes are ui-token.
+  plugins: "/api/plugins",
+  plugin: (id: string) => `/api/plugins/${encodeURIComponent(id)}`,
+  pluginEnabled: (id: string) => `/api/plugins/${encodeURIComponent(id)}/enabled`,
+  pluginSettings: (id: string) => `/api/plugins/${encodeURIComponent(id)}/settings`,
+  pluginStore: (id: string, key: string) => `/api/plugins/${encodeURIComponent(id)}/store/${encodeURIComponent(key)}`,
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.

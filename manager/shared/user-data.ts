@@ -40,6 +40,10 @@ export const USER_DATA_ENTRIES = [
   // Provider API keys on Windows (~/.eos/secrets/), sealed with DPAPI for this
   // user — macOS keeps them in the Keychain. Non-regenerable.
   "secrets",
+  // Plugins (~/.eos/plugins/<id>/) — plugin sources the user or an agent wrote
+  // — and what they keep (~/.eos/plugin-data/: switches, settings, stored values).
+  "plugins",
+  "plugin-data",
   // User projects (~/.eos/projects.json) — names, icons, source folders.
   "projects.json",
   "policy.yaml",

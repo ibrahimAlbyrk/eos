@@ -114,6 +114,7 @@ const hostFacade = { link: (id: string) => c.hostLinks.link(id), uiToken: c.uiTo
 registerHostFacade(router, hostFacade);
 registerHealthRoutes(router, { pid: process.pid, startedAt: Date.now(), sourceStamp });
 registerPeerRoutes(router, c);
+c.pluginHost.registerBundleRoutes(router);
 registerUiBundleRoutes(router, { root: () => uiDistPath(c.config.paths.repoRoot) });
 registerStreamRoutes(router, c);
 // FS + UI routes registered before /workers etc. Order matters: first match
@@ -132,6 +133,7 @@ registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
 // Feature modules (pages, btw, artifacts, browser, auto-name) — their paths overlap no other route.
 for (const m of c.modules) m.registerRoutes?.(router);
+c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
 registerDreamRoutes(router, c);
@@ -751,6 +753,7 @@ async function shutdown(sig: string): Promise<void> {
   // Chrome is a plain child (not supervisor-managed) — kill it here or it
   // outlives the daemon.
   for (const m of c.modules) { try { m.stop?.(); } catch {} }
+  c.pluginHost.plugins.stop();
   // SIGTERM now, SIGKILL after the grace; their exit callbacks write rows, so
   // wait for them while the DB is still open.
   for (const id of ids) c.supervisor.escalateKill(id, CHILD_GRACE_MS);
