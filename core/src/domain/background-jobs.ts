@@ -1,4 +1,4 @@
-// Pure rules of the background-jobs registry (manager/services/BackgroundJobService):
+// Pure rules of the background-jobs registry (manager/services/jobs/JobRegistry.ts):
 // how each source's state reads as a job row. No I/O.
 
 import type { BackgroundJob, BackgroundJobKind, BackgroundJobStatus } from "../../../contracts/src/background-job.ts";

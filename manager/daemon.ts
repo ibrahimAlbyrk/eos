@@ -408,9 +408,13 @@ c.bus.subscribe("worker:spawn", (msg) => {
 // continued-republish or a concurrent IDLE drain safely no-ops.
 wireJobSources({
   bus: c.bus,
-  jobs: c.backgroundJobs,
+  jobs: c.jobs,
+  killTerminal: (runId) => c.terminalRuns.kill(runId),
   transfers: () => c.transfers.list(),
+  cancelTransfer: (id) => { c.transfers.cancel(id); },
+  machineName: (ref) => (ref === "local" ? c.peerHost.hostInfo().name : c.hostLinks.get(ref)?.alias ?? c.hostLinks.get(ref)?.name ?? "another Mac"),
   dreamStatus: () => c.dreams.status(),
+  stopDream: () => c.dreams.requestStop(),
   syncStatus: () => c.sync.status(),
 });
 

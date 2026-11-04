@@ -227,7 +227,9 @@ import { PendingPeerRequestService } from "./services/PendingPeerRequestService.
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
-import { BackgroundJobService } from "./services/BackgroundJobService.ts";
+import { JobRegistry } from "./services/jobs/JobRegistry.ts";
+import { agentTaskJobs } from "./services/jobs/sources/agentTasks.ts";
+import { compactionJobs } from "./services/jobs/sources/compaction.ts";
 import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -1407,15 +1409,11 @@ export function buildContainer() {
   });
   const { workflowRuns } = workflowRunsModule;
   // Everything running in the background, for the header beacon and the Jobs
-  // tab. The bus-borne sources are wired in daemon.ts (wireJobSources).
-  const backgroundJobs = new BackgroundJobService({
-    bus,
-    session: inProcessSession,
-    cancelTransfer: (id) => { transfers.cancel(id); },
-    stopDream: () => dreams.requestStop(),
-    killTerminal: (runId) => terminalRuns.kill(runId),
-    machineName: (ref) => (ref === "local" ? peerHost.hostInfo().name : hostLinks.get(ref)?.alias ?? hostLinks.get(ref)?.name ?? "another Mac"),
-  });
+  // tab. Agent tasks and compaction report here directly; the bus-borne sources
+  // are wired in daemon.ts (wireJobSources); feature modules add their own.
+  const jobs = new JobRegistry({ bus });
+  const agentTasks = agentTaskJobs(jobs, { session: inProcessSession });
+  const compactionJobSource = compactionJobs(jobs);
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
@@ -1459,9 +1457,9 @@ export function buildContainer() {
     },
     publishWorkflowProgress: (p) => {
       workflowRuns.onProgress(p);
-      backgroundJobs.onWorkflowProgress(p);
+      agentTasks.onWorkflowProgress(p);
     },
-    publishBackgroundTask: (workerId, u) => backgroundJobs.onBackgroundTask(workerId, u),
+    publishBackgroundTask: (workerId, u) => agentTasks.onBackgroundTask(workerId, u),
     log,
   });
   // The slash menu's view of Claude Code's own commands, as a focused session sees them.
@@ -1640,7 +1638,7 @@ export function buildContainer() {
     canCompact: (id, kind) => compactionSession({ backends }, id, kind) !== null,
     liveSubagents: (id, kind) => compactionSession({ backends }, id, kind)?.liveSubagents?.() ?? 0,
     deferCap: () => config.context.fullRatio,
-    onRunChange: (workerId, running) => backgroundJobs.onCompaction(workerId, running),
+    onRunChange: (workerId, running) => compactionJobSource.onCompaction(workerId, running),
     run: (input) => compactContext({
       workers, events, bus, clock: systemClock, backends, summarizer, prompts, contextWindowFor, log,
       timeoutMs: () => config.compaction.timeoutMs,
@@ -1734,6 +1732,7 @@ export function buildContainer() {
     bus,
     clock: systemClock,
     log,
+    jobs,
     uiToken,
   });
 
@@ -1770,7 +1769,7 @@ export function buildContainer() {
       if (!m.plugin || pluginHost.plugins.isEnabled(m.plugin)) m.onAgentEvent?.(workerId, event);
     }
     if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
-      backgroundJobs.observe(workerId, event);
+      agentTasks.observe(workerId, event);
     }
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, messageIds, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id), isInterruptPending: (id) => turnSettle.isInterruptPending(id) },
@@ -1933,7 +1932,7 @@ export function buildContainer() {
     genuiViews,
     genuiPresent,
     genuiMedia,
-    backgroundJobs,
+    jobs,
     inProcessSession,
     genuiSettings,
     viewTokens: new ViewTokens(uiToken),

@@ -2,7 +2,7 @@
 // an agent's background shells, Monitors and Workflow runs, a `!` command, and
 // Eos's own transfers, compaction, dreams and sync. Subagents are left out: the
 // Environment panel already lists them. One in-memory registry in the daemon
-// (BackgroundJobService) feeds the header beacon and the Jobs side-panel tab.
+// (manager/services/jobs/JobRegistry.ts) feeds the header beacon and the Jobs side-panel tab.
 // Never persisted: a daemon restart starts an empty list.
 // Plan: docs/background-jobs/00-BACKGROUND-JOBS-PLAN.md.
 

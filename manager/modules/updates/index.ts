@@ -21,6 +21,9 @@ import { HttpUpdateFeed } from "../../../infra/src/update/HttpUpdateFeed.ts";
 import { UpdateService } from "./UpdateService.ts";
 import { resolveInstall } from "./install.ts";
 import { registerUpdateRoutes } from "./routes.ts";
+import { updateJobs } from "./jobs.ts";
+import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
+import type { UpdateState } from "../../../contracts/src/update.ts";
 
 export interface UpdatesModuleDeps {
   readonly home: string;
@@ -34,6 +37,7 @@ export interface UpdatesModuleDeps {
   readonly bus: EventBus;
   readonly clock: Clock;
   readonly log: Logger;
+  readonly jobs: JobRegistry;
   readonly uiToken: string;
 }
 
@@ -70,6 +74,9 @@ export function createUpdatesModule(deps: UpdatesModuleDeps): DaemonModule {
       // A top-level agent starting or ending a turn may be what a "restart when
       // they finish" waits for.
       deps.bus.subscribe("worker:change", () => updates.agentsChanged());
+      // A download in progress shows in the Jobs list.
+      const asJob = updateJobs(deps.jobs);
+      deps.bus.subscribe("update:change", (m) => asJob.onUpdate(m.payload as UpdateState));
       void updates.start().catch((e: unknown) => log.warn("update service failed to start", { error: e instanceof Error ? e.message : String(e) }));
     },
     stop: () => updates.stop(),

@@ -3,29 +3,23 @@ import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { Router, type RouteContext } from "../Router.ts";
 import { registerJobRoutes } from "../jobs.ts";
-import type { Container } from "../../container.ts";
-import { BackgroundJobService } from "../../services/BackgroundJobService.ts";
+import { JobRegistry } from "../../services/jobs/JobRegistry.ts";
+import { terminalJobs } from "../../services/jobs/sources/terminal.ts";
+import type { JobRouteDeps } from "../jobs.ts";
 import { ROUTES } from "../../../contracts/src/http.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 
 function makeContainer() {
   const kills: string[] = [];
-  const backgroundJobs = new BackgroundJobService({
-    bus: { publish() {} },
-    session: () => null,
-    cancelTransfer: () => {},
-    stopDream: () => false,
-    killTerminal: (runId) => { kills.push(runId); return true; },
-    machineName: () => "M",
-    throttleMs: 0,
-  });
-  backgroundJobs.onTerminalStart({ workerId: "w-1", runId: "r1", command: "make", startedAt: 1 });
-  backgroundJobs.onTerminalChunk({ runId: "r1", data: "built\n" });
-  return { c: { uiToken: "tok", backgroundJobs } as unknown as Container, kills };
+  const jobs = new JobRegistry({ bus: { publish() {} }, throttleMs: 0 });
+  const terminal = terminalJobs(jobs, { kill: (runId) => { kills.push(runId); return true; } });
+  terminal.onStart({ workerId: "w-1", runId: "r1", command: "make", startedAt: 1 });
+  terminal.onChunk({ runId: "r1", data: "built\n" });
+  return { c: { uiToken: "tok", jobs } as unknown as JobRouteDeps, kills, terminal };
 }
 
-async function call(c: Container, method: string, path: string, headers: Record<string, string> = {}) {
+async function call(c: JobRouteDeps, method: string, path: string, headers: Record<string, string> = {}) {
   const router = new Router();
   registerJobRoutes(router, c);
   const u = new URL("http://x" + path);
@@ -64,11 +58,11 @@ describe("job routes", () => {
   });
 
   it("stops a running job, and dismisses only a finished one", async () => {
-    const { c, kills } = makeContainer();
+    const { c, kills, terminal } = makeContainer();
     assert.equal((await call(c, "POST", ROUTES.jobDismiss(ID), UI)).status, 404);
     assert.equal((await call(c, "POST", ROUTES.jobStop(ID), UI)).status, 200);
     assert.deepEqual(kills, ["r1"]);
-    c.backgroundJobs.onTerminalDone({ runId: "r1", exitCode: 0, note: null });
+    terminal.onDone({ runId: "r1", exitCode: 0, note: null });
     assert.equal((await call(c, "POST", ROUTES.jobDismiss(ID), UI)).status, 200);
     assert.deepEqual((await call(c, "GET", ROUTES.jobs, UI)).payload.jobs, []);
   });

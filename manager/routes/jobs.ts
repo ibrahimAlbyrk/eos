@@ -10,7 +10,7 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
+import type { JobRegistry } from "../services/jobs/JobRegistry.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { uiTokenOk } from "./fs-shared.ts";
 import { ROUTES } from "../../contracts/src/http.ts";
@@ -25,7 +25,12 @@ const idOf = (raw: string | undefined): string => {
   try { return decodeURIComponent(raw ?? ""); } catch { return ""; }
 };
 
-export function registerJobRoutes(r: Router, c: Container): void {
+export interface JobRouteDeps {
+  readonly jobs: Pick<JobRegistry, "list" | "output" | "stop" | "dismiss" | "clearFinished">;
+  readonly uiToken: string;
+}
+
+export function registerJobRoutes(r: Router, c: JobRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (uiTokenOk(req, c.uiToken)) return false;
     writeJson(res, 403, { error: "ui token required" });
@@ -34,35 +39,35 @@ export function registerJobRoutes(r: Router, c: Container): void {
 
   r.get(ROUTES.jobs, ({ req, res }) => {
     if (denied(req, res)) return;
-    const body: BackgroundJobList = { jobs: c.backgroundJobs.list() };
+    const body: BackgroundJobList = { jobs: c.jobs.list() };
     writeJson(res, 200, body);
   });
 
   r.get(OUTPUT, ({ req, res, url, params }) => {
     if (denied(req, res)) return;
     const since = Math.max(0, Number.parseInt(url.searchParams.get("since") ?? "0", 10) || 0);
-    const out = c.backgroundJobs.output(idOf(params.id), since);
+    const out = c.jobs.output(idOf(params.id), since);
     if (!out) { writeJson(res, 404, { error: "no output for that job" }); return; }
     writeJson(res, 200, out);
   });
 
   r.post(STOP, async ({ req, res, params }) => {
     if (denied(req, res)) return;
-    const result = await c.backgroundJobs.stop(idOf(params.id));
+    const result = await c.jobs.stop(idOf(params.id));
     if (result.ok) writeJson(res, 200, { ok: true });
     else writeJson(res, result.status, { error: result.error });
   });
 
   r.post(DISMISS, ({ req, res, params }) => {
     if (denied(req, res)) return;
-    const result = c.backgroundJobs.dismiss(idOf(params.id));
+    const result = c.jobs.dismiss(idOf(params.id));
     if (result.ok) writeJson(res, 200, { ok: true });
     else writeJson(res, result.status, { error: result.error });
   });
 
   r.post(ROUTES.jobsClear, ({ req, res }) => {
     if (denied(req, res)) return;
-    c.backgroundJobs.clearFinished();
+    c.jobs.clearFinished();
     writeJson(res, 200, { ok: true });
   });
 }
