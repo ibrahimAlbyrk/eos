@@ -42,7 +42,7 @@ export class EsbuildPluginBuilder implements PluginBuilder {
       });
     } catch (e) {
       const errors = (e as { errors?: Message[] }).errors;
-      throw new Error(errors?.length ? errors.map((m) => describe(m, dir)).join("\n") : e instanceof Error ? e.message : String(e));
+      throw new Error(errors?.length ? errors.map((m) => describe(m, dir)).join("\n") : e instanceof Error ? e.message : String(e), { cause: e });
     }
     const js = result.outputFiles.find((f) => f.path.endsWith(".js"))?.text ?? "";
     const css = result.outputFiles.find((f) => f.path.endsWith(".css"))?.text ?? null;
