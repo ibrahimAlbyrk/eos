@@ -66,3 +66,11 @@ export async function setPluginSettings(id, values) {
   if (!r.ok) throw new Error(r.body?.error ?? `couldn't save ${id}'s settings`);
   await refreshPlugins();
 }
+
+// Whether a built-in plugin is on — true until the daemon says otherwise.
+export function useBuiltinOn(id) {
+  const get = () => getPlugin(id)?.enabled ?? true;
+  return useSyncExternalStore(subscribePlugins, get, get);
+}
+
+export const isBuiltinOn = (id) => getPlugin(id)?.enabled ?? true;

@@ -5,8 +5,11 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CONTROLS, ToggleControl } from "./controls.jsx";
 import { ensurePluginsLoaded, setPluginEnabled, setPluginSettings, usePlugins } from "../plugins/pluginsStore.js";
-import { pluginFault, subscribePluginFaults } from "../plugins/runtime.js";
+import { pluginFault, subscribePluginFaults } from "../plugins/faults.js";
 import { notify } from "../lib/notify.js";
+import { useSettings } from "../state/settings.jsx";
+import { SettingsGroups } from "./SettingsGroups.jsx";
+import { BUILTIN_PLUGIN_SETTINGS } from "./registry.jsx";
 
 const errText = (e) => (e instanceof Error ? e.message : String(e));
 
@@ -110,14 +113,18 @@ function PluginPage({ plugin, onBack }) {
             <ToggleControl value={plugin.enabled} onChange={(v) => void toggle(plugin, v)} />
           </div>
         )}
-        <div className="stg-row">
-          <div className="stg-row__text">
-            <div className="stg-row__label">Folder</div>
-            <div className="stg-row__desc plg-mono">{plugin.dir}</div>
+        {!plugin.builtin && (
+          <div className="stg-row">
+            <div className="stg-row__text">
+              <div className="stg-row__label">Folder</div>
+              <div className="stg-row__desc plg-mono">{plugin.dir}</div>
+            </div>
+            {plugin.manifest?.version && <span className="plg-mono plg-version">v{plugin.manifest.version}</span>}
           </div>
-          {plugin.manifest?.version && <span className="plg-mono plg-version">v{plugin.manifest.version}</span>}
-        </div>
+        )}
       </div>
+
+      {plugin.builtin && <BuiltinSettings id={plugin.id} />}
 
       {defs.length > 0 && (
         <div className="stg-group">
@@ -137,6 +144,24 @@ function PluginPage({ plugin, onBack }) {
   );
 }
 
+// A built-in plugin's settings live where they always have (settings.json /
+// config.json, settings/registry.jsx); its page just shows them.
+function BuiltinSettings({ id }) {
+  const { settings, setSetting } = useSettings();
+  const groups = BUILTIN_PLUGIN_SETTINGS[id];
+  return groups ? <SettingsGroups groups={groups} settings={settings} setSetting={setSetting} /> : null;
+}
+
+function Group({ title, plugins, onOpen }) {
+  if (!plugins.length) return null;
+  return (
+    <div className="stg-group">
+      <div className="stg-group__title">{title}</div>
+      {plugins.map((p) => <PluginRow key={p.id} plugin={p} onOpen={() => onOpen(p.id)} />)}
+    </div>
+  );
+}
+
 export function PluginsSettings() {
   const plugins = usePlugins();
   const [openId, setOpenId] = useState(null);
@@ -145,27 +170,18 @@ export function PluginsSettings() {
   const open = openId ? plugins.find((p) => p.id === openId) : null;
   if (open) return <PluginPage plugin={open} onBack={() => setOpenId(null)} />;
 
-  const stable = plugins.filter((p) => !p.manifest?.experimental);
   const experimental = plugins.filter((p) => p.manifest?.experimental);
+  const builtin = plugins.filter((p) => p.builtin && !p.manifest?.experimental);
+  const installed = plugins.filter((p) => !p.builtin && !p.manifest?.experimental);
   return (
     <>
       <h2 className="stg-title">Plugins</h2>
       <div className="stg-row__desc plg-intro">
         Plugins add to Eos’s own interface. Ask an agent for one (“add a clock to the top right”), or put a folder in <span className="plg-mono">~/.eos/plugins</span>. Changes show up at once.
       </div>
-      {plugins.length === 0 && <div className="stg-empty">No plugins yet</div>}
-      {stable.length > 0 && (
-        <div className="stg-group">
-          <div className="stg-group__title">Installed</div>
-          {stable.map((p) => <PluginRow key={p.id} plugin={p} onOpen={() => setOpenId(p.id)} />)}
-        </div>
-      )}
-      {experimental.length > 0 && (
-        <div className="stg-group">
-          <div className="stg-group__title">Experimental</div>
-          {experimental.map((p) => <PluginRow key={p.id} plugin={p} onOpen={() => setOpenId(p.id)} />)}
-        </div>
-      )}
+      <Group title="Built-in" plugins={builtin} onOpen={setOpenId} />
+      <Group title="Installed" plugins={installed} onOpen={setOpenId} />
+      <Group title="Experimental" plugins={experimental} onOpen={setOpenId} />
     </>
   );
 }

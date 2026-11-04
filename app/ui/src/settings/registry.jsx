@@ -26,6 +26,7 @@ import { SyncSettings } from "./SyncSettings.jsx";
 import { UpdatesSettings } from "./UpdatesSettings.jsx";
 import { EditorSelect } from "./EditorSelect.jsx";
 import { modLabel, shortcutLabel } from "../lib/platform.js";
+import { BUILTIN_PLUGINS } from "../../../../contracts/src/builtin-plugins.ts";
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -245,51 +246,6 @@ export const SETTINGS_SECTIONS = [
         ],
       },
       {
-        // archive.* persists to ~/.eos/config.json (the daemon reads it), not
-        // the settings.json store — see CONFIG_BLOCKS in state/settings.jsx.
-        title: "Archive",
-        items: [
-          {
-            key: "archive.retention",
-            label: "Auto-delete archived agents",
-            description:
-              "Permanently delete agents archived longer than 1 day (Daily), 7 days (Weekly), or 30 days (Monthly). Off keeps archives forever.",
-            control: {
-              type: "select",
-              options: [
-                { value: "off", label: "Off" },
-                { value: "daily", label: "Daily" },
-                { value: "weekly", label: "Weekly" },
-                { value: "monthly", label: "Monthly" },
-              ],
-            },
-            defaultValue: "weekly",
-          },
-          {
-            key: "archive.purgeOnAppClose",
-            label: "Purge archive when the app closes",
-            description:
-              "Permanently delete all archived agents every time Eos quits.",
-            control: { type: "toggle" },
-            defaultValue: false,
-          },
-          {
-            key: "archive.cmdW",
-            label: `${shortcutLabel("mod+w")} action`,
-            description:
-              `What ${shortcutLabel("mod+w")} does to the selected agent. Archive is reversible from the Archive view; Delete permanently removes the agent and its subtree without asking.`,
-            control: {
-              type: "select",
-              options: [
-                { value: "archive", label: "Archive" },
-                { value: "delete", label: "Delete permanently" },
-              ],
-            },
-            defaultValue: "archive",
-          },
-        ],
-      },
-      {
         title: "Confirmations",
         items: [
           {
@@ -497,14 +453,65 @@ export const SETTINGS_SECTIONS = [
   { id: "updates", label: "Updates", Icon: UpdatesIcon, Component: UpdatesSettings },
 ];
 
+// Settings that belong to a built-in plugin (contracts/src/builtin-plugins.ts) —
+// shown on its page under Settings › Plugins rather than in a section.
+export const BUILTIN_PLUGIN_SETTINGS = {
+  [BUILTIN_PLUGINS.archive]: [
+    {
+      // archive.* persists to ~/.eos/config.json (the daemon reads it), not
+      // the settings.json store — see CONFIG_BLOCKS in state/settings.jsx.
+      title: "Archive",
+      items: [
+        {
+          key: "archive.retention",
+          label: "Auto-delete archived agents",
+          description:
+            "Permanently delete agents archived longer than 1 day (Daily), 7 days (Weekly), or 30 days (Monthly). Off keeps archives forever.",
+          control: {
+            type: "select",
+            options: [
+              { value: "off", label: "Off" },
+              { value: "daily", label: "Daily" },
+              { value: "weekly", label: "Weekly" },
+              { value: "monthly", label: "Monthly" },
+            ],
+          },
+          defaultValue: "weekly",
+        },
+        {
+          key: "archive.purgeOnAppClose",
+          label: "Purge archive when the app closes",
+          description:
+            "Permanently delete all archived agents every time Eos quits.",
+          control: { type: "toggle" },
+          defaultValue: false,
+        },
+        {
+          key: "archive.cmdW",
+          label: `${shortcutLabel("mod+w")} action`,
+          description:
+            `What ${shortcutLabel("mod+w")} does to the selected agent. Archive is reversible from the Archive view; Delete permanently removes the agent and its subtree without asking. While this plugin is off, ${shortcutLabel("mod+w")} does neither.`,
+          control: {
+            type: "select",
+            options: [
+              { value: "archive", label: "Archive" },
+              { value: "delete", label: "Delete permanently" },
+            ],
+          },
+          defaultValue: "archive",
+        },
+      ],
+    },
+  ],
+};
+
 // The sections this computer offers — what the modal and the palette list.
 export const visibleSections = (features = getFeatures()) =>
   SETTINGS_SECTIONS.filter((s) => !s.requires || features[s.requires] !== false);
 
 export const SETTING_DEFAULTS = {
   ...Object.fromEntries(
-    SETTINGS_SECTIONS
-      .flatMap((s) => s.groups ?? [])
+    [...SETTINGS_SECTIONS.flatMap((s) => s.groups ?? []), ...Object.values(BUILTIN_PLUGIN_SETTINGS).flat()]
       .flatMap((g) => g.items)
       .map((i) => [i.key, i.defaultValue]),
   ),

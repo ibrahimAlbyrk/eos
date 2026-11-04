@@ -15,6 +15,8 @@ import { usePageScope } from "../pages/usePageScope.js";
 import { TAB_ICONS } from "../agents/panes/panelTabMeta.jsx";
 import { getPanel } from "../../lib/panelRegistry.js";
 import { shortcutLabel } from "../../lib/platform.js";
+import { useBuiltinOn } from "../../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../../../../../contracts/src/builtin-plugins.ts";
 
 // New-tab launcher: one field (an address or a web search opens the browser;
 // "#" finds pages, "@" files, "?" asks the agent), the panel's tools, the
@@ -39,6 +41,8 @@ export function NewTabPanel({ live, tabId = null, tools }) {
   const [text, setText] = useState("");
   const inputRef = useRef(null);
   const mode = resolveOmnibox(text);
+  const pagesOn = useBuiltinOn(BUILTIN_PLUGINS.pages);
+  const browserOn = useBuiltinOn(BUILTIN_PLUGINS.browser);
 
   // Ready to type when opened from the panel (the + button) — but never pull
   // focus out of the composer when a launcher merely shows up on load.
@@ -67,8 +71,8 @@ export function NewTabPanel({ live, tabId = null, tools }) {
   const submit = (e) => {
     e.preventDefault();
     if (!mode) return;
-    if (mode.kind === "url" || mode.kind === "search") openUrl(mode.url);
-    else if (mode.kind === "pages") pageHits[0] ? openPage(pageHits[0].id) : newPage(mode.query);
+    if (mode.kind === "url" || mode.kind === "search") { if (browserOn) openUrl(mode.url); }
+    else if (mode.kind === "pages" && pagesOn) pageHits[0] ? openPage(pageHits[0].id) : newPage(mode.query);
     else if (mode.kind === "files") {
       if (scope.project) explorer.ensureRoot(scope.project);
       explorer.setSearchQuery(mode.query);
@@ -79,7 +83,7 @@ export function NewTabPanel({ live, tabId = null, tools }) {
     }
   };
 
-  const chips = SIGIL_CHIPS.filter((c) => !c.agentOnly || scope.workerId);
+  const chips = SIGIL_CHIPS.filter((c) => (!c.agentOnly || scope.workerId) && (pagesOn || c.sigil !== "#"));
   const pickSigil = (sigil) => { setText(`${sigil}`); inputRef.current?.focus(); };
 
   return (
@@ -105,7 +109,7 @@ export function NewTabPanel({ live, tabId = null, tools }) {
             )}
           </label>
           {mode ? (
-            <ModeHint mode={mode} pageHits={pageHits} onOpenPage={openPage} hasAgent={Boolean(scope.workerId)} />
+            <ModeHint mode={mode} pageHits={pageHits} onOpenPage={openPage} hasAgent={Boolean(scope.workerId)} pagesOn={pagesOn} browserOn={browserOn} />
           ) : (
             <div className="nt-chips">
               {chips.map((c) => (
@@ -127,7 +131,7 @@ export function NewTabPanel({ live, tabId = null, tools }) {
           </div>
         </section>
 
-        {recent.length > 0 && (
+        {pagesOn && recent.length > 0 && (
           <section className="nt-section" aria-label="Pages">
             <h2 className="nt-label">Pages</h2>
             <div className="nt-pages">
@@ -136,7 +140,7 @@ export function NewTabPanel({ live, tabId = null, tools }) {
           </section>
         )}
 
-        <Suggested onOpen={openUrl} />
+        {browserOn && <Suggested onOpen={openUrl} />}
       </div>
     </div>
   );
@@ -148,7 +152,10 @@ function matchPages(pages, query) {
 }
 
 // Under the field while typing: what Enter will do (and, for "#", the matches).
-function ModeHint({ mode, pageHits, onOpenPage, hasAgent }) {
+function ModeHint({ mode, pageHits, onOpenPage, hasAgent, pagesOn, browserOn }) {
+  const off = { pages: !pagesOn && "Pages are turned off (Settings › Plugins)", url: !browserOn && "The browser is turned off (Settings › Plugins)" };
+  off.search = off.url;
+  if (off[mode.kind]) return <div className="nt-results"><Hint icon={TAB_ICONS.browser} text={off[mode.kind]} /></div>;
   if (mode.kind === "pages") {
     return (
       <div className="nt-results">

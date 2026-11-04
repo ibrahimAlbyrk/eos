@@ -22,6 +22,8 @@ import { modifiers } from "../../lib/platform.js";
 import { mainViews, useMainView } from "../../slots/index.js";
 import { SlotBoundary } from "../../slots/SlotBoundary.jsx";
 import "./registerSlots.js";
+import { isBuiltinOn } from "../../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../../../../../contracts/src/builtin-plugins.ts";
 
 export function AgentsView({ live }) {
   const ui = useUi();
@@ -68,7 +70,7 @@ export function AgentsView({ live }) {
       const m = modifiers(e);
       return m.mod && !m.ctrl && !m.alt && e.key === "/";
     },
-    when: () => !document.activeElement?.closest?.(".cm-editor"),
+    when: () => isBuiltinOn(BUILTIN_PLUGINS.btw) && !document.activeElement?.closest?.(".cm-editor"),
     run: (ctx, e) => {
       e.preventDefault();
       ui.openPanel("btw", { focus: Date.now() });

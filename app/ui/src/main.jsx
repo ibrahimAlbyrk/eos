@@ -38,6 +38,7 @@ const rootEl = document.getElementById("root");
 withoutIterationListener(rootEl);
 withoutIterationListener(document.body);
 whenDaemonUp().then(() => {
-  createRoot(rootEl).render(<App />);
+  // Before the first render, so built-in panels are there for restored tabs.
   startPlugins();
+  createRoot(rootEl).render(<App />);
 });

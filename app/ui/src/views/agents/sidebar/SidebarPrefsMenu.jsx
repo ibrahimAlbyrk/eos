@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { useSidebarPrefs, setPref } from "../../../state/sidebarPrefsStore.js";
 import { setArchiveViewing } from "../../../state/archiveStore.js";
+import { useBuiltinOn } from "../../../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../../../../../../contracts/src/builtin-plugins.ts";
 
 // The sidebar settings popover: Group by / Sort by / Status, each a parent row
 // with a right flyout carrying a checkmark on the active option. Opened from the
@@ -34,6 +36,7 @@ export function SidebarPrefsMenu() {
   const prefs = useSidebarPrefs();
   const [sub, setSub] = useState(null); // { key, rect } of the open flyout's parent row
   const isOpen = ui.openPopover === "sidebar-prefs";
+  const archiveOn = useBuiltinOn(BUILTIN_PLUGINS.archive);
 
   useEffect(() => { if (!isOpen) setSub(null); }, [isOpen]);
   if (!isOpen) return null;
@@ -51,7 +54,8 @@ export function SidebarPrefsMenu() {
     ui.closeAllPops();
   };
 
-  const subSection = sub ? SECTIONS.find((s) => s.key === sub.key) : null;
+  const sections = archiveOn ? SECTIONS : SECTIONS.map((s) => (s.key === "status" ? { ...s, options: s.options.filter(([v]) => v !== "archived") } : s));
+  const subSection = sub ? sections.find((s) => s.key === sub.key) : null;
 
   return (
     <>
@@ -60,7 +64,7 @@ export function SidebarPrefsMenu() {
         data-popover="sidebar-prefs"
         style={{ display: "block", left, top }}
       >
-        {SECTIONS.map((s) => {
+        {sections.map((s) => {
           const activeLabel = s.options.find(([v]) => v === prefs[s.key])?.[1] ?? "";
           return (
             <button

@@ -100,9 +100,11 @@ function TabPill({ id, panel, openTabs, panelData, active, onSelect, onClose }) 
 export function SidePanel({ live, surface = "agent" }) {
   const ui = useUi();
   const terminalRoot = useTerminalRoot();
-  const openTabs = ui.openTabs ?? [];
-  const activeTab = ui.activeTab ?? null;
   const panelList = usePanels();
+  // Tabs whose type nothing provides right now (its plugin is off) stay in the
+  // pane's state, hidden, and come back when it's turned on again.
+  const openTabs = (ui.openTabs ?? []).filter((id) => getPanel(tabType(id)));
+  const activeTab = openTabs.includes(ui.activeTab) ? ui.activeTab : null;
   const tabs = launcherTypes(panelList, surface);
   const panel = activeTab ? getPanel(tabType(activeTab)) : null;
   const asideRef = useRef(null);

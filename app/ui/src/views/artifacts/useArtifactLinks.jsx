@@ -3,6 +3,8 @@ import { useHoverCard } from "../../hooks/useHoverCard.js";
 import { artifactTabId } from "../../lib/panelTabs.js";
 import { artifactBridge, openArtifactExternally } from "../../state/artifactViewStore.js";
 import { ArtifactPeek } from "./ArtifactPeek.jsx";
+import { isBuiltinOn } from "../../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../../../../../contracts/src/builtin-plugins.ts";
 
 // Every artifact link — the Artifact tool row's card, prose chips, Environment
 // rows, the Artifacts list — is an <a data-art-slug href=claude.ai…>.
@@ -40,7 +42,7 @@ export function useArtifactLinks() {
     const el = linkOf(e);
     if (!el || e.defaultPrevented) return;
     const link = readArtifactLink(el);
-    if (e.altKey) {
+    if (e.altKey || !isBuiltinOn(BUILTIN_PLUGINS.artifacts)) {
       e.preventDefault();
       e.stopPropagation();
       card.close();
@@ -55,7 +57,7 @@ export function useArtifactLinks() {
   };
 
   const onMouseOver = (e) => {
-    if (!artifactBridge()) return;
+    if (!artifactBridge() || !isBuiltinOn(BUILTIN_PLUGINS.artifacts)) return;
     const el = linkOf(e);
     if (!crossing(el, e)) return;
     const panel = el.closest(".side-panel");

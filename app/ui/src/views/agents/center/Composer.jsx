@@ -55,6 +55,8 @@ import { useCompacting } from "../../../state/compactionStore.js";
 import { confirmSubagentStop } from "../../../state/subagentStopConfirm.js";
 import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
 import { modifiers } from "../../../lib/platform.js";
+import { useBuiltinOn } from "../../../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../../../../../../contracts/src/builtin-plugins.ts";
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
@@ -143,8 +145,10 @@ export function Composer({ live, worker, paneId, focused }) {
   // (builtins/templates included), unlike cmdMap (daemon commands only,
   // drives argument hints and token deletion).
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
-  // /btw is offered only for an agent whose backend can answer side questions.
-  const canAskSide = Boolean(selected) && backendCaps(selected.backend_kind).sideQuestion === true;
+  // /btw is offered only while the side-question plugin is on, and only for an
+  // agent whose backend can answer side questions.
+  const btwOn = useBuiltinOn(BUILTIN_PLUGINS.btw);
+  const canAskSide = btwOn && Boolean(selected) && backendCaps(selected.backend_kind).sideQuestion === true;
   const menuItems = useMemo(
     () => (canAskSide ? slashItems : slashItems.filter((c) => !(c.source === "builtin" && c.name === "btw"))),
     [slashItems, canAskSide],
@@ -618,7 +622,7 @@ export function Composer({ live, worker, paneId, focused }) {
     // panel. It never reaches the conversation, so it never waits in the queue.
     // A bare /btw just opens the tab; an agent that can't answer gets the tab's
     // explanation instead.
-    if (mode !== "term" && !gitMode && parseSideQuestion(t)) {
+    if (btwOn && mode !== "term" && !gitMode && parseSideQuestion(t)) {
       if (!canAskSide) { ui.openPanel("btw"); return; }
       const { agentText } = await prepareMessage();
       const { question } = parseSideQuestion(agentText) ?? { question: "" };

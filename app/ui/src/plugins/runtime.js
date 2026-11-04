@@ -15,6 +15,8 @@ import * as ReactDOMClient from "react-dom/client";
 import { ensurePluginsLoaded, getPlugins, subscribePlugins } from "./pluginsStore.js";
 import { createPluginApi } from "./pluginApi.js";
 import { reportPlugin } from "./report.js";
+import { applyBuiltins, startBuiltins } from "./builtins.js";
+import { faultedPlugins, setPluginFault } from "./faults.js";
 
 globalThis.__eosShared = {
   react: React,
@@ -24,27 +26,9 @@ globalThis.__eosShared = {
   "react-dom/client": ReactDOMClient,
 };
 
-// id → { rev, dispose } for what's loaded, and the latest problem per plugin
-// (shown in Settings › Plugins).
+// id → { rev, dispose } for what's loaded.
 const loaded = new Map();
 const loading = new Map(); // id → rev being loaded
-const faults = new Map(); // id → { rev, message }
-const faultSubs = new Set();
-
-export function pluginFault(id) {
-  return faults.get(id) ?? null;
-}
-
-export function subscribePluginFaults(cb) {
-  faultSubs.add(cb);
-  return () => faultSubs.delete(cb);
-}
-
-function setFault(id, fault) {
-  if (fault) faults.set(id, fault);
-  else if (!faults.delete(id)) return;
-  for (const cb of faultSubs) cb();
-}
 
 const buildUrl = (id, rev, ext) => new URL(`plugins/${encodeURIComponent(id)}/${rev}.${ext}`, document.baseURI).href;
 
@@ -83,13 +67,13 @@ async function load(plugin) {
     if (loading.get(id) !== rev) { dispose(); return; }
     unload(id);
     loaded.set(id, { rev, dispose });
-    setFault(id, null);
+    setPluginFault(id, null);
     reportPlugin(id, { rev, ok: true });
   } catch (e) {
     dispose();
     console.error(`Plugin "${id}" failed to load:`, e);
     const message = e instanceof Error ? e.message : String(e);
-    setFault(id, { rev, message });
+    setPluginFault(id, { rev, message });
     reportPlugin(id, { rev, ok: false, error: describeError(e) });
   } finally {
     if (loading.get(id) === rev) loading.delete(id);
@@ -102,9 +86,10 @@ function describeError(e) {
 }
 
 function reconcile() {
+  applyBuiltins(getPlugins());
   const want = new Map(getPlugins().filter((p) => p.hasUi && p.rev > 0).map((p) => [p.id, p]));
   for (const id of [...loaded.keys()]) if (!want.has(id)) unload(id);
-  for (const id of [...faults.keys()]) if (!want.has(id)) setFault(id, null);
+  for (const id of faultedPlugins()) if (!want.has(id)) setPluginFault(id, null);
   for (const [id, p] of want) {
     if (loaded.get(id)?.rev === p.rev || loading.get(id) === p.rev) continue;
     // The last good version stays up until the new one is ready.
@@ -116,6 +101,7 @@ let started = false;
 export function startPlugins() {
   if (started) return;
   started = true;
+  startBuiltins();
   subscribePlugins(reconcile);
   ensurePluginsLoaded();
 }

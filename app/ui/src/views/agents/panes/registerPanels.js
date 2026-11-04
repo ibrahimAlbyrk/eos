@@ -5,6 +5,7 @@
 // side-effect); SidePanel imports it so the registry is populated before it reads.
 
 import { registerPanel } from "../../../lib/panelRegistry.js";
+import { BUILTIN_PLUGINS } from "../../../../../../contracts/src/builtin-plugins.ts";
 import { shortcutLabel } from "../../../lib/platform.js";
 import { useFeature } from "../../../state/featuresStore.js";
 import { useArtifactCatalog } from "../../../state/artifactCatalogStore.js";
@@ -37,31 +38,45 @@ const useRemote = () => useFeature("remote");
 // The artifact list is this Mac's own — not in a view of another computer.
 const useArtifactsAvailable = () => useArtifactCatalog({ load: false }).available;
 
-const panel = (type, label, rest) => registerPanel({ type, label, icon: TAB_ICONS[type], ...rest });
+const descriptor = (type, label, rest) => ({ type, label, icon: TAB_ICONS[type], ...rest });
+const panel = (type, label, rest) => registerPanel(descriptor(type, label, rest));
 
 panel("review", "Changes", { Component: GitDiffViewer, launcher: { order: 10, in: AGENT, Meta: DiffMeta } });
 panel("files", "Files", { Component: FilesPanel, kbd: shortcutLabel("mod+p"), launcher: { order: 30, in: BOTH, Meta: FilesMeta } });
 panel("file", "File", { Component: FileViewer });
-panel("terminal", "Terminal", { Component: TerminalViewer, kbd: shortcutLabel("ctrl+`"), launcher: { order: 20, in: BOTH, Meta: TerminalMeta } });
-// The native page view floats over the DOM, so CSS can't hide it; its tabs and
-// URLs live in browserPanelStore and survive the unmount.
-panel("browser", "Browser", { Component: BrowserPanel, keepAlive: false });
 panel("chatfiles", "Chat files", { Component: ChatFilesPanel, launcher: { order: 50, in: AGENT, Meta: ChatFilesMeta } });
 panel("subagents", "Subagents", { Component: SubagentsPanel, launcher: { order: 60, in: AGENT, Meta: SubagentMeta } });
 panel("newtab", "New tab", { Component: NewTabPanel });
-panel("page", "Page", { Component: PagePanel, useTitle: usePageTitle, launcher: { order: 40, in: BOTH, label: "New page", Meta: PageMeta } });
 panel("transfer", "Transfer", { Component: TransferPanel, launcher: { order: 80, in: BOTH, Meta: TransferMeta, useAvailable: useRemote } });
 // Every background job (the header beacon opens it on one).
 panel("jobs", "Jobs", { Component: JobsPanel, launcher: { order: 90, in: AGENT } });
-// The /btw side question for this pane's agent (⌘/ or /btw in the composer).
-panel("btw", "/btw", { Component: SideQuestionPanel, kbd: shortcutLabel("mod+/"), launcher: { order: 100, in: AGENT } });
 // A visual answer opened from the transcript (view:<id>).
 panel("view", "View", { Component: ViewPanel, useTitle: useViewTitle });
 // A Workflow run's live view, opened from its card (workflow:<workerId>/<callId>).
 panel("workflow", "Workflow", { Component: WorkflowPanel, useTitle: useWorkflowTitle });
-// A claude.ai artifact (artifact:<slug>). Kept mounted while hidden, unlike the
-// browser: its native view is shown and hidden through the bridge (setVisible),
-// and staying mounted keeps it attached for an instant switch back.
-panel("artifact", "Artifact", { Component: ArtifactPanel, useTitle: useArtifactTitle });
-// Every artifact of every Claude sign-in.
-panel("artifacts", "Artifacts", { Component: ArtifactsPanel, launcher: { order: 70, in: AGENT, Meta: ArtifactsMeta, useAvailable: useArtifactsAvailable } });
+
+// The side-panel tabs of built-in plugins (contracts/src/builtin-plugins.ts):
+// registered while that plugin is on (plugins/builtins.js), not here.
+export const BUILTIN_PANELS = {
+  [BUILTIN_PLUGINS.terminal]: [
+    descriptor("terminal", "Terminal", { Component: TerminalViewer, kbd: shortcutLabel("ctrl+`"), launcher: { order: 20, in: BOTH, Meta: TerminalMeta } }),
+  ],
+  // The native page view floats over the DOM, so CSS can't hide it; its tabs and
+  // URLs live in browserPanelStore and survive the unmount.
+  [BUILTIN_PLUGINS.browser]: [descriptor("browser", "Browser", { Component: BrowserPanel, keepAlive: false })],
+  [BUILTIN_PLUGINS.pages]: [
+    descriptor("page", "Page", { Component: PagePanel, useTitle: usePageTitle, launcher: { order: 40, in: BOTH, label: "New page", Meta: PageMeta } }),
+  ],
+  // The /btw side question for this pane's agent (⌘/ or /btw in the composer).
+  [BUILTIN_PLUGINS.btw]: [
+    descriptor("btw", "/btw", { Component: SideQuestionPanel, kbd: shortcutLabel("mod+/"), launcher: { order: 100, in: AGENT } }),
+  ],
+  [BUILTIN_PLUGINS.artifacts]: [
+    // A claude.ai artifact (artifact:<slug>). Kept mounted while hidden, unlike the
+    // browser: its native view is shown and hidden through the bridge (setVisible),
+    // and staying mounted keeps it attached for an instant switch back.
+    descriptor("artifact", "Artifact", { Component: ArtifactPanel, useTitle: useArtifactTitle }),
+    // Every artifact of every Claude sign-in.
+    descriptor("artifacts", "Artifacts", { Component: ArtifactsPanel, launcher: { order: 70, in: AGENT, Meta: ArtifactsMeta, useAvailable: useArtifactsAvailable } }),
+  ],
+};

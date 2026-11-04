@@ -50,6 +50,6 @@ describe("archive is a status filter, not a standalone toggle", () => {
   it("the main area swaps to the active main view (archive is one)", () => {
     expect(codeViewSrc).toContain("mainView ? (");
     expect(codeViewSrc).toContain("<mainView.Component live={live} />");
-    expect(registerSlotsSrc).toContain('mainViews.add({ id: "archive", Component: ArchiveView })');
+    expect(registerSlotsSrc).toContain('[mainViews, { id: "archive", Component: ArchiveView }]');
   });
 });
