@@ -57,21 +57,19 @@ export function ArchiveView({ live }) {
   if (!selected) {
     const isEmpty = loaded && rows.length === 0;
     return (
-      <div className="single-pane">
-        <div className="sp-main">
-          <ArchiveHead name="Archive" />
-          <div className="empty-state">
-            <span className="empty-state__icon">
-              <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="3" width="12" height="4" rx="1" />
-                <path d="M3.5 7v5.5h9V7M6.5 9.5h3" />
-              </svg>
-            </span>
-            <span className="empty-state__title">{isEmpty ? "Archive is empty" : "Select an archived agent"}</span>
-            {isEmpty && <span className="empty-state__subtitle">{shortcutLabel("mod+w")} archives an agent instead of deleting it.</span>}
-          </div>
+      <>
+        <ArchiveHead name="Archive" />
+        <div className="empty-state">
+          <span className="empty-state__icon">
+            <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="12" height="4" rx="1" />
+              <path d="M3.5 7v5.5h9V7M6.5 9.5h3" />
+            </svg>
+          </span>
+          <span className="empty-state__title">{isEmpty ? "Archive is empty" : "Select an archived agent"}</span>
+          {isEmpty && <span className="empty-state__subtitle">{shortcutLabel("mod+w")} archives an agent instead of deleting it.</span>}
         </div>
-      </div>
+      </>
     );
   }
 
@@ -79,23 +77,21 @@ export function ArchiveView({ live }) {
   const meta = `${project} · archived ${selected.archived_at ? fmtTimeAgo(selected.archived_at) : "just now"}`;
 
   return (
-    <div className="single-pane">
-      <div className="sp-main">
-        <ArchiveHead name={nameOf(selected)} meta={meta} />
-        <div className="pane-tx">
-          <TranscriptHost live={archLive} activeId={selected.id} />
-        </div>
-        <div className="archive-hint">
-          <span className="archive-hint__icon" aria-hidden="true"><TrayIcon /></span>
-          Archived — restore to interact
-        </div>
-        {/* inert="" (React 18 string form) blocks focus + clicks on the whole
-            composer subtree; focused={false} keeps it out of the global
-            hotkey / pending-template funnels. */}
-        <div className="composer-archived" inert="">
-          <Composer live={archLive} worker={selected} focused={false} />
-        </div>
+    <>
+      <ArchiveHead name={nameOf(selected)} meta={meta} />
+      <div className="pane-tx">
+        <TranscriptHost live={archLive} activeId={selected.id} />
       </div>
-    </div>
+      <div className="archive-hint">
+        <span className="archive-hint__icon" aria-hidden="true"><TrayIcon /></span>
+        Archived — restore to interact
+      </div>
+      {/* inert="" (React 18 string form) blocks focus + clicks on the whole
+          composer subtree; focused={false} keeps it out of the global
+          hotkey / pending-template funnels. */}
+      <div className="composer-archived" inert="">
+        <Composer live={archLive} worker={selected} focused={false} />
+      </div>
+    </>
   );
 }

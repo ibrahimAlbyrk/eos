@@ -11,6 +11,8 @@ import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { AgentsSidebar } from "./sidebar/AgentsSidebar.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
+import { SidePanel } from "./panes/SidePanel.jsx";
+import { PaneScopeContext } from "../../state/paneScope.js";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
@@ -23,7 +25,7 @@ import "./registerSlots.js";
 
 export function AgentsView({ live }) {
   const ui = useUi();
-  // A main view (Archive, Memory, a plugin's view) takes over the main area;
+  // A main view (Archive, Memory, a plugin's view) takes the transcript area;
   // the pane tree stays untouched in ui state, so closing it remounts the exact
   // layout/selection the user left.
   const activeMain = useMainView();
@@ -130,9 +132,19 @@ export function AgentsView({ live }) {
       sidebar={(variant) => <AgentsSidebar live={live} variant={variant} />}
       main={
         mainView ? (
-          <SlotBoundary key={mainView.id} name={mainView.id} resetKey={mainView}>
-            <mainView.Component live={live} />
-          </SlotBoundary>
+          // The view stands in for the transcript column only: the focused
+          // pane's side panel stays beside it, so either can open without
+          // closing the other.
+          <div className="single-pane main-view-host">
+            <PaneScopeContext.Provider value={ui.focusedLeafId}>
+              <div className="sp-main" onMouseDownCapture={() => ui.setFocusedRegion("transcript")}>
+                <SlotBoundary key={mainView.id} name={mainView.id} resetKey={mainView}>
+                  <mainView.Component live={live} />
+                </SlotBoundary>
+              </div>
+              <SidePanel live={live} />
+            </PaneScopeContext.Provider>
+          </div>
         ) : (
           // No global header strip: the pane area is the first child of the center
           // and fills its full height, so each pane's own PaneHeader is the topmost

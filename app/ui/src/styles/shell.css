@@ -1107,6 +1107,12 @@ html.native .single-pane { --spt-top: 12px; }
   --app-region: drag;
   -webkit-user-select: none;
 }
+/* A main view (Archive, Memory, a plugin's view) beside a closed side panel:
+   its header keeps clear of the panel toggle pinned to the top-right corner,
+   as PaneHeader does with its placeholder slot. */
+.main-view-host:not(:has(> .side-panel:not([hidden]))) .pane-head {
+  padding-right: calc(var(--spt-right) + var(--wc-reserve, 0px) + var(--spt-size) + 12px);
+}
 .pane-head button,
 .pane-head input { --app-region: no-drag; }
 html.native .pane-head { padding-top: 12px; padding-bottom: 12px; }
