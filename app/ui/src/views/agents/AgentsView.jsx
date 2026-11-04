@@ -1,6 +1,5 @@
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
-import { subscribe, getArchive } from "../../state/archiveStore.js";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
 import { useArchiveAgentHotkey } from "../../hooks/useArchiveAgentHotkey.js";
@@ -16,16 +15,19 @@ import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 import { SubagentStopDialog } from "./center/SubagentStopDialog.jsx";
-import { ArchiveView } from "../archive/ArchiveView.jsx";
-import { MemoryView } from "../memory/MemoryView.jsx";
-import { useMemoryViewing } from "../../state/memoryViewStore.js";
 import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
 import { modifiers } from "../../lib/platform.js";
+import { mainViews, useMainView } from "../../slots/index.js";
+import { SlotBoundary } from "../../slots/SlotBoundary.jsx";
+import "./registerSlots.js";
 
 export function AgentsView({ live }) {
   const ui = useUi();
-  const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
-  const memoryViewing = useMemoryViewing();
+  // A main view (Archive, Memory, a plugin's view) takes over the main area;
+  // the pane tree stays untouched in ui state, so closing it remounts the exact
+  // layout/selection the user left.
+  const activeMain = useMainView();
+  const mainView = mainViews.useItems().find((v) => v.id === activeMain) ?? null;
 
   // One capture-phase window listener for every keymap binding below (and any
   // future view binding) — replaces the per-hook listeners one at a time. The
@@ -127,14 +129,10 @@ export function AgentsView({ live }) {
       gridClass={gridClass}
       sidebar={(variant) => <AgentsSidebar live={live} variant={variant} />}
       main={
-        memoryViewing ? (
-          // Memory takes over the main area the same way Archive does.
-          <MemoryView />
-        ) : archiveMode ? (
-          // Archive mode replaces the main area with the archive panel; the
-          // pane tree below stays untouched in ui state, so toggling off
-          // remounts the exact layout/selection the user left.
-          <ArchiveView live={live} />
+        mainView ? (
+          <SlotBoundary key={mainView.id} name={mainView.id} resetKey={mainView}>
+            <mainView.Component live={live} />
+          </SlotBoundary>
         ) : (
           // No global header strip: the pane area is the first child of the center
           // and fills its full height, so each pane's own PaneHeader is the topmost

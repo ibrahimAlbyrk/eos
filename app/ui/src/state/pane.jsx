@@ -8,8 +8,7 @@ import { sessionRootOf } from "../lib/agentIndex.js";
 import {
   stashBrowserSession, shouldRestoreBrowserLive, registerBrowserSessionUi,
 } from "./browserSessionState.js";
-import { setArchiveViewing } from "./archiveStore.js";
-import { setMemoryViewing } from "./memoryViewStore.js";
+import { setMainView } from "../slots/mainView.js";
 
 // Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
 // each), splits divide a region in two. The provider owns the tree + the focused
@@ -158,9 +157,9 @@ export function PaneProvider({ children }) {
   // in a different pane, focus that pane instead of duplicating it; otherwise the
   // mirror writes it into the focused pane.
   const selectAgent = useCallback((id) => {
-    // Picking a live agent leaves the main-area archive view (the status filter
-    // may still show archived rows in the sidebar).
-    if (id != null) { setArchiveViewing(false); setMemoryViewing(false); }
+    // Picking a live agent leaves any main view (the status filter may still
+    // show archived rows in the sidebar).
+    if (id != null) setMainView(null);
     if (id != null) {
       const l = leafOfAgent(treeRef.current, id);
       if (l && l.id !== focusedRef.current) { focusLeaf(l.id); return; }

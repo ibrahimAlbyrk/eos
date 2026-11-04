@@ -7,8 +7,12 @@
 // list self-heals on every mutation.
 
 import { api } from "../api/client.js";
+import { getMainView, setMainView, closeMainView, subscribeMainView } from "../slots/mainView.js";
 
-let archiveMode = false;
+// Archive mode IS the "archive" main view being shown; the flag mirrors it so
+// readers keep one snapshot.
+const ARCHIVE_VIEW = "archive";
+let archiveMode = getMainView() === ARCHIVE_VIEW;
 let rows = [];
 let loaded = false;
 let selectedId = null;
@@ -20,6 +24,13 @@ function emit() {
   snapshot = { archiveMode, rows, loaded, selectedId };
   for (const cb of subs) cb();
 }
+
+subscribeMainView(() => {
+  const on = getMainView() === ARCHIVE_VIEW;
+  if (on === archiveMode) return;
+  archiveMode = on;
+  emit();
+});
 
 export function subscribe(cb) {
   subs.add(cb);
@@ -65,28 +76,29 @@ export function selectArchived(id) {
   // via setArchiveViewing(false) in pane.jsx.
   if (selectedId === id && archiveMode) return;
   selectedId = id;
-  archiveMode = true;
-  emit();
+  // Opening the view emits (through the main-view subscription) with the new
+  // selection already in place, so subscribers hear one change either way.
+  if (archiveMode) emit();
+  else setMainView(ARCHIVE_VIEW);
 }
 
 // Drive the main-area archive view directly. The sidebar status filter and the
 // live/archived selection paths use this in place of the removed toggle button:
 // active selection → false, archived selection / archived status → true.
 export function setArchiveViewing(on) {
-  if (archiveMode === on) return;
-  archiveMode = on;
-  emit();
+  if (on) setMainView(ARCHIVE_VIEW);
+  else closeMainView(ARCHIVE_VIEW);
 }
 
 // Legacy sidebar toggle (no longer wired to a button; kept for the store's unit
 // test and any external caller). Flips the main-area archive view.
 export function toggleArchiveMode() {
-  archiveMode = !archiveMode;
-  emit();
+  setArchiveViewing(!archiveMode);
 }
 
 // Test-only: reset the module singleton between cases.
 export function _resetArchive() {
+  closeMainView(ARCHIVE_VIEW);
   archiveMode = false;
   rows = [];
   loaded = false;

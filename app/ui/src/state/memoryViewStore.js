@@ -1,30 +1,33 @@
 // memoryViewStore — whether the Memory view has taken over the Agents main area
-// (the Archive pattern: the pane tree stays untouched underneath, so closing it
-// returns to the exact layout), and which of its pages shows: the memories or the
-// dream log. A module singleton so the account menu, Settings and a notification
-// click all drive the same state.
+// (it is the "memory" main view; see slots/mainView.js), and which of its pages
+// shows: the memories or the dream log. A module singleton so the account menu,
+// Settings and a notification click all drive the same state.
 
 import { useSyncExternalStore } from "react";
-import { setArchiveViewing } from "./archiveStore.js";
+import { closeMainView, getMainView, setMainView, subscribeMainView } from "../slots/mainView.js";
 
-let snapshot = { viewing: false, page: "memory" };
+const MEMORY_VIEW = "memory";
+let page = "memory";
 const subs = new Set();
-
-function set(patch) {
-  snapshot = { ...snapshot, ...patch };
-  for (const cb of subs) cb();
-}
 
 function subscribe(cb) {
   subs.add(cb);
   return () => subs.delete(cb);
 }
 
-const getViewing = () => snapshot.viewing;
-const getPage = () => snapshot.page;
+const getViewing = () => getMainView() === MEMORY_VIEW;
+const getPage = () => page;
+
+// Leaving the view resets it to its first page.
+subscribeMainView(() => {
+  if (!getViewing() && page !== "memory") {
+    page = "memory";
+    for (const cb of subs) cb();
+  }
+});
 
 export function useMemoryViewing() {
-  return useSyncExternalStore(subscribe, getViewing, getViewing);
+  return useSyncExternalStore(subscribeMainView, getViewing, getViewing);
 }
 
 export function useMemoryPage() {
@@ -32,17 +35,18 @@ export function useMemoryPage() {
 }
 
 export function setMemoryViewing(on) {
-  if (snapshot.viewing === on) return;
-  // One main-area takeover at a time.
-  if (on) setArchiveViewing(false);
-  set(on ? { viewing: true } : { viewing: false, page: "memory" });
+  if (on) setMainView(MEMORY_VIEW);
+  else closeMainView(MEMORY_VIEW);
 }
 
 // "memory" | "log"
-export function setMemoryPage(page) {
-  if (snapshot.page !== page) set({ page });
+export function setMemoryPage(next) {
+  if (page === next) return;
+  page = next;
+  for (const cb of subs) cb();
 }
 
 export function _resetMemoryView() {
-  snapshot = { viewing: false, page: "memory" };
+  closeMainView(MEMORY_VIEW);
+  page = "memory";
 }

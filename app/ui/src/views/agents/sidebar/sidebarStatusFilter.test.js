@@ -8,6 +8,7 @@ import agentsSidebarSrc from "./AgentsSidebar.jsx?raw";
 import sidebarHeadSrc from "./SidebarHead.jsx?raw";
 import prefsMenuSrc from "./SidebarPrefsMenu.jsx?raw";
 import codeViewSrc from "../AgentsView.jsx?raw";
+import registerSlotsSrc from "../registerSlots.js?raw";
 import registrySrc from "../../registry.js?raw";
 import tabsSrc from "../../tabs.js?raw";
 
@@ -46,8 +47,9 @@ describe("archive is a status filter, not a standalone toggle", () => {
     expect(prefsMenuSrc).toContain("setArchiveViewing");
   });
 
-  it("the main area still swaps to the archive panel on archiveMode", () => {
-    expect(codeViewSrc).toContain("archiveMode ? (");
-    expect(codeViewSrc).toContain("<ArchiveView live={live} />");
+  it("the main area swaps to the active main view (archive is one)", () => {
+    expect(codeViewSrc).toContain("mainView ? (");
+    expect(codeViewSrc).toContain("<mainView.Component live={live} />");
+    expect(registerSlotsSrc).toContain('mainViews.add({ id: "archive", Component: ArchiveView })');
   });
 });

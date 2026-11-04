@@ -9,11 +9,12 @@ import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PlanChip } from "./PlanChip.jsx";
 import { ContextChip } from "./ContextChip.jsx";
-import { JobsBeacon } from "../../jobs/JobsBeacon.jsx";
-import { UpdateBeacon } from "../../update/UpdateBeacon.jsx";
+import { headerRight } from "../../../slots/index.js";
+import { SlotBoundary } from "../../../slots/SlotBoundary.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
-// the background-jobs beacon (top-right pane only), Environment & changes (git
+// the headerRight slot's items (jobs and update beacons in the top-right pane
+// only, plugin widgets), Environment & changes (git
 // docked panel) and a slot for the Open-side-panel toggle (drawn by SidePanel as
 // a pane overlay).
 // Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so every
@@ -35,6 +36,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // in place — it measures this wrap and portals to <body> instead.
   const vWrapRef = useRef(null);
   const envOpen = useEnvPanelOpen(ui.paneId);
+  const rightItems = headerRight.useItems();
 
   const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : "", topRight ? "pane-head--topright" : ""]
     .filter(Boolean)
@@ -47,8 +49,11 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // nothing to open). × closes non-primary split panes.
   const actions = (
     <div className="pane-head-actions">
-      {topRight && <JobsBeacon live={live} />}
-      {topRight && <UpdateBeacon live={live} />}
+      {rightItems.filter((item) => topRight || !item.once).map((item) => (
+        <SlotBoundary key={item.id} name={item.id} resetKey={item}>
+          <item.Component live={live} worker={worker} topRight={Boolean(topRight)} />
+        </SlotBoundary>
+      ))}
       {worker && (
         <button
           className={"pane-split-btn" + (envOpen ? " is-active" : "")}

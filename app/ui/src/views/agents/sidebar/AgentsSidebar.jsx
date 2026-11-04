@@ -36,7 +36,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
   const ui = useUi();
   const { status, groupBy } = useSidebarPrefs();
   const { projects } = useProjects();
-  const { rows: archivedRows, loaded: archivedLoaded, selectedId: archivedSelectedId, archiveMode } =
+  const { rows: archivedRows, loaded: archivedLoaded, selectedId: archivedSelectedId } =
     useSyncExternalStore(subscribe, getArchive);
 
   const showActive = status !== "archived";
@@ -90,7 +90,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
 
   const body = (
     <>
-      <SidebarHead live={live} variant={variant} archiveMode={archiveMode} />
+      <SidebarHead live={live} variant={variant} />
       <LayoutGroups aliveIds={aliveIds} />
       {(roots.length > 0 || (groupBy === "folder" && status !== "archived" && projects.length > 0)) && (
         <div className="sb-seclabel">
