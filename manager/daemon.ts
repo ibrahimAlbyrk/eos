@@ -94,6 +94,7 @@ import { registerHostFacade } from "./peer/facade.ts";
 import { uiDistPath } from "./shared/packaging.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
+import { IdleHooks } from "./services/IdleHooks.ts";
 
 const c = buildContainer();
 
@@ -275,6 +276,20 @@ const contextThreshold = new ContextThresholdService({
   log: c.log,
 });
 
+// What a worker settling at IDLE with an empty queue sets off, in order.
+const idleHooks = new IdleHooks();
+// Context compaction goes first: a worker at/over the threshold is compacted
+// before the loop or a nudge hands it more work. It holds the worker in WORKING
+// and settles to IDLE, which runs these again.
+idleHooks.add({ id: "compaction", order: 10, run: (id) => c.compaction.checkOnIdle(id) });
+idleHooks.add({ id: "goal-loop", order: 20, run: (id) => { goalLoop.loopTickFor(id); } });
+// Nudge a worker that went idle having never reported this life. Self-excludes
+// looped and already-reported workers, so at most one of these two fires.
+idleHooks.add({ id: "report-gap", order: 30, run: (id) => { reportGap.checkOnIdle(id); } });
+// Warn the parent at ~90% context and auto-suspend the worker at ~95% (worktree
+// preserved). Latched exactly-once.
+idleHooks.add({ id: "context-threshold", order: 40, run: (id) => { contextThreshold.checkOnIdle(id); } });
+
 const draining = new Set<string>();
 const drainFor = (workerId: string): void => {
   if (draining.has(workerId)) return;
@@ -308,20 +323,7 @@ const drainFor = (workerId: string): void => {
     // Queue genuinely empty at IDLE → it's the loop's turn (no-op when the
     // worker has no active loop). "dispatched"/"not-idle"/"failed" never reach
     // here, so a drained message or a busy worker is never preempted.
-    if (outcome === "empty") {
-      // Context compaction goes first: a worker at/over the threshold is
-      // compacted before the loop or a nudge hands it more work. It holds the
-      // worker in WORKING and settles to IDLE, which re-enters this branch.
-      if (c.compaction.checkOnIdle(workerId)) return;
-      goalLoop.loopTickFor(workerId);
-      // Sibling of the loop tick: nudge a worker that went idle having never
-      // reported this life. Self-excludes looped and already-reported workers,
-      // so at most one of these two fires.
-      reportGap.checkOnIdle(workerId);
-      // Sibling of the report-gap nudge: warn the parent at ~90% context and
-      // auto-suspend the worker at ~95% (worktree preserved). Latched exactly-once.
-      contextThreshold.checkOnIdle(workerId);
-    }
+    if (outcome === "empty") idleHooks.run(workerId);
   });
 };
 // Peer-request pump — a collaborate worker's queued consultations are delivered
