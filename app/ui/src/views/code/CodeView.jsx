@@ -24,7 +24,6 @@ import { modifiers } from "../../lib/platform.js";
 // panel state, so it stays put whichever terminal pane is focused. Its tabs skip
 // the agent-bound ones (Chat files, Changes) — nothing to show here.
 const PANEL_ID = "code";
-const PANEL_TABS = ["terminal", "files", "page", "transfer"];
 
 // Workspace hotkeys. All terminalSafe — in this view the terminal IS the
 // focus — and each stops the event so the key never also reaches xterm.
@@ -145,7 +144,7 @@ function CodeMainBody({ live, ws, active }) {
       {ws.groups.map((g) => (
         <TermGrid key={g.id} live={live} ws={ws} group={g} paused={!active} away={g.id !== ws.activeGroupId} />
       ))}
-      {active && <SidePanel live={live} tabs={PANEL_TABS} />}
+      {active && <SidePanel live={live} surface="code" />}
     </div>
   );
 }

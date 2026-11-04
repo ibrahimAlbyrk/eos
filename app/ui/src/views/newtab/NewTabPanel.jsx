@@ -1,23 +1,19 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useOriginPane } from "../../state/paneScope.js";
 import { queueUrl } from "../../state/browserPanelStore.js";
 import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
 import { createPage, usePageList } from "../../state/pagesStore.js";
 import { useSuggestions } from "../../state/browserHistoryStore.js";
-import { subscribe as subscribeDiff, getSnapshot as getDiff, revalidate as revalidateDiff } from "../../state/diffStore.js";
-import { useSubagents } from "../../state/subagentsStore.js";
-import { isActive, useTransfers } from "../../state/transfersStore.js";
 import { explorer } from "../../state/explorerStore.js";
-import { useFeature } from "../../state/featuresStore.js";
-import { useArtifactCatalog } from "../../state/artifactCatalogStore.js";
 import { resolveOmnibox } from "../../lib/omnibox.js";
 import { pageTabId } from "../../lib/panelTabs.js";
 import { fmtTimeAgo } from "../../lib/format.js";
 import { notify } from "../../lib/notify.js";
 import { useBrowserSessionKey } from "../browser/useBrowserSessionKey.js";
 import { usePageScope } from "../pages/usePageScope.js";
-import { TAB_ICONS, TAB_KBD, TAB_LABELS } from "../agents/panes/panelTabMeta.jsx";
+import { TAB_ICONS } from "../agents/panes/panelTabMeta.jsx";
+import { getPanel } from "../../lib/panelRegistry.js";
 import { shortcutLabel } from "../../lib/platform.js";
 
 // New-tab launcher: one field (an address or a web search opens the browser;
@@ -26,7 +22,6 @@ import { shortcutLabel } from "../../lib/platform.js";
 // opens takes this tab's place (ui.replaceTab). `tabId` is null when it stands
 // in for an empty panel — then it opens a tab instead.
 
-const AGENT_TOOLS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "artifacts", "transfer"];
 const SIGIL_CHIPS = [
   { sigil: "#", label: "Pages" },
   { sigil: "@", label: "Files" },
@@ -34,10 +29,9 @@ const SIGIL_CHIPS = [
 ];
 const RECENT_PAGES = 4;
 
-const baseName = (p) => (p ? p.replace(/\/+$/, "").split("/").pop() : "");
 const CHAT_ICON = <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"><path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z" /></svg>;
 
-export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
+export function NewTabPanel({ live, tabId = null, tools }) {
   const ui = useUi();
   const scope = usePageScope(live);
   const sessionKey = useBrowserSessionKey();
@@ -45,10 +39,6 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
   const [text, setText] = useState("");
   const inputRef = useRef(null);
   const mode = resolveOmnibox(text);
-  // Transfer moves files between paired computers — not where this one can't pair.
-  const remote = useFeature("remote");
-  // The artifact list is this Mac's own — not in a view of another computer.
-  const artifacts = useArtifactCatalog({ load: false }).available;
 
   // Ready to type when opened from the panel (the + button) — but never pull
   // focus out of the composer when a launcher merely shows up on load.
@@ -130,16 +120,10 @@ export function NewTabPanel({ live, tabId = null, tools = AGENT_TOOLS }) {
         <section className="nt-section" aria-label="Tools">
           <h2 className="nt-label">Tools</h2>
           <div className="nt-tools">
-            {tools.filter((t) => t !== "browser" && (remote || t !== "transfer") && (artifacts || t !== "artifacts")).map((type) => (
-              <button key={type} type="button" className="nt-tool" onClick={() => openTool(type)}>
-                <span className="nt-tool__icon">{TAB_ICONS[type]}</span>
-                <span className="nt-tool__text">
-                  <span className="nt-tool__label">{TAB_LABELS[type]}</span>
-                  <ToolMeta type={type} scope={scope} />
-                </span>
-                {TAB_KBD[type] && <kbd className="nt-kbd">{TAB_KBD[type]}</kbd>}
-              </button>
-            ))}
+            {tools.map((type) => {
+              const panel = getPanel(type);
+              return panel && <ToolTile key={`${type}#${panel.rev}`} panel={panel} scope={scope} onOpen={() => openTool(type)} />;
+            })}
           </div>
         </section>
 
@@ -211,57 +195,24 @@ function PageRow({ page, active, onOpen }) {
   );
 }
 
-// A quiet second line per tool: live state where the panel has it cheaply.
-function ToolMeta({ type, scope }) {
-  if (type === "review") return <DiffMeta workerId={scope.workerId} />;
-  if (type === "subagents") return <SubagentMeta workerId={scope.workerId} />;
-  if (type === "transfer") return <TransferMeta />;
-  if (type === "artifacts") return <ArtifactsMeta />;
-  const folder = baseName(scope.project);
-  const text = {
-    terminal: folder ? `Shell in ${folder}` : "Shell",
-    files: folder ? `Browse ${folder}` : "Open a folder",
-    page: "Notes and tasks",
-    chatfiles: "Shared in this chat",
-  }[type];
-  return text ? <span className="nt-tool__meta">{text}</span> : null;
-}
-
-const NO_DIFF = { changes: null };
-
-function DiffMeta({ workerId }) {
-  const snap = useSyncExternalStore(
-    useCallback((cb) => (workerId ? subscribeDiff(workerId, cb) : () => {}), [workerId]),
-    useCallback(() => (workerId ? getDiff(workerId) : NO_DIFF), [workerId]),
-  );
-  useEffect(() => { if (workerId) void revalidateDiff(workerId); }, [workerId]);
-  const files = snap.changes?.files ?? [];
-  if (!files.length) return <span className="nt-tool__meta">{workerId ? "No changes" : "Diff and history"}</span>;
-  const add = files.reduce((n, f) => n + (f.insertions ?? 0), 0);
-  const del = files.reduce((n, f) => n + (f.deletions ?? 0), 0);
+// One launcher tile; its panel may hide it where it can't work (useAvailable).
+function ToolTile({ panel, scope, onOpen }) {
+  const { label, icon, kbd, launcher } = panel;
+  const available = (launcher.useAvailable ?? alwaysAvailable)();
+  if (!available) return null;
   return (
-    <span className="nt-tool__meta nt-tool__meta--mono">
-      <span className="nt-add">+{add}</span> <span className="nt-del">−{del}</span>
-    </span>
+    <button type="button" className="nt-tool" onClick={onOpen}>
+      <span className="nt-tool__icon">{icon}</span>
+      <span className="nt-tool__text">
+        <span className="nt-tool__label">{launcher.label ?? label}</span>
+        {launcher.Meta && <launcher.Meta scope={scope} />}
+      </span>
+      {kbd && <kbd className="nt-kbd">{kbd}</kbd>}
+    </button>
   );
 }
 
-function SubagentMeta({ workerId }) {
-  const runs = useSubagents(workerId);
-  const running = (runs ?? []).filter((r) => r.status === "running").length;
-  return <span className="nt-tool__meta">{running ? `${running} running` : "Background agents"}</span>;
-}
-
-function TransferMeta() {
-  const list = useTransfers();
-  const moving = (list ?? []).filter(isActive).length;
-  return <span className="nt-tool__meta">{moving ? `${moving} copying` : "Between your Macs"}</span>;
-}
-
-function ArtifactsMeta() {
-  const { loaded, artifacts } = useArtifactCatalog({ load: false });
-  return <span className="nt-tool__meta">{loaded && artifacts.length ? `${artifacts.length} on claude.ai` : "From your Claude accounts"}</span>;
-}
+const alwaysAvailable = () => true;
 
 function Suggested({ onOpen }) {
   const sites = useSuggestions();

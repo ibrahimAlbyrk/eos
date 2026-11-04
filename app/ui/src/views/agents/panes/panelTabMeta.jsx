@@ -1,9 +1,8 @@
 import { SubagentsIcon } from "../subagents/SubagentsIcon.jsx";
 import { JobsTabIcon } from "../../jobs/JobsTabIcon.jsx";
-import { shortcutLabel } from "../../../lib/platform.js";
 
-// Icon, label and shortcut per side-panel tab type — shared by the tab bar and
-// the new-tab launcher's tool tiles.
+// Glyph per built-in side-panel tab type — registered with each tab
+// (registerPanels.js) and reused by empty states and launcher hints.
 
 export const TAB_ICONS = {
   review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
@@ -22,23 +21,3 @@ export const TAB_ICONS = {
   artifacts: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4"><rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="9" y="2.5" width="4.5" height="4.5" rx="1" /><rect x="2.5" y="9" width="4.5" height="4.5" rx="1" /><rect x="9" y="9" width="4.5" height="4.5" rx="1" /></svg>,
   btw: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M13.5 7.5a5.5 5.5 0 0 1-8.1 4.8L2.5 13.5l1.1-2.8A5.5 5.5 0 1 1 13.5 7.5Z" /><path d="M6.7 6.2a1.4 1.4 0 1 1 1.9 1.3c-.4.2-.6.5-.6.9v.2" /><path d="M8 10.4h.01" /></svg>,
 };
-
-export const TAB_LABELS = {
-  review: "Changes",
-  files: "Files",
-  terminal: "Terminal",
-  browser: "Browser",
-  chatfiles: "Chat files",
-  subagents: "Subagents",
-  newtab: "New tab",
-  page: "New page",
-  transfer: "Transfer",
-  jobs: "Jobs",
-  view: "View",
-  workflow: "Workflow",
-  artifact: "Artifact",
-  artifacts: "Artifacts",
-  btw: "/btw",
-};
-
-export const TAB_KBD = { terminal: shortcutLabel("ctrl+`"), files: shortcutLabel("mod+p"), btw: shortcutLabel("mod+/") };

@@ -1,21 +1,15 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { SidePanelScopeContext, SidePanelVisibleContext } from "../../../state/paneScope.js";
-import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType, filePathOf, pageIdOf, viewIdOf, workflowRefOf, artifactSlugOf } from "../../../lib/panelTabs.js";
+import { getPanel, launcherTypes, usePanels } from "../../../lib/panelRegistry.js";
+import { tabType, filePathOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
-import { DELETED, getPage, usePagesVersion } from "../../../state/pagesStore.js";
-import { fetchViewRecord, getViewRecord, useViewRecordsVersion, viewTitleOf } from "../../../genui/panel/viewRecords.js";
-import { fetchWorkflowRun, getWorkflowRun, useWorkflowRunsVersion } from "../../../state/workflowRunsStore.js";
-import { workflowNameOf } from "../../../lib/workflowRuns.js";
-import { ensureArtifactCatalog, getArtifactCatalog, useArtifactCatalog } from "../../../state/artifactCatalogStore.js";
 import { NewTabPanel } from "../../newtab/NewTabPanel.jsx";
 import { FileDock } from "./FileDock.jsx";
 import { SidePanelTabs } from "./SidePanelTabs.jsx";
-import { TAB_ICONS, TAB_LABELS } from "./panelTabMeta.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area and the file
@@ -39,50 +33,29 @@ const MIN_PANEL_W = 280;
 const MIN_TX_W = 320;
 const DEFAULT_PANEL_FRAC = 0.4; // of the window
 
-// The launcher's tools, in order. The Code view passes its own subset (no
-// agent-bound tabs).
-const AGENT_TABS = ["review", "terminal", "files", "page", "chatfiles", "subagents", "artifacts", "transfer", "jobs", "btw"];
-
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
+const noTitle = () => null;
 
-// Pill label for a tab id. A file tab shows its file name, a page its title.
-// Terminals are numbered ("Terminal 1", "Terminal 2") only when more than one is
-// open; a lone one keeps the bare name.
-function labelFor(id, openTabs, panelData) {
+// Pill text for a tab id: a file tab shows its file name, a data-backed tab (a
+// page, a view, …) what its panel's useTitle hook says. Terminals are numbered
+// ("Terminal 1", "Terminal 2") only when more than one is open; a lone one keeps
+// the bare name.
+function usePillLabel(id, panel, openTabs, panelData) {
   const filePath = filePathOf(id);
+  const title = (panel?.useTitle ?? noTitle)(id, panelData);
   if (filePath) return baseName(filePath);
-  const pageId = pageIdOf(id);
-  if (pageId) {
-    const page = getPage(pageId);
-    if (!page) return "Page";
-    return page === DELETED ? "Deleted page" : page.title || "Untitled";
-  }
-  const viewId = viewIdOf(id);
-  if (viewId) {
-    const title = viewTitleOf(viewId);
-    return title ? `View · ${title}` : TAB_LABELS.view;
-  }
-  const slug = artifactSlugOf(id);
-  if (slug) {
-    const entry = getArtifactCatalog().artifacts.find((a) => a.slug === slug);
-    return entry?.title || panelData?.[id]?.title || TAB_LABELS.artifact;
-  }
-  const run = workflowRefOf(id);
-  if (run) {
-    const r = getWorkflowRun(run.workerId, run.callId);
-    const name = r?.detail?.name ?? (r?.tool ? workflowNameOf(r.tool.input) : null);
-    return name ? `Workflow · ${name}` : TAB_LABELS.workflow;
-  }
+  if (title) return title;
   const type = tabType(id);
-  if (type === "newtab") return TAB_LABELS.newtab;
-  const base = TAB_LABELS[type] ?? type;
+  const base = panel?.label ?? type;
+  if (type === "newtab") return base;
   const sameType = openTabs.filter((t) => tabType(t) === type);
   return sameType.length > 1 ? `${base} ${sameType.indexOf(id) + 1}` : base;
 }
 
-function TabPill({ id, label, active, onSelect, onClose }) {
+function TabPill({ id, panel, openTabs, panelData, active, onSelect, onClose }) {
+  const label = usePillLabel(id, panel, openTabs, panelData);
   const filePath = filePathOf(id);
-  const icon = filePath ? <FileIcon type="file" name={baseName(filePath)} /> : TAB_ICONS[tabType(id)];
+  const icon = filePath ? <FileIcon type="file" name={baseName(filePath)} /> : panel?.icon;
   const title = filePath ? shortenHome(filePath) : undefined;
   // Every pill carries its ×: always shown on the active pill, revealed on hover
   // for inactive ones (CSS-gated) so any open tab is closable. stopPropagation
@@ -122,32 +95,17 @@ function TabPill({ id, label, active, onSelect, onClose }) {
   );
 }
 
-export function SidePanel({ live, tabs = AGENT_TABS }) {
+// `surface` picks the launcher's tools: "agent" (a pane) or "code" (the Code
+// view, which has no agent-bound tabs).
+export function SidePanel({ live, surface = "agent" }) {
   const ui = useUi();
   const terminalRoot = useTerminalRoot();
   const openTabs = ui.openTabs ?? [];
   const activeTab = ui.activeTab ?? null;
+  const panelList = usePanels();
+  const tabs = launcherTypes(panelList, surface);
   const panel = activeTab ? getPanel(tabType(activeTab)) : null;
   const asideRef = useRef(null);
-  // Page tab labels are page titles — re-render when one changes.
-  usePagesVersion();
-  // View tabs are labelled by the view's title — fetch the ones a restored
-  // session reopened before they are first shown.
-  useViewRecordsVersion();
-  // Workflow tabs are labelled by the run's name, fetched the same way.
-  useWorkflowRunsVersion();
-  // Artifact tabs by the artifact's title, from the catalog.
-  useArtifactCatalog({ load: false });
-  const tabsKey = openTabs.join("\n");
-  useEffect(() => {
-    for (const id of tabsKey.split("\n")) {
-      const viewId = viewIdOf(id);
-      if (viewId && !getViewRecord(viewId)) void fetchViewRecord(viewId);
-      const run = workflowRefOf(id);
-      if (run) void fetchWorkflowRun(run.workerId, run.callId);
-      if (artifactSlugOf(id)) ensureArtifactCatalog();
-    }
-  }, [tabsKey]);
 
   // Width fraction = distance from pointer to the OWNING pane's right edge over
   // the window width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
@@ -234,16 +192,22 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
       >
         <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
         <div className="sp-tabbar">
-          {openTabs.map((id) => (
+          {openTabs.map((id) => {
+            const tabPanel = getPanel(tabType(id));
+            return (
             <TabPill
-              key={id}
+              // A reloaded tab type remounts its pill (its title hook may differ).
+              key={`${id}#${tabPanel?.rev ?? 0}`}
               id={id}
-              label={labelFor(id, openTabs, ui.panelData)}
+              panel={tabPanel}
+              openTabs={openTabs}
+              panelData={ui.panelData}
               active={id === activeTab}
               onSelect={() => ui.setTab(id)}
               onClose={() => closeTabById(id)}
             />
-          ))}
+            );
+          })}
           <button className="sp-plus" onClick={() => ui.openNewTab("newtab")} title="New tab" aria-label="New tab">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
           </button>
