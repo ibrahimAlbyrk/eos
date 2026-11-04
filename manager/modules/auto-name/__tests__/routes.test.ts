@@ -1,26 +1,30 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
-import { Router } from "../Router.ts";
-import { registerWorkerRoutes } from "../workers.ts";
-import type { Container } from "../../container.ts";
-import type { RouteContext } from "../Router.ts";
+import { Router } from "../../../routes/Router.ts";
+import type { RouteContext } from "../../../routes/Router.ts";
+import { createAutoNameModule } from "../index.ts";
 
-function fakeContainer() {
+function fakeModule() {
   const calls: Array<{ fn: string; args: unknown[] }> = [];
-  const microTasks = {
-    pause: (...args: unknown[]) => calls.push({ fn: "pause", args }),
-    resume: (...args: unknown[]) => calls.push({ fn: "resume", args }),
+  const runner = {
+    pause: (...args: unknown[]) => { calls.push({ fn: "pause", args }); },
+    resume: (...args: unknown[]) => { calls.push({ fn: "resume", args }); },
     cancel: () => {},
-    start: () => {},
   };
-  const c = { microTasks } as unknown as Container;
+  const c = createAutoNameModule({
+    workers: { findById: () => null, updateNameIfSource: () => false },
+    events: { list: () => [] },
+    bus: { publish: () => {}, subscribe: () => () => {} },
+    cfg: () => ({ charLimit: 280 }),
+    runner: () => runner,
+  } as never);
   return { c, calls };
 }
 
-async function dispatch(c: Container, path: string, body: unknown) {
+async function dispatch(c: ReturnType<typeof createAutoNameModule>, path: string, body: unknown) {
   const router = new Router();
-  registerWorkerRoutes(router, c);
+  c.registerRoutes?.(router);
   const m = router.match("PUT", path);
   assert.ok(m, `no PUT route matched ${path}`);
   const req = Readable.from([JSON.stringify(body)]) as unknown as RouteContext["req"];
@@ -37,7 +41,7 @@ async function dispatch(c: Container, path: string, body: unknown) {
 
 describe("PUT /workers/:id/rename-intent", () => {
   it("active:true → pause('auto-name', id)", async () => {
-    const { c, calls } = fakeContainer();
+    const { c, calls } = fakeModule();
     const out = await dispatch(c, "/workers/w1/rename-intent", { active: true });
     assert.deepEqual(calls, [{ fn: "pause", args: ["auto-name", "w1"] }]);
     assert.equal(out.status, 200);
@@ -45,13 +49,13 @@ describe("PUT /workers/:id/rename-intent", () => {
   });
 
   it("active:false → resume('auto-name', id)", async () => {
-    const { c, calls } = fakeContainer();
+    const { c, calls } = fakeModule();
     await dispatch(c, "/workers/w2/rename-intent", { active: false });
     assert.deepEqual(calls, [{ fn: "resume", args: ["auto-name", "w2"] }]);
   });
 
   it("rejects a non-boolean active (400, no pause/resume)", async () => {
-    const { c, calls } = fakeContainer();
+    const { c, calls } = fakeModule();
     await assert.rejects(() => dispatch(c, "/workers/w3/rename-intent", { active: "yes" }));
     assert.equal(calls.length, 0);
   });

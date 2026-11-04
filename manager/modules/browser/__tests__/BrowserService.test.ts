@@ -9,8 +9,8 @@ import {
   PRESENT_RATE_LIMIT_MS,
   browserProfileDirFor,
 } from "../BrowserService.ts";
-import { BrowserTabSchema, GLOBAL_SESSION } from "../../../contracts/src/browser.ts";
-import type { BrowserEngine, BrowserEngineTabInfo } from "../../../core/src/ports/BrowserEngine.ts";
+import { BrowserTabSchema, GLOBAL_SESSION } from "../../../../contracts/src/browser.ts";
+import type { BrowserEngine, BrowserEngineTabInfo } from "../../../../core/src/ports/BrowserEngine.ts";
 
 const log = { info: () => {}, warn: () => {} };
 

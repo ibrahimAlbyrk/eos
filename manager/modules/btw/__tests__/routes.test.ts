@@ -2,11 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { Readable } from "node:stream";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerSideQuestionRoutes } from "../side-question.ts";
-import type { Container } from "../../container.ts";
-import type { SideAnswer } from "../../../core/src/ports/AgentBackend.ts";
-import { ConflictError, ValidationError } from "../../../core/src/errors/index.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerSideQuestionRoutes, type SideQuestionRouteDeps } from "../routes.ts";
+import type { SideAnswer } from "../../../../core/src/ports/AgentBackend.ts";
+import { ConflictError, ValidationError } from "../../../../core/src/errors/index.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 
@@ -20,8 +19,9 @@ function makeContainer(askSide: (q: string, o?: { signal?: AbortSignal }) => Pro
   const c = {
     uiToken: "tok",
     workers: { findById: (id: string) => (id === "w-1" ? { id, state: "IDLE", archived_at: null } : null) },
-    inProcessSession: () => session,
-  } as unknown as Container;
+    revive: async () => {},
+    session: () => session,
+  } as unknown as SideQuestionRouteDeps;
   return { c, asked };
 }
 
@@ -37,7 +37,7 @@ function makeRes() {
   return res;
 }
 
-function start(c: Container, body: unknown, headers: Record<string, string> = UI) {
+function start(c: SideQuestionRouteDeps, body: unknown, headers: Record<string, string> = UI) {
   const router = new Router();
   registerSideQuestionRoutes(router, c);
   const u = new URL("http://x/workers/w-1/btw");

@@ -54,7 +54,7 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
     );
     c.pendingQuestions.cancelByWorker(id);
     c.pendingPeerRequests.cancelByWorker(id);
-    if (isSessionRoot) c.browser.disposeSession(id);
+    if (isSessionRoot) c.endSession(id);
     return {
       status: 200,
       body: {

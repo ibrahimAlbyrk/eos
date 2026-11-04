@@ -1,16 +1,16 @@
 import type { IncomingMessage } from "node:http";
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { StalePageError } from "../../core/src/services/PageService.ts";
-import { sessionProjectOf, sessionRootOf } from "../../core/src/services/session-root.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { StalePageError, type PageService } from "../../../core/src/services/PageService.ts";
+import { sessionProjectOf, sessionRootOf } from "../../../core/src/services/session-root.ts";
+import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
 import {
   PageCreateRequestSchema, PageEditRequestSchema, PageIdSchema, PageUpdateRequestSchema,
   type PageAuthor,
-} from "../../contracts/src/http.ts";
+} from "../../../contracts/src/http.ts";
 
 interface PageCaller {
   readonly author: PageAuthor;
@@ -19,12 +19,18 @@ interface PageCaller {
   readonly project: string | null;
 }
 
+export interface PageRouteDeps {
+  readonly pages: PageService;
+  readonly workers: Pick<WorkerRepo, "findById">;
+  readonly uiToken: string;
+}
+
 const USER: PageCaller = { author: { kind: "user", agentId: null, name: null }, session: null, project: null };
 
 // Agents name themselves with x-eos-agent-id (their MCP tools send it); anything
 // else is the user's UI. Declared, not authenticated — it attributes edits and
 // scopes defaults, it is not an auth boundary.
-function callerOf(c: Container, req: IncomingMessage): PageCaller {
+function callerOf(c: PageRouteDeps, req: IncomingMessage): PageCaller {
   const raw = req.headers["x-eos-agent-id"];
   const id = (Array.isArray(raw) ? raw[0] : raw)?.trim();
   const worker = id ? c.workers.findById(id) : null;
@@ -40,7 +46,7 @@ const PAGE_PATH = /^\/api\/pages\/(?<id>[^/]+)$/;
 const PAGE_EDIT_PATH = /^\/api\/pages\/(?<id>[^/]+)\/edit$/;
 
 // Pages are read and written by agents too, so only delete is UI-token gated.
-export function registerPageRoutes(r: Router, c: Container): void {
+export function registerPageRoutes(r: Router, c: PageRouteDeps): void {
   // ?project=<abs> one project's pages, ?all=1 every page; with neither, an agent
   // gets its own project's pages and the UI gets everything. ?q= filters by text.
   r.get("/api/pages", ({ req, url, res }) => {

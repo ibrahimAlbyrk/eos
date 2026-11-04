@@ -6,13 +6,18 @@
 //   POST /api/artifacts/refresh  re-read every sign-in now, answered when done
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
+import type { Router } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import type { ArtifactCatalogService } from "../../../core/src/services/ArtifactCatalogService.ts";
 
-export function registerArtifactRoutes(r: Router, c: Container): void {
+export interface ArtifactRouteDeps {
+  readonly artifacts: Pick<ArtifactCatalogService, "get" | "refresh">;
+  readonly uiToken: string;
+}
+
+export function registerArtifactRoutes(r: Router, c: ArtifactRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (uiTokenOk(req, c.uiToken)) return false;
     writeJson(res, 403, { error: "ui token required" });

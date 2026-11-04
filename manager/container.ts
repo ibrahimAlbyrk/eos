@@ -68,10 +68,6 @@ import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { createFileUsageSnapshotStore } from "../infra/src/usage/FileUsageSnapshotStore.ts";
 import type { SubscriptionUsageProvider } from "../core/src/ports/SubscriptionUsageProvider.ts";
-import { createFrameApiArtifactSource } from "../infra/src/artifacts/FrameApiArtifactSource.ts";
-import { ArtifactCatalogService } from "../core/src/services/ArtifactCatalogService.ts";
-import { announcesArtifact } from "../core/src/domain/artifact-catalog.ts";
-import { ARTIFACTS_TOPIC } from "../contracts/src/artifacts.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
@@ -126,7 +122,6 @@ import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts"
 import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
 import { MicroTaskRunner } from "./services/MicroTaskRunner.ts";
 import { CompactionService } from "./services/CompactionService.ts";
-import { buildMicroTasks } from "./services/micro-tasks/registry.ts";
 import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
@@ -152,8 +147,13 @@ import { childProcessWorkingTreeRestore } from "../infra/src/git/ChildProcessWor
 import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
-import { FilePageStore } from "../infra/src/persistence/FilePageStore.ts";
-import { PageService } from "../core/src/services/PageService.ts";
+import { createPagesModule } from "./modules/pages/index.ts";
+import { createBtwModule } from "./modules/btw/index.ts";
+import { createArtifactsModule } from "./modules/artifacts/index.ts";
+import { createBrowserModule } from "./modules/browser/index.ts";
+import { createAutoNameModule } from "./modules/auto-name/index.ts";
+import type { DaemonModule } from "./modules/types.ts";
+import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { FileUserAvatarStore, FileUserProfileStore } from "../infra/src/persistence/FileUserProfileStore.ts";
 import { UserProfileService } from "../core/src/services/UserProfileService.ts";
 import { FileUserMemoryStore } from "../infra/src/persistence/FileUserMemoryStore.ts";
@@ -226,9 +226,6 @@ import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
 import { WorkflowRunService } from "./services/WorkflowRunService.ts";
 import { BackgroundJobService } from "./services/BackgroundJobService.ts";
-import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
-import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
-import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts";
 import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -568,15 +565,6 @@ export function buildContainer() {
 
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
   const projects = new JsonProjectsRepo(join(config.daemon.home, "projects.json"));
-  // Pages: markdown notes shared by the user and agents (~/.eos/pages). A page
-  // linked to a chat outlives it — removing the agent just unlinks the page.
-  const pages = new PageService({
-    store: new FilePageStore(join(config.daemon.home, "pages")),
-    clock: systemClock,
-    bus,
-    newId: () => `pg-${randomBytes(6).toString("hex")}`,
-  });
-  bus.subscribe("worker:removed", (msg) => pages.unlinkAgent((msg.payload as { workerId: string }).workerId));
   // Profile: who the user is, as every agent sees it (~/.eos/profile, user data —
   // survives `restart --db`). Rendered into {{USER_PROFILE}} at spawn.
   const profileDir = join(config.daemon.home, "profile");
@@ -632,6 +620,10 @@ export function buildContainer() {
       log.warn("ui-token write failed", { error: errMsg(e) });
     }
   }
+
+  // Feature modules (manager/modules/*): each builds its own services and routes.
+  const pagesModule = createPagesModule({ home: config.daemon.home, clock: systemClock, bus, workers, uiToken });
+  const { pages } = pagesModule;
 
   // SpawnWorker dep builder — mirrors the worker's own derivation (realpath'd
   // repo root + the managed .eos/worktrees/<branch> layout) so the precomputed
@@ -721,35 +713,20 @@ export function buildContainer() {
     },
   });
   const ptyConversations = new PtyConversationService({ bus, sessions: ptySessions });
-  // Browser panel subsystem — ONE persistent Chrome PER SESSION (parent-chain
-  // root worker) over CDP, opt-in via config.browser.enabled (routes/service
-  // refuse while off). Engines launch lazily on a session's first browser use;
-  // each has its own on-disk profile dir (~/.eos/browser/<sessionKey>, the
-  // global session keeps the wave-1 ~/.eos/browser/profile) so logins survive
-  // daemon restarts. persistProfile=false → throwaway per-boot profiles in the
-  // OS temp dir. perSession=false collapses everything onto the one global
-  // engine (wave-1 behavior).
-  // Browser host registry for the embedded lane: when the Electron app registers
-  // itself as the browser host (over /browser/host), the engineFactory returns a
-  // RemoteBrowserEngine that RPCs the real WebContentsView in the app; with no
-  // host (headless daemon, CI, cron) it returns today's CdpBrowserAdapter. Choice
-  // is per-engine-launch. On host disconnect, resetEngines drops the dead remote
-  // engines so the next launch falls back to headless.
+  // The daemon → app channel: the Electron app registers over /browser/host and
+  // answers browser, media and location RPCs through it.
   const appHost = new AppBrowserHost({ log });
-  const browser = new BrowserService({
-    engineFactory: (sessionKey) =>
-      appHost.isRegistered()
-        ? new RemoteBrowserEngine(appHost.channelFor(sessionKey))
-        : new CdpBrowserAdapter({
-            chromePath: config.browser.chromePath,
-            profileDir: browserProfileDirFor(config.daemon.home, config.browser.persistProfile, sessionKey),
-            notify: (msg, meta) => log.warn(msg, meta),
-          }),
-    getConfig: () => config.browser,
+  const browserModule = createBrowserModule({
+    home: config.daemon.home,
+    config: () => config.browser,
+    appHost,
     bus,
     log,
+    workers,
+    events,
+    clock: systemClock,
+    uiToken,
   });
-  appHost.onDeregister(() => browser.resetEngines());
 
   // Visual answers (docs/genui/00-GENUI-PLAN.md): present / present_app store
   // through PresentView; media, map tiles, geocoding, place search and the app's
@@ -1074,28 +1051,29 @@ export function buildContainer() {
   // Live claude sessions → the store their latest launch runs on.
   const liveClaudeStores = new Map<string, string>();
 
-  // Every claude.ai Artifact of every Claude sign-in, read with that sign-in's
-  // own token (plan docs/artifacts/00-ARTIFACTS-PLAN.md).
   const claudeLoginOf = (loginId: string): PlanLoginRecord | undefined =>
     loginRegistry.list("anthropic").find((l) => l.id === loginId);
-  const artifacts = new ArtifactCatalogService({
-    source: createFrameApiArtifactSource({
-      token: async (loginId) => {
-        const l = claudeLoginOf(loginId);
-        return l ? claudeAccessToken(l.storeDir) : null;
-      },
-      ...(claudeRefresher ? {
-        renew: async (loginId: string, rejected: string) => {
-          const l = claudeLoginOf(loginId);
-          if (l) await claudeRefresher.renew(l.storeDir, rejected);
-        },
-      } : {}),
-    }),
+  const artifactsModule = createArtifactsModule({
     logins: () => loginRegistry.list("anthropic").map((l) => ({ id: l.id, label: l.label, email: l.email })),
+    token: async (loginId) => {
+      const l = claudeLoginOf(loginId);
+      return l ? claudeAccessToken(l.storeDir) : null;
+    },
+    ...(claudeRefresher ? {
+      renew: async (loginId: string, rejected: string) => {
+        const l = claudeLoginOf(loginId);
+        if (l) await claudeRefresher.renew(l.storeDir, rejected);
+      },
+    } : {}),
+    loginOfWorker: (workerId) => {
+      const store = liveClaudeStores.get(workerId);
+      return store ? loginRegistry.list("anthropic").find((l) => l.storeDir === store)?.id : undefined;
+    },
     clock: systemClock,
-    // A bare signal: the stream reaches paired computers, the catalog only this Mac's route.
-    publish: (catalog) => bus.publish(ARTIFACTS_TOPIC, { refreshing: catalog.refreshing }),
+    bus,
+    uiToken,
   });
+  const { artifacts } = artifactsModule;
 
   // Settings › Accounts. Sign in with Claude runs the official `claude auth login`
   // (a one-shot PTY with the billing-stripped env, so no ambient key or nested-
@@ -1583,18 +1561,20 @@ export function buildContainer() {
   // config is read live (it's a `let` reassigned by reloadConfig), so toggling
   // microTasks.* in ~/.eos/config.json takes effect without a code change.
   const oneShot: OneShotClient = { complete: (p, o) => judgeClient.judge(p, o) };
+  const autoNameModule = createAutoNameModule({
+    workers,
+    events,
+    bus,
+    cfg: () => config.microTasks.tasks["auto-name"],
+    runner: () => microTasks,
+  });
   const microTasks = new MicroTaskRunner({
     bus,
     oneShot,
     prompts,
     clock: systemClock,
     log,
-    tasks: buildMicroTasks({
-      workers,
-      events,
-      bus,
-      cfg: () => config.microTasks.tasks["auto-name"],
-    }),
+    tasks: [...autoNameModule.microTasks],
     subsystemEnabled: () => config.microTasks.enabled,
     configFor: (id) => config.microTasks.tasks[id],
     pauseMaxMs: () => config.microTasks.pauseMaxMs,
@@ -1722,6 +1702,22 @@ export function buildContainer() {
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
+  const btwModule = createBtwModule({
+    uiToken,
+    workers,
+    // A suspended chat is revived first, as a message to it would revive it.
+    revive: (w) => resumeIfDead(container, w),
+    session: inProcessSession,
+  });
+
+  // Feature modules, in route-registration order.
+  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule];
+  // A session's root was killed, archived or purged: modules drop what they
+  // held for it (its browser, …).
+  const endSession = (sessionKey: string): void => {
+    for (const m of modules) m.onSessionEnded?.(sessionKey);
+  };
+
   const deltaOffsets = new DeltaOffsets();
   const onAgentEvent = (workerId: string, event: AgentEvent): void => {
     // Live deltas are ephemeral: relayed to the UI over SSE (the SseBroadcaster
@@ -1743,12 +1739,7 @@ export function buildContainer() {
     if (event.type === "message" && event.role === "assistant") {
       turnOutput.markSeen(workerId);
     }
-    // An agent published a claude.ai Artifact: re-read the sign-in it runs on
-    // (every one when that's unknown).
-    if (announcesArtifact(event)) {
-      const store = liveClaudeStores.get(workerId);
-      artifacts.invalidate(store ? loginRegistry.list("anthropic").find((l) => l.storeDir === store)?.id : undefined);
-    }
+    for (const m of modules) m.onAgentEvent?.(workerId, event);
     if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);
     if (event.type === "subagent_started" || event.type === "subagent_completed" || event.type === "workflow_started" || event.type === "workflow_completed") {
       backgroundJobs.observe(workerId, event);
@@ -1953,6 +1944,7 @@ export function buildContainer() {
     recents,
     projects,
     pages,
+    modules,
     profile,
     userMemories,
     userProfilePreview,
@@ -1977,8 +1969,8 @@ export function buildContainer() {
     terminalRuns,
     ptySessions,
     ptyConversations,
-    browser,
     appHost,
+    endSession,
     prompts,
     promptRegistry,
     listWorkerDefinitionRecords,

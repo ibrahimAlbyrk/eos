@@ -9,20 +9,20 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
-import { Router } from "../../routes/Router.ts";
-import type { RouteContext } from "../../routes/Router.ts";
-import { registerBrowserRoutes } from "../../routes/browser.ts";
-import { handleError } from "../../middleware/errorHandler.ts";
+import { Router } from "../../../routes/Router.ts";
+import type { RouteContext } from "../../../routes/Router.ts";
+import { registerBrowserRoutes } from "../routes.ts";
+import { handleError } from "../../../middleware/errorHandler.ts";
 import { BrowserService, type BrowserActor } from "../BrowserService.ts";
-import type { BrowserEngine } from "../../../core/src/ports/BrowserEngine.ts";
-import type { Container } from "../../container.ts";
-import type { WorkerRow } from "../../../contracts/src/worker.ts";
+import type { BrowserEngine } from "../../../../core/src/ports/BrowserEngine.ts";
+import type { BrowserRouteDeps } from "../routes.ts";
+import type { WorkerRow } from "../../../../contracts/src/worker.ts";
 
 const TOKEN = "ui-token-abc";
 const AGENT = "w-agent";
 
 async function dispatch(
-  c: Container,
+  c: BrowserRouteDeps,
   method: "GET" | "POST" | "DELETE",
   path: string,
   opts: { body?: unknown; token?: string; agentId?: string } = {},
@@ -53,18 +53,18 @@ async function dispatch(
   return { status, payload };
 }
 
-// Container scaffolding shared by every case: the AGENT worker is a root row,
+// BrowserRouteDeps scaffolding shared by every case: the AGENT worker is a root row,
 // so its session is itself.
-function containerWith(browser: unknown, opts: { perSession?: boolean } = {}): Container {
+function containerWith(browser: unknown, opts: { perSession?: boolean } = {}): BrowserRouteDeps {
   return {
     uiToken: TOKEN,
-    config: { browser: { enabled: true, chromePath: null, allowedOrigins: [], persistProfile: true, perSession: opts.perSession ?? true } },
+    perSession: () => opts.perSession ?? true,
     log: { info() {}, warn() {} },
     clock: { now: () => 1 },
     workers: { findById: (id: string) => (id === AGENT ? ({ id, parent_id: null } as WorkerRow) : null) },
     events: { append: () => 1 },
     browser,
-  } as unknown as Container;
+  } as unknown as BrowserRouteDeps;
 }
 
 // Real BrowserService over a minimal engine — the nav policy and redaction

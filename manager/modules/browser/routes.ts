@@ -1,9 +1,8 @@
-import type { Router, RouteContext } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
+import type { Router, RouteContext } from "../../routes/Router.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
 import {
   BrowserActRequestSchema,
   BrowserDeviceRequestSchema,
@@ -22,11 +21,14 @@ import {
   BrowserTypeRequestSchema,
   BrowserWaitRequestSchema,
   GLOBAL_SESSION,
-} from "../../contracts/src/browser.ts";
-import { BrowserDisabledError, BrowserNavBlockedError, type BrowserActor } from "../services/BrowserService.ts";
-import { StaleRefError } from "../../core/src/ports/BrowserEngine.ts";
-import { sessionRootOf } from "../../core/src/services/session-root.ts";
-import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
+} from "../../../contracts/src/browser.ts";
+import { BrowserDisabledError, BrowserNavBlockedError, type BrowserActor, type BrowserService } from "./BrowserService.ts";
+import { StaleRefError } from "../../../core/src/ports/BrowserEngine.ts";
+import { sessionRootOf } from "../../../core/src/services/session-root.ts";
+import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
+import type { EventRepo } from "../../../core/src/ports/EventRepo.ts";
+import type { Clock } from "../../../core/src/ports/Clock.ts";
+import type { Logger } from "../../../core/src/ports/Logger.ts";
 
 // Browser subsystem REST surface — loopback-only, dual-identity, session-
 // scoped. Identity is derived from HEADERS ALONE — request bodies (and an
@@ -89,14 +91,25 @@ function headerValue(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-export function registerBrowserRoutes(r: Router, c: Container): void {
+export interface BrowserRouteDeps {
+  readonly browser: BrowserService;
+  readonly workers: Pick<WorkerRepo, "findById">;
+  readonly events: Pick<EventRepo, "append">;
+  readonly clock: Clock;
+  readonly log: Pick<Logger, "info" | "warn">;
+  readonly uiToken: string;
+  // config.browser.perSession, read live (Settings can change it).
+  readonly perSession: () => boolean;
+}
+
+export function registerBrowserRoutes(r: Router, c: BrowserRouteDeps): void {
   const resolveCaller = (ctx: RouteContext): BrowserCaller =>
     resolveBrowserCaller({
       workers: c.workers,
       uiTokenOk: uiTokenOk(ctx.req, c.uiToken),
       agentIdHeader: headerValue(ctx.req.headers["x-eos-agent-id"]),
       sessionParam: ctx.url.searchParams.get("session"),
-      perSession: c.config.browser.perSession,
+      perSession: c.perSession(),
     });
 
   const gated = (handler: (_ctx: RouteContext, _caller: BrowserCaller) => Promise<void> | void) =>

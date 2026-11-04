@@ -1,13 +1,12 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerArtifactRoutes } from "../artifacts.ts";
-import type { Container } from "../../container.ts";
-import { ArtifactCatalogService } from "../../../core/src/services/ArtifactCatalogService.ts";
-import { ROUTES } from "../../../contracts/src/http.ts";
-import { isLocalOnlyRoute } from "../../../contracts/src/route-planes.ts";
-import type { ArtifactCatalog } from "../../../contracts/src/artifacts.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerArtifactRoutes, type ArtifactRouteDeps } from "../routes.ts";
+import { ArtifactCatalogService } from "../../../../core/src/services/ArtifactCatalogService.ts";
+import { ROUTES } from "../../../../contracts/src/http.ts";
+import { isLocalOnlyRoute } from "../../../../contracts/src/route-planes.ts";
+import type { ArtifactCatalog } from "../../../../contracts/src/artifacts.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 const SLUG = "0b0e8f2a-1c2d-4e5f-8a9b-0c1d2e3f4a5b";
@@ -25,10 +24,10 @@ function makeContainer() {
     clock: { now: () => Date.UTC(2026, 9, 29, 12) },
     publish: () => {},
   });
-  return { c: { uiToken: "tok", artifacts } as unknown as Container, reads: () => reads };
+  return { c: { uiToken: "tok", artifacts } as unknown as ArtifactRouteDeps, reads: () => reads };
 }
 
-async function call(c: Container, method: string, path: string, headers: Record<string, string> = {}) {
+async function call(c: ArtifactRouteDeps, method: string, path: string, headers: Record<string, string> = {}) {
   const router = new Router();
   registerArtifactRoutes(router, c);
   const u = new URL("http://x" + path);

@@ -27,7 +27,7 @@ function harness() {
   const backendStopped: string[] = [];
   const cancelled: Record<string, string[]> = { questions: [], peers: [] };
   const published: Array<{ topic: string; payload: unknown }> = [];
-  const browserDisposed: string[] = [];
+  const sessionsEnded: string[] = [];
 
   const session = { stop: () => {} };
   const c = {
@@ -54,12 +54,12 @@ function harness() {
     },
     pendingQuestions: { cancelByWorker: (id: string) => { cancelled.questions.push(id); } },
     pendingPeerRequests: { cancelByWorker: (id: string) => { cancelled.peers.push(id); } },
-    browser: { disposeSession: (id: string) => { browserDisposed.push(id); } },
+    endSession: (id: string) => { sessionsEnded.push(id); },
   } as unknown as Container;
 
   const run = (addr: { id: string; actorId?: string }) =>
     archiveWorkerHandler.run(addr, undefined as never, { c } as never);
-  return { run, setArchived, markedDone, runtimeCleared, pendingDeleted, queueDeleted, escalated, backendStopped, cancelled, published, browserDisposed };
+  return { run, setArchived, markedDone, runtimeCleared, pendingDeleted, queueDeleted, escalated, backendStopped, cancelled, published, sessionsEnded };
 }
 
 describe("archiveWorkerHandler", () => {
@@ -96,13 +96,13 @@ describe("archiveWorkerHandler", () => {
     assert.deepEqual(h.backendStopped, ["w2"]);
   });
 
-  it("archiving a SESSION ROOT disposes its browser session; a mid-tree archive does not", async (t) => {
+  it("archiving a SESSION ROOT ends its session; a mid-tree archive does not", async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const h = harness();
     await h.run({ id: "w1" });
-    assert.deepEqual(h.browserDisposed, [], "w1 has a parent — not a session root");
+    assert.deepEqual(h.sessionsEnded, [], "w1 has a parent — not a session root");
     await h.run({ id: "orch-1" });
-    assert.deepEqual(h.browserDisposed, ["orch-1"]);
+    assert.deepEqual(h.sessionsEnded, ["orch-1"]);
   });
 
   it("cancels in-memory pendings per subtree row; queued_messages stay untouched", async (t) => {

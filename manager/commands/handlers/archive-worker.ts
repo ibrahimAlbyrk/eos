@@ -43,7 +43,7 @@ export const archiveWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, Archiv
       c.pendingQuestions.cancelByWorker(wid);
       c.pendingPeerRequests.cancelByWorker(wid);
     }
-    if (isSessionRoot) c.browser.disposeSession(id);
+    if (isSessionRoot) c.endSession(id);
     return {
       status: 200,
       body: { id: result.id, archived: result.archived, was_state: result.wasState },

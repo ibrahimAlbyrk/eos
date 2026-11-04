@@ -10,8 +10,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { EventBus } from "../../core/src/ports/EventBus.ts";
-import type { BrowserEngine } from "../../core/src/ports/BrowserEngine.ts";
+import type { EventBus } from "../../../core/src/ports/EventBus.ts";
+import type { BrowserEngine } from "../../../core/src/ports/BrowserEngine.ts";
 import type {
   BrowserActivity,
   BrowserActRequest,
@@ -32,8 +32,8 @@ import type {
   BrowserTypeRequest,
   BrowserWaitRequest,
   BrowserWaitResponse,
-} from "../../contracts/src/browser.ts";
-import { GLOBAL_SESSION } from "../../contracts/src/browser.ts";
+} from "../../../contracts/src/browser.ts";
+import { GLOBAL_SESSION } from "../../../contracts/src/browser.ts";
 
 export interface BrowserConfigSlice {
   enabled: boolean;

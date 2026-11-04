@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { makeAutoNameTask, isNameable, interpretModelOutput, NO_TITLE_SENTINEL, type AutoNameDeps } from "../micro-tasks/autoName.ts";
-import { buildMicroTasks } from "../micro-tasks/registry.ts";
-import type { WorkerRow } from "../../../contracts/src/worker.ts";
-import type { WorkerEventRow } from "../../../contracts/src/events.ts";
+import { makeAutoNameTask, isNameable, interpretModelOutput, NO_TITLE_SENTINEL, type AutoNameDeps } from "../autoName.ts";
+import { createAutoNameModule } from "../index.ts";
+import type { WorkerRow } from "../../../../contracts/src/worker.ts";
+import type { WorkerEventRow } from "../../../../contracts/src/events.ts";
 
 type RowState = { is_orchestrator?: number; name_source?: string | null; name?: string | null };
 
@@ -200,16 +200,32 @@ describe("auto-name end-to-end", () => {
   });
 });
 
-describe("micro-task registry", () => {
-  it("buildMicroTasks wires the auto-name task", () => {
-    const tasks = buildMicroTasks({
+describe("auto-name module", () => {
+  it("contributes the auto-name task", () => {
+    const { microTasks } = createAutoNameModule({
       workers: { findById: () => null, updateNameIfSource: () => false },
       events: { list: () => [] },
-      bus: { publish: () => {} },
+      bus: { publish: () => {}, subscribe: () => () => {} },
       cfg: () => ({ charLimit: 280 }),
+      runner: () => ({ cancel: () => {}, pause: () => {}, resume: () => {} }),
     });
-    assert.equal(tasks.length, 1);
-    assert.equal(tasks[0].id, "auto-name");
-    assert.equal(tasks[0].promptId, "micro-tasks/auto-name");
+    assert.equal(microTasks.length, 1);
+    assert.equal(microTasks[0].id, "auto-name");
+    assert.equal(microTasks[0].promptId, "micro-tasks/auto-name");
+  });
+
+  it("a human rename cancels the pending run; other worker changes don't", () => {
+    let onChange: (msg: { payload: unknown }) => void = () => {};
+    const cancelled: unknown[][] = [];
+    createAutoNameModule({
+      workers: { findById: () => null, updateNameIfSource: () => false },
+      events: { list: () => [] },
+      bus: { publish: () => {}, subscribe: (_t: string, fn: (msg: { payload: unknown }) => void) => { onChange = fn; return () => {}; } },
+      cfg: () => ({ charLimit: 280 }),
+      runner: () => ({ cancel: (...a: unknown[]) => { cancelled.push(a); }, pause: () => {}, resume: () => {} }),
+    } as never);
+    onChange({ payload: { workerId: "w1" } });
+    onChange({ payload: { workerId: "w1", renamedBy: "user" } });
+    assert.deepEqual(cancelled, [["auto-name", "w1", "user-renamed"]]);
   });
 });

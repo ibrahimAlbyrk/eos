@@ -12,7 +12,6 @@ import {
   MessageRequestSchema,
   ReportRequestSchema,
   SetNameRequestSchema,
-  RenameIntentRequestSchema,
   SetPermissionRequestSchema,
   SetModelRequestSchema,
   SetBackendRequestSchema,
@@ -204,9 +203,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const purged = c.config.archive.purgeOnAppClose
       ? purgeAllArchived(archivePurgeDeps(c))
       : [];
-    // Purged subtree roots are session roots — tear down their browsers too
-    // (usually a no-op: archive already disposed them).
-    for (const id of purged) c.browser.disposeSession(id);
+    // Purged subtree roots are session roots — end their sessions too
+    // (usually a no-op: archive already ended them).
+    for (const id of purged) c.endSession(id);
     writeJson(res, 200, { ok: true, purged });
   });
 
@@ -702,23 +701,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const body = validate(SetNameRequestSchema, await readBody(req));
     const worker = c.workers.findById(params.id);
     if (!worker) { writeJson(res, 404, { error: "not found" }); return; }
-    // A human rename stamps provenance 'user' — locks the row out of auto-naming.
+    // A human rename stamps provenance 'user' — locks the row out of auto-naming
+    // (and renamedBy tells the auto-namer to drop a pending run).
     c.workers.updateName(params.id, body.name, "user");
-    // Kill any pending auto-name run for this worker (a rename during the 5s wait
-    // would otherwise spend a Haiku call the gate re-check just discards).
-    c.microTasks.cancel("auto-name", params.id, "user-renamed");
-    c.bus.publish("worker:change", { workerId: params.id });
-    writeJson(res, 200, { ok: true });
-  });
-
-  // Rename-intent signal from the UI: pause the auto-name timer while the rename
-  // editor is open, resume it if the editor closes without committing. A commit
-  // goes through PUT /name above (which cancels). pause/resume on a worker with no
-  // pending auto-name run (non-orchestrator, already named) is a harmless no-op.
-  r.put(/^\/workers\/(?<id>[^/]+)\/rename-intent$/, async ({ params, req, res }) => {
-    const body = validate(RenameIntentRequestSchema, await readBody(req));
-    if (body.active) c.microTasks.pause("auto-name", params.id);
-    else c.microTasks.resume("auto-name", params.id);
+    c.bus.publish("worker:change", { workerId: params.id, renamedBy: "user" });
     writeJson(res, 200, { ok: true });
   });
 

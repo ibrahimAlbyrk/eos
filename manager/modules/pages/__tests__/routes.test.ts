@@ -4,12 +4,11 @@ import { Readable } from "node:stream";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerPageRoutes } from "../pages.ts";
-import type { Container } from "../../container.ts";
-import { FilePageStore } from "../../../infra/src/persistence/FilePageStore.ts";
-import { PageService } from "../../../core/src/services/PageService.ts";
-import { ValidationError } from "../../../core/src/errors/index.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerPageRoutes, type PageRouteDeps } from "../routes.ts";
+import { FilePageStore } from "../../../../infra/src/persistence/FilePageStore.ts";
+import { PageService } from "../../../../core/src/services/PageService.ts";
+import { ValidationError } from "../../../../core/src/errors/index.ts";
 
 // root "w-root" (cwd /repo) → child "w-child" (worktree, no cwd of its own).
 const WORKERS: Record<string, { id: string; name: string | null; cwd: string | null; worktree_from: string | null; parent_id: string | null }> = {
@@ -29,11 +28,11 @@ function makeContainer() {
       bus: { publish: (_t, p) => { events.push(p); } },
       newId: () => `pg-route00${++n}`,
     }),
-  } as unknown as Container;
+  } as unknown as PageRouteDeps;
   return { c, events };
 }
 
-async function call(c: Container, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+async function call(c: PageRouteDeps, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
   registerPageRoutes(router, c);
   const u = new URL("http://x" + path);

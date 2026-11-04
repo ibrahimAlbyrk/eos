@@ -50,7 +50,6 @@ import { registerAttachmentRoutes } from "./routes/attachments.ts";
 import { registerPromptEventRoutes } from "./routes/prompt-events.ts";
 import { registerSubagentEventRoutes } from "./routes/subagent-events.ts";
 import { registerWorkflowRunRoutes } from "./routes/workflow-runs.ts";
-import { registerSideQuestionRoutes } from "./routes/side-question.ts";
 import { registerJobRoutes } from "./routes/jobs.ts";
 import { registerUpdateRoutes } from "./routes/update.ts";
 import { wireJobSources } from "./services/jobs/wireJobSources.ts";
@@ -67,7 +66,6 @@ import { registerFsGitRoutes } from "./routes/fs-git.ts";
 import { registerProjectRoutes } from "./routes/projects.ts";
 import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
-import { registerPageRoutes } from "./routes/pages.ts";
 import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
 import { registerDreamRoutes } from "./routes/dreams.ts";
@@ -85,13 +83,11 @@ import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerAnthropicRoutes } from "./routes/anthropic.ts";
 import { registerAccountRoutes } from "./routes/accounts.ts";
 import { registerUsageRoutes } from "./routes/usage.ts";
-import { registerArtifactRoutes } from "./routes/artifacts.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerExportRoutes } from "./routes/export.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerBackendsRoutes } from "./routes/backends.ts";
-import { registerBrowserRoutes } from "./routes/browser.ts";
 import { makeBrowserHostUpgradeHandler } from "./browser-host.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerPeerRoutes } from "./routes/peer.ts";
@@ -134,7 +130,8 @@ registerFsGitRoutes(router, c);
 registerProjectRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
-registerPageRoutes(router, c);
+// Feature modules (pages, btw, artifacts, browser, auto-name) — their paths overlap no other route.
+for (const m of c.modules) m.registerRoutes?.(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
 registerDreamRoutes(router, c);
@@ -152,7 +149,6 @@ registerSettingsRoutes(router, c);
 registerAnthropicRoutes(router, c);
 registerAccountRoutes(router, c);
 registerUsageRoutes(router, c);
-registerArtifactRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);
@@ -161,11 +157,9 @@ registerAttachmentRoutes(router, c);
 registerPromptEventRoutes(router, c);
 registerSubagentEventRoutes(router, c);
 registerWorkflowRunRoutes(router, c);
-registerSideQuestionRoutes(router, c);
 registerJobRoutes(router, c);
 registerUpdateRoutes(router, c);
 registerPtyRoutes(router, c);
-registerBrowserRoutes(router, c);
 registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
@@ -756,7 +750,7 @@ async function shutdown(sig: string): Promise<void> {
   try { suspendResumableWorkersForShutdown(c); } catch {}
   // Chrome is a plain child (not supervisor-managed) — kill it here or it
   // outlives the daemon.
-  try { c.browser.dispose(); } catch {}
+  for (const m of c.modules) { try { m.stop?.(); } catch {} }
   // SIGTERM now, SIGKILL after the grace; their exit callbacks write rows, so
   // wait for them while the DB is still open.
   for (const id of ids) c.supervisor.escalateKill(id, CHILD_GRACE_MS);

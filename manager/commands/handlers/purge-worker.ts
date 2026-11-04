@@ -38,7 +38,7 @@ export const purgeWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, PurgeWor
       },
       id,
     );
-    if (isSessionRoot) c.browser.disposeSession(id);
+    if (isSessionRoot) c.endSession(id);
     return { status: 200, body: result };
   },
 };

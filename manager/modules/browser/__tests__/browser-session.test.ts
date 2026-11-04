@@ -1,14 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
-import { Router } from "../Router.ts";
-import type { RouteContext } from "../Router.ts";
-import { registerBrowserRoutes, resolveBrowserCaller, UnattributedAgentError } from "../browser.ts";
-import type { Container } from "../../container.ts";
-import { BrowserService } from "../../services/BrowserService.ts";
-import { GLOBAL_SESSION } from "../../../contracts/src/browser.ts";
-import type { BrowserEngine, BrowserEngineTabInfo } from "../../../core/src/ports/BrowserEngine.ts";
-import type { WorkerRow } from "../../../contracts/src/worker.ts";
+import { Router } from "../../../routes/Router.ts";
+import type { RouteContext } from "../../../routes/Router.ts";
+import { registerBrowserRoutes, resolveBrowserCaller, UnattributedAgentError } from "../routes.ts";
+import type { BrowserRouteDeps } from "../routes.ts";
+import { BrowserService } from "../BrowserService.ts";
+import { GLOBAL_SESSION } from "../../../../contracts/src/browser.ts";
+import type { BrowserEngine, BrowserEngineTabInfo } from "../../../../core/src/ports/BrowserEngine.ts";
+import type { WorkerRow } from "../../../../contracts/src/worker.ts";
 
 // Wave-2 session scoping of the browser REST surface: actor + session are
 // derived from HEADERS ONLY (ui token ⇒ human + ?session; x-eos-agent-id ⇒
@@ -94,7 +94,7 @@ function makeHarness(opts: { perSession?: boolean; allowedOrigins?: string[] } =
   });
   const c = {
     uiToken: UI_TOKEN,
-    config,
+    perSession: () => config.browser.perSession,
     log: { info: () => {}, warn: () => {} },
     clock: { now: () => 42 },
     workers,
@@ -105,7 +105,7 @@ function makeHarness(opts: { perSession?: boolean; allowedOrigins?: string[] } =
       },
     },
     browser,
-  } as unknown as Container;
+  } as unknown as BrowserRouteDeps;
   const router = new Router();
   registerBrowserRoutes(router, c);
 
