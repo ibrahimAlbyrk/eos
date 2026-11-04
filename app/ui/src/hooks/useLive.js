@@ -54,6 +54,7 @@ import { applyJobsChange, resyncJobs } from "../state/jobsStore.js";
 import { applyUpdateChange, resyncUpdate } from "../state/updateStore.js";
 import { applyArtifactsChange, resyncArtifactCatalog } from "../state/artifactCatalogStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
+import { dispatchResync, dispatchTopic } from "../lib/liveTopics.js";
 
 const POLL_MS = 4000;
 // While the event stream is up it already triggers every refetch; the poll is
@@ -235,10 +236,13 @@ export function useLive() {
         resyncJobs();
         resyncUpdate();
         resyncArtifactCatalog();
+        dispatchResync();
       },
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
+          // Topics registered at runtime (plugins) — see lib/liveTopics.js.
+          if (dispatchTopic(data.reason, data.payload)) return;
           if (data.reason === "state:patch") { applyStatePatch(data.payload?.changes); return; }
           // Peering: a controlled computer's link changed (Machines menu), or a
           // computer connected to / left this Mac (the "… connected" chip).
