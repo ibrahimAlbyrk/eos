@@ -157,6 +157,7 @@ export function interpretModelOutput(raw: string, userInput: string): string | n
 // markdown emphasis, and trailing punctuation. "" when nothing usable remains.
 function firstScrubbedLine(raw: string): string {
   let s = (raw.replace(/\r/g, "").split("\n").map((l) => l.trim()).find((l) => l.length > 0)) ?? "";
+  // eslint-disable-next-line no-control-regex -- stripping control chars is the point
   s = s.replace(/[\u0000-\u001f\u007f]/g, " ");
   // Strip wrapping quotes / backticks / markdown emphasis, repeatedly.
   let prev = "";

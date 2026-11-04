@@ -117,6 +117,20 @@ export default [
       }],
     },
   },
+  // manager/modules/<feature>/ — one feature each. A module never imports
+  // another module (only ../types.ts and the kernel); what it needs from
+  // another feature comes in through its deps at the composition root.
+  ...[
+    ["manager/modules/*/*.ts", "^\\.\\./(?!types\\.ts$)[^./][^/]*/"],
+    ["manager/modules/*/__tests__/*.ts", "^\\.\\./\\.\\./(?!types\\.ts$)[^./][^/]*/"],
+  ].map(([glob, sibling]) => ({
+    files: [glob],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ regex: sibling, message: "A feature module must not import another module. Pass what it needs in through its deps (container.ts)." }],
+      }],
+    },
+  })),
   // Co-located contracts tests need node:test + node:assert. The strict
   // contracts/ rule above bans node built-ins for the pure schemas; relax it
   // for the __tests__ tree only.
