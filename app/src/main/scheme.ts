@@ -51,7 +51,10 @@ export function registerEosSchemePrivileges(): void {
 // Replicates BundledUISchemeHandler (doc 10 §c): default-to-index, a normalized
 // path-containment guard, the fixed MIME map, whole-file responses. Daemon
 // SSE/HTTP/WS deliberately stay on direct loopback and never touch this handler.
-export function installEosProtocol(uiRoot: string, csp: string | null): void {
+//
+// /plugins/* is the one exception: plugin builds live in the daemon (it builds
+// them as their files change), so they're fetched from its /ui/plugins/*.
+export function installEosProtocol(uiRoot: string, csp: string | null, daemonUrl: string): void {
   const root = path.resolve(uiRoot);
   protocol.handle("eos", async (request) => {
     let pathname: string;
@@ -60,6 +63,7 @@ export function installEosProtocol(uiRoot: string, csp: string | null): void {
     } catch {
       return notFound();
     }
+    if (pathname.startsWith("/plugins/")) return fetchPluginBuild(daemonUrl, pathname);
     if (pathname === "" || pathname === "/") pathname = "/index.html";
 
     const resolved = path.resolve(root, "." + pathname);
@@ -79,4 +83,15 @@ export function installEosProtocol(uiRoot: string, csp: string | null): void {
       return notFound();
     }
   });
+}
+
+async function fetchPluginBuild(daemonUrl: string, pathname: string): Promise<Response> {
+  if (!/^\/plugins\/[a-z0-9.-]+\/\d+\.(js|css)$/.test(pathname)) return notFound();
+  try {
+    const r = await fetch(`${daemonUrl.replace(/\/+$/, "")}/ui${pathname}`);
+    if (!r.ok) return notFound();
+    return new Response(await r.arrayBuffer(), { status: 200, headers: { "content-type": mimeFor(pathname) } });
+  } catch {
+    return notFound();
+  }
 }

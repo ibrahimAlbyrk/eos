@@ -18,6 +18,7 @@ import { getFeatures } from "../state/featuresStore.js";
 import { AccountsSettings } from "./AccountsSettings.jsx";
 import { ProfileSettings } from "./ProfileSettings.jsx";
 import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
+import { PluginsSettings } from "./PluginsSettings.jsx";
 import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
 import { MachinesSettings } from "./MachinesSettings.jsx";
@@ -82,6 +83,12 @@ const UpdatesIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="8.5" />
     <path d="M12 8v8M8.5 12.5 12 16l3.5-3.5" />
+  </svg>
+);
+
+const PluginsIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 3h6v4h3a2 2 0 0 1 2 2v3h-4v6h4v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1h4v-6H4V9a2 2 0 0 1 2-2h3z" />
   </svg>
 );
 
@@ -486,6 +493,7 @@ export const SETTINGS_SECTIONS = [
       },
     ],
   },
+  { id: "plugins", label: "Plugins", Icon: PluginsIcon, Component: PluginsSettings },
   { id: "updates", label: "Updates", Icon: UpdatesIcon, Component: UpdatesSettings },
 ];
 

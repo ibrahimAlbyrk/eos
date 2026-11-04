@@ -37,6 +37,7 @@
 @import "./styles/btw.css";
 @import "./styles/paths.css";
 @import "./styles/artifacts.css";
+@import "./styles/plugins.css";
 @import "./styles/glass.css";
 
 *, *::before, *::after { box-sizing: border-box; }

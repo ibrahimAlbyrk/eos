@@ -398,7 +398,7 @@ async function startBackgroundServices(token: string): Promise<void> {
 
 app.whenReady().then(async () => {
   if (!gotLock) return; // a second instance already handed off to the first
-  installEosProtocol(UI_ROOT, CSP);
+  installEosProtocol(UI_ROOT, CSP, DAEMON_URL);
   registerWindowControls();
   installMainWindowPermissions(session.defaultSession, mainContents);
   installGenuiTokenHeader(session.defaultSession, DAEMON_URL, () => mainUiToken);

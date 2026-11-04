@@ -310,6 +310,26 @@ export const api = {
     if (!r.ok) throw new Error(r.body?.error ?? `getJobOutput → ${r.status}`);
     return r.body;
   },
+  // Plugins (contracts/src/plugin.ts).
+  async listPlugins() {
+    const r = await getJson(ROUTES.plugins);
+    if (!r.ok) throw new Error(r.body?.error ?? `plugins → ${r.status}`);
+    return r.body.plugins;
+  },
+  async setPluginEnabled(id, enabled) {
+    return putJson(ROUTES.pluginEnabled(id), { enabled }, uiTokenHeader());
+  },
+  async setPluginSettings(id, values) {
+    return putJson(ROUTES.pluginSettings(id), { values }, uiTokenHeader());
+  },
+  async getPluginValue(id, key) {
+    const r = await getJson(ROUTES.pluginStore(id, key));
+    if (!r.ok) throw new Error(r.body?.error ?? `plugin store → ${r.status}`);
+    return r.body.value;
+  },
+  async setPluginValue(id, key, value) {
+    return putJson(ROUTES.pluginStore(id, key), { value }, uiTokenHeader());
+  },
   async stopJob(id) { return postJson(ROUTES.jobStop(id), {}, uiTokenHeader()); },
   async dismissJob(id) { return postJson(ROUTES.jobDismiss(id), {}, uiTokenHeader()); },
   async clearJobs() { return postJson(ROUTES.jobsClear, {}, uiTokenHeader()); },

@@ -1,0 +1,171 @@
+// Settings › Plugins — every plugin in ~/.eos/plugins: on/off, whether it's
+// working, and a settings page generated from its manifest. Changes apply at
+// once; there's nothing to restart.
+
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { CONTROLS, ToggleControl } from "./controls.jsx";
+import { ensurePluginsLoaded, setPluginEnabled, setPluginSettings, usePlugins } from "../plugins/pluginsStore.js";
+import { pluginFault, subscribePluginFaults } from "../plugins/runtime.js";
+import { notify } from "../lib/notify.js";
+
+const errText = (e) => (e instanceof Error ? e.message : String(e));
+
+function usePluginFault(id) {
+  const get = () => pluginFault(id);
+  return useSyncExternalStore(subscribePluginFaults, get, get);
+}
+
+function PluginIcon({ manifest }) {
+  // The manifest's own SVG; plugins are local code the user (or their agent) put here.
+  if (manifest?.icon) return <span className="plg-icon" dangerouslySetInnerHTML={{ __html: manifest.icon }} />;
+  return (
+    <span className="plg-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 3h6v4h3a2 2 0 0 1 2 2v3h-4v6h4v1a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1h4v-6H4V9a2 2 0 0 1 2-2h3z" />
+      </svg>
+    </span>
+  );
+}
+
+function Status({ plugin }) {
+  const fault = usePluginFault(plugin.id);
+  if (plugin.state === "error") return <span className="plg-status is-err">Error</span>;
+  if (fault) return <span className="plg-status is-err">Failed to load</span>;
+  if (plugin.manifest?.experimental) return <span className="plg-status is-exp">Experimental</span>;
+  return null;
+}
+
+async function toggle(plugin, on) {
+  try {
+    await setPluginEnabled(plugin.id, on);
+  } catch (e) {
+    notify.error(errText(e));
+  }
+}
+
+function PluginRow({ plugin, onOpen }) {
+  const name = plugin.manifest?.name ?? plugin.id;
+  return (
+    <div className="stg-row plg-row">
+      <button type="button" className="plg-row__main" onClick={onOpen}>
+        <PluginIcon manifest={plugin.manifest} />
+        <span className="stg-row__text">
+          <span className="stg-row__label">{name} <Status plugin={plugin} /></span>
+          <span className="stg-row__desc">{plugin.manifest?.description ?? plugin.error ?? ""}</span>
+        </span>
+      </button>
+      {plugin.manifest && <ToggleControl value={plugin.enabled} onChange={(v) => void toggle(plugin, v)} />}
+    </div>
+  );
+}
+
+function SettingControl({ def, value, onChange }) {
+  if (def.type === "boolean") return <CONTROLS.toggle value={Boolean(value)} onChange={onChange} />;
+  if (def.type === "select") return <CONTROLS.select value={value} onChange={onChange} options={def.options} />;
+  if (def.type === "number") {
+    if (def.min != null && def.max != null) {
+      return <CONTROLS.slider value={value ?? def.min} onChange={onChange} min={def.min} max={def.max} step={def.step ?? 1} />;
+    }
+    return <CONTROLS.text value={value == null ? "" : String(value)} onChange={(v) => { const n = Number(v); if (v !== "" && Number.isFinite(n)) onChange(n); }} />;
+  }
+  if (def.multiline) return <CONTROLS.textarea value={value ?? ""} onChange={onChange} placeholder={def.placeholder} rows={4} />;
+  return <CONTROLS.text value={value ?? ""} onChange={onChange} placeholder={def.placeholder} />;
+}
+
+function PluginPage({ plugin, onBack }) {
+  const fault = usePluginFault(plugin.id);
+  const defs = Object.entries(plugin.manifest?.settings ?? {});
+  const save = async (key, value) => {
+    try {
+      await setPluginSettings(plugin.id, { [key]: value });
+    } catch (e) {
+      notify.error(errText(e));
+    }
+  };
+  const problem = plugin.error ?? fault?.message ?? null;
+  return (
+    <>
+      <button type="button" className="plg-back" onClick={onBack}>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="m10 3-5 5 5 5" /></svg>
+        Plugins
+      </button>
+      <div className="plg-head">
+        <PluginIcon manifest={plugin.manifest} />
+        <div>
+          <h2 className="stg-title plg-head__title">{plugin.manifest?.name ?? plugin.id} <Status plugin={plugin} /></h2>
+          {plugin.manifest?.description && <div className="stg-row__desc">{plugin.manifest.description}</div>}
+        </div>
+      </div>
+
+      {problem && <pre className="plg-error">{problem}</pre>}
+
+      <div className="stg-group">
+        <div className="stg-group__title">Plugin</div>
+        {plugin.manifest && (
+          <div className="stg-row">
+            <div className="stg-row__text">
+              <div className="stg-row__label">Enabled</div>
+              <div className="stg-row__desc">Turning it off removes everything it adds, at once.</div>
+            </div>
+            <ToggleControl value={plugin.enabled} onChange={(v) => void toggle(plugin, v)} />
+          </div>
+        )}
+        <div className="stg-row">
+          <div className="stg-row__text">
+            <div className="stg-row__label">Folder</div>
+            <div className="stg-row__desc plg-mono">{plugin.dir}</div>
+          </div>
+          {plugin.manifest?.version && <span className="plg-mono plg-version">v{plugin.manifest.version}</span>}
+        </div>
+      </div>
+
+      {defs.length > 0 && (
+        <div className="stg-group">
+          <div className="stg-group__title">Settings</div>
+          {defs.map(([key, def]) => (
+            <div className={"stg-row" + (def.multiline ? " stg-row--stack" : "")} key={key}>
+              <div className="stg-row__text">
+                <div className="stg-row__label">{def.title}</div>
+                {def.description && <div className="stg-row__desc">{def.description}</div>}
+              </div>
+              <SettingControl def={def} value={plugin.settings[key]} onChange={(v) => void save(key, v)} />
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function PluginsSettings() {
+  const plugins = usePlugins();
+  const [openId, setOpenId] = useState(null);
+  useEffect(() => { ensurePluginsLoaded(); }, []);
+
+  const open = openId ? plugins.find((p) => p.id === openId) : null;
+  if (open) return <PluginPage plugin={open} onBack={() => setOpenId(null)} />;
+
+  const stable = plugins.filter((p) => !p.manifest?.experimental);
+  const experimental = plugins.filter((p) => p.manifest?.experimental);
+  return (
+    <>
+      <h2 className="stg-title">Plugins</h2>
+      <div className="stg-row__desc plg-intro">
+        Plugins add to Eos’s own interface. Ask an agent for one (“add a clock to the top right”), or put a folder in <span className="plg-mono">~/.eos/plugins</span>. Changes show up at once.
+      </div>
+      {plugins.length === 0 && <div className="stg-empty">No plugins yet</div>}
+      {stable.length > 0 && (
+        <div className="stg-group">
+          <div className="stg-group__title">Installed</div>
+          {stable.map((p) => <PluginRow key={p.id} plugin={p} onOpen={() => setOpenId(p.id)} />)}
+        </div>
+      )}
+      {experimental.length > 0 && (
+        <div className="stg-group">
+          <div className="stg-group__title">Experimental</div>
+          {experimental.map((p) => <PluginRow key={p.id} plugin={p} onOpen={() => setOpenId(p.id)} />)}
+        </div>
+      )}
+    </>
+  );
+}

@@ -6,6 +6,7 @@ import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
 import App from "./App.jsx";
 import { api } from "./api/client.js";
+import { startPlugins } from "./plugins/runtime.js";
 
 // The app shell loads this page while the daemon may still be starting, and the
 // boot fetches (ui config, settings, projects, templates) run once on mount — so
@@ -36,4 +37,7 @@ function withoutIterationListener(el) {
 const rootEl = document.getElementById("root");
 withoutIterationListener(rootEl);
 withoutIterationListener(document.body);
-whenDaemonUp().then(() => createRoot(rootEl).render(<App />));
+whenDaemonUp().then(() => {
+  createRoot(rootEl).render(<App />);
+  startPlugins();
+});
