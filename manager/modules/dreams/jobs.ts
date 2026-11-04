@@ -1,8 +1,8 @@
 // Dreaming over past chats (dream:change); a skipped dream leaves nothing.
 
-import type { BackgroundJobStatus } from "../../../../contracts/src/background-job.ts";
-import type { DreamChangeEvent, DreamStatus } from "../../../../contracts/src/dream.ts";
-import type { JobHandle, JobRegistry } from "../JobRegistry.ts";
+import type { BackgroundJobStatus } from "../../../contracts/src/background-job.ts";
+import type { DreamChangeEvent, DreamStatus } from "../../../contracts/src/dream.ts";
+import type { JobHandle, JobRegistry } from "../../services/jobs/JobRegistry.ts";
 
 export function dreamJobs(jobs: JobRegistry, deps: { stop(): boolean }) {
   let current: JobHandle | null = null;

@@ -4,7 +4,7 @@
 import { zodToJsonSchema } from "zod-to-json-schema";
 import {
   DreamConsolidateOutputSchema, DreamCriticOutputSchema, DreamMatchOutputSchema, DreamRecallOutputSchema,
-} from "../../contracts/src/dream.ts";
+} from "../../../contracts/src/dream.ts";
 
 const jsonSchema = (schema: Parameters<typeof zodToJsonSchema>[0]): Record<string, unknown> =>
   zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;

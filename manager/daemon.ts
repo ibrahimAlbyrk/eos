@@ -66,7 +66,6 @@ import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
-import { registerDreamRoutes } from "./routes/dreams.ts";
 import { registerSyncRoutes } from "./routes/sync.ts";
 import { registerTransferRoutes } from "./routes/transfer.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
@@ -132,7 +131,6 @@ for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
-registerDreamRoutes(router, c);
 registerSyncRoutes(router, c);
 registerTransferRoutes(router, c);
 registerMemoryRoutes(router, c);
@@ -405,8 +403,6 @@ wireJobSources({
   transfers: () => c.transfers.list(),
   cancelTransfer: (id) => { c.transfers.cancel(id); },
   machineName: (ref) => (ref === "local" ? c.peerHost.hostInfo().name : c.hostLinks.get(ref)?.alias ?? c.hostLinks.get(ref)?.name ?? "another Mac"),
-  dreamStatus: () => c.dreams.status(),
-  stopDream: () => c.dreams.requestStop(),
   syncStatus: () => c.sync.status(),
 });
 
@@ -451,13 +447,6 @@ const turnEndNotify = makeTurnEndNotify({
 c.bus.subscribe("worker:change", (msg) =>
   turnEndNotify(msg.payload as { workerId?: string; from?: string; state?: string }),
 );
-// Dreaming: a top-level chat starting work means the user is here — a scheduled
-// dream stops after its current chat, and "away" restarts its clock.
-c.bus.subscribe("worker:change", (msg) => {
-  const p = msg.payload as { workerId?: string; state?: string };
-  if (p?.state === "WORKING" && p.workerId && !c.workers.findById(p.workerId)?.parent_id) c.dreams.noteUserActivity();
-});
-c.dreams.start();
 for (const m of c.modules) m.start?.();
 // Agents suggested memories → one batched banner a little later.
 const memorySuggestNotify = makeMemorySuggestNotify({

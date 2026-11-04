@@ -2,8 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { DreamService, type DreamRunOptions } from "../DreamService.ts";
-import { DEFAULT_DREAMING, type DreamingSettings } from "../../../contracts/src/profile.ts";
-import type { DreamRun } from "../../../contracts/src/dream.ts";
+import { DEFAULT_DREAMING, type DreamingSettings } from "../../../../contracts/src/profile.ts";
+import type { DreamRun } from "../../../../contracts/src/dream.ts";
 
 const at = (d: number, h: number, m = 0) => new Date(2026, 9, d, h, m).getTime();
 const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLog; } };

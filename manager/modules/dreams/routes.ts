@@ -1,19 +1,26 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { DreamExclusionRequestSchema } from "../../contracts/src/dream.ts";
+import type { Router } from "../../routes/Router.ts";
+import type { DreamRepo } from "../../../core/src/ports/DreamRepo.ts";
+import type { DreamService } from "./DreamService.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { DreamExclusionRequestSchema } from "../../../contracts/src/dream.ts";
 
 const RUN_PATH = /^\/api\/dreams\/(?<id>dr-[a-z0-9]+)$/;
 const RUNS_LISTED = 30;
 
 // Reads are open (the Memory view, Settings, the log); starting, stopping and
 // turning chats off are the user's (ui-token).
-export function registerDreamRoutes(r: Router, c: Container): void {
+export interface DreamRouteDeps {
+  readonly dreams: Pick<DreamService, "status" | "dreamNow" | "requestStop">;
+  readonly dreamRepo: Pick<DreamRepo, "list" | "get" | "excluded" | "setExcluded">;
+  readonly uiToken: string;
+}
+
+export function registerDreamRoutes(r: Router, c: DreamRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (uiTokenOk(req, c.uiToken)) return false;
     writeJson(res, 403, { error: "ui token required" });

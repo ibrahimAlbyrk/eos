@@ -7,7 +7,7 @@ import { JobRegistry, sliceOutput } from "../JobRegistry.ts";
 import { agentTaskJobs, type StopCapable } from "../sources/agentTasks.ts";
 import { terminalJobs } from "../sources/terminal.ts";
 import { transferJobs } from "../sources/transfer.ts";
-import { dreamJobs } from "../sources/dream.ts";
+import { dreamJobs } from "../../../modules/dreams/jobs.ts";
 import { syncJobs } from "../sources/sync.ts";
 import { compactionJobs } from "../sources/compaction.ts";
 import type { BackgroundJob, BackgroundJobChange } from "../../../../contracts/src/background-job.ts";

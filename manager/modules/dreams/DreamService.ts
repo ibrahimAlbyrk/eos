@@ -6,15 +6,15 @@
 // Publishes dream:change on every step; the morning note goes out when a dream filed
 // proposals.
 
-import type { Clock } from "../../core/src/ports/Clock.ts";
-import type { DreamRepo } from "../../core/src/ports/DreamRepo.ts";
-import type { EventBus } from "../../core/src/ports/EventBus.ts";
-import type { Logger } from "../../core/src/ports/Logger.ts";
-import { emptyDreamDropped, isAwayDue, isNightlyDue, nextNightly } from "../../core/src/domain/dream.ts";
+import type { Clock } from "../../../core/src/ports/Clock.ts";
+import type { DreamRepo } from "../../../core/src/ports/DreamRepo.ts";
+import type { EventBus } from "../../../core/src/ports/EventBus.ts";
+import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { emptyDreamDropped, isAwayDue, isNightlyDue, nextNightly } from "../../../core/src/domain/dream.ts";
 import type {
   DreamBlock, DreamChangeEvent, DreamProgress, DreamRun, DreamRunStatus, DreamStatus, DreamTrigger,
-} from "../../contracts/src/dream.ts";
-import type { DreamingSettings } from "../../contracts/src/profile.ts";
+} from "../../../contracts/src/dream.ts";
+import type { DreamingSettings } from "../../../contracts/src/profile.ts";
 
 export interface DreamRunOptions {
   readonly trigger: DreamTrigger;

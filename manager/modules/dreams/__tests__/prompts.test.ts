@@ -2,16 +2,16 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 
-import { FilePromptSource } from "../../../infra/src/prompt/FilePromptSource.ts";
-import { PromptRegistry } from "../../../core/src/services/PromptRegistry.ts";
-import { PromptService } from "../../../core/src/services/PromptService.ts";
-import { TOOL_NAME_VARS } from "../../prompt-tool-names.ts";
-import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { FilePromptSource } from "../../../../infra/src/prompt/FilePromptSource.ts";
+import { PromptRegistry } from "../../../../core/src/services/PromptRegistry.ts";
+import { PromptService } from "../../../../core/src/services/PromptService.ts";
+import { TOOL_NAME_VARS } from "../../../prompt-tool-names.ts";
+import type { Logger } from "../../../../core/src/ports/Logger.ts";
 
 const noopLogger: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLogger; } };
 
 describe("dream prompts", () => {
-  const registry = new PromptRegistry(new FilePromptSource([join(import.meta.dirname, "..", "..", "prompts")]), noopLogger);
+  const registry = new PromptRegistry(new FilePromptSource([join(import.meta.dirname, "..", "..", "..", "prompts")]), noopLogger);
   const prompts = new PromptService(registry, TOOL_NAME_VARS);
 
   it("every step renders, with data fenced and nothing left unresolved", () => {

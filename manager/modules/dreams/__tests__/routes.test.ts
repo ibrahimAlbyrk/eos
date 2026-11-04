@@ -2,11 +2,10 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { DatabaseSync } from "node:sqlite";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerDreamRoutes } from "../dreams.ts";
-import type { Container } from "../../container.ts";
-import { SqliteDreamRepo } from "../../../infra/src/persistence/SqliteDreamRepo.ts";
-import { runMigrations } from "../../../infra/src/persistence/MigrationRunner.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerDreamRoutes, type DreamRouteDeps } from "../routes.ts";
+import { SqliteDreamRepo } from "../../../../infra/src/persistence/SqliteDreamRepo.ts";
+import { runMigrations } from "../../../../infra/src/persistence/MigrationRunner.ts";
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLog; } };
 const UI = { "x-eos-ui-token": "tok" };
@@ -27,10 +26,10 @@ function makeContainer() {
     },
     requestStop: () => running,
   };
-  return { c: { uiToken: "tok", dreamRepo, dreams } as unknown as Container, started: () => started };
+  return { c: { uiToken: "tok", dreamRepo, dreams } as unknown as DreamRouteDeps, started: () => started };
 }
 
-async function call(c: Container, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+async function call(c: DreamRouteDeps, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
   registerDreamRoutes(router, c);
   const u = new URL("http://x" + path);

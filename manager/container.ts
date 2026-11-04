@@ -99,15 +99,11 @@ import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
-import { SqliteDreamRepo } from "../infra/src/persistence/SqliteDreamRepo.ts";
 import { SqliteTransferRepo } from "../infra/src/persistence/SqliteTransferRepo.ts";
 import { GENUI_TOPICS } from "../contracts/src/genui/spec.ts";
 import { FsTransferEndpoint } from "../infra/src/transfer/FsTransferEndpoint.ts";
-import { DreamService } from "./services/DreamService.ts";
-import { dreamOverChats } from "../core/src/use-cases/DreamOverChats.ts";
 import { normalizeEventRow } from "../core/src/domain/message-normalize.ts";
 import type { DreamLine, DreamSession } from "../core/src/domain/dream.ts";
-import { DREAM_SCHEMAS } from "./services/dream-schemas.ts";
 import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
@@ -150,6 +146,7 @@ import { createAutoNameModule } from "./modules/auto-name/index.ts";
 import { createUpdatesModule } from "./modules/updates/index.ts";
 import { createWorkflowRunsModule } from "./modules/workflow-runs/index.ts";
 import { createGenuiModule } from "./modules/genui/index.ts";
+import { createDreamsModule } from "./modules/dreams/index.ts";
 import type { DaemonModule } from "./modules/types.ts";
 import { createPluginHost } from "./plugins/index.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
@@ -299,7 +296,6 @@ export function buildContainer() {
   const loops = new SqliteLoopStateRepo(db);
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
   const messageIds = new SqliteMessageIdRepo(db);
-  const dreamRepo = new SqliteDreamRepo(db);
   // Up here, not with the other user-data services: spawn-time prompt assembly
   // reads the visual-answers level, and boot reconcile may already resume a session.
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
@@ -1661,27 +1657,16 @@ export function buildContainer() {
       const m = normalizeEventRow(row);
       return m ? [{ id: row.id, role: m.role, text: m.text, at: row.ts }] : [];
     });
-  const dreams = new DreamService({
-    run: ({ trigger, onProgress, shouldStop }) => dreamOverChats({
-      repo: dreamRepo,
-      summarizer,
-      schemas: DREAM_SCHEMAS,
-      prompts,
-      sessions: dreamSessions,
-      lines: dreamLines,
-      memories: userMemories,
-      profile,
-      profileDigest: () => userProfilePreview("claude", null).text,
-      clock: systemClock,
-      newId: () => `dr-${randomBytes(6).toString("hex")}`,
-      timeoutMs: config.compaction.timeoutMs,
-      shouldStop,
-      onProgress,
-    }, { trigger }),
-    repo: dreamRepo,
-    settings: () => profile.get().dreaming,
-    clock: systemClock,
-    bus,
+  const dreamsModule = createDreamsModule({
+    db,
+    summarizer,
+    prompts,
+    sessions: dreamSessions,
+    lines: dreamLines,
+    memories: userMemories,
+    profile,
+    profileDigest: () => userProfilePreview("claude", null).text,
+    timeoutMs: () => config.compaction.timeoutMs,
     signedIn: () => readEosClaudeLogin().present || Boolean(config.anthropic?.authToken?.trim()),
     usage: async () => {
       // The sign-in a dream would run on (claudeStore()).
@@ -1691,16 +1676,13 @@ export function buildContainer() {
         .filter((n): n is number => typeof n === "number");
       return used.length ? Math.max(...used) / 100 : null;
     },
-    anyWorking: () => workers.listAll().some((w) => w.state === "WORKING"),
+    workers,
+    jobs,
+    bus,
+    clock: systemClock,
     newId: () => `dr-${randomBytes(6).toString("hex")}`,
-    notify: (run) => bus.publish("notification:fire", {
-      title: `Eos dreamt · ${run.proposed} to review`,
-      body: run.narrative ?? "Review what it noticed while you were away.",
-      workerId: "",
-      route: "memory",
-      ts: systemClock.now(),
-    }),
     log,
+    uiToken,
   });
 
   // Route an in-process backend's canonical events into the daemon pipeline
@@ -1729,7 +1711,7 @@ export function buildContainer() {
   });
 
   // Feature modules, in route-registration order.
-  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule];
+  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule, dreamsModule];
   // A session's root was killed, archived or purged: modules drop what they
   // held for it (its browser, …).
   const endSession = (sessionKey: string): void => {
@@ -1942,8 +1924,6 @@ export function buildContainer() {
     backends,
     slashCommands,
     compaction,
-    dreams,
-    dreamRepo,
     expandSlashTemplate,
     onAgentEvent,
     backendResolver,

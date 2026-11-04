@@ -24,7 +24,7 @@ import { applyVerdicts, lintMemoryText, parseCritic, type CheckedProposal } from
 import { dayKey, foldText, isCandidateReady } from "../core/src/domain/dream-ledger.ts";
 import { formatMemories, formatProposals } from "../core/src/domain/dream-prompt-data.ts";
 import { createSdkSummarizer } from "../manager/backends/sdk/SdkSummarizer.ts";
-import { DREAM_SCHEMAS } from "../manager/services/dream-schemas.ts";
+import { DREAM_SCHEMAS } from "../manager/modules/dreams/schemas.ts";
 import { TOOL_NAME_VARS } from "../manager/prompt-tool-names.ts";
 import { UserProfileSchema, type UserMemory } from "../contracts/src/profile.ts";
 
