@@ -20,16 +20,21 @@ const nmDir = join(daemonDir, "node_modules");
 // system + arch on its own runner, since node-pty can't be cross-built.
 const target = `${process.platform}-${process.arch}`;
 const sdkBinary = `@anthropic-ai/claude-agent-sdk-${target}`;
+const esbuildBinary = `@esbuild/${target}`;
 
 // Closure (verified): SDK deps {} + its platform binary sibling; node-pty
 // needs node-addon-api/prebuild-install only at build/install time; tree-sitter
-// packages are zero-dep. So a flat copy of these 5 dirs is the full runtime set.
+// packages are zero-dep; esbuild needs only its platform binary. So a flat copy
+// of these dirs is the full runtime set.
 const COPY = [
   { from: "manager/node_modules/@anthropic-ai/claude-agent-sdk", to: "@anthropic-ai/claude-agent-sdk" },
   { from: `manager/node_modules/${sdkBinary}`, to: sdkBinary },
   { from: "spawner/node_modules/node-pty", to: "node-pty" },
   { from: "infra/node_modules/web-tree-sitter", to: "web-tree-sitter" },
   { from: "infra/node_modules/@vscode/tree-sitter-wasm", to: "@vscode/tree-sitter-wasm" },
+  // Plugin builds: the JS API + this system's native binary (its only dependency).
+  { from: "infra/node_modules/esbuild", to: "esbuild" },
+  { from: `infra/node_modules/${esbuildBinary}`, to: esbuildBinary },
 ];
 
 if (!existsSync(join(daemonDir, "daemon.bundle.mjs"))) {

@@ -24,6 +24,8 @@ export const DAEMON_EXTERNALS = [
   "@anthropic-ai/claude-agent-sdk",
   "web-tree-sitter",
   "@vscode/tree-sitter-wasm",
+  // Builds plugins at runtime; ships its native binary, so it can't be bundled.
+  "esbuild",
 ];
 
 // entry source → output bundle name (all land in outDir together, so
