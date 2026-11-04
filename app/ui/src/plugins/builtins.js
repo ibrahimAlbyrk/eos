@@ -30,7 +30,8 @@ function deactivate(id) {
 }
 
 // Every built-in starts on (so nothing flickers in before the daemon answers);
-// the plugin list then switches off the ones that are off.
+// the plugin list then switches off the ones that are off. One the daemon
+// doesn't list (the archive — a core feature) is never switched off.
 export function startBuiltins() {
   for (const id of new Set([...Object.keys(BUILTIN_PANELS), ...Object.keys(BUILTIN_SLOTS)])) activate(id);
 }

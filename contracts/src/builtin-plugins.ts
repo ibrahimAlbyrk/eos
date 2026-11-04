@@ -16,6 +16,8 @@ export const BUILTIN_PLUGINS = {
   browser: "eos.browser",
   autoName: "eos.auto-name",
   terminal: "eos.terminal",
+  // Built like a plugin, but a core feature: always on, never listed or switched
+  // off (it has no manifest below).
   archive: "eos.archive",
 } as const;
 
@@ -55,12 +57,6 @@ export const BUILTIN_PLUGIN_MANIFESTS: readonly PluginManifest[] = [
     name: "Terminal",
     description: "Shells in the side panel (⌃`).",
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="19" height="16" rx="2.5"/><path d="m6.5 9.5 3.5 3-3.5 3M12.5 15.5h5"/></svg>',
-  },
-  {
-    id: BUILTIN_PLUGINS.archive,
-    name: "Archive",
-    description: "Archived chats in the sidebar, kept until you restore or delete them.",
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="6" rx="1.5"/><path d="M5 10.5V19h14v-8.5M10 14h4"/></svg>',
   },
 ];
 

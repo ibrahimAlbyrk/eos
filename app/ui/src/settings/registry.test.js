@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SETTINGS_SECTIONS, SETTING_DEFAULTS, BUILTIN_PLUGIN_SETTINGS } from "./registry.jsx";
+import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "./registry.jsx";
 
 const section = (id) => SETTINGS_SECTIONS.find((s) => s.id === id);
 const keysOf = (s) => (s?.groups ?? []).flatMap((g) => g.items).map((i) => i.key);
@@ -27,12 +27,13 @@ describe("settings registry", () => {
     expect(SETTING_DEFAULTS["paths.peek"]).toBe(false);
   });
 
-  it("archive settings live on the Archive plugin's page: retention select, purge-on-close toggle, ⌘W action", () => {
-    expect(keysOf(section("general"))).not.toContain("archive.retention");
+  it("archive group lives in General: retention select, purge-on-close toggle, ⌘W action", () => {
+    const keys = keysOf(section("general"));
+    expect(keys).toEqual(expect.arrayContaining(["archive.retention", "archive.purgeOnAppClose", "archive.cmdW"]));
     expect(SETTING_DEFAULTS["archive.retention"]).toBe("weekly");
     expect(SETTING_DEFAULTS["archive.purgeOnAppClose"]).toBe(false);
     expect(SETTING_DEFAULTS["archive.cmdW"]).toBe("archive");
-    const items = BUILTIN_PLUGIN_SETTINGS["eos.archive"].find((g) => g.title === "Archive").items;
+    const items = section("general").groups.find((g) => g.title === "Archive").items;
     expect(items.find((i) => i.key === "archive.retention").control.options.map((o) => o.value))
       .toEqual(["off", "daily", "weekly", "monthly"]);
     expect(items.find((i) => i.key === "archive.cmdW").control.options.map((o) => o.value))
