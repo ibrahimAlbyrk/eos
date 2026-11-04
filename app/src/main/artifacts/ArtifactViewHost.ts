@@ -19,7 +19,9 @@ import { wireView } from "./viewEvents";
 // peek (a half-zoom miniature) and a side-panel tab. The same webContents moves
 // between them, so hover → open costs no reload. A view is in one place at a
 // time; the newest attach/peek takes it. While a view isn't ready it stays
-// hidden and the renderer paints the artifact's last still (stills.ts).
+// hidden and the renderer paints the artifact's last still (stills.ts). A ready
+// view that reloads (a new version, Reload) stays on screen while its
+// replacement loads off-screen; the two swap once the new one is ready.
 
 interface Deps {
   getWin: () => BrowserWindow | null;
@@ -132,7 +134,7 @@ export class ArtifactViewHost {
     const e = this.entries.get(slug);
     if (!e) return;
     e.lastUsed = Date.now();
-    void this.load(e, true);
+    this.refresh(e);
   }
 
   still(ref: ArtifactRef): Promise<string | null> {
@@ -195,8 +197,9 @@ export class ArtifactViewHost {
     if (existing && existing.partition === partition) {
       e = existing;
       e.ref = { ...e.ref, ...ref };
-      // A newer version was published since this view loaded.
-      if (ref.version && e.loadedVersion && ref.version !== e.loadedVersion) void this.load(e, true);
+      // A newer version was published since this view (or its replacement) loaded.
+      const loaded = e.next?.loadedVersion ?? e.loadedVersion;
+      if (ref.version && loaded && ref.version !== loaded) this.refresh(e);
     } else if (existing) {
       e = this.recreate(existing, { ...existing.ref, ...ref }, partition);
     } else {
@@ -208,6 +211,14 @@ export class ArtifactViewHost {
   }
 
   private create(win: BrowserWindow, ref: ArtifactRef, partition: string): Entry {
+    const e = this.build(win, ref, partition);
+    this.entries.set(ref.slug, e);
+    void this.load(e);
+    return e;
+  }
+
+  // A hidden view, not yet in the pool.
+  private build(win: BrowserWindow, ref: ArtifactRef, partition: string): Entry {
     this.deps.sessions.session(partition);
     const view = new WebContentsView({
       webPreferences: {
@@ -225,13 +236,51 @@ export class ArtifactViewHost {
     view.setVisible(false);
     view.setBounds(hiddenRect());
     win.contentView.addChildView(view);
-    this.entries.set(ref.slug, e);
     wireView(e, {
       setState: (entry, state, error) => this.setState(entry, state, error),
       sendOverlay: syncOverlay,
     });
-    void this.load(e);
     return e;
+  }
+
+  // Reload a ready view behind itself, so it never blanks; anything else reloads in place.
+  private refresh(e: Entry): void {
+    if (e.next) this.dispose(e.next, false);
+    const win = this.window();
+    if (!win || e.state !== "ready") {
+      void this.load(e, true);
+      return;
+    }
+    const next = this.build(win, e.ref, e.partition);
+    next.replaces = e;
+    e.next = next;
+    void this.load(next, true);
+  }
+
+  // The replacement finished loading: ready takes the view's place, anything
+  // else is reported on the view the user sees.
+  private settle(next: Entry): void {
+    const old = next.replaces;
+    if (!old || next.state === "loading") return;
+    if (next.state !== "ready") {
+      const { state, error } = next;
+      this.dispose(next, false);
+      this.setState(old, state, error);
+      return;
+    }
+    old.next = null;
+    next.replaces = null;
+    next.placement = old.placement;
+    next.lastUsed = Date.now();
+    if (this.peeked === old) {
+      this.peeked = next;
+      void setZoom(next, true);
+    }
+    this.entries.set(next.slug, next);
+    if (next.placement.kind !== "none") this.raise(next);
+    this.apply(next);
+    syncOverlay(next);
+    this.dispose(old, false);
   }
 
   // The sign-in now lives in another partition: a fresh view there, in the old one's place.
@@ -257,6 +306,9 @@ export class ArtifactViewHost {
     e.disposed = true;
     for (const t of e.timers) clearTimeout(t);
     e.timers.clear();
+    if (e.next) this.dispose(e.next, false);
+    if (e.replaces) e.replaces.next = null;
+    e.replaces = null;
     if (this.entries.get(e.slug) === e) this.entries.delete(e.slug);
     if (this.peeked === e) this.peeked = null;
     const wc = e.view.webContents;
@@ -363,6 +415,10 @@ export class ArtifactViewHost {
     e.error = err;
     if (state === "ready") void this.stillCapture.prepare(e);
     else if (state !== "loading") e.capturing = false;
+    if (e.replaces) {
+      this.settle(e);
+      return;
+    }
     this.apply(e);
     this.send("eosArtifacts:stateChanged", err ? { slug: e.slug, state, error: err } : { slug: e.slug, state });
   }
@@ -376,6 +432,7 @@ export class ArtifactViewHost {
   private signedOut(partition: string): void {
     for (const e of this.entries.values()) {
       if (e.partition !== partition) continue;
+      if (e.next) this.dispose(e.next, false);
       e.seq++;
       this.setState(e, "signin");
       e.view.webContents.loadURL("about:blank").catch(() => {});

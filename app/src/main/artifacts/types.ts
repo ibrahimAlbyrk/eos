@@ -37,6 +37,9 @@ export interface Entry {
   recapture: boolean;
   stillDue: boolean;
   timers: Set<ReturnType<typeof setTimeout>>;
+  // A reload of a ready view loads off-screen in `next`, which takes its place once ready.
+  next: Entry | null;
+  replaces: Entry | null;
 }
 
 export function newEntry(ref: ArtifactRef, partition: string, view: WebContentsView): Entry {
@@ -47,6 +50,7 @@ export function newEntry(ref: ArtifactRef, partition: string, view: WebContentsV
     seq: 0, domSeq: -1, doc: 0, zoomKey: null, zoomPending: false,
     capturing: false, recapture: false, stillDue: false,
     timers: new Set(),
+    next: null, replaces: null,
   };
 }
 
