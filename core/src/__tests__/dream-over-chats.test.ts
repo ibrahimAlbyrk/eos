@@ -2,7 +2,8 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { dreamOverChats, type DreamDeps } from "../use-cases/DreamOverChats.ts";
-import { DREAM_PENDING_CAP, UserMemoryService } from "../services/UserMemoryService.ts";
+import { UserMemoryService } from "../services/UserMemoryService.ts";
+import { DREAM_PENDING_CAP, DREAM_PRODUCER } from "../domain/dream.ts";
 import { emptyUserProfile } from "../domain/user-profile.ts";
 import type { DreamRepo } from "../ports/DreamRepo.ts";
 import type { DreamLine, DreamSession } from "../domain/dream.ts";
@@ -58,6 +59,7 @@ function setup(opts: { replies?: Replies; stopAfter?: number; profile?: Partial<
     clock: { now: () => (now += 1) },
     bus: { publish: () => {} },
     newId: () => `um-dream${String(++n).padStart(4, "0")}`,
+    pendingCapFor: (producer) => (producer === DREAM_PRODUCER ? DREAM_PENDING_CAP : undefined),
   });
   const profile = { ...emptyUserProfile(), ...opts.profile };
   const steps: string[] = [];

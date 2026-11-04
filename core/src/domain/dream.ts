@@ -316,3 +316,9 @@ function refutation(v: DreamVerdict | undefined, grounded: boolean): string {
   const fails = v.fails.map((n) => TEST_NAMES[n]).filter(Boolean).join("; ");
   return [v.reason, fails && `(${fails})`].filter(Boolean).join(" ") || "Refuted";
 }
+
+// Dream proposals waiting for review, all dreams together (every Mac's): a morning
+// review stays short, and an unreviewed one holds the next dream's back. Dreams
+// share one producer key ("dream") in the memory service's pending budget.
+export const DREAM_PENDING_CAP = 4;
+export const DREAM_PRODUCER = "dream";

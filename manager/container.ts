@@ -147,6 +147,7 @@ import { createUpdatesModule } from "./modules/updates/index.ts";
 import { createWorkflowRunsModule } from "./modules/workflow-runs/index.ts";
 import { createGenuiModule } from "./modules/genui/index.ts";
 import { createDreamsModule } from "./modules/dreams/index.ts";
+import { DREAM_PENDING_CAP, DREAM_PRODUCER } from "../core/src/domain/dream.ts";
 import type { DaemonModule } from "./modules/types.ts";
 import { createPluginHost } from "./plugins/index.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
@@ -571,6 +572,7 @@ export function buildContainer() {
     clock: systemClock,
     bus,
     newId: () => `um-${randomBytes(6).toString("hex")}`,
+    pendingCapFor: (producer) => (producer === DREAM_PRODUCER ? DREAM_PENDING_CAP : undefined),
   });
 
   // "No folder" agents: each gets ~/.eos/scratch/<id>, deleted with the agent.

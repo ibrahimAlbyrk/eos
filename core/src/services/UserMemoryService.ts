@@ -22,9 +22,6 @@ import type {
 } from "../../../contracts/src/profile.ts";
 
 export const DEFAULT_PENDING_PER_PRODUCER = 5;
-// Dream proposals waiting for review, all dreams together (every Mac's): a morning
-// review stays short, and an unreviewed one holds the next dream's back.
-export const DREAM_PENDING_CAP = 4;
 
 export class StaleMemoryError extends ConflictError {
   readonly memory: UserMemory;
@@ -93,6 +90,9 @@ export interface UserMemoryServiceDeps {
   readonly bus: Pick<EventBus, "publish">;
   readonly newId: () => string;
   readonly maxPendingPerProducer?: number;
+  // A producer's own cap on suggestions waiting for review (by producer key —
+  // "dream", "agent:<id>", …), where it differs from maxPendingPerProducer.
+  readonly pendingCapFor?: (producer: string) => number | undefined;
 }
 
 export class UserMemoryService implements UserMemoryReader, UserMemorySuggestionSink, UserMemoryEditor, UserMemorySyncTarget {
@@ -124,8 +124,8 @@ export class UserMemoryService implements UserMemoryReader, UserMemorySuggestion
     if (p && p.kind !== "new") this.requireKept(p.targets);
     const dup = p && p.kind !== "new" ? findDuplicateProposal(text, p, all) : findDuplicateMemory(text, input.scope, all);
     if (dup) return { memory: dup, duplicate: true, declined: dup.status === "dismissed" };
-    const cap = source.kind === "dream" ? DREAM_PENDING_CAP : (this.deps.maxPendingPerProducer ?? DEFAULT_PENDING_PER_PRODUCER);
     const key = producerKey(source);
+    const cap = this.deps.pendingCapFor?.(key) ?? this.deps.maxPendingPerProducer ?? DEFAULT_PENDING_PER_PRODUCER;
     if (all.filter((m) => m.status === "suggested" && producerKey(m.source) === key).length >= cap) {
       throw new LimitExceededError(`${cap} suggestions are already waiting for the user's review`);
     }

@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { DREAM_PENDING_CAP, StaleMemoryError, UserMemoryService } from "../services/UserMemoryService.ts";
+import { StaleMemoryError, UserMemoryService } from "../services/UserMemoryService.ts";
+import { DREAM_PENDING_CAP, DREAM_PRODUCER } from "../domain/dream.ts";
 import { ConflictError, LimitExceededError, NotFoundError, ValidationError } from "../errors/index.ts";
 import type { UserMemory, UserMemorySource } from "../../../contracts/src/profile.ts";
 
@@ -25,6 +26,7 @@ function make(maxPendingPerProducer?: number) {
     bus: { publish: (_t, p) => { events.push(p as { action: string; status: string; by: string }); } },
     newId: () => `um-test${String(++n).padStart(4, "0")}`,
     maxPendingPerProducer,
+    pendingCapFor: (producer) => (producer === DREAM_PRODUCER ? DREAM_PENDING_CAP : undefined),
   });
   return { svc, store, events };
 }
