@@ -15,6 +15,13 @@ import { SyncService } from "./SyncService.ts";
 import { syncJobs } from "./jobs.ts";
 import { SYNC_ROUTE_ACCESS, registerSyncRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // Sync's status changed (payload SyncStatusResponse) — Settings › Sync renders the payload.
+    "sync:change": true;
+  }
+}
+
 export interface SyncModuleDeps {
   readonly home: string;
   readonly contributions: readonly SyncContribution[];

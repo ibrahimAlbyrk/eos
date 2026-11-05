@@ -7,6 +7,15 @@ import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { WorkflowRunService, type WorkflowRunServiceDeps } from "./WorkflowRunService.ts";
 import { WORKFLOW_RUN_ROUTE_ACCESS, registerWorkflowRunRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // A running Claude Code Workflow's latest snapshot (claude SDK lane; payload
+    // WorkflowRunProgress), at most twice a second per run. Ephemeral — the run's
+    // start and end are agent events.
+    "workflow:progress": true;
+  }
+}
+
 export interface WorkflowRunsModuleDeps extends WorkflowRunServiceDeps {
   readonly uiToken: string;
 }

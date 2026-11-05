@@ -21,6 +21,14 @@ import { DREAM_SCHEMAS } from "./schemas.ts";
 import { dreamJobs } from "./jobs.ts";
 import { registerDreamRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // A dream started, moved on, or finished (payload DreamChangeEvent) — the
+    // Memory view, Settings › Dreaming and the dream log refetch its status.
+    "dream:change": true;
+  }
+}
+
 export interface DreamsModuleDeps {
   readonly db: DatabaseSync;
   // What a dream reads and runs on (see DreamOverChats).

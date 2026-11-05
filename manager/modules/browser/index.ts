@@ -26,6 +26,15 @@ import { RemoteBrowserEngine } from "../../../infra/src/browser/RemoteBrowserEng
 import { BrowserService, browserProfileDirFor } from "./BrowserService.ts";
 import { registerBrowserRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // The agent browser's tabs, activity and connection (BrowserService).
+    "browser:tabs": true;
+    "browser:activity": true;
+    "browser:status": true;
+  }
+}
+
 export interface BrowserModuleDeps {
   readonly home: string;
   readonly config: () => DaemonConfig["browser"];

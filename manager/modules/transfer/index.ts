@@ -21,6 +21,14 @@ import { TransferService, type NotificationFire } from "./TransferService.ts";
 import { transferJobs } from "./jobs.ts";
 import { TRANSFER_ROUTE_ACCESS, registerTransferRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // A file transfer between Macs moved on, or finished ones were cleared
+    // (payload TransferChangeEvent) — the Transfer tab renders the payload.
+    "transfer:change": true;
+  }
+}
+
 export interface TransferModuleDeps {
   readonly home: string;
   // Where nothing may land — Eos's own data.

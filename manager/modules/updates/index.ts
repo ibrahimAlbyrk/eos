@@ -25,6 +25,17 @@ import { updateJobs } from "./jobs.ts";
 import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 import type { UpdateState } from "../../../contracts/src/update.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // In-app update state moved on (payload UpdateState) — the update beacon and
+    // Settings › Updates.
+    "update:change": true;
+    // A verified new version is ready to swap in now (payload UpdateApply) — the
+    // app quits and its applier takes over.
+    "update:apply": true;
+  }
+}
+
 export interface UpdatesModuleDeps {
   readonly home: string;
   // The app's resources folder when packaged (where its version is read from).

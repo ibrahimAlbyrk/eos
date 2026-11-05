@@ -26,6 +26,17 @@ import { registerGenuiMediaRoutes } from "./media-routes.ts";
 import { LOCATION_ROUTE_ACCESS, registerLocationRoutes } from "./location-routes.ts";
 import { registerGenuiSettingsRoutes } from "./settings-routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // A visual answer's tool input while the model writes it (claude SDK lane;
+    // payload GenuiDelta: workerId, callId, name, phase, text). Its own topic so
+    // agent:delta consumers (LiveText, phones) never see tool JSON. Ephemeral.
+    "genui:delta": true;
+    // A view's UI state was replaced (payload GenuiChange { viewId, state }).
+    "genui:change": true;
+  }
+}
+
 export interface GenuiModuleDeps {
   readonly db: DatabaseSync;
   readonly home: string;

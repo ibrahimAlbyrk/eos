@@ -12,6 +12,14 @@ import { ArtifactCatalogService, type ArtifactLogin } from "../../../core/src/se
 import { createFrameApiArtifactSource, type FrameApiArtifactSourceDeps } from "../../../infra/src/artifacts/FrameApiArtifactSource.ts";
 import { ARTIFACT_ROUTE_ACCESS, registerArtifactRoutes } from "./routes.ts";
 
+declare module "../../../core/src/ports/EventBus.ts" {
+  interface EventBusTopics {
+    // The artifact catalog changed or started/stopped re-reading (payload only
+    // { refreshing }; the catalog is read from GET /api/artifacts — contracts ARTIFACTS_TOPIC).
+    "artifacts:change": true;
+  }
+}
+
 export interface ArtifactsModuleDeps {
   // The Claude sign-ins, and per sign-in the token (and its renewal) to read with.
   readonly logins: () => readonly ArtifactLogin[];
