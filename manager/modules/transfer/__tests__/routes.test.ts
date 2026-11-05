@@ -1,10 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
-import { Router, type RouteContext } from "../Router.ts";
-import { registerTransferRoutes } from "../transfer.ts";
-import type { Container } from "../../container.ts";
-import { TransferError } from "../../../core/src/domain/transfer.ts";
+import { Router, type RouteContext } from "../../../routes/Router.ts";
+import { registerTransferRoutes, type TransferRouteDeps } from "../routes.ts";
+import { TransferError } from "../../../../core/src/domain/transfer.ts";
 
 const UI = { "x-eos-ui-token": "tok" };
 
@@ -17,7 +16,7 @@ function makeContainer() {
   const c = {
     uiToken: "tok",
     workers: { findById: (id: string) => workers[id] ?? null },
-    transferEndpoint: {
+    endpoint: {
       home: async () => "/Users/me",
       list: async (path: string) => { calls.push(["list", path]); return { path, parent: null, home: "/Users/me", entries: [] }; },
       prepare: async () => { throw new TransferError("forbidden-dest", "not there"); },
@@ -28,11 +27,11 @@ function makeContainer() {
       sendForAgent: async (agent: unknown, b: unknown) => { calls.push(["agent", { agent, b }]); return { id: "tr-00000002" }; },
       get: (id: string) => ({ id, origin: { kind: "agent", agentId: "focus" } }),
     },
-  } as unknown as Container;
+  } as unknown as TransferRouteDeps;
   return { c, calls };
 }
 
-async function call(c: Container, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
+async function call(c: TransferRouteDeps, method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
   const router = new Router();
   registerTransferRoutes(router, c);
   const u = new URL("http://x" + path);

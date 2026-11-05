@@ -101,7 +101,6 @@ import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRep
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
 import { SqliteTransferRepo } from "../infra/src/persistence/SqliteTransferRepo.ts";
 import { GENUI_TOPICS } from "../contracts/src/genui/spec.ts";
-import { FsTransferEndpoint } from "../infra/src/transfer/FsTransferEndpoint.ts";
 import { normalizeEventRow } from "../core/src/domain/message-normalize.ts";
 import type { DreamLine, DreamSession } from "../core/src/domain/dream.ts";
 import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
@@ -230,8 +229,7 @@ import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 import { createProjectKeys } from "./services/project-keys.ts";
-import { TransferService } from "./services/transfer/TransferService.ts";
-import { PeerEndpoint } from "./services/transfer/PeerEndpoint.ts";
+import { createTransferModule } from "./modules/transfer/index.ts";
 import { avatarDomain, memoryDomain, profileDomain } from "./services/user-sync-domains.ts";
 import { fileDirDomain } from "./services/file-dir-sync-domain.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -1830,39 +1828,23 @@ export function buildContainer() {
     uiToken,
   });
 
-  const modules: DaemonModule[] = [...featureModules, syncModule];
-
-  // File transfer between paired Macs (the Transfer tab, a focused agent's
-  // send_to_machine). This Mac's disk is the local endpoint and what /transfer/*
-  // serves to a paired Mac; a host's is reached over its link. Plan:
-  // docs/transfer/00-TRANSFER-PLAN.md.
-  const transferEndpoint = new FsTransferEndpoint({
+  // File transfer between paired Macs (Transfer tab, send_to_machine).
+  const transferModule = createTransferModule({
     home: homedir(),
     forbidden: [config.daemon.home],
     trash: (path) => files.trash(path),
     projects: projectKeys,
-  });
-  const peerEndpoints = new Map<string, PeerEndpoint>();
-  const transfers = new TransferService({
     repo: new SqliteTransferRepo(db),
-    local: transferEndpoint,
-    peer: (hostId) => {
-      let ep = peerEndpoints.get(hostId);
-      if (!ep) {
-        ep = new PeerEndpoint({ link: () => hostLinks.link(hostId), home: () => hostLinks.get(hostId)?.info?.home ?? null });
-        peerEndpoints.set(hostId, ep);
-      }
-      return ep;
-    },
     hosts: hostLinks,
     localName: () => peerHost.hostInfo().name,
+    workers,
+    jobs,
     bus,
     clock: systemClock,
-    log: log.child({ svc: "transfer" }),
-    newId: () => `tr-${randomBytes(6).toString("hex")}`,
-    notify: (n) => bus.publish("notification:fire", n),
+    log,
+    uiToken,
   });
-  transfers.boot();
+  const modules: DaemonModule[] = [...featureModules, syncModule, transferModule];
 
   const container = {
     get config() { return config; },
@@ -1914,8 +1896,6 @@ export function buildContainer() {
     uiToken,
     peerHost,
     hostLinks,
-    transferEndpoint,
-    transfers,
     jobs,
     inProcessSession,
     viewTokens: new ViewTokens(uiToken),

@@ -7,16 +7,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { TransferService, type NotificationFire } from "../transfer/TransferService.ts";
-import { FsTransferEndpoint } from "../../../infra/src/transfer/FsTransferEndpoint.ts";
-import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEventBus.ts";
-import { TransferError } from "../../../core/src/domain/transfer.ts";
-import { ValidationError } from "../../../core/src/errors/index.ts";
-import type { Logger } from "../../../core/src/ports/Logger.ts";
-import type { TransferEndpoint } from "../../../core/src/ports/TransferEndpoint.ts";
-import type { TransferRepo } from "../../../core/src/ports/TransferRepo.ts";
-import type { TransferRecord } from "../../../contracts/src/transfer.ts";
-import type { HostView } from "../../../contracts/src/peer.ts";
+import { TransferService, type NotificationFire } from "../TransferService.ts";
+import { FsTransferEndpoint } from "../../../../infra/src/transfer/FsTransferEndpoint.ts";
+import { createInMemoryEventBus } from "../../../../infra/src/eventbus/InMemoryEventBus.ts";
+import { TransferError } from "../../../../core/src/domain/transfer.ts";
+import { ValidationError } from "../../../../core/src/errors/index.ts";
+import type { Logger } from "../../../../core/src/ports/Logger.ts";
+import type { TransferEndpoint } from "../../../../core/src/ports/TransferEndpoint.ts";
+import type { TransferRepo } from "../../../../core/src/ports/TransferRepo.ts";
+import type { TransferRecord } from "../../../../contracts/src/transfer.ts";
+import type { HostView } from "../../../../contracts/src/peer.ts";
 
 const quiet: Logger = { debug() {}, info() {}, warn() {}, error() {}, child: () => quiet };
 const HOST = "b".repeat(64);

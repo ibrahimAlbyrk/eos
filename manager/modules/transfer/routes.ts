@@ -8,21 +8,23 @@
 
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import type { Router, RouteContext } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody, readRawBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { agentCallerOf } from "./agent-caller.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { FOCUSED_ROLE } from "../../contracts/src/worker.ts";
+import type { Router, RouteContext } from "../../routes/Router.ts";
+import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
+import type { TransferEndpoint } from "../../../core/src/ports/TransferEndpoint.ts";
+import type { TransferService } from "./TransferService.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody, readRawBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { agentCallerOf } from "../../routes/agent-caller.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
 import {
   AgentTransferRequestSchema, TRANSFER_MAX_CHUNK, TransferAbortRequestSchema, TransferCommitRequestSchema,
   TransferDecideRequestSchema, TransferDestinationRequestSchema, TransferKeyRequestSchema, TransferLocateRequestSchema,
   TransferPrepareRequestSchema, TransferScanRequestSchema, TransferStartRequestSchema, type TransferErrorCode,
-} from "../../contracts/src/transfer.ts";
-import { TransferError } from "../../core/src/domain/transfer.ts";
+} from "../../../contracts/src/transfer.ts";
+import { TransferError } from "../../../core/src/domain/transfer.ts";
 
 const STATUS: Record<TransferErrorCode, number> = {
   "bad-path": 400, "not-found": 404, "forbidden-dest": 403, "duplicate-name": 409, "too-many": 413,
@@ -35,8 +37,15 @@ const ACTION = /^\/api\/transfers\/(?<id>tr-[a-z0-9]+)\/(?<action>pause|resume|c
 const AGENT_SEND = /^\/workers\/(?<id>[^/]+)\/transfers$/;
 const AGENT_POLL = /^\/workers\/(?<id>[^/]+)\/transfers\/(?<tid>tr-[a-z0-9]+)$/;
 
-export function registerTransferRoutes(r: Router, c: Container): void {
-  const ep = c.transferEndpoint;
+export interface TransferRouteDeps {
+  readonly endpoint: TransferEndpoint;
+  readonly transfers: Pick<TransferService, "list" | "start" | "clearFinished" | "destination" | "decide" | "pause" | "resume" | "cancel" | "sendForAgent" | "get">;
+  readonly workers: Pick<WorkerRepo, "findById">;
+  readonly uiToken: string;
+}
+
+export function registerTransferRoutes(r: Router, c: TransferRouteDeps): void {
+  const ep = c.endpoint;
   // The user's: this Mac's dashboard, or a paired Mac's — vouched for by its gateway.
   const user = (fn: (ctx: RouteContext) => Promise<void>) => async (ctx: RouteContext): Promise<void> => {
     if (!uiTokenOk(ctx.req, c.uiToken)) { writeJson(ctx.res, 403, { error: "ui token required", code: "forbidden" }); return; }
@@ -157,7 +166,7 @@ export function registerTransferRoutes(r: Router, c: Container): void {
 // The agent asking is the one in the path, and it's a focused session — the
 // one the user talks to directly. Declared, not authenticated: what it may do
 // is fenced by the engine (this Mac → ~/Downloads/Eos there, nothing replaced).
-function focusedCaller(c: Container, req: IncomingMessage, id: string) {
+function focusedCaller(c: Pick<TransferRouteDeps, "workers">, req: IncomingMessage, id: string) {
   const caller = agentCallerOf(c, req);
   const worker = caller?.id === id ? c.workers.findById(id) : null;
   return worker?.agent_role === FOCUSED_ROLE ? worker : null;

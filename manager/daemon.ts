@@ -66,7 +66,6 @@ import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
-import { registerTransferRoutes } from "./routes/transfer.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
 import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
@@ -130,7 +129,6 @@ for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
-registerTransferRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
@@ -398,9 +396,6 @@ wireJobSources({
   bus: c.bus,
   jobs: c.jobs,
   killTerminal: (runId) => c.terminalRuns.kill(runId),
-  transfers: () => c.transfers.list(),
-  cancelTransfer: (id) => { c.transfers.cancel(id); },
-  machineName: (ref) => (ref === "local" ? c.peerHost.hostInfo().name : c.hostLinks.get(ref)?.alias ?? c.hostLinks.get(ref)?.name ?? "another Mac"),
 });
 
 c.bus.subscribe("loop:change", (msg) => {
@@ -707,7 +702,6 @@ async function shutdown(sig: string): Promise<void> {
   }
   try { remoteController?.disarm(); } catch {}
   try { c.hostLinks.stop(); } catch {}
-  try { c.transfers.stop(); } catch {}
   void c.peerHost.stop().catch(() => {});
   // Suspend resumable in-process sessions BEFORE killing children and closing
   // the DB: their exit callbacks write rows, so this is the last safe moment —

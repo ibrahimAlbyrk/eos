@@ -11,10 +11,10 @@ import { join } from "node:path";
 import { PeerHostService } from "../PeerHostService.ts";
 import { HostLinkService } from "../HostLinkService.ts";
 import { Router } from "../../routes/Router.ts";
-import { registerTransferRoutes } from "../../routes/transfer.ts";
+import { registerTransferRoutes, type TransferRouteDeps } from "../../modules/transfer/routes.ts";
 import { handleError } from "../../middleware/errorHandler.ts";
-import { PeerEndpoint } from "../../services/transfer/PeerEndpoint.ts";
-import { TransferService } from "../../services/transfer/TransferService.ts";
+import { PeerEndpoint } from "../../modules/transfer/PeerEndpoint.ts";
+import { TransferService } from "../../modules/transfer/TransferService.ts";
 import { FsTransferEndpoint } from "../../../infra/src/transfer/FsTransferEndpoint.ts";
 import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEventBus.ts";
 import { createKnownHostStore, createOpenInviteStore, createPairedDeviceStore, loadOrCreateIdentity } from "../../../infra/src/peer/stores.ts";
@@ -23,7 +23,6 @@ import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { TransferRepo } from "../../../core/src/ports/TransferRepo.ts";
 import type { TransferRecord } from "../../../contracts/src/transfer.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
-import type { Container } from "../../container.ts";
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return silent; } };
 const HOST_TOKEN = "h".repeat(48);
@@ -62,7 +61,7 @@ describe("file transfer over a real peer link", { skip: process.platform === "wi
 
     // The host's daemon: the real transfer routes behind its unix socket.
     const router = new Router();
-    registerTransferRoutes(router, { uiToken: HOST_TOKEN, transferEndpoint: endpoint(there) } as unknown as Container);
+    registerTransferRoutes(router, { uiToken: HOST_TOKEN, endpoint: endpoint(there) } as unknown as TransferRouteDeps);
     hostDaemon = createServer(async (req, res) => {
       const url = new URL(req.url ?? "/", "http://x");
       const m = router.match(req.method ?? "GET", url.pathname);

@@ -1,8 +1,8 @@
 // File transfers between the user's Macs (transfer:change).
 
-import type { TransferChangeEvent } from "../../../../contracts/src/transfer.ts";
-import { transferJobFields } from "../../../../core/src/domain/background-jobs.ts";
-import type { JobRegistry } from "../JobRegistry.ts";
+import type { TransferChangeEvent } from "../../../contracts/src/transfer.ts";
+import { transferJobFields } from "../../../core/src/domain/background-jobs.ts";
+import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 
 export function transferJobs(jobs: JobRegistry, deps: { cancel(id: string): void; machineName(ref: string): string }) {
   return {
