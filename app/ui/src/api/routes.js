@@ -239,6 +239,9 @@ export const ROUTES = {
   pluginEnabled: (id) => `/api/plugins/${encodeURIComponent(id)}/enabled`,
   pluginSettings: (id) => `/api/plugins/${encodeURIComponent(id)}/settings`,
   pluginStore: (id, key) => `/api/plugins/${encodeURIComponent(id)}/store/${encodeURIComponent(key)}`,
+  pluginInstall: "/api/plugins/install",
+  pluginStaged: (stagingId) => `/api/plugins/install/${encodeURIComponent(stagingId)}`,
+  pluginUpdate: (id) => `/api/plugins/${encodeURIComponent(id)}/update`,
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
   // A configured provider's available models (two-level composer picker).

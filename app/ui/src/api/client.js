@@ -311,10 +311,27 @@ export const api = {
     return r.body;
   },
   // Plugins (contracts/src/plugin.ts).
+  // { plugins, installs }: every plugin, and where the installed ones came from.
   async listPlugins() {
-    const r = await getJson(ROUTES.plugins);
+    const r = await getJson(ROUTES.plugins, { headers: uiTokenHeader() });
     if (!r.ok) throw new Error(r.body?.error ?? `plugins → ${r.status}`);
-    return r.body.plugins;
+    return { plugins: r.body.plugins, installs: r.body.installs ?? {} };
+  },
+  // Installing (contracts/src/plugin-install.ts): stage, review, then install.
+  async stagePlugin(source) {
+    return postJson(ROUTES.pluginInstall, { source }, uiTokenHeader());
+  },
+  async stagePluginUpdate(id) {
+    return postJson(ROUTES.pluginUpdate(id), {}, uiTokenHeader());
+  },
+  async installStagedPlugin(stagingId) {
+    return postJson(ROUTES.pluginStaged(stagingId), {}, uiTokenHeader());
+  },
+  async discardStagedPlugin(stagingId) {
+    return del(ROUTES.pluginStaged(stagingId), uiTokenHeader());
+  },
+  async removePlugin(id) {
+    return del(ROUTES.plugin(id), uiTokenHeader());
   },
   async reportPlugin(id, report) {
     return postJson(ROUTES.pluginReport(id), report, uiTokenHeader());

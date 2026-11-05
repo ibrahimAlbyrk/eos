@@ -6,6 +6,7 @@ import { api } from "../api/client.js";
 import { onResync, onTopic } from "../lib/liveTopics.js";
 
 let plugins = [];
+let installs = {};
 let loaded = false;
 const subs = new Set();
 let seq = 0;
@@ -30,9 +31,10 @@ export function getPlugin(id) {
 export async function refreshPlugins() {
   const mine = ++seq;
   try {
-    const list = await api.listPlugins();
+    const body = await api.listPlugins();
     if (mine !== seq) return;
-    plugins = list;
+    plugins = body.plugins;
+    installs = body.installs;
     loaded = true;
     emit();
   } catch {}
@@ -50,6 +52,13 @@ export function ensurePluginsLoaded() {
 
 export function usePlugins() {
   return useSyncExternalStore(subscribePlugins, getPlugins, getPlugins);
+}
+
+// Where an installed plugin came from (npm, git, a folder), or null for one
+// made on this Mac.
+export function usePluginInstall(id) {
+  const get = () => installs[id] ?? null;
+  return useSyncExternalStore(subscribePlugins, get, get);
 }
 
 export const pluginsLoaded = () => loaded;

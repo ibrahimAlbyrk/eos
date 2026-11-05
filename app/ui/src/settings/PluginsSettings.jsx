@@ -1,6 +1,7 @@
 // Settings › Plugins — every plugin in ~/.eos/plugins: on/off, whether it's
 // working, and a settings page generated from its manifest. Changes apply at
-// once; there's nothing to restart.
+// once; there's nothing to restart. Add plugin installs one from npm, git or a
+// folder (PluginInstall.jsx).
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { CONTROLS, ToggleControl } from "./controls.jsx";
@@ -10,6 +11,7 @@ import { notify } from "../lib/notify.js";
 import { useSettings } from "../state/settings.jsx";
 import { SettingsGroups } from "./SettingsGroups.jsx";
 import { BUILTIN_PLUGIN_SETTINGS } from "./registry.jsx";
+import { AddPluginPage, BackButton, PluginSourceRows, StagedReview } from "./PluginInstall.jsx";
 
 const errText = (e) => (e instanceof Error ? e.message : String(e));
 
@@ -75,7 +77,7 @@ function SettingControl({ def, value, onChange }) {
   return <CONTROLS.text value={value ?? ""} onChange={onChange} placeholder={def.placeholder} />;
 }
 
-function PluginPage({ plugin, onBack }) {
+function PluginPage({ plugin, onBack, onReview }) {
   const fault = usePluginFault(plugin.id);
   const defs = Object.entries(plugin.manifest?.settings ?? {});
   const save = async (key, value) => {
@@ -88,10 +90,7 @@ function PluginPage({ plugin, onBack }) {
   const problem = plugin.error ?? fault?.message ?? null;
   return (
     <>
-      <button type="button" className="plg-back" onClick={onBack}>
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="m10 3-5 5 5 5" /></svg>
-        Plugins
-      </button>
+      <BackButton onClick={onBack} />
       <div className="plg-head">
         <PluginIcon manifest={plugin.manifest} />
         <div>
@@ -122,6 +121,7 @@ function PluginPage({ plugin, onBack }) {
             {plugin.manifest?.version && <span className="plg-mono plg-version">v{plugin.manifest.version}</span>}
           </div>
         )}
+        {!plugin.builtin && <PluginSourceRows plugin={plugin} onReview={onReview} onRemoved={onBack} />}
       </div>
 
       {plugin.builtin && <BuiltinSettings id={plugin.id} />}
@@ -165,19 +165,28 @@ function Group({ title, plugins, onOpen }) {
 export function PluginsSettings() {
   const plugins = usePlugins();
   const [openId, setOpenId] = useState(null);
+  const [adding, setAdding] = useState(false);
+  // An update fetched from a plugin's page, waiting for review.
+  const [review, setReview] = useState(null);
   useEffect(() => { ensurePluginsLoaded(); }, []);
 
+  const showPlugin = (id) => { setAdding(false); setReview(null); setOpenId(id); };
+  if (review) return <StagedReview staged={review} onBack={() => setReview(null)} onInstalled={(p) => showPlugin(p.id)} />;
+  if (adding) return <AddPluginPage onBack={() => setAdding(false)} onInstalled={showPlugin} />;
   const open = openId ? plugins.find((p) => p.id === openId) : null;
-  if (open) return <PluginPage plugin={open} onBack={() => setOpenId(null)} />;
+  if (open) return <PluginPage plugin={open} onBack={() => setOpenId(null)} onReview={setReview} />;
 
   const experimental = plugins.filter((p) => p.manifest?.experimental);
   const builtin = plugins.filter((p) => p.builtin && !p.manifest?.experimental);
   const installed = plugins.filter((p) => !p.builtin && !p.manifest?.experimental);
   return (
     <>
-      <h2 className="stg-title">Plugins</h2>
+      <div className="plg-title-row">
+        <h2 className="stg-title">Plugins</h2>
+        <button type="button" className="m-btn m-btn--sm" onClick={() => setAdding(true)}>Add plugin</button>
+      </div>
       <div className="stg-row__desc plg-intro">
-        Plugins add to Eos’s own interface. Ask an agent for one (“add a clock to the top right”), or put a folder in <span className="plg-mono">~/.eos/plugins</span>. Changes show up at once.
+        Plugins add to Eos’s own interface. Ask an agent for one (“add a clock to the top right”), add one from npm, git or a folder, or put a folder in <span className="plg-mono">~/.eos/plugins</span>. Changes show up at once.
       </div>
       <Group title="Built-in" plugins={builtin} onOpen={setOpenId} />
       <Group title="Installed" plugins={installed} onOpen={setOpenId} />
