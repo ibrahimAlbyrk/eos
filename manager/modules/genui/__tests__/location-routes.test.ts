@@ -2,10 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { Router, type RouteContext } from "../../../routes/Router.ts";
-import { registerLocationRoutes } from "../location-routes.ts";
+import { LOCATION_ROUTE_ACCESS, registerLocationRoutes } from "../location-routes.ts";
 import { makeLocationSource, type AppHostLike } from "../media.ts";
 import { LocationResponseSchema } from "../../../../contracts/src/genui/spec.ts";
-import { isLocalOnlyRoute } from "../../../../contracts/src/route-planes.ts";
+import { compileRouteRules } from "../../../../contracts/src/route-planes.ts";
+
+const isLocalOnlyRoute = compileRouteRules(LOCATION_ROUTE_ACCESS.localOnly ?? []);
 
 function fakeHost(opts: { connected: boolean; answer?: unknown; error?: { name: string; message: string } }) {
   const calls: Array<[string, string, unknown[]]> = [];

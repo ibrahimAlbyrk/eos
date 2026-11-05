@@ -11,7 +11,9 @@
 export type RouteRule = readonly [method: string, template: string];
 
 // `:name` matches one path segment; a trailing `/*` matches the prefix and anything below it.
-export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
+// The kernel's own; a feature module declares its local-only routes itself
+// (manager/routes/route-access.ts composes them).
+export const KERNEL_LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["POST", "/workers/:id/events"],
   ["POST", "/policy/decide"],
   ["POST", "/workers/:id/question"],
@@ -25,19 +27,6 @@ export const LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/api/peer/*"],
   ["*", "/api/hosts/*"],
   ["*", "/api/remote/*"],
-  // The sync key is the account — it never leaves this Mac through a facade.
-  ["*", "/api/sync/*"],
-  // This Mac's transfer engine: another computer may not start, watch or steer it.
-  ["*", "/api/transfers/*"],
-  ["*", "/workers/:id/transfers/*"],
-  // This Mac's own app: another computer may not update or restart it.
-  ["*", "/api/update/*"],
-  ["*", "/api/settings/updates"],
-  // Where this Mac is — never readable from another computer.
-  ["*", "/api/location"],
-  // This Mac's Claude accounts' artifacts.
-  ["*", "/api/artifacts"],
-  ["*", "/api/artifacts/*"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];
@@ -66,5 +55,4 @@ export function compileRouteRules(rules: readonly RouteRule[]): (method: string,
   };
 }
 
-export const isLocalOnlyRoute = compileRouteRules(LOCAL_ONLY_ROUTES);
 export const isPeerOpenRoute = compileRouteRules(PEER_OPEN_ROUTES);

@@ -7,6 +7,7 @@ import { validate } from "../../middleware/validate.ts";
 import { uiTokenOk } from "../../routes/fs-shared.ts";
 import { ROUTES } from "../../../contracts/src/http.ts";
 import { SyncJoinRequestSchema } from "../../../contracts/src/sync.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 // Settings › Sync. Status is open; the key and every change are the user's (ui-token).
 // All of it is local-only (route-planes.ts) — the key never crosses a facade.
@@ -14,6 +15,9 @@ export interface SyncRouteDeps {
   readonly sync: Pick<SyncService, "status" | "key" | "create" | "join" | "syncNow" | "leave">;
   readonly uiToken: string;
 }
+
+// The sync key is the account — it never leaves this Mac through a facade.
+export const SYNC_ROUTE_ACCESS: RouteAccess = { localOnly: [["*", "/api/sync/*"]] };
 
 export function registerSyncRoutes(r: Router, c: SyncRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {

@@ -16,6 +16,7 @@ import { ROUTES } from "../../../contracts/src/http.ts";
 import { FOCUSED_ROLE } from "../../../contracts/src/worker.ts";
 import type { LocationSource } from "../../../core/src/ports/LocationSource.ts";
 import { LocationError } from "./media.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 interface LocationCaller {
   is_orchestrator?: boolean | number | null;
@@ -27,6 +28,9 @@ export interface LocationRouteDeps {
   uiToken: string;
   workers: { findById(id: string): LocationCaller | null | undefined };
 }
+
+// Where this Mac is — never readable from another computer.
+export const LOCATION_ROUTE_ACCESS: RouteAccess = { localOnly: [["*", "/api/location"]] };
 
 export function registerLocationRoutes(r: Router, c: LocationRouteDeps): void {
   r.get(ROUTES.location, async ({ req, res }) => {

@@ -11,6 +11,7 @@ import type { EventBusMessage, EventBusTopic } from "../../core/src/ports/EventB
 import type { SyncDomain } from "../../core/src/ports/SyncDomain.ts";
 import type { SlashCommand } from "../../core/src/domain/slash-command.ts";
 import type { IdleHook } from "../services/IdleHooks.ts";
+import type { RouteAccess } from "../routes/route-access.ts";
 
 // Data a feature lets follow the user to their other Macs (Settings › Sync):
 // its sync domain, and the bus topic its local edits announce (so sync pushes
@@ -28,6 +29,9 @@ export interface DaemonModule {
   // no agent events.
   readonly plugin?: string;
   registerRoutes?(router: Router): void;
+  // Which of its routes never cross to another computer, and the phone's tier
+  // for those the phone may call (unlisted ones are refused).
+  readonly routeAccess?: RouteAccess;
   // Prompt variables this feature fills, read at each spawn (e.g. GENUI_LEVEL).
   promptVariables?(): Record<string, string | boolean>;
   // settings.json keys only this feature's own (ui-token) route may write; the

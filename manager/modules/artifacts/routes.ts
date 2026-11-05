@@ -11,11 +11,15 @@ import { writeJson } from "../../middleware/errorHandler.ts";
 import { uiTokenOk } from "../../routes/fs-shared.ts";
 import { ROUTES } from "../../../contracts/src/http.ts";
 import type { ArtifactCatalogService } from "../../../core/src/services/ArtifactCatalogService.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 export interface ArtifactRouteDeps {
   readonly artifacts: Pick<ArtifactCatalogService, "get" | "refresh">;
   readonly uiToken: string;
 }
+
+// This Mac's Claude accounts' artifacts.
+export const ARTIFACT_ROUTE_ACCESS: RouteAccess = { localOnly: [["*", "/api/artifacts"], ["*", "/api/artifacts/*"]] };
 
 export function registerArtifactRoutes(r: Router, c: ArtifactRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {

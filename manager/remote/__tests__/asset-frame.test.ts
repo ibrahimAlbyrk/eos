@@ -89,7 +89,7 @@ describe("ControlDispatcher — frames binary as `asset`, oversize as FRAME_TOO_
   it("emits the frozen asset frame with intact base64 bytes + mime + correlationId", async () => {
     const d = new ControlDispatcher({
       routeDispatch: async () => ({ status: 200, binary: { mime: "image/png", bytes: BIN } }),
-      audit: noAudit, uiToken: "tok", now: () => 0,
+      audit: noAudit, classify: classifyTier, uiToken: "tok", now: () => 0,
     });
     const reply = await d.handle(fullSession, ctl("GET", "/fs/image?path=/x.png"));
     assert.equal(reply.t, "asset");
@@ -105,7 +105,7 @@ describe("ControlDispatcher — frames binary as `asset`, oversize as FRAME_TOO_
     const huge = Buffer.alloc(Math.floor(4.5 * 1024 * 1024), 0x41); // base64 ~6 MiB > 5 MiB cap
     const d = new ControlDispatcher({
       routeDispatch: async () => ({ status: 200, binary: { mime: "application/pdf", bytes: huge } }),
-      audit: noAudit, uiToken: "tok", now: () => 0,
+      audit: noAudit, classify: classifyTier, uiToken: "tok", now: () => 0,
     });
     const reply = await d.handle(fullSession, ctl("GET", "/pdfjs/web/viewer.pdf"));
     assert.equal(reply.t, "error");
@@ -115,7 +115,7 @@ describe("ControlDispatcher — frames binary as `asset`, oversize as FRAME_TOO_
   it("still emits a JSON reply frame for non-binary routes", async () => {
     const d = new ControlDispatcher({
       routeDispatch: async () => ({ status: 200, body: { workers: [] } }),
-      audit: noAudit, uiToken: "tok", now: () => 0,
+      audit: noAudit, classify: classifyTier, uiToken: "tok", now: () => 0,
     });
     const reply = await d.handle(fullSession, ctl("GET", "/workers"));
     assert.equal(reply.t, "reply");

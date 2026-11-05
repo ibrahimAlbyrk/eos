@@ -17,6 +17,7 @@ import {
 } from "../../../infra/src/peer/stores.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
+import { composeRouteAccess } from "../../routes/route-access.ts";
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return silent; } };
 
@@ -34,7 +35,7 @@ describe("peer invites", () => {
       devices: createPairedDeviceStore(hostDir),
       invites: createOpenInviteStore(hostDir),
       getConfig: () => cfg,
-      target: { socketPath: join(dir, "none.sock"), rawHost: "127.0.0.1", rawPort: 1, uiToken: "t".repeat(48) },
+      target: { socketPath: join(dir, "none.sock"), rawHost: "127.0.0.1", rawPort: 1, uiToken: "t".repeat(48), isLocalOnly: composeRouteAccess([]).isLocalOnly },
       servesUi: () => false,
       relayRoom: () => null,
       bus, now: () => clock, log: silent,

@@ -25,6 +25,7 @@ import {
   TransferPrepareRequestSchema, TransferScanRequestSchema, TransferStartRequestSchema, type TransferErrorCode,
 } from "../../../contracts/src/transfer.ts";
 import { TransferError } from "../../../core/src/domain/transfer.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 const STATUS: Record<TransferErrorCode, number> = {
   "bad-path": 400, "not-found": 404, "forbidden-dest": 403, "duplicate-name": 409, "too-many": 413,
@@ -43,6 +44,10 @@ export interface TransferRouteDeps {
   readonly workers: Pick<WorkerRepo, "findById">;
   readonly uiToken: string;
 }
+
+// This Mac's transfer engine: another computer may not start, watch or steer
+// it. Its endpoint (/transfer/*) crosses — that is how a paired Mac moves bytes.
+export const TRANSFER_ROUTE_ACCESS: RouteAccess = { localOnly: [["*", "/api/transfers/*"], ["*", "/workers/:id/transfers/*"]] };
 
 export function registerTransferRoutes(r: Router, c: TransferRouteDeps): void {
   const ep = c.endpoint;

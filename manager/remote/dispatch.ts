@@ -8,7 +8,7 @@
 // any joined session; the meaningful gates that remain are REFUSED (never exposed
 // remotely) + the ✦ ui-token gate.
 
-import { classifyTier } from "./tiers.ts";
+import type { TierClassifier } from "./tiers.ts";
 import { MAX_ENVELOPE_BYTES } from "./envelope.ts";
 import type { RemoteAuditLog } from "./audit.ts";
 import type { AssetFrame, ControlFrame, RemoteErrorCode } from "../../contracts/src/remote.ts";
@@ -39,6 +39,8 @@ export interface DispatchSession {
 
 export interface DispatcherDeps {
   routeDispatch: RouteDispatch;
+  // The phone's tier for a route (kernel + feature rules; unknown = REFUSED).
+  classify: TierClassifier;
   audit: RemoteAuditLog;
   uiToken: string;
   now: () => number;
@@ -56,7 +58,7 @@ export class ControlDispatcher {
   async handle(session: DispatchSession, frame: ControlFrame): Promise<ServerReplyFrame> {
     const { method, path, correlationId } = frame;
 
-    const { tier, uiToken } = classifyTier(method, path);
+    const { tier, uiToken } = this.deps.classify(method, path);
     if (tier === "REFUSED") return this.deny(session, frame, "ROUTE_REFUSED", "route not exposed remotely");
 
     // ✦ routes need the local ui-token, supplied only to a session that holds the

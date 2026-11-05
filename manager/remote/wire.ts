@@ -21,6 +21,7 @@ import { startKeepAwake } from "./keepAwake.ts";
 import type { Router } from "../routes/Router.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import type { RemoteConfig, PairingQr } from "../../contracts/src/remote.ts";
+import type { TierClassifier } from "./tiers.ts";
 
 // Structural subset of the daemon container wire.ts needs — keeps this module
 // decoupled from the (inferred) Container type.
@@ -31,6 +32,8 @@ export interface RemoteWiringDeps {
   log: { info(msg: string, fields?: Record<string, unknown>): void; warn(msg: string, fields?: Record<string, unknown>): void };
   // The daemon's own (always running); absent ⇒ the gateway keeps one while armed.
   liveText?: LiveText;
+  // The phone's tier for each route (manager/routes/route-access.ts).
+  routeAccess: { classifyRemote: TierClassifier };
 }
 
 export interface PairArmOptions {
@@ -100,7 +103,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   ownLiveText?.start();
   const liveText = c.liveText ?? ownLiveText!;
   const deps: GatewayDeps = {
-    audit, uiToken: c.uiToken, routeDispatch: makeRouteDispatch(router),
+    audit, uiToken: c.uiToken, routeDispatch: makeRouteDispatch(router), classify: c.routeAccess.classifyRemote,
     bus: c.bus, room, now,
     log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
     liveText,

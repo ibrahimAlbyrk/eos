@@ -20,7 +20,7 @@ import { FsUpdateWorkspace } from "../../../infra/src/update/FsUpdateWorkspace.t
 import { HttpUpdateFeed } from "../../../infra/src/update/HttpUpdateFeed.ts";
 import { UpdateService } from "./UpdateService.ts";
 import { resolveInstall } from "./install.ts";
-import { registerUpdateRoutes } from "./routes.ts";
+import { UPDATE_ROUTE_ACCESS, registerUpdateRoutes } from "./routes.ts";
 import { updateJobs } from "./jobs.ts";
 import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 import type { UpdateState } from "../../../contracts/src/update.ts";
@@ -69,6 +69,7 @@ export function createUpdatesModule(deps: UpdatesModuleDeps): DaemonModule {
   });
   return {
     id: "updates",
+    routeAccess: UPDATE_ROUTE_ACCESS,
     registerRoutes: (router) => registerUpdateRoutes(router, { updates, uiToken: deps.uiToken, patchConfig: deps.patchConfig }),
     start: () => {
       // A top-level agent starting or ending a turn may be what a "restart when

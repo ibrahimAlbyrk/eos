@@ -87,6 +87,7 @@ import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts"
 import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
 import { MicroTaskRunner } from "./services/MicroTaskRunner.ts";
 import { createCompactionModule } from "./modules/compaction/index.ts";
+import { composeRouteAccess } from "./routes/route-access.ts";
 import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
@@ -1556,7 +1557,10 @@ export function buildContainer() {
     devices: createPairedDeviceStore(peerDir),
     invites: createOpenInviteStore(peerDir),
     getConfig: () => config.peer,
-    target: { socketPath: config.daemon.socketFile, rawHost: config.daemon.host, rawPort: config.daemon.rawPort, uiToken },
+    target: {
+      socketPath: config.daemon.socketFile, rawHost: config.daemon.host, rawPort: config.daemon.rawPort, uiToken,
+      isLocalOnly: (method, path) => routeAccess.isLocalOnly(method, path),
+    },
     servesUi: () => existsSync(join(uiDistPath(config.paths.repoRoot), "index.html")),
     relayRoom: () => {
       const url = config.peer.relayUrl ?? config.remote.relay?.url;
@@ -1628,6 +1632,8 @@ export function buildContainer() {
   // Slash-command allowlist — intercepted at the dispatch chokepoint. A feature
   // brings its own (/compact); the side effects a command may touch are wired in
   // dispatch-deps.
+  // Who may reach each route from outside this Mac: the kernel's rules + each feature's.
+  const routeAccess = composeRouteAccess(modules.map((m) => m.routeAccess));
   const slashCommands = createSlashCommandRegistry([clearCommand, ...modules.flatMap((m) => m.slashCommands ?? [])]);
 
   const container = {
@@ -1700,6 +1706,7 @@ export function buildContainer() {
     logFileFor,
     backends,
     slashCommands,
+    routeAccess,
     expandSlashTemplate,
     onAgentEvent,
     backendResolver,

@@ -16,6 +16,7 @@ import { WsBridge } from "../WsBridge.ts";
 import { RemoteAuditLog } from "../audit.ts";
 import { Dir, FrameType, encodeEnvelope, parseEnvelope, type Envelope } from "../envelope.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
+import { classifyTier } from "../tiers.ts";
 
 class FakeBus implements EventBus {
   private subs: EventBusSubscriber[] = [];
@@ -32,7 +33,7 @@ const ROOM = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
 function mkDeps(dir: string, bus: EventBus): GatewayDeps {
   return {
-    audit: new RemoteAuditLog(dir), uiToken: "UITOK",
+    audit: new RemoteAuditLog(dir), classify: classifyTier, uiToken: "UITOK",
     routeDispatch: async ({ path }) => ({ status: 200, body: { ok: true, path } }),
     bus, room: ROOM, now: () => Date.now(),
   };

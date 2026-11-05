@@ -1,8 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { isLocalOnlyRoute, isPeerOpenRoute } from "../route-planes.ts";
+import { KERNEL_LOCAL_ONLY_ROUTES, compileRouteRules, isPeerOpenRoute } from "../route-planes.ts";
 
-describe("isLocalOnlyRoute", () => {
+const isLocalOnlyRoute = compileRouteRules(KERNEL_LOCAL_ONLY_ROUTES);
+
+describe("the kernel's local-only routes", () => {
   it("keeps the worker/hook plane and native pickers local", () => {
     assert.ok(isLocalOnlyRoute("POST", "/workers/w1/events"));
     assert.ok(isLocalOnlyRoute("POST", "/policy/decide"));
@@ -15,32 +17,6 @@ describe("isLocalOnlyRoute", () => {
       ["GET", "/api/hosts"], ["POST", "/api/hosts/x/reconnect"], ["GET", "/h/abc/workers"], ["POST", "/peer/pair"], ["POST", "/peer/reverse"],
       ["PUT", "/api/remote/config"]] as const) {
       assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
-    }
-  });
-
-  it("keeps this Mac's own updates local: no other computer updates or restarts it", () => {
-    for (const [m, p] of [["GET", "/api/update"], ["POST", "/api/update/check"], ["POST", "/api/update/restart"],
-      ["POST", "/api/update/dismiss"], ["PUT", "/api/settings/updates"]] as const) {
-      assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
-    }
-    assert.equal(isLocalOnlyRoute("PUT", "/api/settings/archive"), false);
-  });
-
-  it("keeps this Mac's transfer engine local; each Mac's own endpoint crosses", () => {
-    for (const [m, p] of [["GET", "/api/transfers"], ["POST", "/api/transfers"], ["POST", "/api/transfers/tr-abcdefgh/cancel"],
-      ["POST", "/api/transfers/destination"], ["POST", "/workers/w1/transfers"], ["GET", "/workers/w1/transfers/tr-abcdefgh"]] as const) {
-      assert.ok(isLocalOnlyRoute(m, p), `${m} ${p}`);
-    }
-    for (const [m, p] of [["GET", "/transfer/list?path=/Users"], ["PUT", "/transfer/write?id=tr-abcdefgh"], ["POST", "/transfer/commit"]] as const) {
-      assert.equal(isLocalOnlyRoute(m, p), false, `${m} ${p}`);
-    }
-  });
-
-  it("keeps this Mac's location local; visual-answer routes cross", () => {
-    assert.ok(isLocalOnlyRoute("GET", "/api/location"));
-    for (const [m, p] of [["POST", "/api/genui/views"], ["GET", "/api/genui/views/v_7Hq2abcdEFGH"], ["PUT", "/api/genui/views/v_7Hq2abcdEFGH/state"],
-      ["GET", "/api/genui/media/img?src=https://a.example/x.jpg"], ["GET", "/api/genui/map/t/planet/1/2/3.pbf"], ["POST", "/api/genui/places"]] as const) {
-      assert.equal(isLocalOnlyRoute(m, p), false, `${m} ${p}`);
     }
   });
 

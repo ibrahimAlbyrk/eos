@@ -19,7 +19,7 @@ import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 import { PeerEndpoint } from "./PeerEndpoint.ts";
 import { TransferService, type NotificationFire } from "./TransferService.ts";
 import { transferJobs } from "./jobs.ts";
-import { registerTransferRoutes } from "./routes.ts";
+import { TRANSFER_ROUTE_ACCESS, registerTransferRoutes } from "./routes.ts";
 
 export interface TransferModuleDeps {
   readonly home: string;
@@ -74,6 +74,7 @@ export function createTransferModule(deps: TransferModuleDeps): DaemonModule {
 
   return {
     id: "transfer",
+    routeAccess: TRANSFER_ROUTE_ACCESS,
     registerRoutes: (router) => registerTransferRoutes(router, { endpoint, transfers, workers: deps.workers, uiToken: deps.uiToken }),
     start: () => {
       // A transfer in progress shows in the Jobs list.

@@ -10,7 +10,7 @@ import { ARTIFACTS_TOPIC } from "../../../contracts/src/artifacts.ts";
 import { announcesArtifact } from "../../../core/src/domain/artifact-catalog.ts";
 import { ArtifactCatalogService, type ArtifactLogin } from "../../../core/src/services/ArtifactCatalogService.ts";
 import { createFrameApiArtifactSource, type FrameApiArtifactSourceDeps } from "../../../infra/src/artifacts/FrameApiArtifactSource.ts";
-import { registerArtifactRoutes } from "./routes.ts";
+import { ARTIFACT_ROUTE_ACCESS, registerArtifactRoutes } from "./routes.ts";
 
 export interface ArtifactsModuleDeps {
   // The Claude sign-ins, and per sign-in the token (and its renewal) to read with.
@@ -38,6 +38,7 @@ export function createArtifactsModule(deps: ArtifactsModuleDeps): ArtifactsModul
   });
   return {
     id: "artifacts",
+    routeAccess: ARTIFACT_ROUTE_ACCESS,
     plugin: BUILTIN_PLUGINS.artifacts,
     artifacts,
     // An agent published a claude.ai Artifact: re-read the sign-in it runs on

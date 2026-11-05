@@ -16,6 +16,7 @@ import { Dir, FrameType, encodeEnvelope, parseEnvelope } from "../envelope.ts";
 import type { RouteDispatch } from "../dispatch.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
 import { DEFLATE_MARK, type LiveBlock } from "../../../contracts/src/remote.ts";
+import { classifyTier } from "../tiers.ts";
 
 class TopicBus implements EventBus {
   private subs = new Map<string, EventBusSubscriber[]>();
@@ -46,7 +47,7 @@ function harness(opts: { routeDispatch?: RouteDispatch; live?: Record<string, Li
   const out: Buffer[] = [];
   const calls: string[] = [];
   const deps: GatewayDeps = {
-    audit: new RemoteAuditLog(dir), uiToken: "UITOK",
+    audit: new RemoteAuditLog(dir), classify: classifyTier, uiToken: "UITOK",
     routeDispatch: async (req) => {
       calls.push(`${req.method} ${req.path}`);
       if (opts.routeDispatch) return opts.routeDispatch(req);

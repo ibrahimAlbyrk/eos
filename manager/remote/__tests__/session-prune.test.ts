@@ -18,6 +18,7 @@ import { WsBridge } from "../WsBridge.ts";
 import { RemoteAuditLog } from "../audit.ts";
 import { Dir, FrameType, encodeEnvelope, parseEnvelope } from "../envelope.ts";
 import type { EventBus, EventBusSubscriber } from "../../../core/src/ports/EventBus.ts";
+import { classifyTier } from "../tiers.ts";
 
 class NullBus implements EventBus {
   publish(): void {}
@@ -39,7 +40,7 @@ describe("stale relay-session pruning (activity TTL)", () => {
     try {
       let clock = 1_000;
       const deps: GatewayDeps = {
-        audit: new RemoteAuditLog(dir), uiToken: "tok",
+        audit: new RemoteAuditLog(dir), classify: classifyTier, uiToken: "tok",
         routeDispatch: async () => ({ status: 200, body: {} }),
         bus: new NullBus(), room: ROOM, now: () => clock,
       };
@@ -82,7 +83,7 @@ describe("stale relay-session pruning (activity TTL)", () => {
     try {
       let clock = 0;
       const deps: GatewayDeps = {
-        audit: new RemoteAuditLog(dir), uiToken: "tok",
+        audit: new RemoteAuditLog(dir), classify: classifyTier, uiToken: "tok",
         routeDispatch: async () => ({ status: 200, body: {} }),
         bus: new NullBus(), room: ROOM, now: () => clock,
       };

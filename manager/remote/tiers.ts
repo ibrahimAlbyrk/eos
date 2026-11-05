@@ -19,6 +19,9 @@ interface TierRule {
   uiToken?: boolean;
 }
 
+// A feature module's own: [method, path template (`:name` = one segment), tier, ui token].
+export type RemoteRouteRule = readonly [method: string, template: string, tier: RemoteTier, uiToken?: boolean];
+
 // :seg matches one non-slash path segment.
 function pat(path: string): RegExp {
   const body = path.replace(/:[A-Za-z0-9_]+/g, "[^/]+");
@@ -35,7 +38,6 @@ const RULES: TierRule[] = [
     "/workers/:id/diff", "/workers/:id/changes", "/workers/:id/changes/file",
     "/workers/:id/conflicts", "/workers/:id/conflicts/file", "/workers/:id/push-state",
     "/workers/:id/memory", "/workers/:id/peers", "/workers/:id/rewind-targets",
-    "/workers/:id/workflow-runs", "/workers/:id/workflow-runs/:callId", "/workers/:id/workflow-runs/:callId/agents/:agentId",
     "/workers/:id/try/preview", "/workers/:id/try/state", "/orchestrators", "/pending",
     "/health", "/fs/branches", "/fs/unpushed", "/fs/commit", "/fs/recents", "/fs/read",
     "/fs/list", "/fs/stat", "/fs/image", "/fs/icon", "/fs/default-app", "/api/ui-config",
@@ -55,7 +57,6 @@ const RULES: TierRule[] = [
   R("POST", "/workers/:id/message", "LOW"),
   R("POST", "/workers/:id/question-answer", "LOW"),
   R("POST", "/workers/:id/interrupt", "LOW"),
-  R("POST", "/workers/:id/workflow-runs/:callId/stop", "LOW", true),
   R("POST", "/workers/:id/resume", "LOW"),
   R("POST", "/workers/:id/notify", "LOW"),
   R("POST", "/workers/:id/archive", "LOW"),
@@ -141,16 +142,25 @@ export interface TierMatch {
   uiToken: boolean;
 }
 
-// Classify a concrete control method+path. Matches on the PATH portion only —
-// a query string (e.g. /fs/read?path=…) is stripped before matching so query
-// reads don't fail closed (§4.2); the full path+query still dispatches. Fails
-// closed to REFUSED for anything unrecognized.
-export function classifyTier(method: string, path: string): TierMatch {
-  const pathOnly = path.split("?", 1)[0];
-  for (const rule of RULES) {
-    if (rule.method === method && rule.re.test(pathOnly)) {
-      return { tier: rule.tier, uiToken: rule.uiToken ?? false };
+export type TierClassifier = (method: string, path: string) => TierMatch;
+
+// Classify a concrete control method+path against the kernel's rules, then the
+// features' (`extra`). Matches on the PATH portion only — a query string (e.g.
+// /fs/read?path=…) is stripped before matching so query reads don't fail closed
+// (§4.2); the full path+query still dispatches. Fails closed to REFUSED for
+// anything unrecognized.
+export function createTierClassifier(extra: readonly RemoteRouteRule[] = []): TierClassifier {
+  const rules = [...RULES, ...extra.map(([m, p, tier, uiToken]) => R(m, p, tier, uiToken))];
+  return (method, path) => {
+    const pathOnly = path.split("?", 1)[0];
+    for (const rule of rules) {
+      if (rule.method === method && rule.re.test(pathOnly)) {
+        return { tier: rule.tier, uiToken: rule.uiToken ?? false };
+      }
     }
-  }
-  return { tier: "REFUSED", uiToken: false };
+    return { tier: "REFUSED", uiToken: false };
+  };
 }
+
+// The kernel's routes alone.
+export const classifyTier = createTierClassifier();

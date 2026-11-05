@@ -21,6 +21,7 @@ import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEven
 import { createKnownHostStore, createOpenInviteStore, createPairedDeviceStore, loadOrCreateIdentity, loadOrCreateRelayRoom } from "../../../infra/src/peer/stores.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
+import { composeRouteAccess } from "../../routes/route-access.ts";
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return silent; } };
 const SECRET_BODY = "top-secret-worker-list";
@@ -88,7 +89,7 @@ describe("peer link through the relay", { skip: process.platform === "win32" }, 
       devices: createPairedDeviceStore(hostDir),
       invites: createOpenInviteStore(hostDir),
       getConfig: () => cfg,
-      target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: "t".repeat(48) },
+      target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: "t".repeat(48), isLocalOnly: composeRouteAccess([]).isLocalOnly },
       servesUi: () => false,
       relayRoom: () => ({ url: relayUrl, ...room }),
       bus, now: () => Date.now(), log: silent,

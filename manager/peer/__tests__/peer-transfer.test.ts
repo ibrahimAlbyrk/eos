@@ -23,6 +23,7 @@ import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { TransferRepo } from "../../../core/src/ports/TransferRepo.ts";
 import type { TransferRecord } from "../../../contracts/src/transfer.ts";
 import type { PeerConfig } from "../../../contracts/src/peer.ts";
+import { composeRouteAccess } from "../../routes/route-access.ts";
 
 const silent: Logger = { debug() {}, info() {}, warn() {}, error() {}, child() { return silent; } };
 const HOST_TOKEN = "h".repeat(48);
@@ -80,7 +81,7 @@ describe("file transfer over a real peer link", { skip: process.platform === "wi
       devices: createPairedDeviceStore(join(dir, "host")),
       invites: createOpenInviteStore(join(dir, "host")),
       getConfig: () => peerConfig,
-      target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: HOST_TOKEN },
+      target: { socketPath, rawHost: "127.0.0.1", rawPort: 1, uiToken: HOST_TOKEN, isLocalOnly: composeRouteAccess([]).isLocalOnly },
       servesUi: () => false,
       relayRoom: () => null,
       bus, now: () => Date.now(), log: silent,

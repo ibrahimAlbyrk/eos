@@ -13,7 +13,7 @@ import { FileSyncIdentityStore, FileSyncStateStore } from "../../../infra/src/sy
 import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 import { SyncService } from "./SyncService.ts";
 import { syncJobs } from "./jobs.ts";
-import { registerSyncRoutes } from "./routes.ts";
+import { SYNC_ROUTE_ACCESS, registerSyncRoutes } from "./routes.ts";
 
 export interface SyncModuleDeps {
   readonly home: string;
@@ -52,6 +52,7 @@ export function createSyncModule(deps: SyncModuleDeps): DaemonModule {
   deps.bus.subscribe("sync:change", (m) => asJob.onSync(m.payload as SyncStatusResponse));
   return {
     id: "sync",
+    routeAccess: SYNC_ROUTE_ACCESS,
     registerRoutes: (router) => registerSyncRoutes(router, { sync, uiToken: deps.uiToken }),
     afterListen: () => sync.start(),
     stop: () => {

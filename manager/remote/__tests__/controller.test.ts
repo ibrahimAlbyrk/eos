@@ -12,6 +12,7 @@ import { RemoteController } from "../controller.ts";
 import type { RemoteWiringDeps } from "../wire.ts";
 import type { EventBus, EventBusSubscriber } from "../../../core/src/ports/EventBus.ts";
 import type { RemoteConfig } from "../../../contracts/src/remote.ts";
+import { classifyTier } from "../tiers.ts";
 
 class NullBus implements EventBus {
   publish(): void {}
@@ -19,7 +20,7 @@ class NullBus implements EventBus {
 }
 
 function deps(home: string, remote: RemoteConfig): RemoteWiringDeps {
-  return { config: { remote, daemon: { home, port: 7400 } }, uiToken: "tok", bus: new NullBus(), log: { info() {}, warn() {} } };
+  return { config: { remote, daemon: { home, port: 7400 } }, uiToken: "tok", routeAccess: { classifyRemote: classifyTier }, bus: new NullBus(), log: { info() {}, warn() {} } };
 }
 
 describe("RemoteController — boot reconcile (auto-arm)", () => {

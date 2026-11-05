@@ -19,6 +19,7 @@ import { ControlDispatcher, type RouteDispatch, type DispatchSession } from "./d
 import { WsBridge, type RemoteSession, type ServerFrame } from "./WsBridge.ts";
 import type { RemoteAuditLog } from "./audit.ts";
 import { REMOTE_CAPS, type ControlFrame, type FocusFrame, type LiveBlock } from "../../contracts/src/remote.ts";
+import type { TierClassifier } from "./tiers.ts";
 
 // Every relay session holds the full capability set — "mutate" gates the local
 // ui-token for ✦ routes. "highrisk" is retained for completeness but is no longer
@@ -30,6 +31,7 @@ export interface GatewayDeps {
   audit: RemoteAuditLog;
   uiToken: string;
   routeDispatch: RouteDispatch;
+  classify: TierClassifier;
   bus: EventBus;
   room: string;
   now: () => number;
@@ -111,7 +113,7 @@ export class GatewayConnection {
     this.joinAck = args.joinAck ?? true;
     this.lastActivity = args.deps.now();
     this.dispatcher = new ControlDispatcher({
-      routeDispatch: args.deps.routeDispatch, audit: args.deps.audit,
+      routeDispatch: args.deps.routeDispatch, classify: args.deps.classify, audit: args.deps.audit,
       uiToken: args.deps.uiToken, now: args.deps.now,
     });
   }

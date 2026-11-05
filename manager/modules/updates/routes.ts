@@ -18,6 +18,7 @@ import { uiTokenOk } from "../../routes/fs-shared.ts";
 import { ROUTES } from "../../../contracts/src/http.ts";
 import { UpdateCheckRequestSchema, UpdateRestartRequestSchema, UpdateSettingsPatchSchema } from "../../../contracts/src/update.ts";
 import type { UpdateService } from "./UpdateService.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 export interface UpdateRouteDeps {
   readonly updates: UpdateService;
@@ -25,6 +26,9 @@ export interface UpdateRouteDeps {
   // Writes one config.json block and reloads the config (throws when it can't).
   patchConfig(key: string, patch: Record<string, unknown>): void;
 }
+
+// This Mac's own app: another computer may not update or restart it.
+export const UPDATE_ROUTE_ACCESS: RouteAccess = { localOnly: [["*", "/api/update/*"], ["*", "/api/settings/updates"]] };
 
 export function registerUpdateRoutes(r: Router, c: UpdateRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {

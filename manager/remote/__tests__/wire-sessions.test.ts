@@ -14,6 +14,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { startRemoteGateway, type RemoteWiringDeps } from "../wire.ts";
 import { encodeJsonEnvelope, parseEnvelope, FrameType, Dir } from "../envelope.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
+import { classifyTier } from "../tiers.ts";
 
 class TopicBus implements EventBus {
   private subs = new Map<string, EventBusSubscriber[]>();
@@ -57,7 +58,7 @@ describe("remote wiring — relay-driven session lifecycle", () => {
     const bus = new TopicBus();
     const deps: RemoteWiringDeps = {
       config: { remote: { enabled: true, relay: { url: `ws://127.0.0.1:${port}/` } }, daemon: { home, port: 7400 } },
-      uiToken: "tok", bus, log: { info() {}, warn() {} },
+      uiToken: "tok", routeAccess: { classifyRemote: classifyTier }, bus, log: { info() {}, warn() {} },
     };
     const handle = startRemoteGateway(deps, {} as never);
     try {

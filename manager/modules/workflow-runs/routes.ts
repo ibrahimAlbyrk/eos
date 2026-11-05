@@ -10,6 +10,7 @@ import { writeJson } from "../../middleware/errorHandler.ts";
 import { uiTokenOk } from "../../routes/fs-shared.ts";
 import type { WorkflowAgentRows, WorkflowRunList } from "../../../contracts/src/workflow-run.ts";
 import type { WorkflowRunService } from "./WorkflowRunService.ts";
+import type { RouteAccess } from "../../routes/route-access.ts";
 
 export interface WorkflowRunRouteDeps {
   readonly workflowRuns: Pick<WorkflowRunService, "list" | "get" | "agentRows" | "stop">;
@@ -20,6 +21,16 @@ const RUNS = /^\/workers\/(?<id>[^/]+)\/workflow-runs$/;
 const RUN = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)$/;
 const STOP = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)\/stop$/;
 const AGENT = /^\/workers\/(?<id>[^/]+)\/workflow-runs\/(?<callId>[A-Za-z0-9_-]+)\/agents\/(?<agentId>[^/]+)$/;
+
+// The phone may follow a chat's workflow runs, and stop one with the ui token.
+export const WORKFLOW_RUN_ROUTE_ACCESS: RouteAccess = {
+  remote: [
+    ["GET", "/workers/:id/workflow-runs", "READ"],
+    ["GET", "/workers/:id/workflow-runs/:callId", "READ"],
+    ["GET", "/workers/:id/workflow-runs/:callId/agents/:agentId", "READ"],
+    ["POST", "/workers/:id/workflow-runs/:callId/stop", "LOW", true],
+  ],
+};
 
 export function registerWorkflowRunRoutes(r: Router, c: WorkflowRunRouteDeps): void {
   r.get(RUNS, ({ res, params }) => {

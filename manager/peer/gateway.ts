@@ -13,7 +13,7 @@ import type { Readable } from "node:stream";
 import zlib from "node:zlib";
 
 import { PEER_DEVICE_HEADER, PEER_HUMAN_HEADER } from "../../contracts/src/peer.ts";
-import { isLocalOnlyRoute, isPeerOpenRoute } from "../../contracts/src/route-planes.ts";
+import { isPeerOpenRoute } from "../../contracts/src/route-planes.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 
 export interface LocalDaemonTarget {
@@ -21,6 +21,8 @@ export interface LocalDaemonTarget {
   rawHost: string;
   rawPort: number;
   uiToken: string;
+  // Routes that never cross to another computer (manager/routes/route-access.ts).
+  isLocalOnly(method: string, path: string): boolean;
 }
 
 // Connection-scoped (RFC 9113 §8.2.2) or re-set by the gateway below.
@@ -103,7 +105,7 @@ export function createLocalForwarder(target: LocalDaemonTarget): {
   function forward(stream: http2.ServerHttp2Stream, headers: http2.IncomingHttpHeaders, deviceFp: string): void {
     const method = String(headers[":method"] ?? "GET");
     const path = normalizePath(String(headers[":path"] ?? "/"));
-    if (isLocalOnlyRoute(method, path)) {
+    if (target.isLocalOnly(method, path)) {
       respondJson(stream, 403, { error: "not available from another device", path });
       return;
     }

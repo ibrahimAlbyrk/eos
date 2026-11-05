@@ -2,10 +2,12 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { Readable } from "node:stream";
 import { Router, type RouteContext } from "../../../routes/Router.ts";
-import { registerArtifactRoutes, type ArtifactRouteDeps } from "../routes.ts";
+import { ARTIFACT_ROUTE_ACCESS, registerArtifactRoutes, type ArtifactRouteDeps } from "../routes.ts";
 import { ArtifactCatalogService } from "../../../../core/src/services/ArtifactCatalogService.ts";
 import { ROUTES } from "../../../../contracts/src/http.ts";
-import { isLocalOnlyRoute } from "../../../../contracts/src/route-planes.ts";
+import { compileRouteRules } from "../../../../contracts/src/route-planes.ts";
+
+const isLocalOnlyRoute = compileRouteRules(ARTIFACT_ROUTE_ACCESS.localOnly ?? []);
 import type { ArtifactCatalog } from "../../../../contracts/src/artifacts.ts";
 
 const UI = { "x-eos-ui-token": "tok" };

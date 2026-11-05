@@ -5,7 +5,7 @@
 import type { DaemonModule } from "../types.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { WorkflowRunService, type WorkflowRunServiceDeps } from "./WorkflowRunService.ts";
-import { registerWorkflowRunRoutes } from "./routes.ts";
+import { WORKFLOW_RUN_ROUTE_ACCESS, registerWorkflowRunRoutes } from "./routes.ts";
 
 export interface WorkflowRunsModuleDeps extends WorkflowRunServiceDeps {
   readonly uiToken: string;
@@ -19,6 +19,7 @@ export function createWorkflowRunsModule(deps: WorkflowRunsModuleDeps): Workflow
   const workflowRuns = new WorkflowRunService(deps);
   return {
     id: "workflow-runs",
+    routeAccess: WORKFLOW_RUN_ROUTE_ACCESS,
     workflowRuns,
     onAgentEvent: (workerId: string, event: AgentEvent) => {
       if (event.type === "workflow_started" || event.type === "workflow_completed") workflowRuns.observe(workerId, event);

@@ -23,7 +23,7 @@ import { buildGenuiMedia, type GenuiMediaDeps } from "./media.ts";
 import { genuiPromptVariables } from "./prompt.ts";
 import { registerGenuiRoutes } from "./routes.ts";
 import { registerGenuiMediaRoutes } from "./media-routes.ts";
-import { registerLocationRoutes } from "./location-routes.ts";
+import { LOCATION_ROUTE_ACCESS, registerLocationRoutes } from "./location-routes.ts";
 import { registerGenuiSettingsRoutes } from "./settings-routes.ts";
 
 export interface GenuiModuleDeps {
@@ -66,6 +66,7 @@ export function createGenuiModule(deps: GenuiModuleDeps): GenuiModule {
   });
   return {
     id: "genui",
+    routeAccess: LOCATION_ROUTE_ACCESS,
     settings,
     promptVariables: () => genuiPromptVariables(settings().level),
     protectedSettings: { keys: Object.values(GENUI_SETTING_KEYS), via: ROUTES.settingsGenui },
