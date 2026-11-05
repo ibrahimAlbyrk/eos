@@ -14,16 +14,19 @@ export function sortJobs(jobs) {
   });
 }
 
+const AGENT_KINDS = ["shell", "monitor", "workflow"];
+
+// "Eos" is everything that isn't an agent's own — whatever kinds the features name.
 export const JOB_FILTERS = [
-  { id: "all", label: "All", kinds: null },
-  { id: "shells", label: "Shells", kinds: ["shell", "monitor"] },
-  { id: "workflows", label: "Workflows", kinds: ["workflow"] },
-  { id: "eos", label: "Eos", kinds: ["transfer", "compaction", "dream", "sync", "update"] },
+  { id: "all", label: "All", match: null },
+  { id: "shells", label: "Shells", match: (kind) => kind === "shell" || kind === "monitor" },
+  { id: "workflows", label: "Workflows", match: (kind) => kind === "workflow" },
+  { id: "eos", label: "Eos", match: (kind) => !AGENT_KINDS.includes(kind) },
 ];
 
 export function filterJobs(jobs, filterId) {
-  const kinds = JOB_FILTERS.find((f) => f.id === filterId)?.kinds;
-  return kinds ? jobs.filter((j) => kinds.includes(j.kind)) : jobs;
+  const match = JOB_FILTERS.find((f) => f.id === filterId)?.match;
+  return match ? jobs.filter((j) => match(j.kind)) : jobs;
 }
 
 // The job's chat, or Eos for its own work. Groups keep the jobs' order; the

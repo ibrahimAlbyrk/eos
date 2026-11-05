@@ -8,9 +8,10 @@
 
 import { z } from "zod";
 
-export const BackgroundJobKindSchema = z.enum([
-  "shell", "monitor", "workflow", "transfer", "compaction", "dream", "sync", "update",
-]);
+// What a job is. An agent's own are shell, monitor and workflow; a feature names
+// its own (transfer, compaction, dream, sync, update, …) — the UI shows a kind it
+// has no glyph for with a neutral one.
+export const BackgroundJobKindSchema = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);
 export type BackgroundJobKind = z.infer<typeof BackgroundJobKindSchema>;
 
 export const BackgroundJobStatusSchema = z.enum(["running", "completed", "failed", "stopped"]);
