@@ -9,7 +9,7 @@ import { terminalJobs } from "../sources/terminal.ts";
 import { transferJobs } from "../../../modules/transfer/jobs.ts";
 import { dreamJobs } from "../../../modules/dreams/jobs.ts";
 import { syncJobs } from "../../../modules/sync/jobs.ts";
-import { compactionJobs } from "../sources/compaction.ts";
+import { compactionJobs } from "../../../modules/compaction/jobs.ts";
 import type { BackgroundJob, BackgroundJobChange } from "../../../../contracts/src/background-job.ts";
 import type { TransferRecord } from "../../../../contracts/src/transfer.ts";
 import type { DreamStatus } from "../../../../contracts/src/dream.ts";

@@ -264,10 +264,8 @@ const contextThreshold = new ContextThresholdService({
 
 // What a worker settling at IDLE with an empty queue sets off, in order.
 const idleHooks = new IdleHooks();
-// Context compaction goes first: a worker at/over the threshold is compacted
-// before the loop or a nudge hands it more work. It holds the worker in WORKING
-// and settles to IDLE, which runs these again.
-idleHooks.add({ id: "compaction", order: 10, run: (id) => c.compaction.checkOnIdle(id) });
+// A feature's own go in by their order (compaction first, at 10).
+for (const m of c.modules) for (const hook of m.idleHooks ?? []) idleHooks.add(hook);
 idleHooks.add({ id: "goal-loop", order: 20, run: (id) => { goalLoop.loopTickFor(id); } });
 // Nudge a worker that went idle having never reported this life. Self-excludes
 // looped and already-reported workers, so at most one of these two fires.

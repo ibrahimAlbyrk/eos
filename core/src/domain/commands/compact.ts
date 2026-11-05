@@ -8,18 +8,24 @@
 import type { SlashCommand, SlashCommandContext, SlashCommandResult } from "../slash-command.ts";
 import type { AgentCapabilities } from "../../ports/AgentBackend.ts";
 
-export const compactCommand: SlashCommand = {
-  name: "compact",
-  description: "Summarize the conversation into a fresh context (text after the command steers the summary)",
+// Kicks off a compaction in the background; `instructions` is the text after
+// `/compact`. Refused when one is already running.
+export type StartCompaction = (workerId: string, instructions: string) => { ok: boolean; reason?: string };
 
-  accepts(_args: string, caps: AgentCapabilities): boolean {
-    return caps.contextCompaction === true;
-  },
+export function createCompactCommand(start: StartCompaction): SlashCommand {
+  return {
+    name: "compact",
+    description: "Summarize the conversation into a fresh context (text after the command steers the summary)",
 
-  async execute(ctx: SlashCommandContext): Promise<SlashCommandResult> {
-    const started = ctx.services.startCompaction(ctx.workerId, ctx.args);
-    return started.ok
-      ? { status: 202, body: { ok: true, compacting: true } }
-      : { status: 409, body: { ok: false, error: started.reason } };
-  },
-};
+    accepts(_args: string, caps: AgentCapabilities): boolean {
+      return caps.contextCompaction === true;
+    },
+
+    async execute(ctx: SlashCommandContext): Promise<SlashCommandResult> {
+      const started = start(ctx.workerId, ctx.args);
+      return started.ok
+        ? { status: 202, body: { ok: true, compacting: true } }
+        : { status: 409, body: { ok: false, error: started.reason } };
+    },
+  };
+}

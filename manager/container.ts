@@ -111,7 +111,7 @@ import { HybridStrategy } from "../core/src/services/HybridStrategy.ts";
 import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts";
 import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
 import { MicroTaskRunner } from "./services/MicroTaskRunner.ts";
-import { CompactionService } from "./services/CompactionService.ts";
+import { createCompactionModule } from "./modules/compaction/index.ts";
 import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
@@ -177,8 +177,6 @@ import { toSdkMcpServers } from "./backends/sdk/SdkMcpTranslator.ts";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
 import { clearCommand } from "../core/src/domain/commands/clear.ts";
-import { compactCommand } from "../core/src/domain/commands/compact.ts";
-import { compactContext, compactionSession } from "../core/src/use-cases/CompactContext.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
@@ -224,7 +222,6 @@ import { PtySessionService } from "./services/PtySessionService.ts";
 import { PtyConversationService } from "./services/PtyConversationService.ts";
 import { JobRegistry } from "./services/jobs/JobRegistry.ts";
 import { agentTaskJobs } from "./services/jobs/sources/agentTasks.ts";
-import { compactionJobs } from "./services/jobs/sources/compaction.ts";
 import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -1407,11 +1404,10 @@ export function buildContainer() {
   });
   const { workflowRuns } = workflowRunsModule;
   // Everything running in the background, for the header beacon and the Jobs
-  // tab. Agent tasks and compaction report here directly; the bus-borne sources
-  // are wired in daemon.ts (wireJobSources); feature modules add their own.
+  // tab. Agent tasks report here directly; the bus-borne sources are wired in
+  // daemon.ts (wireJobSources); feature modules add their own.
   const jobs = new JobRegistry({ bus });
   const agentTasks = agentTaskJobs(jobs, { session: inProcessSession });
-  const compactionJobSource = compactionJobs(jobs);
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
@@ -1612,14 +1608,7 @@ export function buildContainer() {
   const continueWorkerOnApiKey = (workerId: string) =>
     continueOnApiKey({ ...planMoveDeps(), apiKeySet: claudeApiKeySet }, { workerId, provider: "anthropic" });
 
-  // Slash-command allowlist — intercepted at the dispatch chokepoint. Adding a
-  // command is one entry here (the registry is open/closed); the side effects it
-  // may touch are wired in dispatch-deps from the services below.
-  const slashCommands = createSlashCommandRegistry([clearCommand, compactCommand]);
-
-  // Context compaction — a tool-less summarizer on the agent's own model condenses
-  // the transcript; the session restarts seeded with the summary. Triggered on the
-  // IDLE edge (daemon) at the configured threshold, or by /compact.
+  // A tool-less summarizer on the agent's own model: compaction and dreaming.
   const summarizer = createSdkSummarizer({
     authResolver,
     daemonUrl: sdkDaemonUrl,
@@ -1628,21 +1617,12 @@ export function buildContainer() {
     defaultModel: "sonnet",
     cwd: config.paths.repoRoot,
   });
-  const contextWindowFor = (model: string | null | undefined): number | null => modelCatalog.contextWindowFor(model);
-  const compaction = new CompactionService({
-    workers,
+  const compactionModule = createCompactionModule({
+    workers, events, bus, clock: systemClock, backends, summarizer, prompts, log, jobs,
+    contextWindowFor: (model) => modelCatalog.contextWindowFor(model),
+    rearmContextMarks: (id) => contextMarks.clear(id),
     config: () => config.compaction,
-    contextWindowFor,
-    canCompact: (id, kind) => compactionSession({ backends }, id, kind) !== null,
-    liveSubagents: (id, kind) => compactionSession({ backends }, id, kind)?.liveSubagents?.() ?? 0,
     deferCap: () => config.context.fullRatio,
-    onRunChange: (workerId, running) => compactionJobSource.onCompaction(workerId, running),
-    run: (input) => compactContext({
-      workers, events, bus, clock: systemClock, backends, summarizer, prompts, contextWindowFor, log,
-      timeoutMs: () => config.compaction.timeoutMs,
-      rearmContextMarks: (id) => contextMarks.clear(id),
-    }, input),
-    log,
   });
   // Dreaming — rereads finished top-level chats (where the user talks) on the same
   // tool-less summarizer, on the model the user picked, and files memory proposals.
@@ -1724,7 +1704,7 @@ export function buildContainer() {
 
   // Feature modules, in route-registration order (sync joins below, built from
   // what they contribute).
-  const featureModules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule, dreamsModule];
+  const featureModules: DaemonModule[] = [compactionModule, pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule, dreamsModule];
 
   // A session's root was killed, archived or purged: modules drop what they
   // held for it (its browser, …).
@@ -1845,6 +1825,10 @@ export function buildContainer() {
     uiToken,
   });
   const modules: DaemonModule[] = [...featureModules, syncModule, transferModule];
+  // Slash-command allowlist — intercepted at the dispatch chokepoint. A feature
+  // brings its own (/compact); the side effects a command may touch are wired in
+  // dispatch-deps.
+  const slashCommands = createSlashCommandRegistry([clearCommand, ...modules.flatMap((m) => m.slashCommands ?? [])]);
 
   const container = {
     get config() { return config; },
@@ -1916,7 +1900,6 @@ export function buildContainer() {
     logFileFor,
     backends,
     slashCommands,
-    compaction,
     expandSlashTemplate,
     onAgentEvent,
     backendResolver,

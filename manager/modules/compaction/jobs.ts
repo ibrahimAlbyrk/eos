@@ -1,6 +1,6 @@
 // An agent's context being compacted — shown only while it runs.
 
-import type { JobRegistry } from "../JobRegistry.ts";
+import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 
 export function compactionJobs(jobs: JobRegistry) {
   return {

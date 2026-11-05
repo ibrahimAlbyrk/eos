@@ -14,10 +14,10 @@
 // turn has moved the context — so a broken summarizer can't hot-loop at IDLE.
 // Config is read live (enabled / threshold follow Settings without a restart).
 
-import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
-import type { Logger } from "../../core/src/ports/Logger.ts";
-import type { CompactContextInput, CompactContextResult } from "../../core/src/use-cases/CompactContext.ts";
-import { isCompactionDue, shouldDeferCompaction } from "../../core/src/domain/compaction.ts";
+import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
+import type { Logger } from "../../../core/src/ports/Logger.ts";
+import type { CompactContextInput, CompactContextResult } from "../../../core/src/use-cases/CompactContext.ts";
+import { isCompactionDue, shouldDeferCompaction } from "../../../core/src/domain/compaction.ts";
 
 export interface CompactionServiceDeps {
   workers: Pick<WorkerRepo, "findById">;

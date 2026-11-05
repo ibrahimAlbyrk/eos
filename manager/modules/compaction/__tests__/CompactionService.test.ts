@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { CompactionService, type CompactionServiceDeps } from "../CompactionService.ts";
-import type { CompactContextInput, CompactContextResult } from "../../../core/src/use-cases/CompactContext.ts";
+import type { CompactContextInput, CompactContextResult } from "../../../../core/src/use-cases/CompactContext.ts";
 
 type Row = { id: string; state: string; model: string; backend_kind: string; last_context_tokens: number };
 

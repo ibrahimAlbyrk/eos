@@ -22,9 +22,6 @@ export interface SlashSideEffects {
   /** Append the conversation_cleared timeline marker (the web hides everything
    *  before it) and publish the change. */
   appendConversationCleared(workerId: string, payload: Record<string, unknown>): void;
-  /** Kick off a context compaction (runs in the background). `instructions` is
-   *  the text after `/compact`. Refused when one is already running. */
-  startCompaction(workerId: string, instructions: string): { ok: boolean; reason?: string };
 }
 
 export interface SlashCommandContext {

@@ -7,13 +7,14 @@ import {
   type SlashCommandContext,
 } from "../domain/slash-command.ts";
 import { clearCommand } from "../domain/commands/clear.ts";
-import { compactCommand } from "../domain/commands/compact.ts";
+import { createCompactCommand, type StartCompaction } from "../domain/commands/compact.ts";
 import { dispatchMessage, type DispatchMessageDeps } from "../use-cases/DispatchMessage.ts";
 import type { AgentBackend, AgentSession, AgentCapabilities } from "../ports/AgentBackend.ts";
 import type { MessageRecord } from "../ports/WorkerClient.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import { fakeQueue } from "./helpers/fakeMessageQueue.ts";
 
+const compactCommand = createCompactCommand(() => ({ ok: true }));
 const registry = createSlashCommandRegistry([clearCommand, compactCommand]);
 
 describe("parseSlash — exact-allowlist matching", () => {
@@ -38,10 +39,11 @@ describe("parseSlash — exact-allowlist matching", () => {
 describe("compactCommand", () => {
   const caps = (over: Partial<AgentCapabilities> = {}): AgentCapabilities =>
     ({ interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false, ...over });
-  const ctxWith = (startCompaction: SlashSideEffects["startCompaction"], args = ""): SlashCommandContext => ({
+  const ctx = (args = ""): SlashCommandContext => ({
     workerId: "w1", args, session: {} as AgentSession, caps: caps({ contextCompaction: true }),
-    services: { clearPendingQueue: () => 0, cancelPeerRequests: () => {}, appendConversationCleared: () => {}, startCompaction },
+    services: { clearPendingQueue: () => 0, cancelPeerRequests: () => {}, appendConversationCleared: () => {} },
   });
+  const run = (start: StartCompaction, args = "") => createCompactCommand(start).execute(ctx(args));
 
   it("parses with free-text focus instructions", () => {
     assert.equal(parseSlash("/compact", registry)?.command.name, "compact");
@@ -57,13 +59,13 @@ describe("compactCommand", () => {
 
   it("starts the background run with the instructions and answers 202", async () => {
     const started: Array<[string, string]> = [];
-    const r = await compactCommand.execute(ctxWith((id, instr) => { started.push([id, instr]); return { ok: true }; }, "keep the diff"));
+    const r = await run((id, instr) => { started.push([id, instr]); return { ok: true }; }, "keep the diff");
     assert.deepEqual(started, [["w1", "keep the diff"]]);
     assert.deepEqual(r, { status: 202, body: { ok: true, compacting: true } });
   });
 
   it("reports a refused start as 409 with the reason", async () => {
-    const r = await compactCommand.execute(ctxWith(() => ({ ok: false, reason: "a compaction is already running" })));
+    const r = await run(() => ({ ok: false, reason: "a compaction is already running" }));
     assert.deepEqual(r, { status: 409, body: { ok: false, error: "a compaction is already running" } });
   });
 });
@@ -85,7 +87,6 @@ describe("clearCommand", () => {
       clearPendingQueue: (id) => { calls.push(`queue:${id}`); return 2; },
       cancelPeerRequests: (id) => { calls.push(`peers:${id}`); },
       appendConversationCleared: (id) => { calls.push(`cleared:${id}`); },
-      startCompaction: () => ({ ok: true }),
     };
     let cleared = 0;
     const session = { clearContext: async () => { cleared++; return { ok: true }; } } as unknown as AgentSession;
@@ -138,12 +139,14 @@ function harness(opts: { state?: string; contextClear?: boolean; contextCompacti
     queue: queue.repo,
     client: { sendMessage: async (_p: number, text: string) => { sends.push(text); return { ok: true, status: 200, body: {} }; } },
     backends: { has: (k: string) => k === "fake", get: () => backend },
-    slashCommands: registry,
+    slashCommands: createSlashCommandRegistry([
+      clearCommand,
+      createCompactCommand((id, instructions) => { effects.push(`compact:${id}:${instructions}`); return { ok: true }; }),
+    ]),
     slashEffects: {
       clearPendingQueue: (id: string) => { effects.push(`queue:${id}`); return 0; },
       cancelPeerRequests: (id: string) => { effects.push(`peers:${id}`); },
       appendConversationCleared: (id: string) => { effects.push(`cleared:${id}`); },
-      startCompaction: (id: string, instructions: string) => { effects.push(`compact:${id}:${instructions}`); return { ok: true }; },
     } satisfies SlashSideEffects,
     log: { info: () => {}, warn: () => {}, error: () => {} },
     isLive: () => true,

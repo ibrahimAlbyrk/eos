@@ -9,6 +9,8 @@ import type { Router } from "../routes/Router.ts";
 import type { AgentEvent } from "../../contracts/src/canonical.ts";
 import type { EventBusMessage, EventBusTopic } from "../../core/src/ports/EventBus.ts";
 import type { SyncDomain } from "../../core/src/ports/SyncDomain.ts";
+import type { SlashCommand } from "../../core/src/domain/slash-command.ts";
+import type { IdleHook } from "../services/IdleHooks.ts";
 
 // Data a feature lets follow the user to their other Macs (Settings › Sync):
 // its sync domain, and the bus topic its local edits announce (so sync pushes
@@ -39,6 +41,13 @@ export interface DaemonModule {
   // run in one daemon only.
   afterListen?(): void;
   readonly sync?: readonly SyncContribution[];
+  // What runs when a worker settles at IDLE with an empty queue, in order among
+  // the daemon's own (goal loop 20, report nudge 30, context watcher 40).
+  readonly idleHooks?: readonly IdleHook[];
+  // Eos-owned slash commands this feature adds to the composer.
+  readonly slashCommands?: readonly SlashCommand[];
+  // True while this feature holds the worker: every message to it queues.
+  holdsWorker?(workerId: string): boolean;
   // A session (a root worker and its subtree) was killed, archived or purged.
   onSessionEnded?(sessionKey: string): void;
   // The daemon is shutting down.

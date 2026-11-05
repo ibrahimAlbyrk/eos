@@ -34,7 +34,7 @@ function containerFor(isOrchestrator: boolean) {
     clock: { now: () => 1 },
     messageQueue: fakeQueue().repo,
     backends: { has: (k: string) => k === "inproc", get: () => backend },
-    compaction: { isCompacting: () => false },
+    modules: [],
     supervisor: { has: () => false },
     turnSettle: { clear: () => {} },
     loops: { findActiveByWorker: () => null },

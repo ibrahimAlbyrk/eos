@@ -135,7 +135,7 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
 
   it("while compacting, even a steer (queueWhenBusy:false) queues — nothing reaches the old session", async () => {
     const { deps, clientSends, queueRows } = buildDeps({ state: "WORKING" });
-    deps.isCompacting = (id) => id === "w1";
+    deps.isHeld = (id) => id === "w1";
     const r = await dispatchMessage(deps, { workerId: "w1", text: "steer", clientMsgId: "c1", queueWhenBusy: false });
     assert.equal(r.status, 202);
     assert.equal(clientSends.length, 0);

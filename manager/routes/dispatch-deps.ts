@@ -32,9 +32,8 @@ export function dispatchDeps(
       cancelPeerRequests: (id: string) => c.pendingPeerRequests.cancelByWorker(id),
       appendConversationCleared: (id: string, payload: Record<string, unknown>) =>
         appendSynthesized(c, id, "conversation_cleared", payload),
-      startCompaction: (id: string, instructions: string) => c.compaction.start(id, instructions),
     },
-    isCompacting: (id: string) => c.compaction.isCompacting(id),
+    isHeld: (id: string) => c.modules.some((m) => m.holdsWorker?.(id) === true),
     log: c.log,
     isLive: (id: string) => isWorkerLive(c, id),
     // Cleared inside the use-case ONLY when the message actually dispatches —
