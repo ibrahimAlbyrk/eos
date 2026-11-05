@@ -15,7 +15,7 @@ import type { PresentViewDeps } from "../../../core/src/use-cases/PresentView.ts
 import type { UserSettings } from "../../../contracts/src/http.ts";
 import type { DaemonConfig } from "../../shared/config.ts";
 import { validateView } from "../../../contracts/src/genui/catalog.ts";
-import { GENUI_SETTING_KEYS, newViewId, validateApp, type GenuiSettings } from "../../../contracts/src/genui/spec.ts";
+import { GENUI_SETTING_KEYS, GENUI_TOPICS, newViewId, validateApp, type GenuiSettings } from "../../../contracts/src/genui/spec.ts";
 import { ROUTES } from "../../../contracts/src/http.ts";
 import { SqliteGenuiViewRepo } from "../../../infra/src/persistence/SqliteGenuiViewRepo.ts";
 import { genuiSettingsOf } from "./settings.ts";
@@ -36,6 +36,9 @@ declare module "../../../core/src/ports/EventBus.ts" {
     "genui:change": true;
   }
 }
+
+// Only Eos's own servers: a user MCP server's "present" is an ordinary tool.
+const GENUI_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
 
 export interface GenuiModuleDeps {
   readonly db: DatabaseSync;
@@ -78,6 +81,10 @@ export function createGenuiModule(deps: GenuiModuleDeps): GenuiModule {
   return {
     id: "genui",
     routeAccess: LOCATION_ROUTE_ACCESS,
+    // A visual answer streams while the model writes it — its own topic, so
+    // LiveText, the phone and agent:delta consumers never see the tool JSON.
+    followsToolInput: (name) => GENUI_TOOL.test(name),
+    onToolInputDelta: (workerId, delta) => deps.bus.publish(GENUI_TOPICS.delta, { workerId, ...delta }),
     settings,
     promptVariables: () => genuiPromptVariables(settings().level),
     protectedSettings: { keys: Object.values(GENUI_SETTING_KEYS), via: ROUTES.settingsGenui },

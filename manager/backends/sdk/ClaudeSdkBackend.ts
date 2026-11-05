@@ -13,7 +13,7 @@ import { query as realQuery, forkSession as realForkSession } from "@anthropic-a
 import type { Options, McpServerConfig, HookCallback } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
-  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, SessionCredential, WorkerHandle,
+  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, SessionCredential, ToolInputDelta, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { PlanOutcome } from "../../../core/src/use-cases/SwitchSessionAccount.ts";
 import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
@@ -25,7 +25,6 @@ import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type BackgroundTaskUpdate, type PlanUnusable, type SdkEventMapper } from "./SdkEventMapper.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
-import type { GenuiDelta } from "../../../contracts/src/genui/spec.ts";
 import type { WorkflowRunProgress } from "../../../contracts/src/workflow-run.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { CLAUDE_STORE_ENV } from "../../../infra/src/auth/SubscriptionAuthResolver.ts";
@@ -162,10 +161,13 @@ export interface ClaudeSdkBackendDeps {
   /** Read per session start: true → the child gets DISABLE_AUTO_COMPACT (Eos
    *  compaction owns it). Absent → the binary's default auto-compaction. */
   disableAutoCompact?(): boolean;
-  /** A visual answer's tool input while the model writes it (present /
-   *  present_app) — the daemon relays it as bus topic genui:delta. Absent → no
-   *  live preview; the view renders from the finished call. */
-  publishGenuiDelta?(delta: GenuiDelta): void;
+  /** Tools whose input a feature follows while the model writes it, and where
+   *  that input goes. Absent → no tool streams live; each renders from its
+   *  finished call. */
+  toolInput?: {
+    streams(toolName: string): boolean;
+    publish(workerId: string, delta: ToolInputDelta): void;
+  };
   /** A running Workflow's latest snapshot — the daemon relays it as bus topic
    *  workflow:progress. Absent → the run shows only its start and end. */
   publishWorkflowProgress?(progress: WorkflowRunProgress): void;
@@ -650,11 +652,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           env: launchEnv(),
           mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}),
         } as Options;
-        const publishGenui = deps.publishGenuiDelta;
+        const toolInput = deps.toolInput;
         const publishWorkflow = deps.publishWorkflowProgress;
         const publishTask = deps.publishBackgroundTask;
         const mapper = createSdkEventMapper({
-          ...(publishGenui ? { onGenuiDelta: (d) => publishGenui({ workerId: spec.workerId, ...d }) } : {}),
+          ...(toolInput ? { streamsToolInput: (name: string) => toolInput.streams(name), onToolInputDelta: (d: ToolInputDelta) => toolInput.publish(spec.workerId, d) } : {}),
           ...(publishWorkflow ? { onWorkflowProgress: (p) => publishWorkflow({ workerId: spec.workerId, ...p, status: "running", updatedAt: Date.now() }) } : {}),
           ...(publishTask ? { onBackgroundTask: (u) => publishTask(spec.workerId, u) } : {}),
         });

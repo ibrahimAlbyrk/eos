@@ -1,10 +1,11 @@
-// A present call's input streams as genui:delta while the model writes it — and
-// nothing else changes: reasoning/text deltas, the durable tool_call and every
+// A followed tool's input (here: a visual answer's present call) streams while
+// the model writes it — and nothing else changes: reasoning/text deltas, the durable tool_call and every
 // other tool's input_json_delta map exactly as before.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { createSdkEventMapper, type GenuiInputDelta } from "../SdkEventMapper.ts";
+import { createSdkEventMapper } from "../SdkEventMapper.ts";
+import type { ToolInputDelta } from "../../../../core/src/ports/AgentBackend.ts";
 
 type Msg = Parameters<ReturnType<typeof createSdkEventMapper>["map"]>[0];
 
@@ -16,9 +17,13 @@ const json = (index: number, partial_json: string): Msg =>
 const stop = (index: number): Msg => ev({ type: "content_block_stop", index });
 
 function harness(clock = { t: 0 }) {
-  const seen: GenuiInputDelta[] = [];
+  const seen: ToolInputDelta[] = [];
   const events: unknown[] = [];
-  const mapper = createSdkEventMapper({ onGenuiDelta: (d) => seen.push(d), now: () => clock.t });
+  const mapper = createSdkEventMapper({
+    streamsToolInput: (name) => /^mcp__(?:orchestrator|worker)__present(?:_app)?$/.test(name),
+    onToolInputDelta: (d) => seen.push(d),
+    now: () => clock.t,
+  });
   const feed = (...msgs: Msg[]): void => { for (const m of msgs) events.push(...mapper.map(m)); };
   return { seen, events, feed, clock, mapper };
 }
@@ -106,7 +111,7 @@ describe("SdkEventMapper — genui:delta for present calls", () => {
   });
 
   it("a throwing sink never breaks the mapping", () => {
-    const mapper = createSdkEventMapper({ onGenuiDelta: () => { throw new Error("bus down"); } });
+    const mapper = createSdkEventMapper({ streamsToolInput: () => true, onToolInputDelta: () => { throw new Error("bus down"); } });
     mapper.map(ev({ type: "message_start", message: { id: "msg_F" } }));
     assert.doesNotThrow(() => mapper.map(start(0, "z", "mcp__orchestrator__present")));
   });

@@ -6,6 +6,7 @@
 // validated Python probes (content_block_delta -> thinking_delta/text_delta).
 
 import type { AgentEvent, ContentBlock, CanonicalUsage, SubagentUsage, WorkflowRunSnapshot } from "../../../contracts/src/canonical.ts";
+import type { ToolInputDelta } from "../../../core/src/ports/AgentBackend.ts";
 import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/canonical.ts";
 import { EMPTY_WORKFLOW_SNAPSHOT, applyWorkflowProgress, settleWorkflowSnapshot } from "../../../core/src/domain/workflow-run.ts";
 
@@ -239,17 +240,7 @@ export function durableBlocks(msgId: string, content: RawBlock[], startIdx: numb
 // agent_id is set only inside a subagent; effort only on models that take one.
 export interface SubagentHookInput { agent_id?: string; effort?: { level?: string } }
 
-// A visual answer's tool input (present / present_app) while the model writes it.
-// Not an AgentEvent: it never reaches the event log or the worker state machine —
-// the backend relays it to the bus as genui:delta, apart from agent:delta.
-export interface GenuiInputDelta {
-  callId: string;
-  name: string;
-  phase: "start" | "append" | "stop";
-  text: string;
-}
-
-// A running Workflow's latest snapshot. Like GenuiInputDelta, not an AgentEvent:
+// A running Workflow's latest snapshot. Like a ToolInputDelta, not an AgentEvent:
 // the backend relays it as workflow:progress; only the run's start and end are
 // recorded.
 export interface WorkflowProgress {
@@ -269,20 +260,20 @@ export type BackgroundTaskUpdate =
   | { phase: "ended"; taskId: string; status: "completed" | "failed" | "stopped"; summary: string | null; outputFile: string | null; exitCode: number | null };
 
 export interface SdkEventMapperOptions {
-  onGenuiDelta?(delta: GenuiInputDelta): void;
+  // Tools whose input a feature follows while the model writes it.
+  streamsToolInput?(toolName: string): boolean;
+  onToolInputDelta?(delta: ToolInputDelta): void;
   onWorkflowProgress?(progress: WorkflowProgress): void;
   onBackgroundTask?(update: BackgroundTaskUpdate): void;
   now?(): number;
 }
 
-// Only Eos's own servers: a user MCP server's "present" is an ordinary tool.
-const GENUI_TOOL = /^mcp__(?:orchestrator|worker)__present(?:_app)?$/;
 // input_json_delta arrives a few characters at a time — thousands per view. Appends
 // are merged until this much time passed since the last one (or the text grew this
 // big), so the stream costs tens of frames, not thousands. No timer is needed: the
 // next delta or the block's stop flushes what is held.
-const GENUI_FLUSH_MS = 80;
-const GENUI_FLUSH_CHARS = 4096;
+const TOOL_INPUT_FLUSH_MS = 80;
+const TOOL_INPUT_FLUSH_CHARS = 4096;
 
 export interface SdkEventMapper {
   map(msg: SdkMsg): AgentEvent[];
@@ -511,24 +502,24 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
 
-  // blockId -> the present call streaming in that block, and its not-yet-sent text.
-  const genuiBlocks = new Map<string, { callId: string; name: string; held: string; sentAt: number }>();
+  // blockId -> the followed tool call streaming in that block, and its not-yet-sent text.
+  const inputBlocks = new Map<string, { callId: string; name: string; held: string; sentAt: number }>();
   const now = opts.now ?? Date.now;
-  const emitGenui = (delta: GenuiInputDelta): void => {
-    try { opts.onGenuiDelta?.(delta); } catch { /* a live preview must never break the session */ }
+  const emitInput = (delta: ToolInputDelta): void => {
+    try { opts.onToolInputDelta?.(delta); } catch { /* a live preview must never break the session */ }
   };
-  const flushGenui = (g: { callId: string; name: string; held: string; sentAt: number }): void => {
+  const flushInput = (g: { callId: string; name: string; held: string; sentAt: number }): void => {
     if (!g.held) return;
-    emitGenui({ callId: g.callId, name: g.name, phase: "append", text: g.held });
+    emitInput({ callId: g.callId, name: g.name, phase: "append", text: g.held });
     g.held = "";
     g.sentAt = now();
   };
-  const stopGenui = (blockId: string): void => {
-    const g = genuiBlocks.get(blockId);
+  const stopInput = (blockId: string): void => {
+    const g = inputBlocks.get(blockId);
     if (!g) return;
-    genuiBlocks.delete(blockId);
-    flushGenui(g);
-    emitGenui({ callId: g.callId, name: g.name, phase: "stop", text: "" });
+    inputBlocks.delete(blockId);
+    flushInput(g);
+    emitInput({ callId: g.callId, name: g.name, phase: "stop", text: "" });
   };
 
   return {
@@ -659,16 +650,16 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           }
           if (ev.type === "content_block_start" && ev.index !== undefined) {
             const b = ev.content_block;
-            if (opts.onGenuiDelta && b?.type === "tool_use" && b.id && b.name && GENUI_TOOL.test(b.name)) {
+            if (opts.onToolInputDelta && b?.type === "tool_use" && b.id && b.name && opts.streamsToolInput?.(b.name)) {
               const startId = `${blockBase()}:${ev.index}`;
-              genuiBlocks.set(startId, { callId: b.id, name: b.name, held: "", sentAt: -Infinity });
-              emitGenui({ callId: b.id, name: b.name, phase: "start", text: "" });
+              inputBlocks.set(startId, { callId: b.id, name: b.name, held: "", sentAt: -Infinity });
+              emitInput({ callId: b.id, name: b.name, phase: "start", text: "" });
             }
             return out;
           }
           if (ev.type === "content_block_stop" && ev.index !== undefined) {
             const stopId = `${blockBase()}:${ev.index}`;
-            stopGenui(stopId);
+            stopInput(stopId);
             const open = openedBlocks.get(stopId);
             if (open) { openedBlocks.delete(stopId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId: stopId, text: "" }); }
             return out;
@@ -676,13 +667,13 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           if (ev.type !== "content_block_delta" || ev.index === undefined || !ev.delta) return out;
           const blockId = `${blockBase()}:${ev.index}`;
           const d = ev.delta;
-          // A present call's input goes to its own stream (genui:delta), never the
+          // A followed tool's input goes to its own stream, never the
           // reasoning/text channel.
           if (d.type === "input_json_delta") {
-            const g = genuiBlocks.get(blockId);
+            const g = inputBlocks.get(blockId);
             if (g && d.partial_json) {
               g.held += d.partial_json;
-              if (now() - g.sentAt >= GENUI_FLUSH_MS || g.held.length >= GENUI_FLUSH_CHARS) flushGenui(g);
+              if (now() - g.sentAt >= TOOL_INPUT_FLUSH_MS || g.held.length >= TOOL_INPUT_FLUSH_CHARS) flushInput(g);
             }
             return out;
           }
@@ -731,7 +722,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
           // Close any live blocks this message finalizes (the durable block takes over).
           content.forEach((_b, i) => {
             const blockId = `${msgId}:${startIdx + i}`;
-            stopGenui(blockId);
+            stopInput(blockId);
             const open = openedBlocks.get(blockId);
             if (open) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId, text: "" }); }
           });
@@ -914,7 +905,7 @@ export function createSdkEventMapper(opts: SdkEventMapperOptions = {}): SdkEvent
             if (open.channel === "reasoning" && open.text.trim()) cut.push({ type: "reasoning", text: open.text, blockId, interrupted: true });
           }
           openedBlocks.clear();
-          for (const blockId of [...genuiBlocks.keys()]) stopGenui(blockId);
+          for (const blockId of [...inputBlocks.keys()]) stopInput(blockId);
           if (cut.length) out.push({ type: "message", role: "assistant", blocks: cut });
           // A plan failure hands the CLI's notice to the backend, which decides
           // whether it shows; any other failure's notice ends the turn as usual.

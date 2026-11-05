@@ -14,6 +14,16 @@ import type { MessageRecord, RewindResult } from "./WorkerClient.ts";
 import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
 import type { SessionTranscript } from "../domain/transcript.ts";
 
+// A tool call's input while the model writes it, for a feature that follows
+// that tool live (a visual answer). Not an AgentEvent: it never reaches the
+// event log or the worker state machine.
+export interface ToolInputDelta {
+  readonly callId: string;
+  readonly name: string;
+  readonly phase: "start" | "append" | "stop";
+  readonly text: string;
+}
+
 export type WorkerHandle =
   | { readonly kind: "http"; readonly port: number; readonly pid: number | null }
   | { readonly kind: "inproc"; readonly ref: string };

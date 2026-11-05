@@ -75,7 +75,6 @@ import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorkt
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
 import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
 import { SqliteTransferRepo } from "../infra/src/persistence/SqliteTransferRepo.ts";
-import { GENUI_TOPICS } from "../contracts/src/genui/spec.ts";
 import { normalizeEventRow } from "../core/src/domain/message-normalize.ts";
 import type { DreamLine, DreamSession } from "../core/src/domain/dream.ts";
 import { SqliteMessageIdRepo } from "../infra/src/persistence/SqliteMessageIdRepo.ts";
@@ -1249,12 +1248,15 @@ export function buildContainer() {
     assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude"),
     // Eos compaction owns context compaction while enabled (read per launch).
     disableAutoCompact: () => config.compaction.enabled,
-    // A visual answer's input while it is written — its own topic, so LiveText,
-    // the phone and agent:delta consumers never see it.
-    // A view on screen is turn output too: an interrupt past it is no recall.
-    publishGenuiDelta: (d) => {
-      if (d.phase !== "stop") turnOutput.markSeen(d.workerId);
-      bus.publish(GENUI_TOPICS.delta, d);
+    // A tool input a feature follows live (a visual answer) goes to that feature,
+    // never to agent:delta. What streams on screen is turn output too: an
+    // interrupt past it is no recall.
+    toolInput: {
+      streams: (name) => modules.some((m) => m.followsToolInput?.(name) === true),
+      publish: (workerId, d) => {
+        if (d.phase !== "stop") turnOutput.markSeen(workerId);
+        for (const m of modules) if (m.followsToolInput?.(d.name)) m.onToolInputDelta?.(workerId, d);
+      },
     },
     publishWorkflowProgress: (p) => {
       workflowRuns.onProgress(p);
