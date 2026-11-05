@@ -2589,6 +2589,10 @@ export const ROUTES = {
   pluginEnabled: (id: string) => `/api/plugins/${encodeURIComponent(id)}/enabled`,
   pluginSettings: (id: string) => `/api/plugins/${encodeURIComponent(id)}/settings`,
   pluginStore: (id: string, key: string) => `/api/plugins/${encodeURIComponent(id)}/store/${encodeURIComponent(key)}`,
+  // Installing from npm / git / a folder (contracts/src/plugin-install.ts) — the user only.
+  pluginInstall: "/api/plugins/install",
+  pluginStaged: (stagingId: string) => `/api/plugins/install/${encodeURIComponent(stagingId)}`,
+  pluginUpdate: (id: string) => `/api/plugins/${encodeURIComponent(id)}/update`,
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.

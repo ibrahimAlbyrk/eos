@@ -584,7 +584,7 @@ export function buildContainer() {
 
   // Plugins (~/.eos/plugins): built and rebuilt live, loaded by every window.
   const pluginHost = createPluginHost({ home: config.daemon.home, bus, log, uiToken });
-  deferredBoot.push({ name: "plugins", run: () => pluginHost.plugins.start() });
+  deferredBoot.push({ name: "plugins", run: () => pluginHost.start() });
 
   // How a project folder travels between Macs (sync, transfer): its git remote.
   const projectKeys = createProjectKeys({

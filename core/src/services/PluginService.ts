@@ -192,14 +192,14 @@ export class PluginService {
 
     const parsed = id.startsWith(BUILTIN_PLUGIN_PREFIX)
       ? `the id "${id}" is reserved for Eos's built-in plugins — rename the folder (and the manifest id)`
-      : parseManifest(folder);
+      : parsePluginManifest(folder.manifestText, folder.id);
     if (typeof parsed === "string") {
       entry.error = parsed;
       this.announce(id);
       return;
     }
     entry.manifest = parsed;
-    const entryFile = uiEntryOf(parsed, folder);
+    const entryFile = pluginUiEntry(parsed, folder.files);
     if (!this.enabledFor(id, parsed) || !entryFile) {
       if (!entryFile) {
         entry.build = null;
@@ -251,12 +251,13 @@ export class PluginService {
   }
 }
 
-// The manifest, or why it can't be used.
-function parseManifest(folder: PluginFolder): PluginManifest | string {
-  if (folder.manifestText == null) return `${PLUGIN_MANIFEST_FILE} is missing`;
+// The manifest, or why it can't be used. `folderId`: the folder it sits in,
+// whose name the manifest id must match.
+export function parsePluginManifest(text: string | null, folderId?: string): PluginManifest | string {
+  if (text == null) return `${PLUGIN_MANIFEST_FILE} is missing`;
   let raw: unknown;
   try {
-    raw = JSON.parse(folder.manifestText);
+    raw = JSON.parse(text);
   } catch (e) {
     return `${PLUGIN_MANIFEST_FILE} is not valid JSON: ${e instanceof Error ? e.message : String(e)}`;
   }
@@ -264,12 +265,12 @@ function parseManifest(folder: PluginFolder): PluginManifest | string {
   if (!r.success) {
     return `${PLUGIN_MANIFEST_FILE}: ` + r.error.issues.map((i) => `${i.path.join(".") || "(root)"} — ${i.message}`).join("; ");
   }
-  if (r.data.id !== folder.id) return `${PLUGIN_MANIFEST_FILE}: id "${r.data.id}" must match the folder name "${folder.id}"`;
+  if (folderId !== undefined && r.data.id !== folderId) return `${PLUGIN_MANIFEST_FILE}: id "${r.data.id}" must match the folder name "${folderId}"`;
   return r.data;
 }
 
-function uiEntryOf(manifest: PluginManifest, folder: PluginFolder): string | null {
+export function pluginUiEntry(manifest: PluginManifest, files: readonly string[]): string | null {
   if (manifest.ui) return manifest.ui;
-  return PLUGIN_UI_ENTRIES.find((f) => folder.files.includes(f)) ?? null;
+  return PLUGIN_UI_ENTRIES.find((f) => files.includes(f)) ?? null;
 }
 

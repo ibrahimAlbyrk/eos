@@ -1,6 +1,7 @@
 // Plugins (contracts/src/plugin.ts):
 //   GET  /api/plugins                    every plugin folder, its state and settings,
-//                                        and the folder plugins live in
+//                                        and the folder plugins live in (+ where the
+//                                        installed ones came from, with the ui token)
 //   GET  /api/plugins/:id                one
 //   GET  /api/plugins/:id/status[?wait=1] one, with the windows' latest report; wait=1
 //                                        first lets a pending rebuild finish and a
@@ -11,6 +12,12 @@
 //   PUT  /api/plugins/:id/settings       { values }             (ui token)
 //   GET  /api/plugins/:id/store/:key     { value }
 //   PUT  /api/plugins/:id/store/:key     { value }              (ui token)
+// Installing (contracts/src/plugin-install.ts) — ui token, never from another computer:
+//   POST   /api/plugins/install            { source } → a staged plugin to review
+//   POST   /api/plugins/install/:stagingId install it → { plugin }
+//   DELETE /api/plugins/install/:stagingId drop it
+//   POST   /api/plugins/:id/update         stage the newest from where it came from
+//   DELETE /api/plugins/:id                move its folder to the trash
 //   GET  /ui/plugins/:id/:rev.js|.css    a build, by revision — served under
 //                                        /ui/ beside the dashboard, so a window
 //                                        loads it the way it loads its own code
@@ -21,6 +28,9 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { uiTokenOk } from "../routes/fs-shared.ts";
 import type { PluginService } from "../../core/src/services/PluginService.ts";
+import type { PluginInstaller } from "../../core/src/services/PluginInstaller.ts";
+import { ROUTES } from "../../contracts/src/http.ts";
+import { PluginInstallStageRequestSchema, PluginStagingIdSchema } from "../../contracts/src/plugin-install.ts";
 import {
   PluginEnabledRequestSchema, PluginIdSchema, PluginReportRequestSchema, PluginSettingsRequestSchema, PluginStoreKeySchema,
   PluginStoreRequestSchema,
@@ -28,6 +38,7 @@ import {
 
 export interface PluginRouteDeps {
   readonly plugins: PluginService;
+  readonly installer: PluginInstaller;
   readonly uiToken: string;
   // Where plugin folders go (~/.eos/plugins).
   readonly dir: string;
@@ -42,6 +53,8 @@ const REPORT = /^\/api\/plugins\/(?<id>[^/]+)\/report$/;
 const ENABLED = /^\/api\/plugins\/(?<id>[^/]+)\/enabled$/;
 const SETTINGS = /^\/api\/plugins\/(?<id>[^/]+)\/settings$/;
 const STORE = /^\/api\/plugins\/(?<id>[^/]+)\/store\/(?<key>[^/]+)$/;
+const STAGED = /^\/api\/plugins\/install\/(?<stagingId>[^/]+)$/;
+const UPDATE = /^\/api\/plugins\/(?<id>[^/]+)\/update$/;
 const BUILD = /^\/ui\/plugins\/(?<id>[^/]+)\/(?<rev>\d+)\.(?<ext>js|css)$/;
 
 // Registered before the dashboard bundle's /ui/* catch-all.
@@ -65,8 +78,37 @@ export function registerPluginRoutes(r: Router, c: PluginRouteDeps): void {
     return true;
   };
 
-  r.get("/api/plugins", ({ res }) => {
-    writeJson(res, 200, { plugins: c.plugins.list(), dir: c.dir });
+  // Where installed plugins came from is the user's business only (their dashboard).
+  r.get("/api/plugins", ({ req, res }) => {
+    writeJson(res, 200, { plugins: c.plugins.list(), ...(uiTokenOk(req, c.uiToken) ? { installs: c.installer.installs() } : {}), dir: c.dir });
+  });
+
+  r.post(ROUTES.pluginInstall, async ({ req, res }) => {
+    if (denied(req, res)) return;
+    const body = validate(PluginInstallStageRequestSchema, await readBody(req));
+    writeJson(res, 200, { staged: await c.installer.stage(body.source) });
+  });
+
+  r.post(STAGED, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    writeJson(res, 200, { plugin: await c.installer.commit(validate(PluginStagingIdSchema, params.stagingId)) });
+  });
+
+  r.del(STAGED, ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    c.installer.discard(validate(PluginStagingIdSchema, params.stagingId));
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.post(UPDATE, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    writeJson(res, 200, { staged: await c.installer.stageUpdate(validate(PluginIdSchema, params.id)) });
+  });
+
+  r.del(ONE, async ({ req, res, params }) => {
+    if (denied(req, res)) return;
+    await c.installer.remove(validate(PluginIdSchema, params.id));
+    writeJson(res, 200, { ok: true });
   });
 
   r.get(STATUS, async ({ params, url, res }) => {
