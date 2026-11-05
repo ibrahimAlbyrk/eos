@@ -168,8 +168,10 @@ describe("TransferService", { skip: process.platform === "win32" }, () => {
     await until(t.id, "conflict");
     svc.cancel(t.id);
     await until(t.id, "cancelled");
-    await new Promise((r) => setTimeout(r, 20));
-    assert.equal(existsSync(join(here, "Downloads/Eos/.eos-incoming")), false);
+    // The staging folder is cleared in the background once the cancel is reported.
+    const staged = join(here, "Downloads/Eos/.eos-incoming");
+    for (const start = Date.now(); existsSync(staged) && Date.now() - start < 5000;) await new Promise((r) => setTimeout(r, 5));
+    assert.equal(existsSync(staged), false);
     assert.equal(readFileSync(join(here, "Downloads/Eos/a.bin"), "utf8"), "mine");
   });
 
