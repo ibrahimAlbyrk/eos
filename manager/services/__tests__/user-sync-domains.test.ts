@@ -4,9 +4,10 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFil
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { fileDirDomain } from "../sync/file-dir-domain.ts";
-import { createProjectKeys, normalizeRemote, type ProjectKeys } from "../sync/project-keys.ts";
-import { memoryDomain, pageDomain, profileDomain } from "../sync/service-domains.ts";
+import { fileDirDomain } from "../file-dir-sync-domain.ts";
+import { createProjectKeys, normalizeRemote, type ProjectKeys } from "../project-keys.ts";
+import { memoryDomain, profileDomain } from "../user-sync-domains.ts";
+import { pageDomain } from "../../modules/pages/syncDomain.ts";
 import { UserProfileService } from "../../../core/src/services/UserProfileService.ts";
 import { UserMemoryService } from "../../../core/src/services/UserMemoryService.ts";
 import { PageService } from "../../../core/src/services/PageService.ts";

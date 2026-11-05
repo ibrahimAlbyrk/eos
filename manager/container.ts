@@ -147,6 +147,8 @@ import { createUpdatesModule } from "./modules/updates/index.ts";
 import { createWorkflowRunsModule } from "./modules/workflow-runs/index.ts";
 import { createGenuiModule } from "./modules/genui/index.ts";
 import { createDreamsModule } from "./modules/dreams/index.ts";
+import { createSyncModule } from "./modules/sync/index.ts";
+import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
 import { DREAM_PENDING_CAP, DREAM_PRODUCER } from "../core/src/domain/dream.ts";
 import type { DaemonModule } from "./modules/types.ts";
 import { createPluginHost } from "./plugins/index.ts";
@@ -227,13 +229,11 @@ import { compactionJobs } from "./services/jobs/sources/compaction.ts";
 import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
-import { SyncService } from "./services/sync/SyncService.ts";
-import { createProjectKeys } from "./services/sync/project-keys.ts";
+import { createProjectKeys } from "./services/project-keys.ts";
 import { TransferService } from "./services/transfer/TransferService.ts";
 import { PeerEndpoint } from "./services/transfer/PeerEndpoint.ts";
-import { avatarDomain, memoryDomain, pageDomain, profileDomain } from "./services/sync/service-domains.ts";
-import { fileDirDomain } from "./services/sync/file-dir-domain.ts";
-import { FileSyncIdentityStore, FileSyncStateStore } from "../infra/src/sync/stores.ts";
+import { avatarDomain, memoryDomain, profileDomain } from "./services/user-sync-domains.ts";
+import { fileDirDomain } from "./services/file-dir-sync-domain.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
 
 // The working dir the web keys git state on (mirrors ComposerDiffRow):
@@ -618,8 +618,18 @@ export function buildContainer() {
   const pluginHost = createPluginHost({ home: config.daemon.home, bus, log, uiToken });
   deferredBoot.push({ name: "plugins", run: () => pluginHost.plugins.start() });
 
+  // How a project folder travels between Macs (sync, transfer): its git remote.
+  const projectKeys = createProjectKeys({
+    git,
+    candidates: () => [
+      ...projects.list().flatMap((p) => p.folders),
+      ...recents.list(),
+      ...new Set(workers.listAll().flatMap((w) => [w.worktree_from ?? w.cwd].filter((x): x is string => !!x))),
+    ],
+    learnedPath: join(config.daemon.home, "sync", "project-keys.json"),
+  });
   // Feature modules (manager/modules/*): each builds its own services and routes.
-  const pagesModule = createPagesModule({ home: config.daemon.home, clock: systemClock, bus, workers, uiToken });
+  const pagesModule = createPagesModule({ home: config.daemon.home, clock: systemClock, bus, workers, projectKeys, uiToken });
   const { pages } = pagesModule;
 
   // SpawnWorker dep builder — mirrors the worker's own derivation (realpath'd
@@ -1687,6 +1697,8 @@ export function buildContainer() {
     uiToken,
   });
 
+  // A session's root was killed, archived or purged: modules drop what they
+  // held for it (its browser, …).
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
@@ -1712,8 +1724,10 @@ export function buildContainer() {
     uiToken,
   });
 
-  // Feature modules, in route-registration order.
-  const modules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule, dreamsModule];
+  // Feature modules, in route-registration order (sync joins below, built from
+  // what they contribute).
+  const featureModules: DaemonModule[] = [pagesModule, btwModule, artifactsModule, browserModule, autoNameModule, updatesModule, workflowRunsModule, genuiModule, dreamsModule];
+
   // A session's root was killed, archived or purged: modules drop what they
   // held for it (its browser, …).
   const endSession = (sessionKey: string): void => {
@@ -1792,33 +1806,31 @@ export function buildContainer() {
   // Sync (Settings › Sync): profile, memories, pages, templates and worker
   // definitions follow the user to every Mac holding the same sync key, through an
   // end-to-end encrypted vault on the relay. Plan: docs/sync/00-SYNC-PLAN.md.
-  const syncDir = join(config.daemon.home, "sync");
-  const projectKeys = createProjectKeys({
-    git,
-    candidates: () => [
-      ...projects.list().flatMap((p) => p.folders),
-      ...recents.list(),
-      ...new Set(workers.listAll().flatMap((w) => [w.worktree_from ?? w.cwd].filter((x): x is string => !!x))),
-    ],
-    learnedPath: join(syncDir, "project-keys.json"),
-  });
-  const sync = new SyncService({
-    identities: new FileSyncIdentityStore(syncDir),
-    state: new FileSyncStateStore(syncDir),
-    domains: [
-      profileDomain(profile),
-      avatarDomain(profile),
-      memoryDomain(userMemories, projectKeys),
-      pageDomain(pages, projectKeys),
-      fileDirDomain({ name: "template", dir: join(config.daemon.home, "templates"), idPattern: TEMPLATE_NAME_RE, withAssets: true }),
-      fileDirDomain({ name: "worker", dir: userWorkerDefinitionsDir, idPattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/ }),
+
+  // Sync gathers what the features (and the user model) let follow the user.
+  const syncModule = createSyncModule({
+    home: config.daemon.home,
+    contributions: [
+      { domain: profileDomain(profile), changeTopic: "profile:change" },
+      { domain: avatarDomain(profile) },
+      {
+        domain: memoryDomain(userMemories, projectKeys),
+        changeTopic: "user-memory:change",
+        isLocal: (msg) => (msg.payload as UserMemoryChangeEvent).by !== "sync",
+      },
+      { domain: fileDirDomain({ name: "template", dir: join(config.daemon.home, "templates"), idPattern: TEMPLATE_NAME_RE, withAssets: true }) },
+      { domain: fileDirDomain({ name: "worker", dir: userWorkerDefinitionsDir, idPattern: /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/ }) },
+      ...featureModules.flatMap((m) => m.sync ?? []),
     ],
     relayUrl: () => config.peer.relayUrl ?? config.remote.relay?.url ?? null,
     device: peerHost.hostInfo().name,
+    jobs,
     bus,
     log,
-    now: () => Date.now(),
+    uiToken,
   });
+
+  const modules: DaemonModule[] = [...featureModules, syncModule];
 
   // File transfer between paired Macs (the Transfer tab, a focused agent's
   // send_to_machine). This Mac's disk is the local endpoint and what /transfer/*
@@ -1902,7 +1914,6 @@ export function buildContainer() {
     uiToken,
     peerHost,
     hostLinks,
-    sync,
     transferEndpoint,
     transfers,
     jobs,

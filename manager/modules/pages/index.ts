@@ -12,12 +12,15 @@ import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
 import { PageService } from "../../../core/src/services/PageService.ts";
 import { FilePageStore } from "../../../infra/src/persistence/FilePageStore.ts";
 import { registerPageRoutes } from "./routes.ts";
+import { pageDomain } from "./syncDomain.ts";
+import type { ProjectKeys } from "../../services/project-keys.ts";
 
 export interface PagesModuleDeps {
   readonly home: string;
   readonly clock: Clock;
   readonly bus: Pick<EventBus, "publish" | "subscribe">;
   readonly workers: Pick<WorkerRepo, "findById">;
+  readonly projectKeys: ProjectKeys;
   readonly uiToken: string;
 }
 
@@ -38,5 +41,6 @@ export function createPagesModule(deps: PagesModuleDeps): PagesModule {
     plugin: BUILTIN_PLUGINS.pages,
     pages,
     registerRoutes: (router) => registerPageRoutes(router, { pages, workers: deps.workers, uiToken: deps.uiToken }),
+    sync: [{ domain: pageDomain(pages, deps.projectKeys), changeTopic: "pages:change" }],
   };
 }

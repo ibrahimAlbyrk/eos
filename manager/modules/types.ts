@@ -7,6 +7,17 @@
 
 import type { Router } from "../routes/Router.ts";
 import type { AgentEvent } from "../../contracts/src/canonical.ts";
+import type { EventBusMessage, EventBusTopic } from "../../core/src/ports/EventBus.ts";
+import type { SyncDomain } from "../../core/src/ports/SyncDomain.ts";
+
+// Data a feature lets follow the user to their other Macs (Settings › Sync):
+// its sync domain, and the bus topic its local edits announce (so sync pushes
+// them); isLocal tells an edit apart from one sync itself applied.
+export interface SyncContribution {
+  readonly domain: SyncDomain;
+  readonly changeTopic?: EventBusTopic;
+  isLocal?(msg: EventBusMessage): boolean;
+}
 
 export interface DaemonModule {
   readonly id: string;
@@ -24,6 +35,10 @@ export interface DaemonModule {
   onAgentEvent?(workerId: string, event: AgentEvent): void;
   // The daemon is up (its routes are registered): start timers and watchers.
   start?(): void;
+  // The daemon won its endpoint (the unix socket is listening): start what must
+  // run in one daemon only.
+  afterListen?(): void;
+  readonly sync?: readonly SyncContribution[];
   // A session (a root worker and its subtree) was killed, archived or purged.
   onSessionEnded?(sessionKey: string): void;
   // The daemon is shutting down.

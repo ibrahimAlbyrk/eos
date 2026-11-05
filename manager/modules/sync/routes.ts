@@ -1,16 +1,21 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { Router } from "./Router.ts";
-import type { Container } from "../container.ts";
-import { writeJson } from "../middleware/errorHandler.ts";
-import { readBody } from "../middleware/bodyReader.ts";
-import { validate } from "../middleware/validate.ts";
-import { uiTokenOk } from "./fs-shared.ts";
-import { ROUTES } from "../../contracts/src/http.ts";
-import { SyncJoinRequestSchema } from "../../contracts/src/sync.ts";
+import type { Router } from "../../routes/Router.ts";
+import type { SyncService } from "./SyncService.ts";
+import { writeJson } from "../../middleware/errorHandler.ts";
+import { readBody } from "../../middleware/bodyReader.ts";
+import { validate } from "../../middleware/validate.ts";
+import { uiTokenOk } from "../../routes/fs-shared.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
+import { SyncJoinRequestSchema } from "../../../contracts/src/sync.ts";
 
 // Settings › Sync. Status is open; the key and every change are the user's (ui-token).
 // All of it is local-only (route-planes.ts) — the key never crosses a facade.
-export function registerSyncRoutes(r: Router, c: Container): void {
+export interface SyncRouteDeps {
+  readonly sync: Pick<SyncService, "status" | "key" | "create" | "join" | "syncNow" | "leave">;
+  readonly uiToken: string;
+}
+
+export function registerSyncRoutes(r: Router, c: SyncRouteDeps): void {
   const denied = (req: IncomingMessage, res: ServerResponse): boolean => {
     if (uiTokenOk(req, c.uiToken)) return false;
     writeJson(res, 403, { error: "ui token required" });

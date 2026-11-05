@@ -66,7 +66,6 @@ import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerProfileRoutes } from "./routes/profile.ts";
 import { registerUserMemoryRoutes } from "./routes/user-memories.ts";
-import { registerSyncRoutes } from "./routes/sync.ts";
 import { registerTransferRoutes } from "./routes/transfer.ts";
 import { makeMemorySuggestNotify } from "./services/memory-suggest-notify.ts";
 import type { UserMemoryChangeEvent } from "../contracts/src/profile.ts";
@@ -131,7 +130,6 @@ for (const m of c.modules) m.registerRoutes?.(m.plugin ? c.pluginHost.routerFor(
 c.pluginHost.registerRoutes(router);
 registerProfileRoutes(router, c);
 registerUserMemoryRoutes(router, c);
-registerSyncRoutes(router, c);
 registerTransferRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
@@ -403,7 +401,6 @@ wireJobSources({
   transfers: () => c.transfers.list(),
   cancelTransfer: (id) => { c.transfers.cancel(id); },
   machineName: (ref) => (ref === "local" ? c.peerHost.hostInfo().name : c.hostLinks.get(ref)?.alias ?? c.hostLinks.get(ref)?.name ?? "another Mac"),
-  syncStatus: () => c.sync.status(),
 });
 
 c.bus.subscribe("loop:change", (msg) => {
@@ -456,12 +453,6 @@ const memorySuggestNotify = makeMemorySuggestNotify({
   schedule: (fn, ms) => { setTimeout(fn, ms).unref(); },
 });
 c.bus.subscribe("user-memory:change", (msg) => memorySuggestNotify(msg.payload as UserMemoryChangeEvent));
-// Sync pushes local edits once a burst settles; what sync itself applied isn't one.
-c.bus.subscribe("user-memory:change", (msg) => {
-  if ((msg.payload as UserMemoryChangeEvent).by !== "sync") c.sync.noteLocalChange();
-});
-c.bus.subscribe("pages:change", () => c.sync.noteLocalChange());
-c.bus.subscribe("profile:change", () => c.sync.noteLocalChange());
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an
 // orchestrator's first WORKING transition). Mirrors the goal-loop bus wiring.
@@ -660,8 +651,8 @@ server.listen(c.config.daemon.port, c.config.daemon.host, () => {
     // Peering needs the socket: a paired device's requests are replayed on it.
     void c.peerHost.reconcile();
     c.hostLinks.start();
-    // Only the daemon that won the endpoint syncs — never two writers on one home.
-    c.sync.start();
+    // What must run in one daemon only (sync — never two writers on one home).
+    for (const m of c.modules) m.afterListen?.();
   });
 });
 rawServer.listen(c.config.daemon.rawPort, c.config.daemon.host, () => {
@@ -716,7 +707,6 @@ async function shutdown(sig: string): Promise<void> {
   }
   try { remoteController?.disarm(); } catch {}
   try { c.hostLinks.stop(); } catch {}
-  try { c.sync.stop(); } catch {}
   try { c.transfers.stop(); } catch {}
   void c.peerHost.stop().catch(() => {});
   // Suspend resumable in-process sessions BEFORE killing children and closing

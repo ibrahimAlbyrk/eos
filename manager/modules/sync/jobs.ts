@@ -1,8 +1,8 @@
 // A sync pass (sync:change) — shown only once it outlasts showMs, so a quick
 // pass never flickers in.
 
-import type { SyncStatusResponse } from "../../../../contracts/src/sync.ts";
-import type { JobRegistry } from "../JobRegistry.ts";
+import type { SyncStatusResponse } from "../../../contracts/src/sync.ts";
+import type { JobRegistry } from "../../services/jobs/JobRegistry.ts";
 
 export function syncJobs(jobs: JobRegistry, deps: { showMs?: number } = {}) {
   let timer: ReturnType<typeof setTimeout> | null = null;

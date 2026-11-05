@@ -10,9 +10,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, s
 import { join } from "node:path";
 import { z } from "zod";
 
-import type { SyncDomain, SyncItem } from "../../../core/src/ports/SyncDomain.ts";
-import type { SyncDomainName } from "../../../contracts/src/sync.ts";
-import { moveToTrash, writeFileAtomic } from "../../../infra/src/persistence/atomic-file.ts";
+import type { SyncDomain, SyncItem } from "../../core/src/ports/SyncDomain.ts";
+import type { SyncDomainName } from "../../contracts/src/sync.ts";
+import { moveToTrash, writeFileAtomic } from "../../infra/src/persistence/atomic-file.ts";
 
 const ASSET_NAME_RE = /^[^/\\\0.][^/\\\0]{0,200}$/;
 

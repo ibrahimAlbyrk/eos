@@ -11,8 +11,9 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
 
-import type { GitInfo } from "../../../core/src/ports/GitInfo.ts";
-import { writeFileAtomic } from "../../../infra/src/persistence/atomic-file.ts";
+import type { GitInfo } from "../../core/src/ports/GitInfo.ts";
+import { writeFileAtomic } from "../../infra/src/persistence/atomic-file.ts";
+import { z } from "zod";
 
 const CACHE_TTL_MS = 10 * 60_000;
 
@@ -115,4 +116,13 @@ function readLearned(path: string): Record<string, string> {
   } catch {
     return {};
   }
+}
+
+// A project as it travels between Macs: its git-remote key, and its path here
+// (a hint when the key matches no project on the other Mac).
+export const ProjectRefSchema = z.object({ key: z.string().min(1), path: z.string().min(1) });
+export type ProjectRef = z.infer<typeof ProjectRefSchema>;
+
+export async function toRef(keys: ProjectKeys, path: string): Promise<ProjectRef> {
+  return { key: await keys.toKey(path), path };
 }

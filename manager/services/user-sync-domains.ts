@@ -5,22 +5,14 @@
 
 import { z } from "zod";
 
-import type { SyncDomain, SyncItem } from "../../../core/src/ports/SyncDomain.ts";
-import type { PageService } from "../../../core/src/services/PageService.ts";
-import type { SyncedProfileFields, UserProfileService } from "../../../core/src/services/UserProfileService.ts";
-import type { UserMemorySyncTarget } from "../../../core/src/services/UserMemoryService.ts";
-import { emptyUserProfile } from "../../../core/src/domain/user-profile.ts";
-import { stableStringify } from "../../../core/src/domain/sync.ts";
-import { PageSchema, type Page } from "../../../contracts/src/http.ts";
-import { AvatarExtSchema, UserMemorySchema, UserProfileSchema, type UserMemory } from "../../../contracts/src/profile.ts";
-import type { ProjectKeys } from "./project-keys.ts";
+import type { SyncDomain, SyncItem } from "../../core/src/ports/SyncDomain.ts";
+import type { SyncedProfileFields, UserProfileService } from "../../core/src/services/UserProfileService.ts";
+import type { UserMemorySyncTarget } from "../../core/src/services/UserMemoryService.ts";
+import { emptyUserProfile } from "../../core/src/domain/user-profile.ts";
+import { stableStringify } from "../../core/src/domain/sync.ts";
+import { AvatarExtSchema, UserMemorySchema, UserProfileSchema, type UserMemory } from "../../contracts/src/profile.ts";
+import { ProjectRefSchema, toRef, type ProjectKeys } from "./project-keys.ts";
 
-const ProjectRefSchema = z.object({ key: z.string().min(1), path: z.string().min(1) });
-type ProjectRef = z.infer<typeof ProjectRefSchema>;
-
-async function toRef(keys: ProjectKeys, path: string): Promise<ProjectRef> {
-  return { key: await keys.toKey(path), path };
-}
 
 // ---- profile ------------------------------------------------------------------
 
@@ -134,39 +126,5 @@ export function memoryDomain(memories: UserMemorySyncTarget, keys: ProjectKeys):
       memories.applySynced(UserMemorySchema.omit({ rev: true }).parse({ ...p, id, scope }));
     },
     remove: async (id) => memories.removeSynced(id),
-  };
-}
-
-// ---- pages --------------------------------------------------------------------
-
-const PortablePageSchema = PageSchema.omit({ id: true, rev: true, agentId: true, project: true }).extend({
-  project: ProjectRefSchema.nullable(),
-});
-
-export function pageDomain(pages: PageService, keys: ProjectKeys): SyncDomain {
-  const item = async (p: Page): Promise<SyncItem> => {
-    const { id, rev: _rev, agentId: _agentId, project, ...rest } = p;
-    return { id, data: { ...rest, project: project ? await toRef(keys, project) : null }, updatedAt: p.updatedAt };
-  };
-  const find = (id: string): Page | null => {
-    try {
-      return pages.get(id);
-    } catch {
-      return null;
-    }
-  };
-  return {
-    name: "page",
-    list: async () => Promise.all(pages.list().map((s) => pages.get(s.id)).map(item)),
-    get: async (id) => {
-      const p = find(id);
-      return p ? item(p) : null;
-    },
-    apply: async (id, data) => {
-      const p = PortablePageSchema.parse(data);
-      const project = p.project ? await keys.toPath(p.project.key, p.project.path) : null;
-      pages.applySynced(PageSchema.omit({ rev: true, agentId: true }).parse({ ...p, id, project }));
-    },
-    remove: async (id) => pages.removeSynced(id),
   };
 }
