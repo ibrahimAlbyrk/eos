@@ -10,7 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import { query as realQuery, forkSession as realForkSession } from "@anthropic-ai/claude-agent-sdk";
-import type { Options, McpServerConfig, HookCallback } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, McpServerConfig, HookCallback, SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, SessionCredential, ToolInputDelta, WorkerHandle,
@@ -95,6 +95,8 @@ export interface SdkQueryHandle extends AsyncIterable<unknown> {
   // typings, so it is declared here; null = the model gave no answer.
   // `synthetic` marks a reply the binary made up (an error text), not the model's.
   askSideQuestion?(question: string, options?: { signal?: AbortSignal }): Promise<{ response: string; synthetic: boolean } | null>;
+  // The CLI's answer to the SDK's initialize request (its slash commands, …).
+  initializationResult?(): Promise<{ commands: SlashCommand[] }>;
   // Ends the query and terminates its CLI subprocess.
   close?(): void;
 }
@@ -174,6 +176,9 @@ export interface ClaudeSdkBackendDeps {
   /** A background shell/Monitor started, moved on or ended, or a background
    *  agent's progress — the daemon's jobs registry. Absent → not tracked. */
   publishBackgroundTask?(workerId: string, update: BackgroundTaskUpdate): void;
+  /** A focused session started in `cwd` and listed Claude Code's own slash
+   *  commands — the slash menu's source. Absent → not reported. */
+  onSlashCommands?(cwd: string, commands: SlashCommand[]): void;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -664,6 +669,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         rec.resumedFrom = resume;
         const q = queryFn({ prompt: input.iterable, options });
         rec.q = q;
+        const reportCommands = deps.onSlashCommands;
+        if (focused && spec.cwd && reportCommands && q.initializationResult) {
+          const cwd = spec.cwd;
+          q.initializationResult().then((r) => reportCommands(cwd, r.commands), () => {});
+        }
         deps.onLaunchCredential?.(spec.workerId, rec.apiKey ? null : rec.store ?? null);
         if (initialPrompt) input.push(initialPrompt);
         if (seed) input.push(seed, { shouldQuery: false });

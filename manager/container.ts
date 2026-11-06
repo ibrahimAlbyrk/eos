@@ -34,7 +34,7 @@ import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBacke
 import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
-import { createSdkCommandCatalog } from "./backends/sdk/SdkCommandCatalog.ts";
+import { createSdkCommandCatalog, fileCommandListStore } from "./backends/sdk/SdkCommandCatalog.ts";
 import { buildBillingGuardEnv } from "./backends/sdk/billing-env.ts";
 import { createSubscriptionAuthResolver, CLAUDE_STORE_ENV } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { switchSessionAccount } from "../core/src/use-cases/SwitchSessionAccount.ts";
@@ -1217,6 +1217,15 @@ export function buildContainer() {
   // daemon.ts (wireJobSources); feature modules add their own.
   const jobs = new JobRegistry({ bus });
   const agentTasks = agentTaskJobs(jobs, { session: inProcessSession });
+  // The slash menu's view of Claude Code's own commands, as a focused session sees them.
+  const claudeCommands = createSdkCommandCatalog({
+    buildEnv: async () => buildBillingGuardEnv({
+      auth: await authResolver.resolve(undefined), anthropic: config.anthropic,
+      workerId: "command-catalog", daemonUrl: sdkDaemonUrl, claudeStore: claudeStore(), fullSurface: true,
+    }),
+    store: fileCommandListStore(join(config.daemon.home, "claude-commands.json")),
+    log,
+  });
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
@@ -1263,14 +1272,7 @@ export function buildContainer() {
       agentTasks.onWorkflowProgress(p);
     },
     publishBackgroundTask: (workerId, u) => agentTasks.onBackgroundTask(workerId, u),
-    log,
-  });
-  // The slash menu's view of Claude Code's own commands, as a focused session sees them.
-  const claudeCommands = createSdkCommandCatalog({
-    buildEnv: async () => buildBillingGuardEnv({
-      auth: await authResolver.resolve(undefined), anthropic: config.anthropic,
-      workerId: "command-catalog", daemonUrl: sdkDaemonUrl, claudeStore: claudeStore(), fullSurface: true,
-    }),
+    onSlashCommands: (cwd, commands) => claudeCommands.seed(cwd, commands),
     log,
   });
 
