@@ -398,6 +398,9 @@ export const api = {
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },
+  async warmWorker(id) {
+    return postJson(ROUTES.workerWarm(id), {}, uiTokenHeader());
+  },
   async sendKeystroke(id, keys) {
     return postJson(ROUTES.workerKeystroke(id), { keys });
   },

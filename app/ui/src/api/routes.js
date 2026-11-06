@@ -51,6 +51,7 @@ export const ROUTES = {
   // The /btw side question (contracts/src/side-question.ts), ui-token.
   workerSideQuestion: (id) => `/workers/${id}/btw`,
   workerMessage: (id) => `/workers/${id}/message`,
+  workerWarm: (id) => `/workers/${id}/warm`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,
   workerAction: (id) => `/workers/${id}/action`,

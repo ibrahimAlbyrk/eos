@@ -32,6 +32,7 @@ import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { launchSendFlight } from "../../../lib/sendFlight.js";
+import { createWarmer } from "../../../lib/warmOnType.js";
 import { ContextStrip } from "./ContextStrip.jsx";
 import { SessionTray } from "./SessionTray.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
@@ -196,6 +197,12 @@ export function Composer({ live, worker, paneId, focused }) {
       if (!text.includes(ph)) pastesRef.current.delete(ph);
     }
   }, [text]);
+
+  // A resting chat's agent boots while the user types (lib/warmOnType.js); a
+  // shell command doesn't need it.
+  const [onDraft] = useState(() => createWarmer((id) => api.warmWorker(id)));
+  const agentDraft = termMode ? "" : text;
+  useEffect(() => { onDraft(selected?.id, selected?.state, agentDraft); }, [onDraft, selected?.id, selected?.state, agentDraft]);
 
   // Stash this agent's unsent input on switch, re-seat the next agent's.
   // Text, chips and @paths swap in one effect body (one React batch) so the

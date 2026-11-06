@@ -48,17 +48,29 @@ async function waitForWorkerHttp(port: number, timeoutMs = 10_000): Promise<void
   throw new UnreachableError("worker", new Error("ingest server did not come up after resume"));
 }
 
+// Resumes in flight, so a message arriving while a warm-up (or another message)
+// is resuming the same worker waits for that resume instead of racing it.
+const resuming = new Map<string, Promise<void>>();
+
 // Transparent resume: a message to a dead-but-resumable worker revives it
 // (same worker id, claude --resume) before the dispatch proceeds. The message
 // itself is safe — the worker buffers pre-boot input until the composer is
 // ready, and a boot-time message suppresses the idle settle.
-export async function resumeIfDead(c: Container, row: WorkerRow): Promise<void> {
-  if (row.state !== "SUSPENDED" && row.state !== "DONE") return;
-  if (!row.session_id || c.supervisor.has(row.id)) return;
-  const { port } = await resumeWorkerVia(c, row);
-  // In-process backends (claude) have no HTTP ingest port — they're live in
-  // the daemon the moment start() returns; only out-of-process workers need the wait.
-  if (port > 0) await waitForWorkerHttp(port);
+export function resumeIfDead(c: Container, given: WorkerRow): Promise<void> {
+  const running = resuming.get(given.id);
+  if (running) return running;
+  // The caller's row may predate a resume that just finished.
+  const row = c.workers.findById(given.id) ?? given;
+  if (row.state !== "SUSPENDED" && row.state !== "DONE") return Promise.resolve();
+  if (!row.session_id || c.supervisor.has(row.id)) return Promise.resolve();
+  const resume = (async () => {
+    const { port } = await resumeWorkerVia(c, row);
+    // In-process backends (claude) have no HTTP ingest port — they're live in
+    // the daemon the moment start() returns; only out-of-process workers need the wait.
+    if (port > 0) await waitForWorkerHttp(port);
+  })().finally(() => resuming.delete(row.id));
+  resuming.set(row.id, resume);
+  return resume;
 }
 
 // Stop a worker's live session WITHOUT deleting its row (unlike KillWorker):

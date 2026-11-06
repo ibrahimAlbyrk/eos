@@ -829,6 +829,20 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   const uiTokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
     constantTimeEqual(req.headers["x-eos-ui-token"], c.uiToken);
 
+  // Warm-up: the dashboard calls this when the user starts typing in a chat
+  // whose session is at rest, so the agent process boots while they type and
+  // the message lands on a ready session. A live chat is left as it is.
+  r.post(/^\/workers\/(?<id>[^/]+)\/warm$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (w.archived_at != null) { writeJson(res, 409, { error: "worker is archived — restore first" }); return; }
+    void resumeIfDead(c, w).catch((e) => {
+      c.log.warn("warm-up resume failed", { workerId: w.id, error: e instanceof Error ? e.message : String(e) });
+    });
+    writeJson(res, 202, { ok: true });
+  });
+
   const tryRefOf = (id: string): { ref?: { repoRoot: string; worktreeDir: string | null; branch: string; workerId: string }; status: number; error?: string } => {
     const w = c.workers.findById(id);
     if (!w) return { status: 404, error: "worker not found" };

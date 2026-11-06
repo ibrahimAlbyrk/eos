@@ -2303,6 +2303,9 @@ export const ROUTES = {
   // 409 when the agent can't answer one right now.
   workerSideQuestion: (id: string): string => `/workers/${id}/btw`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
+  // POST (ui-token) → 202; resumes a chat at rest so it is ready by the time the
+  // user sends. No-op for a live chat.
+  workerWarm: (id: string): string => `/workers/${id}/warm`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,
   workerAction: (id: string): string => `/workers/${id}/action`,
