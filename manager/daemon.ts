@@ -37,7 +37,8 @@ import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { ReportGapService } from "./services/ReportGapService.ts";
 import { ContextThresholdService } from "./services/ContextThresholdService.ts";
-import { suspendWorker, suspendResumableWorkersForShutdown } from "./commands/handlers/suspend-worker.ts";
+import { suspendWorker, suspendResumableWorkersForShutdown, hasResumableSession } from "./commands/handlers/suspend-worker.ts";
+import { makeIdleSuspend, IDLE_SUSPEND_MS } from "./services/idle-suspend.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { makePermissionAskNotify } from "./services/permission-ask-notify.ts";
 import { makeTurnEndNotify } from "./services/turn-end-notify.ts";
@@ -437,6 +438,32 @@ const turnEndNotify = makeTurnEndNotify({
 c.bus.subscribe("worker:change", (msg) =>
   turnEndNotify(msg.payload as { workerId?: string; from?: string; state?: string }),
 );
+// An idle chat's agent process is closed after a while; the next message resumes it.
+const LIVE_STATES = new Set(["SPAWNING", "WORKING", "IDLE"]);
+const idleKeepReason = (id: string): string | null => {
+  const w = c.workers.findById(id);
+  if (!w || w.state !== "IDLE" || !hasResumableSession(c, w)) return "not suspendable";
+  // A peer asks it directly (ask_peer), which only reaches a live IDLE session.
+  if (w.collaborate) return "collaborating";
+  if (liveSubagentCount(c, id) > 0) return "subagents running";
+  if (c.jobs.list().some((j) => j.workerId === id && j.status === "running")) return "background job running";
+  if (c.loops.findActiveByWorker(id)) return "loop active";
+  if (c.modules.some((m) => m.holdsWorker?.(id) === true)) return "held";
+  if (c.messageQueue.listPending(id).length > 0) return "messages queued";
+  // Its sub-workers report and ask for approvals through it.
+  if (c.workers.listByParent(id).some((child) => LIVE_STATES.has(child.state))) return "sub-workers running";
+  return null;
+};
+const idleSuspend = makeIdleSuspend({
+  idleMs: IDLE_SUSPEND_MS,
+  keepReason: idleKeepReason,
+  suspend: (id) => {
+    try { suspendWorker(c, id, "idle"); }
+    catch (e) { c.log.warn("idle suspend failed", { workerId: id, error: e instanceof Error ? e.message : String(e) }); }
+  },
+  schedule: (fn, ms) => { const t = setTimeout(fn, ms); t.unref(); return () => clearTimeout(t); },
+});
+c.bus.subscribe("worker:change", (msg) => idleSuspend.onWorkerChange(msg.payload as { workerId?: string; state?: string }));
 for (const m of c.modules) m.start?.();
 // Agents suggested memories → one batched banner a little later.
 const memorySuggestNotify = makeMemorySuggestNotify({
@@ -705,6 +732,7 @@ async function shutdown(sig: string): Promise<void> {
   // the DB: their exit callbacks write rows, so this is the last safe moment —
   // and it lands SUSPENDED deterministically instead of letting async exits
   // fire into a closed DB. Crash(-9) still has ReconcileWorkersOnBoot as the net.
+  idleSuspend.dispose();
   try { suspendResumableWorkersForShutdown(c); } catch {}
   // Chrome is a plain child (not supervisor-managed) — kill it here or it
   // outlives the daemon.

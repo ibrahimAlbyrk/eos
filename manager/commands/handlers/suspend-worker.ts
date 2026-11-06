@@ -2,8 +2,8 @@
 // the kill/purge cascade (which deletes the row and reaps the worktree), suspend
 // stops only the session and moves the row to SUSPENDED, leaving the branch and
 // worktree intact for integration or a later resume. Triggered by the
-// context-full watcher (R4) and the daemon-shutdown sweep below; never a
-// user-facing route.
+// context-full watcher (R4), the idle-suspend timer (services/idle-suspend.ts)
+// and the daemon-shutdown sweep below; never a user-facing route.
 //
 // The four steps in order:
 //   1. mark the intentional-suspend flag BEFORE stopping, so the exit callback's
@@ -20,6 +20,7 @@
 import type { Container } from "../../container.ts";
 import { stopWorkerSession } from "../../routes/resume-helpers.ts";
 import { transitionState } from "../../../core/src/use-cases/TransitionState.ts";
+import type { WorkerRow } from "../../../contracts/src/worker.ts";
 
 export function suspendWorker(c: Container, id: string, reason: string): void {
   const worker = c.workers.findById(id);
@@ -33,6 +34,16 @@ export function suspendWorker(c: Container, id: string, reason: string): void {
   c.workers.clearRuntime(id);
 }
 
+// A session that comes back as it was after a suspend: in-process backend +
+// resumable capability + a persisted session id to resume.
+export function hasResumableSession(c: Container, row: WorkerRow): boolean {
+  if (!row.session_id) return false;
+  const kind = row.backend_kind;
+  if (!kind || !c.backends.has(kind)) return false;
+  const d = c.backends.get(kind).descriptor;
+  return d.processModel === "in-process" && d.capabilities.resumable === true;
+}
+
 // Daemon-shutdown sweep: suspend every active worker whose session survives the
 // restart (in-process backend + resumable capability + persisted session_id), so
 // `eos restart`/build deterministically leaves them SUSPENDED and resumable —
@@ -44,11 +55,7 @@ export function suspendResumableWorkersForShutdown(c: Container): number {
   let suspended = 0;
   for (const row of c.workers.listAll()) {
     if (row.state !== "SPAWNING" && row.state !== "WORKING" && row.state !== "IDLE") continue;
-    if (!row.session_id) continue;
-    const kind = row.backend_kind;
-    if (!kind || !c.backends.has(kind)) continue;
-    const d = c.backends.get(kind).descriptor;
-    if (d.processModel !== "in-process" || d.capabilities.resumable !== true) continue;
+    if (!hasResumableSession(c, row)) continue;
     try {
       suspendWorker(c, row.id, "daemon_shutdown");
       suspended++;
