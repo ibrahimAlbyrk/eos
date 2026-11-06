@@ -192,12 +192,15 @@ export async function startDaemon(opts: { repoRoot: string; eosHome: string; log
     rotateIfLarge(opts.logPath);
   } catch {}
   const cmd = daemonCommand(opts.repoRoot);
+  // Node keeps the daemon's compiled code here, so a start skips most of the
+  // parsing; the node processes the daemon spawns inherit it.
+  const env = { ...process.env, NODE_COMPILE_CACHE: join(opts.eosHome, "compile-cache") };
   if (useLaunchd) {
     await startLaunchAgent({
       label: DAEMON_LABEL,
       plistPath: join(opts.eosHome, "daemon.plist"),
       programArguments: ["/bin/bash", "-c", cmd],
-      env: process.env,
+      env,
       logPath: opts.logPath,
     }, STOP_TIMEOUT_MS);
     return;
@@ -206,7 +209,7 @@ export async function startDaemon(opts: { repoRoot: string; eosHome: string; log
   // StructLogger writes there, so otherwise every line is discarded.
   let out: number | "ignore" = "ignore";
   try { out = openSync(opts.logPath, "a"); } catch {}
-  spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", out, out], detached: true }).unref();
+  spawn("/bin/bash", ["-c", cmd], { env, stdio: ["ignore", out, out], detached: true }).unref();
 }
 
 /**

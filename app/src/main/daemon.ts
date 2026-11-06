@@ -197,6 +197,12 @@ export function stopDaemon(): void {
 // the process is started by another app (a service manager).
 const NODE_FLAGS = ["--max-old-space-size=1024", "--no-warnings"];
 
+// Node keeps the daemon's compiled code here, so a start skips most of the
+// parsing; the node processes the daemon spawns inherit it.
+function compileCacheEnv(): Record<string, string> {
+  return { NODE_COMPILE_CACHE: path.join(eosHome(), "compile-cache") };
+}
+
 function daemonLaunch(repoRoot: string): DaemonLaunch {
   // PACKAGED: run the shipped daemon BUNDLE off Electron's own Node
   // (process.execPath + ELECTRON_RUN_AS_NODE=1) — no repo, no system node/bun.
@@ -210,6 +216,7 @@ function daemonLaunch(repoRoot: string): DaemonLaunch {
       args: [...NODE_FLAGS, path.join(bundlesDir, "daemon.bundle.mjs")],
       env: {
         ...process.env,
+        ...compileCacheEnv(),
         ELECTRON_RUN_AS_NODE: "1",
         EOS_PACKAGED: "1",
         EOS_BUNDLES_DIR: bundlesDir,
@@ -226,7 +233,7 @@ function daemonLaunch(repoRoot: string): DaemonLaunch {
   return {
     program: "node",
     args: [...NODE_FLAGS, "--experimental-strip-types", path.join(repoRoot, "manager", "daemon.ts")],
-    env: process.env,
+    env: { ...process.env, ...compileCacheEnv() },
   };
 }
 
