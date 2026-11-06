@@ -948,6 +948,23 @@ describe("buildBlocks canonical agent_event decoder (claude / in-process lanes)"
     expect(blocks[0]).toMatchObject({ kind: "thinking", text: "half a thou", blockId: "m:0", interrupted: true });
   });
 
+  it("starts reasoning at the last main-conversation event, not at the previous block", () => {
+    const H = 3 * 3600_000;
+    const read = (id, ts) => [
+      ae(ts, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: id, name: "Read", input: { file_path: "/x" } }] }),
+      ae(ts + 1, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: id, content: "ok" }] }),
+    ];
+    const blocks = buildBlocks([
+      ...read("c1", 0),
+      ...read("c2", H),
+      ae(H + 5, { type: "usage", inputTokens: 1 }), // lands mid-thought — not a start
+      ae(H + 10_001, { type: "message", role: "assistant", blocks: [{ type: "reasoning", text: "hmm", blockId: "r:0" }] }),
+    ]);
+    const thinking = blocks.find((b) => b.kind === "thinking");
+    expect(blocks[0].kind).toBe("toolGroup"); // the previous block began 3 h earlier
+    expect(thinking.ts - thinking.startTs).toBe(10_000);
+  });
+
   it("skips empty/signature-only reasoning blocks", () => {
     const blocks = buildBlocks([ae(100, { type: "message", role: "assistant", blocks: [
       { type: "reasoning", text: "   " },

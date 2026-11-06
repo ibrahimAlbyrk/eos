@@ -471,8 +471,14 @@ export function buildBlocks(rawEvents) {
     pendingTools.push(tool);
   };
 
+  // The last event of the main conversation. Reasoning has no start time of its
+  // own, so it is taken to start right after this — never at the start of the
+  // previous block, which may be a tool run that lasted hours.
+  let lastMainEv = null;
   for (let evIdx = 0; evIdx < events.length; evIdx++) {
     const ev = events[evIdx];
+    const thinkingFromEv = lastMainEv;
+    if (movesMainThread(ev, attributedToolIds)) lastMainEv = ev;
     if (ev.type === "user_message") {
       flushTools();
       lastAsst = null;
@@ -749,7 +755,11 @@ export function buildBlocks(rawEvents) {
       if (!p.text?.trim()) continue; // signature-only blocks already persisted as text:""
       flushTools();
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}), ...(p.interrupted ? { interrupted: true } : {}) });
+      out.push({
+        kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts,
+        ...(thinkingFromEv ? { startTs: eventTs(thinkingFromEv) } : {}),
+        ...(p.blockId ? { blockId: p.blockId } : {}), ...(p.interrupted ? { interrupted: true } : {}),
+      });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (agentSpans.has(p.id)) {
@@ -774,6 +784,32 @@ export function buildBlocks(rawEvents) {
   flushTools();
   attachAskUserAnswers(out);
   return out;
+}
+
+// Rows that mark a step of the main conversation. Everything else (heartbeats,
+// usage, a background subagent or workflow finishing, …) can land while the
+// agent is still thinking, so it never counts.
+const MAIN_THREAD_TYPES = new Set([
+  "user_message", "worker_report", "orchestrator_message", "loop_continuation", "report_reminder",
+  "permission_ask", "peer_request", "question_answered", "state", "hook", "account_switched",
+]);
+function movesMainThread(ev, attributedToolIds) {
+  if (MAIN_THREAD_TYPES.has(ev.type)) return true;
+  // A subagent's inner tools run beside the main conversation.
+  if (ev.type === "tool_running" || ev.type === "tool_done") {
+    return !attributedToolIds.has(parsePayload(ev.payload).toolUseId);
+  }
+  if (ev.type === "jsonl") {
+    const p = parsePayload(ev.payload);
+    return !(p.kind === "tool_result" && attributedToolIds.has(p.toolUseId));
+  }
+  return false;
+}
+
+// Same clock domain as the block a row becomes (see the user/jsonl blocks above).
+function eventTs(ev) {
+  const p = parsePayload(ev.payload);
+  return p.tsTranscript ?? p.anchorTs ?? p.sentAt ?? ev.ts;
 }
 
 function attachAskUserAnswers(blocks) {

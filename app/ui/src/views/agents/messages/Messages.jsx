@@ -691,7 +691,7 @@ export function Messages({ live, agentId, isActive = true }) {
       )
       : b.kind === "compactionFailed"
         ? <CompactionFailedLine block={b} />
-        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts, onReply, jumpToRow, jumpToView);
+        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, onReply, jumpToRow, jumpToView);
     if (!block) return null;
     // The wrapper carries the block's scroll-anchor identity
     // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -717,10 +717,9 @@ export function Messages({ live, agentId, isActive = true }) {
     const key = blockKey(b, i);
     const replyTarget = selectedId ? replyTargetOf(b) : null;
     const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
-    const prevTs = i > 0 ? blocks[i - 1].ts : undefined;
     return (
       <div key={key} data-rowid={b.rowId}>
-        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, prevTs, onReply, jumpToRow, jumpToView)}
+        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, onReply, jumpToRow, jumpToView)}
       </div>
     );
   };
@@ -813,9 +812,7 @@ const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request"
 // content-visibility; .cv-view widens the paint box for their drop shadow (see
 // transcript.css). Their selects are native, so nothing else reaches past it.
 
-// prevTs: the preceding block's ts — reasoning has no start time of its own, so
-// the gap since the previous transcript event approximates how long it thought.
-function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs, onReply, onJumpToRow, onJumpToView) {
+function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView) {
   switch (b.kind) {
     case "user": {
       const self = b.replyTo?.role === "assistant" ? workers.find((w) => w.id === sessionId) : null;
@@ -829,7 +826,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={prevTs != null ? b.ts - prevTs : undefined} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={b.startTs != null ? b.ts - b.startTs : undefined} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)
