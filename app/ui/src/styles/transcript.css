@@ -661,14 +661,17 @@
    repainting it — the host's text in the base tone, a bright copy under a
    masked window, both moved by transform. The crest travels -55% → 155% of the
    width with a ±25% ramp, as the old background-clip sweep did. The window and
-   the copy take the host's padding, so the copy sits on the host's text. */
+   the copy take the host's padding, so the copy sits on the host's text. The
+   window moves inside a still, host-sized box that clips it — unclipped, it
+   widens the scroller around the host, which flashes a horizontal scrollbar
+   every pass. */
 .ti-sheen-host {
   --sb: var(--shim-base, var(--fg-dim2));
   position: relative;
   color: var(--sb);
 }
 .ti-sheen-host *, .ti-sheen-host b { color: inherit; }
-.ti-sheen {
+.ti-sheen, .ti-sheen__window {
   display: inherit;
   align-items: inherit;
   gap: inherit;
@@ -676,7 +679,9 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  pointer-events: none;
+}
+.ti-sheen { pointer-events: none; }
+.ti-sheen__window {
   -webkit-mask-image: linear-gradient(90deg, transparent 25%, #000 50%, transparent 75%);
   mask-image: linear-gradient(90deg, transparent 25%, #000 50%, transparent 75%);
   animation: ti-sheen-window 2.2s linear infinite;
