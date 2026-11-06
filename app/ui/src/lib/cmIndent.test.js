@@ -1,15 +1,20 @@
 import { describe, it, expect } from "vitest";
 import { EditorState } from "@codemirror/state";
-import { indentUnit } from "@codemirror/language";
+import { indentUnit, ensureSyntaxTree } from "@codemirror/language";
 import { insertNewlineAndIndent } from "@codemirror/commands";
 import { cmLanguageFor } from "./cmLang.js";
 
 function pressEnter(doc, pos, filePath, unit) {
-  const state = EditorState.create({
+  const created = EditorState.create({
     doc,
     selection: { anchor: pos },
     extensions: [indentUnit.of(unit), cmLanguageFor(filePath)],
   });
+  // A new state gets only ~20ms of parsing, which a busy machine can run out
+  // of (an editor view keeps parsing in the background; a bare state doesn't).
+  // Finish the parse, then let an empty update pick the full tree up.
+  ensureSyntaxTree(created, created.doc.length, 5000);
+  const state = created.update({}).state;
   let next = null;
   insertNewlineAndIndent({ state, dispatch: (tr) => { next = tr.state; } });
   return next.doc.toString();
