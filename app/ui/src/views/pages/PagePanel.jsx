@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useOriginPane } from "../../state/paneScope.js";
 import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
@@ -10,8 +10,11 @@ import { fmtTimeAgo } from "../../lib/format.js";
 import { notify } from "../../lib/notify.js";
 import { nameOf } from "../../lib/agentName.js";
 import { useClockTick } from "../../hooks/useClockTick.js";
-import { PageEditor } from "./PageEditor.jsx";
 import { TAB_ICONS } from "../agents/panes/panelTabMeta.jsx";
+
+// This panel is registered at boot, so a static import would put CodeMirror in
+// the eager bundle; it loads on the first page opened instead.
+const PageEditor = lazy(() => import("./PageEditor.jsx").then((m) => ({ default: m.PageEditor })));
 
 // A page tab: title, who it belongs to and who touched it last, a block
 // toolbar, and the live-preview editor. Edits autosave (debounced) against the
@@ -177,7 +180,9 @@ function PageDocument({ page, live, tabId }) {
             }}
           />
           <PageMeta page={page} agent={agent} status={status} body={draft.current.body} />
-          <PageEditor ref={editorRef} initialDoc={page.body} onChange={onBody} actionsRef={actionsRef} />
+          <Suspense fallback={<div className="pg-editor" aria-busy="true" />}>
+            <PageEditor ref={editorRef} initialDoc={page.body} onChange={onBody} actionsRef={actionsRef} />
+          </Suspense>
         </div>
       </div>
     </div>
