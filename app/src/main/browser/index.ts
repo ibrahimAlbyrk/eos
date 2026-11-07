@@ -18,6 +18,8 @@ export function initBrowserHost(deps: {
   locate?: () => Promise<unknown>;
   /** The app's own file dialogs, for a daemon without a native picker. */
   pick?: { directory: () => Promise<string | null>; files: () => Promise<string[] | null> };
+  /** Draws a plugin surface for the plugin_preview tool (pluginPreview.ts). */
+  previewPlugin?: (args: unknown) => Promise<unknown>;
 }): void {
   if (started) return; // idempotent — the IPC + host live for the app's lifetime
   started = true;
@@ -44,6 +46,8 @@ export function initBrowserHost(deps: {
     channel.setLocalMethod("dialog.pickDirectory", () => pick.directory());
     channel.setLocalMethod("dialog.pickFiles", () => pick.files());
   }
+  const previewPlugin = deps.previewPlugin;
+  if (previewPlugin) channel.setLocalMethod("plugin.preview", (args) => previewPlugin(args[0]));
 
   // Renderer → main geometry/visibility only (plan §C: no webContents, no verbs
   // over this channel; state-changing verbs flow through the daemon REST path).

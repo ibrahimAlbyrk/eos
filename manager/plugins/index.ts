@@ -14,7 +14,7 @@ import { EsbuildPluginBuilder } from "../../infra/src/plugins/EsbuildPluginBuild
 import { FsPluginStaging } from "../../infra/src/plugins/FsPluginStaging.ts";
 import { createPluginFetcher } from "../../infra/src/plugins/PluginFetchers.ts";
 import { PluginInstaller } from "../../core/src/services/PluginInstaller.ts";
-import { registerPluginBundleRoutes, registerPluginRoutes } from "./routes.ts";
+import { registerPluginBundleRoutes, registerPluginRoutes, type PluginPreviewApp } from "./routes.ts";
 import { BUILTIN_PLUGIN_MANIFESTS } from "../../contracts/src/builtin-plugins.ts";
 import { GuardedRouter } from "../routes/Router.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -25,6 +25,8 @@ export interface PluginHostDeps {
   readonly bus: Pick<EventBus, "publish">;
   readonly log: Logger;
   readonly uiToken: string;
+  // The Electron app, which draws plugin previews.
+  readonly app: PluginPreviewApp;
 }
 
 export interface PluginHost {
@@ -61,7 +63,7 @@ export function createPluginHost(deps: PluginHostDeps): PluginHost {
     plugins,
     now: Date.now,
   });
-  const routeDeps = { plugins, installer, uiToken: deps.uiToken, dir };
+  const routeDeps = { plugins, installer, uiToken: deps.uiToken, dir, app: deps.app };
   return {
     plugins,
     installer,

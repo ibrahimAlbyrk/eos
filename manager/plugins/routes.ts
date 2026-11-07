@@ -12,6 +12,9 @@
 //   PUT  /api/plugins/:id/settings       { values }             (ui token)
 //   GET  /api/plugins/:id/store/:key     { value }
 //   PUT  /api/plugins/:id/store/:key     { value }              (ui token)
+//   POST /api/plugins/:id/preview        { surface?, view?, store?, width?, height?, waitMs? }
+//                                        → { path } of a PNG the app drew in a hidden
+//                                        window (this Mac only) — for the agent writing it
 // Installing (contracts/src/plugin-install.ts) — ui token, never from another computer:
 //   POST   /api/plugins/install            { source } → a staged plugin to review
 //   POST   /api/plugins/install/:stagingId install it → { plugin }
@@ -22,6 +25,9 @@
 //                                        /ui/ beside the dashboard, so a window
 //                                        loads it the way it loads its own code
 
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { Router } from "../routes/Router.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
@@ -32,9 +38,15 @@ import type { PluginInstaller } from "../../core/src/services/PluginInstaller.ts
 import { ROUTES } from "../../contracts/src/http.ts";
 import { PluginInstallStageRequestSchema, PluginStagingIdSchema } from "../../contracts/src/plugin-install.ts";
 import {
-  PluginEnabledRequestSchema, PluginIdSchema, PluginReportRequestSchema, PluginSettingsRequestSchema, PluginStoreKeySchema,
-  PluginStoreRequestSchema,
+  PluginEnabledRequestSchema, PluginIdSchema, PluginPreviewRequestSchema, PluginReportRequestSchema, PluginSettingsRequestSchema,
+  PluginStoreKeySchema, PluginStoreRequestSchema, type PluginPreviewResult,
 } from "../../contracts/src/plugin.ts";
+
+// The Electron app, reached over its control channel (manager/browser-host.ts).
+export interface PluginPreviewApp {
+  isRegistered(): boolean;
+  rpc(sessionKey: string, method: string, args: unknown[]): Promise<unknown>;
+}
 
 export interface PluginRouteDeps {
   readonly plugins: PluginService;
@@ -42,6 +54,7 @@ export interface PluginRouteDeps {
   readonly uiToken: string;
   // Where plugin folders go (~/.eos/plugins).
   readonly dir: string;
+  readonly app: PluginPreviewApp;
 }
 
 const SETTLE_TIMEOUT_MS = 5000;
@@ -55,6 +68,7 @@ const SETTINGS = /^\/api\/plugins\/(?<id>[^/]+)\/settings$/;
 const STORE = /^\/api\/plugins\/(?<id>[^/]+)\/store\/(?<key>[^/]+)$/;
 const STAGED = /^\/api\/plugins\/install\/(?<stagingId>[^/]+)$/;
 const UPDATE = /^\/api\/plugins\/(?<id>[^/]+)\/update$/;
+const PREVIEW = /^\/api\/plugins\/(?<id>[^/]+)\/preview$/;
 const BUILD = /^\/ui\/plugins\/(?<id>[^/]+)\/(?<rev>\d+)\.(?<ext>js|css)$/;
 
 // Registered before the dashboard bundle's /ui/* catch-all.
@@ -150,6 +164,30 @@ export function registerPluginRoutes(r: Router, c: PluginRouteDeps): void {
     const body = validate(PluginStoreRequestSchema, await readBody(req));
     c.plugins.setStoreValue(validate(PluginIdSchema, params.id), validate(PluginStoreKeySchema, params.key), body.value);
     writeJson(res, 200, { ok: true });
+  });
+
+  r.post(PREVIEW, async ({ req, res, params }) => {
+    const id = validate(PluginIdSchema, params.id);
+    const body = validate(PluginPreviewRequestSchema, await readBody(req));
+    await settled(c.plugins, id);
+    const plugin = c.plugins.get(id);
+    if (plugin.state !== "active" || !plugin.hasUi || plugin.rev < 1) {
+      const why = plugin.state === "disabled" ? "it is turned off in Settings › Plugins"
+        : plugin.state === "error" ? `its build failed: ${plugin.error ?? "unknown error"}`
+          : "it has no UI entry";
+      writeJson(res, 409, { error: `can't preview "${id}": ${why}` });
+      return;
+    }
+    if (!c.app.isRegistered()) {
+      writeJson(res, 503, { error: "the Eos app isn't open, so nothing can draw the preview" });
+      return;
+    }
+    const shot = (await c.app.rpc("", "plugin.preview", [{ ...body, plugin }])) as PluginPreviewResult;
+    // The tool channel is text-only: the picture goes to a file the agent reads.
+    const path = join(mkdtempSync(join(tmpdir(), "eos-plugin-preview-")), `${id}-${shot.surface}-${Date.now()}.png`);
+    writeFileSync(path, Buffer.from(shot.png, "base64"));
+    const { png: _png, ...rest } = shot;
+    writeJson(res, 200, { path, build: plugin.rev, ...rest });
   });
 }
 

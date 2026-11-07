@@ -29,6 +29,10 @@ export function getPanel(type) {
   return panels.get(type);
 }
 
+export function listPanels() {
+  return panels.list();
+}
+
 export function usePanels() {
   return panels.useItems();
 }

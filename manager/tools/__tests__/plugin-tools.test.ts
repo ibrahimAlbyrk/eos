@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { pluginStatusDef } from "../defs/plugin_status.ts";
+import { pluginPreviewDef } from "../defs/plugin_preview.ts";
 import type { ToolContext } from "../types.ts";
 
 function ctxReturning(reply: (path: string) => unknown) {
@@ -49,5 +50,20 @@ describe("plugin_status", () => {
     const { ctx } = ctxReturning(() => { throw new Error('daemon 404: {"error":"plugin not found: nope"}'); });
     const out = (await pluginStatusDef.handler(ctx, { id: "nope" })) as Record<string, unknown>;
     assert.equal(out.state, "missing");
+  });
+});
+
+describe("plugin_preview", () => {
+  it("posts the request to the plugin's preview route", async () => {
+    let sent: unknown;
+    const ctx: ToolContext = {
+      selfId: "w1",
+      cwd: "/repo",
+      isGitRepo: () => false,
+      api: async (method, path, body) => { sent = [method, path, body]; return { path: "/tmp/x.png" }; },
+    };
+    const out = await pluginPreviewDef.handler(ctx, { id: "clock", surface: "header", store: { n: 1 } });
+    assert.deepEqual(sent, ["POST", "/api/plugins/clock/preview", { surface: "header", store: { n: 1 } }]);
+    assert.deepEqual(out, { path: "/tmp/x.png" });
   });
 });

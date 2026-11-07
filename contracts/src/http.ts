@@ -2592,6 +2592,7 @@ export const ROUTES = {
   pluginEnabled: (id: string) => `/api/plugins/${encodeURIComponent(id)}/enabled`,
   pluginSettings: (id: string) => `/api/plugins/${encodeURIComponent(id)}/settings`,
   pluginStore: (id: string, key: string) => `/api/plugins/${encodeURIComponent(id)}/store/${encodeURIComponent(key)}`,
+  pluginPreview: (id: string) => `/api/plugins/${encodeURIComponent(id)}/preview`,
   // Installing from npm / git / a folder (contracts/src/plugin-install.ts) — the user only.
   pluginInstall: "/api/plugins/install",
   pluginStaged: (stagingId: string) => `/api/plugins/install/${encodeURIComponent(stagingId)}`,

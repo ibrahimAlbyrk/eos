@@ -89,6 +89,46 @@ export const PluginSettingsRequestSchema = z.object({ values: z.record(PluginSet
 export const PluginStoreRequestSchema = z.object({ value: z.unknown() });
 export const PluginStoreKeySchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/);
 
+// A picture of one plugin surface, drawn by the app in a hidden window of its
+// own — the user's windows and stored values are never touched. `store` are
+// stand-in values for useStore keys (writes stay in that window); keys left out
+// read the real stored value.
+export const PluginPreviewSurfaceSchema = z.enum(["main", "panel", "header"]);
+export type PluginPreviewSurface = z.infer<typeof PluginPreviewSurfaceSchema>;
+export const PLUGIN_PREVIEW_STORE_MAX_BYTES = 256 * 1024;
+// [width, height] when the request names none — about what each gets in a 1280 px window.
+export const PLUGIN_PREVIEW_SIZES: Record<PluginPreviewSurface, readonly [number, number]> = {
+  main: [1000, 760],
+  panel: [420, 760],
+  header: [760, 56],
+};
+export const PluginPreviewRequestSchema = z.object({
+  surface: PluginPreviewSurfaceSchema.optional(),
+  // A mainView id (surface main) or sidePanelTab id (surface panel); default the first.
+  view: z.string().max(100).optional(),
+  store: z.record(z.unknown())
+    .refine((s) => Object.keys(s).every((k) => PluginStoreKeySchema.safeParse(k).success), "store keys: letters, digits, _ . -")
+    .refine((s) => JSON.stringify(s).length <= PLUGIN_PREVIEW_STORE_MAX_BYTES, "store is larger than 256 KB")
+    .optional(),
+  width: z.number().int().min(240).max(1600).optional(),
+  height: z.number().int().min(60).max(1200).optional(),
+  // How long to let entrance animations play before the picture is taken.
+  waitMs: z.number().int().min(0).max(5000).optional(),
+});
+export type PluginPreviewRequest = z.infer<typeof PluginPreviewRequestSchema>;
+
+// The app's "plugin.preview" RPC: what it drew and what went wrong while drawing.
+export interface PluginPreviewResult {
+  png: string; // base64
+  surface: PluginPreviewSurface;
+  view: string | null;
+  width: number;
+  height: number;
+  errors: string[];
+  // What the plugin registered, by surface — the ids `view` accepts.
+  available: Record<PluginPreviewSurface, string[]>;
+}
+
 // Bus topics. plugins:change {id} — a plugin was added, removed, rebuilt,
 // toggled or re-set; plugin:<id>:store {key} — one stored value changed.
 export const PLUGINS_TOPIC = "plugins:change";

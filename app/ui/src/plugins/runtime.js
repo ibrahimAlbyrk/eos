@@ -39,6 +39,26 @@ function unload(id) {
   cur.dispose();
 }
 
+// Loads one build's CSS and code and runs its activate(eos); everything it adds
+// is pushed onto `disposers`. Stops before activating once `current()` is false.
+export async function activatePlugin(plugin, disposers, current = () => true) {
+  const { id, rev } = plugin;
+  if (plugin.hasCss) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = buildUrl(id, rev, "css");
+    link.dataset.plugin = id;
+    document.head.appendChild(link);
+    disposers.push(() => link.remove());
+  }
+  const mod = await import(/* @vite-ignore */ buildUrl(id, rev, "js"));
+  if (!current()) return;
+  const activate = mod.default;
+  if (typeof activate !== "function") throw new Error("the UI entry must `export default function activate(eos) { … }`");
+  const cleanup = await activate(createPluginApi(plugin, disposers));
+  if (typeof cleanup === "function") disposers.push(cleanup);
+}
+
 async function load(plugin) {
   const { id, rev } = plugin;
   loading.set(id, rev);
@@ -49,21 +69,8 @@ async function load(plugin) {
     }
   };
   try {
-    if (plugin.hasCss) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = buildUrl(id, rev, "css");
-      link.dataset.plugin = id;
-      document.head.appendChild(link);
-      disposers.push(() => link.remove());
-    }
-    const mod = await import(/* @vite-ignore */ buildUrl(id, rev, "js"));
-    // A newer build arrived while this one loaded — it takes over.
-    if (loading.get(id) !== rev) { dispose(); return; }
-    const activate = mod.default;
-    if (typeof activate !== "function") throw new Error("the UI entry must `export default function activate(eos) { … }`");
-    const cleanup = await activate(createPluginApi(plugin, disposers));
-    if (typeof cleanup === "function") disposers.push(cleanup);
+    // A newer build arriving while this one loads takes over.
+    await activatePlugin(plugin, disposers, () => loading.get(id) === rev);
     if (loading.get(id) !== rev) { dispose(); return; }
     unload(id);
     loaded.set(id, { rev, dispose });
@@ -80,7 +87,7 @@ async function load(plugin) {
   }
 }
 
-function describeError(e) {
+export function describeError(e) {
   if (!(e instanceof Error)) return String(e);
   return e.stack && e.stack.includes(e.message) ? e.stack.split("\n").slice(0, 6).join("\n") : `${e.message}\n${e.stack ?? ""}`.trim();
 }

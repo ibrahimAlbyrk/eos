@@ -31,17 +31,26 @@ async function read(id, key) {
 }
 
 function follow(id) {
-  if (followed.has(id)) return;
+  if (previewing || followed.has(id)) return;
   followed.add(id);
   onTopic(`plugin:${id}:store`, (p) => {
     if (p?.key && values.has(k(id, p.key))) void read(id, p.key);
   });
 }
 
+// A preview window (plugins/preview.jsx): these stand-in values instead of the
+// stored ones, other keys read once, and nothing is ever written back.
+let previewing = false;
+export function previewPluginValues(id, stand) {
+  previewing = true;
+  for (const [key, v] of Object.entries(stand ?? {})) values.set(k(id, key), v);
+}
+
 export function setPluginValue(id, key, value) {
   const ck = k(id, key);
   values.set(ck, value);
   emit(ck);
+  if (previewing) return;
   clearTimeout(pendingWrites.get(ck));
   pendingWrites.set(ck, setTimeout(async () => {
     pendingWrites.delete(ck);

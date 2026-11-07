@@ -37,8 +37,14 @@ function withoutIterationListener(el) {
 const rootEl = document.getElementById("root");
 withoutIterationListener(rootEl);
 withoutIterationListener(document.body);
-whenDaemonUp().then(() => {
-  // Before the first render, so built-in panels are there for restored tabs.
-  startPlugins();
-  createRoot(rootEl).render(<App />);
-});
+// The app's hidden plugin-preview window loads this bundle too, but draws only
+// the one plugin it is asked about (plugins/preview.jsx) — not the app.
+if (location.hash === "#plugin-preview") {
+  void import("./plugins/preview.jsx").then((m) => m.startPluginPreview());
+} else {
+  whenDaemonUp().then(() => {
+    // Before the first render, so built-in panels are there for restored tabs.
+    startPlugins();
+    createRoot(rootEl).render(<App />);
+  });
+}

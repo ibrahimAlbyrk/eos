@@ -50,6 +50,7 @@ import { browserCloseTabDef } from "./defs/browser_close_tab.ts";
 import { browserMuteDef } from "./defs/browser_mute.ts";
 import { browserShowDef } from "./defs/browser_show.ts";
 import { pluginStatusDef } from "./defs/plugin_status.ts";
+import { pluginPreviewDef } from "./defs/plugin_preview.ts";
 import { BUILTIN_PLUGINS } from "../../contracts/src/builtin-plugins.ts";
 
 // Marks a feature's tools as belonging to its built-in plugin.
@@ -112,7 +113,7 @@ const genuiDefs: ToolDefinition[] = [presentDef, presentAppDef, findPlacesDef, c
 
 // Eos plugins (the eos-plugin-authoring skill) — last on BOTH surfaces: any agent
 // may be the one asked to change Eos's own interface.
-const pluginDefs: ToolDefinition[] = [pluginStatusDef];
+const pluginDefs: ToolDefinition[] = [pluginStatusDef, pluginPreviewDef];
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).

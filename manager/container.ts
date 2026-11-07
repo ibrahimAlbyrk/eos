@@ -582,8 +582,11 @@ export function buildContainer() {
     }
   }
 
+  // The daemon → app channel: the Electron app registers over /browser/host and
+  // answers browser, media, location and plugin-preview RPCs through it.
+  const appHost = new AppBrowserHost({ log });
   // Plugins (~/.eos/plugins): built and rebuilt live, loaded by every window.
-  const pluginHost = createPluginHost({ home: config.daemon.home, bus, log, uiToken });
+  const pluginHost = createPluginHost({ home: config.daemon.home, bus, log, uiToken, app: appHost });
   deferredBoot.push({ name: "plugins", run: () => pluginHost.start() });
 
   // How a project folder travels between Macs (sync, transfer): its git remote.
@@ -666,9 +669,6 @@ export function buildContainer() {
     },
   });
   const ptyConversations = new PtyConversationService({ bus, sessions: ptySessions });
-  // The daemon → app channel: the Electron app registers over /browser/host and
-  // answers browser, media and location RPCs through it.
-  const appHost = new AppBrowserHost({ log });
   const browserModule = createBrowserModule({
     home: config.daemon.home,
     config: () => config.browser,

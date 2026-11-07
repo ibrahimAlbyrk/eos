@@ -31,6 +31,8 @@ export const KERNEL_LOCAL_ONLY_ROUTES: readonly RouteRule[] = [
   ["*", "/api/plugins/install/*"],
   ["POST", "/api/plugins/:id/update"],
   ["DELETE", "/api/plugins/:id"],
+  // Drawn by this Mac's app, for the agent writing the plugin.
+  ["POST", "/api/plugins/:id/preview"],
   ["*", "/h/*"],
   ["*", "/peer/*"],
 ];

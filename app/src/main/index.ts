@@ -31,6 +31,7 @@ import { registerWindowControls, reportMaximized } from "./windowControls";
 import { installMainWindowPermissions } from "./permissions";
 import { installGenuiTokenHeader } from "./genuiToken";
 import { readLocation } from "./location";
+import { renderPluginPreview } from "./pluginPreview";
 import { applyUpdate, markUpdateBooted, nudgeUpdateCheck } from "./updates";
 import type { MenuItemConstructorOptions } from "electron";
 
@@ -170,6 +171,11 @@ function wireRendererRecovery(win: BrowserWindow): void {
   });
 }
 
+// What the dashboard's preload reads to reach the daemon.
+function dashboardArguments(token: string): string[] {
+  return [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`, `--eos-os=${shellPlatform.uiOS}`];
+}
+
 async function createWindow(token: string): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: 1280,
@@ -191,7 +197,7 @@ async function createWindow(token: string): Promise<BrowserWindow> {
       // A hidden, minimized or covered window draws no frames; the UI keeps up
       // with the stream while document.hidden (lib/viewVisibility.js).
       backgroundThrottling: true,
-      additionalArguments: [`--eos-daemon-url=${DAEMON_URL}`, `--eos-raw-url=${RAW_URL}`, `--eos-ui-token=${token}`, `--eos-os=${shellPlatform.uiOS}`],
+      additionalArguments: dashboardArguments(token),
     },
   });
   mainWindow = win;
@@ -463,6 +469,7 @@ app.whenReady().then(async () => {
         return r.canceled ? null : r.filePaths;
       },
     },
+    previewPlugin: (args) => renderPluginPreview({ preload: PRELOAD, additionalArguments: dashboardArguments(token) }, args as Parameters<typeof renderPluginPreview>[1]),
   });
 
   // claude.ai Artifacts as native views in the side panel and the hover peek, each
