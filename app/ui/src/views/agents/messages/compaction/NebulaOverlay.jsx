@@ -21,11 +21,13 @@ function visibleBlocks(content, wrap) {
 // Runs the compaction nebula over the transcript: starts when a compaction is
 // pending, hands the dust to the boundary card when it completes, fades it out
 // when it fails. Renders nothing itself — canvases and the label are appended
-// to the messages frame, the transcript is hidden through data-compacting.
+// to the messages frame, the transcript is hidden through data-compacting and
+// the frame is locked against scrolling (data-nb-lock) until the run ends.
 export function NebulaOverlay({ workerId, wrapRef, contentRef, status }) {
   const runRef = useRef(null);
   const pending = status.pending;
   const last = status.last;
+  const unlock = () => { delete wrapRef.current?.parentElement?.dataset.nbLock; };
 
   // Tear down on agent switch / unmount — never leave the transcript hidden.
   useEffect(() => () => {
@@ -33,6 +35,7 @@ export function NebulaOverlay({ workerId, wrapRef, contentRef, status }) {
     runRef.current = null;
     const content = contentRef.current;
     if (content) delete content.dataset.compacting;
+    unlock();
     setFx(workerId, null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workerId]);
@@ -43,6 +46,7 @@ export function NebulaOverlay({ workerId, wrapRef, contentRef, status }) {
     if (!wrap || !content) return;
     const live = Date.now() - pending.ts < LIVE_WINDOW_MS;
     setFx(workerId, { stage: "running", since: pending.ts });
+    wrap.parentElement.dataset.nbLock = "";
     const onHide = () => { content.dataset.compacting = "hidden"; };
     const meta = `${fmtTokens(pending.payload.beforeTokens ?? 0)} tokens`;
     const quiet = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -60,7 +64,11 @@ export function NebulaOverlay({ workerId, wrapRef, contentRef, status }) {
     if (!run || run.ended || !last || last.type === "compaction_started") return;
     run.ended = true;
     const content = contentRef.current;
-    const done = () => { if (runRef.current === run) runRef.current = null; };
+    const done = () => {
+      if (runRef.current !== run) return;
+      runRef.current = null;
+      unlock();
+    };
     if (last.type === "compaction_failed") {
       setFx(workerId, null);
       if (content) content.dataset.compacting = "restoring";

@@ -638,6 +638,10 @@ export function Composer({ live, worker, paneId, focused }) {
       return;
     }
 
+    // The session is being replaced while it compacts: the draft stays in the
+    // editor until it is done.
+    if (compacting && !termMode && !gitMode) return;
+
     history.push({ text: t, mode });
 
     if (termMode) {
@@ -658,9 +662,9 @@ export function Composer({ live, worker, paneId, focused }) {
       return;
     }
 
-    // Only a direct send lands as a chat bubble; a busy or compacting agent
+    // Only a direct send lands as a chat bubble; a busy agent
     // queues it as a pill. Launched before prepareMessage clears the editor.
-    if (selected && !gitMode && !compacting && selected.state !== "WORKING") launchSendFlight(editorRef.current);
+    if (selected && !gitMode && selected.state !== "WORKING") launchSendFlight(editorRef.current);
     let { displayText, agentText } = await prepareMessage();
 
     if (gitMode) {
@@ -1134,7 +1138,7 @@ export function Composer({ live, worker, paneId, focused }) {
   const railYields = blockingActive || queuedList.length > 0;
   // Send button lives in the controls row now; dim it when there's nothing to
   // send (empty draft + no attachments), never while it's the Stop affordance.
-  const canSend = !!text.trim() || attachmentItems.length > 0;
+  const canSend = (!!text.trim() || attachmentItems.length > 0) && !(compacting && !termMode && !gitMode);
   const submit = {
     stop: showStop,
     dim: !showStop && !canSend,
@@ -1243,7 +1247,7 @@ export function Composer({ live, worker, paneId, focused }) {
                     className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
                     contentEditable
                     role="textbox"
-                    data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : compacting ? "Compacting… messages you send now will queue" : "What should we do?"}
+                    data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : compacting ? "Compacting… you can send when it finishes" : "What should we do?"}
                     data-empty={!text ? "" : undefined}
                     data-hint={activeHint || undefined}
                     onInput={(e) => { recallRef.current = false; handleInput(e); }}
