@@ -104,7 +104,7 @@ function findAttachmentBlock(content, path) {
   return null;
 }
 
-export function Messages({ live, agentId, isActive = true }) {
+export function Messages({ live, agentId, isActive = true, visible = isActive }) {
   const ui = useUi();
   const { projects } = useProjects();
   // This pane renders exactly ONE agent. The host passes agentId explicitly so
@@ -112,6 +112,8 @@ export function Messages({ live, agentId, isActive = true }) {
   // no host falls back to the global selection. isActive marks the focused pane —
   // only it drives shared UI state (question banner, verdict, agent viewer,
   // header scrim, ⌘F). Parked panes keep fetching/rendering but stay silent.
+  // visible marks a pane that is on screen whether focused or not (split view):
+  // on-screen effects like the compaction nebula run in every visible pane.
   const selectedId = agentId !== undefined ? agentId : ui.selectedId;
   const initialScrollDone = useRef(false);
   const lastTopRef = useRef(0);
@@ -768,7 +770,7 @@ export function Messages({ live, agentId, isActive = true }) {
       </div>
       <ScrollToBottom show={stick.showJumpBtn} onClick={scrollToBottom} />
     </div>
-    {selectedId && isActive && (
+    {selectedId && visible && (
       <NebulaOverlay workerId={selectedId} wrapRef={wrapRef} contentRef={contentRef} status={compaction} />
     )}
     {selectedId && turns.length > 1 && (
