@@ -718,7 +718,7 @@ html.native[data-os="windows"].fullscreen .window-controls { display: none; }
   flex: 0 0 auto;
   /* --sp-w is a share of the window; the cap keeps the transcript ≥ 320px
      (SidePanel MIN_TX_W) in a narrow or split pane. */
-  width: min(var(--sp-w, 40vw), calc(100% - 320px));
+  width: min(var(--sp-w, 25vw), calc(100% - 320px));
   position: relative;
   display: flex;
   flex-direction: column;

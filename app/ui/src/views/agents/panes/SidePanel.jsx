@@ -24,14 +24,14 @@ import "./registerPanels.js";
 // tab. The panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned
 // to the header's top-right, so it stays put while the panel slides open/closed
 // under it. Width is that pane's own --sp-w, stored as a fraction of the WINDOW
-// (default 40%) so it keeps its proportion at any window size, and capped so the
+// (default 25%) so it keeps its proportion at any window size, and capped so the
 // transcript keeps MIN_TX_W; double-click the edge resets to default.
 
 // Resize bounds within the owning pane: the panel keeps ≥MIN_PANEL_W, the
 // transcript column keeps ≥MIN_TX_W.
 const MIN_PANEL_W = 280;
 const MIN_TX_W = 320;
-const DEFAULT_PANEL_FRAC = 0.4; // of the window
+const DEFAULT_PANEL_FRAC = 0.25; // of the window
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
 const noTitle = () => null;
