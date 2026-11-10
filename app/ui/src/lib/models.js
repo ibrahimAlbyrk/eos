@@ -8,7 +8,7 @@ const BASELINE = [
   { id: "haiku-5.5",  aliases: ["haiku"],  label: "haiku-5.5",  name: "Haiku 5.5",  ctxTokens: 1_000_000, tag: "fastest" },
   { id: "sonnet-5.5", aliases: ["sonnet"], label: "sonnet-5.5", name: "Sonnet 5.5", ctxTokens: 1_000_000, tag: "balanced" },
   { id: "opus-5.5",   aliases: ["opus"],   label: "opus-5.5",   name: "Opus 5.5",   ctxTokens: 1_000_000, tag: "most capable" },
-  { id: "fable-5",    aliases: ["fable"],  label: "fable-5",    name: "Fable 5",    ctxTokens: 1_000_000, tag: "most powerful" },
+  { id: "fable-5.2",  aliases: ["fable"],  label: "fable-5.2",  name: "Fable 5.2",  ctxTokens: 1_000_000, tag: "most powerful" },
 ];
 
 export const MODELS = [...BASELINE];
