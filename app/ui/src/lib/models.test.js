@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens } from "./models.js";
+import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens, subscribeCatalog, getCatalogVersion } from "./models.js";
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
@@ -109,5 +109,21 @@ describe("effort capability", () => {
     const opusIds = effortChoicesFor("opus").map((e) => e.id);
     expect(opusIds).not.toContain("xhigh");
     expect(opusIds).toEqual(["low", "medium", "high", "max", "ultracode"]);
+  });
+});
+
+describe("catalog subscription", () => {
+  it("notifies subscribers only when a usable catalog lands", () => {
+    let calls = 0;
+    const unsubscribe = subscribeCatalog(() => { calls += 1; });
+    const before = getCatalogVersion();
+    applyCatalog(null);
+    expect(calls).toBe(0);
+    applyCatalog(CATALOG);
+    expect(calls).toBe(1);
+    expect(getCatalogVersion()).toBe(before + 1);
+    unsubscribe();
+    applyCatalog(CATALOG);
+    expect(calls).toBe(1);
   });
 });

@@ -2324,6 +2324,7 @@ export const ROUTES = {
   metrics: "/metrics",
   datetime: "/datetime",
   uiConfig: "/api/ui-config",
+  modelCatalogRefresh: "/api/model-catalog/refresh",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
   fsDefaultApp: "/fs/default-app",

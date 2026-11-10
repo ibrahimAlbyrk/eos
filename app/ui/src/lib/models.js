@@ -62,12 +62,26 @@ export function curateCatalog(catalog) {
   return out;
 }
 
+let catalogVersion = 0;
+const catalogListeners = new Set();
+
 export function applyCatalog(catalog) {
   const curated = curateCatalog(catalog);
   if (!curated.length) return;
   MODELS.length = 0;
   MODELS.push(...curated);
+  catalogVersion += 1;
+  for (const fn of catalogListeners) fn();
 }
+
+// For useSyncExternalStore: a view listing MODELS re-renders when a fresh
+// catalog lands while it is open.
+export function subscribeCatalog(fn) {
+  catalogListeners.add(fn);
+  return () => catalogListeners.delete(fn);
+}
+
+export const getCatalogVersion = () => catalogVersion;
 
 export const EFFORTS = [
   { id: "low",       label: "Low" },

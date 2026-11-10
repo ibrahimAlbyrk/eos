@@ -14,6 +14,7 @@ import { EFFORT_LEVELS } from "../../contracts/src/shared.ts";
 import { z } from "zod";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
+const REFRESH_FLOOR_MS = 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
 const MODELS_URL = "https://api.anthropic.com/v1/models?limit=100";
 
@@ -56,6 +57,16 @@ export class ModelCatalogService {
       await this.refresh().catch(() => {});
     } else if (this.clock.now() - this.cache.fetchedAt > TTL_MS) {
       void this.refresh().catch(() => {});
+    }
+    return this.cache?.models ?? [];
+  }
+
+  /** Fetches now regardless of the TTL (the app opening, the model menu opening),
+   * so a model released minutes after the last fetch shows up at once. A list
+   * fetched under a minute ago is served as is, so repeated opens don't refetch. */
+  async refreshNow(): Promise<CatalogModel[]> {
+    if (!this.cache || this.clock.now() - this.cache.fetchedAt >= REFRESH_FLOOR_MS) {
+      await this.refresh().catch(() => {});
     }
     return this.cache?.models ?? [];
   }

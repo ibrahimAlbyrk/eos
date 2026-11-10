@@ -193,6 +193,7 @@ export function useLive() {
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
+        api.refreshModelCatalog().then(applyCatalog).catch(() => {});
         applyDescriptors(cfg?.backends);
         applyProfiles(cfg?.backendProfiles);
         applyFeatures(cfg?.features);

@@ -173,6 +173,10 @@ export const api = {
     const r = await fetch(`${DAEMON}${ROUTES.uiConfig}`);
     return r.ok ? r.json() : null;
   },
+  async refreshModelCatalog() {
+    const r = await postJson(ROUTES.modelCatalogRefresh);
+    return r.ok ? r.body?.modelCatalog ?? null : null;
+  },
   // A configured provider's available models for the two-level composer picker.
   // Fail-soft: never throws — returns { models, error? } so the popover can fall
   // back to the profile's pinned model.

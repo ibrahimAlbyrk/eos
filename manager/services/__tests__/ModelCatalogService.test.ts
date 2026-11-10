@@ -68,6 +68,31 @@ describe("ModelCatalogService", () => {
     assert.equal(calls, 0);
   });
 
+  it("refreshNow fetches a fresh cache at once, but not twice within a minute", async () => {
+    writeFileSync(file, JSON.stringify({ fetchedAt: 0, models: [MODEL_A] }));
+    const clock = fakeClock(5 * 60 * 1000); // well inside the 6h TTL
+    let calls = 0;
+    const svc = new ModelCatalogService(file, clock, async () => {
+      calls++;
+      return [MODEL_A, MODEL_B];
+    });
+    assert.deepEqual(await svc.refreshNow(), [MODEL_A, MODEL_B]);
+    clock.advance(30 * 1000);
+    await svc.refreshNow();
+    assert.equal(calls, 1);
+    clock.advance(30 * 1000);
+    await svc.refreshNow();
+    assert.equal(calls, 2);
+  });
+
+  it("refreshNow keeps the cached list when the fetch fails", async () => {
+    writeFileSync(file, JSON.stringify({ fetchedAt: 0, models: [MODEL_A] }));
+    const svc = new ModelCatalogService(file, fakeClock(5 * 60 * 1000), async () => {
+      throw new Error("offline");
+    });
+    assert.deepEqual(await svc.refreshNow(), [MODEL_A]);
+  });
+
   it("refreshes in background when cache is stale", async () => {
     writeFileSync(file, JSON.stringify({ fetchedAt: 0, models: [MODEL_A] }));
     const clock = fakeClock(7 * 60 * 60 * 1000);

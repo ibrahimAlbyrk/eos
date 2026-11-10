@@ -68,4 +68,8 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
       features: hostPlatform.features,
     });
   });
+
+  r.post("/api/model-catalog/refresh", async ({ res }) => {
+    writeJson(res, 200, { modelCatalog: await c.modelCatalog.refreshNow() });
+  });
 }

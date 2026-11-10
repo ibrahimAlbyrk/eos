@@ -65,6 +65,7 @@ export const ROUTES = {
   pendingDecision: (id) => `/pending/${id}/decision`,
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
+  modelCatalogRefresh: "/api/model-catalog/refresh",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
   fsImage: "/fs/image",

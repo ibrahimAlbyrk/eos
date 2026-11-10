@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { MODELS } from "../../../lib/models.js";
+import { api } from "../../../api/client.js";
+import { MODELS, applyCatalog, getCatalogVersion, subscribeCatalog } from "../../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
@@ -20,7 +21,11 @@ function ModelMenu({ live, ui, worker }) {
   const [active, setActive] = useState(() =>
     Math.max(0, MODELS.findIndex((m) => matchesModel(currentModel, m))));
 
-  useEffect(() => { paneRef.current?.focus(); }, []);
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion);
+  useEffect(() => {
+    paneRef.current?.focus();
+    api.refreshModelCatalog().then(applyCatalog).catch(() => {});
+  }, []);
 
   const pick = async (m) => {
     // Commit the family alias (claude CLI resolves "fable"/"opus"; the
