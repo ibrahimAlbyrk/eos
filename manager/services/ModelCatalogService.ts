@@ -1,9 +1,8 @@
 // ModelCatalogService — live model list from GET /v1/models, authenticated with
-// the user's Claude Code OAuth token (macOS Keychain; ~/.claude/.credentials.json
-// elsewhere). The endpoint is metadata-only, so it rides the subscription auth
-// without consuming API credits. Results are cached at ~/.eos/models.json;
-// a fetch failure (expired token, offline) falls back to the cached list, and the
-// web UI keeps its own hardcoded baseline as the final fallback.
+// the OAuth token of the Eos Claude sign-in. The endpoint is metadata-only, so it
+// rides the subscription auth without consuming API credits. Results are cached
+// at ~/.eos/models.json; a fetch failure (no sign-in, offline) falls back to the
+// cached list, and the web UI keeps its own hardcoded baseline as the final fallback.
 
 import { readFileSync, writeFileSync, renameSync, mkdirSync, existsSync } from "node:fs";
 import { dirname } from "node:path";
@@ -12,7 +11,6 @@ import type { Clock } from "../../core/src/ports/Clock.ts";
 import type { CatalogModel } from "../../contracts/src/http.ts";
 import { CatalogModelSchema } from "../../contracts/src/http.ts";
 import { EFFORT_LEVELS } from "../../contracts/src/shared.ts";
-import { hostPlatform } from "../../infra/src/platform/index.ts";
 import { z } from "zod";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
@@ -45,7 +43,7 @@ export class ModelCatalogService {
   private cache: CacheFile | null;
   private refreshing: Promise<void> | null = null;
 
-  constructor(file: string, clock: Clock, fetchModels: FetchModels = fetchModelsFromApi) {
+  constructor(file: string, clock: Clock, fetchModels: FetchModels) {
     this.file = file;
     this.clock = clock;
     this.fetchModels = fetchModels;
@@ -142,25 +140,10 @@ function extractEffortLevels(capabilities: unknown): string[] | null {
   return levels.length ? levels : null;
 }
 
-// The same credential claude CLI maintains: refreshed whenever a session runs,
-// so it stays fresh in practice. Never logged, never sent to the web UI.
-function readOauthToken(): string | null {
-  try {
-    const raw = hostPlatform.credentials.readClaudeStore();
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, unknown>;
-    const oauth = (parsed.claudeAiOauth ?? parsed) as Record<string, unknown>;
-    const token = typeof oauth.accessToken === "string" ? oauth.accessToken : null;
-    if (!token) return null;
-    if (typeof oauth.expiresAt === "number" && oauth.expiresAt <= Date.now()) return null;
-    return token;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchModelsFromApi(): Promise<CatalogModel[]> {
-  const token = readOauthToken();
+// getToken yields a usable access token (renewed when it lapsed), or null when
+// Eos has no Claude sign-in. Never logged, never sent to the web UI.
+export const createApiModelFetcher = (getToken: () => Promise<string | null>): FetchModels => async () => {
+  const token = await getToken();
   if (!token) throw new Error("no usable Claude OAuth token");
   const res = await fetch(MODELS_URL, {
     headers: {
@@ -183,4 +166,4 @@ async function fetchModelsFromApi(): Promise<CatalogModel[]> {
     });
     return parsed.success ? [parsed.data] : [];
   });
-}
+};

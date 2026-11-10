@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ModelCatalogService } from "../ModelCatalogService.ts";
+import { createApiModelFetcher, ModelCatalogService } from "../ModelCatalogService.ts";
 import type { CatalogModel } from "../../../contracts/src/http.ts";
 
 const MODEL_A: CatalogModel = {
@@ -128,5 +128,32 @@ describe("ModelCatalogService", () => {
     const svc = new ModelCatalogService(file, fakeClock(0), async () => [older, MODEL_A]);
     assert.deepEqual(await svc.effortLevelsFor("opus"), MODEL_A.effortLevels);
     assert.deepEqual(await svc.effortLevelsFor("claude-opus-4-6"), older.effortLevels);
+  });
+});
+
+describe("createApiModelFetcher", () => {
+  const realFetch = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+  });
+
+  it("fails without a token and never calls the API", async () => {
+    let called = false;
+    globalThis.fetch = (async () => { called = true; return new Response("{}"); }) as typeof fetch;
+    await assert.rejects(createApiModelFetcher(async () => null)(), /no usable Claude OAuth token/);
+    assert.equal(called, false);
+  });
+
+  it("asks the token source on every fetch and sends its token", async () => {
+    const seen: (string | null)[] = [];
+    globalThis.fetch = (async (_url: unknown, init?: RequestInit) => {
+      seen.push(new Headers(init?.headers).get("authorization"));
+      return Response.json({ data: [{ id: "claude-fable-5-2", display_name: "Claude Fable 5.2", created_at: "2026-11-09T18:30:00Z" }] });
+    }) as typeof fetch;
+    let n = 0;
+    const fetchModels = createApiModelFetcher(async () => `tok-${++n}`);
+    assert.equal((await fetchModels())[0].id, "claude-fable-5-2");
+    await fetchModels();
+    assert.deepEqual(seen, ["Bearer tok-1", "Bearer tok-2"]);
   });
 });

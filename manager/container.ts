@@ -186,7 +186,7 @@ import type { Fragment, RawPrompt } from "../core/src/domain/prompt.ts";
 import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemoryStore.ts";
 import { UserTemplateService, TEMPLATE_NAME_RE } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
-import { ModelCatalogService } from "./services/ModelCatalogService.ts";
+import { createApiModelFetcher, ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
@@ -901,7 +901,11 @@ export function buildContainer() {
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const projectMemory = new FileProjectMemoryStore();
-  const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
+  const modelCatalog = new ModelCatalogService(
+    join(config.daemon.home, "models.json"),
+    systemClock,
+    createApiModelFetcher(() => credentials.claudeAccessToken(credentials.claudeStore())),
+  );
 
   // Shared in-process tooling, used by BOTH the claude lane and the Eos-hosted
   // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
