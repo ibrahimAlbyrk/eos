@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens, subscribeCatalog, getCatalogVersion } from "./models.js";
+import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens, subscribeCatalog, getCatalogVersion, modelCommitId } from "./models.js";
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
@@ -23,6 +23,7 @@ describe("curateCatalog", () => {
     expect(haiku).toEqual({
       id: "haiku-4.5",
       aliases: ["haiku", "claude-haiku-4-5-20251001"],
+      apiId: "claude-haiku-4-5-20251001",
       label: "haiku-4.5",
       name: "Haiku 4.5",
       ctxTokens: 200_000,
@@ -36,6 +37,7 @@ describe("curateCatalog", () => {
     expect(fable).toEqual({
       id: "fable-5",
       aliases: ["fable", "claude-fable-5"],
+      apiId: "claude-fable-5",
       label: "fable-5",
       name: "Fable 5",
       ctxTokens: 1_000_000,
@@ -109,6 +111,14 @@ describe("effort capability", () => {
     const opusIds = effortChoicesFor("opus").map((e) => e.id);
     expect(opusIds).not.toContain("xhigh");
     expect(opusIds).toEqual(["low", "medium", "high", "max", "ultracode"]);
+  });
+});
+
+describe("modelCommitId", () => {
+  it("sends the catalog's exact id, else the family alias", () => {
+    const [, , , fable] = curateCatalog(CATALOG);
+    expect(modelCommitId(fable)).toBe("claude-fable-5");
+    expect(modelCommitId({ id: "fable-5", aliases: ["fable"] })).toBe("fable");
   });
 });
 

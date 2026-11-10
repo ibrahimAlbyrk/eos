@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
-import { MODELS, applyCatalog, getCatalogVersion, subscribeCatalog } from "../../../lib/models.js";
+import { MODELS, applyCatalog, getCatalogVersion, modelCommitId, subscribeCatalog } from "../../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
@@ -28,9 +28,7 @@ function ModelMenu({ live, ui, worker }) {
   }, []);
 
   const pick = async (m) => {
-    // Commit the family alias (claude CLI resolves "fable"/"opus"; the
-    // curated short id like "fable-5" is display-only and 404s at the API)
-    const id = m.aliases[0] ?? m.id;
+    const id = modelCommitId(m);
     if (selected) await live.setModel(selected.id, id, selected.effort ?? ui.composer.effort);
     else ui.updateComposer({ model: id });
     ui.closeAllPops();

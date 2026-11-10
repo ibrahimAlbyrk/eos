@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { MODELS, modelName } from "../lib/models.js";
+import { MODELS, modelCommitId, modelName } from "../lib/models.js";
 import { providerChoices, usesClaudeCatalog } from "../lib/backendCaps.js";
 import { api } from "../api/client.js";
 
@@ -18,7 +18,7 @@ export function useProviderModels(name) {
   useEffect(() => {
     if (!name) { setState({ loading: false, models: [], error: null }); return; }
     if (claudeCatalog) {
-      setState({ loading: false, models: MODELS.map((m) => ({ id: m.aliases[0] ?? m.id, name: m.name })), error: null });
+      setState({ loading: false, models: MODELS.map((m) => ({ id: modelCommitId(m), name: m.name })), error: null });
       return;
     }
     let alive = true;

@@ -52,6 +52,7 @@ export function curateCatalog(catalog) {
     out.push({
       id: shortId,
       aliases: [key, latest.id],
+      apiId: latest.id,
       label: shortId,
       name: String(latest.displayName ?? "").replace(/^Claude\s+/, "") || shortId,
       ctxTokens: Number.isFinite(latest.maxInputTokens) && latest.maxInputTokens > 0 ? latest.maxInputTokens : null,
@@ -64,6 +65,12 @@ export function curateCatalog(catalog) {
 
 let catalogVersion = 0;
 const catalogListeners = new Set();
+
+// The model string a picker sends to the agent: the catalog's exact id, so the
+// agent runs the version the menu shows even when the bundled Claude Code is
+// older and would resolve the family alias to an earlier version. The baseline
+// (no catalog yet) has only the family alias.
+export const modelCommitId = (m) => m.apiId ?? m.aliases?.[0] ?? m.id;
 
 export function applyCatalog(catalog) {
   const curated = curateCatalog(catalog);

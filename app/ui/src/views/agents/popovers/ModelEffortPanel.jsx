@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { MODELS, modelName, effortChoicesFor } from "../../../lib/models.js";
+import { MODELS, modelCommitId, modelName, effortChoicesFor } from "../../../lib/models.js";
 
 // The combined Model & Effort popover (charcoal-aurora "rail" variant): one
 // panel, opened from a single composer trigger, that replaces the separate
@@ -113,7 +113,7 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   };
 
   const pickModel = (m) => {
-    const id = m.aliases?.[0] ?? m.id;
+    const id = modelCommitId(m);
     if (selected) live.setModel(selected.id, id, effort);
     else if (onPick) onPick(id);
     else ui.updateComposer({ model: id });
