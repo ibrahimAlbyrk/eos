@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
-import { useSidePanelVisible } from "../../state/paneScope.js";
-import { ensureJobsLoaded, markJobsSeen, useJobs } from "../../state/jobsStore.js";
+import { ensureJobsLoaded, useJobs } from "../../state/jobsStore.js";
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { api } from "../../api/client.js";
 import { JOB_FILTERS, filterJobs, isRunning } from "../../lib/jobs.js";
@@ -15,7 +14,6 @@ import { useChatName } from "./useChatName.js";
 // it on one job (panelData.jobs.focus). Plan: docs/background-jobs/00-BACKGROUND-JOBS-PLAN.md.
 export function JobsPanel({ live }) {
   const ui = useUi();
-  const visible = useSidePanelVisible();
   const jobs = useJobs();
   const [filter, setFilter] = useState("all");
   // { focus, at } — `at` makes the same job asked for twice a new request.
@@ -26,8 +24,6 @@ export function JobsPanel({ live }) {
 
   useEffect(() => { ensureJobsLoaded(); }, []);
   useEffect(() => { if (request?.focus) { setOpenId(request.focus); setFilter("all"); } }, [request]);
-  // On screen, every job here counts as seen.
-  useEffect(() => { if (visible) markJobsSeen(); }, [visible, jobs]);
 
   const all = jobs ?? [];
   const shown = filterJobs(all, filter);

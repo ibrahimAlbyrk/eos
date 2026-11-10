@@ -175,7 +175,7 @@
   border-top-color: var(--accent);
   animation: jb-spin 1.1s linear infinite;
 }
-.jb-beacon__fail { width: 6px; height: 6px; border-radius: 50%; background: var(--err); }
+.jb-beacon__fail { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 @media (prefers-reduced-motion: reduce) {
   .jb-spin, .jb-ring { animation-duration: 3s; }
 }

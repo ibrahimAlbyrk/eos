@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUi } from "../../state/ui.jsx";
-import { ensureJobsLoaded, markJobsSeen, useJobs, useJobsSeenAt } from "../../state/jobsStore.js";
+import { ensureJobsLoaded, useJobs } from "../../state/jobsStore.js";
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { api } from "../../api/client.js";
-import { groupBySource, hasUnseenFailure, isRunning } from "../../lib/jobs.js";
+import { groupBySource, hasFailure, isRunning } from "../../lib/jobs.js";
 import { JobRow } from "./JobRow.jsx";
 import { useChatName } from "./useChatName.js";
 
@@ -14,24 +14,23 @@ const RECENT_FINISHED = 5;
 
 // The header's background-jobs button — the running count and a spinning ring,
 // quiet like its neighbours: shown while anything runs in the background, or
-// while a failure the user hasn't looked at stands (a red dot). Opens a glass popover of the
-// jobs grouped by chat; a row (or "Open Jobs panel") opens the Jobs tab.
+// while a failed job stays in the list (a neutral dot) until it is dismissed or
+// cleared. Opens a glass popover of the jobs grouped by chat; a row (or "Open
+// Jobs panel") opens the Jobs tab.
 export function JobsBeacon({ live }) {
   const ui = useUi();
   const jobs = useJobs() ?? [];
-  const seenAt = useJobsSeenAt();
   const btnRef = useRef(null);
   useEffect(() => { ensureJobsLoaded(); }, []);
 
   const open = ui.openPopover === POP;
   const running = jobs.filter(isRunning).length;
-  const failed = hasUnseenFailure(jobs, seenAt);
+  const failed = hasFailure(jobs);
   if (!running && !failed && !open) return null;
 
   const toggle = (e) => {
     e.stopPropagation();
     if (open) { ui.closeAllPops(); return; }
-    markJobsSeen();
     ui.openPop(POP);
   };
   return (

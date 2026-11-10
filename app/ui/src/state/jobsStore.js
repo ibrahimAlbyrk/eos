@@ -50,24 +50,3 @@ export function applyJobsChange(payload) {
 export function resyncJobs() {
   if (started) void refreshJobs();
 }
-
-// When the user last looked at the jobs (popover opened, Jobs tab on screen) —
-// a failure after it keeps the beacon's dot lit.
-let seenAt = Date.now();
-const seenSubs = new Set();
-
-export function markJobsSeen() {
-  seenAt = Date.now();
-  for (const cb of seenSubs) cb();
-}
-
-function subscribeSeen(cb) {
-  seenSubs.add(cb);
-  return () => seenSubs.delete(cb);
-}
-
-const getSeenAt = () => seenAt;
-
-export function useJobsSeenAt() {
-  return useSyncExternalStore(subscribeSeen, getSeenAt, getSeenAt);
-}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterJobs, groupBySource, hasUnseenFailure, jobMeta, pctOf, sortJobs, titleIsCommand } from "./jobs.js";
+import { filterJobs, groupBySource, hasFailure, jobMeta, pctOf, sortJobs, titleIsCommand } from "./jobs.js";
 
 const job = (over) => ({
   id: "x", kind: "shell", status: "running", workerId: "w1", title: "t", command: null, detail: null,
@@ -38,12 +38,12 @@ describe("jobs model", () => {
     expect(jobMeta(job({ status: "completed", endedAt: 0 }), 10_000)).toBe("just now");
   });
 
-  it("reads percentages, commands and unseen failures", () => {
+  it("reads percentages, commands and failures", () => {
     expect(pctOf(job({ progress: { done: 1, total: 3 } }))).toBe(33);
     expect(pctOf(job({}))).toBe(null);
     expect(titleIsCommand(job({ title: "npm test", command: "npm test" }))).toBe(true);
     expect(titleIsCommand(job({ title: "Run tests", command: "npm test" }))).toBe(false);
-    expect(hasUnseenFailure([job({ status: "failed", endedAt: 10 })], 5)).toBe(true);
-    expect(hasUnseenFailure([job({ status: "failed", endedAt: 10 })], 10)).toBe(false);
+    expect(hasFailure([job({ status: "failed", endedAt: 10 })])).toBe(true);
+    expect(hasFailure([job({ status: "completed", endedAt: 10 })])).toBe(false);
   });
 });

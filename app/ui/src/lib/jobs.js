@@ -56,5 +56,5 @@ export function jobMeta(job, now) {
 // A command reads in mono; a name in the UI face.
 export const titleIsCommand = (job) => job.command !== null && job.title === job.command;
 
-// A failed job the user hasn't seen since `seenAt` (the beacon's dot).
-export const hasUnseenFailure = (jobs, seenAt) => jobs.some((j) => j.status === "failed" && (j.endedAt ?? 0) > seenAt);
+// A failed job still in the list — the beacon's dot, until the user dismisses or clears it.
+export const hasFailure = (jobs) => jobs.some((j) => j.status === "failed");
