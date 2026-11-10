@@ -14,10 +14,9 @@ const SCRATCH_GROUP_KEY = "__scratch__";
 // back to cwd). A registered project (projects[]) claims every root whose dir is
 // one of its folders and names the group; its path is the primary folder, and it
 // shows even with no roots. Roots keep their incoming order (started_at ASC from
-// buildAgentTree); groups appear in the order their first root does (then empty
-// registered projects), pinned projects first, then "No folder" and the "Other"
-// bucket (no known project) always last. Deterministic — nothing re-sorts as agent statuses
-// change, so rows never jump around.
+// buildAgentTree). Groups are alphabetical by name — pinned projects first, then
+// "No folder" and the "Other" bucket (no known project) always last — so a group
+// stays put when its sessions are added, deleted or change status.
 export function groupRootsByProject(roots, projects = []) {
   const groups = new Map();
   const groupFor = (key, init) => {
@@ -39,7 +38,8 @@ export function groupRootsByProject(roots, projects = []) {
   }
   for (const p of projects) projectGroup(p);
   const rank = (g) => (g.project?.pinned ? 0 : g.key === OTHER_GROUP_KEY ? 3 : g.scratch ? 2 : 1);
-  return [...groups.values()].sort((a, b) => rank(a) - rank(b));
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true }) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0);
+  return [...groups.values()].sort((a, b) => rank(a) - rank(b) || byName(a, b));
 }
 
 export function buildAgentTree(workers) {

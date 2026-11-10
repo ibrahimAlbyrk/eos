@@ -62,10 +62,10 @@ describe("groupRootsByProject", () => {
       { id: "p2", name: "Empty", folders: ["/u/empty"] },
     ];
     const groups = groupRootsByProject([root("a", "/u/other"), root("b", "/u/lib"), root("c", "/u/ds")], projects);
-    expect(groups.map((g) => g.name)).toEqual(["other", "Dear Souls", "Empty"]);
-    expect(groups[1].path).toBe("/u/ds");
-    expect(groups[1].roots.map((r) => r.id)).toEqual(["b", "c"]);
-    expect(groups[2].roots).toEqual([]);
+    expect(groups.map((g) => g.name)).toEqual(["Dear Souls", "Empty", "other"]);
+    expect(groups[0].path).toBe("/u/ds");
+    expect(groups[0].roots.map((r) => r.id)).toEqual(["b", "c"]);
+    expect(groups[1].roots).toEqual([]);
   });
 
   it("No folder roots share one pathless group, just before Other", () => {
@@ -119,12 +119,14 @@ describe("groupRootsByProject", () => {
     expect(other.roots.map((r) => r.id)).toEqual(["a", "c"]);
   });
 
-  it("keeps group order by first appearance (stable, no churn)", () => {
+  it("orders groups alphabetically, regardless of which sessions exist", () => {
     const groups = groupRootsByProject([
-      root("a", "/p/second"),
-      root("b", "/p/first"),
-      root("c", "/p/second"),
+      root("a", "/p/zeta"),
+      root("b", "/p/Beta"),
+      root("c", "/p/alpha"),
     ]);
-    expect(groups.map((g) => g.name)).toEqual(["second", "first"]);
+    expect(groups.map((g) => g.name)).toEqual(["alpha", "Beta", "zeta"]);
+    const after = groupRootsByProject([root("b", "/p/Beta"), root("c", "/p/alpha"), root("a", "/p/zeta")]);
+    expect(after.map((g) => g.name)).toEqual(["alpha", "Beta", "zeta"]);
   });
 });
