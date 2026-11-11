@@ -64,7 +64,11 @@ code: use the `Clock` and id ports so tests are deterministic.
 - every database read-modify-write is one closure on the writer thread (`eos-kit-sqlite`);
   repositories are synchronous and run inside it; readers use read-only connections;
 - every in-memory state transition that must be ordered with bus delivery runs on the ordered
-  executor in `eos-runtime`. A handler never holds a lock across an `.await`.
+  executor in `eos-runtime`. A handler never holds a lock across an `.await`;
+- an event that announces a database write is published in commit order: the write job hands
+  its events to an after-commit step that runs on the writer thread and only posts them to the
+  ordered executor (it never blocks on it). Nothing publishes "row written" from the caller's
+  own thread after the write returns.
 
 **Memory.** No unbounded queue, channel or cache: each has a stated bound and a policy when
 full. Event payloads are serialized once and shared (`Bytes`, `Arc<str>`). Per-session state is
