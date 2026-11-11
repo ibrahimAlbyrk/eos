@@ -1092,11 +1092,13 @@ dependencies = [
  "eos-fs",
  "eos-git",
  "eos-kit-fs",
+ "eos-kit-net",
  "eos-kit-proc",
  "eos-kit-sqlite",
  "eos-mod-accounts",
  "eos-mod-fs",
  "eos-mod-pages",
+ "eos-mod-plugins",
  "eos-mod-policy",
  "eos-mod-profile",
  "eos-mod-projects",
@@ -1106,6 +1108,8 @@ dependencies = [
  "eos-mod-worker-definitions",
  "eos-mod-workers",
  "eos-platform",
+ "eos-plugin-build",
+ "eos-plugin-files",
  "eos-policy",
  "eos-profile",
  "eos-prompts",
@@ -1196,6 +1200,7 @@ dependencies = [
  "eos-contracts",
  "eos-domain",
  "getrandom 0.4.3",
+ "indexmap",
  "serde",
  "serde_json",
  "thiserror",
@@ -1382,6 +1387,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-plugins"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-kit-proc",
+ "eos-platform",
+ "eos-plugin-build",
+ "eos-plugin-files",
+ "eos-runtime",
+ "eos-testkit",
+ "flate2",
+ "indexmap",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-mod-policy"
 version = "0.0.1"
 dependencies = [
@@ -1513,6 +1542,43 @@ dependencies = [
  "tempfile",
  "thiserror",
  "unicode-normalization",
+]
+
+[[package]]
+name = "eos-plugin-build"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-kit-proc",
+ "eos-platform",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "eos-plugin-files"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "eos-contracts",
+ "eos-core",
+ "eos-kit-fs",
+ "eos-kit-net",
+ "eos-kit-proc",
+ "eos-platform",
+ "eos-testkit",
+ "flate2",
+ "indexmap",
+ "notify",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

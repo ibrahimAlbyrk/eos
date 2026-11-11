@@ -1,0 +1,24 @@
+[package]
+name = "eos-plugin-build"
+description = "Builds a plugin's UI entry into one module by driving the shipped esbuild binary."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-core.workspace = true
+eos-kit-proc.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+eos-platform.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[lints]
+workspace = true

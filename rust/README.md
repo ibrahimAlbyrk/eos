@@ -6,6 +6,7 @@ engine. It is built beside the TypeScript backend and replaces it in one release
 ## Layout
 
 ```
+assets/    files the app ships as they are (claude-plugin: the skill that teaches agents to write Eos plugins)
 crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
 host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a workspace of its own
 tools/     dev tooling: wire-recorder (records and replays what the daemon answers);

@@ -9,6 +9,7 @@ use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore};
 use eos_core::{Clock, Ids};
+use eos_mod_plugins::PluginHost;
 use eos_mod_profile::PendingCaps;
 use eos_mod_system::RunInfo;
 use eos_policy::PolicyGateway;
@@ -36,6 +37,7 @@ pub(crate) struct Context {
     pub(crate) projects: Arc<dyn ProjectStore>,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
+    pub(crate) plugins: Arc<PluginHost>,
     pub(crate) kernel: eos_runtime::Kernel,
     pub(crate) paths: eos_platform::DataPaths,
     /// Routes of the raw-content origin, collected while the modules are built.
@@ -70,6 +72,7 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             cx.ids.clone(),
             cx.bus.clone(),
         )),
+        cx.plugins.module(),
         Arc::new(eos_mod_policy::PolicyModule::new(cx.policy.clone(), cx.store.clone(), cx.bus.clone())),
         Arc::new(eos_mod_projects::ProjectsModule::new(cx.projects.clone(), cx.recents.clone())),
         Arc::new(eos_mod_prompts::PromptsModule::new(cx.prompts.clone(), Some(cx.profile_prompt.clone()))),

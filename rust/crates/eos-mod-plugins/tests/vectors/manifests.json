@@ -1,0 +1,322 @@
+[
+  {
+    "name": "minimal",
+    "text": "{\"id\":\"clock\",\"name\":\"Clock\"}",
+    "folderId": "clock",
+    "files": [
+      "plugin.json",
+      "ui.jsx"
+    ],
+    "manifest": {
+      "id": "clock",
+      "name": "Clock"
+    },
+    "entry": "ui.jsx"
+  },
+  {
+    "name": "full",
+    "text": "{\"id\":\"acme.sticky-notes\",\"name\":\"Notes\",\"description\":\"d\",\"version\":\"1.2.0\",\"icon\":\"<svg/>\",\"ui\":\"src/main.tsx\",\"experimental\":true,\"settings\":{\"seconds\":{\"type\":\"boolean\",\"title\":\"Seconds\",\"default\":false},\"label\":{\"type\":\"string\",\"title\":\"Label\",\"default\":\"x\",\"placeholder\":\"p\",\"multiline\":true,\"description\":\"why\"},\"size\":{\"type\":\"number\",\"title\":\"Size\",\"default\":12.5,\"min\":1,\"max\":40,\"step\":0.5},\"zone\":{\"type\":\"select\",\"title\":\"Zone\",\"options\":[{\"value\":\"utc\",\"label\":\"UTC\"}],\"default\":\"utc\"}}}",
+    "folderId": "acme.sticky-notes",
+    "files": [
+      "plugin.json",
+      "src"
+    ],
+    "manifest": {
+      "id": "acme.sticky-notes",
+      "name": "Notes",
+      "description": "d",
+      "version": "1.2.0",
+      "icon": "<svg/>",
+      "ui": "src/main.tsx",
+      "settings": {
+        "seconds": {
+          "type": "boolean",
+          "default": false,
+          "title": "Seconds"
+        },
+        "label": {
+          "type": "string",
+          "default": "x",
+          "placeholder": "p",
+          "multiline": true,
+          "title": "Label",
+          "description": "why"
+        },
+        "size": {
+          "type": "number",
+          "default": 12.5,
+          "min": 1,
+          "max": 40,
+          "step": 0.5,
+          "title": "Size"
+        },
+        "zone": {
+          "type": "select",
+          "options": [
+            {
+              "value": "utc",
+              "label": "UTC"
+            }
+          ],
+          "default": "utc",
+          "title": "Zone"
+        }
+      },
+      "experimental": true
+    },
+    "entry": "src/main.tsx"
+  },
+  {
+    "name": "unknown keys are dropped",
+    "text": "{\"id\":\"clock\",\"name\":\"Clock\",\"author\":\"me\",\"settings\":{\"a\":{\"type\":\"boolean\",\"title\":\"Seconds\",\"default\":false,\"extra\":1}}}",
+    "folderId": "clock",
+    "files": [
+      "plugin.json"
+    ],
+    "manifest": {
+      "id": "clock",
+      "name": "Clock",
+      "settings": {
+        "a": {
+          "type": "boolean",
+          "default": false,
+          "title": "Seconds"
+        }
+      }
+    },
+    "entry": null
+  },
+  {
+    "name": "no file",
+    "text": null,
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json is missing"
+  },
+  {
+    "name": "no folder id given",
+    "text": "{\"id\":\"clock\",\"name\":\"Clock\"}",
+    "folderId": null,
+    "files": [
+      "ui.ts",
+      "ui.js"
+    ],
+    "manifest": {
+      "id": "clock",
+      "name": "Clock"
+    },
+    "entry": "ui.ts"
+  },
+  {
+    "name": "entry order",
+    "text": "{\"id\":\"clock\",\"name\":\"Clock\"}",
+    "folderId": "clock",
+    "files": [
+      "ui.js",
+      "ui.ts",
+      "ui.jsx",
+      "ui.tsx"
+    ],
+    "manifest": {
+      "id": "clock",
+      "name": "Clock"
+    },
+    "entry": "ui.tsx"
+  },
+  {
+    "name": "no entry",
+    "text": "{\"id\":\"clock\",\"name\":\"Clock\"}",
+    "folderId": "clock",
+    "files": [
+      "plugin.json",
+      "main.jsx"
+    ],
+    "manifest": {
+      "id": "clock",
+      "name": "Clock"
+    },
+    "entry": null
+  },
+  {
+    "name": "id differs from folder",
+    "text": "{\"id\":\"other\",\"name\":\"Other\"}",
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json: id \"other\" must match the folder name \"clock\""
+  },
+  {
+    "name": "missing id",
+    "text": "{\"name\":\"no id\"}",
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json: id — Required"
+  },
+  {
+    "name": "missing name",
+    "text": "{\"id\":\"clock\"}",
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json: name — Required"
+  },
+  {
+    "name": "empty name",
+    "text": "{\"id\":\"clock\",\"name\":\"\"}",
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json: name — String must contain at least 1 character(s)"
+  },
+  {
+    "name": "long name",
+    "text": "{\"id\":\"clock\",\"name\":\"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\"}",
+    "folderId": "clock",
+    "files": [],
+    "error": "plugin.json: name — String must contain at most 60 character(s)"
+  },
+  {
+    "name": "bad id",
+    "text": "{\"id\":\"Bad_Id\",\"name\":\"x\"}",
+    "folderId": "Bad_Id",
+    "files": [],
+    "error": "plugin.json: id — lowercase letters, digits, \"-\" and \".\""
+  },
+  {
+    "name": "long id",
+    "text": "{\"id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"x\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: id — String must contain at most 64 character(s)"
+  },
+  {
+    "name": "id not a string",
+    "text": "{\"id\":5,\"name\":\"x\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: id — Expected string, received number"
+  },
+  {
+    "name": "name not a string",
+    "text": "{\"id\":\"clock\",\"name\":5}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: name — Expected string, received number"
+  },
+  {
+    "name": "not an object",
+    "text": "[\"clock\"]",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: (root) — Expected object, received array"
+  },
+  {
+    "name": "null",
+    "text": "null",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: (root) — Expected object, received null"
+  },
+  {
+    "name": "a string",
+    "text": "\"clock\"",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: (root) — Expected object, received string"
+  },
+  {
+    "name": "long description",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"description\":\"ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: description — String must contain at most 300 character(s)"
+  },
+  {
+    "name": "long version",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"version\":\"vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: version — String must contain at most 40 character(s)"
+  },
+  {
+    "name": "long icon",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"icon\":\"iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: icon — String must contain at most 8000 character(s)"
+  },
+  {
+    "name": "experimental not a flag",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"experimental\":\"yes\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: experimental — Expected boolean, received string"
+  },
+  {
+    "name": "settings not an object",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":[]}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings — Expected object, received array"
+  },
+  {
+    "name": "bad setting key",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"1st\":{\"type\":\"boolean\",\"title\":\"Seconds\",\"default\":false}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.1st — Invalid"
+  },
+  {
+    "name": "setting without title",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"boolean\"}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.title — Required"
+  },
+  {
+    "name": "setting with empty title",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"string\",\"title\":\"\"}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.title — String must contain at least 1 character(s)"
+  },
+  {
+    "name": "unknown setting type",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"color\",\"title\":\"A\"}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.type — Invalid discriminator value. Expected 'boolean' | 'string' | 'number' | 'select'"
+  },
+  {
+    "name": "setting without type",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"title\":\"A\"}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.type — Invalid discriminator value. Expected 'boolean' | 'string' | 'number' | 'select'"
+  },
+  {
+    "name": "select without options",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"select\",\"title\":\"A\",\"options\":[]}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.options — Array must contain at least 1 element(s)"
+  },
+  {
+    "name": "wrong default type",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"number\",\"title\":\"A\",\"default\":\"3\"}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.default — Expected number, received string"
+  },
+  {
+    "name": "two problems",
+    "text": "{\"id\":\"Bad Id\",\"name\":\"\"}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: id — lowercase letters, digits, \"-\" and \".\"; name — String must contain at least 1 character(s)"
+  },
+  {
+    "name": "two constraint problems in settings",
+    "text": "{\"id\":\"clock\",\"name\":\"x\",\"settings\":{\"a\":{\"type\":\"string\",\"title\":\"\"},\"b!\":{\"type\":\"boolean\",\"title\":\"Seconds\",\"default\":false}}}",
+    "folderId": null,
+    "files": [],
+    "error": "plugin.json: settings.a.title — String must contain at least 1 character(s); settings.b! — Invalid"
+  }
+]

@@ -29,6 +29,15 @@ fn bundled_dist() -> Option<PathBuf> {
     dist.join("index.html").is_file().then_some(dist)
 }
 
+/// What ships beside the program in a bundle (`Contents/Resources`): the esbuild that builds
+/// plugins and the skill that teaches agents to write them. `None` outside a bundle, where
+/// the core falls back to the repository it was built in.
+fn bundled_resources() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let resources = exe.parent()?.parent()?.join("Resources");
+    resources.is_dir().then_some(resources)
+}
+
 fn options() -> Options {
     let data_dir = env("EOS_SHELL_DATA")
         .map_or_else(|| home().join("Library/Application Support/com.ibrahimalbyrk.eos"), PathBuf::from);
@@ -71,7 +80,8 @@ impl Eos {
         };
         // Building the app spawns its own tasks.
         let _runtime = ports.rt.enter();
-        let app = match eos_app::App::build(eos_app::Options::new(home)) {
+        let options = eos_app::Options { resources: bundled_resources(), ..eos_app::Options::new(home) };
+        let app = match eos_app::App::build(options) {
             Ok(app) => Arc::new(app),
             Err(e) => {
                 eprintln!("eos: the core could not be built: {e}");

@@ -209,6 +209,12 @@ step = "memory-create-invalid"
 at = "/json/error"
 reason = "eos-contracts stops at the first field of the wrong type (the category) and does not go on to the constraints (the empty text); Zod named both (crates/eos-contracts/README.md)."
 
+[[known]]
+scenario = "34-plugins"
+step = "install-bad-source"
+at = "/json/error"
+reason = "eos-contracts words a bad union tag as a bad enum value and names what it got; Zod said `Invalid discriminator value` (crates/eos-contracts/README.md)."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

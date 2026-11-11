@@ -1,0 +1,2 @@
+.clock { color: red; }
+.clock:hover { color: color-mix(in srgb, red 60%, white); }

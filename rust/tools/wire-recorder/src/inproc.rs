@@ -43,6 +43,8 @@ impl RustTarget {
         let app = App::build(Options { pdfjs_root: Some(PDFJS.into()), ..Options::new(home) })
             .with_context(|| format!("building the app on {}", home.display()))?;
         runtime.block_on(app.start()).context("starting the app")?;
+        // What start-up left for later (plugin folders are read then) is done before the first step.
+        runtime.block_on(app.runtime().lifecycle.deferred_done());
         Ok(Self { app: Arc::new(app), runtime: Arc::new(runtime) })
     }
 

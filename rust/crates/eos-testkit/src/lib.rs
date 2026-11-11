@@ -19,6 +19,7 @@
 //! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]);
 //! [`FakeWatcher`] stands in for the folder watcher and the git watcher.
 //! The accounts area's fakes are in `accounts` ([`FakePlanStores`], [`FakeSubscriptionProvider`], …).
+//! [`plugins`] holds the fakes of the plugin ports.
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -33,6 +34,7 @@ mod files;
 pub mod fixtures;
 mod home;
 mod ids;
+pub mod plugins;
 mod policy;
 mod profile;
 mod watchers;

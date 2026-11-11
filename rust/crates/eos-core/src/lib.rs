@@ -12,6 +12,7 @@
 //! | [`git`] | the `git` program: status, branches, worktrees |
 //! | [`net`] | other computers: sync vault, updates, artifacts, media |
 //! | [`os`] | files, watchers, processes, the system clock's time zone |
+//! | [`plugin`] | plugin folders, their builder, their data, where installs come from |
 //! | [`policy`] | permission decisions and tool scope |
 //! | [`prompt`] | prompt sources and rendering |
 //! | [`shell`] | the window shell: embedded views, screenshots, the open panel |
@@ -32,6 +33,7 @@ pub mod ids;
 pub mod net;
 pub mod os;
 pub mod pages;
+pub mod plugin;
 pub mod policy;
 pub mod profile;
 pub mod prompt;

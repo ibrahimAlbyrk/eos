@@ -105,13 +105,34 @@ impl Output {
 pub struct Child {
     pid: u32,
     events: mpsc::Receiver<Event>,
+    stdin: Option<Stdin>,
     trees: ProcessTrees,
     killed: Arc<AtomicBool>,
+}
+
+/// The child's stdin, for a command started with
+/// [`Command::stdin_open`](crate::Command::stdin_open). Dropping it closes
+/// the pipe: the child reads end-of-file.
+#[derive(Debug)]
+pub struct Stdin(tokio::process::ChildStdin);
+
+impl Stdin {
+    /// Writes all of `bytes`. Fails once the child has stopped reading.
+    pub async fn write(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        self.0.write_all(bytes).await?;
+        self.0.flush().await
+    }
 }
 
 impl Child {
     pub fn pid(&self) -> u32 {
         self.pid
+    }
+
+    /// The pipe to the child's stdin; `None` unless the command asked for an
+    /// open stdin, and after it was taken.
+    pub fn stdin(&mut self) -> Option<Stdin> {
+        self.stdin.take()
     }
 
     /// The next piece of output, then [`Event::Exit`], then `None`. Output of
@@ -260,18 +281,19 @@ impl Runner {
 
         let mut tokio_command = tokio::process::Command::from(std_command);
         tokio_command
-            .stdin(if command.stdin.is_some() { Stdio::piped() } else { Stdio::null() })
+            .stdin(if command.stdin.is_some() || command.stdin_open { Stdio::piped() } else { Stdio::null() })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
         let spawn_error = |source| Error::Spawn { program: command.program.to_string_lossy().into_owned(), source };
-        let child = tokio_command.spawn().map_err(spawn_error)?;
+        let mut child = tokio_command.spawn().map_err(spawn_error)?;
+        let stdin = if command.stdin_open { child.stdin.take().map(Stdin) } else { None };
         let pid = child.id().ok_or_else(|| spawn_error(std::io::Error::other("the child has no process id")))?;
 
         let (tx, rx) = mpsc::channel(EVENT_QUEUE);
         let killed = Arc::new(AtomicBool::new(false));
         tokio::spawn(watch(child, pid, tx, command.stdin, command.timeout, self.trees.clone(), killed.clone()));
-        Ok(Child { pid, events: rx, trees: self.trees.clone(), killed })
+        Ok(Child { pid, events: rx, stdin, trees: self.trees.clone(), killed })
     }
 
     /// Runs the command to its end, or to its deadline. Dropping the returned

@@ -12,17 +12,19 @@ use eos_auth::{
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_core::accounts::{PlanAccess, SessionCredentials};
+use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
 use eos_kit_sqlite::Db;
+use eos_mod_plugins::{NoPreviewWindow, PluginHost};
 use eos_mod_system::RunInfo;
 use eos_platform::DataPaths;
 use eos_policy::{GatewayOptions, PolicyGateway};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::lifecycle::ShutdownReport;
-use eos_runtime::router::{AllPluginsOn, Router};
+use eos_runtime::router::Router;
 use eos_runtime::stream::StreamOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_sessions::Reconciled;
@@ -57,6 +59,13 @@ pub struct Options {
     /// The folder of the bundled PDF viewer (`web/viewer.html` inside it);
     /// without it the raw-content origin serves no `/pdfjs/*`.
     pub pdfjs_root: Option<PathBuf>,
+    /// The app bundle's resources folder: what ships beside the program
+    /// (`esbuild`, `claude-plugin/`). `None` in a development run, which
+    /// falls back to the repository it was built in.
+    pub resources: Option<PathBuf>,
+    /// The window shell, which draws plugin previews. Until it does, a
+    /// preview answers that no window is open.
+    pub plugin_previewer: Arc<dyn PluginPreviewer>,
 }
 
 impl Options {
@@ -68,6 +77,8 @@ impl Options {
             ids: Arc::new(RandomIds),
             env: env_from_process(),
             pdfjs_root: None,
+            resources: None,
+            plugin_previewer: Arc::new(NoPreviewWindow),
         }
     }
 }
@@ -95,6 +106,7 @@ pub struct App {
     callers: Callers,
     paths: DataPaths,
     reconciled: Reconciled,
+    plugins: Arc<PluginHost>,
 }
 
 impl std::fmt::Debug for App {
@@ -110,7 +122,7 @@ impl App {
     /// the kernel and the modules. Nothing runs yet: call
     /// [`start`](Self::start). Blocks on file and database work.
     pub fn build(options: Options) -> Result<Self, Error> {
-        let Options { home, clock, ids, env, pdfjs_root } = options;
+        let Options { home, clock, ids, env, pdfjs_root, resources, plugin_previewer } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
@@ -139,6 +151,14 @@ impl App {
         let store = Arc::new(SqliteStore::new(db, announcer.clone(), store_options));
         let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
 
+        let plugins = crate::plugins::host(crate::plugins::Parts {
+            paths: &paths,
+            bus: kernel.bus.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            resources: resources.as_deref(),
+            previewer: plugin_previewer,
+        })?;
         let accounts_dir = paths.join("accounts");
         let stores = Arc::new(Stores::new(Arc::new(HostCredentials), Endpoints::default()));
         let accounts = Accounts::new(eos_accounts::Deps {
@@ -200,6 +220,7 @@ impl App {
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
             recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
             accounts: accounts.clone(),
+            plugins: plugins.clone(),
             kernel: kernel.clone(),
             paths: paths.clone(),
             raw_routes: Default::default(),
@@ -210,7 +231,7 @@ impl App {
             templates,
             worker_definitions,
         };
-        let runtime = Runtime::build(kernel, modules::all(&context), Arc::new(AllPluginsOn))?;
+        let runtime = Runtime::build(kernel, modules::all(&context), plugins.switch())?;
         let raw_router = Arc::new(Router::builder().routes(context.raw_routes.take()).build()?);
         if let Some((backup, dir)) = snapshot {
             // Thousands of small files: after the app is up, off the start-up path.
@@ -219,8 +240,14 @@ impl App {
                 Ok(())
             })?;
         }
+        // Scanning and building every plugin must not hold up the window.
+        let starting = plugins.clone();
+        runtime.lifecycle.defer("plugins", move || async move {
+            starting.start().await;
+            Ok(())
+        })?;
         let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
-        Ok(Self { runtime, raw_router, store, config, settings, accounts, callers, paths, reconciled })
+        Ok(Self { runtime, raw_router, store, config, settings, accounts, callers, paths, reconciled, plugins })
     }
 
     /// Starts every module, then tells them the app is ready.
@@ -280,6 +307,11 @@ impl App {
     /// What start-up did to the worker rows the last run left behind.
     pub fn reconciled(&self) -> Reconciled {
         self.reconciled
+    }
+
+    /// The plugin system, as the agent tools and session start ask it.
+    pub fn plugins(&self) -> Arc<dyn Plugins> {
+        self.plugins.clone()
     }
 
     /// Stops the modules (last first) and the streams inside `deadline`, then

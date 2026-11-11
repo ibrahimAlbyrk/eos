@@ -6,7 +6,8 @@
 //! the whole tree is ended and the child is reaped: no orphans, no zombies.
 //!
 //! - [`Runner::run`]: to completion, output collected up to a cap.
-//! - [`Runner::spawn`]: output as it arrives, through a bounded queue.
+//! - [`Runner::spawn`]: output as it arrives, through a bounded queue; with
+//!   [`Command::stdin_open`], a conversation over the child's stdin.
 //!
 //! How a process tree is made and ended differs per system, so those two
 //! operations arrive as values ([`ProcessTrees`]) from the platform seam:
@@ -27,4 +28,4 @@ mod runner;
 pub use command::{Command, DEFAULT_MAX_OUTPUT, DEFAULT_TIMEOUT, Overflow};
 pub use env::Env;
 pub use error::Error;
-pub use runner::{Child, Event, Exit, Output, ProcessTrees, Runner};
+pub use runner::{Child, Event, Exit, Output, ProcessTrees, Runner, Stdin};

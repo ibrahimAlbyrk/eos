@@ -27,6 +27,7 @@ pub struct Command {
     pub(crate) cwd: Option<PathBuf>,
     pub(crate) env: Env,
     pub(crate) stdin: Option<Vec<u8>>,
+    pub(crate) stdin_open: bool,
     pub(crate) timeout: Option<Duration>,
     pub(crate) max_output: usize,
     pub(crate) overflow: Overflow,
@@ -40,6 +41,7 @@ impl Command {
             cwd: None,
             env: Env::inherit(),
             stdin: None,
+            stdin_open: false,
             timeout: Some(DEFAULT_TIMEOUT),
             max_output: DEFAULT_MAX_OUTPUT,
             overflow: Overflow::Truncate,
@@ -79,6 +81,13 @@ impl Command {
     /// the child reads end-of-file at once instead of waiting on a pipe.
     pub fn stdin(mut self, input: impl Into<Vec<u8>>) -> Self {
         self.stdin = Some(input.into());
+        self
+    }
+
+    /// Keeps the child's stdin open for a conversation: the caller writes to
+    /// it through [`Child::stdin`](crate::Child::stdin) ([`Runner::spawn`](crate::Runner::spawn) only).
+    pub fn stdin_open(mut self) -> Self {
+        self.stdin_open = true;
         self
     }
 

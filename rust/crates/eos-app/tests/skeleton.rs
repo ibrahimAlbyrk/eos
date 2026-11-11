@@ -96,3 +96,38 @@ async fn the_folder_is_reopened_as_it_was_left() {
     let again = App::build(options(&home)).expect("builds on the same folder");
     assert_eq!(again.callers().ui_token(), token);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn plugins_are_part_of_the_app() {
+    let home = TempHome::new();
+    home.write("plugins/hello/plugin.json", r#"{"id":"hello","name":"Hello"}"#);
+    let app = App::build(options(&home)).expect("builds");
+    app.start().await.expect("starts");
+    // Plugin folders are read off the start-up path.
+    app.runtime().lifecycle.deferred_done().await;
+
+    let router = app.router();
+    assert_eq!(router.undeclared(), Vec::<String>::new());
+    let listing = router.handle(Request::new(Method::Get, "/api/plugins", app.callers().classify(None))).await;
+    assert_eq!(listing.status, 200);
+    let listing: serde_json::Value =
+        serde_json::from_slice(&listing.body.collect().await.expect("a body")).expect("JSON");
+    let ids: Vec<&str> =
+        listing["plugins"].as_array().expect("a list").iter().filter_map(|p| p["id"].as_str()).collect();
+    assert_eq!(ids, ["eos.artifacts", "eos.auto-name", "eos.browser", "eos.btw", "eos.pages", "eos.terminal", "hello"]);
+    assert_eq!(listing["dir"], home.join("plugins").to_string_lossy().as_ref());
+    assert_eq!(listing.get("installs"), None, "only the user's dashboard is told where plugins came from");
+
+    // What the agent tools and session start ask.
+    let plugins = app.plugins();
+    assert!(plugins.is_enabled("hello") && plugins.disabled_builtins().is_empty());
+    assert_eq!(plugins.status("hello", false).await.expect("a status").plugin.id, "hello");
+    let skill = plugins.authoring_plugin().expect("a development build finds the skill in its repository");
+    assert!(skill.join("skills/eos-plugin-authoring/SKILL.md").is_file());
+
+    // A preview needs the window shell, which this app was built without.
+    let preview = Request::new(Method::Post, "/api/plugins/hello/preview", app.callers().classify(None));
+    assert_eq!(router.handle(preview).await.status, 409, "hello has no UI entry");
+
+    assert!(app.shutdown(Duration::from_secs(5)).await.clean());
+}

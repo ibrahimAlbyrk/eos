@@ -21,6 +21,7 @@ mod files;
 mod host;
 mod modules;
 mod notes;
+mod plugins;
 
 pub use app::{App, Options};
 pub use callers::Callers;

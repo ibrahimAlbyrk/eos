@@ -1,7 +1,7 @@
 #!/bin/bash
 # Signs the bundle locally with the Developer ID identity, inside out: the framework's
-# libraries, the framework, the helper apps, the app; hardened runtime and the CEF
-# entitlements on the executables.
+# libraries, the framework, the helper apps, the bundled esbuild, the app; hardened runtime
+# on the executables, and the CEF entitlements on those that run Chromium.
 #
 # --timestamp=none on purpose: nothing is sent to Apple's timestamp service, nothing is
 # notarized, nothing is uploaded. A release needs the secure timestamp and notarization;
@@ -20,5 +20,9 @@ sign() { codesign --force --timestamp=none -s "$ID" "$@" 2>&1 | sed -E 's/[0-9A-
 for lib in "$FW"/Libraries/*.dylib; do sign "$lib"; done
 sign "$FW"
 for helper in "$APP"/Contents/Frameworks/*.app; do sign --options runtime --entitlements "$ENT" "$helper"; done
+# npm ships esbuild signed ad hoc by the linker: it gets the app's identity before the app is
+# sealed. A plain program (no JIT, no Chromium): hardened runtime without entitlements.
+ESBUILD="$APP/Contents/Resources/esbuild"
+[ ! -f "$ESBUILD" ] || sign --options runtime "$ESBUILD"
 sign --options runtime --entitlements "$ENT" "$APP"
 codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"

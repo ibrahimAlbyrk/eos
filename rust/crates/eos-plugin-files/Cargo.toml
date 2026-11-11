@@ -1,0 +1,33 @@
+[package]
+name = "eos-plugin-files"
+description = "Plugins on disk and where they come from: the plugins folder and its watcher, plugin data, install staging, and the npm, git and folder sources."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-kit-fs.workspace = true
+eos-kit-net.workspace = true
+eos-kit-proc.workspace = true
+flate2.workspace = true
+indexmap.workspace = true
+notify.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+eos-platform.workspace = true
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[lints]
+workspace = true

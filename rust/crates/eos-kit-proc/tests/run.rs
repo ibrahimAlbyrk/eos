@@ -204,6 +204,23 @@ async fn streamed_output_arrives_in_order_before_the_exit() {
 }
 
 #[tokio::test]
+async fn an_open_stdin_carries_a_conversation_and_closing_it_ends_the_input() {
+    let mut child =
+        runner().spawn(sh("while read line; do echo \"got $line\"; done; echo bye").stdin_open()).expect("spawns");
+    let mut stdin = child.stdin().expect("the pipe");
+    assert!(child.stdin().is_none(), "taken once");
+
+    stdin.write(b"one\n").await.expect("writes");
+    assert_eq!(child.next().await, Some(Event::Stdout(b"got one\n".to_vec())));
+    stdin.write(b"two\n").await.expect("writes");
+    assert_eq!(child.next().await, Some(Event::Stdout(b"got two\n".to_vec())));
+
+    drop(stdin);
+    assert_eq!(child.next().await, Some(Event::Stdout(b"bye\n".to_vec())));
+    assert_eq!(child.next().await, Some(Event::Exit(eos_kit_proc::Exit { code: Some(0), timed_out: false })));
+}
+
+#[tokio::test]
 async fn a_slow_consumer_loses_nothing() {
     // 4 MB through a queue that holds 512 KB: the child has to wait for the consumer.
     let mut child = runner().spawn(sh("head -c 4000000 /dev/zero").timeout(Duration::from_secs(30))).expect("spawn");

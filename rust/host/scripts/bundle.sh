@@ -11,6 +11,9 @@
 #                        shares system state (notifications, local network, single instance)
 #                        with the installed Eos (`com.ibrahimalbyrk.eos`).
 #   EOS_UI_DIST          the built dashboard. Default `app/ui/dist` of this checkout.
+#   EOS_ESBUILD          the esbuild binary that builds plugins. Default: the one `npm ci`
+#                        puts under `infra/node_modules` for this Mac. It must be the release
+#                        `eos-plugin-build` speaks; without one the bundle is not made.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 PROFILE="${1:-release}"
@@ -20,6 +23,11 @@ NAME="Eos"
 REPO="$(cd "$HOST_DIR/../.." && pwd)"
 DIST="${EOS_UI_DIST:-$REPO/app/ui/dist}"
 [ -f "$DIST/index.html" ] || { echo "no dashboard at $DIST: run 'npm ci && npm run build' in app/ui" >&2; exit 1; }
+# The plugin builder talks to one esbuild release only (its packets are private to a release).
+ESBUILD_VERSION="$(sed -n 's/^pub const ESBUILD_VERSION: &str = "\(.*\)";/\1/p' "$REPO/rust/crates/eos-plugin-build/src/service.rs")"
+ESBUILD="${EOS_ESBUILD:-$(ls "$REPO"/infra/node_modules/@esbuild/darwin-*/bin/esbuild 2>/dev/null | head -1)}"
+[ -x "$ESBUILD" ] || { echo "no esbuild binary: run 'npm ci' in infra, or set EOS_ESBUILD" >&2; exit 1; }
+[ "$("$ESBUILD" --version)" = "$ESBUILD_VERSION" ] || { echo "$ESBUILD is not esbuild $ESBUILD_VERSION" >&2; exit 1; }
 
 cd "$HOST_DIR"
 FLAG=(); [ "$PROFILE" = "release" ] && FLAG=(--release)
@@ -42,6 +50,10 @@ cp "$REPO/app/build/icon.icns" "$APP/Contents/Resources/icon.icns"
 # Banners play it by name; macOS finds it in the bundle's resources.
 cp "$REPO/app/build/eos-notification.aiff" "$APP/Contents/Resources/"
 cp -R "$DIST" "$APP/Contents/Resources/dist"
+# What the core finds through `Options.resources`: the plugin builder's esbuild (sign.sh
+# signs it again with the app's identity) and the skill that teaches agents to write plugins.
+cp "$ESBUILD" "$APP/Contents/Resources/esbuild"
+cp -R "$REPO/rust/assets/claude-plugin" "$APP/Contents/Resources/claude-plugin"
 # -c: a clone copy where the volume supports it (APFS), so the 320 MB framework costs nothing.
 cp -Rc "$FRAMEWORK" "$APP/Contents/Frameworks/" 2>/dev/null || cp -R "$FRAMEWORK" "$APP/Contents/Frameworks/"
 
