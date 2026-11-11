@@ -28,6 +28,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-kit-proc", Layer::Kit),
     ("eos-kit-sqlite", Layer::Kit),
     ("eos-platform", Layer::Kit),
+    ("eos-runtime", Layer::Runtime),
     // Test and dev tooling: never a normal dependency of a library crate.
     ("xtask", Layer::Support),
 ];

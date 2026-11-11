@@ -18,11 +18,14 @@ eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
 eos-platform = { path = "crates/eos-platform" }
+eos-runtime = { path = "crates/eos-runtime" }
 
 anyhow = "1"
+base64 = "0.22"
 bytes = "1"
 crossbeam-channel = "0.5"
 flate2 = "1"
+futures-core = "0.3"
 regress = { version = "0.12", features = ["utf16"] }
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
 rusqlite = { version = "0.42", features = ["bundled"] }
@@ -31,10 +34,12 @@ ryu-js = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 serde_norway = "0.9"
+sha1 = "0.10"
 sha2 = "0.11"
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "sync", "time"] }
+tracing = "0.1"
 unicode-normalization = "0.1"
 url = "2"
 
