@@ -32,6 +32,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-contracts", Layer::Types),
     ("eos-core", Layer::Core),
     ("eos-domain", Layer::Domain),
+    ("eos-engine", Layer::Adapter),
     ("eos-genui", Layer::Types),
     ("eos-kit-fs", Layer::Kit),
     ("eos-kit-net", Layer::Kit),

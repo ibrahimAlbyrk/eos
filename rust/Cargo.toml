@@ -2,7 +2,8 @@
 resolver = "3"
 members = ["crates/*", "tools/wire-recorder", "xtask"]
 # `host/` is the Tauri + CEF workspace (see README.md, "Host workspace"); prototypes are their own workspaces too.
-exclude = ["host", "spikes"]
+# `vendor/` holds the agent engine's checkout, a workspace of its own (see README.md, "The agent engine").
+exclude = ["host", "spikes", "vendor"]
 
 [workspace.package]
 version = "0.0.1"
@@ -35,6 +36,19 @@ eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
 eos-testkit = { path = "crates/eos-testkit" }
+
+# The agent engine (eos-agent-sdk): a checkout linked at vendor/eos-agent-sdk by
+# scripts/link-sdk.sh, at the commit named in SDK_REV. Only `eos-engine` (sessions) and
+# `eos-auth` (sign-in) may depend on these.
+eos-agent-anthropic = { path = "vendor/eos-agent-sdk/crates/eos-agent-anthropic" }
+eos-agent-compat = { path = "vendor/eos-agent-sdk/crates/eos-agent-compat" }
+eos-agent-core = { path = "vendor/eos-agent-sdk/crates/eos-agent-core" }
+eos-agent-engine = { path = "vendor/eos-agent-sdk/crates/eos-agent-engine" }
+eos-agent-mock-api = { path = "vendor/eos-agent-sdk/tools/mock-api" }
+eos-agent-openai = { path = "vendor/eos-agent-sdk/crates/eos-agent-openai" }
+eos-agent-sdk = { path = "vendor/eos-agent-sdk/crates/eos-agent-sdk" }
+eos-agent-tools-session = { path = "vendor/eos-agent-sdk/crates/eos-agent-tools-session" }
+eos-agent-types = { path = "vendor/eos-agent-sdk/crates/eos-agent-types" }
 
 anyhow = "1"
 base64 = "0.22"

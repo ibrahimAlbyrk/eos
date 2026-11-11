@@ -1,0 +1,22 @@
+[package]
+name = "eos-engine"
+description = "Agent sessions on eos-agent-sdk: the one adapter of the agent runtime port."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-agent-compat.workspace = true
+eos-agent-core.workspace = true
+eos-agent-engine.workspace = true
+eos-agent-sdk.workspace = true
+eos-agent-tools-session.workspace = true
+eos-agent-types.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+
+[lints]
+workspace = true

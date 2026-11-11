@@ -7,6 +7,7 @@
 //! form is the `eos-contracts` row it converts to. A rule that belongs to one
 //! feature only stays in that feature's crate.
 
+pub mod accounts;
 pub mod config;
 pub mod context;
 pub mod display;
@@ -19,6 +20,7 @@ pub mod page;
 pub mod pending;
 pub mod project;
 pub mod text;
+pub mod time;
 pub mod transcript;
 pub mod user_memory;
 pub mod user_profile;

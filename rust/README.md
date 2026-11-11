@@ -10,7 +10,8 @@ crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
 host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a workspace of its own
 tools/     dev tooling: wire-recorder (records and replays what the daemon answers)
 xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`)
-scripts/   check.sh: everything CI runs for the main workspace; wire.sh: record the wire fixtures from
+scripts/   link-sdk.sh: link the agent engine's checkout (run once per checkout, see "The agent engine");
+           check.sh: everything CI runs for the main workspace; wire.sh: record the wire fixtures from
            today's daemon; replay.sh: replay them against the Rust core, in process
 fixtures/  recorded responses the Rust code must reproduce, see fixtures/README.md
            (fixtures/private is never committed)
@@ -30,6 +31,19 @@ docs/      how-tos: adding-a-feature.md is the path every feature crate follows
 scripts/check.sh         # fmt, clippy -D warnings, tests, layers, shell rules; never builds Tauri or CEF
 host/scripts/check.sh    # the host workspace: fmt, clippy, the bridge's dev proxy, patches, the same repo guards
 ```
+
+## The agent engine
+
+Agent sessions run on `eos-agent-sdk`, a separate repository linked in as path dependencies
+(`eos-agent-sdk`, `eos-agent-core`, … in `Cargo.toml`). Nothing machine-specific is committed:
+`scripts/link-sdk.sh` creates the git-ignored link `vendor/eos-agent-sdk` to a checkout of it
+(`$EOS_AGENT_SDK` when set, else the folder `eos-agent-sdk` beside this repository's main checkout,
+which is the same place from every worktree), and `SDK_REV` names the engine commit this tree needs.
+`scripts/check.sh` starts with `scripts/link-sdk.sh --check`, which fails with what to do when the
+link is missing or the linked checkout does not contain that commit. To work on the engine and Eos
+together, point `EOS_AGENT_SDK` at your engine worktree, run the script again, and update `SDK_REV`
+once the engine change is merged. Only `eos-engine` (sessions) and `eos-auth` (sign-in) depend on
+the engine's crates.
 
 ## Host workspace
 

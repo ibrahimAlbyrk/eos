@@ -9,3 +9,9 @@ pub trait ProcessStats: Send + Sync + 'static {
     /// The most it may open.
     fn fd_limit(&self) -> Option<u64>;
 }
+
+/// The user's local time, for text a person reads.
+pub trait LocalTime: Send + Sync + 'static {
+    /// Hours and minutes of `epoch_ms` on the user's clock (`16:40`).
+    fn hour_minute(&self, epoch_ms: i64) -> String;
+}

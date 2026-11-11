@@ -7,6 +7,7 @@
 //!
 //! | Module | Outside system |
 //! |---|---|
+//! | [`accounts`] | sign-ins, API keys, plan usage, a session's credential |
 //! | [`agent`] | the agent engine: sessions, models, usage |
 //! | [`git`] | the `git` program: status, branches, worktrees |
 //! | [`net`] | other computers: sync vault, updates, artifacts, media |
@@ -22,6 +23,7 @@
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
 //! is the vocabulary a port fails with.
 
+pub mod accounts;
 pub mod agent;
 pub mod clock;
 pub mod error;

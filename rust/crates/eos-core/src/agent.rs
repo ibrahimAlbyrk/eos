@@ -1,5 +1,23 @@
 //! Ports over the agent engine: sessions, models, usage
 //! (`core/src/ports/AgentBackend.ts`, `ModelCatalog.ts`, …).
+//!
+//! - [`AgentRuntime`] / [`AgentSession`] / [`SessionSink`]: starting sessions,
+//!   driving them, and where they report.
+//! - [`BackendDescriptor`] / [`AgentCapabilities`]: what a backend is and can
+//!   do. Branch on these, never on a backend's name.
+//! - [`PromptAssembler`], [`ToolSets`] / [`HostTool`], [`UserQuestions`]: what
+//!   the engine asks of the rest of Eos.
+
+mod descriptor;
+mod host;
+mod session;
+
+pub use descriptor::{AgentCapabilities, BackendAuth, BackendDescriptor, ModelSource};
+pub use host::{HostTool, PromptAssembler, ToolCaller, ToolDefinition, ToolImage, ToolReply, ToolSets, UserQuestions};
+pub use session::{
+    AgentRuntime, AgentSession, BackgroundTaskKind, BackgroundTaskUpdate, LaunchSpec, Rewound, SessionError,
+    SessionSink, SessionTranscript, TaskOutcome, TranscriptEntry,
+};
 
 use eos_contracts::{CatalogModel, UiBackendDescriptor};
 use serde::{Deserialize, Serialize};

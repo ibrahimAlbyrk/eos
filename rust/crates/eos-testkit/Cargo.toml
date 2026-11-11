@@ -20,6 +20,10 @@ indexmap.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["rt", "sync"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true
