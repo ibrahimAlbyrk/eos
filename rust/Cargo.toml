@@ -118,6 +118,14 @@ unwrap_used = "warn"
 
 # One address space holds every agent: a panic must unwind to its task's
 # boundary instead of ending the app.
+# Test and debug builds keep line numbers for our own crates only: with full
+# debug info a build folder is several times larger and slower to link.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 lto = "thin"
 codegen-units = 1
