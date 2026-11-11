@@ -1,0 +1,375 @@
+{
+  "name": "edit-patch",
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "session_id": "sess-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_A"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "e1",
+          "name": "Edit",
+          "input": {}
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"file_path\":\"/x\",\"old_string\":\"old\",\"new_string\":\"new\"}"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "e1",
+            "name": "Edit",
+            "input": {
+              "file_path": "/x",
+              "old_string": "old",
+              "new_string": "new"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "e1",
+            "content": "ok",
+            "is_error": false
+          }
+        ]
+      },
+      "tool_use_result": {
+        "filePath": "/x",
+        "structuredPatch": [
+          {
+            "oldStart": 42,
+            "oldLines": 1,
+            "newStart": 42,
+            "newLines": 1,
+            "lines": [
+              "-old",
+              "+new"
+            ]
+          },
+          {
+            "foo": 1
+          }
+        ]
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_B"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "r1",
+          "name": "Read",
+          "input": {}
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{}"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_B",
+      "message": {
+        "id": "msg_B",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "r1",
+            "name": "Read",
+            "input": {}
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "r1",
+            "content": [
+              {
+                "type": "text",
+                "text": "part one, "
+              },
+              {
+                "type": "text",
+                "text": "part two"
+              }
+            ],
+            "is_error": false
+          }
+        ]
+      },
+      "tool_use_result": {
+        "structuredPatch": "nope"
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_C"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "w1",
+          "name": "Write",
+          "input": {}
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"file_path\":\"/etc/hosts\",\"content\":\"x\"}"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_C",
+      "message": {
+        "id": "msg_C",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "w1",
+            "name": "Write",
+            "input": {
+              "file_path": "/etc/hosts",
+              "content": "x"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "w1",
+            "content": "denied",
+            "is_error": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {}
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "session",
+        "phase": "ready",
+        "sessionId": "sess-1"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "tool_call",
+            "callId": "e1",
+            "name": "Edit",
+            "input": {
+              "file_path": "/x",
+              "old_string": "old",
+              "new_string": "new"
+            }
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "tool",
+        "blocks": [
+          {
+            "type": "tool_result",
+            "callId": "e1",
+            "isError": false,
+            "content": "ok",
+            "patch": [
+              {
+                "oldStart": 42,
+                "newStart": 42,
+                "lines": [
+                  "-old",
+                  "+new"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "tool_call",
+            "callId": "r1",
+            "name": "Read",
+            "input": {}
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "tool",
+        "blocks": [
+          {
+            "type": "tool_result",
+            "callId": "r1",
+            "isError": false,
+            "content": "part one, part two"
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "tool_call",
+            "callId": "w1",
+            "name": "Write",
+            "input": {
+              "file_path": "/etc/hosts",
+              "content": "x"
+            }
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "tool",
+        "blocks": [
+          {
+            "type": "tool_result",
+            "callId": "w1",
+            "isError": true,
+            "content": "denied"
+          }
+        ]
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}

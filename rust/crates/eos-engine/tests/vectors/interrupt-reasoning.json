@@ -1,0 +1,282 @@
+{
+  "name": "interrupt-reasoning",
+  "interrupt": true,
+  "messages": [
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_I"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "done thought"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "sig"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_I",
+      "message": {
+        "id": "msg_I",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "done thought"
+          }
+        ]
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "thinking",
+          "thinking": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "half a "
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "thou"
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "error_during_execution",
+      "usage": {}
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_J"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "ok"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_J",
+      "message": {
+        "id": "msg_J",
+        "content": [
+          {
+            "type": "text",
+            "text": "ok"
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {}
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "start",
+        "blockId": "msg_I:0",
+        "text": "done thought"
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "stop",
+        "blockId": "msg_I:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "reasoning",
+            "text": "done thought",
+            "blockId": "msg_I:0"
+          }
+        ]
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "start",
+        "blockId": "msg_I:1",
+        "text": "half a "
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "append",
+        "blockId": "msg_I:1",
+        "text": "thou"
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "reasoning",
+            "text": "half a thou",
+            "blockId": "msg_I:1",
+            "interrupted": true
+          }
+        ]
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "error",
+        "reason": "error_during_execution"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_J:0",
+        "text": "ok"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_J:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "ok",
+            "blockId": "msg_J:0"
+          }
+        ]
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}

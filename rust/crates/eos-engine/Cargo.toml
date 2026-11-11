@@ -17,6 +17,21 @@ eos-agent-types.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
+futures-util.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing.workspace = true
+
+[dev-dependencies]
+eos-agent-compat.workspace = true
+eos-agent-mock-api.workspace = true
+eos-agent-testkit.workspace = true
+eos-testkit.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [lints]
 workspace = true

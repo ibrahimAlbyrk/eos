@@ -1,0 +1,259 @@
+{
+  "name": "text-and-thinking",
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "session_id": "sess-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_A"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "thinking",
+          "thinking": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "let me "
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "thinking_delta",
+          "thinking": "think"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "signature_delta",
+          "signature": "sig"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "let me think"
+          }
+        ]
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "ans"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "text_delta",
+          "text": "wer"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "text",
+            "text": "answer"
+          }
+        ],
+        "usage": {
+          "input_tokens": 10,
+          "output_tokens": 5,
+          "cache_read_input_tokens": 2
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "cache_read_input_tokens": 2
+      }
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "session",
+        "phase": "ready",
+        "sessionId": "sess-1"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "start",
+        "blockId": "msg_A:0",
+        "text": "let me "
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "append",
+        "blockId": "msg_A:0",
+        "text": "think"
+      },
+      {
+        "type": "delta",
+        "channel": "reasoning",
+        "phase": "stop",
+        "blockId": "msg_A:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "reasoning",
+            "text": "let me think",
+            "blockId": "msg_A:0"
+          }
+        ]
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_A:1",
+        "text": "ans"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "append",
+        "blockId": "msg_A:1",
+        "text": "wer"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_A:1",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "answer",
+            "blockId": "msg_A:1"
+          }
+        ]
+      },
+      {
+        "type": "context",
+        "tokens": 12
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 10,
+          "outputTokens": 5,
+          "cacheReadTokens": 2,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}

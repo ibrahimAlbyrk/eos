@@ -59,6 +59,7 @@ eos-agent-engine = { path = "vendor/eos-agent-sdk/crates/eos-agent-engine" }
 eos-agent-mock-api = { path = "vendor/eos-agent-sdk/tools/mock-api" }
 eos-agent-openai = { path = "vendor/eos-agent-sdk/crates/eos-agent-openai" }
 eos-agent-sdk = { path = "vendor/eos-agent-sdk/crates/eos-agent-sdk" }
+eos-agent-testkit = { path = "vendor/eos-agent-sdk/crates/eos-agent-testkit" }
 eos-agent-tools-session = { path = "vendor/eos-agent-sdk/crates/eos-agent-tools-session" }
 eos-agent-types = { path = "vendor/eos-agent-sdk/crates/eos-agent-types" }
 

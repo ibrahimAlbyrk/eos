@@ -1,0 +1,430 @@
+{
+  "name": "tool-roundtrip",
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "session_id": "sess-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_A"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "calling tool"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "text",
+            "text": "calling tool"
+          }
+        ]
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 1,
+        "content_block": {
+          "type": "tool_use",
+          "id": "t1",
+          "name": "Read",
+          "input": {}
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 1,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"file_path\":\"/x\"}"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 1
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "t1",
+            "name": "Read",
+            "input": {
+              "file_path": "/x"
+            }
+          }
+        ],
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 20,
+          "cache_read_input_tokens": 20,
+          "cache_creation_input_tokens": 30,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 10,
+            "ephemeral_1h_input_tokens": 20
+          }
+        }
+      }
+    },
+    {
+      "type": "user",
+      "message": {
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "t1",
+            "content": "data",
+            "is_error": false
+          }
+        ]
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_B"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "done"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_B",
+      "message": {
+        "id": "msg_B",
+        "content": [
+          {
+            "type": "text",
+            "text": "done"
+          }
+        ],
+        "usage": {
+          "input_tokens": 500,
+          "output_tokens": 7,
+          "cache_read_input_tokens": 400,
+          "cache_creation_input_tokens": 4
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {
+        "input_tokens": 600,
+        "output_tokens": 27,
+        "cache_read_input_tokens": 420,
+        "cache_creation_input_tokens": 34,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 14,
+          "ephemeral_1h_input_tokens": 20
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_C"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "again"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_C",
+      "message": {
+        "id": "msg_C",
+        "content": [
+          {
+            "type": "text",
+            "text": "again"
+          }
+        ],
+        "usage": {
+          "input_tokens": 3,
+          "output_tokens": 1
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {
+        "input_tokens": 3,
+        "output_tokens": 1
+      }
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "session",
+        "phase": "ready",
+        "sessionId": "sess-1"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_A:0",
+        "text": "calling tool"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_A:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "calling tool",
+            "blockId": "msg_A:0"
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "tool_call",
+            "callId": "t1",
+            "name": "Read",
+            "input": {
+              "file_path": "/x"
+            }
+          }
+        ]
+      },
+      {
+        "type": "context",
+        "tokens": 150
+      },
+      {
+        "type": "message",
+        "role": "tool",
+        "blocks": [
+          {
+            "type": "tool_result",
+            "callId": "t1",
+            "isError": false,
+            "content": "data"
+          }
+        ]
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_B:0",
+        "text": "done"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_B:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "done",
+            "blockId": "msg_B:0"
+          }
+        ]
+      },
+      {
+        "type": "context",
+        "tokens": 904
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 600,
+          "outputTokens": 27,
+          "cacheReadTokens": 420,
+          "cacheWriteTokens": {
+            "5m": 14,
+            "1h": 20
+          },
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_C:0",
+        "text": "again"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_C:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "again",
+            "blockId": "msg_C:0"
+          }
+        ]
+      },
+      {
+        "type": "context",
+        "tokens": 3
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 3,
+          "outputTokens": 1,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}

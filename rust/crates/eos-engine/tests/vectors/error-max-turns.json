@@ -1,0 +1,122 @@
+{
+  "name": "error-max-turns",
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "session_id": "sess-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_A"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "hi"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "text",
+            "text": "hi"
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "error_max_turns",
+      "usage": {}
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "session",
+        "phase": "ready",
+        "sessionId": "sess-1"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_A:0",
+        "text": "hi"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_A:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "hi",
+            "blockId": "msg_A:0"
+          }
+        ]
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "error",
+        "reason": "error_max_turns"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}

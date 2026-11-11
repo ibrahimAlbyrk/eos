@@ -20,12 +20,12 @@ use eos_contracts::{
     AgentEvent, AgentMessageEvent, AgentMessageEventRole, CanonicalUsage, CommandItem, ContentBlock, RewindMode,
     RewindTarget, SessionEvent, SessionEventPhase, TextBlock, ToolCallBlock, ToolResultBlock, TurnEvent,
     TurnEventPhase, UiBackendDescriptorBilling, UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
-    UnknownRecord, UsageEvent,
+    UnknownRecord, UsageEvent, WorkflowRunProgress,
 };
 use eos_core::accounts::SessionCredential;
 use eos_core::agent::{
-    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, LaunchSpec, ModelSource, Rewound,
-    SessionError, SessionSink, SessionTranscript, TranscriptEntry,
+    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, BackgroundTaskUpdate, LaunchSpec,
+    ModelSource, Rewound, SessionError, SessionSink, SessionTranscript, ToolInputDelta, TranscriptEntry,
 };
 use eos_core::{BoxFuture, Error};
 use tokio::sync::{Notify, watch};
@@ -599,11 +599,46 @@ impl AgentRuntime for ScriptedRuntime {
 /// A sink that keeps everything it hears, for tests of a runtime itself.
 #[derive(Debug, Default)]
 pub struct RecordingSink {
+    /// Bumped on every call, for [`until`](Self::until).
+    heard: watch::Sender<u64>,
     pub events: Mutex<Vec<(String, AgentEvent)>>,
     pub exits: Mutex<Vec<(String, Option<i32>)>>,
+    /// The tools whose input is followed.
+    pub follows: Mutex<Vec<String>>,
+    pub tool_inputs: Mutex<Vec<ToolInputDelta>>,
+    pub workflow: Mutex<Vec<WorkflowRunProgress>>,
+    pub tasks: Mutex<Vec<BackgroundTaskUpdate>>,
 }
 
 impl RecordingSink {
+    /// Resolves once `done` holds for a worker's events so far (as JSON).
+    pub async fn until(&self, worker_id: &str, done: impl Fn(&[serde_json::Value]) -> bool) -> Vec<serde_json::Value> {
+        let mut heard = self.heard.subscribe();
+        loop {
+            let events = self.json(worker_id);
+            if done(&events) {
+                return events;
+            }
+            if heard.changed().await.is_err() {
+                return events;
+            }
+        }
+    }
+
+    /// Resolves once the worker's session has exited, with its code.
+    pub async fn exit(&self, worker_id: &str) -> Option<i32> {
+        let mut heard = self.heard.subscribe();
+        loop {
+            let found = self.exits.lock().expect("exits").iter().find(|(w, _)| w == worker_id).map(|(_, c)| *c);
+            if let Some(code) = found {
+                return code;
+            }
+            if heard.changed().await.is_err() {
+                return None;
+            }
+        }
+    }
+
     /// The events of one worker as JSON, in order.
     pub fn json(&self, worker_id: &str) -> Vec<serde_json::Value> {
         let events = self.events.lock().expect("events");
@@ -617,14 +652,31 @@ impl RecordingSink {
 
 impl SessionSink for RecordingSink {
     fn events<'a>(&'a self, worker_id: &'a str, events: Vec<AgentEvent>) -> BoxFuture<'a, ()> {
-        let mut all = self.events.lock().expect("events");
-        all.extend(events.into_iter().map(|e| (worker_id.to_owned(), e)));
+        self.events.lock().expect("events").extend(events.into_iter().map(|e| (worker_id.to_owned(), e)));
+        self.heard.send_modify(|n| *n += 1);
         Box::pin(std::future::ready(()))
     }
 
     fn exited<'a>(&'a self, worker_id: &'a str, code: Option<i32>) -> BoxFuture<'a, ()> {
         self.exits.lock().expect("exits").push((worker_id.to_owned(), code));
+        self.heard.send_modify(|n| *n += 1);
         Box::pin(std::future::ready(()))
+    }
+
+    fn follows_tool_input(&self, tool: &str) -> bool {
+        self.follows.lock().expect("follows").iter().any(|t| t == tool)
+    }
+
+    fn tool_input(&self, _worker_id: &str, delta: ToolInputDelta) {
+        self.tool_inputs.lock().expect("tool inputs").push(delta);
+    }
+
+    fn workflow_progress(&self, progress: WorkflowRunProgress) {
+        self.workflow.lock().expect("workflow").push(progress);
+    }
+
+    fn background_task(&self, _worker_id: &str, update: BackgroundTaskUpdate) {
+        self.tasks.lock().expect("tasks").push(update);
     }
 }
 

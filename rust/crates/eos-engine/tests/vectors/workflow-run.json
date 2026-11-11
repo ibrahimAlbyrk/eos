@@ -1,0 +1,450 @@
+{
+  "name": "workflow-run",
+  "messages": [
+    {
+      "type": "system",
+      "subtype": "init",
+      "session_id": "sess-1"
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_A"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "tool_use",
+          "id": "wf_call",
+          "name": "Workflow",
+          "input": {}
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "input_json_delta",
+          "partial_json": "{\"script\":\"export const meta = {}\"}"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_A",
+      "message": {
+        "id": "msg_A",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "wf_call",
+            "name": "Workflow",
+            "input": {
+              "script": "export const meta = {}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "system",
+      "subtype": "task_started",
+      "task_id": "task_w1",
+      "tool_use_id": "wf_call",
+      "task_type": "local_workflow",
+      "workflow_name": "review"
+    },
+    {
+      "type": "user",
+      "message": {
+        "content": [
+          {
+            "type": "tool_result",
+            "tool_use_id": "wf_call",
+            "content": "Workflow launched in background. Task ID: task_w1",
+            "is_error": false
+          }
+        ]
+      },
+      "tool_use_result": {
+        "status": "async_launched",
+        "taskId": "task_w1",
+        "runId": "wf_abc",
+        "workflowName": "review",
+        "summary": "Review the parser",
+        "transcriptDir": "/s/subagents/workflows/wf_abc"
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_B"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "launched"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_stop",
+        "index": 0
+      }
+    },
+    {
+      "type": "assistant",
+      "uuid": "u-msg_B",
+      "message": {
+        "id": "msg_B",
+        "content": [
+          {
+            "type": "text",
+            "text": "launched"
+          }
+        ]
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "success",
+      "usage": {}
+    },
+    {
+      "type": "system",
+      "subtype": "task_progress",
+      "task_id": "task_w1",
+      "tool_use_id": "wf_call",
+      "_at": 5000,
+      "usage": {
+        "total_tokens": 100,
+        "tool_uses": 1,
+        "duration_ms": 900
+      },
+      "workflow_progress": [
+        {
+          "type": "workflow_phase",
+          "index": 1,
+          "title": "Explore"
+        },
+        {
+          "type": "workflow_agent",
+          "index": 1,
+          "label": "scan",
+          "phaseIndex": 1,
+          "state": "start",
+          "queuedAt": 10
+        },
+        {
+          "type": "workflow_log",
+          "message": "starting"
+        }
+      ]
+    },
+    {
+      "type": "system",
+      "subtype": "task_progress",
+      "task_id": "task_w1",
+      "tool_use_id": "wf_call",
+      "_at": 6000,
+      "usage": {
+        "total_tokens": 400,
+        "tool_uses": 3,
+        "duration_ms": 2000
+      },
+      "workflow_progress": [
+        {
+          "type": "workflow_phase",
+          "index": 1,
+          "title": "Explore"
+        },
+        {
+          "type": "workflow_agent",
+          "index": 1,
+          "label": "scan",
+          "phaseIndex": 1,
+          "state": "progress",
+          "startedAt": 20,
+          "agentId": "a1",
+          "lastToolName": "Read",
+          "tokens": 300,
+          "toolCalls": 2
+        },
+        {
+          "type": "workflow_agent",
+          "index": 2,
+          "label": "check",
+          "phaseIndex": 1,
+          "state": "start",
+          "queuedAt": 30
+        },
+        {
+          "type": "workflow_log",
+          "message": "starting"
+        },
+        {
+          "type": "workflow_log",
+          "message": "half way"
+        }
+      ]
+    },
+    {
+      "type": "system",
+      "subtype": "task_notification",
+      "task_id": "task_w1",
+      "tool_use_id": "wf_call",
+      "status": "completed",
+      "summary": "Review finished",
+      "usage": {
+        "total_tokens": 900,
+        "tool_uses": 7,
+        "duration_ms": 4000
+      }
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "session",
+        "phase": "ready",
+        "sessionId": "sess-1"
+      },
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "tool_call",
+            "callId": "wf_call",
+            "name": "Workflow",
+            "input": {
+              "script": "export const meta = {}"
+            }
+          }
+        ]
+      },
+      {
+        "type": "message",
+        "role": "tool",
+        "blocks": [
+          {
+            "type": "tool_result",
+            "callId": "wf_call",
+            "isError": false,
+            "content": "Workflow launched in background. Task ID: task_w1"
+          }
+        ]
+      },
+      {
+        "type": "workflow_started",
+        "callId": "wf_call",
+        "taskId": "task_w1",
+        "runId": "wf_abc",
+        "name": "review",
+        "description": "Review the parser",
+        "transcriptDir": "/s/subagents/workflows/wf_abc"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_B:0",
+        "text": "launched"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "stop",
+        "blockId": "msg_B:0",
+        "text": ""
+      },
+      {
+        "type": "message",
+        "role": "assistant",
+        "blocks": [
+          {
+            "type": "text",
+            "text": "launched",
+            "blockId": "msg_B:0"
+          }
+        ]
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "ended"
+      },
+      {
+        "type": "workflow_completed",
+        "callId": "wf_call",
+        "taskId": "task_w1",
+        "status": "completed",
+        "summary": "Review finished",
+        "usage": {
+          "totalTokens": 900,
+          "toolUses": 7,
+          "durationMs": 4000
+        },
+        "snapshot": {
+          "phases": [
+            {
+              "index": 1,
+              "title": "Explore"
+            }
+          ],
+          "agents": [
+            {
+              "index": 1,
+              "label": "scan",
+              "state": "done",
+              "phaseIndex": 1,
+              "queuedAt": 10,
+              "agentId": "a1",
+              "startedAt": 20,
+              "lastToolName": "Read",
+              "tokens": 300,
+              "toolCalls": 2
+            },
+            {
+              "index": 2,
+              "label": "check",
+              "state": "done",
+              "phaseIndex": 1,
+              "queuedAt": 30
+            }
+          ],
+          "logs": [
+            "starting",
+            "half way"
+          ]
+        }
+      }
+    ],
+    "toolInput": [],
+    "workflow": [
+      {
+        "callId": "wf_call",
+        "taskId": "task_w1",
+        "snapshot": {
+          "phases": [
+            {
+              "index": 1,
+              "title": "Explore"
+            }
+          ],
+          "agents": [
+            {
+              "index": 1,
+              "label": "scan",
+              "state": "queued",
+              "phaseIndex": 1,
+              "queuedAt": 10
+            }
+          ],
+          "logs": [
+            "starting"
+          ]
+        },
+        "usage": {
+          "totalTokens": 100,
+          "toolUses": 1,
+          "durationMs": 900
+        }
+      },
+      {
+        "callId": "wf_call",
+        "taskId": "task_w1",
+        "snapshot": {
+          "phases": [
+            {
+              "index": 1,
+              "title": "Explore"
+            }
+          ],
+          "agents": [
+            {
+              "index": 1,
+              "label": "scan",
+              "state": "running",
+              "phaseIndex": 1,
+              "queuedAt": 10,
+              "agentId": "a1",
+              "startedAt": 20,
+              "lastToolName": "Read",
+              "tokens": 300,
+              "toolCalls": 2
+            },
+            {
+              "index": 2,
+              "label": "check",
+              "state": "queued",
+              "phaseIndex": 1,
+              "queuedAt": 30
+            }
+          ],
+          "logs": [
+            "starting",
+            "half way"
+          ]
+        },
+        "usage": {
+          "totalTokens": 400,
+          "toolUses": 3,
+          "durationMs": 2000
+        }
+      }
+    ],
+    "tasks": []
+  }
+}

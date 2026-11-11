@@ -1,7 +1,15 @@
 //! Fakes of the ports that reach outside the process.
 
-use eos_contracts::CatalogModel;
-use eos_core::agent::ModelCatalog;
+use std::collections::VecDeque;
+use std::sync::{Arc, Mutex};
+
+use eos_contracts::{AllowVariant, CatalogModel, DenyVariant, ExternalDecision, UnknownRecord};
+use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
+use eos_core::agent::{
+    HostTool, LaunchSpec, ModelCatalog, ToolCaller, ToolDefinition, ToolReply, ToolSets, UserQuestions,
+};
+use eos_core::policy::{PolicyDecider, ToolCall};
+use eos_core::{BoxFuture, Error};
 
 /// A model catalog with a fixed list: windows come from it, else from the
 /// built-in baseline, exactly as the real catalog answers.
@@ -17,5 +25,131 @@ impl ModelCatalog for FakeModelCatalog {
 
     fn context_window_for(&self, model: Option<&str>) -> i64 {
         eos_domain::model::context_window_for(&self.models, model)
+    }
+}
+
+/// A policy that allows every tool call except the tools it was told to deny,
+/// and remembers what it was asked.
+#[derive(Debug, Default)]
+pub struct FakePolicy {
+    /// Tool names to deny.
+    pub deny: Mutex<Vec<String>>,
+    pub asked: Mutex<Vec<ToolCall>>,
+}
+
+impl PolicyDecider for FakePolicy {
+    fn decide(&self, call: ToolCall) -> BoxFuture<'_, Result<ExternalDecision, Error>> {
+        let denied = self.deny.lock().expect("deny").contains(&call.tool_name);
+        let decision = if denied {
+            ExternalDecision::Deny(DenyVariant { message: format!("{} is denied by policy", call.tool_name) })
+        } else {
+            ExternalDecision::Allow(AllowVariant { updated_input: Some(call.input.clone()), message: None })
+        };
+        self.asked.lock().expect("asked").push(call);
+        Box::pin(std::future::ready(Ok(decision)))
+    }
+}
+
+/// The accounts feature as the engine sees it: one credential for new
+/// sessions, a scripted answer when a credential fails.
+#[derive(Debug, Default)]
+pub struct FakeCredentials {
+    pub new_session: Mutex<Option<SessionCredential>>,
+    /// Answers to `failed`, first to last; `Keep` when none is left.
+    pub verdicts: Mutex<VecDeque<PlanVerdict>>,
+    pub launched: Mutex<Vec<(String, Option<SessionCredential>)>>,
+    pub observed: Mutex<Vec<PlanLimits>>,
+    pub failures: Mutex<Vec<(String, PlanFailure)>>,
+}
+
+impl FakeCredentials {
+    /// New sessions run on this API key.
+    pub fn with_key(key: &str) -> Self {
+        let key = SessionCredential::ApiKey { provider: "anthropic".into(), key: key.into() };
+        Self { new_session: Mutex::new(Some(key)), ..Self::default() }
+    }
+}
+
+impl SessionCredentials for FakeCredentials {
+    fn for_new_session<'a>(&'a self, _provider: &'a str) -> BoxFuture<'a, Option<SessionCredential>> {
+        Box::pin(std::future::ready(self.new_session.lock().expect("credential").clone()))
+    }
+
+    fn launched(&self, worker_id: &str, credential: Option<&SessionCredential>) {
+        self.launched.lock().expect("launched").push((worker_id.to_owned(), credential.cloned()));
+    }
+
+    fn observed(&self, _credential: &SessionCredential, limits: &PlanLimits) {
+        self.observed.lock().expect("observed").push(limits.clone());
+    }
+
+    fn failed<'a>(&'a self, worker_id: &'a str, failure: &'a PlanFailure) -> BoxFuture<'a, PlanVerdict> {
+        self.failures.lock().expect("failures").push((worker_id.to_owned(), failure.clone()));
+        let verdict = self.verdicts.lock().expect("verdicts").pop_front().unwrap_or(PlanVerdict::Keep);
+        Box::pin(std::future::ready(verdict))
+    }
+}
+
+/// A tool that answers with who called it and what with.
+#[derive(Debug)]
+pub struct EchoTool(pub ToolDefinition);
+
+impl EchoTool {
+    pub fn named(name: &str) -> Arc<dyn HostTool> {
+        Arc::new(Self(ToolDefinition {
+            name: name.to_owned(),
+            description: "Reports the calling worker.".to_owned(),
+            input_schema: serde_json::json!({"type": "object", "properties": {"note": {"type": "string"}}}),
+            deferred: false,
+            search_hint: None,
+            main_agent_only: false,
+        }))
+    }
+}
+
+impl HostTool for EchoTool {
+    fn definition(&self) -> &ToolDefinition {
+        &self.0
+    }
+
+    fn call<'a>(&'a self, caller: ToolCaller<'a>, input: serde_json::Value) -> BoxFuture<'a, ToolReply> {
+        let reply = format!("worker={} call={} input={input}", caller.worker_id, caller.call_id);
+        Box::pin(std::future::ready(ToolReply::text(reply)))
+    }
+}
+
+/// The same tools for every session.
+#[derive(Default)]
+pub struct FakeToolSets(pub Vec<Arc<dyn HostTool>>);
+
+impl std::fmt::Debug for FakeToolSets {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.iter().map(|t| &t.definition().name)).finish()
+    }
+}
+
+impl ToolSets for FakeToolSets {
+    fn for_session(&self, _spec: &LaunchSpec) -> Vec<Arc<dyn HostTool>> {
+        self.0.clone()
+    }
+}
+
+/// A user who answers every question with the scripted answers, or turns
+/// the questions away when there are none.
+#[derive(Debug, Default)]
+pub struct FakeUser {
+    pub answers: Mutex<Option<UnknownRecord>>,
+    pub asked: Mutex<Vec<Vec<UnknownRecord>>>,
+}
+
+impl UserQuestions for FakeUser {
+    fn ask<'a>(
+        &'a self,
+        _worker_id: &'a str,
+        _call_id: Option<&'a str>,
+        questions: Vec<UnknownRecord>,
+    ) -> BoxFuture<'a, Option<UnknownRecord>> {
+        self.asked.lock().expect("asked").push(questions);
+        Box::pin(std::future::ready(self.answers.lock().expect("answers").clone()))
     }
 }

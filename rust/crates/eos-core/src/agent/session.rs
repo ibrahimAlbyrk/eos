@@ -236,7 +236,8 @@ pub trait AgentSession: Send + Sync + 'static {
     /// reaches neither the next turn nor a later resume.
     fn recall_last_user_turn(&self) -> BoxFuture<'_, Result<(), SessionError>>;
 
-    /// Background subagents, workflow runs and commands still running in it.
+    /// Background subagents and workflow runs still running in it. They
+    /// end when the session does.
     fn live_subagents(&self) -> usize;
 
     /// Stops one background task; the task's own end event closes it.

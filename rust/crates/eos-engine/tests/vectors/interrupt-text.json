@@ -1,0 +1,94 @@
+{
+  "name": "interrupt-text",
+  "interrupt": true,
+  "recordsCutText": true,
+  "messages": [
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "message_start",
+        "message": {
+          "id": "msg_I"
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_start",
+        "index": 0,
+        "content_block": {
+          "type": "text",
+          "text": ""
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "partial "
+        }
+      }
+    },
+    {
+      "type": "stream_event",
+      "event": {
+        "type": "content_block_delta",
+        "index": 0,
+        "delta": {
+          "type": "text_delta",
+          "text": "answer"
+        }
+      }
+    },
+    {
+      "type": "result",
+      "subtype": "error_during_execution",
+      "usage": {}
+    }
+  ],
+  "expected": {
+    "events": [
+      {
+        "type": "turn",
+        "phase": "started"
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "start",
+        "blockId": "msg_I:0",
+        "text": "partial "
+      },
+      {
+        "type": "delta",
+        "channel": "text",
+        "phase": "append",
+        "blockId": "msg_I:0",
+        "text": "answer"
+      },
+      {
+        "type": "usage",
+        "usage": {
+          "inputTokens": 0,
+          "outputTokens": 0,
+          "cacheReadTokens": 0,
+          "cacheWriteTokens": {},
+          "model": null
+        }
+      },
+      {
+        "type": "turn",
+        "phase": "error",
+        "reason": "error_during_execution"
+      }
+    ],
+    "toolInput": [],
+    "workflow": [],
+    "tasks": []
+  }
+}
