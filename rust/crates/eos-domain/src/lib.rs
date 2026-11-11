@@ -16,6 +16,7 @@ pub mod loops;
 pub mod memory_sources;
 pub mod message_queue;
 pub mod model;
+pub mod model_tier;
 pub mod page;
 pub mod pending;
 pub mod project;
@@ -28,4 +29,6 @@ pub mod worker;
 
 pub use event::EventRecord;
 pub use loops::WorkerLoop;
+pub use model_tier::{ProviderIdentity, TierSpec};
+pub use pending::PendingPermission;
 pub use worker::{Usage, Worker, can_transition};

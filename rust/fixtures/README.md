@@ -195,3 +195,16 @@ Object key order is not recorded.
 `fork`, `serves`. `HttpTarget` is a daemon behind the API port, the raw port or the unix socket;
 `RustTarget` (`inproc.rs`) is the Rust core's router in process, and the recordings replay against
 it unchanged.
+
+## Vectors from the TypeScript
+
+Besides the recorded wire, three corpora hold what today's TypeScript computes for inputs no
+route shows. Each is written by a Node script that imports the TypeScript sources directly
+(Node ≥ 23.6; `npm ci` in `contracts/`, `core/`, `infra/`), and each has `--check` to say
+whether the committed corpus is still what the sources produce.
+
+| Corpus | Written by | Held to it |
+|---|---|---|
+| `policy/` | `tools/policy-vectors/generate.mjs` | `eos-policy` (47,040 permission decisions over policies × tools × inputs × modes × tool scopes), the `policy.yaml` reader |
+| `workers/` | `tools/workers-vectors/generate.mjs` | `eos-workers` (resolution, `extends`, defaults, the catalog), the definition-file reader, model tiers |
+| `prompts/` | `tools/prompt-vectors/generate.mjs` | `eos-prompts` and the shipped library (every prompt read and rendered, 641 assembled system prompts byte for byte) |

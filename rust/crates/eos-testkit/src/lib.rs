@@ -6,6 +6,8 @@
 //! - [`TempStore`]: the real store over a migrated `state.db`, in a [`TempHome`];
 //!   [`Announced`] keeps what its writes announced.
 //! - [`fixtures`]: the recorded wire and the invented seed rows.
+//! - [`FakePolicyFile`]: a policy file held in memory.
+//! - [`FakeProfileRenderer`]: a user profile block that is one fixed text.
 //! - [`wire::Replay`]: a recorded scenario replayed against a router.
 //! - [`FakePageStore`], [`FakeUserProfileStore`], [`FakeUserAvatarStore`], [`FakeUserMemoryStore`],
 //!   [`FakeMemoryProvider`]: the file-store ports, in memory.
@@ -27,6 +29,8 @@ mod files;
 pub mod fixtures;
 mod home;
 mod ids;
+mod policy;
+mod profile;
 pub mod wire;
 
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
@@ -36,3 +40,5 @@ pub use fakes::FakeModelCatalog;
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use home::TempHome;
 pub use ids::SeqIds;
+pub use policy::FakePolicyFile;
+pub use profile::FakeProfileRenderer;

@@ -12,13 +12,21 @@ use eos_domain::config::Env;
 use eos_kit_sqlite::Db;
 use eos_mod_system::RunInfo;
 use eos_platform::DataPaths;
+use eos_policy::{GatewayOptions, PolicyGateway};
+use eos_prompts::tool_names::tool_name_vars;
+use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::lifecycle::ShutdownReport;
 use eos_runtime::router::{AllPluginsOn, Router};
 use eos_runtime::stream::StreamOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_sessions::Reconciled;
+use eos_store_files::policy::YamlPolicyFile;
+use eos_store_files::prompts::LibraryPromptSource;
+use eos_store_files::templates::FsTemplateStore;
+use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_store_files::{CachedModelCatalog, JsonProjects, JsonRecents};
 use eos_store_sqlite::{SqliteStore, StoreOptions};
+use eos_workers::WorkerDefinitions;
 
 use crate::Error;
 use crate::agent::NoBackends;
@@ -28,7 +36,7 @@ use crate::callers::Callers;
 use crate::display::StripSenderTags;
 use crate::host::{self, HostStats};
 use crate::modules::{self, Context};
-use crate::notes::Notes;
+use crate::notes::{Notes, ProfilePrompt};
 
 /// What the app is built from. Tests swap the clock, the id source and the
 /// environment.
@@ -53,6 +61,12 @@ impl std::fmt::Debug for Options {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Options").field("home", &self.home).finish_non_exhaustive()
     }
+}
+
+/// Claude Code's plans folder: an agent may always write its plan there.
+fn plans_dir() -> String {
+    let claude_home = std::env::var("CLAUDE_CONFIG_DIR").unwrap_or_else(|_| "~/.claude".to_owned());
+    PathBuf::from(eos_platform::expand_path(&claude_home)).join("plans").to_string_lossy().into_owned()
 }
 
 /// The running core: what the shell's bridge and the gateways hold.
@@ -108,11 +122,32 @@ impl App {
         let store = Arc::new(SqliteStore::new(db, announcer, store_options));
         let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
 
+        let policy = Arc::new(PolicyGateway::new(GatewayOptions {
+            store: store.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            file: Arc::new(YamlPolicyFile::new(paths.join("policy.yaml"))),
+            default_ttl_ms: current.permissions.default_ttl_ms,
+            plans_dir: Some(plans_dir()),
+        }));
+        // The shipped prompts, with the user's `prompts` folder over them.
+        let library = Arc::new(LibraryPromptSource::with_overrides(vec![paths.join("prompts")]));
+        let prompts = Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars()));
+        let templates = Arc::new(FsTemplateStore::new(paths.join("templates"), clock.clone()));
+        let worker_definitions = Arc::new(WorkerDefinitions::new(
+            Arc::new(FsWorkerDefinitionFiles::new(paths.join("workers"))),
+            store.clone(),
+            clock.clone(),
+        ));
+
+        let notes = Notes::open(&paths, &clock, store.clone(), config.clone());
+        let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
+
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
             ids: ids.clone(),
-            notes: Notes::open(&paths, &clock, store.clone(), config.clone()),
+            notes,
             run: RunInfo {
                 pid: std::process::id(),
                 started_at: clock.now_ms(),
@@ -126,6 +161,11 @@ impl App {
             backends: Arc::new(NoBackends),
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
             recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
+            policy,
+            profile_prompt,
+            prompts,
+            templates,
+            worker_definitions,
         };
         let runtime = Runtime::build(kernel, modules::all(&context), Arc::new(AllPluginsOn))?;
         if let Some((backup, dir)) = snapshot {

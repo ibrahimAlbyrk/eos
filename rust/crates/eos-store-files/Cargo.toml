@@ -14,9 +14,14 @@ eos-domain.workspace = true
 eos-kit-fs.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_norway.workspace = true
 
 [dev-dependencies]
+eos-genui.workspace = true
+eos-prompts.workspace = true
 eos-testkit.workspace = true
+eos-workers.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 
 [lints]

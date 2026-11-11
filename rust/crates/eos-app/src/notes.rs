@@ -4,11 +4,13 @@
 use std::sync::Arc;
 
 use eos_core::Clock;
+use eos_core::profile::ProfileBlockInput;
+use eos_core::prompt::{MemoryScope, MemorySnapshot, ProfileRenderer, ProfileText};
 use eos_core::store::{ConfigSource, PageStore, Store};
 use eos_domain::memory_sources::resolve_memory_sources;
 use eos_mod_profile::{PreviewContext, ProfileStores};
 use eos_platform::DataPaths;
-use eos_profile::ProfileBlocks;
+use eos_profile::{ProfileBlocks, received_memory_lines};
 use eos_store_files::claude_md::FileMemoryProvider;
 use eos_store_files::memories::FileUserMemoryStore;
 use eos_store_files::pages::FilePageStore;
@@ -50,5 +52,45 @@ impl Notes {
             },
             profile: ProfileStores { profile, avatars: Arc::new(FileUserAvatarStore::new(&dir)), memories, workers },
         }
+    }
+}
+
+/// The user's profile as prompt text, for whoever assembles a system prompt:
+/// the profile feature's block, without the lines the session already gets
+/// from its memory files.
+pub(crate) struct ProfilePrompt {
+    context: PreviewContext,
+}
+
+impl ProfilePrompt {
+    pub(crate) fn new(context: PreviewContext) -> Self {
+        Self { context }
+    }
+}
+
+impl ProfileRenderer for ProfilePrompt {
+    fn render(&self, kind: &str, project: Option<&str>, memory: Option<&MemorySnapshot>) -> ProfileText {
+        let cx = &self.context;
+        let loaded;
+        let snapshot = match memory {
+            Some(snapshot) => snapshot,
+            // No project still loads the user-level files: every session gets them.
+            None => {
+                let scope = match project {
+                    Some(project) => MemoryScope { cwd: project.as_ref(), repo_root: None },
+                    None => MemoryScope { cwd: &cx.data_home, repo_root: Some(&cx.data_home) },
+                };
+                loaded = cx.memory.load(scope);
+                &loaded
+            }
+        };
+        let known_lines = received_memory_lines(snapshot, kind, (cx.memory_injected)());
+        let block = cx.blocks.block(&ProfileBlockInput {
+            kind,
+            project,
+            known_lines: &known_lines,
+            search_tool_name: Some(&cx.search_tool_name),
+        });
+        ProfileText { text: block.text, empty: block.empty }
     }
 }

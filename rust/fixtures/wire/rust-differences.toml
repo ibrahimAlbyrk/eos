@@ -37,6 +37,35 @@ at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
 [[known]]
+scenario = "35-policy"
+step = "invalid-body"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "33-settings"
+step = "template-create-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "90-gates"
+step = "post-api-templates"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "90-gates"
+step = "post-policy-decide"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "35-policy"
+step = "pending-of-parent"
+reason = "`GET /pending?parentId=` lists the asks of that session's direct children (what `list_pending_permissions` asks for). The daemon answered 500 whenever anything was pending: its filter read `workerId` off rows that carry `worker_id`."
+
+[[known]]
 scenario = "31-pages"
 step = "edit-unknown-op"
 at = "/json/error"

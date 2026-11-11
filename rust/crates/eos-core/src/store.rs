@@ -37,6 +37,7 @@
 //! path orders the changes.
 
 mod counters;
+mod definitions;
 mod documents;
 mod events;
 mod files;
@@ -47,10 +48,12 @@ mod pages;
 mod pending;
 mod profile;
 mod session;
+mod templates;
 mod unit;
 mod workers;
 
 pub use counters::{ContextMarkRepo, MessageIdRepo, WorktreeRemoval, WorktreeRemovalQueue};
+pub use definitions::{DefinitionFile, WorkerDefinitionFiles};
 pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, WorkerDefinitionRepo};
 pub use events::{EventOrder, EventQuery, EventRepo};
 pub use files::{ConfigSource, ProjectStore, RecentFolders, UserSettingsStore};
@@ -61,5 +64,6 @@ pub use pages::PageStore;
 pub use pending::{NewPending, PendingRepo};
 pub use profile::{UserAvatar, UserAvatarStore, UserProfileStore};
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
+pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
 pub use workers::{NewWorker, WorkerRepo};

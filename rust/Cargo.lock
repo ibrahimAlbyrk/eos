@@ -908,17 +908,24 @@ dependencies = [
  "eos-kit-fs",
  "eos-kit-sqlite",
  "eos-mod-pages",
+ "eos-mod-policy",
  "eos-mod-profile",
  "eos-mod-projects",
+ "eos-mod-prompts",
  "eos-mod-system",
+ "eos-mod-templates",
+ "eos-mod-worker-definitions",
  "eos-mod-workers",
  "eos-platform",
+ "eos-policy",
  "eos-profile",
+ "eos-prompts",
  "eos-runtime",
  "eos-sessions",
  "eos-store-files",
  "eos-store-sqlite",
  "eos-testkit",
+ "eos-workers",
  "serde_json",
  "thiserror",
  "tokio",
@@ -1085,6 +1092,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-policy"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-kit-sqlite",
+ "eos-policy",
+ "eos-runtime",
+ "eos-store-sqlite",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-mod-profile"
 version = "0.0.1"
 dependencies = [
@@ -1117,6 +1141,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-prompts"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "eos-mod-system"
 version = "0.0.1"
 dependencies = [
@@ -1128,6 +1167,37 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "eos-mod-templates"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-worker-definitions"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-kit-sqlite",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-store-sqlite",
+ "eos-testkit",
+ "eos-workers",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1156,6 +1226,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-policy"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "regress",
+ "ryu-js",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-profile"
 version = "0.0.1"
 dependencies = [
@@ -1166,6 +1252,20 @@ dependencies = [
  "regress",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "eos-prompts"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-genui",
+ "ryu-js",
+ "serde",
+ "serde_json",
+ "tracing",
 ]
 
 [[package]]
@@ -1204,10 +1304,15 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-genui",
  "eos-kit-fs",
+ "eos-prompts",
  "eos-testkit",
+ "eos-workers",
  "serde",
  "serde_json",
+ "serde_norway",
+ "sha2",
  "tempfile",
 ]
 
@@ -1241,6 +1346,19 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "tokio",
+]
+
+[[package]]
+name = "eos-workers"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "serde",
+ "serde_json",
  "tokio",
 ]
 

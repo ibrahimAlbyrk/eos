@@ -1,0 +1,5660 @@
+{
+ "about": "globs: every [pattern, name, argument] of patterns × names × args that matches (all others do not). inside: every [child, parent] of paths × paths where child is inside parent.",
+ "patterns": [
+  "*",
+  "Bash",
+  "Bash*",
+  "mcp__*",
+  "mcp__*__create_*",
+  "*Edit",
+  "Bash(git push:*)",
+  "Bash(git *)",
+  "Bash(ls)",
+  "Bash(*)",
+  "Bash()",
+  "Bash(a(b):*)",
+  "Ba*(x)",
+  "(x)",
+  "Bash(",
+  "Bash(x)y",
+  "a.b",
+  "a?b",
+  "Bash(:*)",
+  "Bash(*:*)",
+  "B\nash*",
+  "Bash(npm run *:*)"
+ ],
+ "names": [
+  "Bash",
+  "BashOutput",
+  "Read",
+  "Edit",
+  "MultiEdit",
+  "mcp__github__create_issue",
+  "mcp__worker__report",
+  "a.b",
+  "axb",
+  "",
+  "Ba",
+  "B\nashX",
+  "(x)",
+  "Bash(",
+  "Bash(x)y"
+ ],
+ "args": [
+  null,
+  "",
+  "git push",
+  "git push origin",
+  "  git push  ",
+  "git pushx",
+  "git status",
+  "ls",
+  "ls -la",
+  "x",
+  "a(b) c",
+  "npm run build",
+  "npm run",
+  "﻿ls ",
+  "ls",
+  "multi\nline",
+  ":*"
+ ],
+ "globs": [
+  [
+   "*",
+   "Bash",
+   null
+  ],
+  [
+   "*",
+   "Bash",
+   ""
+  ],
+  [
+   "*",
+   "Bash",
+   "git push"
+  ],
+  [
+   "*",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Bash",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Bash",
+   "git status"
+  ],
+  [
+   "*",
+   "Bash",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Bash",
+   "x"
+  ],
+  [
+   "*",
+   "Bash",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Bash",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Bash",
+   "npm run"
+  ],
+  [
+   "*",
+   "Bash",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Bash",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Bash",
+   ":*"
+  ],
+  [
+   "*",
+   "BashOutput",
+   null
+  ],
+  [
+   "*",
+   "BashOutput",
+   ""
+  ],
+  [
+   "*",
+   "BashOutput",
+   "git push"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "git push origin"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "  git push  "
+  ],
+  [
+   "*",
+   "BashOutput",
+   "git pushx"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "git status"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "ls"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "ls -la"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "x"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "npm run build"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "npm run"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "BashOutput",
+   "ls"
+  ],
+  [
+   "*",
+   "BashOutput",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "BashOutput",
+   ":*"
+  ],
+  [
+   "*",
+   "Read",
+   null
+  ],
+  [
+   "*",
+   "Read",
+   ""
+  ],
+  [
+   "*",
+   "Read",
+   "git push"
+  ],
+  [
+   "*",
+   "Read",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Read",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Read",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Read",
+   "git status"
+  ],
+  [
+   "*",
+   "Read",
+   "ls"
+  ],
+  [
+   "*",
+   "Read",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Read",
+   "x"
+  ],
+  [
+   "*",
+   "Read",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Read",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Read",
+   "npm run"
+  ],
+  [
+   "*",
+   "Read",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Read",
+   "ls"
+  ],
+  [
+   "*",
+   "Read",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Read",
+   ":*"
+  ],
+  [
+   "*",
+   "Edit",
+   null
+  ],
+  [
+   "*",
+   "Edit",
+   ""
+  ],
+  [
+   "*",
+   "Edit",
+   "git push"
+  ],
+  [
+   "*",
+   "Edit",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Edit",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Edit",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Edit",
+   "git status"
+  ],
+  [
+   "*",
+   "Edit",
+   "ls"
+  ],
+  [
+   "*",
+   "Edit",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Edit",
+   "x"
+  ],
+  [
+   "*",
+   "Edit",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Edit",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Edit",
+   "npm run"
+  ],
+  [
+   "*",
+   "Edit",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Edit",
+   "ls"
+  ],
+  [
+   "*",
+   "Edit",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Edit",
+   ":*"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   null
+  ],
+  [
+   "*",
+   "MultiEdit",
+   ""
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "git push"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "git push origin"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "  git push  "
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "git pushx"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "git status"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "ls"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "ls -la"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "x"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "npm run build"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "npm run"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "ls"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "MultiEdit",
+   ":*"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   null
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   ""
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "git push"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "git push origin"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "  git push  "
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "git pushx"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "git status"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "ls -la"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "x"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "npm run build"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "npm run"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "mcp__github__create_issue",
+   ":*"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   null
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   ""
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "git push"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "git push origin"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "  git push  "
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "git pushx"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "git status"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "ls"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "ls -la"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "x"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "npm run build"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "npm run"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "ls"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "mcp__worker__report",
+   ":*"
+  ],
+  [
+   "*",
+   "a.b",
+   null
+  ],
+  [
+   "*",
+   "a.b",
+   ""
+  ],
+  [
+   "*",
+   "a.b",
+   "git push"
+  ],
+  [
+   "*",
+   "a.b",
+   "git push origin"
+  ],
+  [
+   "*",
+   "a.b",
+   "  git push  "
+  ],
+  [
+   "*",
+   "a.b",
+   "git pushx"
+  ],
+  [
+   "*",
+   "a.b",
+   "git status"
+  ],
+  [
+   "*",
+   "a.b",
+   "ls"
+  ],
+  [
+   "*",
+   "a.b",
+   "ls -la"
+  ],
+  [
+   "*",
+   "a.b",
+   "x"
+  ],
+  [
+   "*",
+   "a.b",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "a.b",
+   "npm run build"
+  ],
+  [
+   "*",
+   "a.b",
+   "npm run"
+  ],
+  [
+   "*",
+   "a.b",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "a.b",
+   "ls"
+  ],
+  [
+   "*",
+   "a.b",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "a.b",
+   ":*"
+  ],
+  [
+   "*",
+   "axb",
+   null
+  ],
+  [
+   "*",
+   "axb",
+   ""
+  ],
+  [
+   "*",
+   "axb",
+   "git push"
+  ],
+  [
+   "*",
+   "axb",
+   "git push origin"
+  ],
+  [
+   "*",
+   "axb",
+   "  git push  "
+  ],
+  [
+   "*",
+   "axb",
+   "git pushx"
+  ],
+  [
+   "*",
+   "axb",
+   "git status"
+  ],
+  [
+   "*",
+   "axb",
+   "ls"
+  ],
+  [
+   "*",
+   "axb",
+   "ls -la"
+  ],
+  [
+   "*",
+   "axb",
+   "x"
+  ],
+  [
+   "*",
+   "axb",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "axb",
+   "npm run build"
+  ],
+  [
+   "*",
+   "axb",
+   "npm run"
+  ],
+  [
+   "*",
+   "axb",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "axb",
+   "ls"
+  ],
+  [
+   "*",
+   "axb",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "axb",
+   ":*"
+  ],
+  [
+   "*",
+   "",
+   null
+  ],
+  [
+   "*",
+   "",
+   ""
+  ],
+  [
+   "*",
+   "",
+   "git push"
+  ],
+  [
+   "*",
+   "",
+   "git push origin"
+  ],
+  [
+   "*",
+   "",
+   "  git push  "
+  ],
+  [
+   "*",
+   "",
+   "git pushx"
+  ],
+  [
+   "*",
+   "",
+   "git status"
+  ],
+  [
+   "*",
+   "",
+   "ls"
+  ],
+  [
+   "*",
+   "",
+   "ls -la"
+  ],
+  [
+   "*",
+   "",
+   "x"
+  ],
+  [
+   "*",
+   "",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "",
+   "npm run build"
+  ],
+  [
+   "*",
+   "",
+   "npm run"
+  ],
+  [
+   "*",
+   "",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "",
+   "ls"
+  ],
+  [
+   "*",
+   "",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "",
+   ":*"
+  ],
+  [
+   "*",
+   "Ba",
+   null
+  ],
+  [
+   "*",
+   "Ba",
+   ""
+  ],
+  [
+   "*",
+   "Ba",
+   "git push"
+  ],
+  [
+   "*",
+   "Ba",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Ba",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Ba",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Ba",
+   "git status"
+  ],
+  [
+   "*",
+   "Ba",
+   "ls"
+  ],
+  [
+   "*",
+   "Ba",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Ba",
+   "x"
+  ],
+  [
+   "*",
+   "Ba",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Ba",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Ba",
+   "npm run"
+  ],
+  [
+   "*",
+   "Ba",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Ba",
+   "ls"
+  ],
+  [
+   "*",
+   "Ba",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Ba",
+   ":*"
+  ],
+  [
+   "*",
+   "B\nashX",
+   null
+  ],
+  [
+   "*",
+   "B\nashX",
+   ""
+  ],
+  [
+   "*",
+   "B\nashX",
+   "git push"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "git push origin"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "  git push  "
+  ],
+  [
+   "*",
+   "B\nashX",
+   "git pushx"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "git status"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "ls"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "ls -la"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "x"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "npm run build"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "npm run"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "B\nashX",
+   "ls"
+  ],
+  [
+   "*",
+   "B\nashX",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "B\nashX",
+   ":*"
+  ],
+  [
+   "*",
+   "(x)",
+   null
+  ],
+  [
+   "*",
+   "(x)",
+   ""
+  ],
+  [
+   "*",
+   "(x)",
+   "git push"
+  ],
+  [
+   "*",
+   "(x)",
+   "git push origin"
+  ],
+  [
+   "*",
+   "(x)",
+   "  git push  "
+  ],
+  [
+   "*",
+   "(x)",
+   "git pushx"
+  ],
+  [
+   "*",
+   "(x)",
+   "git status"
+  ],
+  [
+   "*",
+   "(x)",
+   "ls"
+  ],
+  [
+   "*",
+   "(x)",
+   "ls -la"
+  ],
+  [
+   "*",
+   "(x)",
+   "x"
+  ],
+  [
+   "*",
+   "(x)",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "(x)",
+   "npm run build"
+  ],
+  [
+   "*",
+   "(x)",
+   "npm run"
+  ],
+  [
+   "*",
+   "(x)",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "(x)",
+   "ls"
+  ],
+  [
+   "*",
+   "(x)",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "(x)",
+   ":*"
+  ],
+  [
+   "*",
+   "Bash(",
+   null
+  ],
+  [
+   "*",
+   "Bash(",
+   ""
+  ],
+  [
+   "*",
+   "Bash(",
+   "git push"
+  ],
+  [
+   "*",
+   "Bash(",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Bash(",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Bash(",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Bash(",
+   "git status"
+  ],
+  [
+   "*",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash(",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Bash(",
+   "x"
+  ],
+  [
+   "*",
+   "Bash(",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Bash(",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Bash(",
+   "npm run"
+  ],
+  [
+   "*",
+   "Bash(",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash(",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Bash(",
+   ":*"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   null
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   ""
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "git push"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "git push origin"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "  git push  "
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "git pushx"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "git status"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "ls -la"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "x"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "a(b) c"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "npm run build"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "npm run"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "﻿ls "
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   "multi\nline"
+  ],
+  [
+   "*",
+   "Bash(x)y",
+   ":*"
+  ],
+  [
+   "Bash",
+   "Bash",
+   null
+  ],
+  [
+   "Bash",
+   "Bash",
+   ""
+  ],
+  [
+   "Bash",
+   "Bash",
+   "git push"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "Bash",
+   "Bash",
+   "git pushx"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "git status"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "ls -la"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "x"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "a(b) c"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "npm run build"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "npm run"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "﻿ls "
+  ],
+  [
+   "Bash",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash",
+   "Bash",
+   "multi\nline"
+  ],
+  [
+   "Bash",
+   "Bash",
+   ":*"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   null
+  ],
+  [
+   "Bash*",
+   "Bash",
+   ""
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "git push"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "git pushx"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "git status"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "ls -la"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "x"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "a(b) c"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "npm run build"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "npm run"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "﻿ls "
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   "multi\nline"
+  ],
+  [
+   "Bash*",
+   "Bash",
+   ":*"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   null
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   ""
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "git push"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "git push origin"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "  git push  "
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "git pushx"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "git status"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "ls -la"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "x"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "a(b) c"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "npm run build"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "npm run"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "﻿ls "
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   "multi\nline"
+  ],
+  [
+   "Bash*",
+   "BashOutput",
+   ":*"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   null
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   ""
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "git push"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "git push origin"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "  git push  "
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "git pushx"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "git status"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "ls -la"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "x"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "a(b) c"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "npm run build"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "npm run"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "﻿ls "
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   "multi\nline"
+  ],
+  [
+   "Bash*",
+   "Bash(",
+   ":*"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   null
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   ""
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "git push"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "git push origin"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "  git push  "
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "git pushx"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "git status"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "ls -la"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "x"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "a(b) c"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "npm run build"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "npm run"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "﻿ls "
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   "multi\nline"
+  ],
+  [
+   "Bash*",
+   "Bash(x)y",
+   ":*"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   null
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   ""
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "git push"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "git push origin"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "  git push  "
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "git pushx"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "git status"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "ls -la"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "x"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "a(b) c"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "npm run build"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "npm run"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "﻿ls "
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   "multi\nline"
+  ],
+  [
+   "mcp__*",
+   "mcp__github__create_issue",
+   ":*"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   null
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   ""
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "git push"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "git push origin"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "  git push  "
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "git pushx"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "git status"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "ls"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "ls -la"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "x"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "a(b) c"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "npm run build"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "npm run"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "﻿ls "
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "ls"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   "multi\nline"
+  ],
+  [
+   "mcp__*",
+   "mcp__worker__report",
+   ":*"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   null
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   ""
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "git push"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "git push origin"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "  git push  "
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "git pushx"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "git status"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "ls -la"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "x"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "a(b) c"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "npm run build"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "npm run"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "﻿ls "
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "ls"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   "multi\nline"
+  ],
+  [
+   "mcp__*__create_*",
+   "mcp__github__create_issue",
+   ":*"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   null
+  ],
+  [
+   "*Edit",
+   "Edit",
+   ""
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "git push"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "git push origin"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "  git push  "
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "git pushx"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "git status"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "ls"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "ls -la"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "x"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "a(b) c"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "npm run build"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "npm run"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "﻿ls "
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "ls"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   "multi\nline"
+  ],
+  [
+   "*Edit",
+   "Edit",
+   ":*"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   null
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   ""
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "git push"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "git push origin"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "  git push  "
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "git pushx"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "git status"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "ls"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "ls -la"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "x"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "a(b) c"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "npm run build"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "npm run"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "﻿ls "
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "ls"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   "multi\nline"
+  ],
+  [
+   "*Edit",
+   "MultiEdit",
+   ":*"
+  ],
+  [
+   "Bash(git push:*)",
+   "Bash",
+   "git push"
+  ],
+  [
+   "Bash(git push:*)",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "Bash(git push:*)",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "Bash(git *)",
+   "Bash",
+   "git push"
+  ],
+  [
+   "Bash(git *)",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "Bash(git *)",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "Bash(git *)",
+   "Bash",
+   "git pushx"
+  ],
+  [
+   "Bash(git *)",
+   "Bash",
+   "git status"
+  ],
+  [
+   "Bash(ls)",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash(ls)",
+   "Bash",
+   "﻿ls "
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   ""
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "git push"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "git push origin"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "  git push  "
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "git pushx"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "git status"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "ls -la"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "x"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "a(b) c"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "npm run build"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "npm run"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "﻿ls "
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "ls"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   "multi\nline"
+  ],
+  [
+   "Bash(*)",
+   "Bash",
+   ":*"
+  ],
+  [
+   "Bash()",
+   "Bash",
+   ""
+  ],
+  [
+   "Bash(a(b):*)",
+   "Bash",
+   "a(b) c"
+  ],
+  [
+   "Ba*(x)",
+   "Bash",
+   "x"
+  ],
+  [
+   "Ba*(x)",
+   "BashOutput",
+   "x"
+  ],
+  [
+   "Ba*(x)",
+   "Ba",
+   "x"
+  ],
+  [
+   "Ba*(x)",
+   "Bash(",
+   "x"
+  ],
+  [
+   "Ba*(x)",
+   "Bash(x)y",
+   "x"
+  ],
+  [
+   "(x)",
+   "(x)",
+   null
+  ],
+  [
+   "(x)",
+   "(x)",
+   ""
+  ],
+  [
+   "(x)",
+   "(x)",
+   "git push"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "git push origin"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "  git push  "
+  ],
+  [
+   "(x)",
+   "(x)",
+   "git pushx"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "git status"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "ls"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "ls -la"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "x"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "a(b) c"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "npm run build"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "npm run"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "﻿ls "
+  ],
+  [
+   "(x)",
+   "(x)",
+   "ls"
+  ],
+  [
+   "(x)",
+   "(x)",
+   "multi\nline"
+  ],
+  [
+   "(x)",
+   "(x)",
+   ":*"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   null
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   ""
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "git push"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "git push origin"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "  git push  "
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "git pushx"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "git status"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "ls -la"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "x"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "a(b) c"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "npm run build"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "npm run"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "﻿ls "
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "ls"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   "multi\nline"
+  ],
+  [
+   "Bash(",
+   "Bash(",
+   ":*"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   null
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   ""
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "git push"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "git push origin"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "  git push  "
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "git pushx"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "git status"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "ls -la"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "x"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "a(b) c"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "npm run build"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "npm run"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "﻿ls "
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "ls"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   "multi\nline"
+  ],
+  [
+   "Bash(x)y",
+   "Bash(x)y",
+   ":*"
+  ],
+  [
+   "a.b",
+   "a.b",
+   null
+  ],
+  [
+   "a.b",
+   "a.b",
+   ""
+  ],
+  [
+   "a.b",
+   "a.b",
+   "git push"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "git push origin"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "  git push  "
+  ],
+  [
+   "a.b",
+   "a.b",
+   "git pushx"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "git status"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "ls"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "ls -la"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "x"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "a(b) c"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "npm run build"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "npm run"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "﻿ls "
+  ],
+  [
+   "a.b",
+   "a.b",
+   "ls"
+  ],
+  [
+   "a.b",
+   "a.b",
+   "multi\nline"
+  ],
+  [
+   "a.b",
+   "a.b",
+   ":*"
+  ],
+  [
+   "Bash(:*)",
+   "Bash",
+   ""
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   null
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   ""
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "git push"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "git push origin"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "  git push  "
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "git pushx"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "git status"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "ls"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "ls -la"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "x"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "a(b) c"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "npm run build"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "npm run"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "﻿ls "
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "ls"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   "multi\nline"
+  ],
+  [
+   "B\nash*",
+   "B\nashX",
+   ":*"
+  ]
+ ],
+ "classify": [
+  {
+   "tool": "Bash",
+   "input": {},
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {},
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl --max-time 5 https://example.com",
+    "description": "fetch"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl --max-time 5 https://example.com",
+    "description": "fetch"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "curl --max-time 5 https://example.com",
+    "description": "fetch"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git push origin main"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git push origin main"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git push origin main"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "  git push  "
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "  git push  "
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "  git push  "
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git pushx"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git pushx"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "git pushx"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "npm run build"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "npm run build"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "npm run build"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "sudo ls"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "sudo ls"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "sudo ls"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "forbidden"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "forbidden"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "forbidden"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": 42
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": 42
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": 42
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": true
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": true
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": true
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": null
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": null
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": null
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "é"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "é"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "é"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "😀!"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "😀!"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "😀!"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos/scratch/abc/build"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos/scratch/abc/build"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos/scratch/abc/build"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "Bash",
+   "input": {
+    "command": "rm -rf ~/.eos"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {},
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {},
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "rm -rf build"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "BashOutput",
+   "input": {
+    "command": "curl https://example.com"
+   },
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "KillShell",
+   "input": {},
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "KillShell",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "KillShell",
+   "input": {},
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "KillBash",
+   "input": {},
+   "plansDir": null,
+   "category": "shell"
+  },
+  {
+   "tool": "KillBash",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "shell"
+  },
+  {
+   "tool": "KillBash",
+   "input": {},
+   "plansDir": "",
+   "category": "shell"
+  },
+  {
+   "tool": "Write",
+   "input": {},
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {},
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "planFile"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Write",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {},
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {},
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "planFile"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Edit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {},
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {},
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "planFile"
+  },
+  {
+   "tool": "MultiEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {},
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {},
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "planFile"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "/home/u/.claude/plans/../../.ssh/config"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": null,
+    "notebook_path": "/repo/src/n.ipynb"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": 5
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": null,
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "NotebookEdit",
+   "input": {
+    "file_path": "relative/a.ts"
+   },
+   "plansDir": "",
+   "category": "fileEdit"
+  },
+  {
+   "tool": "Read",
+   "input": {},
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {},
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/src/a.ts",
+    "content": "x"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/.env.local"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/repo/docs/secret.md"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Read",
+   "input": {
+    "file_path": "/home/u/.claude/plans/plan.md"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {},
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {},
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Glob",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {},
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {},
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "Grep",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {},
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {},
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "pattern": "TODO",
+    "path": "/repo"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "path": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "path": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "path": [
+     "a",
+     "b"
+    ]
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "title": "x",
+    "command": "ls",
+    "file_path": "/repo/src/a.ts"
+   },
+   "plansDir": null,
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "title": "x",
+    "command": "ls",
+    "file_path": "/repo/src/a.ts"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "read"
+  },
+  {
+   "tool": "LS",
+   "input": {
+    "title": "x",
+    "command": "ls",
+    "file_path": "/repo/src/a.ts"
+   },
+   "plansDir": "",
+   "category": "read"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {},
+   "plansDir": null,
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {},
+   "plansDir": "",
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": null,
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "",
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": null,
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "network"
+  },
+  {
+   "tool": "WebFetch",
+   "input": {
+    "url": "https://example.com/b",
+    "prompt": "read"
+   },
+   "plansDir": "",
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {},
+   "plansDir": null,
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {},
+   "plansDir": "",
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {
+    "query": "x"
+   },
+   "plansDir": null,
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {
+    "query": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "network"
+  },
+  {
+   "tool": "WebSearch",
+   "input": {
+    "query": "x"
+   },
+   "plansDir": "",
+   "category": "network"
+  },
+  {
+   "tool": "TodoWrite",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "TodoWrite",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "TodoWrite",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {
+    "prompt": "go"
+   },
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {
+    "prompt": "go"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "Task",
+   "input": {
+    "prompt": "go"
+   },
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "Agent",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "Agent",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "Agent",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "ExitPlanMode",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "ExitPlanMode",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "ExitPlanMode",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "Skill",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "Skill",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "Skill",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "AskUserQuestion",
+   "input": {
+    "questions": []
+   },
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "AskUserQuestion",
+   "input": {
+    "questions": []
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "AskUserQuestion",
+   "input": {
+    "questions": []
+   },
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "Workflow",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "Workflow",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "Workflow",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "mcp__github__create_issue",
+   "input": {
+    "title": "x"
+   },
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__github__create_issue",
+   "input": {
+    "title": "x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__github__create_issue",
+   "input": {
+    "title": "x"
+   },
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__context7__query-docs",
+   "input": {},
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__context7__query-docs",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__context7__query-docs",
+   "input": {},
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__send_message_to_parent",
+   "input": {
+    "text": "done"
+   },
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__send_message_to_parent",
+   "input": {
+    "text": "done"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__send_message_to_parent",
+   "input": {
+    "text": "done"
+   },
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__ask_peer",
+   "input": {},
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__ask_peer",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__ask_peer",
+   "input": {},
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__spawn_worker",
+   "input": {
+    "from": "explorer"
+   },
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__spawn_worker",
+   "input": {
+    "from": "explorer"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__spawn_worker",
+   "input": {
+    "from": "explorer"
+   },
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__gateway__decide",
+   "input": {},
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__gateway__decide",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__gateway__decide",
+   "input": {},
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__browser_snapshot",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_snapshot",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_snapshot",
+   "input": {},
+   "plansDir": "",
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_click",
+   "input": {
+    "ref": "e1"
+   },
+   "plansDir": null,
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__worker__browser_click",
+   "input": {
+    "ref": "e1"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__worker__browser_click",
+   "input": {
+    "ref": "e1"
+   },
+   "plansDir": "",
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_navigate",
+   "input": {
+    "url": "https://x"
+   },
+   "plansDir": null,
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_navigate",
+   "input": {
+    "url": "https://x"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_navigate",
+   "input": {
+    "url": "https://x"
+   },
+   "plansDir": "",
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_tabs",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_tabs",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_tabs",
+   "input": {},
+   "plansDir": "",
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__present",
+   "input": {
+    "title": "t"
+   },
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__present",
+   "input": {
+    "title": "t"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__worker__present",
+   "input": {
+    "title": "t"
+   },
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__present_app",
+   "input": {},
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__present_app",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "mcp"
+  },
+  {
+   "tool": "mcp__orchestrator__present_app",
+   "input": {},
+   "plansDir": "",
+   "category": "mcp"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "SomethingElse",
+   "input": {
+    "url": "http://docs.example.com/a"
+   },
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  },
+  {
+   "tool": "",
+   "input": {},
+   "plansDir": "/home/u/.claude/plans",
+   "category": "other"
+  },
+  {
+   "tool": "",
+   "input": {},
+   "plansDir": "",
+   "category": "other"
+  },
+  {
+   "tool": "mcp__worker__browser_",
+   "input": {},
+   "plansDir": null,
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__worker__browser_find",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__orchestrator__browser_get",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_screenshot",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_show",
+   "input": {},
+   "plansDir": null,
+   "category": "browserRead"
+  },
+  {
+   "tool": "mcp__worker__browser_type",
+   "input": {},
+   "plansDir": null,
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__worker__browser_snapshot_x",
+   "input": {},
+   "plansDir": null,
+   "category": "browserWrite"
+  },
+  {
+   "tool": "mcp__x__browser_snapshot",
+   "input": {},
+   "plansDir": null,
+   "category": "mcp"
+  },
+  {
+   "tool": "browser_snapshot",
+   "input": {},
+   "plansDir": null,
+   "category": "other"
+  }
+ ],
+ "paths": [
+  "/a/b",
+  "/a/b/",
+  "/a/b/c",
+  "/a/bc",
+  "/a/./b//c",
+  "/a/b/../c",
+  "/a/b/c/..",
+  "/../../a/x",
+  "a/b/c",
+  "",
+  "/",
+  "/a",
+  "C:\\Users\\Me\\plans\\x.md",
+  "c:/users/me/plans",
+  "C:/Users/Me/plans/../x",
+  "D:\\Users\\Me\\plans\\x.md",
+  "C:plans",
+  "/İ/x",
+  "C:\\İ\\x",
+  "c:/i̇"
+ ],
+ "inside": [
+  [
+   "/a/b",
+   "/"
+  ],
+  [
+   "/a/b",
+   "/a"
+  ],
+  [
+   "/a/b/",
+   "/"
+  ],
+  [
+   "/a/b/",
+   "/a"
+  ],
+  [
+   "/a/b/c",
+   "/a/b"
+  ],
+  [
+   "/a/b/c",
+   "/a/b/"
+  ],
+  [
+   "/a/b/c",
+   "/a/b/c/.."
+  ],
+  [
+   "/a/b/c",
+   "/"
+  ],
+  [
+   "/a/b/c",
+   "/a"
+  ],
+  [
+   "/a/bc",
+   "/"
+  ],
+  [
+   "/a/bc",
+   "/a"
+  ],
+  [
+   "/a/./b//c",
+   "/a/b"
+  ],
+  [
+   "/a/./b//c",
+   "/a/b/"
+  ],
+  [
+   "/a/./b//c",
+   "/a/b/c/.."
+  ],
+  [
+   "/a/./b//c",
+   "/"
+  ],
+  [
+   "/a/./b//c",
+   "/a"
+  ],
+  [
+   "/a/b/../c",
+   "/"
+  ],
+  [
+   "/a/b/../c",
+   "/a"
+  ],
+  [
+   "/a/b/c/..",
+   "/"
+  ],
+  [
+   "/a/b/c/..",
+   "/a"
+  ],
+  [
+   "/../../a/x",
+   "/"
+  ],
+  [
+   "/../../a/x",
+   "/a"
+  ],
+  [
+   "/a",
+   "/"
+  ],
+  [
+   "C:\\Users\\Me\\plans\\x.md",
+   "/"
+  ],
+  [
+   "C:\\Users\\Me\\plans\\x.md",
+   "c:/users/me/plans"
+  ],
+  [
+   "c:/users/me/plans",
+   "/"
+  ],
+  [
+   "C:/Users/Me/plans/../x",
+   "/"
+  ],
+  [
+   "D:\\Users\\Me\\plans\\x.md",
+   "/"
+  ],
+  [
+   "/İ/x",
+   "/"
+  ],
+  [
+   "C:\\İ\\x",
+   "/"
+  ],
+  [
+   "C:\\İ\\x",
+   "c:/i̇"
+  ],
+  [
+   "c:/i̇",
+   "/"
+  ]
+ ],
+ "rows": [
+  {
+   "id": "root-bypass",
+   "parent_id": null,
+   "permission_mode": "bypassPermissions",
+   "tool_scope": null
+  },
+  {
+   "id": "root-accept",
+   "parent_id": null,
+   "permission_mode": "acceptEdits",
+   "tool_scope": null
+  },
+  {
+   "id": "root-unset",
+   "parent_id": null,
+   "permission_mode": null,
+   "tool_scope": null
+  },
+  {
+   "id": "root-legacy",
+   "parent_id": null,
+   "permission_mode": "plan",
+   "tool_scope": null
+  },
+  {
+   "id": "kid-inherits",
+   "parent_id": "root-accept",
+   "permission_mode": null,
+   "tool_scope": "{\"allow\":[\"Read\"],\"deny\":[],\"editRegex\":null}"
+  },
+  {
+   "id": "kid-own",
+   "parent_id": "root-accept",
+   "permission_mode": "bypassPermissions",
+   "tool_scope": "{\"deny\":[\"Bash\"]}"
+  },
+  {
+   "id": "grandkid",
+   "parent_id": "kid-inherits",
+   "permission_mode": "default",
+   "tool_scope": "{\"allow\":[],\"deny\":[],\"editRegex\":\"^/x\"}"
+  },
+  {
+   "id": "kid-legacy",
+   "parent_id": "root-legacy",
+   "permission_mode": "",
+   "tool_scope": ""
+  },
+  {
+   "id": "orphan",
+   "parent_id": "gone",
+   "permission_mode": null,
+   "tool_scope": "not json"
+  },
+  {
+   "id": "loop-a",
+   "parent_id": "loop-b",
+   "permission_mode": null,
+   "tool_scope": "[\"Read\"]"
+  },
+  {
+   "id": "loop-b",
+   "parent_id": "loop-a",
+   "permission_mode": null,
+   "tool_scope": "{\"allow\":\"Read\"}"
+  },
+  {
+   "id": "empty-parent",
+   "parent_id": "",
+   "permission_mode": "weird",
+   "tool_scope": "{\"allow\":[\"A\"],\"deny\":[\"B\"],\"editRegex\":5}"
+  },
+  {
+   "id": "extra-keys",
+   "parent_id": "root-bypass",
+   "permission_mode": null,
+   "tool_scope": "{\"allow\":[\"A\"],\"extra\":1}"
+  },
+  {
+   "id": "null-scope",
+   "parent_id": "root-unset",
+   "permission_mode": null,
+   "tool_scope": "null"
+  }
+ ],
+ "chain": [
+  {
+   "id": "root-bypass",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "root-accept",
+   "mode": "acceptEdits",
+   "scope": null
+  },
+  {
+   "id": "root-unset",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "root-legacy",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "kid-inherits",
+   "mode": "acceptEdits",
+   "scope": {
+    "allow": [
+     "Read"
+    ],
+    "deny": [],
+    "editRegex": null
+   }
+  },
+  {
+   "id": "kid-own",
+   "mode": "bypassPermissions",
+   "scope": {
+    "allow": [],
+    "deny": [
+     "Bash"
+    ],
+    "editRegex": null
+   }
+  },
+  {
+   "id": "grandkid",
+   "mode": "acceptEdits",
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": "^/x"
+   }
+  },
+  {
+   "id": "kid-legacy",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "orphan",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "loop-a",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "loop-b",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "empty-parent",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "extra-keys",
+   "mode": "bypassPermissions",
+   "scope": {
+    "allow": [
+     "A"
+    ],
+    "deny": [],
+    "editRegex": null
+   }
+  },
+  {
+   "id": "null-scope",
+   "mode": "bypassPermissions",
+   "scope": null
+  },
+  {
+   "id": "unknown",
+   "mode": "bypassPermissions",
+   "scope": null
+  }
+ ],
+ "summaries": [
+  {
+   "input": "{\"command\":\"  npm   run\\n build \",\"file_path\":\"/x\"}",
+   "summary": "npm run build"
+  },
+  {
+   "input": "{\"command\":\"  \",\"file_path\":\"/a/b.md\"}",
+   "summary": "/a/b.md"
+  },
+  {
+   "input": "{\"command\":5,\"file_path\":\" \"}",
+   "summary": "{\"command\":5,\"file_path\":\" \"}"
+  },
+  {
+   "input": "{\"url\":\"https://x\"}",
+   "summary": "{\"url\":\"https://x\"}"
+  },
+  {
+   "input": "not json",
+   "summary": "not json"
+  },
+  {
+   "input": "[1,2]",
+   "summary": "[1,2]"
+  },
+  {
+   "input": "\"text\"",
+   "summary": "\"text\""
+  },
+  {
+   "input": "null",
+   "summary": "null"
+  },
+  {
+   "input": "",
+   "summary": ""
+  },
+  {
+   "input": "{\"command\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+   "summary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…"
+  },
+  {
+   "input": "{\"command\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"}",
+   "summary": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀�…"
+  },
+  {
+   "input": "{\"file_path\":\"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééxyz\"}",
+   "summary": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé…"
+  },
+  {
+   "input": "{\"command\":\"a\\u00a0\\u2028b\\ufeff c\"}",
+   "summary": "a b c"
+  },
+  {
+   "input": "  spaced\tout  ",
+   "summary": "spaced out"
+  }
+ ]
+}

@@ -28,4 +28,4 @@ pub use error::Error;
 pub use lock::{PathGuard, PathLocks};
 pub use trash::{move_to_trash, trash_into_dir, trash_stamp};
 pub use walk::{EntryKind, WalkEnd, WalkEntry, WalkOptions, list_files, walk};
-pub use yaml::to_yaml;
+pub use yaml::{read_yaml, to_yaml};

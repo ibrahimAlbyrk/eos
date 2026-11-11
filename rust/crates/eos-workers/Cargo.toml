@@ -1,0 +1,22 @@
+[package]
+name = "eos-workers"
+description = "Worker definitions: reading them, which one wins, what a spawn takes from one, and the catalog an orchestrator sees."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+eos-domain.workspace = true
+eos-testkit.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

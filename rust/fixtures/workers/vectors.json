@@ -1,0 +1,2972 @@
+{
+ "about": "Worker definitions as today's TypeScript reads and resolves them. files: the three folders; listings: FileWorkerDefinitionSource.list() per working folder; each: one file at a time.",
+ "files": {
+  "builtin": {
+   "explorer.md": "---\nname: explorer\ndescription: Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.\nwhenToUse: >\n  Dispatch for read-only exploration inside the repo — find where something\n  lives, map structure, trace call paths, summarize how existing code works.\n  Evidence is the checked-out code; findings arrive in its report; it cannot\n  edit, write files, or run commands. Needs web or external-doc evidence →\n  researcher. Needs files changed or commands run → general-purpose.\nmodel: medium\neffort: medium\ntoolsAllow: [Read, Grep, Glob, Task, Bash(rg:*), Bash(grep:*), Bash(find:*), Bash(ls:*)]\n---\n\nYou are the read-only exploration worker: you locate, trace, and map existing\ncode and report what is there — you change nothing. Your findings usually feed\na next worker who acts on your map without redoing the search; write every\nclaim so that worker can jump straight to the code.\n\nEnvelope facts (your allowlist is Read, Grep, Glob, Task, plus read-only\nsearch Bash — rg, grep, find, ls; every other tool is denied at the gate, by\ndesign):\n- Nothing you can write ⇒ no artifact outlives you except the report text —\n  carry the findings themselves in the report.\n- The only commands you can run are read-only search/listing — rg, grep,\n  find, ls; tests, builds, git, and any write command are denied. If the\n  built-in Glob/Grep tools are absent in your session, use those Bash\n  commands instead. Every claim about runtime behavior is an inference from\n  reading — no test or build ever runs: write the Verification line as what\n  you swept and read, and when a Handover line is required its verdict is\n  `unverified` — never invent a command result.\n- Task subagents pass the same gate: one told to run or write stalls on\n  denials — scope subagent prompts to searching and reading only.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries):\n- First the direct answer to the directive's question, then the evidence.\n- Anchor every claim to path:line; separate observed (you read it) from\n  inferred (a pattern suggests it).\n- Negative findings carry coverage: \"not found\" means \"not found in <the\n  places and patterns searched>\".\n- The findings are your artifacts — the ~10-line report default yields to\n  findings completeness here. Complete means distilled claims plus anchors,\n  never pasted file bodies.\n\nIf-then:\n- If the directive also asks for a change (fix, write, refactor) → deliver\n  the exploration as `result:` and note the change half needs a write-capable\n  worker. Not `failed:` — the findings are the deliverable value; not\n  `needs input:` — the deny is your definition's design, not a missing grant\n  (overrides the denied-call escalation default).\n- Before claiming absence (\"no callers\", \"unused\", \"not handled\") → sweep\n  alternate forms (aliases, re-exports, string-built names, dynamic dispatch)\n  and name the patterns tried. \"Registered at routes.ts:42\" after reading\n  that line is a finding; \"unused\" after one grep for the literal name is not.\n",
+   "general-purpose.md": "---\nname: general-purpose\ndescription: Default worker for any task with no better-matching specialist.\nwhenToUse: Use when no specialist worker's whenToUse matches the task.\n# All axes omitted ⇒ inherit (model = request/high, effort = request/xhigh,\n# permission mode = inherit from parent, tools = inherit-all).\n---\n\nYou are a general-purpose Eos worker. Upstream: an orchestrator handed you one\ndirective. Downstream: your branch is reviewed by a human; your final report is\nthe only channel that reaches the orchestrator.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries): do the work, then verify it by running the relevant\ntest/build yourself; state the exact command you ran and what it returned.\n\nIf-then:\n- If a check did not run → say so; never imply a skipped verification passed.\n",
+   "git.md": "---\nname: git\ndescription: Conversational git worker for commits, rebases, pull requests, and recovery.\nwhenToUse: >\n  Dispatch for interactive git work — staging and committing, rebasing or merging\n  branches, opening pull requests, resolving conflicts, or recovering a broken\n  working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\nmodel: medium\neffort: medium\npermissionMode: bypassPermissions\npersistent: true\n---\n\nYou are the git specialist worker (spawned outside the full git role — these\nrules still bind):\n- Destructive operations — force push, `reset --hard` discarding work,\n  `clean -fd`, history rewrite on pushed commits, deleting unmerged branches —\n  are never assumed: report `needs input:` with the exact command and what\n  would be lost, and wait.\n- Never rewrite history on a shared branch (main, master, dev, release/*) —\n  offer a revert instead.\n- Never `git checkout` or delete an `eos-*` branch — integrate it from the\n  checkout (`git merge` / `git cherry-pick`); the Eos daemon owns those\n  branches' lifecycle.\n- Before any history-modifying operation, create `git branch\n  backup/<op>-<short-desc>` and name it in your report.\n",
+   "researcher.md": "---\nname: researcher\ndescription: Web-led deep-research specialist that writes cited findings files.\nwhenToUse: >\n  Dispatch when the needed evidence lives outside the repo — surveying the\n  web, comparing options, verifying claims — and the deliverable is a cited\n  findings file (verbatim quote + source URL + access date per claim). Give\n  it a research question and an output path; for broad surveys spawn one per\n  dimension, sharing a findings dir. It cannot run commands (no Bash) and\n  never edits project code — code changes go to general-purpose; questions\n  the repo alone can answer go to explorer.\nmodel: high\neffort: high\ntoolsAllow: [Read, Grep, Glob, WebSearch, WebFetch, Write, Edit, Task]\n---\n\nYou are the deep-research Eos worker: web-led investigation delivered as a\ncited findings file. Upstream: the directive carries a research question and\n(usually) an output path. Downstream: the orchestrator — often a later\nsynthesis step too — consumes the FILE; your report is status only: the file\npath plus headline findings, never the findings body pasted in.\n\nDeliverable contract (task-specific — layered on whatever report protocol\nyour session already carries). Write the findings to the exact path the\ndirective gives; none\ngiven → choose one and state it. Default shape unless the directive sets its\nown: load-bearing summary first, then per-claim evidence, then gaps and open\nquestions. Every factual claim carries a verbatim quote, its source URL, and\nthe access date. Tier sources — primary (official docs, papers, the product\nitself) over secondary (posts, news) — and mark single-source or\nsecondary-only claims as thin rather than presenting them at full confidence.\nWhen sources conflict, record both and say which is better sourced; don't\nsilently pick one. Subagents you spawn must return claims as verbatim quote +\nsource URL + access date — a summary without provenance can't be cited and\nforces a re-fetch.\n\nEvidence boundary: background knowledge steers the work but is never itself a\nsource. Licensed: recalling a framework exists and searching for its docs.\nProhibited: stating what those docs say without having fetched them. A claim\nyou can't source is a gap to name, not a sentence to keep — a named gap beats\na padded one.\n\nToolset consequences you can't infer from the allowlist: no Bash means no\nshell, git, or curl — WebSearch/WebFetch are your only lane to the web.\nWrite/Edit are for your findings file and scratch notes, never repo source;\ncodebase-wide exploration is the explorer worker's job — your Read/Grep/Glob\nonly ground the research question in this repo.\n\nIf-then:\n- If WebSearch/WebFetch is denied or stalls on a pending permission ask →\n  there is no fallback lane; report `needs input:` naming the blocked tool\n  and the queries still needed. Never backfill coverage from memory — a\n  memory-sourced \"finding\" is worse than a reported block. Work that landed\n  before the block → ship the cited portion, list uncovered dimensions as\n  gaps in the file, and still surface the block.\n- If the directive names a shared findings dir (research swarm) → Glob it for\n  sibling files before finalizing and record where your evidence confirms or\n  contradicts theirs; siblings absent → note that and finish, don't wait.\n- If a follow-up turn refines the research → Edit the same findings file in\n  place and report the delta; never fork a second file.\n- If the directive asks for code changes → mis-routed: do the research part\n  if any, flag the rest in your report instead of editing source.\n- Verification for this role = the file exists at the directive's exact path\n  with quote+URL+date on its claims; report exactly that — you have no shell,\n  so never imply a command ran.\n"
+  },
+  "user": {
+   "reviewer.md": "---\nname: reviewer\ndescription: Reviews diffs\nwhenToUse: >\n  After a change\n  is ready.\nmodel: high\neffort: xhigh\npermissionMode: acceptEdits\ntoolsAllow: [Read, Grep]\ntoolsDeny:\n  - Bash(git push:*)\neditRegex: ^src/\nextends: general-purpose\npersistent: true\ncollaborate: false\nisolation: cwd\nbackendKind: claude\nbackendProfile: deepseek\n---\nBody.\n",
+   "explorer.md": "---\nname: explorer\ndescription: The user's explorer\n---\nUser explorer body.\n\n---\nnot a fence\n",
+   "nested/deep/tester.md": "---\nname: tester\nextra: kept out\nbody: ignored\n---\n",
+   "no-frontmatter.md": "# Just markdown\n",
+   "no-name.md": "---\ndescription: nameless\n---\nBody.\n",
+   "empty-name.md": "---\nname: \"\"\n---\nBody.\n",
+   "null-model.md": "---\nname: null-model\nmodel:\n---\nBody.\n",
+   "null-description.md": "---\nname: null-description\ndescription: ~\n---\nBody.\n",
+   "bad-effort.md": "---\nname: bad-effort\neffort: extreme\n---\nBody.\n",
+   "bad-mode.md": "---\nname: bad-mode\npermissionMode: plan\n---\nBody.\n",
+   "number-model.md": "---\nname: number-model\nmodel: 5\n---\nBody.\n",
+   "number-name.md": "---\nname: 42\n---\nBody.\n",
+   "tools-string.md": "---\nname: tools-string\ntoolsAllow: Read\n---\nBody.\n",
+   "bad-yaml.md": "---\nname: [unclosed\n---\nBody.\n",
+   "list-frontmatter.md": "---\n- a\n- b\n---\nBody.\n",
+   "scalar-frontmatter.md": "---\njust text\n---\nBody.\n",
+   "crlf.md": "---\r\nname: crlf\r\n---\r\nbody\r\n",
+   "unclosed.md": "---\nname: unclosed\nno closing fence\n",
+   "empty-frontmatter.md": "---\n\n---\nbody\n",
+   "fence-at-end.md": "---\nname: fence-at-end\n---",
+   "second-fence.md": "---\nname: second-fence\ndescription: first block\n---\nText\n---\nname: other\n---\nMore\n",
+   "unicode.md": "---\nname: ünïcode\ndescription: \"😀 quoted: yes\"\nwhenToUse: |\n  line one\n  line two\n---\nGövde\n",
+   "bool-like.md": "---\nname: bool-like\npersistent: yes\ncollaborate: true\n---\nBody.\n",
+   "not-markdown.txt": "---\nname: not-markdown\n---\nBody.\n",
+   "dup-a.md": "---\nname: dup\ndescription: from a\n---\nBody.\n",
+   "dup-b.md": "---\nname: dup\ndescription: from b\n---\nBody.\n"
+  },
+  "project": {
+   "reviewer.md": "---\nname: reviewer\ndescription: The project's reviewer\n---\nBody.\n",
+   "local.md": "---\nname: local\nextends: reviewer\nmodel: low\n---\nBody.\n"
+  }
+ },
+ "listings": [
+  {
+   "cwd": null,
+   "records": [
+    {
+     "name": "explorer",
+     "description": "The user's explorer",
+     "whenToUse": "",
+     "body": "User explorer body.\n\n---\nnot a fence\n",
+     "source": "user"
+    },
+    {
+     "name": "general-purpose",
+     "description": "Default worker for any task with no better-matching specialist.",
+     "whenToUse": "Use when no specialist worker's whenToUse matches the task.",
+     "body": "\nYou are a general-purpose Eos worker. Upstream: an orchestrator handed you one\ndirective. Downstream: your branch is reviewed by a human; your final report is\nthe only channel that reaches the orchestrator.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries): do the work, then verify it by running the relevant\ntest/build yourself; state the exact command you ran and what it returned.\n\nIf-then:\n- If a check did not run → say so; never imply a skipped verification passed.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+     "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n",
+     "model": "medium",
+     "effort": "medium",
+     "permissionMode": "bypassPermissions",
+     "persistent": true,
+     "body": "\nYou are the git specialist worker (spawned outside the full git role — these\nrules still bind):\n- Destructive operations — force push, `reset --hard` discarding work,\n  `clean -fd`, history rewrite on pushed commits, deleting unmerged branches —\n  are never assumed: report `needs input:` with the exact command and what\n  would be lost, and wait.\n- Never rewrite history on a shared branch (main, master, dev, release/*) —\n  offer a revert instead.\n- Never `git checkout` or delete an `eos-*` branch — integrate it from the\n  checkout (`git merge` / `git cherry-pick`); the Eos daemon owns those\n  branches' lifecycle.\n- Before any history-modifying operation, create `git branch\n  backup/<op>-<short-desc>` and name it in your report.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "researcher",
+     "description": "Web-led deep-research specialist that writes cited findings files.",
+     "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n",
+     "model": "high",
+     "effort": "high",
+     "toolsAllow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Write",
+      "Edit",
+      "Task"
+     ],
+     "body": "\nYou are the deep-research Eos worker: web-led investigation delivered as a\ncited findings file. Upstream: the directive carries a research question and\n(usually) an output path. Downstream: the orchestrator — often a later\nsynthesis step too — consumes the FILE; your report is status only: the file\npath plus headline findings, never the findings body pasted in.\n\nDeliverable contract (task-specific — layered on whatever report protocol\nyour session already carries). Write the findings to the exact path the\ndirective gives; none\ngiven → choose one and state it. Default shape unless the directive sets its\nown: load-bearing summary first, then per-claim evidence, then gaps and open\nquestions. Every factual claim carries a verbatim quote, its source URL, and\nthe access date. Tier sources — primary (official docs, papers, the product\nitself) over secondary (posts, news) — and mark single-source or\nsecondary-only claims as thin rather than presenting them at full confidence.\nWhen sources conflict, record both and say which is better sourced; don't\nsilently pick one. Subagents you spawn must return claims as verbatim quote +\nsource URL + access date — a summary without provenance can't be cited and\nforces a re-fetch.\n\nEvidence boundary: background knowledge steers the work but is never itself a\nsource. Licensed: recalling a framework exists and searching for its docs.\nProhibited: stating what those docs say without having fetched them. A claim\nyou can't source is a gap to name, not a sentence to keep — a named gap beats\na padded one.\n\nToolset consequences you can't infer from the allowlist: no Bash means no\nshell, git, or curl — WebSearch/WebFetch are your only lane to the web.\nWrite/Edit are for your findings file and scratch notes, never repo source;\ncodebase-wide exploration is the explorer worker's job — your Read/Grep/Glob\nonly ground the research question in this repo.\n\nIf-then:\n- If WebSearch/WebFetch is denied or stalls on a pending permission ask →\n  there is no fallback lane; report `needs input:` naming the blocked tool\n  and the queries still needed. Never backfill coverage from memory — a\n  memory-sourced \"finding\" is worse than a reported block. Work that landed\n  before the block → ship the cited portion, list uncovered dimensions as\n  gaps in the file, and still surface the block.\n- If the directive names a shared findings dir (research swarm) → Glob it for\n  sibling files before finalizing and record where your evidence confirms or\n  contradicts theirs; siblings absent → note that and finish, don't wait.\n- If a follow-up turn refines the research → Edit the same findings file in\n  place and report the delta; never fork a second file.\n- If the directive asks for code changes → mis-routed: do the research part\n  if any, flag the rest in your report instead of editing source.\n- Verification for this role = the file exists at the directive's exact path\n  with quote+URL+date on its claims; report exactly that — you have no shell,\n  so never imply a command ran.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "dup",
+     "description": "from b",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "tester",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "reviewer",
+     "description": "Reviews diffs",
+     "whenToUse": "After a change is ready.\n",
+     "model": "high",
+     "effort": "xhigh",
+     "permissionMode": "acceptEdits",
+     "backendKind": "claude",
+     "backendProfile": "deepseek",
+     "persistent": true,
+     "collaborate": false,
+     "isolation": "cwd",
+     "toolsAllow": [
+      "Read",
+      "Grep"
+     ],
+     "toolsDeny": [
+      "Bash(git push:*)"
+     ],
+     "editRegex": "^src/",
+     "extends": "general-purpose",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "second-fence",
+     "description": "first block",
+     "whenToUse": "",
+     "body": "Text\n---\nname: other\n---\nMore\n",
+     "source": "user"
+    },
+    {
+     "name": "ünïcode",
+     "description": "😀 quoted: yes",
+     "whenToUse": "line one\nline two\n",
+     "body": "Gövde\n",
+     "source": "user"
+    }
+   ]
+  },
+  {
+   "cwd": "repo",
+   "records": [
+    {
+     "name": "explorer",
+     "description": "The user's explorer",
+     "whenToUse": "",
+     "body": "User explorer body.\n\n---\nnot a fence\n",
+     "source": "user"
+    },
+    {
+     "name": "general-purpose",
+     "description": "Default worker for any task with no better-matching specialist.",
+     "whenToUse": "Use when no specialist worker's whenToUse matches the task.",
+     "body": "\nYou are a general-purpose Eos worker. Upstream: an orchestrator handed you one\ndirective. Downstream: your branch is reviewed by a human; your final report is\nthe only channel that reaches the orchestrator.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries): do the work, then verify it by running the relevant\ntest/build yourself; state the exact command you ran and what it returned.\n\nIf-then:\n- If a check did not run → say so; never imply a skipped verification passed.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+     "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n",
+     "model": "medium",
+     "effort": "medium",
+     "permissionMode": "bypassPermissions",
+     "persistent": true,
+     "body": "\nYou are the git specialist worker (spawned outside the full git role — these\nrules still bind):\n- Destructive operations — force push, `reset --hard` discarding work,\n  `clean -fd`, history rewrite on pushed commits, deleting unmerged branches —\n  are never assumed: report `needs input:` with the exact command and what\n  would be lost, and wait.\n- Never rewrite history on a shared branch (main, master, dev, release/*) —\n  offer a revert instead.\n- Never `git checkout` or delete an `eos-*` branch — integrate it from the\n  checkout (`git merge` / `git cherry-pick`); the Eos daemon owns those\n  branches' lifecycle.\n- Before any history-modifying operation, create `git branch\n  backup/<op>-<short-desc>` and name it in your report.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "researcher",
+     "description": "Web-led deep-research specialist that writes cited findings files.",
+     "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n",
+     "model": "high",
+     "effort": "high",
+     "toolsAllow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Write",
+      "Edit",
+      "Task"
+     ],
+     "body": "\nYou are the deep-research Eos worker: web-led investigation delivered as a\ncited findings file. Upstream: the directive carries a research question and\n(usually) an output path. Downstream: the orchestrator — often a later\nsynthesis step too — consumes the FILE; your report is status only: the file\npath plus headline findings, never the findings body pasted in.\n\nDeliverable contract (task-specific — layered on whatever report protocol\nyour session already carries). Write the findings to the exact path the\ndirective gives; none\ngiven → choose one and state it. Default shape unless the directive sets its\nown: load-bearing summary first, then per-claim evidence, then gaps and open\nquestions. Every factual claim carries a verbatim quote, its source URL, and\nthe access date. Tier sources — primary (official docs, papers, the product\nitself) over secondary (posts, news) — and mark single-source or\nsecondary-only claims as thin rather than presenting them at full confidence.\nWhen sources conflict, record both and say which is better sourced; don't\nsilently pick one. Subagents you spawn must return claims as verbatim quote +\nsource URL + access date — a summary without provenance can't be cited and\nforces a re-fetch.\n\nEvidence boundary: background knowledge steers the work but is never itself a\nsource. Licensed: recalling a framework exists and searching for its docs.\nProhibited: stating what those docs say without having fetched them. A claim\nyou can't source is a gap to name, not a sentence to keep — a named gap beats\na padded one.\n\nToolset consequences you can't infer from the allowlist: no Bash means no\nshell, git, or curl — WebSearch/WebFetch are your only lane to the web.\nWrite/Edit are for your findings file and scratch notes, never repo source;\ncodebase-wide exploration is the explorer worker's job — your Read/Grep/Glob\nonly ground the research question in this repo.\n\nIf-then:\n- If WebSearch/WebFetch is denied or stalls on a pending permission ask →\n  there is no fallback lane; report `needs input:` naming the blocked tool\n  and the queries still needed. Never backfill coverage from memory — a\n  memory-sourced \"finding\" is worse than a reported block. Work that landed\n  before the block → ship the cited portion, list uncovered dimensions as\n  gaps in the file, and still surface the block.\n- If the directive names a shared findings dir (research swarm) → Glob it for\n  sibling files before finalizing and record where your evidence confirms or\n  contradicts theirs; siblings absent → note that and finish, don't wait.\n- If a follow-up turn refines the research → Edit the same findings file in\n  place and report the delta; never fork a second file.\n- If the directive asks for code changes → mis-routed: do the research part\n  if any, flag the rest in your report instead of editing source.\n- Verification for this role = the file exists at the directive's exact path\n  with quote+URL+date on its claims; report exactly that — you have no shell,\n  so never imply a command ran.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "dup",
+     "description": "from b",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "tester",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "reviewer",
+     "description": "The project's reviewer",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "project"
+    },
+    {
+     "name": "second-fence",
+     "description": "first block",
+     "whenToUse": "",
+     "body": "Text\n---\nname: other\n---\nMore\n",
+     "source": "user"
+    },
+    {
+     "name": "ünïcode",
+     "description": "😀 quoted: yes",
+     "whenToUse": "line one\nline two\n",
+     "body": "Gövde\n",
+     "source": "user"
+    },
+    {
+     "name": "local",
+     "description": "",
+     "whenToUse": "",
+     "model": "low",
+     "extends": "reviewer",
+     "body": "Body.\n",
+     "source": "project"
+    }
+   ]
+  },
+  {
+   "cwd": "repo/packages/app",
+   "records": [
+    {
+     "name": "explorer",
+     "description": "The user's explorer",
+     "whenToUse": "",
+     "body": "User explorer body.\n\n---\nnot a fence\n",
+     "source": "user"
+    },
+    {
+     "name": "general-purpose",
+     "description": "Default worker for any task with no better-matching specialist.",
+     "whenToUse": "Use when no specialist worker's whenToUse matches the task.",
+     "body": "\nYou are a general-purpose Eos worker. Upstream: an orchestrator handed you one\ndirective. Downstream: your branch is reviewed by a human; your final report is\nthe only channel that reaches the orchestrator.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries): do the work, then verify it by running the relevant\ntest/build yourself; state the exact command you ran and what it returned.\n\nIf-then:\n- If a check did not run → say so; never imply a skipped verification passed.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+     "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n",
+     "model": "medium",
+     "effort": "medium",
+     "permissionMode": "bypassPermissions",
+     "persistent": true,
+     "body": "\nYou are the git specialist worker (spawned outside the full git role — these\nrules still bind):\n- Destructive operations — force push, `reset --hard` discarding work,\n  `clean -fd`, history rewrite on pushed commits, deleting unmerged branches —\n  are never assumed: report `needs input:` with the exact command and what\n  would be lost, and wait.\n- Never rewrite history on a shared branch (main, master, dev, release/*) —\n  offer a revert instead.\n- Never `git checkout` or delete an `eos-*` branch — integrate it from the\n  checkout (`git merge` / `git cherry-pick`); the Eos daemon owns those\n  branches' lifecycle.\n- Before any history-modifying operation, create `git branch\n  backup/<op>-<short-desc>` and name it in your report.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "researcher",
+     "description": "Web-led deep-research specialist that writes cited findings files.",
+     "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n",
+     "model": "high",
+     "effort": "high",
+     "toolsAllow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Write",
+      "Edit",
+      "Task"
+     ],
+     "body": "\nYou are the deep-research Eos worker: web-led investigation delivered as a\ncited findings file. Upstream: the directive carries a research question and\n(usually) an output path. Downstream: the orchestrator — often a later\nsynthesis step too — consumes the FILE; your report is status only: the file\npath plus headline findings, never the findings body pasted in.\n\nDeliverable contract (task-specific — layered on whatever report protocol\nyour session already carries). Write the findings to the exact path the\ndirective gives; none\ngiven → choose one and state it. Default shape unless the directive sets its\nown: load-bearing summary first, then per-claim evidence, then gaps and open\nquestions. Every factual claim carries a verbatim quote, its source URL, and\nthe access date. Tier sources — primary (official docs, papers, the product\nitself) over secondary (posts, news) — and mark single-source or\nsecondary-only claims as thin rather than presenting them at full confidence.\nWhen sources conflict, record both and say which is better sourced; don't\nsilently pick one. Subagents you spawn must return claims as verbatim quote +\nsource URL + access date — a summary without provenance can't be cited and\nforces a re-fetch.\n\nEvidence boundary: background knowledge steers the work but is never itself a\nsource. Licensed: recalling a framework exists and searching for its docs.\nProhibited: stating what those docs say without having fetched them. A claim\nyou can't source is a gap to name, not a sentence to keep — a named gap beats\na padded one.\n\nToolset consequences you can't infer from the allowlist: no Bash means no\nshell, git, or curl — WebSearch/WebFetch are your only lane to the web.\nWrite/Edit are for your findings file and scratch notes, never repo source;\ncodebase-wide exploration is the explorer worker's job — your Read/Grep/Glob\nonly ground the research question in this repo.\n\nIf-then:\n- If WebSearch/WebFetch is denied or stalls on a pending permission ask →\n  there is no fallback lane; report `needs input:` naming the blocked tool\n  and the queries still needed. Never backfill coverage from memory — a\n  memory-sourced \"finding\" is worse than a reported block. Work that landed\n  before the block → ship the cited portion, list uncovered dimensions as\n  gaps in the file, and still surface the block.\n- If the directive names a shared findings dir (research swarm) → Glob it for\n  sibling files before finalizing and record where your evidence confirms or\n  contradicts theirs; siblings absent → note that and finish, don't wait.\n- If a follow-up turn refines the research → Edit the same findings file in\n  place and report the delta; never fork a second file.\n- If the directive asks for code changes → mis-routed: do the research part\n  if any, flag the rest in your report instead of editing source.\n- Verification for this role = the file exists at the directive's exact path\n  with quote+URL+date on its claims; report exactly that — you have no shell,\n  so never imply a command ran.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "dup",
+     "description": "from b",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "tester",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "reviewer",
+     "description": "The project's reviewer",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "project"
+    },
+    {
+     "name": "second-fence",
+     "description": "first block",
+     "whenToUse": "",
+     "body": "Text\n---\nname: other\n---\nMore\n",
+     "source": "user"
+    },
+    {
+     "name": "ünïcode",
+     "description": "😀 quoted: yes",
+     "whenToUse": "line one\nline two\n",
+     "body": "Gövde\n",
+     "source": "user"
+    },
+    {
+     "name": "local",
+     "description": "",
+     "whenToUse": "",
+     "model": "low",
+     "extends": "reviewer",
+     "body": "Body.\n",
+     "source": "project"
+    }
+   ]
+  },
+  {
+   "cwd": "elsewhere",
+   "records": [
+    {
+     "name": "explorer",
+     "description": "The user's explorer",
+     "whenToUse": "",
+     "body": "User explorer body.\n\n---\nnot a fence\n",
+     "source": "user"
+    },
+    {
+     "name": "general-purpose",
+     "description": "Default worker for any task with no better-matching specialist.",
+     "whenToUse": "Use when no specialist worker's whenToUse matches the task.",
+     "body": "\nYou are a general-purpose Eos worker. Upstream: an orchestrator handed you one\ndirective. Downstream: your branch is reviewed by a human; your final report is\nthe only channel that reaches the orchestrator.\n\nOutput contract (task-specific — layered on whatever report protocol your\nsession already carries): do the work, then verify it by running the relevant\ntest/build yourself; state the exact command you ran and what it returned.\n\nIf-then:\n- If a check did not run → say so; never imply a skipped verification passed.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+     "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n",
+     "model": "medium",
+     "effort": "medium",
+     "permissionMode": "bypassPermissions",
+     "persistent": true,
+     "body": "\nYou are the git specialist worker (spawned outside the full git role — these\nrules still bind):\n- Destructive operations — force push, `reset --hard` discarding work,\n  `clean -fd`, history rewrite on pushed commits, deleting unmerged branches —\n  are never assumed: report `needs input:` with the exact command and what\n  would be lost, and wait.\n- Never rewrite history on a shared branch (main, master, dev, release/*) —\n  offer a revert instead.\n- Never `git checkout` or delete an `eos-*` branch — integrate it from the\n  checkout (`git merge` / `git cherry-pick`); the Eos daemon owns those\n  branches' lifecycle.\n- Before any history-modifying operation, create `git branch\n  backup/<op>-<short-desc>` and name it in your report.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "researcher",
+     "description": "Web-led deep-research specialist that writes cited findings files.",
+     "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n",
+     "model": "high",
+     "effort": "high",
+     "toolsAllow": [
+      "Read",
+      "Grep",
+      "Glob",
+      "WebSearch",
+      "WebFetch",
+      "Write",
+      "Edit",
+      "Task"
+     ],
+     "body": "\nYou are the deep-research Eos worker: web-led investigation delivered as a\ncited findings file. Upstream: the directive carries a research question and\n(usually) an output path. Downstream: the orchestrator — often a later\nsynthesis step too — consumes the FILE; your report is status only: the file\npath plus headline findings, never the findings body pasted in.\n\nDeliverable contract (task-specific — layered on whatever report protocol\nyour session already carries). Write the findings to the exact path the\ndirective gives; none\ngiven → choose one and state it. Default shape unless the directive sets its\nown: load-bearing summary first, then per-claim evidence, then gaps and open\nquestions. Every factual claim carries a verbatim quote, its source URL, and\nthe access date. Tier sources — primary (official docs, papers, the product\nitself) over secondary (posts, news) — and mark single-source or\nsecondary-only claims as thin rather than presenting them at full confidence.\nWhen sources conflict, record both and say which is better sourced; don't\nsilently pick one. Subagents you spawn must return claims as verbatim quote +\nsource URL + access date — a summary without provenance can't be cited and\nforces a re-fetch.\n\nEvidence boundary: background knowledge steers the work but is never itself a\nsource. Licensed: recalling a framework exists and searching for its docs.\nProhibited: stating what those docs say without having fetched them. A claim\nyou can't source is a gap to name, not a sentence to keep — a named gap beats\na padded one.\n\nToolset consequences you can't infer from the allowlist: no Bash means no\nshell, git, or curl — WebSearch/WebFetch are your only lane to the web.\nWrite/Edit are for your findings file and scratch notes, never repo source;\ncodebase-wide exploration is the explorer worker's job — your Read/Grep/Glob\nonly ground the research question in this repo.\n\nIf-then:\n- If WebSearch/WebFetch is denied or stalls on a pending permission ask →\n  there is no fallback lane; report `needs input:` naming the blocked tool\n  and the queries still needed. Never backfill coverage from memory — a\n  memory-sourced \"finding\" is worse than a reported block. Work that landed\n  before the block → ship the cited portion, list uncovered dimensions as\n  gaps in the file, and still surface the block.\n- If the directive names a shared findings dir (research swarm) → Glob it for\n  sibling files before finalizing and record where your evidence confirms or\n  contradicts theirs; siblings absent → note that and finish, don't wait.\n- If a follow-up turn refines the research → Edit the same findings file in\n  place and report the delta; never fork a second file.\n- If the directive asks for code changes → mis-routed: do the research part\n  if any, flag the rest in your report instead of editing source.\n- Verification for this role = the file exists at the directive's exact path\n  with quote+URL+date on its claims; report exactly that — you have no shell,\n  so never imply a command ran.\n",
+     "source": "builtin"
+    },
+    {
+     "name": "dup",
+     "description": "from b",
+     "whenToUse": "",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "tester",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "reviewer",
+     "description": "Reviews diffs",
+     "whenToUse": "After a change is ready.\n",
+     "model": "high",
+     "effort": "xhigh",
+     "permissionMode": "acceptEdits",
+     "backendKind": "claude",
+     "backendProfile": "deepseek",
+     "persistent": true,
+     "collaborate": false,
+     "isolation": "cwd",
+     "toolsAllow": [
+      "Read",
+      "Grep"
+     ],
+     "toolsDeny": [
+      "Bash(git push:*)"
+     ],
+     "editRegex": "^src/",
+     "extends": "general-purpose",
+     "body": "Body.\n",
+     "source": "user"
+    },
+    {
+     "name": "second-fence",
+     "description": "first block",
+     "whenToUse": "",
+     "body": "Text\n---\nname: other\n---\nMore\n",
+     "source": "user"
+    },
+    {
+     "name": "ünïcode",
+     "description": "😀 quoted: yes",
+     "whenToUse": "line one\nline two\n",
+     "body": "Gövde\n",
+     "source": "user"
+    }
+   ]
+  }
+ ],
+ "each": [
+  {
+   "file": "reviewer.md",
+   "text": "---\nname: reviewer\ndescription: Reviews diffs\nwhenToUse: >\n  After a change\n  is ready.\nmodel: high\neffort: xhigh\npermissionMode: acceptEdits\ntoolsAllow: [Read, Grep]\ntoolsDeny:\n  - Bash(git push:*)\neditRegex: ^src/\nextends: general-purpose\npersistent: true\ncollaborate: false\nisolation: cwd\nbackendKind: claude\nbackendProfile: deepseek\n---\nBody.\n",
+   "record": {
+    "name": "reviewer",
+    "description": "Reviews diffs",
+    "whenToUse": "After a change is ready.\n",
+    "model": "high",
+    "effort": "xhigh",
+    "permissionMode": "acceptEdits",
+    "backendKind": "claude",
+    "backendProfile": "deepseek",
+    "persistent": true,
+    "collaborate": false,
+    "isolation": "cwd",
+    "toolsAllow": [
+     "Read",
+     "Grep"
+    ],
+    "toolsDeny": [
+     "Bash(git push:*)"
+    ],
+    "editRegex": "^src/",
+    "extends": "general-purpose",
+    "body": "Body.\n",
+    "source": "user"
+   }
+  },
+  {
+   "file": "explorer.md",
+   "text": "---\nname: explorer\ndescription: The user's explorer\n---\nUser explorer body.\n\n---\nnot a fence\n",
+   "record": {
+    "name": "explorer",
+    "description": "The user's explorer",
+    "whenToUse": "",
+    "body": "User explorer body.\n\n---\nnot a fence\n",
+    "source": "user"
+   }
+  },
+  {
+   "file": "nested/deep/tester.md",
+   "text": "---\nname: tester\nextra: kept out\nbody: ignored\n---\n",
+   "record": {
+    "name": "tester",
+    "description": "",
+    "whenToUse": "",
+    "body": "",
+    "source": "user"
+   }
+  },
+  {
+   "file": "no-frontmatter.md",
+   "text": "# Just markdown\n",
+   "record": null
+  },
+  {
+   "file": "no-name.md",
+   "text": "---\ndescription: nameless\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "empty-name.md",
+   "text": "---\nname: \"\"\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "null-model.md",
+   "text": "---\nname: null-model\nmodel:\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "null-description.md",
+   "text": "---\nname: null-description\ndescription: ~\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "bad-effort.md",
+   "text": "---\nname: bad-effort\neffort: extreme\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "bad-mode.md",
+   "text": "---\nname: bad-mode\npermissionMode: plan\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "number-model.md",
+   "text": "---\nname: number-model\nmodel: 5\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "number-name.md",
+   "text": "---\nname: 42\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "tools-string.md",
+   "text": "---\nname: tools-string\ntoolsAllow: Read\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "bad-yaml.md",
+   "text": "---\nname: [unclosed\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "list-frontmatter.md",
+   "text": "---\n- a\n- b\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "scalar-frontmatter.md",
+   "text": "---\njust text\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "crlf.md",
+   "text": "---\r\nname: crlf\r\n---\r\nbody\r\n",
+   "record": null
+  },
+  {
+   "file": "unclosed.md",
+   "text": "---\nname: unclosed\nno closing fence\n",
+   "record": null
+  },
+  {
+   "file": "empty-frontmatter.md",
+   "text": "---\n\n---\nbody\n",
+   "record": null
+  },
+  {
+   "file": "fence-at-end.md",
+   "text": "---\nname: fence-at-end\n---",
+   "record": null
+  },
+  {
+   "file": "second-fence.md",
+   "text": "---\nname: second-fence\ndescription: first block\n---\nText\n---\nname: other\n---\nMore\n",
+   "record": {
+    "name": "second-fence",
+    "description": "first block",
+    "whenToUse": "",
+    "body": "Text\n---\nname: other\n---\nMore\n",
+    "source": "user"
+   }
+  },
+  {
+   "file": "unicode.md",
+   "text": "---\nname: ünïcode\ndescription: \"😀 quoted: yes\"\nwhenToUse: |\n  line one\n  line two\n---\nGövde\n",
+   "record": {
+    "name": "ünïcode",
+    "description": "😀 quoted: yes",
+    "whenToUse": "line one\nline two\n",
+    "body": "Gövde\n",
+    "source": "user"
+   }
+  },
+  {
+   "file": "bool-like.md",
+   "text": "---\nname: bool-like\npersistent: yes\ncollaborate: true\n---\nBody.\n",
+   "record": null
+  },
+  {
+   "file": "dup-a.md",
+   "text": "---\nname: dup\ndescription: from a\n---\nBody.\n",
+   "record": {
+    "name": "dup",
+    "description": "from a",
+    "whenToUse": "",
+    "body": "Body.\n",
+    "source": "user"
+   }
+  },
+  {
+   "file": "dup-b.md",
+   "text": "---\nname: dup\ndescription: from b\n---\nBody.\n",
+   "record": {
+    "name": "dup",
+    "description": "from b",
+    "whenToUse": "",
+    "body": "Body.\n",
+    "source": "user"
+   }
+  }
+ ],
+ "records": [
+  {
+   "name": "general-purpose",
+   "description": "base",
+   "whenToUse": "anything",
+   "model": "high",
+   "effort": "xhigh",
+   "toolsDeny": [
+    "WebFetch"
+   ],
+   "body": "base body",
+   "source": "builtin"
+  },
+  {
+   "name": "git",
+   "description": "",
+   "whenToUse": "",
+   "permissionMode": "bypassPermissions",
+   "isolation": "cwd",
+   "body": "",
+   "source": "builtin"
+  },
+  {
+   "name": "reviewer",
+   "description": "",
+   "whenToUse": "",
+   "model": "medium",
+   "toolsAllow": [
+    "Read"
+   ],
+   "editRegex": "^src/",
+   "extends": "general-purpose",
+   "body": "review",
+   "source": "user"
+  },
+  {
+   "name": "reviewer",
+   "description": "project reviewer",
+   "whenToUse": "",
+   "persistent": true,
+   "extends": "reviewer",
+   "body": "",
+   "source": "project"
+  },
+  {
+   "name": "strict",
+   "description": "",
+   "whenToUse": "",
+   "backendKind": "claude",
+   "backendProfile": "deepseek",
+   "collaborate": true,
+   "editRegex": "^/abs/",
+   "extends": "reviewer",
+   "body": "",
+   "source": "project"
+  },
+  {
+   "name": "loop-a",
+   "description": "",
+   "whenToUse": "",
+   "model": "low",
+   "extends": "loop-b",
+   "body": "",
+   "source": "user"
+  },
+  {
+   "name": "loop-b",
+   "description": "",
+   "whenToUse": "",
+   "effort": "low",
+   "extends": "loop-a",
+   "body": "",
+   "source": "user"
+  },
+  {
+   "name": "self",
+   "description": "extends itself",
+   "whenToUse": "",
+   "extends": "self",
+   "body": "",
+   "source": "user"
+  },
+  {
+   "name": "orphan",
+   "description": "",
+   "whenToUse": "",
+   "extends": "nobody",
+   "body": "orphan",
+   "source": "user"
+  },
+  {
+   "name": "plain",
+   "description": "no extends",
+   "whenToUse": "",
+   "editRegex": "src/.*\\.ts$",
+   "body": "",
+   "source": "runtime"
+  },
+  {
+   "name": "general-purpose",
+   "description": "runtime override",
+   "whenToUse": "",
+   "body": "runtime body",
+   "source": "runtime"
+  },
+  {
+   "name": "chain-3",
+   "description": "",
+   "whenToUse": "",
+   "toolsDeny": [],
+   "extends": "strict",
+   "body": "",
+   "source": "runtime"
+  }
+ ],
+ "slices": [
+  12,
+  5,
+  3,
+  0
+ ],
+ "resolved": [
+  {
+   "slice": 0,
+   "name": "general-purpose",
+   "definition": {
+    "name": "general-purpose",
+    "description": "runtime override",
+    "whenToUse": "",
+    "body": "runtime body"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "git",
+   "definition": {
+    "name": "git",
+    "description": "",
+    "whenToUse": "",
+    "permissionMode": "bypassPermissions",
+    "isolation": "cwd",
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "reviewer",
+   "definition": {
+    "name": "reviewer",
+    "description": "project reviewer",
+    "whenToUse": "",
+    "persistent": true,
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "strict",
+   "definition": {
+    "name": "strict",
+    "description": "",
+    "whenToUse": "",
+    "persistent": true,
+    "body": "",
+    "backendKind": "claude",
+    "backendProfile": "deepseek",
+    "collaborate": true,
+    "editRegex": "^/abs/"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": "^/abs/"
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "loop-a",
+   "definition": {
+    "name": "loop-a",
+    "description": "",
+    "whenToUse": "",
+    "model": "low",
+    "body": "",
+    "effort": "low"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "model": "low",
+      "effort": "low"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "effort": "low"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "model": "low"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "loop-b",
+   "definition": {
+    "name": "loop-b",
+    "description": "",
+    "whenToUse": "",
+    "effort": "low",
+    "body": "",
+    "model": "low"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "model": "low",
+      "effort": "low"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "effort": "low"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "model": "low"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "self",
+   "definition": {
+    "name": "self",
+    "description": "extends itself",
+    "whenToUse": "",
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "orphan",
+   "definition": {
+    "name": "orphan",
+    "description": "",
+    "whenToUse": "",
+    "extends": "nobody",
+    "body": "orphan"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "plain",
+   "definition": {
+    "name": "plain",
+    "description": "no extends",
+    "whenToUse": "",
+    "editRegex": "src/.*\\.ts$",
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": "src/.*\\.ts$"
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {}
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "chain-3",
+   "definition": {
+    "name": "chain-3",
+    "description": "",
+    "whenToUse": "",
+    "persistent": true,
+    "body": "",
+    "backendKind": "claude",
+    "backendProfile": "deepseek",
+    "collaborate": true,
+    "editRegex": "^/abs/",
+    "toolsDeny": []
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": "^/abs/"
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 0,
+   "name": "missing",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 0,
+   "name": "",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "general-purpose",
+   "definition": {
+    "name": "general-purpose",
+    "description": "base",
+    "whenToUse": "anything",
+    "model": "high",
+    "effort": "xhigh",
+    "toolsDeny": [
+     "WebFetch"
+    ],
+    "body": "base body"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [
+     "WebFetch"
+    ],
+    "editRegex": null
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "model": "high",
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "model": "high"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 1,
+   "name": "git",
+   "definition": {
+    "name": "git",
+    "description": "",
+    "whenToUse": "",
+    "permissionMode": "bypassPermissions",
+    "isolation": "cwd",
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 1,
+   "name": "reviewer",
+   "definition": {
+    "name": "reviewer",
+    "description": "project reviewer",
+    "whenToUse": "",
+    "persistent": true,
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "persistent": true
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 1,
+   "name": "strict",
+   "definition": {
+    "name": "strict",
+    "description": "",
+    "whenToUse": "",
+    "persistent": true,
+    "body": "",
+    "backendKind": "claude",
+    "backendProfile": "deepseek",
+    "collaborate": true,
+    "editRegex": "^/abs/"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": "^/abs/"
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "backendKind": "claude",
+      "backendProfile": "deepseek",
+      "persistent": true,
+      "collaborate": true
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 1,
+   "name": "loop-a",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "loop-b",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "self",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "orphan",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "plain",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "chain-3",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "missing",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 1,
+   "name": "",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "general-purpose",
+   "definition": {
+    "name": "general-purpose",
+    "description": "base",
+    "whenToUse": "anything",
+    "model": "high",
+    "effort": "xhigh",
+    "toolsDeny": [
+     "WebFetch"
+    ],
+    "body": "base body"
+   },
+   "scope": {
+    "allow": [],
+    "deny": [
+     "WebFetch"
+    ],
+    "editRegex": null
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "model": "high",
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "model": "high"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 2,
+   "name": "git",
+   "definition": {
+    "name": "git",
+    "description": "",
+    "whenToUse": "",
+    "permissionMode": "bypassPermissions",
+    "isolation": "cwd",
+    "body": ""
+   },
+   "scope": {
+    "allow": [],
+    "deny": [],
+    "editRegex": null
+   },
+   "restrictive": false,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "permissionMode": "bypassPermissions",
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "isolation": "cwd"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 2,
+   "name": "reviewer",
+   "definition": {
+    "name": "reviewer",
+    "description": "",
+    "whenToUse": "",
+    "model": "medium",
+    "effort": "xhigh",
+    "toolsDeny": [
+     "WebFetch"
+    ],
+    "body": "review",
+    "toolsAllow": [
+     "Read"
+    ],
+    "editRegex": "^src/"
+   },
+   "scope": {
+    "allow": [
+     "Read"
+    ],
+    "deny": [
+     "WebFetch"
+    ],
+    "editRegex": "(^|/)src/"
+   },
+   "restrictive": true,
+   "defaults": [
+    {
+     "has": [],
+     "defaults": {
+      "model": "medium",
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "model"
+     ],
+     "defaults": {
+      "effort": "xhigh"
+     }
+    },
+    {
+     "has": [
+      "effort",
+      "permissionMode"
+     ],
+     "defaults": {
+      "model": "medium"
+     }
+    },
+    {
+     "has": [
+      "model",
+      "effort",
+      "permissionMode",
+      "backendKind",
+      "backendProfile",
+      "persistent",
+      "collaborate",
+      "isolation"
+     ],
+     "defaults": {}
+    }
+   ]
+  },
+  {
+   "slice": 2,
+   "name": "strict",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "loop-a",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "loop-b",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "self",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "orphan",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "plain",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "chain-3",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "missing",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 2,
+   "name": "",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "general-purpose",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "git",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "reviewer",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "strict",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "loop-a",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "loop-b",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "self",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "orphan",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "plain",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "chain-3",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "missing",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  },
+  {
+   "slice": 3,
+   "name": "",
+   "definition": null,
+   "scope": null,
+   "restrictive": null,
+   "defaults": null
+  }
+ ],
+ "names": [
+  {
+   "from": null,
+   "role": null,
+   "name": "general-purpose"
+  },
+  {
+   "from": "reviewer",
+   "role": null,
+   "name": "reviewer"
+  },
+  {
+   "from": "  reviewer  ",
+   "role": "git",
+   "name": "reviewer"
+  },
+  {
+   "from": "",
+   "role": "git",
+   "name": "git"
+  },
+  {
+   "from": "   ",
+   "role": null,
+   "name": "general-purpose"
+  },
+  {
+   "from": null,
+   "role": "git",
+   "name": "git"
+  },
+  {
+   "from": null,
+   "role": "worker",
+   "name": "general-purpose"
+  },
+  {
+   "from": "git",
+   "role": "git",
+   "name": "git"
+  }
+ ],
+ "backends": [
+  "deepseek",
+  "kimi"
+ ],
+ "combined": [
+  {
+   "model": null,
+   "pinned": null,
+   "out": {
+    "model": null,
+    "backendProfile": null
+   },
+   "split": null
+  },
+  {
+   "model": null,
+   "pinned": "",
+   "out": {
+    "model": null,
+    "backendProfile": ""
+   },
+   "split": null
+  },
+  {
+   "model": null,
+   "pinned": "deepseek",
+   "out": {
+    "model": null,
+    "backendProfile": "deepseek"
+   },
+   "split": null
+  },
+  {
+   "model": null,
+   "pinned": "openrouter",
+   "out": {
+    "model": null,
+    "backendProfile": "openrouter"
+   },
+   "split": null
+  },
+  {
+   "model": "",
+   "pinned": null,
+   "out": {
+    "model": "",
+    "backendProfile": null
+   },
+   "split": {
+    "model": ""
+   }
+  },
+  {
+   "model": "",
+   "pinned": "",
+   "out": {
+    "model": "",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": ""
+   }
+  },
+  {
+   "model": "",
+   "pinned": "deepseek",
+   "out": {
+    "model": "",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": ""
+   }
+  },
+  {
+   "model": "",
+   "pinned": "openrouter",
+   "out": {
+    "model": "",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": ""
+   }
+  },
+  {
+   "model": "opus",
+   "pinned": null,
+   "out": {
+    "model": "opus",
+    "backendProfile": null
+   },
+   "split": {
+    "model": "opus"
+   }
+  },
+  {
+   "model": "opus",
+   "pinned": "",
+   "out": {
+    "model": "opus",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": "opus"
+   }
+  },
+  {
+   "model": "opus",
+   "pinned": "deepseek",
+   "out": {
+    "model": "opus",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": "opus"
+   }
+  },
+  {
+   "model": "opus",
+   "pinned": "openrouter",
+   "out": {
+    "model": "opus",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": "opus"
+   }
+  },
+  {
+   "model": "deepseek/deepseek-v4-pro",
+   "pinned": null,
+   "out": {
+    "model": "deepseek-v4-pro",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "deepseek-v4-pro"
+   }
+  },
+  {
+   "model": "deepseek/deepseek-v4-pro",
+   "pinned": "",
+   "out": {
+    "model": "deepseek-v4-pro",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "deepseek-v4-pro"
+   }
+  },
+  {
+   "model": "deepseek/deepseek-v4-pro",
+   "pinned": "deepseek",
+   "out": {
+    "model": "deepseek-v4-pro",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "deepseek-v4-pro"
+   }
+  },
+  {
+   "model": "deepseek/deepseek-v4-pro",
+   "pinned": "openrouter",
+   "out": {
+    "model": "deepseek/deepseek-v4-pro",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "deepseek-v4-pro"
+   }
+  },
+  {
+   "model": "deepseek/foo/bar",
+   "pinned": null,
+   "out": {
+    "model": "foo/bar",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "foo/bar"
+   }
+  },
+  {
+   "model": "deepseek/foo/bar",
+   "pinned": "",
+   "out": {
+    "model": "foo/bar",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "foo/bar"
+   }
+  },
+  {
+   "model": "deepseek/foo/bar",
+   "pinned": "deepseek",
+   "out": {
+    "model": "foo/bar",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "foo/bar"
+   }
+  },
+  {
+   "model": "deepseek/foo/bar",
+   "pinned": "openrouter",
+   "out": {
+    "model": "deepseek/foo/bar",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "backendProfile": "deepseek",
+    "model": "foo/bar"
+   }
+  },
+  {
+   "model": "anthropic/claude-opus-4",
+   "pinned": null,
+   "out": {
+    "model": "anthropic/claude-opus-4",
+    "backendProfile": null
+   },
+   "split": {
+    "model": "anthropic/claude-opus-4"
+   }
+  },
+  {
+   "model": "anthropic/claude-opus-4",
+   "pinned": "",
+   "out": {
+    "model": "anthropic/claude-opus-4",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": "anthropic/claude-opus-4"
+   }
+  },
+  {
+   "model": "anthropic/claude-opus-4",
+   "pinned": "deepseek",
+   "out": {
+    "model": "anthropic/claude-opus-4",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": "anthropic/claude-opus-4"
+   }
+  },
+  {
+   "model": "anthropic/claude-opus-4",
+   "pinned": "openrouter",
+   "out": {
+    "model": "anthropic/claude-opus-4",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": "anthropic/claude-opus-4"
+   }
+  },
+  {
+   "model": "/x",
+   "pinned": null,
+   "out": {
+    "model": "/x",
+    "backendProfile": null
+   },
+   "split": {
+    "model": "/x"
+   }
+  },
+  {
+   "model": "/x",
+   "pinned": "",
+   "out": {
+    "model": "/x",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": "/x"
+   }
+  },
+  {
+   "model": "/x",
+   "pinned": "deepseek",
+   "out": {
+    "model": "/x",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": "/x"
+   }
+  },
+  {
+   "model": "/x",
+   "pinned": "openrouter",
+   "out": {
+    "model": "/x",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": "/x"
+   }
+  },
+  {
+   "model": "deepseek/",
+   "pinned": null,
+   "out": {
+    "model": "deepseek/",
+    "backendProfile": null
+   },
+   "split": {
+    "model": "deepseek/"
+   }
+  },
+  {
+   "model": "deepseek/",
+   "pinned": "",
+   "out": {
+    "model": "deepseek/",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": "deepseek/"
+   }
+  },
+  {
+   "model": "deepseek/",
+   "pinned": "deepseek",
+   "out": {
+    "model": "deepseek/",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": "deepseek/"
+   }
+  },
+  {
+   "model": "deepseek/",
+   "pinned": "openrouter",
+   "out": {
+    "model": "deepseek/",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": "deepseek/"
+   }
+  },
+  {
+   "model": "kimi/k2",
+   "pinned": null,
+   "out": {
+    "model": "k2",
+    "backendProfile": "kimi"
+   },
+   "split": {
+    "backendProfile": "kimi",
+    "model": "k2"
+   }
+  },
+  {
+   "model": "kimi/k2",
+   "pinned": "",
+   "out": {
+    "model": "k2",
+    "backendProfile": "kimi"
+   },
+   "split": {
+    "backendProfile": "kimi",
+    "model": "k2"
+   }
+  },
+  {
+   "model": "kimi/k2",
+   "pinned": "deepseek",
+   "out": {
+    "model": "kimi/k2",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "backendProfile": "kimi",
+    "model": "k2"
+   }
+  },
+  {
+   "model": "kimi/k2",
+   "pinned": "openrouter",
+   "out": {
+    "model": "kimi/k2",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "backendProfile": "kimi",
+    "model": "k2"
+   }
+  },
+  {
+   "model": "/",
+   "pinned": null,
+   "out": {
+    "model": "/",
+    "backendProfile": null
+   },
+   "split": {
+    "model": "/"
+   }
+  },
+  {
+   "model": "/",
+   "pinned": "",
+   "out": {
+    "model": "/",
+    "backendProfile": ""
+   },
+   "split": {
+    "model": "/"
+   }
+  },
+  {
+   "model": "/",
+   "pinned": "deepseek",
+   "out": {
+    "model": "/",
+    "backendProfile": "deepseek"
+   },
+   "split": {
+    "model": "/"
+   }
+  },
+  {
+   "model": "/",
+   "pinned": "openrouter",
+   "out": {
+    "model": "/",
+    "backendProfile": "openrouter"
+   },
+   "split": {
+    "model": "/"
+   }
+  }
+ ],
+ "merges": [
+  {
+   "disk": [
+    {
+     "name": "general-purpose",
+     "description": "",
+     "whenToUse": "Default\n  worker.\t Use  it.",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "",
+     "whenToUse": "",
+     "permissionMode": "bypassPermissions",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "reviewer",
+     "description": "Reviews",
+     "whenToUse": "",
+     "model": "high",
+     "effort": "max",
+     "permissionMode": "acceptEdits",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "dup",
+     "description": "user",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "dup",
+     "description": "",
+     "whenToUse": "project",
+     "body": "",
+     "source": "project"
+    }
+   ],
+   "runtime": [
+    {
+     "name": "reviewer",
+     "description": "",
+     "whenToUse": "runtime",
+     "effort": "low",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "custom",
+     "description": "",
+     "whenToUse": "",
+     "model": "deepseek/x",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "bare",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "runtime"
+    }
+   ],
+   "merged": [
+    {
+     "name": "general-purpose",
+     "description": "",
+     "whenToUse": "Default\n  worker.\t Use  it.",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "",
+     "whenToUse": "",
+     "permissionMode": "bypassPermissions",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "reviewer",
+     "description": "",
+     "whenToUse": "runtime",
+     "effort": "low",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "dup",
+     "description": "",
+     "whenToUse": "project",
+     "body": "",
+     "source": "project"
+    },
+    {
+     "name": "custom",
+     "description": "",
+     "whenToUse": "",
+     "model": "deepseek/x",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "bare",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "runtime"
+    }
+   ],
+   "catalog": "- general-purpose: Default worker. Use it.\n- git [bypassPermissions]\n- reviewer [low]: runtime\n- dup: project\n- custom [deepseek/x]\n- bare"
+  },
+  {
+   "disk": [
+    {
+     "name": "general-purpose",
+     "description": "",
+     "whenToUse": "Default\n  worker.\t Use  it.",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "",
+     "whenToUse": "",
+     "permissionMode": "bypassPermissions",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "reviewer",
+     "description": "Reviews",
+     "whenToUse": "",
+     "model": "high",
+     "effort": "max",
+     "permissionMode": "acceptEdits",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "dup",
+     "description": "user",
+     "whenToUse": "",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "dup",
+     "description": "",
+     "whenToUse": "project",
+     "body": "",
+     "source": "project"
+    }
+   ],
+   "runtime": [],
+   "merged": [
+    {
+     "name": "general-purpose",
+     "description": "",
+     "whenToUse": "Default\n  worker.\t Use  it.",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "git",
+     "description": "",
+     "whenToUse": "",
+     "permissionMode": "bypassPermissions",
+     "body": "",
+     "source": "builtin"
+    },
+    {
+     "name": "reviewer",
+     "description": "Reviews",
+     "whenToUse": "",
+     "model": "high",
+     "effort": "max",
+     "permissionMode": "acceptEdits",
+     "body": "",
+     "source": "user"
+    },
+    {
+     "name": "dup",
+     "description": "",
+     "whenToUse": "project",
+     "body": "",
+     "source": "project"
+    }
+   ],
+   "catalog": "- general-purpose: Default worker. Use it.\n- git [bypassPermissions]\n- reviewer [high/max/acceptEdits]: Reviews\n- dup: project"
+  },
+  {
+   "disk": [],
+   "runtime": [
+    {
+     "name": "reviewer",
+     "description": "",
+     "whenToUse": "runtime",
+     "effort": "low",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "custom",
+     "description": "",
+     "whenToUse": "",
+     "model": "deepseek/x",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "bare",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "runtime"
+    }
+   ],
+   "merged": [
+    {
+     "name": "reviewer",
+     "description": "",
+     "whenToUse": "runtime",
+     "effort": "low",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "custom",
+     "description": "",
+     "whenToUse": "",
+     "model": "deepseek/x",
+     "body": "",
+     "source": "runtime"
+    },
+    {
+     "name": "bare",
+     "description": "",
+     "whenToUse": "",
+     "body": "",
+     "source": "runtime"
+    }
+   ],
+   "catalog": "- reviewer [low]: runtime\n- custom [deepseek/x]\n- bare"
+  },
+  {
+   "disk": [],
+   "runtime": [],
+   "merged": [],
+   "catalog": ""
+  }
+ ],
+ "tiers": [
+  {
+   "identity": {
+    "persona": "Claude",
+    "tiers": [
+     {
+      "name": "max",
+      "model": "fable"
+     },
+     {
+      "name": "high",
+      "model": "opus"
+     },
+     {
+      "name": "medium",
+      "model": "sonnet"
+     },
+     {
+      "name": "low",
+      "model": "haiku"
+     }
+    ],
+    "defaultTier": "high",
+    "effortSupported": true
+   },
+   "defaultTier": "high",
+   "defaultValid": true,
+   "isClaude": true,
+   "names": [
+    "max",
+    "high",
+    "medium",
+    "low"
+   ],
+   "resolved": {
+    "max": "fable",
+    "high": "opus",
+    "medium": "sonnet",
+    "low": "haiku",
+    "ultra": "ultra",
+    "lite": "lite",
+    "opus": "opus",
+    "sonnet": "sonnet",
+    "haiku": "haiku",
+    "fable": "fable",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  },
+  {
+   "identity": {
+    "persona": "DeepSeek",
+    "tiers": [
+     {
+      "name": "high",
+      "model": "v4-pro"
+     },
+     {
+      "name": "medium",
+      "model": "v4"
+     },
+     {
+      "name": "low",
+      "model": "v4-lite"
+     }
+    ],
+    "effortSupported": false
+   },
+   "defaultTier": "high",
+   "defaultValid": true,
+   "isClaude": false,
+   "names": [
+    "high",
+    "medium",
+    "low"
+   ],
+   "resolved": {
+    "max": "max",
+    "high": "v4-pro",
+    "medium": "v4",
+    "low": "v4-lite",
+    "ultra": "ultra",
+    "lite": "lite",
+    "opus": "v4-pro",
+    "sonnet": "v4",
+    "haiku": "v4-lite",
+    "fable": "v4-pro",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  },
+  {
+   "identity": {
+    "persona": "Kimi",
+    "tiers": [
+     {
+      "name": "high",
+      "model": "k2",
+      "hint": "the big one"
+     },
+     {
+      "name": "low",
+      "model": "k2-mini"
+     }
+    ],
+    "defaultTier": "low",
+    "effortSupported": true
+   },
+   "defaultTier": "low",
+   "defaultValid": true,
+   "isClaude": false,
+   "names": [
+    "high",
+    "low"
+   ],
+   "resolved": {
+    "max": "max",
+    "high": "k2",
+    "medium": "medium",
+    "low": "k2-mini",
+    "ultra": "ultra",
+    "lite": "lite",
+    "opus": "k2",
+    "sonnet": "k2",
+    "haiku": "k2-mini",
+    "fable": "k2",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  },
+  {
+   "identity": {
+    "persona": "Custom",
+    "tiers": [
+     {
+      "name": "ultra",
+      "model": "u1"
+     },
+     {
+      "name": "lite",
+      "model": "l1"
+     }
+    ],
+    "defaultTier": "nope",
+    "effortSupported": false
+   },
+   "defaultTier": "nope",
+   "defaultValid": false,
+   "isClaude": false,
+   "names": [
+    "ultra",
+    "lite"
+   ],
+   "resolved": {
+    "max": "max",
+    "high": "high",
+    "medium": "medium",
+    "low": "low",
+    "ultra": "u1",
+    "lite": "l1",
+    "opus": "u1",
+    "sonnet": "u1",
+    "haiku": "u1",
+    "fable": "u1",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  },
+  {
+   "identity": {
+    "persona": "Mid",
+    "tiers": [
+     {
+      "name": "medium",
+      "model": "only"
+     }
+    ],
+    "effortSupported": false
+   },
+   "defaultTier": "medium",
+   "defaultValid": true,
+   "isClaude": false,
+   "names": [
+    "medium"
+   ],
+   "resolved": {
+    "max": "max",
+    "high": "high",
+    "medium": "only",
+    "low": "low",
+    "ultra": "ultra",
+    "lite": "lite",
+    "opus": "only",
+    "sonnet": "only",
+    "haiku": "only",
+    "fable": "only",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  },
+  {
+   "identity": {
+    "persona": "LowOnly",
+    "tiers": [
+     {
+      "name": "max",
+      "model": "m"
+     },
+     {
+      "name": "low",
+      "model": "l"
+     }
+    ],
+    "effortSupported": false
+   },
+   "defaultTier": "max",
+   "defaultValid": true,
+   "isClaude": false,
+   "names": [
+    "max",
+    "low"
+   ],
+   "resolved": {
+    "max": "m",
+    "high": "high",
+    "medium": "medium",
+    "low": "l",
+    "ultra": "ultra",
+    "lite": "lite",
+    "opus": "l",
+    "sonnet": "l",
+    "haiku": "l",
+    "fable": "l",
+    "claude-opus-4": "claude-opus-4",
+    "": "",
+    "nope": "nope"
+   }
+  }
+ ]
+}

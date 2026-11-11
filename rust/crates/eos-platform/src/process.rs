@@ -145,10 +145,17 @@ mod fd_tests {
     #[cfg(unix)]
     #[test]
     fn the_process_counts_its_descriptors_below_its_limit() {
+        // The count is the whole process's, and other tests open and close
+        // files meanwhile: comparing two counts would race with them. What
+        // this test holds itself is in every count, whatever they do.
+        const HELD: u64 = 32;
         let open = open_fd_count().expect("unix lists descriptors");
-        let _held = std::fs::File::open("/dev/null").expect("a descriptor");
         assert!(open >= 3, "stdin, stdout and stderr at least: {open}");
-        assert!(open_fd_count().expect("a count") > open, "one more while a file is held");
+        let held: Vec<std::fs::File> =
+            (0..HELD).map(|_| std::fs::File::open("/dev/null").expect("a descriptor")).collect();
+        let counted = open_fd_count().expect("a count");
+        assert!(counted >= HELD + 3, "the {HELD} files held here are counted: {counted}");
+        drop(held);
         assert!(soft_fd_limit().is_none_or(|limit| limit > open));
     }
 }

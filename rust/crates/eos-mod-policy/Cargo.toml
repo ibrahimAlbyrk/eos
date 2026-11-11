@@ -1,0 +1,27 @@
+[package]
+name = "eos-mod-policy"
+description = "The permission routes: deciding a tool call, the asks waiting for the user, saving a rule."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-policy.workspace = true
+eos-runtime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+tracing.workspace = true
+
+[dev-dependencies]
+eos-kit-sqlite.workspace = true
+eos-store-sqlite.workspace = true
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "time"] }
+
+[lints]
+workspace = true

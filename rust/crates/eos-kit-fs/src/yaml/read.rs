@@ -8,7 +8,9 @@
 //!   line breaks (see [`is_foreign`]) are carried through;
 //! - a plain scalar is a number only when the core schema says so: `0b11`,
 //!   `-0x1f`, `+0o7` and the like are strings;
-//! - mapping keys are strings, as in a JavaScript object.
+//! - mapping keys are strings, as in a JavaScript object;
+//! - a block scalar that ends the text keeps its final line feed, whether or
+//!   not the text ends with a line break.
 //!
 //! Not covered: a plain decimal with leading zeros (`010`) stays a string
 //! here and is the number 10 there. The package's own writer quotes such a
@@ -171,7 +173,17 @@ impl<'de> Visitor<'de> for CoreNumbers<'_> {
 }
 
 /// `yaml.parse(text)`, as far as plain data goes.
-pub(crate) fn read_yaml(yaml: &str) -> Result<Value, Error> {
+pub fn read_yaml(yaml: &str) -> Result<Value, Error> {
+    // Frontmatter is cut out of its file without its last line break. The
+    // package still gives a block scalar on the last line its final line
+    // feed; the parser here only does when the break is there.
+    let closed;
+    let yaml = if yaml.is_empty() || yaml.ends_with('\n') {
+        yaml
+    } else {
+        closed = format!("{yaml}\n");
+        &closed
+    };
     let hidden = Foreign::hide(yaml);
     let (foreign, yaml) = match &hidden {
         Some((foreign, text)) => (Some(foreign), text.as_str()),
@@ -207,6 +219,26 @@ mod tests {
         }
         assert!(read("a: .inf\n")["a"].as_f64().is_some_and(f64::is_infinite));
         assert_eq!(read("a: \"0x1f\"\n")["a"], Value::String("0x1f".to_owned()), "quoted is a string");
+    }
+
+    #[test]
+    fn a_block_scalar_on_the_last_line_keeps_its_final_line_feed() {
+        // Frontmatter is cut out of its file without its last line break.
+        // What `yaml.parse` gives for each text:
+        for (yaml, text) in [
+            ("a: |\n  one\n  two", "one\ntwo\n"),
+            ("a: |\n  one\n  two\n", "one\ntwo\n"),
+            ("a: |+\n  one\n  two", "one\ntwo\n"),
+            ("a: |-\n  one\n  two", "one\ntwo"),
+            ("a: >\n  one\n  two", "one two\n"),
+            ("b: 1\na: |\n  one", "one\n"),
+            ("a: |\n  one\n\n", "one\n"),
+        ] {
+            assert_eq!(read(yaml)["a"], Value::String(text.to_owned()), "{yaml:?}");
+        }
+        assert_eq!(read("- |\n  x")[0], Value::String("x\n".to_owned()));
+        assert_eq!(read("a: plain"), read("a: plain\n"));
+        assert_eq!(read(""), Value::Null);
     }
 
     #[test]

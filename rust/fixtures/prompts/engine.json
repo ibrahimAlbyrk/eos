@@ -1,0 +1,1776 @@
+{
+ "scope": {
+  "A": "alpha",
+  "B": "",
+  "LIST": [
+   "one",
+   "two"
+  ],
+  "EMPTY": [],
+  "ZERO": 0,
+  "N": 42,
+  "F": false,
+  "T": true,
+  "NIL": null,
+  "O": {
+   "k": "v"
+  },
+  "S": "str",
+  "BLANK": " ",
+  "LB": "{{",
+  "RB": "}}",
+  "_a": {
+   "b_c": {
+    "9": "nine"
+   }
+  }
+ },
+ "templates": [
+  {
+   "body": "",
+   "referenced": [],
+   "rendered": "",
+   "empty": ""
+  },
+  {
+   "body": "plain text",
+   "referenced": [],
+   "rendered": "plain text",
+   "empty": "plain text"
+  },
+  {
+   "body": "{{A}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "alpha",
+   "empty": ""
+  },
+  {
+   "body": "a {{ A }} b {{A.b}} c",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "a alpha b  c",
+   "empty": "a  b  c"
+  },
+  {
+   "body": "{{  A\n}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "alpha",
+   "empty": ""
+  },
+  {
+   "body": "{{#if A}}yes{{/if}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "yes",
+   "empty": ""
+  },
+  {
+   "body": "{{#unless A}}no{{/unless}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "",
+   "empty": "no"
+  },
+  {
+   "body": "{{#if A}}x{{#unless B}}y{{/unless}}z{{/if}}",
+   "referenced": [
+    "A",
+    "B"
+   ],
+   "rendered": "xyz",
+   "empty": ""
+  },
+  {
+   "body": "{{#if A.b}}deep{{/if}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "",
+   "empty": ""
+  },
+  {
+   "body": "{{LIST}}|{{LIST.length}}|{{LIST.0}}|{{LIST.x}}",
+   "referenced": [
+    "LIST"
+   ],
+   "rendered": "one\ntwo|2|one|",
+   "empty": "|||"
+  },
+  {
+   "body": "{{N}} {{F}} {{T}} {{NIL}} {{MISSING}} {{O}} {{O.k}} {{O.k.z}} {{S.length}}",
+   "referenced": [
+    "N",
+    "F",
+    "T",
+    "NIL",
+    "MISSING",
+    "O",
+    "S"
+   ],
+   "rendered": "42 false true   [object Object] v  ",
+   "empty": "        "
+  },
+  {
+   "body": "{{#if LIST}}has{{/if}}{{#unless EMPTY}}none{{/unless}}{{#if ZERO}}0{{/if}}{{#if BLANK}}b{{/if}}{{#if F}}f{{/if}}{{#if O}}o{{/if}}{{#if NIL}}n{{/if}}",
+   "referenced": [
+    "LIST",
+    "EMPTY",
+    "ZERO",
+    "BLANK",
+    "F",
+    "O",
+    "NIL"
+   ],
+   "rendered": "hasnonebo",
+   "empty": "none"
+  },
+  {
+   "body": "unclosed {{ A",
+   "referenced": [],
+   "rendered": "unclosed {{ A",
+   "empty": "unclosed {{ A"
+  },
+  {
+   "body": "}} stray {{A}} }}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "}} stray alpha }}",
+   "empty": "}} stray  }}"
+  },
+  {
+   "body": "{{A}}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "alpha}",
+   "empty": "}"
+  },
+  {
+   "body": "{{{A}}",
+   "error": "template: malformed token {{{A}}"
+  },
+  {
+   "body": "{{}}",
+   "error": "template: malformed token {{}}"
+  },
+  {
+   "body": "{{ }}",
+   "error": "template: malformed token {{}}"
+  },
+  {
+   "body": "{{a b}}",
+   "error": "template: malformed token {{a b}}"
+  },
+  {
+   "body": "{{1a}}",
+   "error": "template: malformed token {{1a}}"
+  },
+  {
+   "body": "{{_a.b_c.9}}",
+   "referenced": [
+    "_a"
+   ],
+   "rendered": "nine",
+   "empty": ""
+  },
+  {
+   "body": "{{a-b}}",
+   "error": "template: malformed token {{a-b}}"
+  },
+  {
+   "body": "{{#if}}",
+   "error": "template: malformed token {{#if}}"
+  },
+  {
+   "body": "{{#if }}x{{/if}}",
+   "error": "template: malformed token {{#if}}"
+  },
+  {
+   "body": "{{#if\tA}}x{{/if}}",
+   "error": "template: malformed token {{#if\tA}}"
+  },
+  {
+   "body": "{{#if a b}}x{{/if}}",
+   "error": "template: invalid path in {{#if a b}}"
+  },
+  {
+   "body": "{{#if A}}open",
+   "error": "template: 1 unclosed {{#if}}/{{#unless}} block(s)"
+  },
+  {
+   "body": "{{/if}}",
+   "error": "template: {{/if}} has no matching {{#if}}"
+  },
+  {
+   "body": "{{#if A}}x{{/unless}}",
+   "error": "template: {{/unless}} has no matching {{#unless}}"
+  },
+  {
+   "body": "{{#unless A}}x{{/if}}",
+   "error": "template: {{/if}} has no matching {{#if}}"
+  },
+  {
+   "body": "{{#if A}}{{#if B}}x{{/if}}",
+   "error": "template: 1 unclosed {{#if}}/{{#unless}} block(s)"
+  },
+  {
+   "body": "{{#each A}}x{{/each}}",
+   "error": "template: malformed token {{#each A}}"
+  },
+  {
+   "body": "{{else}}",
+   "referenced": [
+    "else"
+   ],
+   "rendered": "",
+   "empty": ""
+  },
+  {
+   "body": "{{#if  A }}two spaces{{/if}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "two spaces",
+   "empty": ""
+  },
+  {
+   "body": "{{ #if A }}padded{{ /if }}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "padded",
+   "empty": ""
+  },
+  {
+   "body": "{{#unless   A.b  }}u{{/unless}}",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "u",
+   "empty": "u"
+  },
+  {
+   "body": "line\n{{#if A}}\nblock\n{{/if}}\nend\n",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "line\n\nblock\n\nend\n",
+   "empty": "line\n\nend\n"
+  },
+  {
+   "body": "{{A}}{{A}}{{B}}{{A.x}}",
+   "referenced": [
+    "A",
+    "B"
+   ],
+   "rendered": "alphaalpha",
+   "empty": ""
+  },
+  {
+   "body": "{{LB}}nodes.x{{RB}}",
+   "referenced": [
+    "LB",
+    "RB"
+   ],
+   "rendered": "{{nodes.x}}",
+   "empty": "nodes.x"
+  },
+  {
+   "body": " {{ A }}﻿",
+   "referenced": [
+    "A"
+   ],
+   "rendered": " alpha﻿",
+   "empty": " ﻿"
+  },
+  {
+   "body": "😀{{A}}😀",
+   "referenced": [
+    "A"
+   ],
+   "rendered": "😀alpha😀",
+   "empty": "😀😀"
+  }
+ ],
+ "facts": {
+  "role": "worker",
+  "isSubagent": true,
+  "isWorktree": false,
+  "effort": null,
+  "model": "opus",
+  "count": 0,
+  "blank": "",
+  "list": [
+   "a"
+  ],
+  "none": [],
+  "plugin-off:eos.pages": true,
+  "n": 3
+ },
+ "conditions": [
+  {
+   "condition": {
+    "fact": "role"
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "missing"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "isWorktree"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "effort"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "count"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "blank"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "list"
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "none"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "eq": "worker"
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "eq": "git"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "effort",
+    "eq": null
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "missing",
+    "eq": null
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "isWorktree",
+    "eq": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "count",
+    "eq": 0
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "n",
+    "eq": 3
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "n",
+    "eq": "3"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "list",
+    "eq": [
+     "a"
+    ]
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "ne": "worker"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "missing",
+    "ne": "x"
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "effort",
+    "ne": null
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "in": [
+     "worker",
+     "git"
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "in": []
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "effort",
+    "in": [
+     null
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "missing",
+    "in": [
+     null
+    ]
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "nin": [
+     "git"
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "nin": [
+     "worker"
+    ]
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "exists": true
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "effort",
+    "exists": true
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "effort",
+    "exists": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "missing",
+    "exists": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "count",
+    "exists": true
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "count",
+    "truthy": true
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "count",
+    "truthy": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "list",
+    "truthy": true
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "none",
+    "truthy": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "truthy": false
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "eq": "git",
+    "ne": "git"
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "ne": "worker",
+    "in": [
+     "worker"
+    ]
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "eq": "worker",
+    "truthy": false
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "all": []
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "any": []
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "all": [
+     {
+      "fact": "role",
+      "eq": "worker"
+     },
+     {
+      "fact": "isSubagent",
+      "eq": true
+     }
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "all": [
+     {
+      "fact": "role"
+     },
+     {
+      "fact": "isWorktree"
+     }
+    ]
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "any": [
+     {
+      "fact": "isWorktree"
+     },
+     {
+      "fact": "role",
+      "eq": "worker"
+     }
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "not": {
+     "fact": "plugin-off:eos.pages"
+    }
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {
+    "not": {
+     "fact": "plugin-off:eos.browser"
+    }
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "all": [
+     {
+      "any": [
+       {
+        "fact": "missing"
+       },
+       {
+        "not": {
+         "fact": "isWorktree"
+        }
+       }
+      ]
+     },
+     {
+      "not": {
+       "all": [
+        {
+         "fact": "role",
+         "eq": "git"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "all": [
+     {
+      "fact": "role",
+      "eq": "worker"
+     }
+    ],
+    "fact": "ignored",
+    "eq": "nope"
+   },
+   "valid": true,
+   "result": true
+  },
+  {
+   "condition": {
+    "not": {
+     "fact": "role"
+    },
+    "any": []
+   },
+   "valid": true,
+   "result": false
+  },
+  {
+   "condition": {},
+   "valid": false
+  },
+  {
+   "condition": {
+    "fact": ""
+   },
+   "valid": false
+  },
+  {
+   "condition": {
+    "fact": 5
+   },
+   "valid": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "in": "worker"
+   },
+   "valid": false
+  },
+  {
+   "condition": {
+    "fact": "role",
+    "exists": "yes"
+   },
+   "valid": false
+  },
+  {
+   "condition": {
+    "all": {}
+   },
+   "valid": false
+  },
+  {
+   "condition": {
+    "not": []
+   },
+   "valid": false
+  },
+  {
+   "condition": "role",
+   "valid": false
+  },
+  {
+   "condition": null,
+   "valid": false
+  },
+  {
+   "condition": {
+    "all": [
+     {
+      "fact": "role"
+     },
+     {}
+    ]
+   },
+   "valid": false
+  }
+ ],
+ "frontmatters": [
+  {
+   "frontmatter": {},
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "description": "d",
+    "variables": [
+     "A",
+     "lower",
+     "B_2"
+    ]
+   },
+   "valid": true,
+   "variables": [
+    "A",
+    "lower",
+    "B_2"
+   ],
+   "warnings": [
+    "variable \"lower\" should be UPPER_SNAKE_CASE",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "variables": []
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "variables": "A"
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "variables": [
+     ""
+    ]
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "variables": [
+     1
+    ]
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "description": 5
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "id": 5
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "id": "x",
+    "extra": {
+     "kept": true
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "description": null
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "variables": null
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "id": null
+   },
+   "valid": false
+  },
+  {
+   "frontmatter": "text",
+   "valid": false
+  },
+  {
+   "frontmatter": null,
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": [],
+   "valid": false
+  },
+  {
+   "frontmatter": 5,
+   "valid": false
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "layer": "role",
+     "priority": 20
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "role",
+    "priority": 20,
+    "conditional": false,
+    "overrides": null
+   }
+  },
+  {
+   "frontmatter": {
+    "dpi": {}
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "custom",
+    "priority": 100,
+    "conditional": false,
+    "overrides": null
+   }
+  },
+  {
+   "frontmatter": {
+    "dpi": null
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": "role"
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "layer": "nope"
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "priority": 1.5
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "priority": "1"
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "priority": -3
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "custom",
+    "priority": -3,
+    "conditional": false,
+    "overrides": null
+   }
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "when": {
+      "fact": "role"
+     }
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "custom",
+    "priority": 100,
+    "conditional": true,
+    "overrides": null
+   }
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "when": null
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "when": {}
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "overrides": [
+      "a"
+     ]
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "custom",
+    "priority": 100,
+    "conditional": false,
+    "overrides": [
+     "a"
+    ]
+   }
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "overrides": "a"
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "layer": null
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "overrides": null
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "priority": null
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": null
+  },
+  {
+   "frontmatter": {
+    "dpi": {
+     "layer": "core",
+     "extra": 1,
+     "when": {
+      "all": [
+       {
+        "fact": "role",
+        "eq": "worker"
+       }
+      ]
+     }
+    }
+   },
+   "valid": true,
+   "variables": [],
+   "warnings": [
+    "variable \"A\" is used but not declared",
+    "variable \"C\" is used but not declared"
+   ],
+   "dpi": {
+    "layer": "core",
+    "priority": 100,
+    "conditional": true,
+    "overrides": null
+   }
+  }
+ ],
+ "memory": [
+  {
+   "dpi": null,
+   "snapshot": null,
+   "kind": "claude",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": null,
+   "kind": "openai",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "claude",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "openai",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": null
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "# Project & user instructions\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents.\n\n## CLAUDE.md\n\n### /repo/CLAUDE.md\n\nProject rules."
+  },
+  {
+   "dpi": null,
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "# Project & user instructions\n\n## CLAUDE.md\n\n### /u/.claude/CLAUDE.md\n\nUser rules.\n\n### /repo/CLAUDE.md\n\nProject rules.\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents."
+  },
+  {
+   "dpi": "",
+   "snapshot": null,
+   "kind": "claude",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": null,
+   "kind": "openai",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "claude",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "openai",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": ""
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "# Project & user instructions\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents.\n\n## CLAUDE.md\n\n### /repo/CLAUDE.md\n\nProject rules."
+  },
+  {
+   "dpi": "",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "# Project & user instructions\n\n## CLAUDE.md\n\n### /u/.claude/CLAUDE.md\n\nUser rules.\n\n### /repo/CLAUDE.md\n\nProject rules.\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents."
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": null,
+   "kind": "claude",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": null,
+   "kind": "openai",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "claude",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "openai",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "  \n"
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "# Project & user instructions\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents.\n\n## CLAUDE.md\n\n### /repo/CLAUDE.md\n\nProject rules."
+  },
+  {
+   "dpi": "  \n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "# Project & user instructions\n\n## CLAUDE.md\n\n### /u/.claude/CLAUDE.md\n\nUser rules.\n\n### /repo/CLAUDE.md\n\nProject rules.\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents."
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": null,
+   "kind": "claude",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": null,
+   "kind": "openai",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "claude",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": []
+   },
+   "kind": "openai",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "  \n"
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "DPI text.\n"
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "claude",
+   "out": "DPI text.\n\n\n# Project & user instructions\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents.\n\n## CLAUDE.md\n\n### /repo/CLAUDE.md\n\nProject rules."
+  },
+  {
+   "dpi": "DPI text.\n",
+   "snapshot": {
+    "docs": [
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [
+       "claude"
+      ],
+      "path": "/u/.claude/CLAUDE.md",
+      "level": "project",
+      "content": "User rules.\n"
+     },
+     {
+      "sourceId": "agents",
+      "sourceLabel": "AGENTS.md",
+      "nativeFor": [],
+      "path": "/repo/AGENTS.md",
+      "level": "project",
+      "content": "\nAgents.\n"
+     },
+     {
+      "sourceId": "claude",
+      "sourceLabel": "CLAUDE.md",
+      "nativeFor": [],
+      "path": "/repo/CLAUDE.md",
+      "level": "project",
+      "content": "Project rules."
+     }
+    ]
+   },
+   "kind": "openai",
+   "out": "DPI text.\n\n\n# Project & user instructions\n\n## CLAUDE.md\n\n### /u/.claude/CLAUDE.md\n\nUser rules.\n\n### /repo/CLAUDE.md\n\nProject rules.\n\n## AGENTS.md\n\n### /repo/AGENTS.md\n\nAgents."
+  }
+ ]
+}

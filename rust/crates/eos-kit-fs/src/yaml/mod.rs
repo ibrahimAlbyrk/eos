@@ -16,7 +16,7 @@ mod fold;
 mod read;
 mod string;
 
-pub(crate) use read::read_yaml;
+pub use read::read_yaml;
 
 use serde_norway::Value;
 

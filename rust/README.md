@@ -8,12 +8,14 @@ engine. It is built beside the TypeScript backend and replaces it in one release
 ```
 crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
 host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a workspace of its own
-tools/     dev tooling: wire-recorder (records and replays what the daemon answers)
+tools/     dev tooling: wire-recorder (records and replays what the daemon answers);
+           *-vectors (what today's TypeScript computes, for the corpora under fixtures/)
 xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`)
 scripts/   link-sdk.sh: link the agent engine's checkout (run once per checkout, see "The agent engine");
            check.sh: everything CI runs for the main workspace; wire.sh: record the wire fixtures from
            today's daemon; replay.sh: replay them against the Rust core, in process
-fixtures/  recorded responses the Rust code must reproduce, see fixtures/README.md
+fixtures/  recorded responses and TypeScript-made vectors the Rust code must reproduce,
+           see fixtures/README.md
            (fixtures/private is never committed)
 docs/      how-tos: adding-a-feature.md is the path every feature crate follows
 ```
