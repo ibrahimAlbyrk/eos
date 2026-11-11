@@ -25,8 +25,6 @@ pub struct Endpoints {
 /// The file the claude binary keeps a login in where there is no keychain
 /// item for the store.
 const CLAUDE_FILE: &str = ".credentials.json";
-/// The file a ChatGPT sign-in is kept in.
-const CHATGPT_RECORD: &str = "siwc.json";
 
 type IoFuture<'a, T> = Pin<Box<dyn Future<Output = std::io::Result<T>> + Send + 'a>>;
 
@@ -211,12 +209,10 @@ impl PlanStores for Stores {
             match provider {
                 "anthropic" => self.sign_out_claude(dir).await,
                 "openai" => {
+                    let login = self.chatgpt_login(dir);
                     self.chatgpt.lock().unwrap_or_else(|p| p.into_inner()).remove(dir);
                     // The registration's host id stays, so a later sign-in is the same app.
-                    match tokio::fs::remove_file(dir.join(CHATGPT_RECORD)).await {
-                        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(Error::storage(e)),
-                        _ => Ok(()),
-                    }
+                    login.sign_out().await.map(|_| ()).map_err(Error::storage)
                 }
                 _ => Ok(()),
             }
