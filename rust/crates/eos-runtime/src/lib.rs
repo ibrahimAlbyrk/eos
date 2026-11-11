@@ -15,7 +15,6 @@ pub mod module;
 pub mod ordered;
 pub mod router;
 pub mod runtime;
-pub mod seams;
 pub mod stream;
 
 pub use error::{Conflict, Error};

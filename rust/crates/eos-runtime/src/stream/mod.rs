@@ -23,8 +23,8 @@ use bytes::Bytes;
 
 use crate::bus::{Bus, Event, Filter, Scope, Subscription};
 use crate::http::{Body, BodyStream};
-use crate::seams::Ids;
 use client::{Client, ClientStream};
+use eos_core::Ids;
 pub use filter::StreamFocus;
 use filter::{Focus, Wants};
 

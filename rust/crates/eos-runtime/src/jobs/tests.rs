@@ -7,12 +7,12 @@ use serde_json::Value;
 use super::*;
 use crate::bus::BusOptions;
 use crate::ordered::Ordered;
-use crate::seams::Clock;
+use eos_core::Clock;
 
 struct TestClock(AtomicU64);
 impl Clock for TestClock {
-    fn now_ms(&self) -> u64 {
-        self.0.load(Ordering::SeqCst)
+    fn now_ms(&self) -> i64 {
+        self.0.load(Ordering::SeqCst) as i64
     }
 }
 

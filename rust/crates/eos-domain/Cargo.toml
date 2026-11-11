@@ -1,0 +1,17 @@
+[package]
+name = "eos-domain"
+description = "Pure rules and the entities every feature shares: no I/O, no clock, no async."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true

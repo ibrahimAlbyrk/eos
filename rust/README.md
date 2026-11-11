@@ -12,6 +12,7 @@ xtask/     repo checks (`cargo xtask layers`)
 scripts/   check.sh: everything CI runs; wire.sh: record / replay the wire fixtures
 fixtures/  recorded responses the Rust code must reproduce, see fixtures/README.md
            (fixtures/private is never committed)
+docs/      how-tos: adding-a-feature.md is the path every feature crate follows
 ```
 
 ## Rules

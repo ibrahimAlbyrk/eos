@@ -348,6 +348,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
+name = "eos-app"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-kit-fs",
+ "eos-kit-sqlite",
+ "eos-platform",
+ "eos-runtime",
+ "eos-store-sqlite",
+ "eos-testkit",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-contracts"
 version = "0.0.1"
 dependencies = [
@@ -358,6 +375,26 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "thiserror",
+]
+
+[[package]]
+name = "eos-core"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-domain",
+ "getrandom 0.4.3",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
+name = "eos-domain"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "serde_json",
 ]
 
 [[package]]
@@ -436,6 +473,8 @@ version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "eos-contracts",
+ "eos-core",
  "futures-core",
  "serde",
  "serde_json",
@@ -443,6 +482,31 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-store-sqlite"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-sqlite",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-testkit"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-kit-sqlite",
+ "eos-platform",
+ "eos-store-sqlite",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

@@ -20,7 +20,7 @@ use serde::Serialize;
 
 use crate::bus::{Bus, Topic};
 use crate::router::BoxFuture;
-use crate::seams::topics;
+use eos_contracts::stream::topics;
 
 /// One job as the dashboard sees it. The wire shape is `eos-contracts`'
 /// `BackgroundJob`; it lives here until that type exists.
@@ -37,8 +37,8 @@ pub struct BackgroundJob {
     pub command: Option<String>,
     /// One line of what is happening now.
     pub detail: Option<String>,
-    pub started_at: u64,
-    pub ended_at: Option<u64>,
+    pub started_at: i64,
+    pub ended_at: Option<i64>,
     pub progress: Option<JobProgress>,
     pub exit_code: Option<i64>,
     /// The tool call that started it.
@@ -114,7 +114,7 @@ pub struct JobSpec {
     pub command: Option<String>,
     pub call_id: Option<String>,
     /// Defaults to now.
-    pub started_at: Option<u64>,
+    pub started_at: Option<i64>,
     /// Shown only while it runs.
     pub ambient: bool,
     /// Keep output in memory (`append_output`) — otherwise only a file's.
@@ -182,7 +182,7 @@ struct Entry {
     mem: Option<String>,
     /// Offset of `mem`'s first byte in the whole output.
     mem_base: u64,
-    sent_at: Option<u64>,
+    sent_at: Option<i64>,
     /// The armed throttle timer, if any.
     timer: Option<u64>,
 }
@@ -226,7 +226,7 @@ struct State {
 
 struct Inner {
     bus: Bus,
-    throttle_ms: u64,
+    throttle_ms: i64,
     finished_max: usize,
     max_jobs: usize,
     state: Mutex<State>,
@@ -276,7 +276,7 @@ impl JobRegistry {
     pub fn new(bus: Bus, options: JobOptions) -> Self {
         let inner = Inner {
             bus,
-            throttle_ms: options.throttle.as_millis() as u64,
+            throttle_ms: options.throttle.as_millis() as i64,
             finished_max: options.finished_max,
             max_jobs: options.max_jobs.max(1),
             state: Mutex::default(),
@@ -424,7 +424,7 @@ impl State {
     }
 
     /// Queues the job's current state for publishing and stamps it as sent.
-    fn announce(&mut self, id: &str, now: u64) {
+    fn announce(&mut self, id: &str, now: i64) {
         let Some(entry) = self.entries.get_mut(id) else { return };
         entry.timer = None;
         entry.sent_at = Some(now);
@@ -451,7 +451,7 @@ impl State {
     }
 
     fn prune_finished(&mut self, keep: usize) {
-        let mut finished: Vec<(u64, u64, String)> = self
+        let mut finished: Vec<(i64, u64, String)> = self
             .entries
             .values()
             .filter(|e| e.job.status != JobStatus::Running)
@@ -559,7 +559,8 @@ impl JobHandle {
         let timer = state.counter;
         let Some(entry) = state.entry(&self.id, self.generation) else { return };
         change(&mut entry.job);
-        let wait = entry.sent_at.map_or(0, |sent| (sent + inner.throttle_ms).saturating_sub(now));
+        // How long until the throttle window since the last announcement is over.
+        let wait = entry.sent_at.map_or(0, |sent| u64::try_from(sent + inner.throttle_ms - now).unwrap_or(0));
         if immediate || wait == 0 {
             state.announce(&self.id, now);
         } else if entry.timer.is_none() {

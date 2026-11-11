@@ -24,6 +24,7 @@
 //!
 //! Payloads are serialized once, by the publisher, and shared as `Bytes`.
 
+mod announce;
 mod coalesce;
 mod queue;
 mod topic;
@@ -40,8 +41,9 @@ use serde::de::DeserializeOwned;
 
 use crate::error::panic_message;
 use crate::ordered::Ordered;
-use crate::seams::Clock;
+pub use announce::Announce;
 use coalesce::{Coalescer, Window};
+use eos_core::Clock;
 pub use queue::{EventReceiver, RecvError};
 pub use topic::{Filter, Scope, ScopeKind, Topic, TopicDecl, TopicName};
 
@@ -53,7 +55,7 @@ pub struct Event {
     pub payload: Bytes,
     pub scope: Option<Scope>,
     /// Wall-clock milliseconds at publish.
-    pub ts: u64,
+    pub ts: i64,
 }
 
 impl Event {

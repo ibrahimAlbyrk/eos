@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 
 use super::*;
-use crate::seams::SystemClock;
+use eos_core::SystemClock;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 struct Change {

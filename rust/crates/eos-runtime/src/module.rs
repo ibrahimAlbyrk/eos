@@ -5,15 +5,22 @@
 //! on each other — what one needs from another comes in through its
 //! constructor as a trait.
 
+use std::any::Any;
 use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+
+use eos_contracts::AgentEvent;
+use eos_core::agent::ToolInputDelta;
 
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
 use crate::idle::IdleHook;
 use crate::router::{BoxFuture, PluginSwitch, RouteDef, Router};
-use crate::seams::{AgentEvent, Opaque, ToolInputDelta};
+
+/// A value the runtime carries for another crate without knowing its type
+/// (a slash command, a sync domain). The owner downcasts it.
+pub type Opaque = Arc<dyn Any + Send + Sync>;
 
 /// Why a module could not start. The runtime only reports it.
 pub type ModuleError = Box<dyn std::error::Error + Send + Sync>;

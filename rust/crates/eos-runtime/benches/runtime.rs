@@ -8,12 +8,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
 use bytes::Bytes;
+use eos_core::{RandomIds, SystemClock};
 use eos_runtime::access::{Access, Caller, Tier};
 use eos_runtime::bus::{Bus, BusOptions, Filter, Topic};
 use eos_runtime::http::{ApiError, Body, Method, Request, Response};
 use eos_runtime::ordered::Ordered;
 use eos_runtime::router::{RouteDef, Router};
-use eos_runtime::seams::{RandomIds, SystemClock};
 use eos_runtime::stream::{AttachOptions, StreamHub, StreamOptions};
 use serde::Serialize;
 
@@ -80,7 +80,7 @@ async fn fan_out_streams(clients: usize, events: u64) {
         max_clients: clients,
         ..StreamOptions::default()
     };
-    let hub = StreamHub::new(&bus, &RandomIds::default(), options);
+    let hub = StreamHub::new(&bus, &RandomIds, options);
     let bodies: Vec<Body> = (0..clients).filter_map(|_| hub.attach(AttachOptions::default()).ok()).collect();
     assert_eq!(bodies.len(), clients);
     let began = Instant::now();
@@ -195,7 +195,7 @@ async fn router_match() {
 /// A reconnecting client that missed the whole ring: 5,000 events / 8 MB.
 async fn replay_full_ring() {
     let bus = bus();
-    let hub = StreamHub::new(&bus, &RandomIds::default(), StreamOptions::default());
+    let hub = StreamHub::new(&bus, &RandomIds, StreamOptions::default());
     let first = hub.current_id();
     // ~1.6 KB per frame: 5,000 of them fill the 8 MB ring.
     let payload = Bytes::from(format!("{{\"workerId\":\"w-abcdefgh\",\"blob\":\"{}\"}}", "x".repeat(1_500)));

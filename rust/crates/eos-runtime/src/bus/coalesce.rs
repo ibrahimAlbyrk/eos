@@ -16,7 +16,7 @@ use serde::Deserialize;
 use serde_json::value::RawValue;
 
 use super::Event;
-use crate::seams::topics::AGENT_DELTA;
+use eos_contracts::stream::topics::AGENT_DELTA;
 
 /// The fields of a delta the coalescer reads, as their raw JSON text.
 #[derive(Deserialize)]
@@ -48,7 +48,7 @@ struct Held {
 }
 
 impl Held {
-    fn release(self, now: u64) -> Event {
+    fn release(self, now: i64) -> Event {
         let mut ev = self.first;
         ev.ts = now;
         if self.parts > 1
@@ -91,7 +91,7 @@ pub(crate) struct Coalescer {
 }
 
 impl Coalescer {
-    fn release_all(&mut self, now: u64, out: &mut VecDeque<Event>) {
+    fn release_all(&mut self, now: i64, out: &mut VecDeque<Event>) {
         for slot in &mut self.slots {
             if let Some(held) = slot.held.take() {
                 out.push_back(held.release(now));
@@ -105,7 +105,7 @@ impl Coalescer {
 
     /// Takes one published event; pushes what goes out now, in order. Returns
     /// a window to time when the event opened one.
-    pub(crate) fn offer(&mut self, ev: Event, now: u64, out: &mut VecDeque<Event>) -> Option<Window> {
+    pub(crate) fn offer(&mut self, ev: Event, now: i64, out: &mut VecDeque<Event>) -> Option<Window> {
         if ev.topic.as_str() != AGENT_DELTA {
             self.release_all(now, out);
             out.push_back(ev);
@@ -179,7 +179,7 @@ impl Coalescer {
 
     /// A window's time is up: send what piled up. `true` keeps the window open
     /// (the block is still streaming); `false` means it is gone.
-    pub(crate) fn window_closed(&mut self, window: &Window, now: u64, out: &mut VecDeque<Event>) -> bool {
+    pub(crate) fn window_closed(&mut self, window: &Window, now: i64, out: &mut VecDeque<Event>) -> bool {
         let Some(i) = self.position(&window.worker, &window.block) else { return false };
         if self.slots[i].generation != window.generation {
             return false;

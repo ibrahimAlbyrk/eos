@@ -10,6 +10,8 @@ publish.workspace = true
 [dependencies]
 base64.workspace = true
 bytes.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
 futures-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true

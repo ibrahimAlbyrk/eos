@@ -229,6 +229,23 @@ impl Db {
         submit(self.write_tx.as_ref(), WriteJob::Tx(job), rx)
     }
 
+    /// [`write_async`](Self::write_async), then `after_commit` with the job's
+    /// result: on the writer thread, once the transaction has committed and
+    /// before the caller hears back. Hooks run in commit order, so one that
+    /// announces its write (posts an event) announces writes in the order they
+    /// were saved. It must not block and must not call back into this `Db`. It
+    /// does not run when the job failed or the commit did.
+    pub fn write_then_async<T, E, F, A>(&self, job: F, after_commit: A) -> Receipt<T, E>
+    where
+        T: Send + 'static,
+        E: From<Error> + Send + 'static,
+        F: FnOnce(&Connection) -> Result<T, E> + Send + 'static,
+        A: FnOnce(&T) + Send + 'static,
+    {
+        let (job, rx) = tx_job_then(job, after_commit);
+        submit(self.write_tx.as_ref(), WriteJob::Tx(job), rx)
+    }
+
     /// Runs `job` on the writer thread alone and outside a transaction — for
     /// statements that refuse to run inside one (VACUUM) and for maintenance
     /// that should not share a commit with other writes.
@@ -319,6 +336,16 @@ where
     E: From<Error> + Send + 'static,
     F: FnOnce(&Connection) -> Result<T, E> + Send + 'static,
 {
+    tx_job_then(job, |_| ())
+}
+
+fn tx_job_then<T, E, F, A>(job: F, after_commit: A) -> (TxJob, oneshot::Receiver<Result<T, E>>)
+where
+    T: Send + 'static,
+    E: From<Error> + Send + 'static,
+    F: FnOnce(&Connection) -> Result<T, E> + Send + 'static,
+    A: FnOnce(&T) + Send + 'static,
+{
     let (tx, rx) = oneshot::channel();
     let run: TxJob = Box::new(move |conn| {
         let (result, usable) = match conn {
@@ -328,6 +355,11 @@ where
         let reply: Reply = Box::new(move |committed| {
             tx.send(match result {
                 Ok(_) if !committed => Err(Error::CommitFailed.into()),
+                Ok(value) => {
+                    // The write is saved whatever the hook does: a panic in it must not take the writer down.
+                    let _ = catch_unwind(AssertUnwindSafe(|| after_commit(&value)));
+                    Ok(value)
+                }
                 other => other,
             });
         });

@@ -1,46 +1,12 @@
 //! `GET /stream` and `POST /stream/focus`.
 
-use serde::{Deserialize, Serialize};
+use eos_contracts::{StreamFocusRequest, StreamFocusResponse};
 
 use super::{AttachOptions, StreamFocus, StreamHub};
 use crate::access::Access;
 use crate::http::{ApiError, Request, Response};
-use crate::live_text::{LiveBlock, LiveText};
+use crate::live_text::LiveText;
 use crate::router::RouteDef;
-
-/// The body of `POST /stream/focus`. The wire shape is `eos-contracts`'
-/// `StreamFocusRequest`; it lives here until that type exists.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct FocusRequest {
-    client_id: String,
-    workers: Vec<String>,
-    ptys: Vec<String>,
-}
-
-#[derive(Serialize)]
-struct FocusResponse {
-    live: Vec<LiveBlock>,
-}
-
-const MAX_CLIENT_ID_CHARS: usize = 128;
-const MAX_FOCUS_ITEMS: usize = 64;
-
-fn check_focus(body: &FocusRequest) -> Result<(), ApiError> {
-    let mut issues = Vec::new();
-    let id_chars = body.client_id.chars().count();
-    if id_chars == 0 {
-        issues.push(("clientId", "String must contain at least 1 character(s)"));
-    } else if id_chars > MAX_CLIENT_ID_CHARS {
-        issues.push(("clientId", "String must contain at most 128 character(s)"));
-    }
-    for (field, list) in [("workers", &body.workers), ("ptys", &body.ptys)] {
-        if list.len() > MAX_FOCUS_ITEMS {
-            issues.push((field, "Array must contain at most 64 element(s)"));
-        }
-    }
-    if issues.is_empty() { Ok(()) } else { Err(ApiError::invalid(issues)) }
-}
 
 /// The stream's two routes. Any local page may open the stream and a paired
 /// computer's dashboard may; the phone has its own channel and is refused.
@@ -76,13 +42,12 @@ pub fn routes(hub: StreamHub, live: LiveText) -> Vec<RouteDef> {
     let focus = move |req: Request| {
         let (hub, live) = (hub.clone(), live.clone());
         async move {
-            let body: FocusRequest = req.json()?;
-            check_focus(&body)?;
+            let body: StreamFocusRequest = req.parse()?;
             let client_id = body.client_id;
             let focus = StreamFocus { workers: body.workers, ptys: body.ptys };
             hub.set_focus(&client_id, &focus);
             let live = focus.workers.iter().flat_map(|id| live.blocks_for(id)).collect();
-            Ok(Response::json(200, &FocusResponse { live }))
+            Ok(Response::json(200, &StreamFocusResponse { live }))
         }
     };
     vec![

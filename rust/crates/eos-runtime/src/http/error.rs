@@ -105,6 +105,31 @@ impl ApiError {
     }
 }
 
+/// A failed contract check: 400 with Zod's wording.
+impl From<eos_contracts::ValidationError> for ApiError {
+    fn from(e: eos_contracts::ValidationError) -> Self {
+        ApiError::Validation(e.message())
+    }
+}
+
+/// A port's or a use-case's failure, as `manager/middleware/errorHandler.ts` mapped it.
+impl From<eos_core::Error> for ApiError {
+    fn from(e: eos_core::Error) -> Self {
+        use eos_core::Error;
+        let message = e.to_string();
+        match e {
+            Error::NotFound { .. } => ApiError::NotFound(message),
+            Error::Conflict(_) => ApiError::Conflict(message),
+            Error::Validation(_) => ApiError::Validation(message),
+            Error::PermissionDenied(_) => ApiError::PermissionDenied(message),
+            Error::LimitExceeded(_) => ApiError::LimitExceeded(message),
+            Error::Unreachable(_) => ApiError::Unreachable(message),
+            Error::Rule(_) => ApiError::Domain(message),
+            Error::Storage(_) => ApiError::Internal(message),
+        }
+    }
+}
+
 /// What a turned-away caller reads. Paired computers and local pages get
 /// today's bodies; the phone gateway reads [`Response::refusal`] and answers
 /// in its own frames.
@@ -161,6 +186,29 @@ mod tests {
         assert_eq!(status, 503);
         assert!(text.starts_with(r#"{"error":"the app ran out"#) && text.ends_with(r#""code":"EMFILE"}"#), "{text}");
         assert_eq!(ApiError::io(&io::Error::other("disk")).status(), 500);
+    }
+
+    #[test]
+    fn maps_port_failures() {
+        use eos_core::Error;
+        let cases = [
+            (Error::not_found("worker", "w-1"), 404, "worker not found: w-1"),
+            (Error::Conflict("stale".into()), 409, "stale"),
+            (Error::Validation("bad".into()), 400, "bad"),
+            (
+                Error::PermissionDenied("worker w-2 is not managed by o-1".into()),
+                403,
+                "worker w-2 is not managed by o-1",
+            ),
+            (Error::LimitExceeded("slow down".into()), 429, "slow down"),
+            (Error::Unreachable("relay".into()), 502, "unreachable: relay"),
+            (Error::Rule("no".into()), 400, "no"),
+            (Error::Storage("disk".into()), 500, "disk"),
+        ];
+        for (error, status, message) in cases {
+            let api = ApiError::from(error);
+            assert_eq!((api.status(), api.to_string().as_str()), (status, message));
+        }
     }
 
     #[test]

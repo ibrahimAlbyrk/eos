@@ -178,6 +178,19 @@ impl Request {
         self.user
     }
 
+    /// The JSON body as the contract type `T`, checked against its rules: what
+    /// `validate(Schema, await readBody(req))` did. An empty body reads as
+    /// `{}`; a failure is a 400 `invalid request: <path>: <message>; …`.
+    pub fn parse<T: DeserializeOwned + eos_contracts::Validate>(&self) -> Result<T, ApiError> {
+        let value: serde_json::Value = if self.body.is_empty() {
+            serde_json::Value::Object(serde_json::Map::new())
+        } else {
+            serde_json::from_slice(&self.body)
+                .map_err(|_| ApiError::Validation("invalid request: body is not valid JSON".into()))?
+        };
+        Ok(eos_contracts::parse(&value)?)
+    }
+
     /// The JSON body as `T`; an empty body reads as `{}`. Failures are 400s.
     pub fn json<T: DeserializeOwned>(&self) -> Result<T, ApiError> {
         let raw: &[u8] = if self.body.is_empty() { b"{}" } else { &self.body };

@@ -114,9 +114,14 @@ Every subscription and stream is removed when dropped (tests run thousands of cy
 
 ## Seams
 
-- `seams.rs`: `Clock`, `Ids` (→ `eos-core`), `AgentEvent`, `ToolInputDelta`, topic-name
-  constants (→ `eos-contracts`). `LiveBlock`, `BackgroundJob`/`JobChange`/`JobOutput` and the
-  `/stream/focus` request are defined beside their code until the contract types exist.
+- The clock and the id source are `eos-core`'s (`Clock`, `Ids`); agent events, live blocks, the
+  `/stream/focus` request and topic names are `eos-contracts`' types. `BackgroundJob` / `JobChange` /
+  `JobOutput` are still defined beside the job registry (the contract type names its kinds as a closed
+  list; the registry takes any declared kind).
+- A port's failure (`eos_core::Error`) and a failed contract check (`eos_contracts::ValidationError`)
+  convert to `ApiError` with `?`; `Request::parse::<T>()` reads and checks a body in one call.
+- `bus::Announce`: `out.announce(&TOPIC, &payload)` inside a store write job — the event leaves after
+  COMMIT, in commit order (see `eos-core`'s `store`).
 - `StreamOptions::display_filter`: the sender-tag stripping every stream payload goes through
   (`eos-domain`).
 - `SlashCommandDecl::command`, `SyncContribution::handle`: carried unopened for the session and
@@ -126,10 +131,10 @@ Every subscription and stream is removed when dropped (tests run thousands of cy
   The app classifies local callers (ui-token / a host's view token → `LocalCaller`), passes
   `local_only_under(…)` for today's local-only areas, supplies the `PluginSwitch`, runs
   `runtime.idle` when a worker settles, and repeats the `router.undeclared()` test over the real table.
-- For `eos-kit-sqlite`: guarantee 2 orders a database write with its event only when the
-  publish happens on the writer thread after COMMIT (a post-commit step), or when the write runs
-  inside a lane job. `Db::write` answers each caller on its own thread, where commit order is not
-  publish order.
+- Guarantee 2 orders a database write with its event because the store publishes on the writer
+  thread after COMMIT (`Db::write_then_async`, wired in `eos-app`). A caller that publishes after
+  `store.write(…)` returned is on its own thread, where commit order is not publish order: use the
+  job's outbox instead.
 - For gateways: `Response::refusal` says why a caller was turned away (the phone gateway maps it
   to its own error frame); gzip for a peer link is the gateway's, not the router's.
 

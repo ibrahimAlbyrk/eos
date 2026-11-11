@@ -5,45 +5,27 @@
 
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::bus::{Bus, Subscription};
-use crate::seams::{Clock, topics};
+use eos_contracts::stream::topics;
+use eos_core::Clock;
 
 /// A stopped block stays a while: its durable row lands only when the whole
 /// message ends, and a client resuming in between still needs the text. Past
 /// this the row has landed, and an idle worker's blocks would only bloat
 /// every snapshot.
-pub const STOPPED_BLOCK_TTL_MS: u64 = 120_000;
+pub const STOPPED_BLOCK_TTL_MS: i64 = 120_000;
 const MAX_BLOCKS_PER_WORKER: usize = 6;
 
-/// One streaming block's text so far. The wire shape is `eos-contracts`'
-/// `LiveBlock`; it lives here until that type exists.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LiveBlock {
-    pub worker_id: String,
-    pub block_id: String,
-    pub channel: LiveChannel,
-    pub text: String,
-    /// Finished streaming; its durable row is on the way.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub done: Option<bool>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LiveChannel {
-    Reasoning,
-    Text,
-}
+pub use eos_contracts::{LiveBlock, LiveBlockChannel as LiveChannel};
 
 struct Tracked {
     block_id: String,
     channel: LiveChannel,
     text: String,
-    stopped_at: Option<u64>,
+    stopped_at: Option<i64>,
 }
 
 /// Workers in the order their first block arrived (the snapshot's order).
@@ -135,7 +117,7 @@ impl LiveText {
         workers[i].1.iter().map(|b| block_of(worker_id, b)).collect()
     }
 
-    fn cutoff(&self) -> u64 {
+    fn cutoff(&self) -> i64 {
         self.clock.now_ms().saturating_sub(STOPPED_BLOCK_TTL_MS)
     }
 }
@@ -150,7 +132,7 @@ fn block_of(worker: &str, b: &Tracked) -> LiveBlock {
     }
 }
 
-fn on_delta(workers: &mut Workers, delta: Delta, now: u64) {
+fn on_delta(workers: &mut Workers, delta: Delta, now: i64) {
     let (Value::String(worker_id), Value::String(block_id)) = (delta.worker_id, delta.block_id) else { return };
     let text = match delta.text {
         Value::String(text) => text,
@@ -198,11 +180,11 @@ mod tests {
     use crate::bus::BusOptions;
     use crate::ordered::Ordered;
     use bytes::Bytes;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicI64, Ordering};
 
-    struct TestClock(AtomicU64);
+    struct TestClock(AtomicI64);
     impl Clock for TestClock {
-        fn now_ms(&self) -> u64 {
+        fn now_ms(&self) -> i64 {
             self.0.load(Ordering::SeqCst)
         }
     }
@@ -214,7 +196,7 @@ mod tests {
     }
 
     fn harness() -> Harness {
-        let clock = Arc::new(TestClock(AtomicU64::new(1_000)));
+        let clock = Arc::new(TestClock(AtomicI64::new(1_000)));
         let bus = Bus::new(Ordered::new(), clock.clone(), BusOptions { delta_window: None });
         let live = LiveText::new(&bus);
         Harness { bus, live, clock }

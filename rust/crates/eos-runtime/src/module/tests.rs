@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use eos_core::agent::ToolInputPhase;
+
 use super::*;
 use crate::access::{Access, Caller};
 use crate::bus::{ScopeKind, Topic};
@@ -76,13 +78,13 @@ impl Module for Fake {
         self.holds == Some(worker_id)
     }
     fn on_tool_input_delta(&self, worker_id: &str, delta: &ToolInputDelta) {
-        self.heard.lock().expect("heard").push(format!("delta:{worker_id}:{delta}"));
+        self.heard.lock().expect("heard").push(format!("delta:{worker_id}:{}", delta.text));
     }
     fn on_agent_event(&self, worker_id: &str, event: &AgentEvent) {
         if self.panics {
             panic!("module bug");
         }
-        self.heard.lock().expect("heard").push(format!("event:{worker_id}:{event}"));
+        self.heard.lock().expect("heard").push(format!("event:{worker_id}:{event:?}"));
     }
     fn on_session_ended(&self, session_key: &str) {
         self.heard.lock().expect("heard").push(format!("ended:{session_key}"));
@@ -228,7 +230,9 @@ fn fans_calls_out_to_the_modules() {
     let modules =
         compose(vec![artifacts.clone(), broken, genui.clone(), later], switch.clone()).expect("no clashes").modules;
 
-    let event = serde_json::json!({ "type": "tool_result" });
+    let event: AgentEvent =
+        serde_json::from_value(serde_json::json!({ "type": "session", "phase": "started", "sessionId": "s-1" }))
+            .expect("an agent event");
     modules.on_agent_event("w1", &event);
     assert!(artifacts.heard.lock().expect("heard").is_empty(), "a switched-off plugin hears no agent events");
     assert_eq!(genui.heard.lock().expect("heard").len(), 1, "a panicking module does not silence the next");
@@ -238,9 +242,15 @@ fn fans_calls_out_to_the_modules() {
 
     assert!(modules.follows_tool_input("present"));
     assert!(!modules.follows_tool_input("Bash"));
-    modules.on_tool_input_delta("w1", "present", &serde_json::json!("{"));
-    modules.on_tool_input_delta("w1", "Bash", &serde_json::json!("ls"));
-    assert_eq!(genui.heard.lock().expect("heard")[2], "delta:w1:\"{\"");
+    let piece = |name: &str, text: &str| ToolInputDelta {
+        call_id: "call-1".into(),
+        name: name.into(),
+        phase: ToolInputPhase::Append,
+        text: text.into(),
+    };
+    modules.on_tool_input_delta("w1", "present", &piece("present", "{"));
+    modules.on_tool_input_delta("w1", "Bash", &piece("Bash", "ls"));
+    assert_eq!(genui.heard.lock().expect("heard")[2], "delta:w1:{");
     assert_eq!(artifacts.heard.lock().expect("heard").len(), 1, "only the modules that follow the tool get its input");
 
     assert!(modules.holds_worker("w-held"));

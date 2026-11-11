@@ -12,10 +12,14 @@ use crate::http::{BodyStream, Method, Request};
 use crate::live_text::LiveText;
 use crate::ordered::Ordered;
 use crate::router::Router;
-use crate::seams::{Clock, Ids, topics};
+use eos_contracts::stream::topics;
+use eos_core::{Clock, Ids};
 
 struct FixedIds;
 impl Ids for FixedIds {
+    fn token(&self, _alphabet: eos_core::Alphabet, len: usize) -> String {
+        "0".repeat(len)
+    }
     fn request_id(&self) -> String {
         "r-test0001".into()
     }
@@ -26,7 +30,7 @@ impl Ids for FixedIds {
 
 struct FixedClock;
 impl Clock for FixedClock {
-    fn now_ms(&self) -> u64 {
+    fn now_ms(&self) -> i64 {
         1_700_000_000_000
     }
 }

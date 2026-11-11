@@ -21,8 +21,8 @@ use crate::http::error::refusal_response;
 use crate::http::request::Matched;
 use crate::http::response::ErrorBody;
 use crate::http::{ApiError, Method, Request, Response, normalize_path, split_target};
-use crate::seams::{Ids, RandomIds};
 use catch::CatchUnwind;
+use eos_core::{Ids, RandomIds};
 pub use route::{BoxFuture, DEFAULT_MAX_BODY_BYTES, Handler, Methods, RouteDef, RouteMeta, Validator};
 use tree::{Spans, Tree, parse_pattern};
 
@@ -86,7 +86,7 @@ impl Default for RouterBuilder {
         Self {
             routes: Vec::new(),
             plugins: Arc::new(AllPluginsOn),
-            ids: Arc::new(RandomIds::default()),
+            ids: Arc::new(RandomIds),
             tolerate_undeclared: false,
             local_only_under: Vec::new(),
         }

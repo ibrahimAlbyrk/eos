@@ -319,3 +319,42 @@ fn a_receipt_can_be_awaited() {
     }
     assert!(matches!(receipt.as_mut().poll(&mut cx), Poll::Ready(Ok(id)) if id > 0));
 }
+
+#[test]
+fn after_commit_hooks_run_in_commit_order_and_only_for_saved_writes() {
+    let dir = tempfile::tempdir().expect("dir");
+    let db = Arc::new(fresh(&dir, Options::default()));
+    let announced = Arc::new(std::sync::Mutex::new(Vec::<i64>::new()));
+
+    // Eight threads write flat out; each write announces its row id from the hook.
+    let threads: Vec<_> = (0..8)
+        .map(|t| {
+            let (db, announced) = (db.clone(), announced.clone());
+            thread::spawn(move || {
+                for i in 0..200 {
+                    let seen = announced.clone();
+                    let saved = db
+                        .write_then_async(
+                            move |c| append(c, "w", &format!("{t}-{i}")),
+                            move |id| seen.lock().expect("announced").push(*id),
+                        )
+                        .wait();
+                    assert!(saved.is_ok() || matches!(saved, Err(Error::QueueFull)));
+                }
+            })
+        })
+        .collect();
+    for t in threads {
+        t.join().expect("writer thread");
+    }
+    let failed =
+        db.write_then_async(|_| Err::<i64, Error>(Error::Closed), |_| panic!("a failed write announces nothing"));
+    assert!(failed.wait().is_err());
+    let panicking = db.write_then_async(|c| append(c, "w", "after a hook that panics"), |_| panic!("hook bug"));
+    assert!(panicking.wait().is_ok(), "the write is saved whatever its hook does");
+
+    let announced = announced.lock().expect("announced");
+    assert!(!announced.is_empty());
+    assert!(announced.windows(2).all(|w| w[0] < w[1]), "announced in the order the rows were saved");
+    assert_eq!(count(&db), announced.len() as i64 + 1);
+}

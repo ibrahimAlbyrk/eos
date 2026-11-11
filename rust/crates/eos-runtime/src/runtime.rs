@@ -24,8 +24,9 @@ use crate::live_text::LiveText;
 use crate::module::{Module, Modules, ProtectedSettings, SlashCommandDecl, SyncContribution, compose};
 use crate::ordered::{DEFAULT_LANE_CAPACITY, Ordered};
 use crate::router::{PluginSwitch, Router};
-use crate::seams::{Clock, Ids, RandomIds, SystemClock, topics};
 use crate::stream::{StreamHub, StreamOptions, routes as stream_routes};
+use eos_contracts::stream::topics;
+use eos_core::{Clock, Ids, RandomIds, SystemClock};
 
 #[derive(Clone)]
 pub struct KernelOptions {
@@ -41,7 +42,7 @@ impl Default for KernelOptions {
     fn default() -> Self {
         Self {
             clock: Arc::new(SystemClock),
-            ids: Arc::new(RandomIds::default()),
+            ids: Arc::new(RandomIds),
             lane_capacity: DEFAULT_LANE_CAPACITY,
             bus: BusOptions::default(),
             stream: StreamOptions::default(),

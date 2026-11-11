@@ -22,7 +22,10 @@ use serde::Deserialize;
 /// - app: the composition root that wires everything below it.
 /// - host: the window shell, the bridge to the dashboard, the binary.
 const LAYERS: &[(&str, Layer)] = &[
+    ("eos-app", Layer::App),
     ("eos-contracts", Layer::Types),
+    ("eos-core", Layer::Core),
+    ("eos-domain", Layer::Domain),
     ("eos-genui", Layer::Types),
     ("eos-kit-fs", Layer::Kit),
     ("eos-kit-net", Layer::Kit),
@@ -30,7 +33,9 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-kit-sqlite", Layer::Kit),
     ("eos-platform", Layer::Kit),
     ("eos-runtime", Layer::Runtime),
+    ("eos-store-sqlite", Layer::Adapter),
     // Test and dev tooling: never a normal dependency of a library crate.
+    ("eos-testkit", Layer::Support),
     ("wire-recorder", Layer::Support),
     ("xtask", Layer::Support),
 ];
