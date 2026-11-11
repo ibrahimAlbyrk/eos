@@ -1,0 +1,14 @@
+[
+{"schema":"AnthropicConfigSchema","case":"full","input":{"apiKey":"s","authToken":"s"},"ok":true,"output":{"apiKey":"s","authToken":"s"}},
+{"schema":"AnthropicConfigSchema","case":"min","input":{},"ok":true,"output":{}},
+{"schema":"AnthropicConfigSchema","case":"extra","input":{"apiKey":"s","authToken":"s","__extra":1},"ok":true,"output":{"apiKey":"s","authToken":"s"}},
+{"schema":"AnthropicConfigSchema","case":"type:apiKey","input":{"apiKey":42,"authToken":"s"},"ok":false,"issues":[{"path":["apiKey"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"AnthropicConfigSchema","case":"type:authToken","input":{"apiKey":"s","authToken":42},"ok":false,"issues":[{"path":["authToken"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"AnthropicConfigStatusSchema","case":"full","input":{"apiKeySet":true,"authTokenSet":true},"ok":true,"output":{"apiKeySet":true,"authTokenSet":true}},
+{"schema":"AnthropicConfigStatusSchema","case":"min","input":{"apiKeySet":false,"authTokenSet":false},"ok":true,"output":{"apiKeySet":false,"authTokenSet":false}},
+{"schema":"AnthropicConfigStatusSchema","case":"extra","input":{"apiKeySet":true,"authTokenSet":true,"__extra":1},"ok":true,"output":{"apiKeySet":true,"authTokenSet":true}},
+{"schema":"AnthropicConfigStatusSchema","case":"missing:apiKeySet","input":{"authTokenSet":true},"ok":false,"issues":[{"path":["apiKeySet"],"message":"Required","code":"invalid_type"}]},
+{"schema":"AnthropicConfigStatusSchema","case":"type:apiKeySet","input":{"apiKeySet":"x","authTokenSet":true},"ok":false,"issues":[{"path":["apiKeySet"],"message":"Expected boolean, received string","code":"invalid_type"}]},
+{"schema":"AnthropicConfigStatusSchema","case":"missing:authTokenSet","input":{"apiKeySet":true},"ok":false,"issues":[{"path":["authTokenSet"],"message":"Required","code":"invalid_type"}]},
+{"schema":"AnthropicConfigStatusSchema","case":"type:authTokenSet","input":{"apiKeySet":true,"authTokenSet":"x"},"ok":false,"issues":[{"path":["authTokenSet"],"message":"Expected boolean, received string","code":"invalid_type"}]}
+]

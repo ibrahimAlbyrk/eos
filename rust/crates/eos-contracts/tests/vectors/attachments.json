@@ -1,0 +1,14 @@
+[
+{"schema":"ChatAttachmentSchema","case":"full","input":{"label":"s","kind":"image","path":"s","messageId":1.5,"ts":1.5},"ok":true,"output":{"label":"s","kind":"image","path":"s","messageId":1.5,"ts":1.5}},
+{"schema":"ChatAttachmentSchema","case":"min","input":{"kind":"folder","path":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","messageId":3,"ts":3},"ok":true,"output":{"kind":"folder","path":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","messageId":3,"ts":3}},
+{"schema":"ChatAttachmentSchema","case":"extra","input":{"label":"s","kind":"image","path":"s","messageId":1.5,"ts":1.5,"__extra":1},"ok":true,"output":{"label":"s","kind":"image","path":"s","messageId":1.5,"ts":1.5}},
+{"schema":"ChatAttachmentSchema","case":"type:label","input":{"label":42,"kind":"image","path":"s","messageId":1.5,"ts":1.5},"ok":false,"issues":[{"path":["label"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"missing:kind","input":{"label":"s","path":"s","messageId":1.5,"ts":1.5},"ok":false,"issues":[{"path":["kind"],"message":"Required","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"enum:kind","input":{"label":"s","kind":"__nope__","path":"s","messageId":1.5,"ts":1.5},"ok":false,"issues":[{"path":["kind"],"message":"Invalid enum value. Expected 'image' | 'file' | 'folder', received '__nope__'","code":"invalid_enum_value"}]},
+{"schema":"ChatAttachmentSchema","case":"missing:path","input":{"label":"s","kind":"image","messageId":1.5,"ts":1.5},"ok":false,"issues":[{"path":["path"],"message":"Required","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"type:path","input":{"label":"s","kind":"image","path":42,"messageId":1.5,"ts":1.5},"ok":false,"issues":[{"path":["path"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"missing:messageId","input":{"label":"s","kind":"image","path":"s","ts":1.5},"ok":false,"issues":[{"path":["messageId"],"message":"Required","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"type:messageId","input":{"label":"s","kind":"image","path":"s","messageId":"x","ts":1.5},"ok":false,"issues":[{"path":["messageId"],"message":"Expected number, received string","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"missing:ts","input":{"label":"s","kind":"image","path":"s","messageId":1.5},"ok":false,"issues":[{"path":["ts"],"message":"Required","code":"invalid_type"}]},
+{"schema":"ChatAttachmentSchema","case":"type:ts","input":{"label":"s","kind":"image","path":"s","messageId":1.5,"ts":"x"},"ok":false,"issues":[{"path":["ts"],"message":"Expected number, received string","code":"invalid_type"}]}
+]

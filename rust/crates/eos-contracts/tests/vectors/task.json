@@ -1,0 +1,14 @@
+[
+{"schema":"TaskStatusSchema","case":"full","input":"pending","ok":true,"output":"pending"},
+{"schema":"TaskStatusSchema","case":"min","input":"completed","ok":true,"output":"completed"},
+{"schema":"TaskStatusSchema","case":"enum","input":"__nope__","ok":false,"issues":[{"path":[],"message":"Invalid enum value. Expected 'pending' | 'in_progress' | 'completed', received '__nope__'","code":"invalid_enum_value"}]},
+{"schema":"TaskSchema","case":"full","input":{"content":"s","status":"pending","activeForm":"s","deleted":true},"ok":true,"output":{"content":"s","status":"pending","activeForm":"s","deleted":true}},
+{"schema":"TaskSchema","case":"min","input":{"content":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","status":"completed"},"ok":true,"output":{"content":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==","status":"completed"}},
+{"schema":"TaskSchema","case":"extra","input":{"content":"s","status":"pending","activeForm":"s","deleted":true,"__extra":1},"ok":true,"output":{"content":"s","status":"pending","activeForm":"s","deleted":true}},
+{"schema":"TaskSchema","case":"missing:content","input":{"status":"pending","activeForm":"s","deleted":true},"ok":false,"issues":[{"path":["content"],"message":"Required","code":"invalid_type"}]},
+{"schema":"TaskSchema","case":"type:content","input":{"content":42,"status":"pending","activeForm":"s","deleted":true},"ok":false,"issues":[{"path":["content"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"TaskSchema","case":"missing:status","input":{"content":"s","activeForm":"s","deleted":true},"ok":false,"issues":[{"path":["status"],"message":"Required","code":"invalid_type"}]},
+{"schema":"TaskSchema","case":"enum:status","input":{"content":"s","status":"__nope__","activeForm":"s","deleted":true},"ok":false,"issues":[{"path":["status"],"message":"Invalid enum value. Expected 'pending' | 'in_progress' | 'completed', received '__nope__'","code":"invalid_enum_value"}]},
+{"schema":"TaskSchema","case":"type:activeForm","input":{"content":"s","status":"pending","activeForm":42,"deleted":true},"ok":false,"issues":[{"path":["activeForm"],"message":"Expected string, received number","code":"invalid_type"}]},
+{"schema":"TaskSchema","case":"type:deleted","input":{"content":"s","status":"pending","activeForm":"s","deleted":"x"},"ok":false,"issues":[{"path":["deleted"],"message":"Expected boolean, received string","code":"invalid_type"}]}
+]

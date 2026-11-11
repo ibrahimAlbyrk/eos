@@ -1,0 +1,23 @@
+[
+{"schema":"SettingValueSchema","case":"full","input":"s","ok":true,"output":"s"},
+{"schema":"SettingValueSchema","case":"min","input":{},"ok":true,"output":{}},
+{"schema":"SettingValueSchema","case":"option-0","input":"s","ok":true,"output":"s"},
+{"schema":"SettingValueSchema","case":"option-1","input":1.5,"ok":true,"output":1.5},
+{"schema":"SettingValueSchema","case":"option-2","input":true,"ok":true,"output":true},
+{"schema":"SettingValueSchema","case":"option-3","input":["s","AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="],"ok":true,"output":["s","AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="]},
+{"schema":"SettingValueSchema","case":"option-4","input":{"s":"s"},"ok":true,"output":{"s":"s"}},
+{"schema":"UserSettingsSchema","case":"full","input":{"s":"s"},"ok":true,"output":{"s":"s"}},
+{"schema":"UserSettingsSchema","case":"min","input":{},"ok":true,"output":{}},
+{"schema":"UserSettingsSchema","case":"extra","input":{"s":"s","__extra":1},"ok":true,"output":{"s":"s","__extra":1}},
+{"schema":"UserSettingsSchema","case":"type","input":"x","ok":false,"issues":[{"path":[],"message":"Expected object, received string","code":"invalid_type"}]},
+{"schema":"SettingsResponseSchema","case":"full","input":{"settings":{"s":"s"}},"ok":true,"output":{"settings":{"s":"s"}}},
+{"schema":"SettingsResponseSchema","case":"min","input":{"settings":{}},"ok":true,"output":{"settings":{}}},
+{"schema":"SettingsResponseSchema","case":"extra","input":{"settings":{"s":"s"},"__extra":1},"ok":true,"output":{"settings":{"s":"s"}}},
+{"schema":"SettingsResponseSchema","case":"missing:settings","input":{},"ok":false,"issues":[{"path":["settings"],"message":"Required","code":"invalid_type"}]},
+{"schema":"SettingsResponseSchema","case":"type:settings","input":{"settings":"x"},"ok":false,"issues":[{"path":["settings"],"message":"Expected object, received string","code":"invalid_type"}]},
+{"schema":"SettingsPatchRequestSchema","case":"full","input":{"settings":{"s":"s"}},"ok":true,"output":{"settings":{"s":"s"}}},
+{"schema":"SettingsPatchRequestSchema","case":"min","input":{"settings":{}},"ok":true,"output":{"settings":{}}},
+{"schema":"SettingsPatchRequestSchema","case":"extra","input":{"settings":{"s":"s"},"__extra":1},"ok":true,"output":{"settings":{"s":"s"}}},
+{"schema":"SettingsPatchRequestSchema","case":"missing:settings","input":{},"ok":false,"issues":[{"path":["settings"],"message":"Required","code":"invalid_type"}]},
+{"schema":"SettingsPatchRequestSchema","case":"type:settings","input":{"settings":"x"},"ok":false,"issues":[{"path":["settings"],"message":"Expected object, received string","code":"invalid_type"}]}
+]

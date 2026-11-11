@@ -79,7 +79,8 @@ boundary in `eos-runtime` / `eos-engine`; a panic fails that task or request and
 
 **Wire types.** `#[serde(rename_all = "camelCase")]` unless the recorded wire says otherwise;
 unknown fields are ignored on input (clients may be newer); optional fields are omitted exactly
-where today's wire omits them. A type that feeds a hash or signature documents its exact byte
+where today's wire omits them. JSON objects keep insertion order, as in JavaScript
+(`serde_json` with `preserve_order`, set workspace-wide); write fields in today's order. A type that feeds a hash or signature documents its exact byte
 format and has cross-implementation vectors.
 
 **Data on disk** (`~/.eos`) keeps its formats. The database opens in place: the 64 migrations

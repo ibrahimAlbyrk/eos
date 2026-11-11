@@ -131,7 +131,7 @@ async fn writes_todays_frames_byte_for_byte() {
             "retry: 2000\n\n",
             ":connected\n\n",
             "id: 0123456789ab-0\nevent: hello\ndata: {\"epoch\":\"0123456789ab\",\"seq\":0,\"caps\":[\"state:patch\"]}\n\n",
-            "id: 0123456789ab-1\nevent: change\ndata: {\"reason\":\"worker:change\",\"ts\":1700000000000,\"payload\":{\"state\":\"IDLE\",\"workerId\":\"w1\"}}\n\n",
+            "id: 0123456789ab-1\nevent: change\ndata: {\"reason\":\"worker:change\",\"ts\":1700000000000,\"payload\":{\"workerId\":\"w1\",\"state\":\"IDLE\"}}\n\n",
             // No payload: the key is left out, as JSON.stringify drops undefined.
             "id: 0123456789ab-2\nevent: change\ndata: {\"reason\":\"worker:removed\",\"ts\":1700000000000}\n\n",
             // A pre-serialized payload with line breaks still sits on one data line.

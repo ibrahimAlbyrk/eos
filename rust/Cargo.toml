@@ -26,14 +26,18 @@ bytes = "1"
 crossbeam-channel = "0.5"
 flate2 = "1"
 futures-core = "0.3"
+indexmap = { version = "2", features = ["serde"] }
 regress = { version = "0.12", features = ["utf16"] }
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
 rusqlite = { version = "0.42", features = ["bundled"] }
 rustix = { version = "1", features = ["process"] }
 ryu-js = "1"
+schemars = { version = "1", features = ["indexmap2"] }
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["raw_value"] }
+# Objects keep insertion order and floats round-trip, as in JavaScript: the wire depends on both.
+serde_json = { version = "1", features = ["float_roundtrip", "preserve_order", "raw_value"] }
 serde_norway = "0.9"
+serde_path_to_error = "0.1"
 sha1 = "0.10"
 sha2 = "0.11"
 tempfile = "3"

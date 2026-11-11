@@ -7,5 +7,16 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[dependencies]
+indexmap.workspace = true
+regress.workspace = true
+schemars.workspace = true
+serde.workspace = true
+# Object keys keep the order they arrived in: a round trip must not reorder a
+# record the dashboard iterates.
+serde_json = { workspace = true, features = ["float_roundtrip", "preserve_order"] }
+serde_path_to_error.workspace = true
+thiserror.workspace = true
+
 [lints]
 workspace = true

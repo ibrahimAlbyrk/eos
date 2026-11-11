@@ -1,0 +1,1611 @@
+[
+ {
+  "name": "health",
+  "path": "/health",
+  "params": []
+ },
+ {
+  "name": "stream",
+  "path": "/stream",
+  "params": []
+ },
+ {
+  "name": "streamFocus",
+  "path": "/stream/focus",
+  "params": []
+ },
+ {
+  "name": "workers",
+  "path": "/workers",
+  "params": []
+ },
+ {
+  "name": "workersArchived",
+  "path": "/workers/archived",
+  "params": []
+ },
+ {
+  "name": "workersArchivedAppClosed",
+  "path": "/workers/archived/app-closed",
+  "params": []
+ },
+ {
+  "name": "worker",
+  "path": "/workers/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerEvents",
+  "path": "/workers/:id/events",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerAttachments",
+  "path": "/workers/:id/attachments",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPromptEvents",
+  "path": "/workers/:id/prompt-events",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerSubagentEvents",
+  "path": "/workers/:id/subagent-events",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerWorkflowRuns",
+  "path": "/workers/:id/workflow-runs",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerWorkflowRun",
+  "path": "/workers/:id/workflow-runs/:callId",
+  "params": [
+   "id",
+   "callId"
+  ]
+ },
+ {
+  "name": "workerWorkflowRunStop",
+  "path": "/workers/:id/workflow-runs/:callId/stop",
+  "params": [
+   "id",
+   "callId"
+  ]
+ },
+ {
+  "name": "workerWorkflowAgent",
+  "path": "/workers/:id/workflow-runs/:callId/agents/:agentId",
+  "params": [
+   "id",
+   "callId",
+   "agentId"
+  ]
+ },
+ {
+  "name": "workerSideQuestion",
+  "path": "/workers/:id/btw",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerMessage",
+  "path": "/workers/:id/message",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerWarm",
+  "path": "/workers/:id/warm",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerQueue",
+  "path": "/workers/:id/queue",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerQueueItem",
+  "path": "/workers/:id/queue/:queueId",
+  "params": [
+   "id",
+   "queueId"
+  ]
+ },
+ {
+  "name": "workerAction",
+  "path": "/workers/:id/action",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPush",
+  "path": "/workers/:id/push",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPushState",
+  "path": "/workers/:id/push-state",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPull",
+  "path": "/workers/:id/pull",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "orchestrators",
+  "path": "/orchestrators",
+  "params": []
+ },
+ {
+  "name": "orchestratorMessage",
+  "path": "/orchestrators/:id/message",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "orchestratorIntegrate",
+  "path": "/orchestrators/:id/integrate",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "orchestratorLoop",
+  "path": "/orchestrators/:id/loop",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "orchestratorLoopStop",
+  "path": "/orchestrators/:id/loop/stop",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "policyDecide",
+  "path": "/policy/decide",
+  "params": []
+ },
+ {
+  "name": "policyRule",
+  "path": "/api/policy/rule",
+  "params": []
+ },
+ {
+  "name": "pending",
+  "path": "/pending",
+  "params": []
+ },
+ {
+  "name": "pendingDecision",
+  "path": "/pending/:id/decision",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "metrics",
+  "path": "/metrics",
+  "params": []
+ },
+ {
+  "name": "datetime",
+  "path": "/datetime",
+  "params": []
+ },
+ {
+  "name": "uiConfig",
+  "path": "/api/ui-config",
+  "params": []
+ },
+ {
+  "name": "modelCatalogRefresh",
+  "path": "/api/model-catalog/refresh",
+  "params": []
+ },
+ {
+  "name": "pickDirectory",
+  "path": "/pick-directory",
+  "params": []
+ },
+ {
+  "name": "pickFile",
+  "path": "/pick-file",
+  "params": []
+ },
+ {
+  "name": "fsDefaultApp",
+  "path": "/fs/default-app",
+  "params": []
+ },
+ {
+  "name": "fsOpen",
+  "path": "/fs/open",
+  "params": []
+ },
+ {
+  "name": "fsIcon",
+  "path": "/fs/icon",
+  "params": []
+ },
+ {
+  "name": "fsBranches",
+  "path": "/fs/branches",
+  "params": []
+ },
+ {
+  "name": "fsUnpushed",
+  "path": "/fs/unpushed",
+  "params": []
+ },
+ {
+  "name": "fsCommit",
+  "path": "/fs/commit",
+  "params": []
+ },
+ {
+  "name": "fsLog",
+  "path": "/fs/log",
+  "params": []
+ },
+ {
+  "name": "fsChanges",
+  "path": "/fs/changes",
+  "params": []
+ },
+ {
+  "name": "fsChangesFile",
+  "path": "/fs/changes/file",
+  "params": []
+ },
+ {
+  "name": "fsBlob",
+  "path": "/fs/blob",
+  "params": []
+ },
+ {
+  "name": "fsStashes",
+  "path": "/fs/stashes",
+  "params": []
+ },
+ {
+  "name": "fsStashApply",
+  "path": "/fs/stash/apply",
+  "params": []
+ },
+ {
+  "name": "fsStashDrop",
+  "path": "/fs/stash/drop",
+  "params": []
+ },
+ {
+  "name": "fsRecents",
+  "path": "/fs/recents",
+  "params": []
+ },
+ {
+  "name": "fsRecentsRemove",
+  "path": "/fs/recents/remove",
+  "params": []
+ },
+ {
+  "name": "projects",
+  "path": "/projects",
+  "params": []
+ },
+ {
+  "name": "projectsDelete",
+  "path": "/projects/delete",
+  "params": []
+ },
+ {
+  "name": "fsReveal",
+  "path": "/fs/reveal",
+  "params": []
+ },
+ {
+  "name": "fsOpenIn",
+  "path": "/fs/open-in",
+  "params": []
+ },
+ {
+  "name": "fsEditors",
+  "path": "/fs/editors",
+  "params": []
+ },
+ {
+  "name": "fsRead",
+  "path": "/fs/read",
+  "params": []
+ },
+ {
+  "name": "fsList",
+  "path": "/fs/list",
+  "params": []
+ },
+ {
+  "name": "fsImage",
+  "path": "/fs/image",
+  "params": []
+ },
+ {
+  "name": "fsRaw",
+  "path": "/fs/raw",
+  "params": []
+ },
+ {
+  "name": "pdfjs",
+  "path": "/pdfjs",
+  "params": []
+ },
+ {
+  "name": "fsCheckout",
+  "path": "/fs/checkout",
+  "params": []
+ },
+ {
+  "name": "fsBranchCreate",
+  "path": "/fs/branch/create",
+  "params": []
+ },
+ {
+  "name": "fsBranchRename",
+  "path": "/fs/branch/rename",
+  "params": []
+ },
+ {
+  "name": "fsBranchDelete",
+  "path": "/fs/branch/delete",
+  "params": []
+ },
+ {
+  "name": "fsFetch",
+  "path": "/fs/fetch",
+  "params": []
+ },
+ {
+  "name": "fsRemoteBranchDelete",
+  "path": "/fs/remote-branch/delete",
+  "params": []
+ },
+ {
+  "name": "fsWrite",
+  "path": "/fs/write",
+  "params": []
+ },
+ {
+  "name": "fsPaste",
+  "path": "/fs/paste",
+  "params": []
+ },
+ {
+  "name": "fsPasteB64",
+  "path": "/fs/paste-b64",
+  "params": []
+ },
+ {
+  "name": "fsStat",
+  "path": "/fs/stat",
+  "params": []
+ },
+ {
+  "name": "fsCreate",
+  "path": "/fs/create",
+  "params": []
+ },
+ {
+  "name": "fsRename",
+  "path": "/fs/rename",
+  "params": []
+ },
+ {
+  "name": "fsMove",
+  "path": "/fs/move",
+  "params": []
+ },
+ {
+  "name": "fsTrash",
+  "path": "/fs/trash",
+  "params": []
+ },
+ {
+  "name": "fsWatch",
+  "path": "/fs/watch",
+  "params": []
+ },
+ {
+  "name": "fsUnwatch",
+  "path": "/fs/unwatch",
+  "params": []
+ },
+ {
+  "name": "fsGitWatch",
+  "path": "/fs/git/watch",
+  "params": []
+ },
+ {
+  "name": "fsGitUnwatch",
+  "path": "/fs/git/unwatch",
+  "params": []
+ },
+ {
+  "name": "symbolsLookup",
+  "path": "/symbols/lookup",
+  "params": []
+ },
+ {
+  "name": "symbolsSearch",
+  "path": "/symbols/search",
+  "params": []
+ },
+ {
+  "name": "symbolsFile",
+  "path": "/symbols/file",
+  "params": []
+ },
+ {
+  "name": "workerName",
+  "path": "/workers/:id/name",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerRenameIntent",
+  "path": "/workers/:id/rename-intent",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerOpen",
+  "path": "/workers/:id/open",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPermission",
+  "path": "/workers/:id/permission",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerModel",
+  "path": "/workers/:id/model",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerBackend",
+  "path": "/workers/:id/backend",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerDiff",
+  "path": "/workers/:id/diff",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerChanges",
+  "path": "/workers/:id/changes",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerFileDiff",
+  "path": "/workers/:id/changes/file",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerChangesDiscard",
+  "path": "/workers/:id/changes/discard",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerConflicts",
+  "path": "/workers/:id/conflicts",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerConflictFile",
+  "path": "/workers/:id/conflicts/file",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerConflictResolve",
+  "path": "/workers/:id/conflicts/resolve",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerMemory",
+  "path": "/workers/:id/memory",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerMemoryItem",
+  "path": "/workers/:id/memory/:name",
+  "params": [
+   "id",
+   "name"
+  ]
+ },
+ {
+  "name": "workerInterrupt",
+  "path": "/workers/:id/interrupt",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerResume",
+  "path": "/workers/:id/resume",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerArchive",
+  "path": "/workers/:id/archive",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerRestore",
+  "path": "/workers/:id/restore",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPurge",
+  "path": "/workers/:id/purge",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerKeystroke",
+  "path": "/workers/:id/keystroke",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerQuestion",
+  "path": "/workers/:id/question",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerQuestionPoll",
+  "path": "/workers/:id/question/:questionId",
+  "params": [
+   "id",
+   "questionId"
+  ]
+ },
+ {
+  "name": "workerQuestionAnswer",
+  "path": "/workers/:id/question-answer",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPeers",
+  "path": "/workers/:id/peers",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerPeerRequest",
+  "path": "/workers/:fromWorker/peer-request",
+  "params": [
+   "fromWorker"
+  ]
+ },
+ {
+  "name": "workerPeerRequestPoll",
+  "path": "/workers/:fromWorker/peer-request/:requestId",
+  "params": [
+   "fromWorker",
+   "requestId"
+  ]
+ },
+ {
+  "name": "workerPeerResponse",
+  "path": "/workers/:id/peer-response",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerNotify",
+  "path": "/workers/:id/notify",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerReport",
+  "path": "/workers/:id/report",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerRewindTargets",
+  "path": "/workers/:id/rewind-targets",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerRewind",
+  "path": "/workers/:id/rewind",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTerminal",
+  "path": "/workers/:id/terminal",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "terminal",
+  "path": "/terminal",
+  "params": []
+ },
+ {
+  "name": "terminalKill",
+  "path": "/terminal/:runId/kill",
+  "params": [
+   "runId"
+  ]
+ },
+ {
+  "name": "pty",
+  "path": "/pty",
+  "params": []
+ },
+ {
+  "name": "ptySession",
+  "path": "/pty/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyInput",
+  "path": "/pty/:id/input",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyResize",
+  "path": "/pty/:id/resize",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyBuffer",
+  "path": "/pty/:id/buffer",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyConversation",
+  "path": "/pty/:id/conversation",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyMessage",
+  "path": "/pty/:id/message",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "ptyAnswer",
+  "path": "/pty/:id/answer",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTryPreview",
+  "path": "/workers/:id/try/preview",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTryState",
+  "path": "/workers/:id/try/state",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTry",
+  "path": "/workers/:id/try",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTryKeep",
+  "path": "/workers/:id/try/keep",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTryDiscard",
+  "path": "/workers/:id/try/discard",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "commands",
+  "path": "/commands",
+  "params": []
+ },
+ {
+  "name": "templates",
+  "path": "/api/templates",
+  "params": []
+ },
+ {
+  "name": "template",
+  "path": "/api/templates/:name",
+  "params": [
+   "name"
+  ]
+ },
+ {
+  "name": "pages",
+  "path": "/api/pages",
+  "params": []
+ },
+ {
+  "name": "page",
+  "path": "/api/pages/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pageEdit",
+  "path": "/api/pages/:id/edit",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "profile",
+  "path": "/api/profile",
+  "params": []
+ },
+ {
+  "name": "profilePreview",
+  "path": "/api/profile/preview",
+  "params": []
+ },
+ {
+  "name": "profileAvatar",
+  "path": "/api/profile/avatar",
+  "params": []
+ },
+ {
+  "name": "profileImportClaudeMd",
+  "path": "/api/profile/import/claude-md",
+  "params": []
+ },
+ {
+  "name": "userMemories",
+  "path": "/api/user-memories",
+  "params": []
+ },
+ {
+  "name": "userMemory",
+  "path": "/api/user-memories/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "userMemoryApprove",
+  "path": "/api/user-memories/:id/approve",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "userMemoryDismiss",
+  "path": "/api/user-memories/:id/dismiss",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "userMemoriesApproveAll",
+  "path": "/api/user-memories/approve-all",
+  "params": []
+ },
+ {
+  "name": "userMemorySuggest",
+  "path": "/api/user-memories/suggest",
+  "params": []
+ },
+ {
+  "name": "userMemorySearch",
+  "path": "/api/user-memories/search",
+  "params": []
+ },
+ {
+  "name": "jobs",
+  "path": "/api/jobs",
+  "params": []
+ },
+ {
+  "name": "jobsClear",
+  "path": "/api/jobs/clear",
+  "params": []
+ },
+ {
+  "name": "jobOutput",
+  "path": "/api/jobs/%3Aid/output",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "jobStop",
+  "path": "/api/jobs/%3Aid/stop",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "jobDismiss",
+  "path": "/api/jobs/%3Aid/dismiss",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "update",
+  "path": "/api/update",
+  "params": []
+ },
+ {
+  "name": "updateCheck",
+  "path": "/api/update/check",
+  "params": []
+ },
+ {
+  "name": "updateDownload",
+  "path": "/api/update/download",
+  "params": []
+ },
+ {
+  "name": "updateRestart",
+  "path": "/api/update/restart",
+  "params": []
+ },
+ {
+  "name": "updateLater",
+  "path": "/api/update/later",
+  "params": []
+ },
+ {
+  "name": "updateDismiss",
+  "path": "/api/update/dismiss",
+  "params": []
+ },
+ {
+  "name": "settingsUpdates",
+  "path": "/api/settings/updates",
+  "params": []
+ },
+ {
+  "name": "dreams",
+  "path": "/api/dreams",
+  "params": []
+ },
+ {
+  "name": "dream",
+  "path": "/api/dreams/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "dreamStatus",
+  "path": "/api/dreams/status",
+  "params": []
+ },
+ {
+  "name": "dreamStop",
+  "path": "/api/dreams/stop",
+  "params": []
+ },
+ {
+  "name": "dreamExclusions",
+  "path": "/api/dreams/exclusions",
+  "params": []
+ },
+ {
+  "name": "sync",
+  "path": "/api/sync",
+  "params": []
+ },
+ {
+  "name": "syncCreate",
+  "path": "/api/sync/create",
+  "params": []
+ },
+ {
+  "name": "syncJoin",
+  "path": "/api/sync/join",
+  "params": []
+ },
+ {
+  "name": "syncKey",
+  "path": "/api/sync/key",
+  "params": []
+ },
+ {
+  "name": "syncNow",
+  "path": "/api/sync/now",
+  "params": []
+ },
+ {
+  "name": "syncLeave",
+  "path": "/api/sync/leave",
+  "params": []
+ },
+ {
+  "name": "transferList",
+  "path": "/transfer/list",
+  "params": []
+ },
+ {
+  "name": "transferScan",
+  "path": "/transfer/scan",
+  "params": []
+ },
+ {
+  "name": "transferRead",
+  "path": "/transfer/read",
+  "params": []
+ },
+ {
+  "name": "transferWrite",
+  "path": "/transfer/write",
+  "params": []
+ },
+ {
+  "name": "transferPrepare",
+  "path": "/transfer/prepare",
+  "params": []
+ },
+ {
+  "name": "transferCommit",
+  "path": "/transfer/commit",
+  "params": []
+ },
+ {
+  "name": "transferAbort",
+  "path": "/transfer/abort",
+  "params": []
+ },
+ {
+  "name": "transferKey",
+  "path": "/transfer/key",
+  "params": []
+ },
+ {
+  "name": "transferLocate",
+  "path": "/transfer/locate",
+  "params": []
+ },
+ {
+  "name": "transfers",
+  "path": "/api/transfers",
+  "params": []
+ },
+ {
+  "name": "transferDestination",
+  "path": "/api/transfers/destination",
+  "params": []
+ },
+ {
+  "name": "transferPause",
+  "path": "/api/transfers/:id/pause",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "transferResume",
+  "path": "/api/transfers/:id/resume",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "transferCancel",
+  "path": "/api/transfers/:id/cancel",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "transferDecide",
+  "path": "/api/transfers/:id/decide",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTransfers",
+  "path": "/workers/:id/transfers",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerTransfer",
+  "path": "/workers/:id/transfers/:transferId",
+  "params": [
+   "id",
+   "transferId"
+  ]
+ },
+ {
+  "name": "prompts",
+  "path": "/api/prompts",
+  "params": []
+ },
+ {
+  "name": "promptPreview",
+  "path": "/api/prompts/preview",
+  "params": []
+ },
+ {
+  "name": "workerExport",
+  "path": "/workers/:id/export",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerDefinitions",
+  "path": "/worker-definitions",
+  "params": []
+ },
+ {
+  "name": "settings",
+  "path": "/api/settings",
+  "params": []
+ },
+ {
+  "name": "settingsArchive",
+  "path": "/api/settings/archive",
+  "params": []
+ },
+ {
+  "name": "settingsCompaction",
+  "path": "/api/settings/compaction",
+  "params": []
+ },
+ {
+  "name": "settingsGenui",
+  "path": "/api/settings/genui",
+  "params": []
+ },
+ {
+  "name": "genuiViews",
+  "path": "/api/genui/views",
+  "params": []
+ },
+ {
+  "name": "genuiView",
+  "path": "/api/genui/views/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "genuiViewState",
+  "path": "/api/genui/views/:id/state",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "genuiApps",
+  "path": "/api/genui/apps",
+  "params": []
+ },
+ {
+  "name": "genuiMediaImg",
+  "path": "/api/genui/media/img",
+  "params": []
+ },
+ {
+  "name": "genuiMediaOg",
+  "path": "/api/genui/media/og",
+  "params": []
+ },
+ {
+  "name": "genuiMediaIcon",
+  "path": "/api/genui/media/icon",
+  "params": []
+ },
+ {
+  "name": "genuiMap",
+  "path": "/api/genui/map",
+  "params": []
+ },
+ {
+  "name": "genuiGeocode",
+  "path": "/api/genui/geocode",
+  "params": []
+ },
+ {
+  "name": "genuiPlaces",
+  "path": "/api/genui/places",
+  "params": []
+ },
+ {
+  "name": "location",
+  "path": "/api/location",
+  "params": []
+ },
+ {
+  "name": "remotePair",
+  "path": "/api/remote/pair",
+  "params": []
+ },
+ {
+  "name": "remoteStatus",
+  "path": "/api/remote/status",
+  "params": []
+ },
+ {
+  "name": "remoteArm",
+  "path": "/api/remote/arm",
+  "params": []
+ },
+ {
+  "name": "remoteConfig",
+  "path": "/api/remote/config",
+  "params": []
+ },
+ {
+  "name": "hostInfo",
+  "path": "/api/host",
+  "params": []
+ },
+ {
+  "name": "peer",
+  "path": "/api/peer",
+  "params": []
+ },
+ {
+  "name": "peerInvite",
+  "path": "/api/peer/invite",
+  "params": []
+ },
+ {
+  "name": "peerDevice",
+  "path": "/api/peer/devices/:fp",
+  "params": [
+   "fp"
+  ]
+ },
+ {
+  "name": "peerDeviceDisconnect",
+  "path": "/api/peer/devices/:fp/disconnect",
+  "params": [
+   "fp"
+  ]
+ },
+ {
+  "name": "peerPair",
+  "path": "/peer/pair",
+  "params": []
+ },
+ {
+  "name": "peerReverse",
+  "path": "/peer/reverse",
+  "params": []
+ },
+ {
+  "name": "hosts",
+  "path": "/api/hosts",
+  "params": []
+ },
+ {
+  "name": "host",
+  "path": "/api/hosts/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "hostReconnect",
+  "path": "/api/hosts/:id/reconnect",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "hostViewToken",
+  "path": "/api/hosts/:id/view-token",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "hostProxyPrefix",
+  "path": "/h/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "anthropicConfig",
+  "path": "/api/anthropic/config",
+  "params": []
+ },
+ {
+  "name": "usage",
+  "path": "/api/usage",
+  "params": []
+ },
+ {
+  "name": "artifacts",
+  "path": "/api/artifacts",
+  "params": []
+ },
+ {
+  "name": "artifactsRefresh",
+  "path": "/api/artifacts/refresh",
+  "params": []
+ },
+ {
+  "name": "plugins",
+  "path": "/api/plugins",
+  "params": []
+ },
+ {
+  "name": "plugin",
+  "path": "/api/plugins/%3Aid",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginStatus",
+  "path": "/api/plugins/%3Aid/status",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginReport",
+  "path": "/api/plugins/%3Aid/report",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginEnabled",
+  "path": "/api/plugins/%3Aid/enabled",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginSettings",
+  "path": "/api/plugins/%3Aid/settings",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginStore",
+  "path": "/api/plugins/%3Aid/store/%3Akey",
+  "params": [
+   "id",
+   "key"
+  ]
+ },
+ {
+  "name": "pluginPreview",
+  "path": "/api/plugins/%3Aid/preview",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "pluginInstall",
+  "path": "/api/plugins/install",
+  "params": []
+ },
+ {
+  "name": "pluginStaged",
+  "path": "/api/plugins/install/%3AstagingId",
+  "params": [
+   "stagingId"
+  ]
+ },
+ {
+  "name": "pluginUpdate",
+  "path": "/api/plugins/%3Aid/update",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "apiBackends",
+  "path": "/api/backends",
+  "params": []
+ },
+ {
+  "name": "apiBackendPresets",
+  "path": "/api/backends/presets",
+  "params": []
+ },
+ {
+  "name": "apiBackendModels",
+  "path": "/api/backends/:name/models",
+  "params": [
+   "name"
+  ]
+ },
+ {
+  "name": "apiBackendTest",
+  "path": "/api/backends/test",
+  "params": []
+ },
+ {
+  "name": "apiBackendDelete",
+  "path": "/api/backends/:name",
+  "params": [
+   "name"
+  ]
+ },
+ {
+  "name": "accounts",
+  "path": "/api/accounts",
+  "params": []
+ },
+ {
+  "name": "accountSignIn",
+  "path": "/api/accounts/:provider/sign-in",
+  "params": [
+   "provider"
+  ]
+ },
+ {
+  "name": "accountLogin",
+  "path": "/api/accounts/:provider/logins/:id",
+  "params": [
+   "provider",
+   "id"
+  ]
+ },
+ {
+  "name": "accountDefaultLogin",
+  "path": "/api/accounts/:provider/default-login",
+  "params": [
+   "provider"
+  ]
+ },
+ {
+  "name": "accountAutoSwitch",
+  "path": "/api/accounts/:provider/auto-switch",
+  "params": [
+   "provider"
+  ]
+ },
+ {
+  "name": "workerPlanResume",
+  "path": "/workers/:id/plan-resume",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "workerApiKeyContinue",
+  "path": "/workers/:id/api-key-continue",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "signIn",
+  "path": "/api/sign-ins/:id",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "signInCode",
+  "path": "/api/sign-ins/:id/code",
+  "params": [
+   "id"
+  ]
+ },
+ {
+  "name": "browserStatus",
+  "path": "/browser/status",
+  "params": []
+ },
+ {
+  "name": "browserLaunch",
+  "path": "/browser/launch",
+  "params": []
+ },
+ {
+  "name": "browserTabs",
+  "path": "/browser/tabs",
+  "params": []
+ },
+ {
+  "name": "browserActiveTab",
+  "path": "/browser/active-tab",
+  "params": []
+ },
+ {
+  "name": "browserShow",
+  "path": "/browser/show",
+  "params": []
+ },
+ {
+  "name": "browserTab",
+  "path": "/browser/tabs/:tabId",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserNavigate",
+  "path": "/browser/tabs/:tabId/navigate",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserSnapshot",
+  "path": "/browser/tabs/:tabId/snapshot",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserFind",
+  "path": "/browser/tabs/:tabId/find",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserWait",
+  "path": "/browser/tabs/:tabId/wait",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserAct",
+  "path": "/browser/tabs/:tabId/act",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserGet",
+  "path": "/browser/tabs/:tabId/get",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserCapture",
+  "path": "/browser/tabs/:tabId/capture",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserDevice",
+  "path": "/browser/tabs/:tabId/device",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserElements",
+  "path": "/browser/tabs/:tabId/elements",
+  "params": [
+   "tabId"
+  ]
+ },
+ {
+  "name": "browserMute",
+  "path": "/browser/tabs/:tabId/mute",
+  "params": [
+   "tabId"
+  ]
+ }
+]
