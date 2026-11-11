@@ -23,6 +23,7 @@ use serde::Deserialize;
 /// - host: the window shell, the bridge to the dashboard, the binary.
 const LAYERS: &[(&str, Layer)] = &[
     ("eos-contracts", Layer::Types),
+    ("eos-genui", Layer::Types),
     ("eos-kit-fs", Layer::Kit),
     ("eos-kit-net", Layer::Kit),
     ("eos-kit-proc", Layer::Kit),

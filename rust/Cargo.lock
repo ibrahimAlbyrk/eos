@@ -361,6 +361,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-genui"
+version = "0.0.1"
+dependencies = [
+ "indexmap",
+ "regress",
+ "ryu-js",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "eos-kit-fs"
 version = "0.0.1"
 dependencies = [

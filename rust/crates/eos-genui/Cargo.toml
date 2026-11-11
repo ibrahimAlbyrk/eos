@@ -1,0 +1,22 @@
+[package]
+name = "eos-genui"
+description = "Visual answers: markup, partial-JSON, expression and attribute parsers, the component catalog, view validation and the catalog prompt."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+indexmap.workspace = true
+regress.workspace = true
+ryu-js.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# Correctly rounded numbers: the vectors hold doubles as JavaScript printed them.
+serde_json = { workspace = true, features = ["float_roundtrip"] }
+
+[lints]
+workspace = true

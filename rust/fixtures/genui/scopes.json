@@ -1,0 +1,211 @@
+{
+ "expr": {
+  "item": {
+   "name": "Moda Kıyı",
+   "rating": 4.7,
+   "price": 2,
+   "tags": [
+    "Sea",
+    "meyhane"
+   ],
+   "hours": {
+    "until": "00:00",
+    "closed": false
+   },
+   "geo": [
+    40.98,
+    29.02
+   ],
+   "n": "12",
+   "empty": "",
+   "zero": 0,
+   "nothing": null,
+   "title": "T"
+  },
+  "state": {
+   "save": 3000,
+   "years": 5,
+   "party": 2,
+   "label": "x",
+   "on": true,
+   "off": false,
+   "budget": 2,
+   "text": "meyhane",
+   "list": [
+    1,
+    2,
+    3
+   ]
+  },
+  "data": {
+   "places": [
+    {
+     "id": "moda",
+     "name": "Moda Kıyı",
+     "rating": 4.7,
+     "price": 2,
+     "tags": [
+      "Sea"
+     ]
+    },
+    {
+     "id": "rihtim",
+     "name": "Rıhtım",
+     "rating": 4.4,
+     "price": 1,
+     "tags": []
+    },
+    {
+     "id": "sofra",
+     "rating": "4.3",
+     "price": null
+    }
+   ],
+   "budget": [
+    {
+     "amount": 4500
+    },
+    {
+     "amount": 3200
+    },
+    {
+     "amount": 1700
+    }
+   ],
+   "rate": 0.2,
+   "matrix": [
+    [
+     1,
+     2
+    ],
+    [
+     3,
+     [
+      4,
+      5
+     ]
+    ]
+   ],
+   "obj": {
+    "2": "two",
+    "name": "Named",
+    "title": "Titled"
+   },
+   "untitled": {
+    "title": "Only title",
+    "name": null
+   },
+   "mixed": [
+    1,
+    "2",
+    true,
+    null,
+    "x",
+    [
+     3,
+     "4"
+    ],
+    {
+     "a": 1
+    }
+   ]
+  }
+ },
+ "whereItems": [
+  {
+   "id": "moda",
+   "name": "Moda Kıyı",
+   "rating": 4.7,
+   "price": 2,
+   "tags": [
+    "Sea",
+    "meyhane"
+   ],
+   "hours": {
+    "until": "00:00"
+   },
+   "area": "Moda",
+   "open": true
+  },
+  {
+   "id": "rihtim",
+   "name": "Rıhtım",
+   "rating": 4.4,
+   "price": 1,
+   "tags": [],
+   "hours": {
+    "until": "21:00"
+   },
+   "status": "closing"
+  },
+  {
+   "id": "sofra",
+   "name": "Sofra",
+   "rating": 4.3,
+   "price": 2,
+   "tags": [
+    "rez"
+   ],
+   "hours": {
+    "closed": true
+   }
+  },
+  {
+   "id": "yel",
+   "name": "Yel",
+   "rating": "4.6",
+   "price": 3,
+   "tags": [
+    "meyhane",
+    "rez"
+   ],
+   "status": "Closed",
+   "flag": false
+  },
+  {
+   "id": 5,
+   "name": "O'Brien (Moda)",
+   "rating": null,
+   "price": "2",
+   "tags": "sea view",
+   "status": "CLOSED",
+   "nested": {
+    "a": {
+     "b": 0
+    }
+   },
+   "list": [
+    1,
+    "2",
+    true,
+    null
+   ]
+  },
+  {
+   "id": "greek",
+   "name": "ΟΔΟΣ Σ",
+   "status": "ΚΛΕΙΣΤΌΣ",
+   "tags": [
+    "İstanbul",
+    "STRASSE",
+    "Straße"
+   ],
+   "area": "IĞDIR"
+  },
+  {}
+ ],
+ "whereState": {
+  "budget": 2,
+  "mode": "off",
+  "all": false,
+  "q": "MEY",
+  "min": "4.5",
+  "tags": [
+   "rez"
+  ],
+  "none": null,
+  "deep": {
+   "k": 1
+  }
+ }
+}

@@ -1,0 +1,2608 @@
+{
+ "tones": [
+  "blue",
+  "green",
+  "amber",
+  "red",
+  "violet",
+  "teal"
+ ],
+ "icons": [
+  "utensils",
+  "map",
+  "map-pin",
+  "calendar",
+  "clock",
+  "star",
+  "flask",
+  "git-branch",
+  "chart",
+  "list",
+  "check",
+  "alert-triangle",
+  "info",
+  "lightbulb",
+  "book",
+  "plane",
+  "car",
+  "train",
+  "hotel",
+  "coffee",
+  "wine",
+  "shopping-bag",
+  "wallet",
+  "user",
+  "users",
+  "file",
+  "folder",
+  "code",
+  "terminal",
+  "bug",
+  "rocket",
+  "heart",
+  "sun",
+  "cloud",
+  "music",
+  "film",
+  "globe",
+  "link",
+  "search",
+  "sparkles"
+ ],
+ "limits": {
+  "titleChars": 80,
+  "summaryChars": 600,
+  "uiBytes": 24576,
+  "dataBytes": 65536,
+  "depth": 8,
+  "carouselMin": 3,
+  "carouselMax": 8,
+  "maps": 1,
+  "images": 40,
+  "primaryActions": 2,
+  "actionLabelChars": 60,
+  "stateBytes": 32768,
+  "appHtmlBytes": 262144,
+  "appHeightMin": 200,
+  "appHeightMax": 720,
+  "tabsMin": 2,
+  "tabsMax": 6
+ },
+ "entityTypes": [
+  "Place",
+  "Product",
+  "Event",
+  "Person",
+  "Article",
+  "Media",
+  "File",
+  "Generic"
+ ],
+ "actionKinds": [
+  "send",
+  "prefill",
+  "open",
+  "copy",
+  "set"
+ ],
+ "presentKeys": [
+  "title",
+  "tone",
+  "icon",
+  "replaces",
+  "data",
+  "actions",
+  "ui",
+  "summary"
+ ],
+ "groups": [
+  "layout",
+  "content",
+  "data",
+  "entities",
+  "geo",
+  "inputs"
+ ],
+ "globalAttrs": [
+  [
+   "label",
+   {
+    "kind": "text",
+    "doc": "its tab label inside Tabs"
+   }
+  ],
+  [
+   "when",
+   {
+    "kind": "expr",
+    "doc": "render only while true"
+   }
+  ]
+ ],
+ "collectionAttrs": [
+  [
+   "where",
+   {
+    "kind": "where"
+   }
+  ],
+  [
+   "sort",
+   {
+    "kind": "sort"
+   }
+  ],
+  [
+   "limit",
+   {
+    "kind": "int",
+    "min": 1,
+    "max": 100
+   }
+  ],
+  [
+   "skip",
+   {
+    "kind": "ids"
+   }
+  ]
+ ],
+ "components": [
+  {
+   "name": "Section",
+   "group": "layout",
+   "doc": "titled group",
+   "attrs": [
+    [
+     "title",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ],
+    [
+     "collapsed",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "title",
+    "meta",
+    "icon",
+    "collapsed"
+   ]
+  },
+  {
+   "name": "Stack",
+   "group": "layout",
+   "doc": "vertical flow, or a row",
+   "attrs": [
+    [
+     "gap",
+     {
+      "kind": "enum",
+      "values": [
+       "sm",
+       "md",
+       "lg"
+      ]
+     }
+    ],
+    [
+     "dir",
+     {
+      "kind": "enum",
+      "values": [
+       "col",
+       "row"
+      ]
+     }
+    ],
+    [
+     "align",
+     {
+      "kind": "enum",
+      "values": [
+       "start",
+       "center",
+       "end",
+       "stretch"
+      ]
+     }
+    ],
+    [
+     "wrap",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "gap",
+    "dir",
+    "align",
+    "wrap"
+   ]
+  },
+  {
+   "name": "Grid",
+   "group": "layout",
+   "doc": "columns; reflows when narrow",
+   "attrs": [
+    [
+     "cols",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 4
+     }
+    ],
+    [
+     "gap",
+     {
+      "kind": "enum",
+      "values": [
+       "sm",
+       "md",
+       "lg"
+      ]
+     }
+    ],
+    [
+     "min",
+     {
+      "kind": "int",
+      "min": 120,
+      "max": 480,
+      "doc": "px"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "cols",
+    "gap",
+    "min"
+   ]
+  },
+  {
+   "name": "Split",
+   "group": "layout",
+   "doc": "two children side by side; stacks when narrow",
+   "attrs": [
+    [
+     "ratio",
+     {
+      "kind": "enum",
+      "values": [
+       "1:1",
+       "1:2",
+       "2:1",
+       "2:3",
+       "3:2"
+      ]
+     }
+    ],
+    [
+     "align",
+     {
+      "kind": "enum",
+      "values": [
+       "start",
+       "center",
+       "end",
+       "stretch"
+      ],
+      "brief": true
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "ratio",
+    "align"
+   ]
+  },
+  {
+   "name": "Carousel",
+   "group": "layout",
+   "doc": "3–8 cards scrolling sideways, from of= or child elements",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "card",
+     {
+      "kind": "enum",
+      "values": [
+       "row",
+       "compact",
+       "hero"
+      ]
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "actions",
+     {
+      "kind": "actions"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "children"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "card",
+    "meta",
+    "actions"
+   ]
+  },
+  {
+   "name": "Tabs",
+   "group": "layout",
+   "doc": "segmented switch between child elements (each child's label=)",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state"
+     }
+    ],
+    [
+     "labels",
+     {
+      "kind": "labels"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "labels"
+   ]
+  },
+  {
+   "name": "Disclosure",
+   "group": "layout",
+   "doc": "row that expands to show its children",
+   "attrs": [
+    [
+     "title",
+     {
+      "kind": "text",
+      "required": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "badge",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ],
+    [
+     "open",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "title",
+    "meta",
+    "badge",
+    "tone",
+    "icon",
+    "open"
+   ]
+  },
+  {
+   "name": "Divider",
+   "group": "layout",
+   "doc": "hairline; label= puts text on it",
+   "attrs": [],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when"
+   ]
+  },
+  {
+   "name": "Text",
+   "group": "content",
+   "doc": "inline-markdown paragraph",
+   "attrs": [
+    [
+     "size",
+     {
+      "kind": "enum",
+      "values": [
+       "sm",
+       "md",
+       "lg"
+      ]
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "muted",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "size",
+    "tone",
+    "muted"
+   ]
+  },
+  {
+   "name": "Heading",
+   "group": "content",
+   "doc": "heading",
+   "attrs": [
+    [
+     "level",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 3
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "level",
+    "meta",
+    "icon"
+   ]
+  },
+  {
+   "name": "Image",
+   "group": "content",
+   "doc": "one image",
+   "attrs": [
+    [
+     "src",
+     {
+      "kind": "url",
+      "required": true
+     }
+    ],
+    [
+     "alt",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "ratio",
+     {
+      "kind": "enum",
+      "values": [
+       "16:9",
+       "4:3",
+       "3:2",
+       "1:1",
+       "21:9"
+      ]
+     }
+    ],
+    [
+     "credit",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "fit",
+     {
+      "kind": "enum",
+      "values": [
+       "cover",
+       "contain"
+      ]
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "src",
+    "alt",
+    "ratio",
+    "credit",
+    "fit"
+   ]
+  },
+  {
+   "name": "Gallery",
+   "group": "content",
+   "doc": "several images, +N tile",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "field",
+     {
+      "kind": "field"
+     }
+    ],
+    [
+     "images",
+     {
+      "kind": "json",
+      "doc": "URLs"
+     }
+    ],
+    [
+     "layout",
+     {
+      "kind": "enum",
+      "values": [
+       "bento",
+       "grid",
+       "strip"
+      ]
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "images"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "field",
+    "images",
+    "layout"
+   ]
+  },
+  {
+   "name": "Logo",
+   "group": "content",
+   "doc": "brand logo → site icon → monogram",
+   "attrs": [
+    [
+     "site",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "name",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "size",
+     {
+      "kind": "enum",
+      "values": [
+       "sm",
+       "md",
+       "lg"
+      ]
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [
+    [
+     "site",
+     "name"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "site",
+    "name",
+    "size"
+   ]
+  },
+  {
+   "name": "Badge",
+   "group": "content",
+   "doc": "short tag",
+   "attrs": [
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ],
+    [
+     "variant",
+     {
+      "kind": "enum",
+      "values": [
+       "soft",
+       "solid",
+       "outline"
+      ]
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "tone",
+    "icon",
+    "variant"
+   ]
+  },
+  {
+   "name": "Rating",
+   "group": "content",
+   "doc": "★ value (count)",
+   "attrs": [
+    [
+     "value",
+     {
+      "kind": "number",
+      "min": 0,
+      "max": 5,
+      "required": true
+     }
+    ],
+    [
+     "count",
+     {
+      "kind": "int",
+      "min": 0,
+      "max": 1000000000
+     }
+    ],
+    [
+     "source",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 100
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "value",
+    "count",
+    "source"
+   ]
+  },
+  {
+   "name": "Price",
+   "group": "content",
+   "doc": "price level (₺₺) or an amount",
+   "attrs": [
+    [
+     "level",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 4
+     }
+    ],
+    [
+     "amount",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "currency",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "per",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [
+    [
+     "level",
+     "amount"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "level",
+    "amount",
+    "currency",
+    "per"
+   ]
+  },
+  {
+   "name": "Status",
+   "group": "content",
+   "doc": "colored dot + text",
+   "attrs": [
+    [
+     "state",
+     {
+      "kind": "enum",
+      "values": [
+       "open",
+       "closing",
+       "closed",
+       "ok",
+       "warn",
+       "error",
+       "info",
+       "running",
+       "idle"
+      ],
+      "required": true
+     }
+    ],
+    [
+     "until",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "state",
+    "until"
+   ]
+  },
+  {
+   "name": "Callout",
+   "group": "content",
+   "doc": "highlighted note; action= adds its button",
+   "attrs": [
+    [
+     "kind",
+     {
+      "kind": "enum",
+      "values": [
+       "info",
+       "tip",
+       "warning",
+       "danger",
+       "success"
+      ]
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ],
+    [
+     "action",
+     {
+      "kind": "action"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "kind",
+    "title",
+    "icon",
+    "action"
+   ]
+  },
+  {
+   "name": "Quote",
+   "group": "content",
+   "doc": "quotation",
+   "attrs": [
+    [
+     "cite",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "source",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 100
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "cite",
+    "source"
+   ]
+  },
+  {
+   "name": "Code",
+   "group": "content",
+   "doc": "code block: raw text child, or value= from a template",
+   "attrs": [
+    [
+     "lang",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "value",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "wrap",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "raw",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "lang",
+    "title",
+    "value",
+    "wrap"
+   ]
+  },
+  {
+   "name": "FileRef",
+   "group": "content",
+   "doc": "file chip that opens in the side panel",
+   "attrs": [
+    [
+     "path",
+     {
+      "kind": "text",
+      "required": true
+     }
+    ],
+    [
+     "line",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 10000000
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "path",
+    "line"
+   ]
+  },
+  {
+   "name": "Sources",
+   "group": "content",
+   "doc": "numbered sources (default of=sources)",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "compact",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "of",
+    "compact"
+   ]
+  },
+  {
+   "name": "Stat",
+   "group": "data",
+   "doc": "KPI tile; spark= draws a sparkline under it; delta is coloured only with good= (the direction that is good news)",
+   "attrs": [
+    [
+     "label",
+     {
+      "kind": "text",
+      "required": true
+     }
+    ],
+    [
+     "value",
+     {
+      "kind": "text",
+      "required": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "delta",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "trend",
+     {
+      "kind": "enum",
+      "values": [
+       "up",
+       "down",
+       "flat"
+      ]
+     }
+    ],
+    [
+     "good",
+     {
+      "kind": "enum",
+      "values": [
+       "up",
+       "down"
+      ]
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "icon",
+     {
+      "kind": "icon"
+     }
+    ],
+    [
+     "spark",
+     {
+      "kind": "json",
+      "doc": "number list"
+     }
+    ],
+    [
+     "source",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 100
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "value",
+    "meta",
+    "delta",
+    "trend",
+    "good",
+    "tone",
+    "icon",
+    "spark",
+    "source"
+   ]
+  },
+  {
+   "name": "KeyValue",
+   "group": "data",
+   "doc": "label/value rows",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "items",
+     {
+      "kind": "json",
+      "doc": "{\"Label\":\"value\"}"
+     }
+    ],
+    [
+     "key",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "value",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "cols",
+     {
+      "kind": "int",
+      "min": 1,
+      "max": 2
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "items"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "items",
+    "key",
+    "value",
+    "cols"
+   ]
+  },
+  {
+   "name": "Table",
+   "group": "data",
+   "doc": "sortable compare table; a row selects its entity in every lens",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "cols",
+     {
+      "kind": "cols",
+      "required": true
+     }
+    ],
+    [
+     "best",
+     {
+      "kind": "best"
+     }
+    ],
+    [
+     "numbered",
+     {
+      "kind": "bool"
+     }
+    ],
+    [
+     "actions",
+     {
+      "kind": "actions"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "required",
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "cols",
+    "best",
+    "numbered",
+    "actions"
+   ]
+  },
+  {
+   "name": "Chart",
+   "group": "data",
+   "doc": "chart from rows (x field, y field(s)) or values",
+   "attrs": [
+    [
+     "type",
+     {
+      "kind": "enum",
+      "values": [
+       "bar",
+       "line",
+       "area",
+       "donut",
+       "sparkline"
+      ],
+      "required": true
+     }
+    ],
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "x",
+     {
+      "kind": "field"
+     }
+    ],
+    [
+     "y",
+     {
+      "kind": "fields"
+     }
+    ],
+    [
+     "values",
+     {
+      "kind": "json",
+      "doc": "number list"
+     }
+    ],
+    [
+     "unit",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "height",
+     {
+      "kind": "int",
+      "min": 60,
+      "max": 400
+     }
+    ],
+    [
+     "stacked",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "values"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "type",
+    "of",
+    "x",
+    "y",
+    "values",
+    "unit",
+    "height",
+    "stacked"
+   ]
+  },
+  {
+   "name": "Meter",
+   "group": "data",
+   "doc": "bar meter; with of= one per item and value= names the field",
+   "attrs": [
+    [
+     "value",
+     {
+      "kind": "numfield",
+      "required": true
+     }
+    ],
+    [
+     "max",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "unit",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "optional",
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "value",
+    "max",
+    "unit",
+    "tone",
+    "of"
+   ]
+  },
+  {
+   "name": "Timeline",
+   "group": "data",
+   "doc": "time-ordered stops or events",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "time",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "note",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "leg",
+     {
+      "kind": "text",
+      "item": true,
+      "doc": "to next"
+     }
+    ],
+    [
+     "numbered",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "required",
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "time",
+    "title",
+    "note",
+    "meta",
+    "leg",
+    "numbered"
+   ]
+  },
+  {
+   "name": "Steps",
+   "group": "data",
+   "doc": "ordered steps; stepper shows one at a time with Back/Next",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "variant",
+     {
+      "kind": "enum",
+      "values": [
+       "list",
+       "stepper"
+      ]
+     }
+    ],
+    [
+     "bind",
+     {
+      "kind": "state"
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "text",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "code",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "children"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "variant",
+    "bind",
+    "title",
+    "text",
+    "code"
+   ]
+  },
+  {
+   "name": "Progress",
+   "group": "data",
+   "doc": "progress bar",
+   "attrs": [
+    [
+     "value",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "max",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "expr",
+     {
+      "kind": "expr"
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [
+    [
+     "value",
+     "expr"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "value",
+    "max",
+    "expr",
+    "tone"
+   ]
+  },
+  {
+   "name": "Value",
+   "group": "data",
+   "doc": "live computed number",
+   "attrs": [
+    [
+     "expr",
+     {
+      "kind": "expr",
+      "required": true
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "format",
+     {
+      "kind": "enum",
+      "values": [
+       "number",
+       "int",
+       "currency",
+       "percent",
+       "compact"
+      ]
+     }
+    ],
+    [
+     "prefix",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "suffix",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "decimals",
+     {
+      "kind": "int",
+      "min": 0,
+      "max": 6
+     }
+    ],
+    [
+     "currency",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "size",
+     {
+      "kind": "enum",
+      "values": [
+       "sm",
+       "md",
+       "lg"
+      ]
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "expr",
+    "format",
+    "prefix",
+    "suffix",
+    "decimals",
+    "currency",
+    "tone",
+    "size"
+   ]
+  },
+  {
+   "name": "Card",
+   "group": "entities",
+   "doc": "one entity",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "pick",
+     {
+      "kind": "id",
+      "required": true
+     }
+    ],
+    [
+     "variant",
+     {
+      "kind": "enum",
+      "values": [
+       "row",
+       "compact",
+       "hero"
+      ]
+     }
+    ],
+    [
+     "kind",
+     {
+      "kind": "enum",
+      "values": [
+       "Place",
+       "Product",
+       "Event",
+       "Person",
+       "Article",
+       "Media",
+       "File",
+       "Generic"
+      ],
+      "doc": "entity type",
+      "brief": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "badge",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "actions",
+     {
+      "kind": "actions"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "of",
+    "pick",
+    "variant",
+    "kind",
+    "meta",
+    "badge",
+    "actions"
+   ]
+  },
+  {
+   "name": "Hero",
+   "group": "entities",
+   "doc": "the top pick, large; children say why",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "pick",
+     {
+      "kind": "id",
+      "required": true
+     }
+    ],
+    [
+     "badge",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "actions",
+     {
+      "kind": "actions"
+     }
+    ],
+    [
+     "gallery",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "of",
+    "pick",
+    "badge",
+    "meta",
+    "actions",
+    "gallery"
+   ]
+  },
+  {
+   "name": "List",
+   "group": "entities",
+   "doc": "a row per item; child elements repeat per item (a disclosure row's detail)",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "variant",
+     {
+      "kind": "enum",
+      "values": [
+       "row",
+       "compact",
+       "disclosure"
+      ]
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "meta",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "badge",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ],
+    [
+     "tone",
+     {
+      "kind": "tone"
+     }
+    ],
+    [
+     "numbered",
+     {
+      "kind": "bool"
+     }
+    ],
+    [
+     "actions",
+     {
+      "kind": "actions"
+     }
+    ]
+   ],
+   "children": "items",
+   "collection": "required",
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "variant",
+    "title",
+    "meta",
+    "badge",
+    "tone",
+    "numbered",
+    "actions"
+   ]
+  },
+  {
+   "name": "Map",
+   "group": "geo",
+   "doc": "pins from geo or address; route joins them in order; you = the user",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "pin",
+     {
+      "kind": "enum",
+      "values": [
+       "index",
+       "dot",
+       "logo"
+      ]
+     }
+    ],
+    [
+     "route",
+     {
+      "kind": "bool"
+     }
+    ],
+    [
+     "you",
+     {
+      "kind": "geo"
+     }
+    ],
+    [
+     "height",
+     {
+      "kind": "int",
+      "min": 160,
+      "max": 600
+     }
+    ],
+    [
+     "zoom",
+     {
+      "kind": "number",
+      "min": 1,
+      "max": 19
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "required",
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "of",
+    "pin",
+    "route",
+    "you",
+    "height",
+    "zoom"
+   ]
+  },
+  {
+   "name": "Filters",
+   "group": "inputs",
+   "doc": "chips filtering a collection in every lens",
+   "attrs": [
+    [
+     "of",
+     {
+      "kind": "collection",
+      "required": true
+     }
+    ],
+    [
+     "chips",
+     {
+      "kind": "chips",
+      "required": true
+     }
+    ],
+    [
+     "on",
+     {
+      "kind": "labels",
+      "doc": "initially on"
+     }
+    ],
+    [
+     "bind",
+     {
+      "kind": "state"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "of",
+    "chips",
+    "on",
+    "bind"
+   ]
+  },
+  {
+   "name": "Segmented",
+   "group": "inputs",
+   "doc": "one of 2–5 options",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "options",
+     {
+      "kind": "labels",
+      "required": true
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "options",
+    "default"
+   ]
+  },
+  {
+   "name": "Toggle",
+   "group": "inputs",
+   "doc": "on/off",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "bool"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "default"
+   ]
+  },
+  {
+   "name": "Slider",
+   "group": "inputs",
+   "doc": "number in a range",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "min",
+     {
+      "kind": "number",
+      "required": true
+     }
+    ],
+    [
+     "max",
+     {
+      "kind": "number",
+      "required": true
+     }
+    ],
+    [
+     "step",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "prefix",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "suffix",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "format",
+     {
+      "kind": "enum",
+      "values": [
+       "number",
+       "int",
+       "currency",
+       "percent",
+       "compact"
+      ],
+      "doc": "as Value",
+      "brief": true
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "min",
+    "max",
+    "step",
+    "default",
+    "prefix",
+    "suffix",
+    "format"
+   ]
+  },
+  {
+   "name": "Stepper",
+   "group": "inputs",
+   "doc": "− n +",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "min",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "max",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "step",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "number"
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "unit",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "min",
+    "max",
+    "step",
+    "default",
+    "unit"
+   ]
+  },
+  {
+   "name": "Select",
+   "group": "inputs",
+   "doc": "dropdown",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "options",
+     {
+      "kind": "labels",
+      "required": true
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "options",
+    "default"
+   ]
+  },
+  {
+   "name": "Field",
+   "group": "inputs",
+   "doc": "text input",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "label",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "placeholder",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "type",
+     {
+      "kind": "enum",
+      "values": [
+       "text",
+       "number",
+       "date",
+       "time",
+       "multiline"
+      ]
+     }
+    ],
+    [
+     "default",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "placeholder",
+    "type",
+    "default"
+   ]
+  },
+  {
+   "name": "Checklist",
+   "group": "inputs",
+   "doc": "tick list with a done count",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "of",
+     {
+      "kind": "collection"
+     }
+    ],
+    [
+     "items",
+     {
+      "kind": "labels"
+     }
+    ],
+    [
+     "title",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "text",
+     {
+      "kind": "text",
+      "item": true
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": "optional",
+   "needs": [
+    [
+     "of",
+     "items"
+    ]
+   ],
+   "allAttrs": [
+    "label",
+    "when",
+    "where",
+    "sort",
+    "limit",
+    "skip",
+    "bind",
+    "of",
+    "items",
+    "title",
+    "text"
+   ]
+  },
+  {
+   "name": "Choice",
+   "group": "inputs",
+   "doc": "quiz or poll; answer= reveals right/wrong locally; children = the question",
+   "attrs": [
+    [
+     "bind",
+     {
+      "kind": "state",
+      "required": true
+     }
+    ],
+    [
+     "options",
+     {
+      "kind": "labels",
+      "required": true
+     }
+    ],
+    [
+     "question",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "answer",
+     {
+      "kind": "text",
+      "doc": "index or label"
+     }
+    ],
+    [
+     "explain",
+     {
+      "kind": "text"
+     }
+    ],
+    [
+     "action",
+     {
+      "kind": "action"
+     }
+    ]
+   ],
+   "children": "text",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "bind",
+    "options",
+    "question",
+    "answer",
+    "explain",
+    "action"
+   ]
+  },
+  {
+   "name": "Form",
+   "group": "inputs",
+   "doc": "groups inputs; submit sends the action with their values",
+   "attrs": [
+    [
+     "action",
+     {
+      "kind": "action",
+      "required": true
+     }
+    ],
+    [
+     "submit",
+     {
+      "kind": "text"
+     }
+    ]
+   ],
+   "children": "nodes",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "action",
+    "submit"
+   ]
+  },
+  {
+   "name": "Actions",
+   "group": "inputs",
+   "doc": "buttons for actions",
+   "attrs": [
+    [
+     "ids",
+     {
+      "kind": "actions",
+      "required": true
+     }
+    ],
+    [
+     "align",
+     {
+      "kind": "enum",
+      "values": [
+       "start",
+       "end",
+       "stretch"
+      ]
+     }
+    ]
+   ],
+   "children": "none",
+   "collection": null,
+   "needs": [],
+   "allAttrs": [
+    "label",
+    "when",
+    "ids",
+    "align"
+   ]
+  }
+ ],
+ "exprFunctions": [
+  "sum",
+  "count",
+  "min",
+  "max",
+  "avg",
+  "round",
+  "abs",
+  "floor",
+  "ceil",
+  "fv"
+ ],
+ "exprRoots": [
+  "item",
+  "state",
+  "data"
+ ],
+ "exprMaxLength": 500,
+ "rawTextTags": [
+  "Code"
+ ],
+ "offText": "Visual answers are off — answer in text"
+}

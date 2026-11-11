@@ -13,6 +13,7 @@ publish = false
 
 [workspace.dependencies]
 eos-contracts = { path = "crates/eos-contracts" }
+eos-genui = { path = "crates/eos-genui" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
