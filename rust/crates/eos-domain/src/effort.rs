@@ -31,7 +31,11 @@ mod tests {
         assert_eq!(resolve_effort(Some("xhigh"), Some(&levels(&["low", "medium", "high"]))).as_deref(), Some("high"));
         assert_eq!(resolve_effort(Some("low"), Some(&levels(&["high", "max"]))).as_deref(), Some("high"));
         assert_eq!(resolve_effort(Some("high"), Some(&levels(&[]))), None, "a model with no effort");
-        assert_eq!(resolve_effort(Some("turbo"), Some(&levels(&["low"]))).as_deref(), Some("turbo"), "not ours to judge");
+        assert_eq!(
+            resolve_effort(Some("turbo"), Some(&levels(&["low"]))).as_deref(),
+            Some("turbo"),
+            "not ours to judge"
+        );
         assert_eq!(resolve_effort(None, None), None);
     }
 }

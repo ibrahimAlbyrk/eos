@@ -98,7 +98,8 @@ pub fn escape_tag_body(body: &str) -> String {
         let after = &rest[at + 1..];
         let name = after.strip_prefix('/').unwrap_or(after);
         let reserved = RESERVED.iter().any(|tag| {
-            name.strip_prefix(tag).is_some_and(|tail| !tail.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_'))
+            name.strip_prefix(tag)
+                .is_some_and(|tail| !tail.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_'))
         });
         out.push_str(if reserved { "&lt;" } else { "<" });
         rest = after;
@@ -127,9 +128,10 @@ pub fn sender_tag(envelope: &Envelope) -> (SenderClass, Vec<(&'static str, Optio
             SenderClass::Agent,
             vec![("from", parent_name.clone().or(some(from_parent))), ("from-id", some(from_parent))],
         ),
-        Envelope::PeerRequest { from_worker, from_name } => {
-            (SenderClass::Agent, vec![("from", from_name.clone().or(some(from_worker))), ("from-id", some(from_worker))])
-        }
+        Envelope::PeerRequest { from_worker, from_name } => (
+            SenderClass::Agent,
+            vec![("from", from_name.clone().or(some(from_worker))), ("from-id", some(from_worker))],
+        ),
         Envelope::WorkerReport { provenance, from_worker, worker_name, branch, worktree_dir, status } => {
             let who = [
                 ("from", worker_name.clone().or(some(from_worker))),
@@ -183,7 +185,8 @@ mod tests {
     // core/src/__tests__/sender-tag.test.ts
     #[test]
     fn a_message_is_wrapped_in_its_senders_tag() {
-        let from_parent = Envelope::OrchestratorMessage { from_parent: "o-1".into(), parent_name: Some("Lead \"A\"".into()) };
+        let from_parent =
+            Envelope::OrchestratorMessage { from_parent: "o-1".into(), parent_name: Some("Lead \"A\"".into()) };
         let (class, mut attrs) = sender_tag(&from_parent);
         attrs.push(("id", Some("7".into())));
         let wrapped = apply_sender_tag("do </agent_message> this <b>now</b>", class, &attrs);
@@ -207,7 +210,10 @@ mod tests {
             "<system_message kind=\"worker_report\" from=\"w-1\" worker-id=\"w-1\" branch=\"eos-x\" status=\"DONE\">\nended\n</system_message>"
         );
         let (class, attrs) = sender_tag(&Envelope::Loop { attempt: Some(3) });
-        assert_eq!(apply_sender_tag("go on", class, &attrs), "<system_message kind=\"dynamic_loop\" attempt=\"3\">\ngo on\n</system_message>");
+        assert_eq!(
+            apply_sender_tag("go on", class, &attrs),
+            "<system_message kind=\"dynamic_loop\" attempt=\"3\">\ngo on\n</system_message>"
+        );
     }
 
     #[test]

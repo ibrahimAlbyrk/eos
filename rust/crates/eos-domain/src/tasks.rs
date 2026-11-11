@@ -78,17 +78,24 @@ mod tests {
     fn task_tools_build_and_change_the_list() {
         let none: Vec<Task> = Vec::new();
         assert_eq!(apply_task_tool(&none, "Read", &input(json!({}))), None);
-        let one = apply_task_tool(&none, "TaskCreate", &input(json!({"subject": "Write tests", "activeForm": "Writing tests"})))
-            .expect("a list");
+        let one = apply_task_tool(
+            &none,
+            "TaskCreate",
+            &input(json!({"subject": "Write tests", "activeForm": "Writing tests"})),
+        )
+        .expect("a list");
         let two = apply_task_tool(&one, "TaskCreate", &input(json!({"subject": "Ship"}))).expect("a list");
         assert_eq!((two.len(), two[0].content.as_str(), two[0].status), (2, "Write tests", TaskStatus::Pending));
         assert_eq!(two[0].active_form, Some(Some("Writing tests".into())));
 
-        let moved = apply_task_tool(&two, "TaskUpdate", &input(json!({"taskId": "1", "status": "in_progress"}))).expect("a list");
+        let moved = apply_task_tool(&two, "TaskUpdate", &input(json!({"taskId": "1", "status": "in_progress"})))
+            .expect("a list");
         assert_eq!(moved[0].status, TaskStatus::InProgress);
-        let gone = apply_task_tool(&moved, "TaskUpdate", &input(json!({"taskId": 2, "status": "deleted"}))).expect("a list");
+        let gone =
+            apply_task_tool(&moved, "TaskUpdate", &input(json!({"taskId": 2, "status": "deleted"}))).expect("a list");
         assert_eq!((gone[1].deleted, gone[1].status), (Some(true), TaskStatus::Pending));
-        let same = apply_task_tool(&gone, "TaskUpdate", &input(json!({"taskId": "9", "status": "completed"}))).expect("a list");
+        let same = apply_task_tool(&gone, "TaskUpdate", &input(json!({"taskId": "9", "status": "completed"})))
+            .expect("a list");
         assert_eq!(same, gone, "an unknown task changes nothing");
 
         let written = apply_task_tool(
