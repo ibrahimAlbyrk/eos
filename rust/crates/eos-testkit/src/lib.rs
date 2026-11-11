@@ -48,7 +48,10 @@ pub use accounts::{
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
-pub use fakes::{EchoTool, FakeCredentials, FakeModelCatalog, FakePolicy, FakeToolSets, FakeUser};
+pub use fakes::{
+    EchoTool, FakeCredentials, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeToolSets, FakeUser,
+    FakeWorktrees,
+};
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use home::TempHome;
 pub use ids::SeqIds;

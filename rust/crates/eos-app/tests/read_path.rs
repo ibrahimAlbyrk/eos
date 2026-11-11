@@ -112,7 +112,13 @@ async fn the_seeded_folder_answers_as_the_daemon_did() {
     for key in ["models", "modelCatalog", "prices", "permissions", "sse", "backendProfiles", "features"] {
         assert_eq!(ui[key], recorded[key], "ui-config.{key}");
     }
-    assert_eq!(ui["backends"], Value::Array(Vec::new()), "no engine is linked yet");
+    // One engine runs every session: of today's lanes only its own is offered.
+    assert_eq!(ui["backends"].as_array().map(Vec::len), Some(1));
+    assert!(
+        same(&ui["backends"][0], &recorded["backends"][0]),
+        "the Claude backend, flag for flag: {:#}",
+        ui["backends"][0]
+    );
 
     assert!(app.shutdown(Duration::from_secs(5)).await.clean());
 }

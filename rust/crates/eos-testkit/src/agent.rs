@@ -159,6 +159,7 @@ struct Shared {
     turns: Mutex<VecDeque<Turn>>,
     calls: Mutex<Vec<Call>>,
     start_error: Mutex<Option<Error>>,
+    forgotten: Mutex<Vec<String>>,
     /// Turns started and not yet ended.
     running: watch::Sender<usize>,
 }
@@ -222,6 +223,7 @@ impl ScriptedRuntime {
             turns: Mutex::default(),
             calls: Mutex::default(),
             start_error: Mutex::default(),
+            forgotten: Mutex::default(),
             running: watch::Sender::new(0),
         }))
     }
@@ -288,6 +290,11 @@ impl ScriptedRuntime {
                 _ => None,
             })
             .collect()
+    }
+
+    /// The workers whose recorded conversation was deleted.
+    pub fn forgotten(&self) -> Vec<String> {
+        self.0.forgotten.lock().expect("forgotten").clone()
     }
 
     /// Ends a session as if its process had died.
@@ -593,6 +600,11 @@ impl AgentRuntime for ScriptedRuntime {
 
     fn live(&self) -> usize {
         self.0.sessions.lock().expect("sessions").len()
+    }
+
+    fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
+        self.0.forgotten.lock().expect("forgotten").push(worker_id.to_owned());
+        Box::pin(std::future::ready(()))
     }
 }
 

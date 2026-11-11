@@ -5,18 +5,41 @@
 
 use std::sync::Arc;
 
-use eos_contracts::UnknownRecord;
+use eos_contracts::{SessionFactsRole, UnknownRecord};
 use serde_json::Value;
 
 use super::session::LaunchSpec;
 use crate::BoxFuture;
 
-/// Assembles a session's system prompt at the spawn chokepoint, from the
-/// facts of the session that never change while it runs.
+/// What a session is, as its system prompt depends on it: the facts that
+/// never change while the session runs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SpawnFacts {
+    pub worker_id: String,
+    pub role: SessionFactsRole,
+    pub parent_id: Option<String>,
+    pub name: Option<String>,
+    /// A tier, an alias or a model id, as asked for.
+    pub model: String,
+    pub effort: Option<String>,
+    pub permission_mode: Option<String>,
+    pub cwd: Option<String>,
+    pub worktree_dir: Option<String>,
+    /// The repository a worktree was made from.
+    pub worktree_from: Option<String>,
+    pub branch: Option<String>,
+    /// The session works in another session's worktree.
+    pub attached: bool,
+    pub collaborate: bool,
+    pub worker_definition: Option<String>,
+    pub backend_profile: Option<String>,
+}
+
+/// Assembles a session's system prompt at the spawn chokepoint.
 pub trait PromptAssembler: Send + Sync + 'static {
     /// The text that follows the engine's own system prompt; `None` when no
-    /// fragment applies. `spec.system_prompt` is ignored.
-    fn system_prompt(&self, spec: &LaunchSpec) -> Option<String>;
+    /// fragment applies.
+    fn system_prompt(&self, facts: &SpawnFacts) -> Option<String>;
 }
 
 /// One of Eos's own tools as the model sees it.

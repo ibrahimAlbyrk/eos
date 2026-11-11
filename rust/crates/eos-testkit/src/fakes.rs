@@ -6,9 +6,12 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::{AllowVariant, CatalogModel, DenyVariant, ExternalDecision, UnknownRecord};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 use eos_core::agent::{
-    HostTool, LaunchSpec, ModelCatalog, ToolCaller, ToolDefinition, ToolReply, ToolSets, UserQuestions,
+    HostTool, LaunchSpec, ModelCatalog, PromptAssembler, SpawnFacts, ToolCaller, ToolDefinition, ToolReply, ToolSets,
+    UserQuestions,
 };
+use eos_core::git::{WorktreeCreate, WorktreeCreated, WorktreeEntry, WorktreeManager, WorktreeRef, WorktreeRemoved};
 use eos_core::policy::{PolicyDecider, ToolCall};
+use eos_core::store::RecentFolders;
 use eos_core::{BoxFuture, Error};
 
 /// A model catalog with a fixed list: windows come from it, else from the
@@ -151,5 +154,69 @@ impl UserQuestions for FakeUser {
     ) -> BoxFuture<'a, Option<UnknownRecord>> {
         self.asked.lock().expect("asked").push(questions);
         Box::pin(std::future::ready(self.answers.lock().expect("answers").clone()))
+    }
+}
+
+/// Recent folders kept in memory, most recent first.
+#[derive(Debug, Default)]
+pub struct FakeRecents(pub Mutex<Vec<String>>);
+
+impl RecentFolders for FakeRecents {
+    fn list(&self) -> Vec<String> {
+        self.0.lock().expect("recents").clone()
+    }
+
+    fn push(&self, path: &str) {
+        let mut all = self.0.lock().expect("recents");
+        all.retain(|p| p != path);
+        all.insert(0, path.to_owned());
+    }
+
+    fn remove(&self, path: &str) {
+        self.0.lock().expect("recents").retain(|p| p != path);
+    }
+}
+
+/// Worktrees that exist only as a list of what was asked for: each one
+/// "lands" at `<repo>/.eos/worktrees/<branch>`.
+#[derive(Debug, Default)]
+pub struct FakeWorktrees {
+    pub created: Mutex<Vec<WorktreeCreate>>,
+    /// The next create is refused with this reason.
+    pub refuse: Mutex<Option<String>>,
+}
+
+impl WorktreeManager for FakeWorktrees {
+    fn create<'a>(&'a self, input: &'a WorktreeCreate) -> BoxFuture<'a, WorktreeCreated> {
+        let outcome = match self.refuse.lock().expect("refuse").take() {
+            Some(reason) => WorktreeCreated::Refused { reason },
+            None => {
+                self.created.lock().expect("created").push(input.clone());
+                WorktreeCreated::Created {
+                    worktree_dir: input.repo_root.join(".eos/worktrees").join(&input.branch),
+                    fork_base_sha: Some("abc1234".into()),
+                }
+            }
+        };
+        Box::pin(std::future::ready(outcome))
+    }
+
+    fn remove<'a>(&'a self, _worktree: &'a WorktreeRef) -> BoxFuture<'a, WorktreeRemoved> {
+        Box::pin(std::future::ready(WorktreeRemoved::Removed))
+    }
+
+    fn list_worktrees<'a>(&'a self, _repo_root: &'a std::path::Path) -> BoxFuture<'a, Vec<WorktreeEntry>> {
+        Box::pin(std::future::ready(Vec::new()))
+    }
+}
+
+/// A system prompt that names the session it is for, and remembers the facts it was asked with.
+#[derive(Debug, Default)]
+pub struct FakePrompts(pub Mutex<Vec<SpawnFacts>>);
+
+impl PromptAssembler for FakePrompts {
+    fn system_prompt(&self, facts: &SpawnFacts) -> Option<String> {
+        self.0.lock().expect("facts").push(facts.clone());
+        Some(format!("PROMPT FOR {}", facts.worker_id))
     }
 }

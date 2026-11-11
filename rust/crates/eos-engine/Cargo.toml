@@ -7,7 +7,13 @@ rust-version.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+# The engine's scripted model API, for an end-to-end test of a crate that may not
+# depend on the engine's crates itself (the app's smoke test).
+mock-api = ["dep:eos-agent-mock-api"]
+
 [dependencies]
+eos-agent-mock-api = { workspace = true, optional = true }
 eos-agent-compat.workspace = true
 eos-agent-core.workspace = true
 eos-agent-engine.workspace = true
@@ -22,7 +28,7 @@ indexmap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tokio = { workspace = true, features = ["fs", "rt", "sync", "time", "macros"] }
 tracing.workspace = true
 
 [dev-dependencies]

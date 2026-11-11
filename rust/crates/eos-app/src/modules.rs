@@ -34,6 +34,7 @@ pub(crate) struct Context {
     pub(crate) config: Arc<dyn ConfigSource>,
     pub(crate) models: Arc<dyn ModelCatalog>,
     pub(crate) backends: Arc<dyn BackendCatalog>,
+    pub(crate) sessions: eos_sessions::Sessions,
     pub(crate) projects: Arc<dyn ProjectStore>,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
@@ -56,6 +57,12 @@ pub(crate) struct Context {
 pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
     vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
+        Arc::new(eos_mod_agents::AgentsModule::new(
+            cx.sessions.clone(),
+            cx.store.clone(),
+            cx.ids.clone(),
+            cx.worker_definitions.clone(),
+        )),
         crate::files::module(cx),
         Arc::new(eos_mod_pages::PagesModule::new(
             cx.notes.pages.clone(),

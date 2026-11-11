@@ -133,6 +133,7 @@ impl Args {
             token,
             settle: Duration::from_millis(settle),
             wait_timeout: Duration::from_secs(10),
+            report_missing_frames: false,
             real_data: self.real_data()?,
         })
     }
@@ -307,7 +308,9 @@ fn replay(args: &Args) -> anyhow::Result<ExitCode> {
         }
         let recording = Recording::load(&path)?;
         let mut normalizer = Normalizer::load(&args.path("rules")?, &known)?;
-        let mut runner = Runner::new(target.as_mut(), args.settings()?, vars(&known));
+        // A frame the answering side never sends is a difference to judge, not a reason to stop.
+        let settings = Settings { report_missing_frames: true, ..args.settings()? };
+        let mut runner = Runner::new(target.as_mut(), settings, vars(&known));
         let mut report = Report { scenario: name.clone(), ..Report::default() };
         // The two sides number generated ids apart once a step is skipped; see `renumber`.
         let (mut recorded_ids, mut answered_ids) = (Renumber::default(), Renumber::default());

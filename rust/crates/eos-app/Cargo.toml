@@ -15,6 +15,7 @@ eos-config.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
+eos-engine.workspace = true
 eos-fs.workspace = true
 eos-git.workspace = true
 eos-kit-fs.workspace = true
@@ -22,6 +23,7 @@ eos-kit-net.workspace = true
 eos-kit-proc.workspace = true
 eos-kit-sqlite.workspace = true
 eos-mod-accounts.workspace = true
+eos-mod-agents.workspace = true
 eos-mod-fs.workspace = true
 eos-mod-pages.workspace = true
 eos-mod-plugins.workspace = true
@@ -46,13 +48,15 @@ eos-store-sqlite.workspace = true
 eos-symbols.workspace = true
 eos-watch.workspace = true
 eos-workers.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
 
 [dev-dependencies]
+eos-engine = { workspace = true, features = ["mock-api"] }
 eos-testkit.workspace = true
-serde_json.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]

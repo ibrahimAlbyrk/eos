@@ -25,4 +25,10 @@ mod session;
 mod tools;
 mod transcript;
 
-pub use engine::{Engine, EngineDeps, EngineOptions};
+pub use engine::{Engine, EngineDeps, EngineOptions, LazyEngine};
+
+/// The engine's scripted stand-in for the model API (tests only).
+#[cfg(feature = "mock-api")]
+pub mod mock_api {
+    pub use eos_agent_mock_api::{MockApi, Recorded, Reply};
+}

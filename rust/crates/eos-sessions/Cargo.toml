@@ -1,6 +1,6 @@
 [package]
 name = "eos-sessions"
-description = "The lifecycle of agent sessions: state transitions and what start-up does to rows left behind."
+description = "The lifecycle of agent sessions: spawn, dispatch and queue, event processing, interrupt, suspend, remove."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,10 +12,12 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 eos-testkit.workspace = true
-serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

@@ -23,6 +23,9 @@ pub struct Settings {
     pub settle: Duration,
     /// How long a step waits for the reasons it names in `wait`.
     pub wait_timeout: Duration,
+    /// A reason that never comes ends the wait instead of the run: a replay
+    /// reports the missing frames as a difference (which may be a listed one).
+    pub report_missing_frames: bool,
     /// The target serves a real data folder (session ids and paths of real chats):
     /// only reads are sent. Anything else is refused here, whatever the scenario says,
     /// because a message, spawn, resume or compaction would start an agent on real data.
@@ -246,6 +249,9 @@ impl<'a> Runner<'a> {
                 break;
             }
             if !pending.is_empty() && started.elapsed() >= self.settings.wait_timeout {
+                if self.settings.report_missing_frames {
+                    break;
+                }
                 bail!("the stream never carried {pending:?}");
             }
             std::thread::sleep(Duration::from_millis(5));
@@ -384,6 +390,7 @@ mod tests {
             token: Some("secret".into()),
             settle: Duration::from_millis(20),
             wait_timeout: Duration::from_millis(300),
+            report_missing_frames: false,
             real_data: false,
         }
     }

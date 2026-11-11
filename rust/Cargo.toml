@@ -21,6 +21,7 @@ eos-config = { path = "crates/eos-config" }
 eos-contracts = { path = "crates/eos-contracts" }
 eos-core = { path = "crates/eos-core" }
 eos-domain = { path = "crates/eos-domain" }
+eos-engine = { path = "crates/eos-engine" }
 eos-fs = { path = "crates/eos-fs" }
 eos-genui = { path = "crates/eos-genui" }
 eos-git = { path = "crates/eos-git" }
@@ -29,6 +30,7 @@ eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
 eos-mod-accounts = { path = "crates/eos-mod-accounts" }
+eos-mod-agents = { path = "crates/eos-mod-agents" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-plugins = { path = "crates/eos-mod-plugins" }

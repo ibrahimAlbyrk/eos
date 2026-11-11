@@ -43,6 +43,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-kit-proc", Layer::Kit),
     ("eos-kit-sqlite", Layer::Kit),
     ("eos-mod-accounts", Layer::Feature),
+    ("eos-mod-agents", Layer::Feature),
     ("eos-mod-fs", Layer::Feature),
     ("eos-mod-pages", Layer::Feature),
     ("eos-mod-plugins", Layer::Feature),

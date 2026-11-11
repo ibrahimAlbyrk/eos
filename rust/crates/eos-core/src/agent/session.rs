@@ -273,6 +273,9 @@ pub trait AgentRuntime: Send + Sync + 'static {
 
     /// How many sessions are live.
     fn live(&self) -> usize;
+
+    /// Deletes the conversation recorded for a worker that is gone for good.
+    fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;
 }
 
 impl ToolInputDelta {

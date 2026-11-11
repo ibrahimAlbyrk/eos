@@ -331,6 +331,17 @@ impl AgentRuntime for Engine {
     fn live(&self) -> usize {
         self.0.shared.sessions.len()
     }
+
+    fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            let path = self.0.store.path(worker_id);
+            if let Err(e) = tokio::fs::remove_file(&path).await
+                && e.kind() != std::io::ErrorKind::NotFound
+            {
+                tracing::warn!(worker_id, error = %e, "a recorded conversation could not be deleted");
+            }
+        })
+    }
 }
 
 impl BackendCatalog for Engine {
@@ -350,6 +361,92 @@ impl SessionAccountSwitch for Engine {
                 return Err("this agent can't change account right now".to_owned());
             };
             session.switch_account(credential).await.map_err(|e| e.to_string())
+        })
+    }
+}
+
+/// An [`Engine`] that is built when the first session starts: composing the
+/// app costs nothing and reads nothing of the engine's until an agent runs.
+pub struct LazyEngine {
+    built: tokio::sync::OnceCell<Engine>,
+    setup: std::sync::Mutex<Option<(EngineOptions, EngineDeps)>>,
+    descriptor: BackendDescriptor,
+}
+
+impl std::fmt::Debug for LazyEngine {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LazyEngine").field("built", &self.built.initialized()).finish_non_exhaustive()
+    }
+}
+
+impl LazyEngine {
+    pub fn new(options: EngineOptions, deps: EngineDeps) -> Self {
+        Self {
+            built: tokio::sync::OnceCell::new(),
+            setup: std::sync::Mutex::new(Some((options, deps))),
+            descriptor: descriptor(),
+        }
+    }
+
+    async fn engine(&self) -> Result<&Engine, Error> {
+        self.built
+            .get_or_try_init(|| async {
+                let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+                let Some((options, deps)) = setup else { return Err(engine_error("the engine has no configuration")) };
+                Engine::build(options, deps).await
+            })
+            .await
+    }
+}
+
+impl AgentRuntime for LazyEngine {
+    fn descriptor(&self) -> &BackendDescriptor {
+        &self.descriptor
+    }
+
+    fn start(
+        &self,
+        spec: LaunchSpec,
+        sink: Arc<dyn SessionSink>,
+    ) -> BoxFuture<'_, Result<Arc<dyn AgentSession>, Error>> {
+        Box::pin(async move { self.engine().await?.start(spec, sink).await })
+    }
+
+    fn session(&self, worker_id: &str) -> Option<Arc<dyn AgentSession>> {
+        self.built.get().and_then(|engine| engine.session(worker_id))
+    }
+
+    fn live(&self) -> usize {
+        self.built.get().map_or(0, AgentRuntime::live)
+    }
+
+    fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
+        Box::pin(async move {
+            // Deleting a recorded conversation needs the store's folder, not a running engine.
+            if let Ok(engine) = self.engine().await {
+                engine.forget(worker_id).await;
+            }
+        })
+    }
+}
+
+impl BackendCatalog for LazyEngine {
+    fn descriptors(&self) -> Vec<UiBackendDescriptor> {
+        vec![self.descriptor.to_ui()]
+    }
+}
+
+impl SessionAccountSwitch for LazyEngine {
+    fn move_session<'a>(
+        &'a self,
+        worker_id: &'a str,
+        credential: SessionCredential,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            match self.built.get() {
+                Some(engine) => engine.move_session(worker_id, credential).await,
+                None => Err("this agent can't change account right now".to_owned()),
+            }
         })
     }
 }

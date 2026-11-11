@@ -23,6 +23,7 @@ mod modules;
 mod notes;
 mod plugins;
 
+pub use agent::AgentOptions;
 pub use app::{App, Options};
 pub use callers::Callers;
 

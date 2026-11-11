@@ -223,7 +223,19 @@ at = "/frames/*/*/data/caps/**"
 reason = "Until the state patcher is ported: the stream offers `state:patch` only once it sends it."
 
 [[known]]
+scenario = "30-stream"
+step = "event-inside-the-filter"
+at = "/frames/**"
+reason = "Until the state patcher is ported: a rename is announced as `worker:change`; the `state:patch` that follows it today is not sent yet."
+
+[[known]]
+scenario = "42-chat-writes"
+step = "rename"
+at = "/frames/main/1"
+reason = "Until the state patcher is ported: a rename is announced as `worker:change`; the `state:patch` that follows it today is not sent yet."
+
+[[known]]
 scenario = "*"
 step = "ui-config"
 at = "/json/backends/**"
-reason = "Until eos-engine is linked: the backends a session can run on are the engine's, and none is offered before one can run."
+reason = "One engine runs every session: its Claude backend is listed as today; the metered, Codex and Gemini lanes are not ported, so they are not offered."

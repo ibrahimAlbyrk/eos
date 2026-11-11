@@ -1,0 +1,26 @@
+[package]
+name = "eos-mod-agents"
+description = "Starting agents and acting on them: spawn, message, interrupt, resume, rename, model and mode, rewind, remove."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-runtime.workspace = true
+eos-sessions.workspace = true
+eos-workers.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+eos-store-files.workspace = true
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

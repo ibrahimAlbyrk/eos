@@ -25,10 +25,15 @@ impl RawRoutes {
     }
 }
 
+/// The git adapter over this platform's process handling.
+pub(crate) fn git(clock: &Arc<dyn eos_core::Clock>) -> Git {
+    let trees = ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
+    Git::new(Runner::new(trees), clock.clone())
+}
+
 pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     let host = eos_platform::host();
-    let trees = ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
-    let git = Arc::new(Git::new(Runner::new(trees), cx.clock.clone()));
+    let git = Arc::new(git(&cx.clock));
     let resolve: ResolveGitDirs = {
         let git = git.clone();
         Arc::new(move |dir| {

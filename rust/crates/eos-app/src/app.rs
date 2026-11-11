@@ -16,6 +16,7 @@ use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
+use eos_engine::EngineDeps;
 use eos_kit_sqlite::Db;
 use eos_mod_plugins::{NoPreviewWindow, PluginHost};
 use eos_mod_system::RunInfo;
@@ -28,6 +29,7 @@ use eos_runtime::router::Router;
 use eos_runtime::stream::StreamOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_sessions::Reconciled;
+use eos_sessions::{SessionDeps, Sessions};
 use eos_store_files::policy::YamlPolicyFile;
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::templates::FsTemplateStore;
@@ -37,7 +39,7 @@ use eos_store_sqlite::{SqliteStore, StoreOptions};
 use eos_workers::WorkerDefinitions;
 
 use crate::Error;
-use crate::agent::{NoBackends, NoLiveSessions};
+use crate::agent::{self, AgentOptions, AppHooks, AppPrompts, FixedCredential, NoLiveSessions, NoTools, NoUser};
 use crate::announce::BusAnnouncer;
 use crate::boot;
 use crate::callers::Callers;
@@ -59,6 +61,8 @@ pub struct Options {
     /// The folder of the bundled PDF viewer (`web/viewer.html` inside it);
     /// without it the raw-content origin serves no `/pdfjs/*`.
     pub pdfjs_root: Option<PathBuf>,
+    /// How agents reach the model; the real provider and files by default.
+    pub agents: AgentOptions,
     /// The app bundle's resources folder: what ships beside the program
     /// (`esbuild`, `claude-plugin/`). `None` in a development run, which
     /// falls back to the repository it was built in.
@@ -77,6 +81,7 @@ impl Options {
             ids: Arc::new(RandomIds),
             env: env_from_process(),
             pdfjs_root: None,
+            agents: AgentOptions::default(),
             resources: None,
             plugin_previewer: Arc::new(NoPreviewWindow),
         }
@@ -97,7 +102,7 @@ fn plans_dir() -> String {
 
 /// The running core: what the shell's bridge and the gateways hold.
 pub struct App {
-    runtime: Runtime,
+    runtime: Arc<Runtime>,
     raw_router: Arc<Router>,
     store: Arc<SqliteStore>,
     config: Arc<ConfigFile>,
@@ -106,6 +111,9 @@ pub struct App {
     callers: Callers,
     paths: DataPaths,
     reconciled: Reconciled,
+    sessions: Sessions,
+    /// Kept for as long as the app runs.
+    nudges: std::sync::Mutex<Option<eos_runtime::bus::Subscription>>,
     plugins: Arc<PluginHost>,
 }
 
@@ -122,7 +130,7 @@ impl App {
     /// the kernel and the modules. Nothing runs yet: call
     /// [`start`](Self::start). Blocks on file and database work.
     pub fn build(options: Options) -> Result<Self, Error> {
-        let Options { home, clock, ids, env, pdfjs_root, resources, plugin_previewer } = options;
+        let Options { home, clock, ids, env, pdfjs_root, agents, resources, plugin_previewer } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
@@ -201,6 +209,46 @@ impl App {
         let notes = Notes::open(&paths, &clock, store.clone(), config.clone());
         let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
 
+        // Agents: the engine (built when the first session starts), and the
+        // session service every feature that touches an agent goes through.
+        let models = Arc::new(CachedModelCatalog::open(&paths.join("models.json")));
+        let recents = Arc::new(JsonRecents::open(paths.join("recents.json")));
+        let hooks = Arc::new(AppHooks::new(kernel.bus.clone()));
+        let engine = agent::engine(
+            &paths.join("engine"),
+            &agents,
+            EngineDeps {
+                policy: policy.clone(),
+                tools: Arc::new(NoTools),
+                // The accounts feature picks each session's credential, unless the run names its own.
+                credentials: match &agents.credential {
+                    Some(fixed) => Arc::new(FixedCredential(Some(fixed.clone()))),
+                    None => accounts.clone(),
+                },
+                questions: Arc::new(NoUser),
+                clock: clock.clone(),
+            },
+        );
+        // "Resume at" and "Use API key" reach the live session through the engine.
+        accounts.attach_sessions(engine.clone());
+        let sessions = Sessions::new(SessionDeps {
+            store: store.clone(),
+            runtime: engine.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            config: config.clone(),
+            models: models.clone(),
+            prompts: Arc::new(AppPrompts {
+                prompts: prompts.clone(),
+                profile: profile_prompt.clone(),
+                definitions: worker_definitions.clone(),
+                hooks: hooks.clone(),
+            }),
+            worktrees: Arc::new(crate::files::git(&clock)),
+            recents: recents.clone(),
+            hooks: hooks.clone(),
+        });
+
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
@@ -215,10 +263,11 @@ impl App {
             stats: Arc::new(HostStats::read()),
             store: store.clone(),
             config: config.clone(),
-            models: Arc::new(CachedModelCatalog::open(&paths.join("models.json"))),
-            backends: Arc::new(NoBackends),
+            models,
+            backends: engine,
+            sessions: sessions.clone(),
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
-            recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
+            recents,
             accounts: accounts.clone(),
             plugins: plugins.clone(),
             kernel: kernel.clone(),
@@ -231,7 +280,8 @@ impl App {
             templates,
             worker_definitions,
         };
-        let runtime = Runtime::build(kernel, modules::all(&context), plugins.switch())?;
+        let runtime = Arc::new(Runtime::build(kernel, modules::all(&context), plugins.switch())?);
+        hooks.attach(&runtime);
         let raw_router = Arc::new(Router::builder().routes(context.raw_routes.take()).build()?);
         if let Some((backup, dir)) = snapshot {
             // Thousands of small files: after the app is up, off the start-up path.
@@ -247,11 +297,32 @@ impl App {
             Ok(())
         })?;
         let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
-        Ok(Self { runtime, raw_router, store, config, settings, accounts, callers, paths, reconciled, plugins })
+        let nudges = std::sync::Mutex::new(None);
+        Ok(Self {
+            runtime,
+            raw_router,
+            store,
+            config,
+            settings,
+            accounts,
+            callers,
+            paths,
+            reconciled,
+            sessions,
+            nudges,
+            plugins,
+        })
     }
 
     /// Starts every module, then tells them the app is ready.
     pub async fn start(&self) -> Result<(), Error> {
+        let nudges = agent::nudge_parents(
+            &self.runtime.kernel.bus,
+            self.store.clone(),
+            self.sessions.clone(),
+            tokio::runtime::Handle::current(),
+        );
+        *self.nudges.lock().unwrap_or_else(|p| p.into_inner()) = Some(nudges);
         self.runtime.lifecycle.start().await?;
         self.runtime.lifecycle.ready().await?;
         Ok(())
@@ -302,6 +373,11 @@ impl App {
     /// The user's plan sign-ins, for the features that act on their behalf.
     pub fn plan_access(&self) -> Arc<dyn PlanAccess> {
         self.accounts.clone()
+    }
+
+    /// The session service: starting agents, talking to them, ending them.
+    pub fn sessions(&self) -> Sessions {
+        self.sessions.clone()
     }
 
     /// What start-up did to the worker rows the last run left behind.

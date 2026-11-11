@@ -1089,6 +1089,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-engine",
  "eos-fs",
  "eos-git",
  "eos-kit-fs",
@@ -1096,6 +1097,7 @@ dependencies = [
  "eos-kit-proc",
  "eos-kit-sqlite",
  "eos-mod-accounts",
+ "eos-mod-agents",
  "eos-mod-fs",
  "eos-mod-pages",
  "eos-mod-plugins",
@@ -1122,6 +1124,7 @@ dependencies = [
  "eos-watch",
  "eos-workers",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -1342,6 +1345,23 @@ dependencies = [
  "eos-core",
  "eos-runtime",
  "eos-testkit",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-agents"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-store-files",
+ "eos-testkit",
+ "eos-workers",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -1651,6 +1671,8 @@ dependencies = [
  "eos-testkit",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

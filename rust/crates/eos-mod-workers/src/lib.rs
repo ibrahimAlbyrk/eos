@@ -3,8 +3,9 @@
 //! `attachments.ts`).
 //!
 //! Lists and single rows, transcript pages, the three lists that cover a
-//! whole conversation, and the messages waiting for a busy worker. Every route here only reads; starting, messaging,
-//! renaming and removing workers are not registered yet.
+//! whole conversation, and the messages waiting for a busy worker. Every
+//! route here only reads; starting, messaging, renaming and removing workers
+//! are `eos-mod-agents`.
 
 mod events;
 mod rows;
