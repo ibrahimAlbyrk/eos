@@ -2,6 +2,12 @@
 //! JavaScript's `trim`, `\s`, `length` and `slice`; rules that must give the
 //! same bytes use these instead of the standard library's near-equivalents.
 
+use std::cmp::Ordering;
+use std::sync::OnceLock;
+
+use icu_collator::options::CollatorOptions;
+use icu_collator::{Collator, CollatorBorrowed};
+
 /// What `\s` matches and `String.prototype.trim` strips. Not `char::is_whitespace`:
 /// U+FEFF counts, U+0085 does not.
 pub fn is_js_space(c: char) -> bool {
@@ -86,6 +92,23 @@ macro_rules! js_re {
 }
 pub(crate) use js_re;
 
+/// JavaScript's `a.localeCompare(b)` with no locale given: the Unicode
+/// collation order, so `notes.txt` sorts before `README.md` and `é` next to
+/// `e`. Every list today's code sorts with `localeCompare` (folder listings,
+/// changed files, branches, symbols) goes through this.
+///
+/// The root collation is used whatever the system language is; today's code
+/// follows the language Node was started with.
+pub fn locale_compare(a: &str, b: &str) -> Ordering {
+    static COLLATOR: OnceLock<Option<CollatorBorrowed<'static>>> = OnceLock::new();
+    let collator = COLLATOR.get_or_init(|| Collator::try_new(Default::default(), CollatorOptions::default()).ok());
+    match collator {
+        Some(collator) => collator.compare(a, b),
+        // The compiled-in collation data always loads; byte order is the fallback if it ever does not.
+        None => a.cmp(b),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +138,35 @@ mod tests {
             assert_eq!(estimate_tokens(&"x".repeat(n)), want, "{n}");
         }
         assert_eq!(estimate_tokens("😀😀"), 2);
+    }
+
+    fn sorted(mut names: Vec<&str>) -> Vec<&str> {
+        names.sort_by(|a, b| locale_compare(a, b));
+        names
+    }
+
+    // Each expectation is what `[...].sort((a, b) => a.localeCompare(b))` prints in Node 26 (en-US).
+    #[test]
+    fn orders_as_javascript_locale_compare_does() {
+        assert_eq!(sorted(vec!["README.md", "notes.txt", "Zed", "apple"]), ["apple", "notes.txt", "README.md", "Zed"]);
+        assert_eq!(sorted(vec!["b", "A", "a", "B"]), ["a", "A", "b", "B"]);
+        assert_eq!(sorted(vec!["file10", "file2", "file1"]), ["file1", "file10", "file2"]);
+        assert_eq!(sorted(vec!["z", "é", "e", "f"]), ["e", "é", "f", "z"]);
+        assert_eq!(sorted(vec!["_x", "-x", ".x", "x", "1x"]), ["_x", "-x", ".x", "1x", "x"]);
+        assert_eq!(
+            sorted(vec!["src/b.js", "src/a.js", "src", "Src/a.js"]),
+            ["src", "src/a.js", "Src/a.js", "src/b.js"]
+        );
+        assert_eq!(
+            sorted(vec![
+                "a b", "a_b", "a-b", "ab", "a.b", "A.b", "a/b", "ı", "i", "İ", "I", "ş", "s", "ö", "o", "ü", "ç", "c",
+                "ğ", "g", "日本", "αβ", "~x", "#x", "@x", "Ab", "aB",
+            ]),
+            [
+                "@x", "#x", "~x", "a b", "a_b", "a-b", "a.b", "A.b", "a/b", "ab", "aB", "Ab", "c", "ç", "g", "ğ", "i",
+                "I", "İ", "ı", "o", "ö", "s", "ş", "ü", "αβ", "日本",
+            ]
+        );
+        assert_eq!(locale_compare("same", "same"), Ordering::Equal);
     }
 }

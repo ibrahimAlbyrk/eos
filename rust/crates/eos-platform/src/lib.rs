@@ -11,6 +11,7 @@
 //! keep-awake, no secret store, no desktop integration. A Windows
 //! implementation is one more module behind the same traits.
 
+mod access;
 mod backup;
 mod copy;
 mod error;
@@ -24,12 +25,13 @@ mod tool;
 mod darwin;
 mod generic;
 
+pub use access::can_write;
 pub use backup::StartupBackup;
 pub use copy::{clone_copy, clone_copy_tree};
 pub use error::Error;
 pub use host::{
-    AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget, SpawnCommand,
-    TerminalShell, claude_store_service,
+    AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
+    SpawnCommand, TerminalShell, claude_store_service,
 };
 pub use paths::{DataPaths, USER_DATA_ENTRIES, eos_home, expand_path, home_dir};
 pub use process::{isolate_command, kill_process_tree, open_fd_count, process_alive, soft_fd_limit};

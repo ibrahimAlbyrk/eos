@@ -48,12 +48,21 @@ pub struct Options {
     pub ids: Arc<dyn Ids>,
     /// The `EOS_*` variables that override configuration defaults.
     pub env: Env,
+    /// The folder of the bundled PDF viewer (`web/viewer.html` inside it);
+    /// without it the raw-content origin serves no `/pdfjs/*`.
+    pub pdfjs_root: Option<PathBuf>,
 }
 
 impl Options {
     /// The system clock, random ids and this process's environment.
     pub fn new(home: impl Into<PathBuf>) -> Self {
-        Self { home: home.into(), clock: Arc::new(SystemClock), ids: Arc::new(RandomIds), env: env_from_process() }
+        Self {
+            home: home.into(),
+            clock: Arc::new(SystemClock),
+            ids: Arc::new(RandomIds),
+            env: env_from_process(),
+            pdfjs_root: None,
+        }
     }
 }
 
@@ -72,6 +81,7 @@ fn plans_dir() -> String {
 /// The running core: what the shell's bridge and the gateways hold.
 pub struct App {
     runtime: Runtime,
+    raw_router: Arc<Router>,
     store: Arc<SqliteStore>,
     config: Arc<ConfigFile>,
     settings: Arc<SettingsFile>,
@@ -93,7 +103,7 @@ impl App {
     /// the kernel and the modules. Nothing runs yet: call
     /// [`start`](Self::start). Blocks on file and database work.
     pub fn build(options: Options) -> Result<Self, Error> {
-        let Options { home, clock, ids, env } = options;
+        let Options { home, clock, ids, env, pdfjs_root } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
@@ -161,6 +171,10 @@ impl App {
             backends: Arc::new(NoBackends),
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
             recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
+            kernel: kernel.clone(),
+            paths: paths.clone(),
+            raw_routes: Default::default(),
+            pdfjs_root,
             policy,
             profile_prompt,
             prompts,
@@ -168,6 +182,7 @@ impl App {
             worker_definitions,
         };
         let runtime = Runtime::build(kernel, modules::all(&context), Arc::new(AllPluginsOn))?;
+        let raw_router = Arc::new(Router::builder().routes(context.raw_routes.take()).build()?);
         if let Some((backup, dir)) = snapshot {
             // Thousands of small files: after the app is up, off the start-up path.
             runtime.lifecycle.defer("backup", move || async move {
@@ -176,7 +191,7 @@ impl App {
             })?;
         }
         let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
-        Ok(Self { runtime, store, config, settings, callers, paths, reconciled })
+        Ok(Self { runtime, raw_router, store, config, settings, callers, paths, reconciled })
     }
 
     /// Starts every module, then tells them the app is ready.
@@ -190,6 +205,13 @@ impl App {
     /// hands it over ([`callers`](Self::callers) for this computer's window).
     pub fn router(&self) -> Arc<Router> {
         self.runtime.router.clone()
+    }
+
+    /// What answers the raw-content origin (files for the viewers, the PDF
+    /// viewer). A separate router on purpose: content served there must never
+    /// share an origin with the dashboard. Its callers are never the user.
+    pub fn raw_router(&self) -> Arc<Router> {
+        self.raw_router.clone()
     }
 
     pub fn callers(&self) -> &Callers {

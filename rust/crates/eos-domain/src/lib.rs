@@ -12,6 +12,8 @@ pub mod config;
 pub mod context;
 pub mod display;
 pub mod event;
+pub mod fs_ignore;
+pub mod git;
 pub mod loops;
 pub mod memory_sources;
 pub mod message_queue;

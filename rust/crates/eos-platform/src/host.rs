@@ -83,6 +83,17 @@ pub enum OpenTarget<'a> {
     App { name: &'a str, line_url_scheme: Option<&'a str> },
 }
 
+/// The app that opens a kind of file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DefaultApp {
+    /// Where the app is installed.
+    pub bundle_path: String,
+    /// Its identifier (`com.apple.TextEdit`); empty when it declares none.
+    pub bundle_id: String,
+    /// The name the system shows for it.
+    pub app_name: String,
+}
+
 /// Handing paths to other apps.
 pub trait Desktop: Send + Sync + Debug {
     /// Opens the path with its default app.
@@ -92,6 +103,11 @@ pub trait Desktop: Send + Sync + Debug {
     -> Result<(), Error>;
     /// An app of that name is installed for this user.
     fn app_installed(&self, app_name: &str) -> bool;
+    /// The app the system opens `file` with; the file must exist. `None` when
+    /// there is none, or the system cannot say.
+    fn default_app(&self, file: &Path) -> Option<DefaultApp>;
+    /// Writes the app's icon to `out` as a 64×64 PNG.
+    fn render_app_icon(&self, bundle_path: &Path, out: &Path) -> Result<(), Error>;
 }
 
 /// How the installed app takes in a new release on this system.

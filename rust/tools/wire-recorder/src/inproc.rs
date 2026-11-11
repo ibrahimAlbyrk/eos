@@ -2,8 +2,8 @@
 //!
 //! There is no listener: a request becomes a router call tagged with its
 //! caller, as the shell's bridge will tag it. The ui-token header decides
-//! between the dashboard and an untrusted page; the raw-content origin has no
-//! router yet, so nothing is served through it.
+//! between the dashboard and an untrusted page. Requests for the raw-content
+//! origin go to its own router, where no caller is the dashboard.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -19,6 +19,8 @@ use crate::sse::SseParser;
 use crate::target::{Request, Response, Stream, Target};
 
 const TOKEN_HEADER: &str = "x-eos-ui-token";
+/// The PDF viewer the daemon serves from the repository; the app gets its copy from the host.
+const PDFJS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../manager/vendor/pdfjs");
 /// How long a streamed answer to a plain request may stay silent before it is taken as complete.
 const STREAM_QUIET: Duration = Duration::from_millis(300);
 
@@ -38,7 +40,8 @@ impl RustTarget {
     /// Builds and starts the app on the data folder `home`.
     pub fn start(home: &Path) -> anyhow::Result<Self> {
         let runtime = tokio::runtime::Builder::new_multi_thread().enable_all().build().context("the async runtime")?;
-        let app = App::build(Options::new(home)).with_context(|| format!("building the app on {}", home.display()))?;
+        let app = App::build(Options { pdfjs_root: Some(PDFJS.into()), ..Options::new(home) })
+            .with_context(|| format!("building the app on {}", home.display()))?;
         runtime.block_on(app.start()).context("starting the app")?;
         Ok(Self { app: Arc::new(app), runtime: Arc::new(runtime) })
     }
@@ -49,19 +52,28 @@ impl RustTarget {
     }
 
     /// The request as the router takes it; `None` when no route can match
-    /// (an unknown method, the raw-content origin).
+    /// (an unknown method).
     fn core_request(&self, request: &Request) -> Option<CoreRequest> {
-        if request.via == Via::Raw {
-            return None;
-        }
         let method = Method::parse(&request.method)?;
         let token = request.headers.iter().find(|(name, _)| name.eq_ignore_ascii_case(TOKEN_HEADER));
-        let caller = self.app.callers().classify(token.map(|(_, value)| value.as_str()));
+        // Nothing on the raw-content origin is the dashboard, whatever it sends.
+        let caller = match request.via {
+            Via::Raw => eos_runtime::access::Caller::UNTRUSTED,
+            _ => self.app.callers().classify(token.map(|(_, value)| value.as_str())),
+        };
         let mut core = CoreRequest::new(method, &request.target, caller);
         for (name, value) in &request.headers {
             core = core.header(name, value);
         }
         Some(core.body(request.body.clone().unwrap_or_default()))
+    }
+
+    /// The API router, or the raw-content origin's own.
+    fn router(&self, request: &Request) -> Arc<eos_runtime::router::Router> {
+        match request.via {
+            Via::Raw => self.app.raw_router(),
+            _ => self.app.router(),
+        }
     }
 
     fn headers(response: &eos_runtime::http::Response) -> Vec<(String, String)> {
@@ -79,7 +91,7 @@ fn not_found(target: &str) -> Response {
 impl Target for RustTarget {
     fn send(&mut self, request: &Request) -> anyhow::Result<Response> {
         let Some(core) = self.core_request(request) else { return Ok(not_found(&request.target)) };
-        let router = self.app.router();
+        let router = self.router(request);
         self.runtime.block_on(async move {
             let response = router.handle(core).await;
             let (status, headers) = (response.status, Self::headers(&response));
@@ -102,7 +114,7 @@ impl Target for RustTarget {
 
     fn open_stream(&mut self, request: &Request) -> anyhow::Result<Stream> {
         let core = self.core_request(request).context("a stream needs a method and an origin the core serves")?;
-        let router = self.app.router();
+        let router = self.router(request);
         let response = self.runtime.block_on(router.handle(core));
         let (status, headers) = (response.status, Self::headers(&response));
         let (tx, rx) = mpsc::channel();
@@ -131,6 +143,6 @@ impl Target for RustTarget {
     }
 
     fn serves(&self, request: &Request) -> bool {
-        self.core_request(request).is_some_and(|core| self.app.router().find(core.method, &request.target).is_some())
+        self.core_request(request).is_some_and(|core| self.router(request).find(core.method, &request.target).is_some())
     }
 }

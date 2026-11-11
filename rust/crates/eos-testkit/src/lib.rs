@@ -15,7 +15,8 @@
 //! - [`ScriptedRuntime`]: agent sessions that play scripted turns of canonical
 //!   events, with no model ([`agent`]).
 //!
-//! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`]).
+//! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`]);
+//! [`FakeWatcher`] stands in for the folder watcher and the git watcher.
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -31,6 +32,7 @@ mod home;
 mod ids;
 mod policy;
 mod profile;
+mod watchers;
 pub mod wire;
 
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
@@ -42,3 +44,4 @@ pub use home::TempHome;
 pub use ids::SeqIds;
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
+pub use watchers::FakeWatcher;

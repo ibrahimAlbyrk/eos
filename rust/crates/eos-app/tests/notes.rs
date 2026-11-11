@@ -11,10 +11,10 @@ use serde_json::{Value, json};
 
 fn options(home: &TempHome) -> Options {
     Options {
-        home: home.path().to_owned(),
         clock: Arc::new(FakeClock::new()),
         ids: Arc::new(SeqIds::new()),
         env: Default::default(),
+        ..Options::new(home.path())
     }
 }
 

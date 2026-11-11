@@ -24,10 +24,10 @@ fn seeded() -> (TempHome, String) {
 
 async fn started(home: &TempHome) -> App {
     let options = Options {
-        home: home.path().to_owned(),
         clock: Arc::new(FakeClock::new()),
         ids: Arc::new(SeqIds::new()),
         env: Default::default(),
+        ..Options::new(home.path())
     };
     let app = App::build(options).expect("builds");
     app.start().await.expect("starts");

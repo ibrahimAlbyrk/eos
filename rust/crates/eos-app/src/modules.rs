@@ -34,6 +34,12 @@ pub(crate) struct Context {
     pub(crate) backends: Arc<dyn BackendCatalog>,
     pub(crate) projects: Arc<dyn ProjectStore>,
     pub(crate) recents: Arc<dyn RecentFolders>,
+    pub(crate) kernel: eos_runtime::Kernel,
+    pub(crate) paths: eos_platform::DataPaths,
+    /// Routes of the raw-content origin, collected while the modules are built.
+    pub(crate) raw_routes: crate::files::RawRoutes,
+    /// The folder of the bundled PDF viewer, when the host has one.
+    pub(crate) pdfjs_root: Option<std::path::PathBuf>,
     pub(crate) policy: Arc<PolicyGateway>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
@@ -45,6 +51,7 @@ pub(crate) struct Context {
 /// adds its line here, in alphabetical order; nothing else in the app changes.
 pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
     vec![
+        crate::files::module(cx),
         Arc::new(eos_mod_pages::PagesModule::new(
             cx.notes.pages.clone(),
             cx.store.clone(),

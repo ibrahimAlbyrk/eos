@@ -17,6 +17,7 @@ mod app;
 mod boot;
 mod callers;
 mod display;
+mod files;
 mod host;
 mod modules;
 mod notes;

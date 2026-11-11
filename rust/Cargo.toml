@@ -19,11 +19,14 @@ eos-config = { path = "crates/eos-config" }
 eos-contracts = { path = "crates/eos-contracts" }
 eos-core = { path = "crates/eos-core" }
 eos-domain = { path = "crates/eos-domain" }
+eos-fs = { path = "crates/eos-fs" }
 eos-genui = { path = "crates/eos-genui" }
+eos-git = { path = "crates/eos-git" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-policy = { path = "crates/eos-mod-policy" }
 eos-mod-profile = { path = "crates/eos-mod-profile" }
@@ -41,7 +44,9 @@ eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
+eos-symbols = { path = "crates/eos-symbols" }
 eos-testkit = { path = "crates/eos-testkit" }
+eos-watch = { path = "crates/eos-watch" }
 eos-workers = { path = "crates/eos-workers" }
 
 # The agent engine (eos-agent-sdk): a checkout linked at vendor/eos-agent-sdk by
@@ -65,11 +70,13 @@ flate2 = "1"
 futures-core = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4"
+icu_collator = "2"
 indexmap = { version = "2", features = ["serde"] }
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 regress = { version = "0.12", features = ["utf16"] }
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
 rusqlite = { version = "0.42", features = ["bundled"] }
-rustix = { version = "1", features = ["process"] }
+rustix = { version = "1", features = ["fs", "process"] }
 rusty-leveldb = "3"
 ryu-js = "1"
 schemars = { version = "1", features = ["indexmap2"] }

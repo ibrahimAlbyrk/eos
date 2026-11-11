@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 eos-contracts.workspace = true
+icu_collator.workspace = true
 indexmap.workspace = true
 regress.workspace = true
 serde.workspace = true

@@ -7,8 +7,8 @@ use std::process::Command;
 
 use crate::error::Error;
 use crate::host::{
-    AppUpdatePlatform, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget, SpawnCommand,
-    TerminalShell,
+    AppUpdatePlatform, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
+    SpawnCommand, TerminalShell,
 };
 use crate::paths::home_dir;
 use crate::process;
@@ -74,6 +74,14 @@ impl Desktop for NoDesktop {
 
     fn app_installed(&self, _app_name: &str) -> bool {
         false
+    }
+
+    fn default_app(&self, _file: &Path) -> Option<DefaultApp> {
+        None
+    }
+
+    fn render_app_icon(&self, _bundle_path: &Path, _out: &Path) -> Result<(), Error> {
+        Err(Error::Unsupported("app icons"))
     }
 }
 

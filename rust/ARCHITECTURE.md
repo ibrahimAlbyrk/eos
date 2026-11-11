@@ -41,7 +41,7 @@ paired Mac ────┴── gateways call the Router directly
 | service | `eos-sessions`, `eos-policy`, `eos-prompts`, `eos-workers`, `eos-profile` | use-cases several features need: agent session lifecycle, permission decisions, prompt assembly, worker definitions, profile/memory rendering. Only ports, never adapters. |
 | kit | `eos-platform` | the one OS seam: paths, credentials, trash, keep-awake, shells, process-tree kill, clone-copy. `cfg(target_os)` is allowed only here and in `eos-shell`. |
 | kit | `eos-kit-fs`, `eos-kit-sqlite`, `eos-kit-proc`, `eos-kit-net` | atomic writes and frontmatter; the SQLite writer thread, readers and migration runner; running commands; the guarded HTTP client. |
-| adapter | `eos-store-sqlite`, `eos-store-files`, `eos-config`, `eos-git`, `eos-watch`, `eos-pty`, `eos-engine`, `eos-accounts`, `eos-sync-vault`, `eos-update`, `eos-transfer-fs`, `eos-plugin-build`, `eos-genui-media`, `eos-peer`, `eos-relay`, `eos-symbols` | one outside system each, implementing core ports. `eos-engine` is the only crate that imports `eos-agent-sdk`. |
+| adapter | `eos-store-sqlite`, `eos-store-files`, `eos-config`, `eos-git`, `eos-fs`, `eos-watch`, `eos-pty`, `eos-engine`, `eos-accounts`, `eos-sync-vault`, `eos-update`, `eos-transfer-fs`, `eos-plugin-build`, `eos-genui-media`, `eos-peer`, `eos-relay`, `eos-symbols` | one outside system each, implementing core ports. `eos-engine` is the only crate that imports `eos-agent-sdk`. |
 | runtime | `eos-runtime` | what a feature sees of the running app: `Request` / `Response` / body stream, `Router`, route access rules, `Module` trait, event bus, stream ring, job registry, idle hooks, the ordered executor. |
 | feature | `eos-mod-<name>`, `eos-tools` | one user-facing feature each (routes + its own use-cases over ports); the agent tools. Features never depend on each other: a capability another feature needs is a trait in `eos-core`, handed in at composition. |
 | app | `eos-app` | the composition root: builds adapters, services and modules, returns the `Router` and the lifecycle handle. The only place that knows every concrete type. |
@@ -116,7 +116,7 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 | `core/src/domain` | `eos-domain` |
 | `core/src/ports` | `eos-core` |
 | `core/src/use-cases`, `core/src/services` | the service crate or the feature crate that owns the behaviour |
-| `infra/src/<area>` | the adapter or kit for that area |
+| `infra/src/<area>` | the adapter or kit for that area (`infra/src/filesystem` → `eos-fs` for the user's files and desktop, `eos-watch` for the watchers) |
 | `manager/sse`, `manager/routes` plumbing, `manager/middleware`, `manager/services/jobs`, `IdleHooks` | `eos-runtime` |
 | `manager/modules/<feature>`, `manager/routes/<feature>` | `eos-mod-<feature>` |
 | `manager/tools` | `eos-tools` |
