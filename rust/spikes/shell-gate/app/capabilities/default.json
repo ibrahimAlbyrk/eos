@@ -1,0 +1,1 @@
+{ "identifier": "default", "windows": ["main"], "webviews": ["bridged-*"], "permissions": ["core:default"] }

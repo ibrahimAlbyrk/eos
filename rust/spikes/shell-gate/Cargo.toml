@@ -1,0 +1,18 @@
+# Shell gate prototype: the real dashboard in a Tauri 3 (alpha) + CEF shell.
+# Its own workspace; the main `rust/` workspace excludes `spikes/`.
+[workspace]
+resolver = "3"
+members = ["app", "tools/ls-migrate"]
+exclude = ["vendor"]
+
+[patch.crates-io]
+# tauri-runtime-cef 3.0.0-alpha.7 + the "no bridge" patch (see patches/).
+tauri-runtime-cef = { path = "vendor/tauri-runtime-cef" }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.release]
+debug = 0
+strip = true

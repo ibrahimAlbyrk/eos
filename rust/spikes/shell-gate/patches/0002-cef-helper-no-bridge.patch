@@ -1,0 +1,52 @@
+--- patches/cef-helper-main.rs.orig	2026-11-11 14:22:27
++++ app/src/helper.rs	2026-11-11 14:22:27
+@@ -96,16 +96,48 @@
+   window.set_value_bykey(Some(&CefString::from("ipc")), Some(&mut ipc), attributes);
+ }
+ 
++/// Key of the browser `extra_info` entry `tauri-runtime-cef` sets for a webview
++/// created with `CefWebviewAttributes::no_bridge`. Keep both in sync.
++const NO_BRIDGE_EXTRA_INFO_KEY: &str = "tauri:no-bridge";
++
++/// Browsers of this renderer process that must not get `window.ipc`.
++static NO_BRIDGE_BROWSERS: std::sync::Mutex<Vec<i32>> = std::sync::Mutex::new(Vec::new());
++
+ wrap_render_process_handler! {
+   struct TauriRenderProcessHandler;
+ 
+   impl RenderProcessHandler {
++    fn on_browser_created(
++      &self,
++      browser: Option<&mut Browser>,
++      extra_info: Option<&mut DictionaryValue>,
++    ) {
++      let (Some(browser), Some(extra_info)) = (browser, extra_info) else {
++        return;
++      };
++      if extra_info.bool(Some(&CefString::from(NO_BRIDGE_EXTRA_INFO_KEY))) == 1 {
++        NO_BRIDGE_BROWSERS.lock().unwrap().push(browser.identifier());
++      }
++    }
++
++    fn on_browser_destroyed(&self, browser: Option<&mut Browser>) {
++      if let Some(browser) = browser {
++        let id = browser.identifier();
++        NO_BRIDGE_BROWSERS.lock().unwrap().retain(|other| *other != id);
++      }
++    }
++
+     fn on_context_created(
+       &self,
+-      _browser: Option<&mut Browser>,
++      browser: Option<&mut Browser>,
+       _frame: Option<&mut Frame>,
+       context: Option<&mut V8Context>,
+     ) {
++      if let Some(browser) = browser
++        && NO_BRIDGE_BROWSERS.lock().unwrap().contains(&browser.identifier())
++      {
++        return;
++      }
+       install_ipc_post_message(context);
+     }
+   }
