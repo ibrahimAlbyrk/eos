@@ -1,7 +1,23 @@
 //! Ports over the agent engine: sessions, models, usage
 //! (`core/src/ports/AgentBackend.ts`, `ModelCatalog.ts`, …).
 
+use eos_contracts::{CatalogModel, UiBackendDescriptor};
 use serde::{Deserialize, Serialize};
+
+/// The models the provider offers, as last fetched.
+pub trait ModelCatalog: Send + Sync + 'static {
+    /// The cached list; empty before the first fetch.
+    fn models(&self) -> Vec<CatalogModel>;
+    /// The model's context window in tokens. Never blocks: the cached list,
+    /// else the built-in baseline (`eos_domain::model`).
+    fn context_window_for(&self, model: Option<&str>) -> i64;
+}
+
+/// The agent backends this build can run sessions on, as the dashboard's
+/// model picker reads them.
+pub trait BackendCatalog: Send + Sync + 'static {
+    fn descriptors(&self) -> Vec<UiBackendDescriptor>;
+}
 
 /// A tool call's input while the model writes it, for a feature that follows
 /// that tool live (a visual answer). Not an agent event: it never reaches the

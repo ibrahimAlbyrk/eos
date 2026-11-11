@@ -8,7 +8,12 @@ use eos_runtime::http::{Method, Request};
 use eos_testkit::{FakeClock, SeqIds, TempHome};
 
 fn options(home: &TempHome) -> Options {
-    Options { home: home.path().to_owned(), clock: Arc::new(FakeClock::new()), ids: Arc::new(SeqIds::new()) }
+    Options {
+        home: home.path().to_owned(),
+        clock: Arc::new(FakeClock::new()),
+        ids: Arc::new(SeqIds::new()),
+        env: Default::default(),
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

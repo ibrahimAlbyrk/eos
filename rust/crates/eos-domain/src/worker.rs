@@ -79,6 +79,29 @@ pub fn is_busy(state: WorkerState) -> bool {
     matches!(state, WorkerState::Spawning | WorkerState::Working)
 }
 
+/// Whether `actor` may read or act on a worker: its own row (where the
+/// caller allows that) or one it started. The actor names itself; this keeps
+/// an agent's tools to its own workers, it is not an authentication.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ownership {
+    Owned,
+    /// There is no such worker.
+    Missing,
+    /// The worker belongs to someone else.
+    NotManaged,
+}
+
+pub fn ownership(target: Option<&Worker>, target_id: &str, actor_id: &str, allow_self: bool) -> Ownership {
+    if allow_self && target_id == actor_id {
+        return Ownership::Owned;
+    }
+    match target {
+        None => Ownership::Missing,
+        Some(worker) if worker.parent_id.as_deref() == Some(actor_id) => Ownership::Owned,
+        Some(_) => Ownership::NotManaged,
+    }
+}
+
 /// What a session has cost so far. Sums, never the size of the context.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Usage {
@@ -326,6 +349,19 @@ mod tests {
             assert_eq!(row.get(key), Some(want), "{key}");
         }
         assert_eq!(row.len(), recorded.len(), "no extra keys");
+    }
+
+    // core/src/__tests__/WorkerOwnership.test.ts
+    #[test]
+    fn an_actor_owns_itself_and_the_workers_it_started() {
+        let mut child = sample();
+        child.parent_id = Some("o-1".into());
+        assert_eq!(ownership(Some(&child), "w-BUSY", "o-1", false), Ownership::Owned);
+        assert_eq!(ownership(Some(&child), "w-BUSY", "o-2", false), Ownership::NotManaged);
+        assert_eq!(ownership(Some(&sample()), "w-BUSY", "o-1", true), Ownership::NotManaged, "no parent at all");
+        assert_eq!(ownership(None, "w-x", "o-1", true), Ownership::Missing);
+        assert_eq!(ownership(None, "o-1", "o-1", true), Ownership::Owned, "itself, before the row is even read");
+        assert_eq!(ownership(None, "o-1", "o-1", false), Ownership::Missing);
     }
 
     #[test]

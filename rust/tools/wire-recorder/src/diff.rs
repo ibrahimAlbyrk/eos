@@ -66,7 +66,14 @@ fn descend(path: &mut String, segment: &str, f: impl FnOnce(&mut String)) {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Report {
     pub scenario: String,
+    /// The steps the target answered.
     pub steps: Vec<StepReport>,
+    /// Steps the target has no route for yet (`"METHOD /path"`), and the steps
+    /// that could not run because one of those would have captured their ids.
+    pub not_served: Vec<String>,
+    /// Reads that differ after a write the target did not serve: they show the
+    /// state that write would have changed, so they say nothing yet.
+    pub stale: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,7 +81,10 @@ pub struct StepReport {
     pub step: String,
     /// `"METHOD /path"`, or what the step did to a stream.
     pub what: String,
+    /// Differences nobody listed: these fail the replay.
     pub differences: Vec<Difference>,
+    /// The reasons of the listed differences the step has (each once).
+    pub known: Vec<String>,
 }
 
 impl Report {
@@ -82,21 +92,58 @@ impl Report {
         self.steps.iter().filter(|s| !s.differences.is_empty()).count()
     }
 
-    /// The readable form: one line per step that matches, the differing places under one that does not.
-    pub fn render(&self, verbose: bool) -> String {
+    /// Steps that differ only in listed ways.
+    pub fn known(&self) -> usize {
+        self.steps.iter().filter(|s| s.differences.is_empty() && !s.known.is_empty()).count()
+    }
+
+    /// The readable form: one line per step that matches, the differing places
+    /// under one that does not. `redact` leaves every value out (a recording
+    /// of real data must not end up in a terminal or a log): only where the
+    /// documents part and what kind of value sits there.
+    pub fn render(&self, verbose: bool, redact: bool) -> String {
         let mut out = String::new();
-        let failed = self.failed();
-        let _ = writeln!(out, "{}: {} of {} steps match", self.scenario, self.steps.len() - failed, self.steps.len());
+        let (failed, known) = (self.failed(), self.known());
+        let matched = self.steps.len() - failed - known;
+        let _ = write!(out, "{}: {matched} of {} steps match", self.scenario, self.steps.len());
+        if known > 0 {
+            let _ = write!(out, ", {known} differ as listed");
+        }
+        if !self.stale.is_empty() {
+            let _ = write!(out, ", {} read what an unserved write changes", self.stale.len());
+        }
+        let _ = match self.not_served.len() {
+            0 => writeln!(out),
+            n => writeln!(out, ", {n} not served yet"),
+        };
+        if verbose {
+            for what in &self.not_served {
+                let _ = writeln!(out, "  later {what}");
+            }
+            for what in &self.stale {
+                let _ = writeln!(out, "  stale {what}");
+            }
+        }
         for step in &self.steps {
             if step.differences.is_empty() {
-                if verbose {
+                if verbose && step.known.is_empty() {
                     let _ = writeln!(out, "  ok    {:<28} {}", step.step, step.what);
+                } else if verbose {
+                    let _ = writeln!(out, "  known {:<28} {}", step.step, step.what);
+                    for reason in &step.known {
+                        let _ = writeln!(out, "          {reason}");
+                    }
                 }
                 continue;
             }
             let _ = writeln!(out, "  DIFF  {:<28} {}", step.step, step.what);
             for d in &step.differences {
                 let place = if d.path.is_empty() { "/" } else { &d.path };
+                if redact {
+                    let kind = |v: &Option<Value>| v.as_ref().map_or("nothing", kind_of);
+                    let _ = writeln!(out, "          {place}: recorded {}, got {}", kind(&d.expected), kind(&d.actual));
+                    continue;
+                }
                 let _ = match (&d.expected, &d.actual) {
                     (Some(want), Some(got)) => {
                         let (want, got) = around_the_difference(&want.to_string(), &got.to_string());
@@ -113,6 +160,17 @@ impl Report {
             }
         }
         out
+    }
+}
+
+fn kind_of(value: &Value) -> &'static str {
+    match value {
+        Value::Null => "null",
+        Value::Bool(_) => "a boolean",
+        Value::Number(_) => "a number",
+        Value::String(_) => "a string",
+        Value::Array(_) => "a list",
+        Value::Object(_) => "an object",
     }
 }
 
@@ -198,20 +256,43 @@ mod tests {
         let report = Report {
             scenario: "pages".into(),
             steps: vec![
-                StepReport { step: "list".into(), what: "GET /api/pages".into(), differences: vec![] },
+                StepReport { step: "list".into(), what: "GET /api/pages".into(), differences: vec![], known: vec![] },
                 StepReport {
                     step: "create".into(),
                     what: "POST /api/pages".into(),
                     differences: diff(&json!({"status": 200, "json": {"a": 1}}), &json!({"status": 400})),
+                    known: vec![],
+                },
+                StepReport {
+                    step: "config".into(),
+                    what: "GET /api/ui-config".into(),
+                    differences: vec![],
+                    known: vec!["no engine yet".into()],
                 },
             ],
+            not_served: vec!["export                       GET /api/pages/x/export".into()],
+            stale: vec![],
         };
         assert_eq!(report.failed(), 1);
-        let text = report.render(false);
-        assert!(text.starts_with("pages: 1 of 2 steps match\n  DIFF  create"), "{text}");
+        let text = report.render(false, false);
+        assert!(
+            text.starts_with("pages: 1 of 3 steps match, 1 differ as listed, 1 not served yet\n  DIFF  create"),
+            "{text}"
+        );
         assert!(text.contains("/json\n            missing; recorded {\"a\":1}"), "{text}");
         assert!(text.contains("/status\n            recorded 200\n            got      400"), "{text}");
-        assert!(!text.contains("list"));
-        assert!(report.render(true).contains("  ok    list"));
+        assert!(!text.contains("GET /api/pages\n"), "a matching step is only shown when asked: {text}");
+        let verbose = report.render(true, false);
+        assert!(verbose.contains("  ok    list") && verbose.contains("  later export"), "{verbose}");
+        assert!(
+            verbose.contains("  known config                       GET /api/ui-config\n          no engine yet"),
+            "{verbose}"
+        );
+
+        // A recording of real data is compared without printing what it holds.
+        let redacted = report.render(false, true);
+        assert!(redacted.contains("/json: recorded an object, got nothing"), "{redacted}");
+        assert!(redacted.contains("/status: recorded a number, got a number"), "{redacted}");
+        assert!(!redacted.contains("200") && !redacted.contains("\"a\""), "{redacted}");
     }
 }

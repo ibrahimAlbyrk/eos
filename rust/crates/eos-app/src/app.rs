@@ -5,32 +5,46 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use eos_core::store::Store;
+use eos_config::{ConfigFile, SettingsFile, env_from_process};
+use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
+use eos_domain::config::Env;
 use eos_kit_sqlite::Db;
+use eos_mod_system::RunInfo;
 use eos_platform::DataPaths;
 use eos_runtime::lifecycle::ShutdownReport;
 use eos_runtime::router::{AllPluginsOn, Router};
+use eos_runtime::stream::StreamOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
+use eos_sessions::Reconciled;
+use eos_store_files::{CachedModelCatalog, JsonProjects, JsonRecents};
 use eos_store_sqlite::{SqliteStore, StoreOptions};
 
 use crate::Error;
+use crate::agent::NoBackends;
 use crate::announce::BusAnnouncer;
+use crate::boot;
 use crate::callers::Callers;
+use crate::display::StripSenderTags;
+use crate::host::{self, HostStats};
 use crate::modules::{self, Context};
 
-/// What the app is built from. Tests swap the clock and the id source.
+/// What the app is built from. Tests swap the clock, the id source and the
+/// environment.
 #[derive(Clone)]
 pub struct Options {
     /// The data folder (`~/.eos`).
     pub home: PathBuf,
     pub clock: Arc<dyn Clock>,
     pub ids: Arc<dyn Ids>,
+    /// The `EOS_*` variables that override configuration defaults.
+    pub env: Env,
 }
 
 impl Options {
+    /// The system clock, random ids and this process's environment.
     pub fn new(home: impl Into<PathBuf>) -> Self {
-        Self { home: home.into(), clock: Arc::new(SystemClock), ids: Arc::new(RandomIds) }
+        Self { home: home.into(), clock: Arc::new(SystemClock), ids: Arc::new(RandomIds), env: env_from_process() }
     }
 }
 
@@ -44,8 +58,11 @@ impl std::fmt::Debug for Options {
 pub struct App {
     runtime: Runtime,
     store: Arc<SqliteStore>,
+    config: Arc<ConfigFile>,
+    settings: Arc<SettingsFile>,
     callers: Callers,
     paths: DataPaths,
+    reconciled: Reconciled,
 }
 
 impl std::fmt::Debug for App {
@@ -55,35 +72,66 @@ impl std::fmt::Debug for App {
 }
 
 impl App {
-    /// Opens the data folder and composes the app. Nothing runs yet: call
+    /// Opens the data folder and composes the app, in today's start-up order
+    /// where it still applies: configuration, a snapshot of the user's data,
+    /// the database and its migrations, the data's own start-up work, then
+    /// the kernel and the modules. Nothing runs yet: call
     /// [`start`](Self::start). Blocks on file and database work.
     pub fn build(options: Options) -> Result<Self, Error> {
-        let paths = DataPaths::new(&options.home);
+        let Options { home, clock, ids, env } = options;
+        let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
-        let callers = Callers::load(paths.home(), options.ids.as_ref());
+        let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
+        let current = config.current();
+        let callers = Callers::load(paths.home(), ids.as_ref());
 
-        let (db, migrations) = Db::open(paths.state_db(), eos_kit_sqlite::Options::default(), options.clock.now_ms())?;
+        // Before the database opens: a migration must not run ahead of the copy.
+        let snapshot = boot::snapshot(&paths, clock.as_ref());
+        let (db, migrations) = Db::open(paths.state_db(), eos_kit_sqlite::Options::default(), clock.now_ms())?;
         if !migrations.unknown.is_empty() {
             tracing::info!(ids = ?migrations.unknown, "the database records migrations this build does not know; left alone");
         }
 
         let kernel = Kernel::new(KernelOptions {
-            clock: options.clock.clone(),
-            ids: options.ids.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            stream: StreamOptions {
+                keepalive: Duration::from_millis(u64::try_from(current.daemon.sse_keepalive_ms).unwrap_or(25_000)),
+                display_filter: Some(Arc::new(StripSenderTags)),
+                ..StreamOptions::default()
+            },
             ..KernelOptions::default()
         });
         let announcer = Arc::new(BusAnnouncer(kernel.bus.clone()));
-        let store = Arc::new(SqliteStore::new(db, announcer, StoreOptions::default()));
+        let store_options = StoreOptions { events_max_per_worker: current.events.max_per_worker };
+        let store = Arc::new(SqliteStore::new(db, announcer, store_options));
+        let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
 
         let context = Context {
-            kernel: kernel.clone(),
-            paths: paths.clone(),
-            clock: options.clock,
-            ids: options.ids,
+            run: RunInfo {
+                pid: std::process::id(),
+                started_at: clock.now_ms(),
+                source_stamp: concat!("rust-", env!("CARGO_PKG_VERSION")).to_owned(),
+            },
+            features: host::features(),
+            stats: Arc::new(HostStats::read()),
             store: store.clone(),
+            config: config.clone(),
+            models: Arc::new(CachedModelCatalog::open(&paths.join("models.json"))),
+            backends: Arc::new(NoBackends),
+            projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
+            recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
         };
         let runtime = Runtime::build(kernel, modules::all(&context), Arc::new(AllPluginsOn))?;
-        Ok(Self { runtime, store, callers, paths })
+        if let Some((backup, dir)) = snapshot {
+            // Thousands of small files: after the app is up, off the start-up path.
+            runtime.lifecycle.defer("backup", move || async move {
+                tokio::task::spawn_blocking(move || boot::finish_snapshot(&backup, &dir)).await??;
+                Ok(())
+            })?;
+        }
+        let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
+        Ok(Self { runtime, store, config, settings, callers, paths, reconciled })
     }
 
     /// Starts every module, then tells them the app is ready.
@@ -113,6 +161,19 @@ impl App {
 
     pub fn paths(&self) -> &DataPaths {
         &self.paths
+    }
+
+    pub fn config(&self) -> Arc<dyn ConfigSource> {
+        self.config.clone()
+    }
+
+    pub fn settings(&self) -> Arc<dyn UserSettingsStore> {
+        self.settings.clone()
+    }
+
+    /// What start-up did to the worker rows the last run left behind.
+    pub fn reconciled(&self) -> Reconciled {
+        self.reconciled
     }
 
     /// Stops the modules (last first) and the streams inside `deadline`, then

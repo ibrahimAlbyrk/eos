@@ -67,4 +67,10 @@ pub trait Target {
     /// A second handle on the same target, for a request that stays open while
     /// other steps run (a permission ask waits for the user's decision).
     fn fork(&self) -> Box<dyn Target + Send>;
+    /// Whether the target has a route for this request at all. A target that
+    /// is still being built answers `false` for what it does not serve yet,
+    /// and a replay counts such steps apart from real differences.
+    fn serves(&self, _request: &Request) -> bool {
+        true
+    }
 }

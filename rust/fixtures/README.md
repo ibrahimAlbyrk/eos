@@ -7,6 +7,7 @@ it. The tool is `tools/wire-recorder`; the data is here.
 wire/scenarios/*.toml     what to ask, one file per route group, run in file-name order
 wire/recordings/*.json    what the daemon answered (normalized), one file per scenario
 wire/normalize.toml       the rules that make two runs read the same
+wire/rust-differences.toml  where the Rust core differs on purpose or for now, each with its reason
 wire/routes.json          every route the daemon registers (written by the recording run)
 wire/coverage.md          every route → recorded / errors only / not recorded (generated)
 wire/not-recordable.toml  why a route has no recorded success
@@ -44,6 +45,37 @@ scripts/wire.sh up
 EOS_WIRE_REUSE=1 scripts/wire.sh record --lenient --only 31-pages   # unexpected statuses are warnings
 scripts/wire.sh down
 ```
+
+## Replaying against the Rust core
+
+```bash
+scripts/replay.sh [--only 11-chats,12-transcript] [--verbose]   # fresh synthetic folder, in process
+scripts/replay.sh --private <copy>                              # against fixtures/private, values hidden
+```
+
+The tool builds the composed app (`eos-app`) on the data folder and calls its router directly
+(`--rust-home`): no daemon, no port. What it adds for a core that is still growing:
+
+- a step whose route is not registered is not sent and not a difference: the scenario's line says
+  `N not served yet` (`--verbose` lists them), and steps that needed an id such a step would have
+  captured wait with it;
+- a difference that is meant to be there is listed in `wire/rust-differences.toml` with its reason
+  (`differ as listed`): the run fails only on a difference nobody listed. An entry that says
+  "until …" is removed by the work that lands it;
+- scenarios share one data folder, so once a write was not served, a later read that differs is
+  counted apart (`read what an unserved write changes`) instead of failing: run a route group
+  alone with `--only` to judge it strictly;
+- generated ids are renumbered per side (`<worker:3>` → by first sight among the compared steps),
+  because a side that skips steps meets the ids in another order;
+- `--redact` (always on with `--private`) prints where two answers differ and what kind of value
+  sits there, never the values.
+
+A private recording ages: the normalizer writes times within two days of the run as `<now>`, so a
+date in the data that sat inside that window when recorded is a literal a few hours later.
+Record again (`wire.sh record-private`) when a replay differs only at such a place.
+
+`wire-recorder seed --home DIR --sql fixtures/wire/seed/state.sql --var sandbox=DIR` gives a folder
+its schema and the invented rows, as the recording run's first boot did.
 
 ## Real data stays private
 
@@ -160,5 +192,6 @@ Object key order is not recorded.
 ## The target
 
 `wire-recorder` talks to a `Target` (`tools/wire-recorder/src/target.rs`): `send`, `open_stream`,
-`fork`. Today the only one is `HttpTarget` (API port, raw port, unix socket). The Rust core's
-in-process router implements the same trait, and the recordings replay against it unchanged.
+`fork`, `serves`. `HttpTarget` is a daemon behind the API port, the raw port or the unix socket;
+`RustTarget` (`inproc.rs`) is the Rust core's router in process, and the recordings replay against
+it unchanged.

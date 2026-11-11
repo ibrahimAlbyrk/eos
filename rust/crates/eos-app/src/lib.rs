@@ -11,9 +11,13 @@
 //! router tags it with its caller first: [`Callers`] turns the ui-token a
 //! local request carries into that tag.
 
+mod agent;
 mod announce;
 mod app;
+mod boot;
 mod callers;
+mod display;
+mod host;
 mod modules;
 
 pub use app::{App, Options};

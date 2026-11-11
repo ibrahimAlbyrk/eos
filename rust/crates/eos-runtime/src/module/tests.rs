@@ -262,3 +262,17 @@ fn fans_calls_out_to_the_modules() {
         [("GENUI_LEVEL", PromptValue::Text("rich".into())), ("SHARED", PromptValue::Flag(true))]
     );
 }
+
+#[test]
+fn protected_settings_name_the_route_that_may_write_them() {
+    let genui = ProtectedSettings { keys: vec!["genui.level", "location.share"], via: "PUT /api/settings/genui" };
+    assert_eq!(genui.refusal(["theme"]), None);
+    assert_eq!(
+        genui.refusal(["theme", "location.share"]).as_deref(),
+        Some("location.share is set only through PUT /api/settings/genui")
+    );
+    assert_eq!(
+        genui.refusal(["location.share", "genui.level"]).as_deref(),
+        Some("genui.level, location.share are set only through PUT /api/settings/genui")
+    );
+}

@@ -8,7 +8,9 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+eos-contracts.workspace = true
 eos-core.workspace = true
+eos-domain.workspace = true
 eos-kit-sqlite.workspace = true
 eos-platform.workspace = true
 eos-store-sqlite.workspace = true

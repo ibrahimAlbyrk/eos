@@ -4,7 +4,10 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use eos_core::Error;
-use eos_core::store::{EventRepo, Tx, WorkerRepo};
+use eos_core::store::{
+    ContextMarkRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo, MessageQueueRepo, PendingRepo,
+    TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+};
 use eos_kit_sqlite::rusqlite::{self, Connection};
 
 /// What outlives a single job.
@@ -20,12 +23,54 @@ pub(crate) struct SqliteTx<'c> {
     pub(crate) shared: &'c Shared,
 }
 
+/// Every repository is this one struct: a job reads and writes through any of
+/// them inside the same transaction.
 impl Tx for SqliteTx<'_> {
+    fn context_marks(&self) -> &dyn ContextMarkRepo {
+        self
+    }
+
+    fn dreams(&self) -> &dyn DreamRepo {
+        self
+    }
+
     fn events(&self) -> &dyn EventRepo {
         self
     }
 
+    fn genui_views(&self) -> &dyn GenuiViewRepo {
+        self
+    }
+
+    fn loops(&self) -> &dyn LoopRepo {
+        self
+    }
+
+    fn message_ids(&self) -> &dyn MessageIdRepo {
+        self
+    }
+
+    fn message_queue(&self) -> &dyn MessageQueueRepo {
+        self
+    }
+
+    fn pending(&self) -> &dyn PendingRepo {
+        self
+    }
+
+    fn transfers(&self) -> &dyn TransferRepo {
+        self
+    }
+
+    fn worker_definitions(&self) -> &dyn WorkerDefinitionRepo {
+        self
+    }
+
     fn workers(&self) -> &dyn WorkerRepo {
+        self
+    }
+
+    fn worktree_removals(&self) -> &dyn WorktreeRemovalQueue {
         self
     }
 }

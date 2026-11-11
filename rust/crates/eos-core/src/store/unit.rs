@@ -4,13 +4,26 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
-use super::{EventRepo, WorkerRepo};
+use super::{
+    ContextMarkRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo, MessageQueueRepo, PendingRepo,
+    TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+};
 use crate::{BoxFuture, Error};
 
 /// The repositories over one transaction (a write) or one snapshot (a read).
 pub trait Tx {
+    fn context_marks(&self) -> &dyn ContextMarkRepo;
+    fn dreams(&self) -> &dyn DreamRepo;
     fn events(&self) -> &dyn EventRepo;
+    fn genui_views(&self) -> &dyn GenuiViewRepo;
+    fn loops(&self) -> &dyn LoopRepo;
+    fn message_ids(&self) -> &dyn MessageIdRepo;
+    fn message_queue(&self) -> &dyn MessageQueueRepo;
+    fn pending(&self) -> &dyn PendingRepo;
+    fn transfers(&self) -> &dyn TransferRepo;
+    fn worker_definitions(&self) -> &dyn WorkerDefinitionRepo;
     fn workers(&self) -> &dyn WorkerRepo;
+    fn worktree_removals(&self) -> &dyn WorktreeRemovalQueue;
 }
 
 /// One event to publish once the write that caused it is saved.

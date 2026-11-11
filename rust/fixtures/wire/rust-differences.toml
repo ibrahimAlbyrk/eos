@@ -1,0 +1,50 @@
+# Where the Rust core answers differently from the recordings on purpose, or
+# cannot answer the same yet. `scripts/replay.sh` passes this file: a listed
+# difference does not fail the replay, an unlisted one does. An entry that
+# says "until …" is removed by whoever lands that work. Format: tools/wire-recorder/src/known.rs.
+
+# ---- on purpose --------------------------------------------------------------
+
+[[known]]
+scenario = "*"
+at = "/headers/vary"
+reason = "CORS headers are an HTTP listener's. There is none: a request reaches the router in process, tagged with its caller by the shell's bridge."
+
+[[known]]
+scenario = "*"
+at = "/headers/access-control-*"
+reason = "CORS headers are an HTTP listener's. There is none: a request reaches the router in process, tagged with its caller by the shell's bridge."
+
+[[known]]
+scenario = "19-cors"
+reason = "Origin and Host checks (CORS, DNS rebinding) guard a listener on a port. There is none: only the shell's bridge and the gateways can call the router."
+
+[[known]]
+scenario = "18-http"
+step = "body-not-json"
+reason = "A body that is not JSON is the caller's mistake: 400 `invalid request: body is not valid JSON`. The daemon answered 500 with V8's parser message."
+
+[[known]]
+scenario = "*"
+step = "body-empty"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "*"
+step = "focus-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+# ---- until the work lands ----------------------------------------------------
+
+[[known]]
+scenario = "*"
+at = "/frames/*/*/data/caps/**"
+reason = "Until the state patcher is ported: the stream offers `state:patch` only once it sends it."
+
+[[known]]
+scenario = "*"
+step = "ui-config"
+at = "/json/backends/**"
+reason = "Until eos-engine is linked: the backends a session can run on are the engine's, and none is offered before one can run."

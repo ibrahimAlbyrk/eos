@@ -73,6 +73,25 @@ impl TempStore {
     }
 }
 
+impl TempHome {
+    /// A data folder whose `state.db` is migrated and holds the wire
+    /// fixtures' invented rows, closed again: what the app finds when it
+    /// starts after a crash (one seeded chat was left working).
+    pub fn seeded(sandbox: &str) -> Self {
+        Self::new().with_seed(sandbox)
+    }
+
+    /// [`seeded`](Self::seeded), for a folder that already exists.
+    pub fn with_seed(self, sandbox: &str) -> Self {
+        let TempStore { store, home, .. } = TempStore::in_home(self);
+        let sql = crate::fixtures::seed_sql(sandbox);
+        let seeded = store.db().maintain(move |conn: &Connection| conn.execute_batch(&sql).map_err(Error::from));
+        seeded.expect("the seed applies");
+        drop(store);
+        home
+    }
+}
+
 impl Default for TempStore {
     fn default() -> Self {
         Self::new()

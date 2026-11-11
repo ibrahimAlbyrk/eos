@@ -25,11 +25,29 @@
 //!
 //! A new table gets a repository trait in a file here, an accessor on [`Tx`],
 //! and its implementation in `eos-store-sqlite`.
+//!
+//! # Files
+//!
+//! A file store is a `Send + Sync` trait a feature holds as `Arc<dyn …>`; it
+//! keeps the file's format and guards its own read-modify-write
+//! (`eos-store-files`, `eos-config`).
 
+mod counters;
+mod documents;
 mod events;
+mod files;
+mod loops;
+mod message_queue;
+mod pending;
 mod unit;
 mod workers;
 
+pub use counters::{ContextMarkRepo, MessageIdRepo, WorktreeRemoval, WorktreeRemovalQueue};
+pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, WorkerDefinitionRepo};
 pub use events::{EventOrder, EventQuery, EventRepo};
+pub use files::{ConfigSource, ProjectStore, RecentFolders, UserSettingsStore};
+pub use loops::{LoopRepo, NewLoop};
+pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
+pub use pending::{NewPending, PendingRepo};
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
 pub use workers::{NewWorker, WorkerRepo};

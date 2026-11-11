@@ -2,25 +2,40 @@
 
 use std::sync::Arc;
 
-use eos_core::store::Store;
-use eos_core::{Clock, Ids};
-use eos_platform::DataPaths;
-use eos_runtime::Kernel;
+use eos_contracts::UiConfigResponseFeatures;
+use eos_core::agent::{BackendCatalog, ModelCatalog};
+use eos_core::os::ProcessStats;
+use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store};
+use eos_mod_system::RunInfo;
 use eos_runtime::module::Module;
 
 /// What features are built from. A module's constructor takes the parts it
 /// uses (never this struct: feature crates cannot see `eos-app`).
 pub(crate) struct Context {
-    pub(crate) kernel: Kernel,
-    pub(crate) paths: DataPaths,
-    pub(crate) clock: Arc<dyn Clock>,
-    pub(crate) ids: Arc<dyn Ids>,
+    pub(crate) run: RunInfo,
+    pub(crate) features: UiConfigResponseFeatures,
+    pub(crate) stats: Arc<dyn ProcessStats>,
     pub(crate) store: Arc<dyn Store>,
+    pub(crate) config: Arc<dyn ConfigSource>,
+    pub(crate) models: Arc<dyn ModelCatalog>,
+    pub(crate) backends: Arc<dyn BackendCatalog>,
+    pub(crate) projects: Arc<dyn ProjectStore>,
+    pub(crate) recents: Arc<dyn RecentFolders>,
 }
 
 /// The modules, in start order (stop order is the reverse). A feature crate
 /// adds its line here, in alphabetical order; nothing else in the app changes.
 pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
-    let _ = (&cx.kernel, &cx.paths, &cx.clock, &cx.ids, &cx.store);
-    vec![]
+    vec![
+        Arc::new(eos_mod_projects::ProjectsModule::new(cx.projects.clone(), cx.recents.clone())),
+        Arc::new(eos_mod_system::SystemModule::new(
+            cx.run.clone(),
+            cx.features.clone(),
+            cx.stats.clone(),
+            cx.config.clone(),
+            cx.models.clone(),
+            cx.backends.clone(),
+        )),
+        Arc::new(eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())),
+    ]
 }

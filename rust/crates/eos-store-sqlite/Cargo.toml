@@ -12,6 +12,7 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-sqlite.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

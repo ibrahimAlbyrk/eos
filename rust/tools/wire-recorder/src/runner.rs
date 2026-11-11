@@ -5,7 +5,7 @@ use std::fmt::Write as _;
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, bail};
+use anyhow::bail;
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 
@@ -41,6 +41,8 @@ pub enum Outcome {
     },
     /// A variable the step needs was never captured.
     Skipped { missing: String },
+    /// The target has no route for the step's request yet.
+    NotServed { method: String, path: String },
 }
 
 /// A request still waiting for its answer, with the method and path it went to.
@@ -53,6 +55,9 @@ pub struct Runner<'a> {
     streams: BTreeMap<String, Stream>,
     /// Requests sent with `detach`, by step name.
     detached: BTreeMap<String, Detached>,
+    /// Streams and detached steps the target does not serve, by name: their
+    /// `close` / `join` steps are not served either.
+    unserved: std::collections::BTreeSet<String>,
 }
 
 impl std::fmt::Debug for Runner<'_> {
@@ -66,7 +71,14 @@ impl std::fmt::Debug for Runner<'_> {
 
 impl<'a> Runner<'a> {
     pub fn new(target: &'a mut dyn Target, settings: Settings, vars: Vars) -> Self {
-        Self { target, settings, vars, streams: BTreeMap::new(), detached: BTreeMap::new() }
+        Self {
+            target,
+            settings,
+            vars,
+            streams: BTreeMap::new(),
+            detached: BTreeMap::new(),
+            unserved: Default::default(),
+        }
     }
 
     pub fn step(&mut self, step: &Step) -> anyhow::Result<Outcome> {
@@ -82,13 +94,22 @@ impl<'a> Runner<'a> {
         if let Some(name) = &step.close {
             // Every step already waited for its own frames; a straggler after the
             // last one would be there on one run and missing on the next.
-            self.streams.remove(name).with_context(|| format!("no open stream named {name}"))?;
+            if self.streams.remove(name).is_none() {
+                if self.unserved.contains(name) {
+                    return Ok(Outcome::NotServed { method: "CLOSE".into(), path: "/stream".into() });
+                }
+                bail!("no open stream named {name}");
+            }
             let response = json!({ "closed": name });
             return Ok(Outcome::Answered { response, method: "CLOSE".into(), path: "/stream".into() });
         }
         if let Some(name) = &step.join {
-            let (handle, method, path) =
-                self.detached.remove(name).with_context(|| format!("no detached step named {name}"))?;
+            let Some((handle, method, path)) = self.detached.remove(name) else {
+                if self.unserved.contains(name) {
+                    return Ok(Outcome::NotServed { method: "JOIN".into(), path: name.clone() });
+                }
+                bail!("no detached step named {name}");
+            };
             let answer = handle.join().map_err(|_| anyhow::anyhow!("the detached request panicked"))??;
             return self.answered(step, document(&answer), &method, path);
         }
@@ -98,9 +119,25 @@ impl<'a> Runner<'a> {
         };
         let request = match self.request(step, method, template) {
             Ok(request) => request,
-            Err(Missing(name)) => return Ok(Outcome::Skipped { missing: name }),
+            Err(Missing(name)) => {
+                // What the step would have opened is not there for its `close` / `join` either.
+                if let Some(stream) = &step.open {
+                    self.unserved.insert(stream.clone());
+                } else if step.detach {
+                    self.unserved.insert(step.name.clone());
+                }
+                return Ok(Outcome::Skipped { missing: name });
+            }
         };
         let path = request.target.split('?').next().unwrap_or_default().to_owned();
+        if !self.target.serves(&request) {
+            if let Some(name) = &step.open {
+                self.unserved.insert(name.clone());
+            } else if step.detach {
+                self.unserved.insert(step.name.clone());
+            }
+            return Ok(Outcome::NotServed { method: method.to_owned(), path });
+        }
 
         let response = if let Some(name) = &step.open {
             if self.streams.contains_key(name) {

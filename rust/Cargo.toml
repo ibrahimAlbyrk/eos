@@ -14,6 +14,7 @@ publish = false
 [workspace.dependencies]
 eos-app = { path = "crates/eos-app" }
 eos-bridge = { path = "crates/eos-bridge" }
+eos-config = { path = "crates/eos-config" }
 eos-contracts = { path = "crates/eos-contracts" }
 eos-core = { path = "crates/eos-core" }
 eos-domain = { path = "crates/eos-domain" }
@@ -22,8 +23,13 @@ eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-mod-projects = { path = "crates/eos-mod-projects" }
+eos-mod-system = { path = "crates/eos-mod-system" }
+eos-mod-workers = { path = "crates/eos-mod-workers" }
 eos-platform = { path = "crates/eos-platform" }
 eos-runtime = { path = "crates/eos-runtime" }
+eos-sessions = { path = "crates/eos-sessions" }
+eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
 eos-testkit = { path = "crates/eos-testkit" }
 

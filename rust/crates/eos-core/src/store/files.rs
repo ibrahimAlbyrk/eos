@@ -1,0 +1,48 @@
+//! Files of the data folder that are not the database: `config.json`,
+//! `settings.json`, `projects.json`, `recents.json`.
+
+use std::sync::Arc;
+
+use eos_contracts::{Project, ProjectUpsertRequest, UserSettings};
+use eos_domain::config::Config;
+
+use crate::Error;
+
+/// The configuration in force. Each call returns the current snapshot: hold
+/// it for one piece of work, not for the life of a service, so a reload is
+/// seen (`manager/shared/config.ts`).
+pub trait ConfigSource: Send + Sync + 'static {
+    fn current(&self) -> Arc<Config>;
+    /// The backend profiles `config.json` itself declares, as opposed to the
+    /// built-in ones merged in; `None` when the file declares none.
+    fn declared_backends(&self) -> Option<Vec<String>>;
+    /// Reads `config.json` again and swaps the snapshot.
+    fn reload(&self) -> Arc<Config>;
+    /// Merges `patch` into the file's `section` and reloads. The file is the
+    /// only way the configuration changes.
+    fn patch(&self, section: &str, patch: serde_json::Map<String, serde_json::Value>) -> Result<Arc<Config>, Error>;
+}
+
+/// The user's flat settings (`settings.json`): what the dashboard remembers.
+pub trait UserSettingsStore: Send + Sync + 'static {
+    fn read(&self) -> UserSettings;
+    /// Writes `partial` over the stored settings and returns the result.
+    fn patch(&self, partial: UserSettings) -> Result<UserSettings, Error>;
+}
+
+/// The user's projects (`projects.json`), in creation order.
+pub trait ProjectStore: Send + Sync + 'static {
+    fn list(&self) -> Vec<Project>;
+    /// Creates (no id) or replaces (a known id) a project; folders are deduplicated.
+    fn upsert(&self, input: ProjectUpsertRequest) -> Result<Project, Error>;
+    /// Removes a project and returns it; `None` when there is none.
+    fn remove(&self, id: &str) -> Result<Option<Project>, Error>;
+}
+
+/// Recently used folders (`recents.json`), most recent first.
+pub trait RecentFolders: Send + Sync + 'static {
+    /// The folders that still exist. A deleted one is hidden, not forgotten.
+    fn list(&self) -> Vec<String>;
+    fn push(&self, path: &str);
+    fn remove(&self, path: &str);
+}

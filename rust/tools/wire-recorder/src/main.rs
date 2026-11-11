@@ -10,9 +10,13 @@ use serde_json::Value;
 use wire_recorder::coverage::{self, Notes, RouteTable};
 use wire_recorder::diff::{Report, StepReport, diff};
 use wire_recorder::http::{Endpoint, HttpTarget};
+use wire_recorder::inproc::RustTarget;
+use wire_recorder::known::Known;
 use wire_recorder::model::{Exchange, Recording, Scenario, Step};
 use wire_recorder::normalize::Normalizer;
+use wire_recorder::renumber::Renumber;
 use wire_recorder::runner::{Outcome, Runner, Settings};
+use wire_recorder::target::Target;
 use wire_recorder::vars::Vars;
 
 /// A data folder holding this file is a copy of a real one.
@@ -21,10 +25,12 @@ const REAL_DATA_MARKER: &str = "REAL_DATA";
 const USAGE: &str = "\
 usage:
   wire-recorder record   --scenarios DIR --out DIR --rules FILE [--routes FILE] TARGET [--read-only] [--lenient]
-  wire-recorder replay   --recordings DIR --rules FILE TARGET [--verbose]
+  wire-recorder replay   --recordings DIR --rules FILE TARGET [--known FILE] [--verbose] [--redact]
   wire-recorder coverage --routes FILE --recordings DIR --notes FILE --out FILE
+  wire-recorder seed     --home DIR --sql FILE [--var NAME=VALUE]   migrate DIR/state.db, then run FILE on it
 
 TARGET:
+  --rust-home DIR    the Rust core, built in process on this data folder (instead of --api / --socket)
   --api URL          the API listener, http://host:port
   --raw URL          the raw-content listener
   --socket PATH      the control socket
@@ -33,6 +39,8 @@ TARGET:
   --only A,B         only these scenarios
   --settle-ms N      quiet time that ends a step's stream frames (default 250)
 
+replay --known FILE  differences that are expected, each with its reason: they do not fail the replay
+replay --redact      print where answers differ, never their values (for recordings of real data)
 record --read-only   only scenarios marked read_only (safe on a real data folder)
 record --lenient     an unexpected status is recorded with a warning instead of stopping
 
@@ -48,6 +56,7 @@ fn main() -> ExitCode {
             "record" => record(&args),
             "replay" => replay(&args),
             "coverage" => cover(&args),
+            "seed" => seed(&args),
             other => bail!("unknown command {other}\n\n{USAGE}"),
         }),
         None => Err(anyhow::anyhow!("{USAGE}")),
@@ -67,7 +76,7 @@ struct Args {
 }
 
 impl Args {
-    const FLAGS: [&str; 4] = ["read-only", "lenient", "verbose", "real-data"];
+    const FLAGS: [&str; 5] = ["read-only", "lenient", "verbose", "real-data", "redact"];
 
     fn parse(args: &[String]) -> anyhow::Result<Self> {
         let mut values: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -96,19 +105,26 @@ impl Args {
         self.get(name).map(PathBuf::from).with_context(|| format!("--{name} is required\n\n{USAGE}"))
     }
 
-    fn target(&self) -> anyhow::Result<HttpTarget> {
+    /// The Rust core in process when `--rust-home` is given, else a daemon behind HTTP.
+    fn target(&self) -> anyhow::Result<(Box<dyn Target + Send>, Option<RustTarget>)> {
+        if let Some(home) = self.get("rust-home") {
+            let rust = RustTarget::start(Path::new(home))?;
+            return Ok((Box::new(rust.clone()), Some(rust)));
+        }
         let socket = self.get("socket").map(|path| Endpoint::Unix(PathBuf::from(path)));
         let api = match self.get("api") {
             Some(url) => Endpoint::from_url(url)?,
             None => socket.clone().context("--api (or --socket) is required")?,
         };
-        Ok(HttpTarget { api, raw: self.get("raw").map(Endpoint::from_url).transpose()?, socket })
+        Ok((Box::new(HttpTarget { api, raw: self.get("raw").map(Endpoint::from_url).transpose()?, socket }), None))
     }
 
     fn settings(&self) -> anyhow::Result<Settings> {
-        let token = match self.get("token-file") {
+        // The Rust core keeps its token where the daemon does.
+        let in_home = self.get("rust-home").map(|home| format!("{home}/ui-token"));
+        let token = match self.get("token-file").map(str::to_owned).or(in_home) {
             Some(file) => {
-                Some(std::fs::read_to_string(file).with_context(|| format!("reading {file}"))?.trim().to_owned())
+                Some(std::fs::read_to_string(&file).with_context(|| format!("reading {file}"))?.trim().to_owned())
             }
             None => None,
         };
@@ -196,7 +212,7 @@ fn record(args: &Args) -> anyhow::Result<ExitCode> {
     let known = args.known()?;
     let routes = args.get("routes").map(|p| RouteTable::load(Path::new(p))).transpose()?;
     let (read_only, lenient) = (args.flag("read-only") || args.real_data()?, args.flag("lenient"));
-    let mut target = args.target()?;
+    let (mut target, _) = args.target()?;
     std::fs::create_dir_all(&out)?;
 
     let mut warnings = 0;
@@ -206,7 +222,7 @@ fn record(args: &Args) -> anyhow::Result<ExitCode> {
             continue;
         }
         let mut normalizer = Normalizer::load(&args.path("rules")?, &known)?;
-        let mut runner = Runner::new(&mut target, args.settings()?, vars(&known));
+        let mut runner = Runner::new(target.as_mut(), args.settings()?, vars(&known));
         let mut exchanges = Vec::new();
         let (mut answered, mut skipped) = (0, 0);
         for step in &scenario.steps {
@@ -227,6 +243,9 @@ fn record(args: &Args) -> anyhow::Result<ExitCode> {
                     }
                     skipped += 1;
                     (None, Value::Null)
+                }
+                Outcome::NotServed { method, path } => {
+                    bail!("{name} / {}: the target does not serve {method} {path}", step.name)
                 }
                 Outcome::Answered { response, method, path } => {
                     let status = response.get("status").and_then(Value::as_u64);
@@ -274,37 +293,89 @@ fn record(args: &Args) -> anyhow::Result<ExitCode> {
 
 fn replay(args: &Args) -> anyhow::Result<ExitCode> {
     let known = args.known()?;
-    let mut target = args.target()?;
-    let (mut steps, mut failed) = (0, 0);
+    let (mut target, rust) = args.target()?;
+    let (verbose, redact) = (args.flag("verbose"), args.flag("redact"));
+    let listed_differences =
+        args.get("known").map(|file| Known::load(Path::new(file))).transpose()?.unwrap_or_default();
+    let (mut steps, mut failed, mut listed, mut later, mut stale) = (0, 0, 0, 0, 0);
+    // Scenarios share one data folder: once a write was not served, what later
+    // reads show is no longer what the recording saw.
+    let mut unserved_write = false;
     for (name, path) in files(&args.path("recordings")?, "json")? {
         if !args.only(&name) {
             continue;
         }
         let recording = Recording::load(&path)?;
         let mut normalizer = Normalizer::load(&args.path("rules")?, &known)?;
-        let mut runner = Runner::new(&mut target, args.settings()?, vars(&known));
-        let mut report = Report { scenario: name.clone(), steps: Vec::new() };
+        let mut runner = Runner::new(target.as_mut(), args.settings()?, vars(&known));
+        let mut report = Report { scenario: name.clone(), ..Report::default() };
+        // The two sides number generated ids apart once a step is skipped; see `renumber`.
+        let (mut recorded_ids, mut answered_ids) = (Renumber::default(), Renumber::default());
+        // A step that was not served captures nothing: the steps that needed
+        // its ids cannot run either, and are not differences.
+        let mut starved = false;
         for exchange in &recording.exchanges {
             let step = &exchange.step;
             let outcome = runner.step(step).with_context(|| format!("{name} / {}", step.name))?;
             let actual = match outcome {
+                Outcome::NotServed { method, path } => {
+                    starved |= !step.capture.is_empty();
+                    unserved_write |= !step.only_reads();
+                    report.not_served.push(format!("{:<28} {method} {path}", step.name));
+                    continue;
+                }
+                Outcome::Skipped { missing } if starved && !exchange.response.is_null() => {
+                    unserved_write |= !step.only_reads();
+                    report.not_served.push(format!("{:<28} needs {{{missing}}} from a step not served yet", step.name));
+                    continue;
+                }
                 Outcome::Skipped { .. } => Value::Null,
                 Outcome::Answered { response, .. } => {
                     let all: Vec<&Step> = recording.exchanges.iter().map(|e| &e.step).collect();
                     normalizer.normalize(&rule_route(step, &all), &recording.record_headers, response)
                 }
             };
-            report.steps.push(StepReport {
-                step: step.name.clone(),
-                what: what(step),
-                differences: diff(&exchange.response, &actual),
+            let mut reasons: Vec<String> = Vec::new();
+            let mut differences = diff(&recorded_ids.apply(&exchange.response), &answered_ids.apply(&actual));
+            differences.retain(|d| match listed_differences.reason(&name, &step.name, &d.path) {
+                Some(reason) => {
+                    if !reasons.iter().any(|r| r == reason) {
+                        reasons.push(reason.to_owned());
+                    }
+                    false
+                }
+                None => true,
             });
+            if unserved_write && !differences.is_empty() {
+                report.stale.push(format!("{:<28} {}", step.name, what(step)));
+                continue;
+            }
+            report.steps.push(StepReport { step: step.name.clone(), what: what(step), differences, known: reasons });
         }
         steps += report.steps.len();
         failed += report.failed();
-        print!("{}", report.render(args.flag("verbose")));
+        listed += report.known();
+        later += report.not_served.len();
+        stale += report.stale.len();
+        print!("{}", report.render(verbose, redact));
     }
-    println!("\n{} of {steps} steps match", steps - failed);
+    if let Some(rust) = rust {
+        rust.stop();
+    }
+    print!("\n{} of {steps} steps match", steps - failed - listed);
+    if listed > 0 {
+        print!("; {listed} differ as listed");
+    }
+    if failed > 0 {
+        print!("; {failed} DIFFER");
+    }
+    if stale > 0 {
+        print!("; {stale} read what an unserved write changes");
+    }
+    match later {
+        0 => println!(),
+        n => println!("; {n} wait for routes not served yet"),
+    }
     Ok(if failed == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
 }
 
@@ -330,6 +401,23 @@ fn cover(args: &Args) -> anyhow::Result<ExitCode> {
         totals.steps
     );
     Ok(if totals.unexplained == 0 { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+}
+
+/// Gives a data folder its schema and the invented rows, as the recording
+/// run did: the rows go in while nothing runs on the folder, so the next
+/// start meets them as it would after a crash.
+fn seed(args: &Args) -> anyhow::Result<ExitCode> {
+    let home = args.path("home")?;
+    let file = args.path("sql")?;
+    let mut sql = std::fs::read_to_string(&file).with_context(|| format!("reading {}", file.display()))?;
+    for (name, value) in args.known()? {
+        sql = sql.replace(&format!("{{{name}}}"), &value);
+    }
+    std::fs::create_dir_all(&home)?;
+    let (db, _) = eos_kit_sqlite::Db::open(home.join("state.db"), eos_kit_sqlite::Options::default(), 0)?;
+    db.maintain(move |conn| conn.execute_batch(&sql).map_err(eos_kit_sqlite::Error::from))?;
+    db.close();
+    Ok(ExitCode::SUCCESS)
 }
 
 fn show(status: Option<u64>) -> String {

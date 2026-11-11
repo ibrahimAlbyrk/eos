@@ -181,14 +181,34 @@ impl Request {
     /// The JSON body as the contract type `T`, checked against its rules: what
     /// `validate(Schema, await readBody(req))` did. An empty body reads as
     /// `{}`; a failure is a 400 `invalid request: <path>: <message>; …`.
+    ///
+    /// The body must be a JSON object, as nearly every route's is (serde would
+    /// otherwise read an array into a struct field by field). A route whose
+    /// body is a list or `null` uses [`parse_value`](Self::parse_value).
     pub fn parse<T: DeserializeOwned + eos_contracts::Validate>(&self) -> Result<T, ApiError> {
-        let value: serde_json::Value = if self.body.is_empty() {
-            serde_json::Value::Object(serde_json::Map::new())
-        } else {
-            serde_json::from_slice(&self.body)
-                .map_err(|_| ApiError::Validation("invalid request: body is not valid JSON".into()))?
+        let value = self.body_value()?;
+        let kind = match &value {
+            serde_json::Value::Object(_) => return Ok(eos_contracts::parse(&value)?),
+            serde_json::Value::Array(_) => "array",
+            serde_json::Value::String(_) => "string",
+            serde_json::Value::Number(_) => "number",
+            serde_json::Value::Bool(_) => "boolean",
+            serde_json::Value::Null => "null",
         };
-        Ok(eos_contracts::parse(&value)?)
+        Err(ApiError::invalid([("", format!("Expected object, received {kind}"))]))
+    }
+
+    /// [`parse`](Self::parse) for a body of any JSON type.
+    pub fn parse_value<T: DeserializeOwned + eos_contracts::Validate>(&self) -> Result<T, ApiError> {
+        Ok(eos_contracts::parse(&self.body_value()?)?)
+    }
+
+    fn body_value(&self) -> Result<serde_json::Value, ApiError> {
+        if self.body.is_empty() {
+            return Ok(serde_json::Value::Object(serde_json::Map::new()));
+        }
+        serde_json::from_slice(&self.body)
+            .map_err(|_| ApiError::Validation("invalid request: body is not valid JSON".into()))
     }
 
     /// The JSON body as `T`; an empty body reads as `{}`. Failures are 400s.
@@ -246,6 +266,25 @@ mod tests {
         let err = wrong.json::<Focus>().expect_err("wrong shape");
         assert_eq!(err.status(), 400);
         assert!(err.to_string().starts_with("invalid request: invalid type"), "{err}");
+    }
+
+    #[test]
+    fn a_contract_body_is_an_object_checked_against_its_rules() {
+        use eos_contracts::StreamFocusRequest;
+        let post = |body: &'static str| Request::new(Method::Post, "/stream/focus", Caller::DASHBOARD).body(body);
+        let ok = post(r#"{"clientId":"tab","workers":["w1"],"ptys":[]}"#).parse::<StreamFocusRequest>().expect("valid");
+        assert_eq!(ok.workers, ["w1"]);
+
+        let message = |body: &'static str| post(body).parse::<StreamFocusRequest>().expect_err("refused").to_string();
+        // What the daemon answered (fixtures/wire/recordings/18-http.json).
+        assert_eq!(message(r#"["tab",[],[]]"#), "invalid request: : Expected object, received array");
+        assert_eq!(message("null"), "invalid request: : Expected object, received null");
+        assert_eq!(message("{nope"), "invalid request: body is not valid JSON");
+        assert_eq!(
+            message(r#"{"clientId":"","workers":[],"ptys":[]}"#),
+            "invalid request: clientId: String must contain at least 1 character(s)"
+        );
+        assert!(post(r#"["a"]"#).parse_value::<Vec<String>>().is_ok(), "a route that takes a list says so");
     }
 
     #[test]

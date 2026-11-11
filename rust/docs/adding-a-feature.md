@@ -62,7 +62,9 @@ Then **one line** in `crates/eos-app/src/modules.rs`, in alphabetical order:
 Arc::new(eos_mod_notes::NotesModule::new(cx.store.clone(), cx.clock.clone())),
 ```
 
-and `eos-mod-notes.workspace = true` in `eos-app/Cargo.toml`. Nothing else in the app changes.
+and `eos-mod-notes.workspace = true` in `eos-app/Cargo.toml`. A dependency the context does not
+hold yet (a new adapter, a new port) is one field of `Context` and one line where `App::build`
+fills it. Nothing else in the app changes.
 `Runtime::build` fails, naming both owners, when two modules claim one route, topic, job kind,
 idle hook, slash command, settings key or sync domain.
 
@@ -84,8 +86,9 @@ RouteDef::get("/api/notes/{id}", move |req: Request| {
 - The access rule is not optional; copy it from today's route (`ui_token()` where the handler
   checked `uiTokenOk`, `.local_only()` for `routeAccess.localOnly`, the phone tier from
   `manager/remote/tiers.ts`). A route without one fails the build.
-- A body: `let body: CreateNoteRequest = req.parse()?;` — reads the contract type and applies its
-  rules, answering `400 invalid request: <path>: <message>` in Zod's words. Query values:
+- A body: `let body: CreateNoteRequest = req.parse()?;` — reads the contract type (a JSON object;
+  `parse_value` for the rare list or `null` body) and applies its rules, answering
+  `400 invalid request: <path>: <message>` in Zod's words. Query values:
   `req.query().get("limit")`, validated through the contract's query type with `eos_contracts::parse`.
 - Errors: a use-case returns `eos_core::Error` and the handler uses `?`; the mapping to a status
   and `{ "error": … }` is in `eos-runtime` only. A body that today's route words itself
@@ -114,15 +117,22 @@ store.write(move |tx, out| {                                            // one j
   Returning `Err` undoes the job's changes and drops its announcements.
 - A job is synchronous. It must not block on anything but the database, must not call the store
   again, and never runs on the ordered lane.
+- Every table today's code uses has its repository already (`tx.workers()`, `events()`, `loops()`,
+  `pending()`, `message_queue()`, `message_ids()`, `context_marks()`, `worktree_removals()`,
+  `worker_definitions()`, `dreams()`, `transfers()`, `genui_views()`). A method that is missing is
+  added to its trait in `eos-core/src/store/` and its SQL in `eos-store-sqlite/src/`.
 - A new table: `eos-kit-sqlite/migrations/NNN_name.sql` + its line in `migrate/embedded.rs` (new
   tables only, never a column on an existing table); the repository trait in
   `eos-core/src/store/<table>.rs` with an accessor on `Tx`; its SQL in
   `eos-store-sqlite/src/<table>.rs`, returning `eos-domain` entities; a test in
   `eos-store-sqlite/tests/` that compares rows with the recorded wire.
+- Configuration: `Arc<dyn ConfigSource>`; call `current()` per piece of work (a reload swaps the
+  snapshot). It changes only through `patch(section, …)`, which writes `config.json` and reloads.
 
 **A file store** (`pages/`, `profile/`, `projects.json`, …) is a port in `eos-core::store` with
 its implementation over `eos-kit-fs` (`atomic_write`, `PathLocks`, `frontmatter`) in
-`eos-store-files`; the feature holds `Arc<dyn …Store>`. The on-disk format does not change.
+`eos-store-files` (`projects.rs` is the model); the feature holds `Arc<dyn …Store>`. The on-disk
+format does not change.
 
 ## 6. Events
 
@@ -150,21 +160,32 @@ among the others); `plugin()`, `protected_settings()`, `sync()`, `holds_worker()
 - **Routes**: in the feature crate's `tests/`, against the real store:
 
   ```rust
-  let temp = TempStore::seeded("{sandbox}");                     // the wire fixtures' invented rows
+  let temp = TempStore::seeded("/sandbox");                      // the wire fixtures' invented rows
   let module = Arc::new(NotesModule::new(temp.port(), Arc::new(FakeClock::new())));
   let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))?;
   let res = runtime.router.handle(Request::new(Method::Get, "/api/notes/n-1", Caller::DASHBOARD)).await;
   ```
 
-  `temp.announced.list()` is what the writes announced, in commit order. `FakeClock`, `SeqIds`
-  and `TempHome` make every run identical.
+  `temp.announced.list()` is what the writes announced, in commit order; `temp.exec(sql)` sets up
+  a state by hand. `FakeClock`, `SeqIds` and `TempHome` make every run identical
+  (`crates/eos-mod-workers/tests/routes.rs` is the model).
+- **The app**: a test that needs start-up or several features goes in `crates/eos-app/tests/`
+  (`read_path.rs` builds the app on `TempHome::seeded` and compares answers with recordings).
 - **The wire**: anything that must equal today's answer is compared with a recording
   (`eos_testkit::fixtures::recorded_response("31-pages", "create")`), never with a hand-written
   guess of what TypeScript answers.
 - **Replay** is the judge of a route group: the recorded scenarios (`fixtures/wire/scenarios`)
-  run against the composed app (`eos-app`), in process. A group is done when its scenarios pass
-  or every remaining difference is listed with its reason. The command arrives with the read
-  path (`scripts/replay.sh --only <scenario,…>`); until then `scripts/wire.sh replay` shows what
-  today's daemon answers.
+  run against the composed app, in process:
+
+  ```bash
+  scripts/replay.sh --only 31-pages,32-profile --verbose   # the synthetic seed, fresh every run
+  scripts/replay.sh --private <copy of a real data folder>  # values never printed
+  ```
+
+  Steps whose route is not registered yet are counted apart (`not served yet`); the run fails
+  only when an answered step differs in a way nobody listed. A group is done when its scenarios
+  pass with `--only`, or every remaining difference is in `fixtures/wire/rust-differences.toml`
+  with its reason — and the entries that said "until" this work are gone. To see what today's daemon
+  answers for a new scenario, `scripts/wire.sh` (`fixtures/README.md`).
 - No `unwrap` in library code; no sleeps in tests (wait for the event); `scripts/check.sh` green
   before every merge.

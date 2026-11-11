@@ -372,14 +372,23 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 name = "eos-app"
 version = "0.0.1"
 dependencies = [
+ "bytes",
+ "eos-config",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-kit-fs",
  "eos-kit-sqlite",
+ "eos-mod-projects",
+ "eos-mod-system",
+ "eos-mod-workers",
  "eos-platform",
  "eos-runtime",
+ "eos-sessions",
+ "eos-store-files",
  "eos-store-sqlite",
  "eos-testkit",
+ "serde_json",
  "thiserror",
  "tokio",
  "tracing",
@@ -400,6 +409,19 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite",
+ "tracing",
+]
+
+[[package]]
+name = "eos-config"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-testkit",
+ "serde_json",
  "tracing",
 ]
 
@@ -433,6 +455,9 @@ name = "eos-domain"
 version = "0.0.1"
 dependencies = [
  "eos-contracts",
+ "indexmap",
+ "regress",
+ "serde",
  "serde_json",
 ]
 
@@ -496,6 +521,48 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-projects"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-system"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-workers"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "eos-platform"
 version = "0.0.1"
 dependencies = [
@@ -524,6 +591,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-sessions"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "eos-store-files"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "eos-store-sqlite"
 version = "0.0.1"
 dependencies = [
@@ -532,6 +624,7 @@ dependencies = [
  "eos-domain",
  "eos-kit-sqlite",
  "eos-testkit",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -540,7 +633,9 @@ dependencies = [
 name = "eos-testkit"
 version = "0.0.1"
 dependencies = [
+ "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-kit-sqlite",
  "eos-platform",
  "eos-store-sqlite",
@@ -2581,11 +2676,15 @@ name = "wire-recorder"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "eos-app",
+ "eos-kit-sqlite",
+ "eos-runtime",
  "flate2",
  "regex",
  "serde",
  "serde_json",
  "sha2",
+ "tokio",
  "toml",
 ]
 

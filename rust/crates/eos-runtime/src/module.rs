@@ -63,6 +63,23 @@ pub struct SyncContribution {
 /// Whether a change event was made here rather than applied by sync.
 pub type IsLocal = Arc<dyn Fn(&Event) -> bool + Send + Sync>;
 
+impl ProtectedSettings {
+    /// Why the flat settings route must refuse a patch that names `keys`, or
+    /// `None` when none of them is this feature's: `a, b are set only through
+    /// PUT /api/settings/x`. That route takes no user token, so without this
+    /// an agent could undo a choice only the user may make.
+    pub fn refusal<'k>(&self, keys: impl IntoIterator<Item = &'k str>) -> Option<String> {
+        let wanted: Vec<&str> = keys.into_iter().collect();
+        let gated: Vec<&str> = self.keys.iter().copied().filter(|k| wanted.contains(k)).collect();
+        let verb = match gated.len() {
+            0 => return None,
+            1 => "is",
+            _ => "are",
+        };
+        Some(format!("{} {verb} set only through {}", gated.join(", "), self.via))
+    }
+}
+
 impl std::fmt::Debug for SlashCommandDecl {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("SlashCommandDecl").field("name", &self.name).finish_non_exhaustive()

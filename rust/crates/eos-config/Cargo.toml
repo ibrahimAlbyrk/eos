@@ -1,0 +1,22 @@
+[package]
+name = "eos-config"
+description = "config.json and settings.json: load, reload, patch."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-kit-fs.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+
+[lints]
+workspace = true

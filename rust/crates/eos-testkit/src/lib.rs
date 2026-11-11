@@ -7,7 +7,7 @@
 //!   [`Announced`] keeps what its writes announced.
 //! - [`fixtures`]: the recorded wire and the invented seed rows.
 //!
-//! A port's fake lives here too, next to these, named `Fake<Port>`.
+//! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`]).
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -15,11 +15,13 @@
 
 mod clock;
 mod db;
+mod fakes;
 pub mod fixtures;
 mod home;
 mod ids;
 
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
+pub use fakes::FakeModelCatalog;
 pub use home::TempHome;
 pub use ids::SeqIds;

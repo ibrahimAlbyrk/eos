@@ -9,8 +9,9 @@ publish.workspace = true
 
 [dependencies]
 eos-contracts.workspace = true
-
-[dev-dependencies]
+indexmap.workspace = true
+regress.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [lints]

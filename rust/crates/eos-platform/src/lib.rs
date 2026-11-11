@@ -32,7 +32,7 @@ pub use host::{
     TerminalShell, claude_store_service,
 };
 pub use paths::{DataPaths, USER_DATA_ENTRIES, eos_home, expand_path, home_dir};
-pub use process::{isolate_command, kill_process_tree, process_alive};
+pub use process::{isolate_command, kill_process_tree, open_fd_count, process_alive, soft_fd_limit};
 pub use shell::{PosixShell, shell_invocation};
 
 #[cfg(target_os = "macos")]

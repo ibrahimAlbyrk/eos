@@ -109,3 +109,46 @@ mod tests {
         assert!(!process_alive(0));
     }
 }
+
+/// How many file descriptors this process has open, or `None` where the
+/// system does not list them. `/dev/fd` names each one; listing it holds one
+/// more for as long as the listing takes.
+pub fn open_fd_count() -> Option<u64> {
+    #[cfg(unix)]
+    {
+        let listed = std::fs::read_dir("/dev/fd").ok()?.count() as u64;
+        Some(listed.saturating_sub(1))
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+/// The most file descriptors this process may open (its soft `RLIMIT_NOFILE`),
+/// or `None` where there is no such limit.
+pub fn soft_fd_limit() -> Option<u64> {
+    #[cfg(unix)]
+    {
+        rustix::process::getrlimit(rustix::process::Resource::Nofile).current
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
+#[cfg(test)]
+mod fd_tests {
+    use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_process_counts_its_descriptors_below_its_limit() {
+        let open = open_fd_count().expect("unix lists descriptors");
+        let _held = std::fs::File::open("/dev/null").expect("a descriptor");
+        assert!(open >= 3, "stdin, stdout and stderr at least: {open}");
+        assert!(open_fd_count().expect("a count") > open, "one more while a file is held");
+        assert!(soft_fd_limit().is_none_or(|limit| limit > open));
+    }
+}

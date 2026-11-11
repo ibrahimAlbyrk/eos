@@ -1,0 +1,21 @@
+[package]
+name = "eos-sessions"
+description = "The lifecycle of agent sessions: state transitions and what start-up does to rows left behind."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
