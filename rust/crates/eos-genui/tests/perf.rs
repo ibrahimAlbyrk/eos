@@ -76,6 +76,7 @@ fn assert_linear(what: &str, input: &dyn Fn(usize) -> String, parse: &dyn Fn(&st
 }
 
 #[test]
+#[ignore = "timing: run scripts/perf.sh on a quiet machine"]
 fn parsers_stay_linear_on_any_input() {
     let json = present_json(64 * KB);
     let ui = markup(64 * KB);
@@ -165,6 +166,7 @@ fn parsers_stay_linear_on_any_input() {
 
 // What a stream costs: the whole input so far is parsed again on every delta.
 #[test]
+#[ignore = "timing: run scripts/perf.sh on a quiet machine"]
 fn a_streamed_present_call_reparsed_on_every_delta() {
     let json = present_json(64 * KB);
     let start = Instant::now();
@@ -189,6 +191,7 @@ fn a_streamed_present_call_reparsed_on_every_delta() {
 }
 
 #[test]
+#[ignore = "timing: run scripts/perf.sh on a quiet machine"]
 fn validating_a_full_size_view_is_quick() {
     let json = present_json(88 * KB);
     let input: Value = serde_json::from_str(&json).expect("the sample is valid JSON");
