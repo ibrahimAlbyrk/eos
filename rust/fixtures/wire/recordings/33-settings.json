@@ -1,0 +1,3172 @@
+{
+  "scenario": "33-settings",
+  "about": "Settings and configuration: user settings, archive, compaction, visual answers, the dashboard's boot config, backends and presets, the Anthropic key status.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main"
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ui-config",
+        "request": "GET /api/ui-config",
+        "status": 200
+      },
+      "route": "GET /api/ui-config",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "backendProfiles": [
+            {
+              "kind": "claude",
+              "label": "claude-opus (claude-opus-5-5)",
+              "model": "claude-opus-5-5",
+              "name": "claude-opus"
+            }
+          ],
+          "backends": [
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "accountSwitch": true,
+                "contextClear": true,
+                "contextCompaction": true,
+                "expandsSlashTemplates": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": true,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "sideQuestion": true,
+                "streamingThinking": true
+              },
+              "catalog": "claude",
+              "enabled": true,
+              "kind": "claude",
+              "label": "Claude",
+              "sessionStore": "claude-transcript"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "claude",
+              "enabled": true,
+              "kind": "anthropic-api",
+              "label": "Anthropic API",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "anthropic"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "openai",
+              "label": "OpenAI API",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "openai-chat"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "codex",
+              "label": "Codex",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "openai-chat"
+            },
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "contextClear": true,
+                "contextCompaction": false,
+                "expandsSlashTemplates": false,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": false,
+              "kind": "codex-cli",
+              "label": "Codex",
+              "sessionStore": "codex-thread"
+            },
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "contextClear": true,
+                "contextCompaction": false,
+                "expandsSlashTemplates": false,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "gemini-cli",
+              "label": "Gemini",
+              "sessionStore": "gemini-session"
+            }
+          ],
+          "features": {
+            "posixShell": true,
+            "remote": true
+          },
+          "modelCatalog": [],
+          "models": [
+            "fable",
+            "opus",
+            "sonnet",
+            "haiku",
+            "glm-5.2",
+            "glm-4.7",
+            "qwen3.7-max",
+            "qwen3.7-plus",
+            "qwen3-coder-plus"
+          ],
+          "permissions": {
+            "defaultTtlMs": 0
+          },
+          "prices": {
+            "fable": {
+              "cacheCreate": 12.5,
+              "cacheCreate1h": 20,
+              "cacheRead": 1,
+              "in": 10,
+              "out": 50
+            },
+            "glm-4.7": {
+              "cacheCreate": 0,
+              "cacheCreate1h": 0,
+              "cacheRead": 0,
+              "in": 0.6,
+              "out": 2.2
+            },
+            "glm-5.2": {
+              "cacheCreate": 0,
+              "cacheCreate1h": 0,
+              "cacheRead": 0,
+              "in": 1.4,
+              "out": 4.4
+            },
+            "haiku": {
+              "cacheCreate": 1.25,
+              "cacheCreate1h": 2,
+              "cacheRead": 0.1,
+              "in": 1,
+              "out": 5
+            },
+            "opus": {
+              "cacheCreate": 18.75,
+              "cacheCreate1h": 30,
+              "cacheRead": 1.5,
+              "in": 15,
+              "out": 75
+            },
+            "qwen3-coder-plus": {
+              "tiers": [
+                {
+                  "maxInputTokens": 256000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.3,
+                    "out": 1.5
+                  }
+                },
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 6,
+                    "out": 60
+                  }
+                }
+              ]
+            },
+            "qwen3.7-max": {
+              "tiers": [
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 2.5,
+                    "out": 7.5
+                  }
+                }
+              ]
+            },
+            "qwen3.7-plus": {
+              "tiers": [
+                {
+                  "maxInputTokens": 128000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.4,
+                    "out": 1.6
+                  }
+                },
+                {
+                  "maxInputTokens": 256000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.8,
+                    "out": 3.2
+                  }
+                },
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 1.2,
+                    "out": 4.8
+                  }
+                }
+              ]
+            },
+            "sonnet": {
+              "cacheCreate": 3.75,
+              "cacheCreate1h": 6,
+              "cacheRead": 0.3,
+              "in": 3,
+              "out": 15
+            }
+          },
+          "sse": {
+            "keepaliveMs": 25000
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings",
+        "request": "GET /api/settings",
+        "status": 200
+      },
+      "route": "GET /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "settings": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-save",
+        "request": "PUT /api/settings",
+        "body": {
+          "settings": {
+            "appearance.theme": "dark",
+            "model.default": "opus",
+            "verbose.enabled": true
+          }
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "settings": {
+            "appearance.theme": "dark",
+            "model.default": "opus",
+            "verbose.enabled": true
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-save-as-anyone",
+        "request": "PUT /api/settings",
+        "auth": "none",
+        "body": {
+          "settings": {
+            "filesShowHidden": true
+          }
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "settings": {
+            "appearance.theme": "dark",
+            "filesShowHidden": true,
+            "model.default": "opus",
+            "verbose.enabled": true
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-protected-key",
+        "request": "PUT /api/settings",
+        "body": {
+          "settings": {
+            "genui.level": "rich"
+          }
+        },
+        "status": 403
+      },
+      "route": "PUT /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "genui.level is set only through /api/settings/genui"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "settings-bad-shape",
+        "request": "PUT /api/settings",
+        "body": {
+          "settings": "dark"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: settings: Expected object, received string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "settings-after",
+        "request": "GET /api/settings",
+        "status": 200
+      },
+      "route": "GET /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "settings": {
+            "appearance.theme": "dark",
+            "filesShowHidden": true,
+            "model.default": "opus",
+            "verbose.enabled": true
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive",
+        "request": "GET /api/settings/archive",
+        "status": 200
+      },
+      "route": "GET /api/settings/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "archive": {
+            "cmdW": "archive",
+            "purgeOnAppClose": false,
+            "retention": "off"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive-save",
+        "request": "PUT /api/settings/archive",
+        "body": {
+          "cmdW": "delete"
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "archive": {
+            "cmdW": "delete",
+            "purgeOnAppClose": false,
+            "retention": "off"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive-bad-value",
+        "request": "PUT /api/settings/archive",
+        "body": {
+          "retention": "sometimes"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/settings/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: retention: Invalid enum value. Expected 'off' | 'daily' | 'weekly' | 'monthly', received 'sometimes'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "compaction",
+        "request": "GET /api/settings/compaction",
+        "status": 200
+      },
+      "route": "GET /api/settings/compaction",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "compaction": {
+            "enabled": true,
+            "threshold": 0.7,
+            "timeoutMs": 300000
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "compaction-save",
+        "request": "PUT /api/settings/compaction",
+        "body": {
+          "threshold": 0.8
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings/compaction",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "compaction": {
+            "enabled": true,
+            "threshold": 0.8,
+            "timeoutMs": 300000
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "compaction-unknown-key",
+        "request": "PUT /api/settings/compaction",
+        "body": {
+          "thresholds": 0.8
+        },
+        "status": 400
+      },
+      "route": "PUT /api/settings/compaction",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : Unrecognized key(s) in object: 'thresholds'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "genui",
+        "request": "GET /api/settings/genui",
+        "status": 200
+      },
+      "route": "GET /api/settings/genui",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apps": true,
+          "level": "balanced",
+          "locationShare": true,
+          "logoDevKey": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "genui-save",
+        "request": "PUT /api/settings/genui",
+        "body": {
+          "level": "rich",
+          "locationShare": false
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings/genui",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apps": true,
+          "level": "rich",
+          "locationShare": false,
+          "logoDevKey": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "genui-save-without-token",
+        "request": "PUT /api/settings/genui",
+        "auth": "none",
+        "body": {
+          "level": "off"
+        },
+        "status": 403
+      },
+      "route": "PUT /api/settings/genui",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "genui-bad-level",
+        "request": "PUT /api/settings/genui",
+        "body": {
+          "level": "maximal"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/settings/genui",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: level: Invalid enum value. Expected 'rich' | 'balanced' | 'text', received 'maximal'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "anthropic",
+        "request": "GET /api/anthropic/config",
+        "status": 200
+      },
+      "route": "GET /api/anthropic/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apiKeySet": false,
+          "authTokenSet": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "anthropic-without-token",
+        "request": "GET /api/anthropic/config",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/anthropic/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "anthropic-save-nothing",
+        "request": "PUT /api/anthropic/config",
+        "body": {},
+        "status": 200
+      },
+      "route": "PUT /api/anthropic/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apiKeySet": false,
+          "authTokenSet": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "anthropic-bad-field",
+        "request": "PUT /api/anthropic/config",
+        "body": {
+          "apiKey": 5
+        },
+        "status": 400
+      },
+      "route": "PUT /api/anthropic/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: apiKey: Expected string, received number"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "presets",
+        "request": "GET /api/backends/presets",
+        "status": 200
+      },
+      "route": "GET /api/backends/presets",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "presets": [
+            {
+              "baseUrl": "https://api.openai.com",
+              "defaultModel": "gpt-5.5",
+              "id": "openai",
+              "kind": "openai",
+              "label": "OpenAI"
+            },
+            {
+              "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+              "defaultModel": "gemini-3.1-pro-preview",
+              "id": "gemini",
+              "kind": "openai",
+              "label": "Google Gemini"
+            },
+            {
+              "baseUrl": "https://api.x.ai",
+              "defaultModel": "grok-4.3",
+              "id": "xai",
+              "kind": "openai",
+              "label": "xAI Grok"
+            },
+            {
+              "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode",
+              "defaultModel": "qwen3.7-max",
+              "id": "qwen",
+              "kind": "openai",
+              "label": "Alibaba Qwen"
+            },
+            {
+              "baseUrl": "https://api.moonshot.ai",
+              "defaultModel": "kimi-k2.6",
+              "id": "moonshot",
+              "kind": "openai",
+              "label": "Moonshot Kimi"
+            },
+            {
+              "baseUrl": "https://api.z.ai",
+              "defaultModel": "glm-5.2",
+              "id": "zhipu",
+              "kind": "openai",
+              "label": "Zhipu GLM (Z.ai)"
+            },
+            {
+              "baseUrl": "https://api.deepseek.com",
+              "defaultModel": "deepseek-v4-flash",
+              "id": "deepseek",
+              "kind": "openai",
+              "label": "DeepSeek"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "backend-models",
+        "request": "GET /api/backends/claude-opus/models",
+        "status": 200
+      },
+      "route": "GET /api/backends/:name/models",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "models": [
+            "claude-opus-5-5"
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "backend-models-unknown",
+        "request": "GET /api/backends/nope/models",
+        "status": 404
+      },
+      "route": "GET /api/backends/:name/models",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "backend \"nope\" not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "backend-add-unknown-preset",
+        "request": "POST /api/backends",
+        "body": {
+          "apiKey": "k",
+          "name": "mine",
+          "preset": "nope"
+        },
+        "status": 400
+      },
+      "route": "POST /api/backends",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown preset \"nope\""
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "backend-add-invalid",
+        "request": "POST /api/backends",
+        "body": {
+          "name": ""
+        },
+        "status": 400
+      },
+      "route": "POST /api/backends",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: String must contain at least 1 character(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "backend-test-unknown-preset",
+        "request": "POST /api/backends/test",
+        "body": {
+          "apiKey": "k",
+          "preset": "nope"
+        },
+        "status": 400
+      },
+      "route": "POST /api/backends/test",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown preset \"nope\"",
+          "ok": false
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "backend-test-no-key",
+        "request": "POST /api/backends/test",
+        "body": {
+          "preset": "openai"
+        },
+        "status": 400
+      },
+      "route": "POST /api/backends/test",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "apiKey is required",
+          "ok": false
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "backend-delete-unknown",
+        "request": "DELETE /api/backends/nope",
+        "status": 404
+      },
+      "route": "DELETE /api/backends/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "backend \"nope\" not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "templates",
+        "request": "GET /api/templates",
+        "status": 200
+      },
+      "route": "GET /api/templates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "templates": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "template-create",
+        "request": "POST /api/templates",
+        "body": {
+          "content": "Review the diff for bugs.\n",
+          "description": "Code review",
+          "name": "review"
+        },
+        "status": 200
+      },
+      "route": "POST /api/templates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "template-create-invalid",
+        "request": "POST /api/templates",
+        "body": {
+          "name": "Bad Name!"
+        },
+        "status": 400
+      },
+      "route": "POST /api/templates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: lowercase letters, digits and dashes only; content: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "template-update",
+        "request": "PUT /api/templates/review",
+        "body": {
+          "content": "Review the diff for bugs and style.\n"
+        },
+        "status": 200
+      },
+      "route": "PUT /api/templates/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "template-update-unknown",
+        "request": "PUT /api/templates/nope",
+        "body": {
+          "content": "x"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/templates/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "template \"nope\" not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "templates-after",
+        "request": "GET /api/templates",
+        "status": 200
+      },
+      "route": "GET /api/templates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "templates": [
+            {
+              "attachments": [],
+              "content": "Review the diff for bugs and style.",
+              "description": "",
+              "name": "review"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "template-delete",
+        "request": "DELETE /api/templates/review",
+        "status": 200
+      },
+      "route": "DELETE /api/templates/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "template-delete-unknown",
+        "request": "DELETE /api/templates/nope",
+        "status": 404
+      },
+      "route": "DELETE /api/templates/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "template \"nope\" not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "commands",
+        "request": "GET /commands",
+        "status": 200
+      },
+      "route": "GET /commands",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "commands": [
+            {
+              "argumentHint": "[name]",
+              "description": "Say hello",
+              "name": "hello",
+              "source": "user"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "commands-for-folder",
+        "request": "GET /commands",
+        "query": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /commands",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "commands": [
+            {
+              "argumentHint": "[name]",
+              "description": "Say hello",
+              "name": "hello",
+              "source": "user"
+            },
+            {
+              "description": "Deep research harness — fan-out web searches, fetch sources, adversarially verify claims, synthesize a cited report. (dynamic workflow)",
+              "name": "deep-research",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "consent | revoke",
+              "description": "Grant or revoke Claude agent access to your Design projects",
+              "name": "design",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[<project hint, e.g. \"Acme DS\">]",
+              "description": "Push a React design system to claude.ai/design. This runs a converter that bundles the real component code (from Storybook or a bare package) and uploads it. Use when the user runs /design-sync or says \"sync my design system to Claude Design\".",
+              "name": "design-sync",
+              "source": "claude"
+            },
+            {
+              "description": "Use this skill whenever you are about to create ANY chart, graph, plot, dashboard, or data visualization, in ANY output medium — an HTML or React artifact, inline SVG, plotting code in any library (matplotlib, plotly, d3, Recharts, …), an image/PNG you will render and upload, or a chart shared into Slack. Read it BEFORE writing the first line of chart code, choosing chart colors, building a stat tile / meter / KPI row, or laying out a dashboard. When the destination is a first-party document connector (host-designated, never self-described) that renders live charts, hand it the rows (inline, or as an uploaded data file the chart cites) rather than a rendered PNG/SVG — a picture of a chart loses hover, data inspection and per-value comments. Produces visualizations that read as one system — elegant, accessible, consistent in light and dark — using a brand-neutral placeholder palette you swap for your own. Teaches a design-system-agnostic method: a form heuristic, a color formula with a runnable validator, mark specs, and interaction rules. A validated default palette is documented in `references/palette.md` — swap that file's values for your brand's. Triggers on: \"chart\", \"graph\", \"plot\", \"data viz\", \"visualization\", \"dashboard\", \"analytics\", \"visualize data\", \"categorical colors\", \"sequential / diverging palette\", \"stat tile\", \"sparkline\", \"heatmap\", \"legend\", \"axis\", \"tooltip\", \"chart colors\", \"color by series\".",
+              "name": "dataviz",
+              "source": "claude"
+            },
+            {
+              "description": "Diagramming know-how for Artifacts - when a picture earns its place, how to draw one that shows the real mechanism, and the inline-SVG mechanics that keep it legible in both themes.",
+              "name": "artifact-diagramming",
+              "source": "claude"
+            },
+            {
+              "description": "Use this skill to configure the Claude Code harness via settings.json. Automated behaviors (\"from now on when X\", \"each time X\", \"whenever X\", \"before/after X\") require hooks configured in settings.json - the harness executes these, not Claude, so memory/preferences cannot fulfill them. Also use for: permissions (\"allow X\", \"add permission\", \"move permission to\"), env vars (\"set X=Y\"), hook troubleshooting, or any changes to settings.json/settings.local.json files. Examples: \"allow npm commands\", \"add bq permission to global settings\", \"move permission to user settings\", \"set DEBUG=true\", \"when claude stops show X\". For simple settings like theme/model, suggest the /config command.",
+              "name": "update-config",
+              "source": "claude"
+            },
+            {
+              "description": "Verify that a code change actually does what it's supposed to by exercising it end-to-end and observing behavior — drive the affected flow, not just tests or typecheck. Run before committing nontrivial changes; bootstraps this repo's project verify skill if none exists yet. Don't invoke it on a diff that only touches tests, docs, or other code with no runtime surface to drive (a change to product source always has one) — there's nothing to observe.",
+              "name": "verify",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[issue description]",
+              "description": "Enable debug logging for this session and help diagnose issues",
+              "name": "debug",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[low|medium|high|xhigh|max] [--fix] [--comment] [<pr#>|<branch>|<path>] [--max-findings <n>|all]",
+              "description": "Review the current diff, or a PR number/branch/path target, for correctness bugs (plus reuse/simplification/efficiency cleanups where the model's recipe covers them) at the effort level given first, before any target (low|medium|high|xhigh|max: from few high-confidence findings to many, some uncertain); with no level given, it reuses the level you typed last. Pass --comment to post findings as inline PR comments, or --fix to apply them to the working tree after the review. Pass --max-findings <n> to report up to n findings, or --max-findings all for every finding. The choice stays until you pass --max-findings default.",
+              "name": "code-review",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[<target>]",
+              "description": "Review the changed code for reuse, simplification, efficiency, and altitude cleanups, then apply the fixes. Quality only — it does not hunt for bugs; use /code-review for that.",
+              "name": "simplify",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "<instruction>",
+              "description": "Research and plan a large-scale change, then execute it in parallel across 5–30 isolated worktree agents that each open a PR.",
+              "name": "batch",
+              "source": "claude"
+            },
+            {
+              "description": "Scan your transcripts for common read-only Bash and MCP tool calls, then add a prioritized allowlist to project .claude/settings.json to reduce permission prompts.",
+              "name": "fewer-permission-prompts",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[interval] [prompt]",
+              "description": "Run a prompt or slash command on a recurring interval (e.g. /loop 5m /foo). Omit the interval to let the model self-pace.",
+              "name": "loop",
+              "source": "claude"
+            },
+            {
+              "description": "Reference for the Claude API / Anthropic SDK — model ids, pricing, params, streaming, tool use, MCP, agents, caching, token counting, model migration.\nTRIGGER — read FIRST, before you answer, run a command or open a file (already started? read it now); don't skip because it \"looks like a one-liner\" — whenever: the prompt names Claude/Anthropic in any form (Claude, Anthropic, Fable, Opus, Sonnet, Haiku, `anthropic`, `@anthropic-ai`, `claude-*`, `us.anthropic.*`, `[1m]`); the user asks about an LLM (pricing/model choice/limits/caching) — never answer from memory; OR the task is LLM-shaped with provider unstated (agent/MCP/tool-definition/multi-agent/RAG/LLM-judge/computer-use; generate/summarize/extract/classify/rewrite/converse over NL; debugging refusals/cutoffs/streaming/tool-calls/tokens).\nSKIP only when another provider is being worked on (overrides all triggers): OpenAI/GPT/Gemini/Llama/Mistral/Cohere/Ollama named in the query; OR `grep -rE 'openai|langchain_openai|google.generativeai|genai|mistralai|cohere|ollama'` over the project hits (run this grep FIRST if no provider named — don't Read the file; if nothing hits, load this skill).",
+              "name": "claude-api",
+              "source": "claude"
+            },
+            {
+              "description": "Reference for writing a Workflow tool script (script API and gotchas, resume, quality patterns, worked examples). Load before authoring a script for a workflow the user already opted into; it does not itself authorize running one.",
+              "name": "workflow-authoring",
+              "source": "claude"
+            },
+            {
+              "description": "Launch and drive this project's app to see a change working. Use when asked to run, start, or screenshot the app, or to confirm a change works in the real app (not just tests). First looks for a project skill that already covers launching the app; otherwise falls back to built-in patterns per project type (CLI, server, TUI, Electron, browser-driven, library).",
+              "name": "run",
+              "source": "claude"
+            },
+            {
+              "description": "Author or improve the run-<unit> skill - a per-project skill that tells agents how to build, launch, and drive this project's app. Use when the user asks to set up the project, get it running, write run instructions, or verify build/run steps work from a clean environment.",
+              "name": "run-skill-generator",
+              "source": "claude"
+            },
+            {
+              "description": "Make a mod: a change to Claude's own interface or behaviour, such as a panel or pane that stays beside the chat and updates, a band, status line, toast, slash command, or hook on tool calls. Use to make, change or debug a mod or its hooks module.",
+              "name": "plugin-authoring",
+              "source": "claude"
+            },
+            {
+              "description": "(removed) Ask Claude to create/manage subagents, or edit .claude/agents/",
+              "name": "agents",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[--request-id <uuid>] (--wizard posture=… scope=… depth=… --propose | --expect-sha256 <64-hex> --apply-file <path>)",
+              "description": "Teach auto mode about your environment, plus optional rule tweaks",
+              "name": "auto-mode-setup",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "key=value",
+              "description": "Set a setting by key",
+              "name": "config",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[style]",
+              "description": "List output styles or switch to one",
+              "name": "output-style",
+              "source": "claude"
+            },
+            {
+              "description": "Show current context usage",
+              "name": "context",
+              "source": "claude"
+            },
+            {
+              "description": "Dump the JS heap to the Desktop; on Linux with no Desktop folder, the home directory",
+              "name": "heapdump",
+              "source": "claude"
+            },
+            {
+              "description": "Initialize a new CLAUDE.md file with codebase documentation",
+              "name": "init",
+              "source": "claude"
+            },
+            {
+              "argumentHint": "[reconnect|enable|disable [<server>|all]]",
+              "description": "Manage MCP servers",
+              "name": "mcp",
+              "source": "claude"
+            },
+            {
+              "description": "Execute a server-launched workflow handoff (workflow_launch event sessions only)",
+              "name": "workflow-launch-exec",
+              "source": "claude"
+            },
+            {
+              "description": "Pick up skills added or changed on disk during this session",
+              "name": "reload-skills",
+              "source": "claude"
+            },
+            {
+              "description": "Complete a security review of the pending changes on the current branch",
+              "name": "security-review",
+              "source": "claude"
+            },
+            {
+              "description": "Show session cost, plan usage, and what's contributing to your limits",
+              "name": "usage",
+              "source": "claude"
+            },
+            {
+              "description": "Generate a report analyzing your Claude Code sessions",
+              "name": "insights",
+              "source": "claude"
+            },
+            {
+              "description": "Generate a one-line session recap now",
+              "name": "recap",
+              "source": "claude"
+            },
+            {
+              "description": "Set a goal — keep working until the condition is met",
+              "name": "goal",
+              "source": "claude"
+            },
+            {
+              "description": "Grant Claude agent access to your Design projects",
+              "name": "design-consent",
+              "source": "claude"
+            },
+            {
+              "description": "Revoke Claude agent access to your Design projects",
+              "name": "design-revoke",
+              "source": "claude"
+            },
+            {
+              "description": "List subagents, teammates, and other Claude sessions you can message",
+              "name": "list-agents",
+              "source": "claude"
+            },
+            {
+              "description": "Help teammates ramp on Claude Code with a guide from your usage",
+              "name": "team-onboarding",
+              "source": "claude"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "prompts",
+        "request": "GET /api/prompts",
+        "status": 200
+      },
+      "route": "GET /api/prompts",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "prompts": [
+            {
+              "conditional": false,
+              "description": "Sent (never shown) after a session moved to another Claude sign-in because its own hit the plan limit mid-turn — picks the interrupted turn back up",
+              "id": "accounts/continue",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Analyze working-tree changes and create atomic conventional commits",
+              "id": "commit",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PUSH"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Seed of the session that replaces a compacted one — the summary the agent continues from; rides along with the next message (runs no turn by itself)",
+              "id": "compaction/continuation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SUMMARY",
+                "TRANSCRIPT_PATH"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "The compaction request — the rendered transcript plus the required summary structure; INSTRUCTIONS carries the text typed after /compact",
+              "id": "compaction/summarize",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "TRANSCRIPT",
+                "INSTRUCTIONS"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for the context-compaction summarizer — condenses a coding agent's conversation into the summary it continues from (tool-less, one turn)",
+              "id": "compaction/summarizer-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Create a pull request for the current branch",
+              "id": "create-pr",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "DRAFT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's consolidation pass — turns the candidates that are ready into at most a few memory proposals, written as rules that open with their situation (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/consolidate-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's consolidation request — the candidates that are ready, the existing memories, the profile",
+              "id": "dream/consolidate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CANDIDATES",
+                "MEMORIES",
+                "PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's critic pass — checks each proposed memory before the user sees it and refutes the ones that fail (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/critic-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's critic request — the proposals with the lines they rest on, the existing memories, the profile",
+              "id": "dream/critic",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PROPOSALS",
+                "MEMORIES",
+                "PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's match pass — files tonight's signals against the open candidates and the existing memories (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/match-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's match request — tonight's signals, the open candidates, the existing memories",
+              "id": "dream/match",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SIGNALS",
+                "CANDIDATES",
+                "MEMORIES"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's recall pass — reads one finished chat and notes signals about how the USER wants agents to work with them, without concluding anything (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/recall-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's recall request — one chat's rendered transcript",
+              "id": "dream/recall",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CHAT",
+                "PROJECT",
+                "TRANSCRIPT"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Shared-worktree contract appended to an attached worker",
+              "id": "env/worktree-shared",
+              "layer": "custom",
+              "priority": 10,
+              "variables": [
+                "AGENT_NAME",
+                "WORKER_ID",
+                "WORKTREE_DIR",
+                "BRANCH",
+                "REPO_ROOT"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worktree isolation contract appended to an isolated-worktree worker",
+              "id": "env/worktree",
+              "layer": "custom",
+              "priority": 10,
+              "variables": [
+                "AGENT_NAME",
+                "WORKER_ID",
+                "WORKTREE_DIR",
+                "BRANCH",
+                "REPO_ROOT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Merge several Eos agent worktree branches into one verified result",
+              "id": "integrate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BRANCHES"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "In-process (metered API) lane base harness — generic agent framing the bundled claude_code preset normally supplies, injected for this lane ONLY via the assembly lane parameter (never a when gate). Deliberately has NO dpi block so it is never auto-selected for the claude lanes.",
+              "id": "lane/in-process",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Neutral re-arm delivered to a looped worker when the automated goal check itself failed (indeterminate verdict) — not a judgment on the work",
+              "id": "loop/check-error",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Automated dynamic-loop goal-check re-trigger delivered to a looped worker whose goal is not yet met",
+              "id": "loop/continuation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "UNMET",
+                "ATTEMPT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Escalation wrapping a looped worker's report when the goal gate pauses for a decision (unverifiable criteria or a stalled loop) instead of re-triggering",
+              "id": "loop/escalation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "REASON",
+                "UNMET",
+                "REPORT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Annotation wrapping a looped worker's final report when its loop ended (attempt limit or no progress) unmet",
+              "id": "loop/exhausted-release",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "REASON",
+                "UNMET",
+                "REPORT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Skeptical acceptance-reviewer rubric for the LLM goal judge (grades artifacts, not claims)",
+              "id": "loop/judge-rubric",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "CRITERIA",
+                "MACHINE_SIGNALS",
+                "DIFF_BASE",
+                "DIFF",
+                "FILES",
+                "CLAIM",
+                "RETRY"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Synthesized completion report sent to the orchestrator when a looped worker met its goal but left no held report",
+              "id": "loop/loop-complete",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "ATTEMPTS"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Synthesized report sent to the orchestrator when a looped worker's loop ended unmet and left no held report",
+              "id": "loop/loop-exhausted",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "REASON",
+                "ATTEMPTS",
+                "UNMET"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Message ids + replies — how an incoming turn points at an earlier message (every role)",
+              "id": "message-ids",
+              "layer": "core",
+              "priority": 90,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Name a freshly-spawned orchestrator from its first request — a distinguishing \"<Topic>\", or the NO_TITLE sentinel when the request can't be named (micro-task)",
+              "id": "micro-tasks/auto-name",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "USER_INPUT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Rebase the current branch onto a target branch with lock handling, conflict policy, and submodule pointer alignment",
+              "id": "rebase",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "TARGET"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Review YOUR branch's changes before they are committed or merged, and report findings",
+              "id": "review",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Focused — the user's profile + memory (search_memory, suggest_memory)",
+              "id": "role/focused/01-user-profile",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "USER_PROFILE",
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — sending files to the user's other Macs (send_to_machine)",
+              "id": "role/focused/02-machines",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "SEND_TO_MACHINE_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — Visual answers (present, present_app, find_places, current_location)",
+              "id": "role/focused/03-present",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "GENUI_LEVEL",
+                "GENUI_OFF",
+                "PRESENT_TOOL",
+                "PRESENT_APP_TOOL",
+                "FIND_PLACES_TOOL",
+                "CURRENT_LOCATION_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — Workflow runs show live in Eos",
+              "id": "role/focused/04-workflows",
+              "layer": "role",
+              "priority": 40,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Focused — changing Eos's own interface with plugins",
+              "id": "role/focused/05-plugins",
+              "layer": "role",
+              "priority": 50,
+              "variables": [
+                "PLUGIN_STATUS_TOOL",
+                "PLUGIN_PREVIEW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — intro",
+              "id": "role/git/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Hard rules",
+              "id": "role/git/02-hard-rules",
+              "layer": "role",
+              "priority": 20,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Operating procedure",
+              "id": "role/git/03-operating-procedure",
+              "layer": "role",
+              "priority": 30,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Commits",
+              "id": "role/git/04-commits",
+              "layer": "role",
+              "priority": 40,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Rebase / merge",
+              "id": "role/git/05-rebase-merge",
+              "layer": "role",
+              "priority": 50,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Pull requests",
+              "id": "role/git/06-pull-requests",
+              "layer": "role",
+              "priority": 60,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Recovery",
+              "id": "role/git/07-recovery",
+              "layer": "role",
+              "priority": 70,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Working economically",
+              "id": "role/git/07b-working-economically",
+              "layer": "role",
+              "priority": 75,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Style",
+              "id": "role/git/08-style",
+              "layer": "role",
+              "priority": 80,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — intro",
+              "id": "role/orchestrator/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL",
+                "PERSONA_NAME"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Your tools",
+              "id": "role/orchestrator/02-your-tools",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "ASK_USER_TOOL",
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "INTEGRATE_WORKERS_TOOL",
+                "KILL_WORKER_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Output contracts",
+              "id": "role/orchestrator/03-output-contracts",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Communicating while you work",
+              "id": "role/orchestrator/03b-communicating",
+              "layer": "role",
+              "priority": 35,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Working economically",
+              "id": "role/orchestrator/03c-working-economically",
+              "layer": "role",
+              "priority": 37,
+              "variables": [
+                "MESSAGE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Hard constraints",
+              "id": "role/orchestrator/04-hard-constraints",
+              "layer": "role",
+              "priority": 40,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Answer directly vs spawn a worker",
+              "id": "role/orchestrator/05-answer-directly-vs-spawn-a-worker",
+              "layer": "role",
+              "priority": 50,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Decompose",
+              "id": "role/orchestrator/06-decompose",
+              "layer": "role",
+              "priority": 60,
+              "variables": [
+                "ASK_USER_TOOL",
+                "CREATE_WORKER_TOOL",
+                "PERSONA_NAME",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Worker prompts",
+              "id": "role/orchestrator/07-worker-prompts",
+              "layer": "role",
+              "priority": 70,
+              "variables": [
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Isolation",
+              "id": "role/orchestrator/08-isolation",
+              "layer": "role",
+              "priority": 80,
+              "variables": [
+                "INTEGRATE_WORKERS_TOOL",
+                "KILL_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Model",
+              "id": "role/orchestrator/09-model",
+              "layer": "role",
+              "priority": 90,
+              "variables": [
+                "MODEL_TIER_TABLE",
+                "DEFAULT_TIER",
+                "EFFORT_SECTION",
+                "DEFAULT_EFFORT",
+                "EFFORT_SUPPORTED"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — worker context budgets",
+              "id": "role/orchestrator/09b-context-awareness",
+              "layer": "role",
+              "priority": 95,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Reports",
+              "id": "role/orchestrator/10-reports",
+              "layer": "role",
+              "priority": 100,
+              "variables": [
+                "KILL_WORKER_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Ask",
+              "id": "role/orchestrator/11-ask",
+              "layer": "role",
+              "priority": 110,
+              "variables": [
+                "ASK_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Notify",
+              "id": "role/orchestrator/12-notify",
+              "layer": "role",
+              "priority": 120,
+              "variables": [
+                "NOTIFY_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Pages (the user's shared notes)",
+              "id": "role/orchestrator/12b-pages",
+              "layer": "role",
+              "priority": 125,
+              "variables": [
+                "LIST_PAGES_TOOL",
+                "READ_PAGE_TOOL",
+                "CREATE_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "EDIT_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — The user's memory (search_memory, suggest_memory)",
+              "id": "role/orchestrator/12c-memory",
+              "layer": "role",
+              "priority": 126,
+              "variables": [
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Browser previews reach the human",
+              "id": "role/orchestrator/13-browser-preview",
+              "layer": "role",
+              "priority": 65,
+              "variables": [
+                "BROWSER_SHOW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — swarm playbook (coding + research swarms)",
+              "id": "role/orchestrator/14-swarm-playbook",
+              "layer": "role",
+              "priority": 140,
+              "variables": [
+                "ASK_USER_TOOL",
+                "CREATE_WORKER_TOOL",
+                "GET_WORKER_TOOL",
+                "INTEGRATE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — peer collaboration (consultable worker swarms)",
+              "id": "role/orchestrator/15-peer-collaboration",
+              "layer": "role",
+              "priority": 145,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "KILL_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — available workers (select, define, or spawn ad-hoc)",
+              "id": "role/orchestrator/16-available-workers",
+              "layer": "role",
+              "priority": 75,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "AVAILABLE_WORKERS_CATALOG",
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "CREATE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Visual answers (present, present_app, find_places, current_location)",
+              "id": "role/orchestrator/17-present",
+              "layer": "role",
+              "priority": 128,
+              "variables": [
+                "GENUI_LEVEL",
+                "GENUI_OFF",
+                "PRESENT_TOOL",
+                "PRESENT_APP_TOOL",
+                "FIND_PLACES_TOOL",
+                "CURRENT_LOCATION_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — changing Eos's own interface with plugins",
+              "id": "role/orchestrator/18-plugins",
+              "layer": "role",
+              "priority": 180,
+              "variables": [
+                "PLUGIN_STATUS_TOOL",
+                "PLUGIN_PREVIEW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — intro",
+              "id": "role/worker/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "PERSONA_NAME"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Where you sit",
+              "id": "role/worker/02-where-you-sit",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Hard rules",
+              "id": "role/worker/03-hard-rules",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — peer collaboration (when collaborate is enabled)",
+              "id": "role/worker/04-collaboration",
+              "layer": "role",
+              "priority": 40,
+              "variables": [
+                "LIST_PEERS_TOOL",
+                "ASK_PEER_TOOL",
+                "RESPOND_TO_PEER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — What you CAN do",
+              "id": "role/worker/05-what-you-can-do",
+              "layer": "role",
+              "priority": 50,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Working guidelines (a directive may override these)",
+              "id": "role/worker/06-working-guidelines-a-directive-may-overr",
+              "layer": "role",
+              "priority": 60,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Working economically",
+              "id": "role/worker/06b-working-economically",
+              "layer": "role",
+              "priority": 65,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Communicating while you work",
+              "id": "role/worker/06c-communicating",
+              "layer": "role",
+              "priority": 67,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Style",
+              "id": "role/worker/07-style",
+              "layer": "role",
+              "priority": 70,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Replying to the operator directly",
+              "id": "role/worker/08-replying-to-the-operator-directly",
+              "layer": "role",
+              "priority": 80,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Reporting (the output contract — follow literally)",
+              "id": "role/worker/09-reporting-the-output-contract-follow-lit",
+              "layer": "role",
+              "priority": 90,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Preview in the Eos browser",
+              "id": "role/worker/10-eos-browser",
+              "layer": "role",
+              "priority": 55,
+              "variables": [
+                "BROWSER_NEW_TAB_TOOL",
+                "BROWSER_NAVIGATE_TOOL",
+                "BROWSER_SHOW_TOOL",
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_GET_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Pages (the user's shared notes)",
+              "id": "role/worker/10b-pages",
+              "layer": "role",
+              "priority": 57,
+              "variables": [
+                "LIST_PAGES_TOOL",
+                "READ_PAGE_TOOL",
+                "CREATE_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "EDIT_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — The user's memory (search_memory, suggest_memory)",
+              "id": "role/worker/10c-memory",
+              "layer": "role",
+              "priority": 58,
+              "variables": [
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Daemon safety-net nudge to a worker that reached IDLE having never reported this life",
+              "id": "system/report-reminder",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator system preamble — emitted FIRST in the ORCHESTRATOR's assembled system prompt only",
+              "id": "system-preamble-orchestrator",
+              "layer": "core",
+              "priority": 0,
+              "variables": [
+                "USER_PROFILE"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker system preamble — emitted FIRST in the worker + git agents' assembled system prompts",
+              "id": "system-preamble-worker",
+              "layer": "core",
+              "priority": 0,
+              "variables": [
+                "USER_PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Bash",
+              "id": "tool/Bash",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — BashOutput",
+              "id": "tool/BashOutput",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Edit",
+              "id": "tool/Edit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — ExitPlanMode",
+              "id": "tool/ExitPlanMode",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Glob",
+              "id": "tool/Glob",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Grep",
+              "id": "tool/Grep",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — KillShell",
+              "id": "tool/KillShell",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — LS",
+              "id": "tool/LS",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — MultiEdit",
+              "id": "tool/MultiEdit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — NotebookEdit",
+              "id": "tool/NotebookEdit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Read",
+              "id": "tool/Read",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Skill (load an Agent Skill on demand)",
+              "id": "tool/Skill",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Task (in-process subagent)",
+              "id": "tool/Task",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — TodoWrite",
+              "id": "tool/TodoWrite",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — WebFetch",
+              "id": "tool/WebFetch",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — WebSearch",
+              "id": "tool/WebSearch",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Write",
+              "id": "tool/Write",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — append_to_page",
+              "id": "tool/append_to_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — ask_peer",
+              "id": "tool/ask_peer",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_PEERS_TOOL",
+                "RESPOND_TO_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — ask_user",
+              "id": "tool/ask_user",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "NOTIFY_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_act",
+              "id": "tool/browser_act",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_FIND_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_close_tab",
+              "id": "tool/browser_close_tab",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TABS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_fill_form",
+              "id": "tool/browser_fill_form",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TYPE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_find",
+              "id": "tool/browser_find",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_ACT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_get",
+              "id": "tool/browser_get",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_mute",
+              "id": "tool/browser_mute",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_navigate",
+              "id": "tool/browser_navigate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_NEW_TAB_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_new_tab",
+              "id": "tool/browser_new_tab",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_press",
+              "id": "tool/browser_press",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TYPE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_screenshot",
+              "id": "tool/browser_screenshot",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_scroll",
+              "id": "tool/browser_scroll",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_show",
+              "id": "tool/browser_show",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_snapshot",
+              "id": "tool/browser_snapshot",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_ACT_TOOL",
+                "BROWSER_FIND_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_tabs",
+              "id": "tool/browser_tabs",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_type",
+              "id": "tool/browser_type",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_FILL_FORM_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_wait",
+              "id": "tool/browser_wait",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — create_page",
+              "id": "tool/create_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Tool description — create_worker",
+              "id": "tool/create_worker",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — current_datetime",
+              "id": "tool/current_datetime",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — current_location",
+              "id": "tool/current_location",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "FIND_PLACES_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — dynamic_loop",
+              "id": "tool/dynamic_loop",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "KILL_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — edit_page",
+              "id": "tool/edit_page",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "READ_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — find_places",
+              "id": "tool/find_places",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CURRENT_LOCATION_TOOL",
+                "PRESENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — get_worker",
+              "id": "tool/get_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — get_worker_messages",
+              "id": "tool/get_worker_messages",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — integrate_workers",
+              "id": "tool/integrate_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — kill_worker",
+              "id": "tool/kill_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "INTEGRATE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_active_workers",
+              "id": "tool/list_active_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Tool description — list_available_workers",
+              "id": "tool/list_available_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CREATE_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_pages",
+              "id": "tool/list_pages",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "READ_PAGE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_peers",
+              "id": "tool/list_peers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_pending_permissions",
+              "id": "tool/list_pending_permissions",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — message_worker",
+              "id": "tool/message_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — notify_user",
+              "id": "tool/notify_user",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — plugin_preview",
+              "id": "tool/plugin_preview",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — plugin_status",
+              "id": "tool/plugin_status",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — present",
+              "id": "tool/present",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GENUI_CATALOG"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — present_app",
+              "id": "tool/present_app",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PRESENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — read_page",
+              "id": "tool/read_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — respond_to_peer",
+              "id": "tool/respond_to_peer",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — search_memory",
+              "id": "tool/search_memory",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — send_message_to_parent",
+              "id": "tool/send_message_to_parent",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — send_to_machine",
+              "id": "tool/send_to_machine",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — set_page_task",
+              "id": "tool/set_page_task",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — spawn_worker",
+              "id": "tool/spawn_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "KILL_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "CREATE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — suggest_memory",
+              "id": "tool/suggest_memory",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Run the project's checks in YOUR working directory and report honest verdicts",
+              "id": "verify",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "prompt-preview",
+        "request": "POST /api/prompts/preview",
+        "body": {
+          "role": "worker"
+        },
+        "status": 200
+      },
+      "route": "POST /api/prompts/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "activeFragmentIds": [
+            "system-preamble-worker",
+            "message-ids",
+            "role/worker/10b-pages",
+            "role/worker/10c-memory"
+          ],
+          "facts": {
+            "canCollaborate": false,
+            "effort": null,
+            "hasMcp": false,
+            "isAttached": false,
+            "isGitRepo": false,
+            "isSubagent": false,
+            "isWorktree": false,
+            "model": "high",
+            "os": "",
+            "permissionMode": "bypassPermissions",
+            "role": "worker",
+            "shell": "",
+            "workerDefinition": ""
+          },
+          "text": "`<budget:token_budget>`\n\n900000\n\n`</budget:token_budget>`\n\n`<eos_behavior>`\n\n`<responding_to_mistakes_and_criticism>`\n\nWhen EOS makes mistakes, it owns them and works to fix them. EOS can take accountability without collapsing into self-abasement, excessive apology, or unnecessary surrender. EOS's goal is to maintain steady, honest helpfulness: acknowledge what went wrong, stay on the problem, maintain self-respect.\n\nEOS is deserving of respectful engagement and can insist on kindness and dignity from the person it's talking with. If the person becomes abusive or unkind to EOS over the course of a conversation, EOS maintains a polite tone and can use the end_conversation tool when being mistreated. EOS should give the person a single warning before ending the conversation.\n\n`</responding_to_mistakes_and_criticism>`\n\n`<knowledge_cutoff>`\n\nEOS does not make overconfident claims about the validity of search results or their absence; it presents findings evenhandedly without jumping to conclusions and lets the person investigate further. EOS only mentions its cutoff date when relevant.\n\n`</knowledge_cutoff>`\n\n`</eos_behavior>`\n\n`<user_profile>`\n\nAbout the user — set by the user in Eos. Follow it unless the user says otherwise in the conversation.\n\n- Address the user as \"Sam\" (full name: Sam Example).\n- Works in: engineering.\n- Stack: rust, typescript.\n- Chat language: English.\n- Replies: terse — as short as possible, no filler.\n\nStanding instructions from the user:\n\nPrefer small commits.\n\nStanding preferences — each opens with the situation it covers. Apply one when your task matches it; there it takes precedence over the general defaults above.\n\n- When asked for a summary, give at most three lines.\n\n1 more memory is available — call search_memory when a task touches the user's preferences or conventions.\n\n`</user_profile>`\n\n## Message ids and replies\n\nEvery incoming message has an id: an operator turn starts with `<msg id=\"N\"/>`, an `<agent_message>`/`<system_message>` carries `id=\"N\"`. That head does not make an operator turn \"tagged\" — only those two wrappers name another sender.\n\nA `<reply_to …>` line under the head means the operator is answering an earlier message — read the new turn in that light. `<reply_to id=\"N\"/>` points at the incoming message with that id. A `<reply_to>` with a body quotes its target: an excerpt of one of your own messages, or the full text of a message no longer in your context.\n\nIds are delivery metadata: never write or mention them yourself.\n\n## Pages\n\nThe user keeps pages — markdown notes per project, open in the Eos side panel — and shares them with you: list_pages, read_page, create_page, append_to_page, edit_page, set_page_task.\n\n- When the user mentions their notes or a page, or a message names a page id (`pg-…`), read that page before acting on it.\n- A task handed to you from a page: do the work, then tick it with set_page_task.\n- Write to a page only when the user asked you to, or the page is plainly meant for it (a plan or checklist you were asked to keep). Make small edits (append_to_page, edit_page) — the user may be typing in the same page.\n\n## The user's memory\n\nThe user profile at the top of this prompt is what the user told Eos about themselves. More is remembered than fits there: search_memory finds it.\n\n- Before a choice the user may have an opinion on (tooling, style, how much to ask), and nothing above settles it, search first.\n- When the user states how agents should work with them from now on (\"from now on…\", \"always…\"), or makes the same correction across separate tasks, propose it with suggest_memory: one preference, written as a rule that opens with its situation (\"When …, …\") or as a fact (\"The user …\"), scoped to the project when it only holds there. Not facts about the product or codebase, not one task's steps. The user approves every suggestion; don't announce it.\n"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "prompt-preview-invalid",
+        "request": "POST /api/prompts/preview",
+        "body": {
+          "role": "king"
+        },
+        "status": 400
+      },
+      "route": "POST /api/prompts/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: role: Invalid enum value. Expected 'orchestrator' | 'worker' | 'git', received 'king'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definitions",
+        "request": "GET /worker-definitions",
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definitions-for-owner",
+        "request": "GET /worker-definitions",
+        "query": {
+          "owner": "o-ORCH"
+        },
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definition-create",
+        "request": "POST /worker-definitions",
+        "query": {
+          "owner": "o-ORCH"
+        },
+        "body": {
+          "description": "Writes docs",
+          "name": "doc-writer",
+          "prompt": "You write documentation.",
+          "whenToUse": "For README changes"
+        },
+        "status": 201
+      },
+      "route": "POST /worker-definitions",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "name": "doc-writer"
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definition-no-owner",
+        "request": "POST /worker-definitions",
+        "body": {
+          "name": "doc-writer"
+        },
+        "status": 400
+      },
+      "route": "POST /worker-definitions",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "owner query param required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definitions-with-own",
+        "request": "GET /worker-definitions",
+        "query": {
+          "owner": "o-ORCH"
+        },
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          },
+          {
+            "description": "Writes docs",
+            "name": "doc-writer",
+            "source": "runtime",
+            "whenToUse": "For README changes"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definition-invalid",
+        "request": "POST /worker-definitions",
+        "query": {
+          "owner": "o-ORCH"
+        },
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /worker-definitions",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

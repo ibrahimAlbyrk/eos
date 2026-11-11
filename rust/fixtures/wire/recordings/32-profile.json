@@ -1,0 +1,1804 @@
+{
+  "scenario": "32-profile",
+  "about": "Profile and memories: read, save with a base revision, preview, avatar, memory create / suggest by an agent / approve / dismiss / search; with profile:change and user-memory:change frames.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "profile:*,user-memory:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read",
+        "request": "GET /api/profile",
+        "status": 200
+      },
+      "route": "GET /api/profile",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": null,
+              "callName": "",
+              "fullName": "",
+              "handle": ""
+            },
+            "instructions": "",
+            "language": {
+              "chat": null,
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 0,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": null,
+              "whenUnclear": null
+            },
+            "updatedAt": 0,
+            "work": {
+              "level": null,
+              "roles": [],
+              "stack": []
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "save-without-token",
+        "request": "PUT /api/profile",
+        "auth": "none",
+        "body": {
+          "patch": {
+            "identity": {
+              "callName": "Sam"
+            }
+          }
+        },
+        "status": 403
+      },
+      "route": "PUT /api/profile",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "save",
+        "request": "PUT /api/profile",
+        "body": {
+          "baseRev": 0,
+          "patch": {
+            "identity": {
+              "callName": "Sam",
+              "fullName": "Sam Example"
+            },
+            "instructions": "Prefer small commits.",
+            "language": {
+              "chat": "en"
+            },
+            "style": {
+              "replies": "terse"
+            },
+            "work": {
+              "roles": [
+                "engineering"
+              ],
+              "stack": [
+                "rust",
+                "typescript"
+              ]
+            }
+          }
+        },
+        "status": 200,
+        "wait": [
+          "profile:change"
+        ]
+      },
+      "route": "PUT /api/profile",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rev": 1
+                },
+                "reason": "profile:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": null,
+              "callName": "Sam",
+              "fullName": "Sam Example",
+              "handle": ""
+            },
+            "instructions": "Prefer small commits.",
+            "language": {
+              "chat": "en",
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 1,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": "terse",
+              "whenUnclear": null
+            },
+            "updatedAt": "<now>",
+            "work": {
+              "level": null,
+              "roles": [
+                "engineering"
+              ],
+              "stack": [
+                "rust",
+                "typescript"
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "save-stale",
+        "request": "PUT /api/profile",
+        "body": {
+          "baseRev": 0,
+          "patch": {
+            "identity": {
+              "callName": "Old"
+            }
+          }
+        },
+        "status": 409
+      },
+      "route": "PUT /api/profile",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "profile changed since the revision you edited (now rev 1)",
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": null,
+              "callName": "Sam",
+              "fullName": "Sam Example",
+              "handle": ""
+            },
+            "instructions": "Prefer small commits.",
+            "language": {
+              "chat": "en",
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 1,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": "terse",
+              "whenUnclear": null
+            },
+            "updatedAt": "<now>",
+            "work": {
+              "level": null,
+              "roles": [
+                "engineering"
+              ],
+              "stack": [
+                "rust",
+                "typescript"
+              ]
+            }
+          }
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "save-unknown-field",
+        "request": "PUT /api/profile",
+        "body": {
+          "patch": {
+            "identity": {
+              "nickname": "x"
+            }
+          }
+        },
+        "status": 400
+      },
+      "route": "PUT /api/profile",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: patch.identity: Unrecognized key(s) in object: 'nickname'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "preview",
+        "request": "GET /api/profile/preview",
+        "status": 200
+      },
+      "route": "GET /api/profile/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "budgetTokens": 800,
+          "includedMemoryIds": [],
+          "overflow": 0,
+          "text": "`<user_profile>`\n\nAbout the user — set by the user in Eos. Follow it unless the user says otherwise in the conversation.\n\n- Address the user as \"Sam\" (full name: Sam Example).\n- Works in: engineering.\n- Stack: rust, typescript.\n- Chat language: English.\n- Replies: terse — as short as possible, no filler.\n\nStanding instructions from the user:\n\nPrefer small commits.\n\n`</user_profile>`",
+          "tokens": 110,
+          "withheld": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "preview-for-project",
+        "request": "GET /api/profile/preview",
+        "query": {
+          "kind": "claude",
+          "project": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /api/profile/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "budgetTokens": 800,
+          "includedMemoryIds": [],
+          "overflow": 0,
+          "text": "`<user_profile>`\n\nAbout the user — set by the user in Eos. Follow it unless the user says otherwise in the conversation.\n\n- Address the user as \"Sam\" (full name: Sam Example).\n- Works in: engineering.\n- Stack: rust, typescript.\n- Chat language: English.\n- Replies: terse — as short as possible, no filler.\n\nStanding instructions from the user:\n\nPrefer small commits.\n\n`</user_profile>`",
+          "tokens": 110,
+          "withheld": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "avatar-none",
+        "request": "GET /api/profile/avatar",
+        "status": 404
+      },
+      "route": "GET /api/profile/avatar",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no avatar"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "avatar-not-an-image",
+        "request": "PUT /api/profile/avatar",
+        "text": "not an image",
+        "content_type": "application/octet-stream",
+        "status": 400
+      },
+      "route": "PUT /api/profile/avatar",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "avatar must be a PNG, JPEG or WebP image"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "avatar-save",
+        "request": "PUT /api/profile/avatar",
+        "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==",
+        "status": 200,
+        "wait": [
+          "profile:change"
+        ]
+      },
+      "route": "PUT /api/profile/avatar",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rev": 2
+                },
+                "reason": "profile:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": "png",
+              "callName": "Sam",
+              "fullName": "Sam Example",
+              "handle": ""
+            },
+            "instructions": "Prefer small commits.",
+            "language": {
+              "chat": "en",
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 2,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": "terse",
+              "whenUnclear": null
+            },
+            "updatedAt": "<now>",
+            "work": {
+              "level": null,
+              "roles": [
+                "engineering"
+              ],
+              "stack": [
+                "rust",
+                "typescript"
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "avatar",
+        "request": "GET /api/profile/avatar",
+        "status": 200
+      },
+      "route": "GET /api/profile/avatar",
+      "response": {
+        "bytes": 70,
+        "headers": {
+          "cache-control": "public, max-age=86400",
+          "content-type": "image/png"
+        },
+        "sha256": "4ff6ab670a58c14270e034e2090d9a432caa263a14e0a25785386b0c12f880b5",
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "avatar-remove",
+        "request": "DELETE /api/profile/avatar",
+        "status": 200,
+        "wait": [
+          "profile:change"
+        ]
+      },
+      "route": "DELETE /api/profile/avatar",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rev": 3
+                },
+                "reason": "profile:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": null,
+              "callName": "Sam",
+              "fullName": "Sam Example",
+              "handle": ""
+            },
+            "instructions": "Prefer small commits.",
+            "language": {
+              "chat": "en",
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 3,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": "terse",
+              "whenUnclear": null
+            },
+            "updatedAt": "<now>",
+            "work": {
+              "level": null,
+              "roles": [
+                "engineering"
+              ],
+              "stack": [
+                "rust",
+                "typescript"
+              ]
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "import-claude-md",
+        "request": "GET /api/profile/import/claude-md",
+        "status": 200
+      },
+      "route": "GET /api/profile/import/claude-md",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "path": "{user_home}/.claude/CLAUDE.md",
+          "text": "# Personal rules\n\n- Answer briefly.\n- Use tabs in Go files.\n"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "import-claude-md-without-token",
+        "request": "GET /api/profile/import/claude-md",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/profile/import/claude-md",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "memories-empty",
+        "request": "GET /api/user-memories",
+        "status": 200
+      },
+      "route": "GET /api/user-memories",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-create",
+        "request": "POST /api/user-memories",
+        "body": {
+          "category": "work-style",
+          "domain": "code",
+          "scope": {
+            "kind": "global"
+          },
+          "text": "When writing Go, use tabs."
+        },
+        "status": 201,
+        "capture": {
+          "mem": "/json/memory/id"
+        },
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": "user",
+                  "id": "<memory:1>",
+                  "status": "active"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "domain": "code",
+            "id": "<memory:1>",
+            "rev": 0,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "kind": "user"
+            },
+            "status": "active",
+            "text": "When writing Go, use tabs.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "memory-create-project",
+        "request": "POST /api/user-memories",
+        "body": {
+          "category": "stack",
+          "scope": {
+            "kind": "project",
+            "path": "{sandbox}/alpha"
+          },
+          "text": "In alpha, run node --test before committing.",
+          "tier": "on-demand"
+        },
+        "status": 201,
+        "capture": {
+          "mem_project": "/json/memory/id"
+        },
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": "user",
+                  "id": "<memory:2>",
+                  "status": "active"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memory": {
+            "category": "stack",
+            "createdAt": "<now>",
+            "id": "<memory:2>",
+            "rev": 0,
+            "scope": {
+              "kind": "project",
+              "path": "{sandbox}/alpha"
+            },
+            "source": {
+              "kind": "user"
+            },
+            "status": "active",
+            "text": "In alpha, run node --test before committing.",
+            "tier": "on-demand",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "memory-create-invalid",
+        "request": "POST /api/user-memories",
+        "body": {
+          "category": "nonsense",
+          "scope": {
+            "kind": "global"
+          },
+          "text": ""
+        },
+        "status": 400
+      },
+      "route": "POST /api/user-memories",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: text: String must contain at least 1 character(s); category: Invalid enum value. Expected 'about' | 'work-style' | 'stack' | 'other', received 'nonsense'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "memory-create-without-token",
+        "request": "POST /api/user-memories",
+        "auth": "none",
+        "body": {
+          "category": "other",
+          "scope": {
+            "kind": "global"
+          },
+          "text": "x"
+        },
+        "status": 403
+      },
+      "route": "POST /api/user-memories",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-not-an-agent",
+        "request": "POST /api/user-memories/suggest",
+        "body": {
+          "category": "work-style",
+          "scope": "global",
+          "text": "The user likes terse replies."
+        },
+        "status": 403
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only an agent can suggest a memory"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-by-agent",
+        "request": "POST /api/user-memories/suggest",
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "auth": "none",
+        "body": {
+          "category": "work-style",
+          "scope": "global",
+          "text": "When asked for a summary, give at most three lines.",
+          "why": "Said twice in this chat."
+        },
+        "status": 201,
+        "capture": {
+          "suggested": "/json/memory/id"
+        },
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": "agent",
+                  "id": "<memory:3>",
+                  "status": "suggested"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "declined": false,
+          "duplicate": false,
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "id": "<memory:3>",
+            "rev": 0,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "agentId": "w-CHAT",
+              "agentName": "Fix the parser",
+              "kind": "agent",
+              "why": "Said twice in this chat."
+            },
+            "status": "suggested",
+            "text": "When asked for a summary, give at most three lines.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-duplicate",
+        "request": "POST /api/user-memories/suggest",
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "auth": "none",
+        "body": {
+          "category": "work-style",
+          "scope": "global",
+          "text": "When asked for a summary, give at most three lines."
+        },
+        "status": 200
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "declined": false,
+          "duplicate": true,
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "id": "<memory:3>",
+            "rev": 0,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "agentId": "w-CHAT",
+              "agentName": "Fix the parser",
+              "kind": "agent",
+              "why": "Said twice in this chat."
+            },
+            "status": "suggested",
+            "text": "When asked for a summary, give at most three lines.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-project",
+        "request": "POST /api/user-memories/suggest",
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "auth": "none",
+        "body": {
+          "category": "stack",
+          "scope": "project",
+          "text": "In this project, tests live in test/."
+        },
+        "status": 201,
+        "capture": {
+          "suggested_project": "/json/memory/id"
+        },
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": "agent",
+                  "id": "<memory:4>",
+                  "status": "suggested"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "declined": false,
+          "duplicate": false,
+          "memory": {
+            "category": "stack",
+            "createdAt": "<now>",
+            "id": "<memory:4>",
+            "rev": 0,
+            "scope": {
+              "kind": "project",
+              "path": "{sandbox}/alpha"
+            },
+            "source": {
+              "agentId": "w-CHAT",
+              "agentName": "Fix the parser",
+              "kind": "agent"
+            },
+            "status": "suggested",
+            "text": "In this project, tests live in test/.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-project-without-folder",
+        "request": "POST /api/user-memories/suggest",
+        "headers": {
+          "x-eos-agent-id": "w-BARE"
+        },
+        "auth": "none",
+        "body": {
+          "category": "other",
+          "scope": "project",
+          "text": "No folder here."
+        },
+        "status": 400
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "this session has no project folder — suggest it as global"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "memories-all",
+        "request": "GET /api/user-memories",
+        "status": 200
+      },
+      "route": "GET /api/user-memories",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "memories": [
+            {
+              "category": "work-style",
+              "createdAt": "<now>",
+              "domain": "code",
+              "id": "<memory:1>",
+              "rev": 0,
+              "scope": {
+                "kind": "global"
+              },
+              "source": {
+                "kind": "user"
+              },
+              "status": "active",
+              "text": "When writing Go, use tabs.",
+              "tier": "always",
+              "updatedAt": "<now>"
+            },
+            {
+              "category": "stack",
+              "createdAt": "<now>",
+              "id": "<memory:2>",
+              "rev": 0,
+              "scope": {
+                "kind": "project",
+                "path": "{sandbox}/alpha"
+              },
+              "source": {
+                "kind": "user"
+              },
+              "status": "active",
+              "text": "In alpha, run node --test before committing.",
+              "tier": "on-demand",
+              "updatedAt": "<now>"
+            },
+            {
+              "category": "work-style",
+              "createdAt": "<now>",
+              "id": "<memory:3>",
+              "rev": 0,
+              "scope": {
+                "kind": "global"
+              },
+              "source": {
+                "agentId": "w-CHAT",
+                "agentName": "Fix the parser",
+                "kind": "agent",
+                "why": "Said twice in this chat."
+              },
+              "status": "suggested",
+              "text": "When asked for a summary, give at most three lines.",
+              "tier": "always",
+              "updatedAt": "<now>"
+            },
+            {
+              "category": "stack",
+              "createdAt": "<now>",
+              "id": "<memory:4>",
+              "rev": 0,
+              "scope": {
+                "kind": "project",
+                "path": "{sandbox}/alpha"
+              },
+              "source": {
+                "agentId": "w-CHAT",
+                "agentName": "Fix the parser",
+                "kind": "agent"
+              },
+              "status": "suggested",
+              "text": "In this project, tests live in test/.",
+              "tier": "always",
+              "updatedAt": "<now>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memories-suggested",
+        "request": "GET /api/user-memories",
+        "query": {
+          "status": "suggested"
+        },
+        "status": 200
+      },
+      "route": "GET /api/user-memories",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "memories": [
+            {
+              "category": "work-style",
+              "createdAt": "<now>",
+              "id": "<memory:3>",
+              "rev": 0,
+              "scope": {
+                "kind": "global"
+              },
+              "source": {
+                "agentId": "w-CHAT",
+                "agentName": "Fix the parser",
+                "kind": "agent",
+                "why": "Said twice in this chat."
+              },
+              "status": "suggested",
+              "text": "When asked for a summary, give at most three lines.",
+              "tier": "always",
+              "updatedAt": "<now>"
+            },
+            {
+              "category": "stack",
+              "createdAt": "<now>",
+              "id": "<memory:4>",
+              "rev": 0,
+              "scope": {
+                "kind": "project",
+                "path": "{sandbox}/alpha"
+              },
+              "source": {
+                "agentId": "w-CHAT",
+                "agentName": "Fix the parser",
+                "kind": "agent"
+              },
+              "status": "suggested",
+              "text": "In this project, tests live in test/.",
+              "tier": "always",
+              "updatedAt": "<now>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-approve",
+        "request": "POST /api/user-memories/{suggested}/approve",
+        "status": 200,
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories/:id/approve",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "approved",
+                  "by": "user",
+                  "id": "<memory:3>",
+                  "status": "active"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "id": "<memory:3>",
+            "rev": 1,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "agentId": "w-CHAT",
+              "agentName": "Fix the parser",
+              "kind": "agent",
+              "why": "Said twice in this chat."
+            },
+            "status": "active",
+            "text": "When asked for a summary, give at most three lines.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-dismiss",
+        "request": "POST /api/user-memories/{suggested_project}/dismiss",
+        "status": 200,
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "POST /api/user-memories/:id/dismiss",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "dismissed",
+                  "by": "user",
+                  "id": "<memory:4>",
+                  "status": "dismissed"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "suggest-dismissed-again",
+        "request": "POST /api/user-memories/suggest",
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "auth": "none",
+        "body": {
+          "category": "stack",
+          "scope": "project",
+          "text": "In this project, tests live in test/."
+        },
+        "status": 200
+      },
+      "route": "POST /api/user-memories/suggest",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "declined": true,
+          "duplicate": true,
+          "memory": {
+            "category": "stack",
+            "createdAt": "<now>",
+            "id": "<memory:4>",
+            "rev": 1,
+            "scope": {
+              "kind": "project",
+              "path": "{sandbox}/alpha"
+            },
+            "source": {
+              "agentId": "w-CHAT",
+              "agentName": "Fix the parser",
+              "kind": "agent"
+            },
+            "status": "dismissed",
+            "text": "In this project, tests live in test/.",
+            "tier": "always",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-update",
+        "request": "PUT /api/user-memories/{mem}",
+        "body": {
+          "baseRev": 0,
+          "text": "When writing Go, use tabs and gofmt.",
+          "tier": "on-demand"
+        },
+        "status": 200,
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "PUT /api/user-memories/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "updated",
+                  "by": "user",
+                  "id": "<memory:1>",
+                  "status": "active"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "domain": "code",
+            "id": "<memory:1>",
+            "rev": 1,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "kind": "user"
+            },
+            "status": "active",
+            "text": "When writing Go, use tabs and gofmt.",
+            "tier": "on-demand",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-update-stale",
+        "request": "PUT /api/user-memories/{mem}",
+        "body": {
+          "baseRev": 0,
+          "text": "stale"
+        },
+        "status": 409
+      },
+      "route": "PUT /api/user-memories/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "memory <memory:1> changed since the revision you edited (now rev 1)",
+          "memory": {
+            "category": "work-style",
+            "createdAt": "<now>",
+            "domain": "code",
+            "id": "<memory:1>",
+            "rev": 1,
+            "scope": {
+              "kind": "global"
+            },
+            "source": {
+              "kind": "user"
+            },
+            "status": "active",
+            "text": "When writing Go, use tabs and gofmt.",
+            "tier": "on-demand",
+            "updatedAt": "<now>"
+          }
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "memory-update-unknown",
+        "request": "PUT /api/user-memories/um-00000000",
+        "body": {
+          "text": "x"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/user-memories/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "memory not found: <memory:5>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "memory-bad-id",
+        "request": "PUT /api/user-memories/um-short",
+        "body": {
+          "text": "x"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/user-memories/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : invalid memory id"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "search",
+        "request": "GET /api/user-memories/search",
+        "query": {
+          "q": "tabs"
+        },
+        "status": 200
+      },
+      "route": "GET /api/user-memories/search",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": [
+            {
+              "category": "work-style",
+              "createdAt": "<now>",
+              "domain": "code",
+              "id": "<memory:1>",
+              "rev": 1,
+              "scope": {
+                "kind": "global"
+              },
+              "source": {
+                "kind": "user"
+              },
+              "status": "active",
+              "text": "When writing Go, use tabs and gofmt.",
+              "tier": "on-demand",
+              "updatedAt": "<now>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "search-as-agent",
+        "request": "GET /api/user-memories/search",
+        "query": {
+          "limit": "3",
+          "q": "node test"
+        },
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "status": 200
+      },
+      "route": "GET /api/user-memories/search",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": [
+            {
+              "category": "stack",
+              "createdAt": "<now>",
+              "id": "<memory:2>",
+              "rev": 0,
+              "scope": {
+                "kind": "project",
+                "path": "{sandbox}/alpha"
+              },
+              "source": {
+                "kind": "user"
+              },
+              "status": "active",
+              "text": "In alpha, run node --test before committing.",
+              "tier": "on-demand",
+              "updatedAt": "<now>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "approve-all",
+        "request": "POST /api/user-memories/approve-all",
+        "status": 200
+      },
+      "route": "POST /api/user-memories/approve-all",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "preview-with-memories",
+        "request": "GET /api/profile/preview",
+        "query": {
+          "project": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /api/profile/preview",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "budgetTokens": 800,
+          "includedMemoryIds": [
+            "<memory:3>"
+          ],
+          "overflow": 0,
+          "text": "`<user_profile>`\n\nAbout the user — set by the user in Eos. Follow it unless the user says otherwise in the conversation.\n\n- Address the user as \"Sam\" (full name: Sam Example).\n- Works in: engineering.\n- Stack: rust, typescript.\n- Chat language: English.\n- Replies: terse — as short as possible, no filler.\n\nStanding instructions from the user:\n\nPrefer small commits.\n\nStanding preferences — each opens with the situation it covers. Apply one when your task matches it; there it takes precedence over the general defaults above.\n\n- When asked for a summary, give at most three lines.\n\n2 more memories are available — call search_memory when a task touches the user's preferences or conventions.\n\n`</user_profile>`",
+          "tokens": 204,
+          "withheld": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-delete",
+        "request": "DELETE /api/user-memories/{mem_project}",
+        "status": 200,
+        "wait": [
+          "user-memory:change"
+        ]
+      },
+      "route": "DELETE /api/user-memories/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "deleted",
+                  "by": "user",
+                  "id": "<memory:2>",
+                  "status": "active"
+                },
+                "reason": "user-memory:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-delete-again",
+        "request": "DELETE /api/user-memories/{mem_project}",
+        "status": 404
+      },
+      "route": "DELETE /api/user-memories/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "memory not found: <memory:2>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-of-chat",
+        "request": "GET /workers/w-CHAT/memory",
+        "status": 200
+      },
+      "route": "GET /workers/:id/memory",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "dir": "{user_home}/.claude/projects/{sandbox_slug}-alpha/memory",
+          "entries": [
+            {
+              "description": "Go files use tabs and gofmt",
+              "name": "tabs_in_go",
+              "path": "{user_home}/.claude/projects/{sandbox_slug}-alpha/memory/tabs_in_go.md",
+              "type": "feedback",
+              "updatedAt": "<now>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-no-folder",
+        "request": "GET /workers/w-BARE/memory",
+        "status": 404
+      },
+      "route": "GET /workers/:id/memory",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found or has no project directory"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-delete",
+        "request": "DELETE /workers/w-CHAT/memory/tabs_in_go",
+        "status": 200
+      },
+      "route": "DELETE /workers/:id/memory/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-delete-without-token",
+        "request": "DELETE /workers/w-CHAT/memory/tabs_in_go",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "DELETE /workers/:id/memory/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-after-delete",
+        "request": "GET /workers/w-CHAT/memory",
+        "status": 200
+      },
+      "route": "GET /workers/:id/memory",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "dir": "{user_home}/.claude/projects/{sandbox_slug}-alpha/memory",
+          "entries": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-memory-delete-unknown",
+        "request": "DELETE /workers/w-CHAT/memory/nope",
+        "status": 404
+      },
+      "route": "DELETE /workers/:id/memory/:name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "memory \"nope\" not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

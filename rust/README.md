@@ -7,9 +7,11 @@ engine. It is built beside the TypeScript backend and replaces it in one release
 
 ```
 crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
+tools/     dev tooling: wire-recorder (records and replays what the daemon answers)
 xtask/     repo checks (`cargo xtask layers`)
-scripts/   check.sh: everything CI runs
-fixtures/  recorded responses the Rust code must reproduce (fixtures/private is never committed)
+scripts/   check.sh: everything CI runs; wire.sh: record / replay the wire fixtures
+fixtures/  recorded responses the Rust code must reproduce, see fixtures/README.md
+           (fixtures/private is never committed)
 ```
 
 ## Rules

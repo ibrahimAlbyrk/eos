@@ -1,0 +1,3287 @@
+{
+  "scenario": "42-chat-writes",
+  "about": "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, the worker ingest plane, archive / restore / purge / delete, discarding a change; with their stream frames.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "worker:*,state:patch,notification:*,question:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rename",
+        "request": "PUT /workers/w-BARE/name",
+        "body": {
+          "name": "Monads in two sentences"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "PUT /workers/:id/name",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "renamedBy": "user",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 150
+                        },
+                        "cost_usd": 0.01,
+                        "cwd": null,
+                        "effort": "medium",
+                        "ended_at": 1790000330000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-BARE",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150,
+                        "model": "opus",
+                        "name": "Monads in two sentences",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "default",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Explain what a monad is in two sentences.",
+                        "scratch": 1,
+                        "session_id": null,
+                        "started_at": 1790000300000,
+                        "state": "DONE",
+                        "tasks": null,
+                        "tokens_cache_create": 0,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 0,
+                        "tokens_in": 150,
+                        "tokens_out": 60,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rename-unknown",
+        "request": "PUT /workers/w-nope0000/name",
+        "body": {
+          "name": "x"
+        },
+        "status": 404
+      },
+      "route": "PUT /workers/:id/name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "rename-invalid",
+        "request": "PUT /workers/w-BARE/name",
+        "body": {
+          "name": 5
+        },
+        "status": 400
+      },
+      "route": "PUT /workers/:id/name",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: Expected string, received number"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "rename-intent-on",
+        "request": "PUT /workers/w-BARE/rename-intent",
+        "body": {
+          "active": true
+        },
+        "status": 200
+      },
+      "route": "PUT /workers/:id/rename-intent",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rename-intent-off",
+        "request": "PUT /workers/w-BARE/rename-intent",
+        "body": {
+          "active": false
+        },
+        "status": 200
+      },
+      "route": "PUT /workers/:id/rename-intent",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row-after-rename",
+        "request": "GET /workers/w-BARE",
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": "focused",
+          "archived_at": null,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 0,
+          "context": {
+            "limit": 1000000,
+            "pct": 0,
+            "used": 150
+          },
+          "cost_usd": 0.01,
+          "cwd": null,
+          "effort": "medium",
+          "ended_at": 1790000330000,
+          "exit_code": 0,
+          "fork_base_sha": null,
+          "id": "w-BARE",
+          "is_orchestrator": 0,
+          "last_context_tokens": 150,
+          "model": "opus",
+          "name": "Monads in two sentences",
+          "name_source": "user",
+          "parent_id": null,
+          "permission_mode": "default",
+          "pid": null,
+          "port": null,
+          "prompt": "Explain what a monad is in two sentences.",
+          "scratch": 1,
+          "session_id": null,
+          "started_at": 1790000300000,
+          "state": "DONE",
+          "tasks": null,
+          "tokens_cache_create": 0,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 0,
+          "tokens_in": 150,
+          "tokens_out": 60,
+          "tool_calls": 0,
+          "tool_scope": null,
+          "turn_started_at": null,
+          "with_gateway": 0,
+          "worker_definition": null,
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "permission",
+        "request": "PUT /workers/w-LONG/permission",
+        "body": {
+          "mode": "acceptEdits"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "PUT /workers/:id/permission",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-LONG"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 15,
+                          "used": 150000
+                        },
+                        "cost_usd": 2.5,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "medium",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "w-LONG",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150000,
+                        "model": "sonnet",
+                        "name": "Long chat",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "acceptEdits",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Count to a thousand.",
+                        "scratch": 0,
+                        "session_id": "<uuid:1>",
+                        "started_at": 1790000100000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 3000,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 400000,
+                        "tokens_in": 90000,
+                        "tokens_out": 12000,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "affected": [
+            "w-LONG"
+          ],
+          "mode": "acceptEdits",
+          "ok": true,
+          "runtimeApplied": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "permission-cascade",
+        "request": "PUT /workers/o-ORCH/permission",
+        "body": {
+          "cascade": true,
+          "mode": "bypassPermissions"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "PUT /workers/:id/permission",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-KID1"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-KID2"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    },
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 1,
+                          "used": 11700
+                        },
+                        "cost_usd": 0.5,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "high",
+                        "ended_at": 1790000290000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-KID1",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 11700,
+                        "model": "opus",
+                        "name": "json flag impl",
+                        "name_source": "user",
+                        "parent_id": "o-ORCH",
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Implement the --json flag in cli.js.",
+                        "scratch": 0,
+                        "session_id": "<uuid:3>",
+                        "started_at": 1790000210000,
+                        "state": "DONE",
+                        "tasks": "[{\"id\":\"1\",\"subject\":\"Add flag\",\"status\":\"completed\"},{\"id\":\"2\",\"subject\":\"Write test\",\"status\":\"completed\"}]",
+                        "tokens_cache_create": 700,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 9000,
+                        "tokens_in": 2000,
+                        "tokens_out": 500,
+                        "tool_calls": 6,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 1,
+                        "worker_definition": "general-purpose",
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    },
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 1,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 3900
+                        },
+                        "cost_usd": 0.05,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "medium",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "w-KID2",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 3900,
+                        "model": "sonnet",
+                        "name": "readme scout",
+                        "name_source": "user",
+                        "parent_id": "o-ORCH",
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Find where the README documents flags.",
+                        "scratch": 0,
+                        "session_id": "<uuid:4>",
+                        "started_at": 1790000220000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 100,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 3000,
+                        "tokens_in": 800,
+                        "tokens_out": 200,
+                        "tool_calls": 2,
+                        "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+                        "turn_started_at": null,
+                        "with_gateway": 1,
+                        "worker_definition": "explorer",
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "affected": [
+            "o-ORCH",
+            "w-KID1",
+            "w-KID2"
+          ],
+          "mode": "bypassPermissions",
+          "ok": true,
+          "runtimeApplied": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "permission-bad-mode",
+        "request": "PUT /workers/w-LONG/permission",
+        "body": {
+          "mode": "yolo"
+        },
+        "status": 400
+      },
+      "route": "PUT /workers/:id/permission",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: mode: Invalid enum value. Expected 'acceptEdits' | 'bypassPermissions', received 'yolo'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "permission-unknown",
+        "request": "PUT /workers/w-nope0000/permission",
+        "body": {
+          "mode": "acceptEdits"
+        },
+        "status": 404
+      },
+      "route": "PUT /workers/:id/permission",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "model",
+        "request": "PUT /workers/w-LONG/model",
+        "body": {
+          "effort": "high",
+          "model": "opus"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "PUT /workers/:id/model",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-LONG"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 15,
+                          "used": 150000
+                        },
+                        "cost_usd": 2.5,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "high",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "w-LONG",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150000,
+                        "model": "opus",
+                        "name": "Long chat",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "acceptEdits",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Count to a thousand.",
+                        "scratch": 0,
+                        "session_id": "<uuid:1>",
+                        "started_at": 1790000100000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 3000,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 400000,
+                        "tokens_in": 90000,
+                        "tokens_out": 12000,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "effort": "high",
+          "model": "opus",
+          "ok": true,
+          "runtimeApplied": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "model-not-in-catalog",
+        "request": "PUT /workers/w-LONG/model",
+        "body": {
+          "model": "gpt-nope"
+        },
+        "status": 422
+      },
+      "route": "PUT /workers/:id/model",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "model \"gpt-nope\" is not valid for provider Claude"
+        },
+        "status": 422
+      }
+    },
+    {
+      "step": {
+        "name": "model-unknown-worker",
+        "request": "PUT /workers/w-nope0000/model",
+        "body": {
+          "model": "opus"
+        },
+        "status": 404
+      },
+      "route": "PUT /workers/:id/model",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "backend-invalid",
+        "request": "PUT /workers/w-LONG/backend",
+        "body": {},
+        "status": 400
+      },
+      "route": "PUT /workers/:id/backend",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: kind: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "events-after-changes",
+        "request": "GET /workers/w-LONG/events",
+        "query": {
+          "limit": "3"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "id": 705,
+            "payload": "{\"tool\":\"WebFetch\",\"decision\":\"allow\"}",
+            "ts": "<now>",
+            "type": "policy",
+            "worker_id": "w-LONG"
+          },
+          {
+            "id": 707,
+            "payload": "{\"kind\":\"permission_mode_set\",\"mode\":\"acceptEdits\",\"runtimeApplied\":false,\"via\":\"direct\"}",
+            "ts": "<now>",
+            "type": "lifecycle",
+            "worker_id": "w-LONG"
+          },
+          {
+            "id": 711,
+            "payload": "{\"kind\":\"model_set\",\"model\":\"opus\",\"effort\":\"high\",\"runtimeApplied\":false}",
+            "ts": "<now>",
+            "type": "lifecycle",
+            "worker_id": "w-LONG"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-register",
+        "request": "POST /workers/o-ORCH/question",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "questions": [
+            {
+              "header": "Rollout",
+              "multiSelect": false,
+              "options": [
+                {
+                  "description": "Off by default",
+                  "label": "Yes"
+                },
+                {
+                  "description": "Always on",
+                  "label": "No"
+                }
+              ],
+              "question": "Ship the flag behind a setting?"
+            }
+          ]
+        },
+        "status": 200,
+        "capture": {
+          "question": "/json/questionId",
+          "question_call": "/json/toolUseId"
+        },
+        "wait": [
+          "worker:change",
+          "notification:fire"
+        ]
+      },
+      "route": "POST /workers/:id/question",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 712,
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "Ship the flag behind a setting?",
+                  "title": "Input needed",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "awaiting_question": true,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "questionId": "<ask:1>",
+          "toolUseId": "<ask:2>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-poll-waiting",
+        "request": "GET /workers/o-ORCH/question/{question}",
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /workers/:id/question/:questionId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "pending"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-flag-on-row",
+        "request": "GET /orchestrators",
+        "status": 200
+      },
+      "route": "GET /orchestrators",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-answer",
+        "request": "POST /workers/o-ORCH/question-answer",
+        "body": {
+          "answers": {
+            "Ship the flag behind a setting?": "Yes"
+          },
+          "toolUseId": "{question_call}"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "POST /workers/:id/question-answer",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 713,
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "outcome": "answered"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-poll-answered",
+        "request": "GET /workers/o-ORCH/question/{question}",
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /workers/:id/question/:questionId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "answers": {
+            "Ship the flag behind a setting?": "Yes"
+          },
+          "status": "answered"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-register-second",
+        "request": "POST /workers/o-ORCH/question",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "questions": [
+            {
+              "header": "Name",
+              "multiSelect": true,
+              "options": [
+                {
+                  "description": "Short",
+                  "label": "--json"
+                },
+                {
+                  "description": "Explicit",
+                  "label": "--format=json"
+                }
+              ],
+              "question": "Which name?"
+            }
+          ],
+          "toolUseId": "call_ask_wire"
+        },
+        "status": 200,
+        "capture": {
+          "question2": "/json/questionId"
+        },
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "POST /workers/:id/question",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 714,
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "Which name?",
+                  "title": "Input needed",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "awaiting_question": true,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "questionId": "<ask:3>",
+          "toolUseId": "call_ask_wire"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-dismiss",
+        "request": "POST /workers/o-ORCH/question-answer",
+        "body": {
+          "dismissed": true,
+          "toolUseId": "call_ask_wire"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "POST /workers/:id/question-answer",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 715,
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "outcome": "dismissed"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-poll-dismissed",
+        "request": "GET /workers/o-ORCH/question/{question2}",
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /workers/:id/question/:questionId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "dismissed"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-answer-gone",
+        "request": "POST /workers/o-ORCH/question-answer",
+        "body": {
+          "answers": {},
+          "toolUseId": "call_never_asked"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/question-answer",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 716,
+                  "workerId": "o-ORCH"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": null,
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 3,
+                          "used": 26500
+                        },
+                        "cost_usd": 1.25,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "xhigh",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "o-ORCH",
+                        "is_orchestrator": 1,
+                        "last_context_tokens": 26500,
+                        "model": "opus",
+                        "name": "JSON flag",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Add a --json flag and document it.",
+                        "scratch": 0,
+                        "session_id": "<uuid:2>",
+                        "started_at": 1790000200000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 1500,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 20000,
+                        "tokens_in": 5000,
+                        "tokens_out": 900,
+                        "tool_calls": 4,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "outcome": "gone"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-poll-unknown",
+        "request": "GET /workers/o-ORCH/question/q-nope",
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /workers/:id/question/:questionId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "gone"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "question-invalid",
+        "request": "POST /workers/o-ORCH/question",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "questions": []
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/question",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: questions: Array must contain at least 1 element(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "notify",
+        "request": "POST /workers/o-ORCH/notify",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "body": "All tests pass.",
+          "title": "Build finished"
+        },
+        "status": 200,
+        "wait": [
+          "notification:fire"
+        ]
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "body": "All tests pass.",
+                  "title": "Build finished",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "notify-invalid",
+        "request": "POST /workers/o-ORCH/notify",
+        "body": {
+          "title": ""
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: title: String must contain at least 1 character(s); body: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "ingest-row",
+        "request": "POST /workers/w-BARE/events",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "payload": {
+            "branch": "main",
+            "diffStat": "",
+            "path": "{sandbox}/alpha",
+            "phase": "ready",
+            "status": "clean"
+          },
+          "type": "worktree"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/events",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 717,
+                  "type": "worktree",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 150
+                        },
+                        "cost_usd": 0.01,
+                        "cwd": null,
+                        "effort": "medium",
+                        "ended_at": 1790000330000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-BARE",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150,
+                        "model": "opus",
+                        "name": "Monads in two sentences",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "default",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Explain what a monad is in two sentences.",
+                        "scratch": 1,
+                        "session_id": null,
+                        "started_at": 1790000300000,
+                        "state": "DONE",
+                        "tasks": null,
+                        "tokens_cache_create": 0,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 0,
+                        "tokens_in": 150,
+                        "tokens_out": 60,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ingest-session-id",
+        "request": "POST /workers/w-BARE/events",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "payload": {
+            "phase": "session_captured",
+            "sessionId": "99999999-9999-4999-8999-999999999999"
+          },
+          "type": "lifecycle"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/events",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "rowId": 718,
+                  "type": "lifecycle",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 150
+                        },
+                        "cost_usd": 0.01,
+                        "cwd": null,
+                        "effort": "medium",
+                        "ended_at": 1790000330000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-BARE",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150,
+                        "model": "opus",
+                        "name": "Monads in two sentences",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "default",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Explain what a monad is in two sentences.",
+                        "scratch": 1,
+                        "session_id": "<uuid:5>",
+                        "started_at": 1790000300000,
+                        "state": "DONE",
+                        "tasks": null,
+                        "tokens_cache_create": 0,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 0,
+                        "tokens_in": 150,
+                        "tokens_out": 60,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ingest-no-type",
+        "request": "POST /workers/w-BARE/events",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "payload": {}
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "type required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "row-after-ingest",
+        "request": "GET /workers/w-BARE",
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": "focused",
+          "archived_at": null,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 0,
+          "context": {
+            "limit": 1000000,
+            "pct": 0,
+            "used": 150
+          },
+          "cost_usd": 0.01,
+          "cwd": null,
+          "effort": "medium",
+          "ended_at": 1790000330000,
+          "exit_code": 0,
+          "fork_base_sha": null,
+          "id": "w-BARE",
+          "is_orchestrator": 0,
+          "last_context_tokens": 150,
+          "model": "opus",
+          "name": "Monads in two sentences",
+          "name_source": "user",
+          "parent_id": null,
+          "permission_mode": "default",
+          "pid": null,
+          "port": null,
+          "prompt": "Explain what a monad is in two sentences.",
+          "scratch": 1,
+          "session_id": "<uuid:5>",
+          "started_at": 1790000300000,
+          "state": "DONE",
+          "tasks": null,
+          "tokens_cache_create": 0,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 0,
+          "tokens_in": 150,
+          "tokens_out": 60,
+          "tool_calls": 0,
+          "tool_scope": null,
+          "turn_started_at": null,
+          "with_gateway": 0,
+          "worker_definition": null,
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "events-after-ingest",
+        "request": "GET /workers/w-BARE/events",
+        "query": {
+          "limit": "2"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "id": 717,
+            "payload": "{\"branch\":\"main\",\"diffStat\":\"\",\"path\":\"{sandbox}/alpha\",\"phase\":\"ready\",\"status\":\"clean\"}",
+            "ts": "<now>",
+            "type": "worktree",
+            "worker_id": "w-BARE"
+          },
+          {
+            "id": 718,
+            "payload": "{\"phase\":\"session_captured\",\"sessionId\":\"<uuid:5>\"}",
+            "ts": "<now>",
+            "type": "lifecycle",
+            "worker_id": "w-BARE"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "keystroke-not-a-terminal-lane",
+        "request": "POST /workers/w-CHAT/keystroke",
+        "body": {
+          "keys": "y"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/keystroke",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "interrupt-at-rest",
+        "request": "POST /workers/w-CHAT/interrupt",
+        "status": 409
+      },
+      "route": "POST /workers/:id/interrupt",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not running"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "interrupt-unknown",
+        "request": "POST /workers/w-nope0000/interrupt",
+        "status": 404
+      },
+      "route": "POST /workers/:id/interrupt",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "rewind-at-rest",
+        "request": "POST /workers/w-CHAT/rewind",
+        "body": {
+          "uuid": "88888888-8888-4888-8888-888888888888"
+        },
+        "status": 409
+      },
+      "route": "POST /workers/:id/rewind",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not running"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "try-no-branch",
+        "request": "POST /workers/w-CHAT/try",
+        "body": {},
+        "status": 409
+      },
+      "route": "POST /workers/:id/try",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker has no worktree branch"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "try-keep-no-branch",
+        "request": "POST /workers/w-CHAT/try/keep",
+        "body": {
+          "workerId": "w-CHAT"
+        },
+        "status": 409
+      },
+      "route": "POST /workers/:id/try/keep",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": false,
+          "reason": "no-active-try"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "try-discard-no-branch",
+        "request": "POST /workers/w-CHAT/try/discard",
+        "body": {
+          "workerId": "w-CHAT"
+        },
+        "status": 409
+      },
+      "route": "POST /workers/:id/try/discard",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": false,
+          "reason": "no-active-try"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "try-without-token",
+        "request": "POST /workers/w-CHAT/try",
+        "auth": "none",
+        "body": {},
+        "status": 403
+      },
+      "route": "POST /workers/:id/try",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "conflict-resolve-nothing",
+        "request": "POST /workers/w-CHAT/conflicts/resolve",
+        "body": {
+          "content": "x",
+          "path": "README.md"
+        },
+        "status": 409
+      },
+      "route": "POST /workers/:id/conflicts/resolve",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": false,
+          "reason": "not-conflicted",
+          "remaining": 0,
+          "staged": false,
+          "unresolved": []
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "discard-change",
+        "request": "POST /workers/w-CHAT/changes/discard",
+        "body": {
+          "path": "notes.txt"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/changes/discard",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-CHAT"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 1,
+                          "used": 7600
+                        },
+                        "cost_usd": 0.4321,
+                        "cwd": "{sandbox}/alpha",
+                        "effort": "high",
+                        "ended_at": null,
+                        "exit_code": null,
+                        "fork_base_sha": null,
+                        "id": "w-CHAT",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 7600,
+                        "model": "opus",
+                        "name": "Fix the parser",
+                        "name_source": "auto",
+                        "parent_id": null,
+                        "permission_mode": "bypassPermissions",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Fix the parser so empty input returns an empty list.",
+                        "scratch": 0,
+                        "session_id": "<uuid:6>",
+                        "started_at": 1790000000000,
+                        "state": "SUSPENDED",
+                        "tasks": null,
+                        "tokens_cache_create": 800,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 5600,
+                        "tokens_in": 1200,
+                        "tokens_out": 340,
+                        "tool_calls": 3,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "discard-change-escape",
+        "request": "POST /workers/w-CHAT/changes/discard",
+        "body": {
+          "path": "../beta/notes.md"
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/changes/discard",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path must be repo-relative"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "changes-after-discard",
+        "request": "GET /workers/w-CHAT/changes",
+        "status": 200
+      },
+      "route": "GET /workers/:id/changes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "deletions": 0,
+          "files": [
+            {
+              "deletions": 0,
+              "insertions": 2,
+              "path": "README.md",
+              "status": "M",
+              "untracked": false
+            },
+            {
+              "deletions": null,
+              "insertions": null,
+              "path": "watched.txt",
+              "status": "A",
+              "untracked": true
+            }
+          ],
+          "insertions": 2
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive",
+        "request": "POST /workers/w-BARE/archive",
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "POST /workers/:id/archive",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "reason": "archived",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "id": "w-BARE"
+                      },
+                      "op": "remove",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "archived": [
+            "w-BARE"
+          ],
+          "id": "w-BARE",
+          "was_state": "DONE"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive-again",
+        "request": "POST /workers/w-BARE/archive",
+        "status": 409
+      },
+      "route": "POST /workers/:id/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker w-BARE is already archived"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "archive-worker-of-orchestrator",
+        "request": "POST /workers/w-KID2/archive",
+        "status": 200
+      },
+      "route": "POST /workers/:id/archive",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "reason": "archived",
+                  "workerId": "w-KID2"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "id": "w-KID2"
+                      },
+                      "op": "remove",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "archived": [
+            "w-KID2"
+          ],
+          "id": "w-KID2",
+          "was_state": "SUSPENDED"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archive-unknown",
+        "request": "POST /workers/w-nope0000/archive",
+        "status": 404
+      },
+      "route": "POST /workers/:id/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "archived-list",
+        "request": "GET /workers/archived",
+        "query": {
+          "brief": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/archived",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": "<now>",
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 0.01,
+            "cwd": null,
+            "effort": "medium",
+            "ended_at": 1790000330000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-BARE",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150,
+            "model": "opus",
+            "name": "Monads in two sentences",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Explain what a monad is in two sentences.",
+            "scratch": 1,
+            "session_id": "<uuid:5>",
+            "started_at": 1790000300000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 150,
+            "tokens_out": 60,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": "<now>",
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 1,
+            "cost_usd": 0.05,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-KID2",
+            "is_orchestrator": 0,
+            "last_context_tokens": 3900,
+            "model": "sonnet",
+            "name": "readme scout",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Find where the README documents flags.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000220000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 100,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 3000,
+            "tokens_in": 800,
+            "tokens_out": 200,
+            "tool_calls": 2,
+            "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "explorer",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": 1789995000000,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 0.001,
+            "cwd": "{sandbox}/beta",
+            "effort": "low",
+            "ended_at": 1789990060000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-ARCH",
+            "is_orchestrator": 0,
+            "last_context_tokens": 300,
+            "model": "haiku",
+            "name": "Old question",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "What is in this folder?",
+            "scratch": 0,
+            "session_id": "<uuid:7>",
+            "started_at": 1789990000000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 300,
+            "tokens_out": 80,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "message-archived",
+        "request": "POST /workers/w-BARE/message",
+        "body": {
+          "text": "hello"
+        },
+        "status": 409
+      },
+      "route": "POST /workers/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker is archived — restore first"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "restore",
+        "request": "POST /workers/w-BARE/restore",
+        "status": 200,
+        "wait": [
+          "worker:change"
+        ]
+      },
+      "route": "POST /workers/:id/restore",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "reason": "restored",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 150
+                        },
+                        "cost_usd": 0.01,
+                        "cwd": null,
+                        "effort": "medium",
+                        "ended_at": 1790000330000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-BARE",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150,
+                        "model": "opus",
+                        "name": "Monads in two sentences",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "default",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Explain what a monad is in two sentences.",
+                        "scratch": 1,
+                        "session_id": "<uuid:5>",
+                        "started_at": 1790000300000,
+                        "state": "DONE",
+                        "tasks": null,
+                        "tokens_cache_create": 0,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 0,
+                        "tokens_in": 150,
+                        "tokens_out": 60,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "id": "w-BARE",
+          "restored": [
+            "w-BARE"
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "restore-not-archived",
+        "request": "POST /workers/w-BARE/restore",
+        "status": 409
+      },
+      "route": "POST /workers/:id/restore",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker w-BARE is not archived"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "purge-not-archived",
+        "request": "DELETE /workers/w-BARE/purge",
+        "status": 409
+      },
+      "route": "DELETE /workers/:id/purge",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker w-BARE is not archived — only archived workers can be purged"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "purge",
+        "request": "DELETE /workers/w-ARCH/purge",
+        "status": 200,
+        "wait": [
+          "worker:removed"
+        ]
+      },
+      "route": "DELETE /workers/:id/purge",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-ARCH"
+                },
+                "reason": "worker:removed",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "id": "w-ARCH"
+                      },
+                      "op": "remove",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "id": "w-ARCH",
+          "name": "Old question",
+          "removed": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "purge-unknown",
+        "request": "DELETE /workers/w-nope0000/purge",
+        "status": 404
+      },
+      "route": "DELETE /workers/:id/purge",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "app-closed-purge-off",
+        "request": "POST /workers/archived/app-closed",
+        "status": 200
+      },
+      "route": "POST /workers/archived/app-closed",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "purged": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "delete-finished-child",
+        "request": "DELETE /workers/w-KID1",
+        "status": 200,
+        "wait": [
+          "worker:removed"
+        ]
+      },
+      "route": "DELETE /workers/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-KID1"
+                },
+                "reason": "worker:removed",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "id": "w-KID1"
+                      },
+                      "op": "remove",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "id": "w-KID1",
+          "killed": [],
+          "name": "json flag impl",
+          "removed": true,
+          "was_state": "DONE"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "delete-unknown",
+        "request": "DELETE /workers/w-nope0000",
+        "status": 404
+      },
+      "route": "DELETE /workers/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "list-after",
+        "request": "GET /workers",
+        "query": {
+          "brief": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 400
+            },
+            "cost_usd": 0.02,
+            "cwd": "{sandbox}/beta",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-BUSY",
+            "is_orchestrator": 0,
+            "last_context_tokens": 400,
+            "model": "opus",
+            "name": "Summarize notes",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "plan",
+            "pid": null,
+            "port": null,
+            "prompt": "Summarize notes.md.",
+            "scratch": 0,
+            "session_id": "<uuid:8>",
+            "started_at": 1790000400000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 400,
+            "tokens_out": 20,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": 1790000401000,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 150
+            },
+            "cost_usd": 0.01,
+            "cwd": null,
+            "effort": "medium",
+            "ended_at": 1790000330000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-BARE",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150,
+            "model": "opus",
+            "name": "Monads in two sentences",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Explain what a monad is in two sentences.",
+            "scratch": 1,
+            "session_id": "<uuid:5>",
+            "started_at": 1790000300000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 150,
+            "tokens_out": 60,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 3,
+              "used": 26500
+            },
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 15,
+              "used": 150000
+            },
+            "cost_usd": 2.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-LONG",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150000,
+            "model": "opus",
+            "name": "Long chat",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Count to a thousand.",
+            "scratch": 0,
+            "session_id": "<uuid:1>",
+            "started_at": 1790000100000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 3000,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 400000,
+            "tokens_in": 90000,
+            "tokens_out": 12000,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 7600
+            },
+            "cost_usd": 0.4321,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-CHAT",
+            "is_orchestrator": 0,
+            "last_context_tokens": 7600,
+            "model": "opus",
+            "name": "Fix the parser",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Fix the parser so empty input returns an empty list.",
+            "scratch": 0,
+            "session_id": "<uuid:6>",
+            "started_at": 1790000000000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 800,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 5600,
+            "tokens_in": 1200,
+            "tokens_out": 340,
+            "tool_calls": 3,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

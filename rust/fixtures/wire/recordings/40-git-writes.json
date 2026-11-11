@@ -1,0 +1,582 @@
+{
+  "scenario": "40-git-writes",
+  "about": "Changing a repository through the daemon: branch create / rename / delete, checkout, stash apply and drop, and the remote routes on a repository without a remote.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "branch-create-without-token",
+        "request": "POST /fs/branch/create",
+        "auth": "none",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "name": "wire/one"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/branch/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "branch-create",
+        "request": "POST /fs/branch/create",
+        "body": {
+          "checkout": false,
+          "cwd": "{sandbox}/alpha",
+          "name": "wire/one"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "branch": "wire/one",
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-create-existing",
+        "request": "POST /fs/branch/create",
+        "body": {
+          "checkout": false,
+          "cwd": "{sandbox}/alpha",
+          "name": "wire/one"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "fatal: a branch named 'wire/one' already exists",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-create-invalid",
+        "request": "POST /fs/branch/create",
+        "body": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/branch/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "branch-rename",
+        "request": "POST /fs/branch/rename",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "from": "wire/one",
+          "to": "wire/two"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/rename",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "branch": "wire/two",
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-rename-missing",
+        "request": "POST /fs/branch/rename",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "from": "wire/none",
+          "to": "wire/three"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/rename",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "fatal: no branch named 'wire/none'",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "checkout-dirty",
+        "request": "POST /fs/checkout",
+        "body": {
+          "branch": "feature/json",
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/checkout",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "checkout-stashing",
+        "request": "POST /fs/checkout",
+        "body": {
+          "branch": "wire/two",
+          "cwd": "{sandbox}/alpha",
+          "stash": true
+        },
+        "status": 200
+      },
+      "route": "POST /fs/checkout",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branches-after-checkout",
+        "request": "GET /fs/branches",
+        "query": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/branches",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ahead": null,
+          "behind": null,
+          "branches": [
+            "feature/json",
+            "main",
+            "wire/two"
+          ],
+          "conflicts": 0,
+          "current": "wire/two",
+          "isGit": true,
+          "remoteUrl": null,
+          "stash": 2
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "checkout-missing",
+        "request": "POST /fs/checkout",
+        "body": {
+          "branch": "nope",
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/checkout",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "pathspec 'nope' did not match any file(s) known to git",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "checkout-back",
+        "request": "POST /fs/checkout",
+        "body": {
+          "branch": "main",
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/checkout",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stashes",
+        "request": "GET /fs/stashes",
+        "query": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/stashes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "stashes": [
+            {
+              "branch": "feature/json",
+              "index": 0,
+              "sha": "<sha>",
+              "subject": "WIP on feature/json: e3616ce feat: add a --json flag",
+              "ts": "<now>"
+            },
+            {
+              "branch": "main",
+              "index": 1,
+              "sha": "<sha>",
+              "subject": "On main: wip readme",
+              "ts": 1788516000000
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stash-apply",
+        "request": "POST /fs/stash/apply",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "index": 0
+        },
+        "status": 200
+      },
+      "route": "POST /fs/stash/apply",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stash-drop",
+        "request": "POST /fs/stash/drop",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "index": 0
+        },
+        "status": 200
+      },
+      "route": "POST /fs/stash/drop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stash-drop-missing",
+        "request": "POST /fs/stash/drop",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "index": 9
+        },
+        "status": 200
+      },
+      "route": "POST /fs/stash/drop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "fatal: log for 'stash' only has 1 entries",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stash-apply-invalid",
+        "request": "POST /fs/stash/apply",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "index": -1
+        },
+        "status": 400
+      },
+      "route": "POST /fs/stash/apply",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: index: Number must be greater than or equal to 0"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "branch-delete-current",
+        "request": "POST /fs/branch/delete",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "name": "main"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "error: cannot delete branch 'main' used by worktree at '{sandbox}/alpha'",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-delete",
+        "request": "POST /fs/branch/delete",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "name": "wire/two"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "deleted": true,
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-delete-unmerged",
+        "request": "POST /fs/branch/delete",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "name": "feature/json"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "error: the branch 'feature/json' is not fully merged",
+          "notMerged": true,
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "branch-delete-forced",
+        "request": "POST /fs/branch/delete",
+        "body": {
+          "cwd": "{sandbox}/alpha",
+          "force": true,
+          "name": "feature/json"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "deleted": true,
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "fetch-no-remote",
+        "request": "POST /fs/fetch",
+        "body": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/fetch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "summary": "Fetched all remotes"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "remote-branch-delete-no-remote",
+        "request": "POST /fs/remote-branch/delete",
+        "body": {
+          "branch": "x",
+          "cwd": "{sandbox}/alpha",
+          "remote": "origin"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/remote-branch/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "fatal: 'origin' does not appear to be a git repository",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "not-a-repository",
+        "request": "POST /fs/branch/create",
+        "body": {
+          "cwd": "{sandbox}/beta",
+          "name": "x"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/branch/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "fatal: not a git repository (or any of the parent directories): .git",
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "changes-at-the-end",
+        "request": "GET /fs/changes",
+        "query": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/changes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "baseLabel": null,
+          "baseSha": "9d3e8e2",
+          "deletions": 0,
+          "files": [
+            {
+              "deletions": null,
+              "insertions": null,
+              "path": "notes.txt",
+              "status": "A",
+              "untracked": true
+            },
+            {
+              "deletions": 0,
+              "insertions": 2,
+              "path": "README.md",
+              "status": "M",
+              "untracked": false
+            },
+            {
+              "deletions": null,
+              "insertions": null,
+              "path": "watched.txt",
+              "status": "A",
+              "untracked": true
+            }
+          ],
+          "headLabel": "main",
+          "headSha": null,
+          "insertions": 2,
+          "repoLabel": "alpha"
+        },
+        "status": 200
+      }
+    }
+  ]
+}

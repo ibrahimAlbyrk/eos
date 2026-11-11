@@ -1,0 +1,67 @@
+{
+  "scenario": "10-health",
+  "about": "Liveness and the clock.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "health",
+        "request": "GET /health",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "datetime",
+        "request": "GET /datetime",
+        "status": 200
+      },
+      "route": "GET /datetime",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "epochMs": "<now>",
+          "formatted": "<now> UTC+00:00 (UTC)",
+          "iso": "<now>",
+          "timeZone": "UTC",
+          "utc": "<now>",
+          "utcOffsetMinutes": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "metrics",
+        "request": "GET /metrics",
+        "status": 200
+      },
+      "route": "GET /metrics",
+      "response": {
+        "headers": {
+          "content-type": "text/plain; version=0.0.4"
+        },
+        "status": 200,
+        "text": "# HELP eos_uptime_seconds Daemon uptime\n# TYPE eos_uptime_seconds gauge\neos_uptime_seconds <n>\n# HELP eos_workers Worker count by state\n# TYPE eos_workers gauge\neos_workers{state=\"DONE\"} 3\neos_workers{state=\"SUSPENDED\"} 5\n# HELP eos_sse_clients Active SSE subscribers\n# TYPE eos_sse_clients gauge\neos_sse_clients 0\n# HELP eos_pending Pending permission requests\n# TYPE eos_pending gauge\neos_pending 1\n# HELP eos_policy_decisions_total Cumulative policy decisions\n# TYPE eos_policy_decisions_total counter\neos_policy_decisions_total{behavior=\"allow\"} 0\neos_policy_decisions_total{behavior=\"deny\"} 0\neos_policy_decisions_total{behavior=\"ask\"} 0\n# HELP eos_requests_total HTTP requests served\n# TYPE eos_requests_total counter\neos_requests_total <n>\n# HELP eos_body_too_large_total Requests rejected for body-size limit\n# TYPE eos_body_too_large_total counter\neos_body_too_large_total 0\n"
+      }
+    }
+  ]
+}

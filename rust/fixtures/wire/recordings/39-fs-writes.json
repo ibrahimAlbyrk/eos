@@ -1,0 +1,1272 @@
+{
+  "scenario": "39-fs-writes",
+  "about": "Changing files through the daemon: write, create, rename, move, paste, the folder and git watches with their change frames, recents and projects.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "clientId": "wire-tab",
+          "topics": "fs:*,git:*,projects:*,recents:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "write-without-token",
+        "request": "POST /fs/write",
+        "auth": "none",
+        "body": {
+          "content": "x",
+          "path": "{sandbox}/beta/written.md"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "write",
+        "request": "POST /fs/write",
+        "body": {
+          "content": "# Written\n",
+          "path": "{sandbox}/beta/written.md"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "write-in-root",
+        "request": "POST /fs/write",
+        "body": {
+          "content": "nested\n",
+          "mkdirp": true,
+          "path": "deep/er/file.txt",
+          "root": "{sandbox}/beta"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "write-escapes-root",
+        "request": "POST /fs/write",
+        "body": {
+          "content": "x",
+          "path": "../alpha/x.txt",
+          "root": "{sandbox}/beta"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path escapes root"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "write-relative",
+        "request": "POST /fs/write",
+        "body": {
+          "content": "x",
+          "path": "written.md"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "write-invalid",
+        "request": "POST /fs/write",
+        "body": {
+          "path": "{sandbox}/beta/written.md"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: content: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "watch",
+        "request": "POST /fs/watch",
+        "body": {
+          "clientId": "wire-tab",
+          "dir": "{sandbox}/beta",
+          "root": "{sandbox}/beta"
+        },
+        "status": 200,
+        "pause_ms": 300
+      },
+      "route": "POST /fs/watch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "watch-without-token",
+        "request": "POST /fs/watch",
+        "auth": "none",
+        "body": {
+          "clientId": "wire-tab",
+          "dir": "{sandbox}/beta",
+          "root": "{sandbox}/beta"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/watch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "create-file",
+        "request": "POST /fs/create",
+        "body": {
+          "content": "made\n",
+          "path": "created.txt",
+          "root": "{sandbox}/beta",
+          "type": "file"
+        },
+        "status": 200,
+        "wait": [
+          "fs:change"
+        ],
+        "pause_ms": 500
+      },
+      "route": "POST /fs/create",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "dir": "{sandbox}/beta",
+                      "kind": "add",
+                      "path": "{sandbox}/beta/created.txt",
+                      "ts": "<now>"
+                    }
+                  ]
+                },
+                "reason": "fs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "path": "{sandbox}/beta/created.txt"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "create-folder",
+        "request": "POST /fs/create",
+        "body": {
+          "path": "folder",
+          "root": "{sandbox}/beta",
+          "type": "directory"
+        },
+        "status": 200,
+        "wait": [
+          "fs:change"
+        ]
+      },
+      "route": "POST /fs/create",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "dir": "{sandbox}/beta",
+                      "kind": "addDir",
+                      "path": "{sandbox}/beta/folder",
+                      "ts": "<now>"
+                    }
+                  ]
+                },
+                "reason": "fs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "path": "{sandbox}/beta/folder"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "create-existing",
+        "request": "POST /fs/create",
+        "body": {
+          "path": "created.txt",
+          "root": "{sandbox}/beta",
+          "type": "file"
+        },
+        "status": 409
+      },
+      "route": "POST /fs/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "already exists: {sandbox}/beta/created.txt"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "create-escape",
+        "request": "POST /fs/create",
+        "body": {
+          "path": "../x.txt",
+          "root": "{sandbox}/beta",
+          "type": "file"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/create",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path escapes root"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "rename",
+        "request": "POST /fs/rename",
+        "body": {
+          "newName": "renamed.txt",
+          "path": "created.txt",
+          "root": "{sandbox}/beta"
+        },
+        "status": 200,
+        "wait": [
+          "fs:change"
+        ]
+      },
+      "route": "POST /fs/rename",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "dir": "{sandbox}/beta",
+                      "kind": "unlink",
+                      "path": "{sandbox}/beta/created.txt",
+                      "ts": "<now>"
+                    },
+                    {
+                      "dir": "{sandbox}/beta",
+                      "kind": "add",
+                      "path": "{sandbox}/beta/renamed.txt",
+                      "ts": "<now>"
+                    }
+                  ]
+                },
+                "reason": "fs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "path": "{sandbox}/beta/renamed.txt"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rename-bad-name",
+        "request": "POST /fs/rename",
+        "body": {
+          "newName": "a/b",
+          "path": "renamed.txt",
+          "root": "{sandbox}/beta"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/rename",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: newName: name cannot contain '/' or null"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "rename-missing",
+        "request": "POST /fs/rename",
+        "body": {
+          "newName": "x.txt",
+          "path": "nope.txt",
+          "root": "{sandbox}/beta"
+        },
+        "status": 404
+      },
+      "route": "POST /fs/rename",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path not found: {sandbox}/beta/nope.txt"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "move",
+        "request": "POST /fs/move",
+        "body": {
+          "destDir": "folder",
+          "paths": [
+            "renamed.txt"
+          ],
+          "root": "{sandbox}/beta"
+        },
+        "status": 200,
+        "wait": [
+          "fs:change"
+        ]
+      },
+      "route": "POST /fs/move",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "dir": "{sandbox}/beta",
+                      "kind": "unlink",
+                      "path": "{sandbox}/beta/renamed.txt",
+                      "ts": "<now>"
+                    }
+                  ]
+                },
+                "reason": "fs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "results": [
+            {
+              "from": "renamed.txt",
+              "ok": true
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "move-conflict",
+        "request": "POST /fs/move",
+        "body": {
+          "destDir": "folder",
+          "paths": [
+            "folder/renamed.txt"
+          ],
+          "root": "{sandbox}/beta"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/move",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": false,
+          "results": [
+            {
+              "error": "already in destination",
+              "from": "folder/renamed.txt",
+              "ok": false
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-after",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/beta",
+          "dir": "folder"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/beta/folder/renamed.txt",
+              "isSymlink": false,
+              "name": "renamed.txt",
+              "relativePath": "folder/renamed.txt",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "trash-without-token",
+        "request": "POST /fs/trash",
+        "auth": "none",
+        "body": {
+          "paths": [
+            "written.md"
+          ],
+          "root": "{sandbox}/beta"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/trash",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "trash-invalid",
+        "request": "POST /fs/trash",
+        "body": {
+          "paths": [],
+          "root": "{sandbox}/beta"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/trash",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: paths: Array must contain at least 1 element(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "unwatch",
+        "request": "POST /fs/unwatch",
+        "body": {
+          "clientId": "wire-tab",
+          "dir": "{sandbox}/beta",
+          "root": "{sandbox}/beta"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/unwatch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "unwatch-all",
+        "request": "POST /fs/unwatch",
+        "body": {
+          "all": true,
+          "clientId": "wire-tab"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/unwatch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "git-watch",
+        "request": "POST /fs/git/watch",
+        "body": {
+          "clientId": "wire-tab",
+          "dir": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/git/watch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "change-in-watched-repository",
+        "request": "POST /fs/write",
+        "body": {
+          "content": "seen\n",
+          "path": "{sandbox}/alpha/watched.txt"
+        },
+        "status": 200,
+        "wait": [
+          "git:change"
+        ],
+        "pause_ms": 500
+      },
+      "route": "POST /fs/write",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "dir": "{sandbox}/alpha",
+                  "kinds": [
+                    "worktree"
+                  ],
+                  "ts": "<now>"
+                },
+                "reason": "git:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "git-unwatch",
+        "request": "POST /fs/git/unwatch",
+        "body": {
+          "clientId": "wire-tab",
+          "dir": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/git/unwatch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "paste",
+        "request": "POST /fs/paste",
+        "headers": {
+          "x-filename": "clip.txt"
+        },
+        "text": "pasted bytes",
+        "content_type": "application/octet-stream",
+        "status": 200
+      },
+      "route": "POST /fs/paste",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "path": "{user_home}/tmp/eos-paste-<random>/clip.txt"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "paste-no-name",
+        "request": "POST /fs/paste",
+        "text": "pasted bytes",
+        "content_type": "application/octet-stream",
+        "status": 400
+      },
+      "route": "POST /fs/paste",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "x-filename header required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "paste-wrong-type",
+        "request": "POST /fs/paste",
+        "headers": {
+          "x-filename": "clip.txt"
+        },
+        "text": "pasted bytes",
+        "content_type": "text/plain",
+        "status": 400
+      },
+      "route": "POST /fs/paste",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "content-type must be application/octet-stream"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "paste-b64",
+        "request": "POST /fs/paste-b64",
+        "body": {
+          "dataB64": "cGFzdGVkIGJ5dGVz",
+          "name": "clip.txt"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/paste-b64",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "path": "{user_home}/tmp/eos-paste-<random>/clip.txt"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "paste-b64-invalid",
+        "request": "POST /fs/paste-b64",
+        "body": {
+          "name": "clip.txt"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/paste-b64",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: dataB64: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "open-without-token",
+        "request": "POST /fs/open",
+        "auth": "none",
+        "body": {
+          "path": "{sandbox}/beta/notes.md"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/open",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "open-relative",
+        "request": "POST /fs/open",
+        "body": {
+          "path": "notes.md"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/open",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path or URL required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "reveal-without-token",
+        "request": "POST /fs/reveal",
+        "auth": "none",
+        "body": {
+          "path": "{sandbox}/beta/notes.md"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/reveal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "reveal-relative",
+        "request": "POST /fs/reveal",
+        "body": {
+          "path": "notes.md"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/reveal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "open-in-without-token",
+        "request": "POST /fs/open-in",
+        "auth": "none",
+        "body": {
+          "path": "{sandbox}/beta/notes.md",
+          "target": "vscode"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/open-in",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "open-in-unknown-editor",
+        "request": "POST /fs/open-in",
+        "body": {
+          "path": "{sandbox}/beta/notes.md",
+          "target": "notepad"
+        },
+        "status": 400
+      },
+      "route": "POST /fs/open-in",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: target: Invalid enum value. Expected 'finder' | 'vscode' | 'cursor' | 'zed' | 'sublime' | 'xcode', received 'notepad'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "projects-empty",
+        "request": "GET /projects",
+        "status": 200
+      },
+      "route": "GET /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "projects": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-create",
+        "request": "PUT /projects",
+        "body": {
+          "folders": [
+            "{sandbox}/alpha",
+            "{sandbox}/beta"
+          ],
+          "icon": {
+            "kind": "emoji",
+            "value": "A"
+          },
+          "name": "Alpha",
+          "pinned": true
+        },
+        "status": 200,
+        "capture": {
+          "project": "/json/project/id"
+        }
+      },
+      "route": "PUT /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "project": {
+            "folders": [
+              "{sandbox}/alpha",
+              "{sandbox}/beta"
+            ],
+            "icon": {
+              "kind": "emoji",
+              "value": "A"
+            },
+            "id": "<uuid:1>",
+            "name": "Alpha",
+            "pinned": true
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-create-without-token",
+        "request": "PUT /projects",
+        "auth": "none",
+        "body": {
+          "folders": [
+            "{sandbox}/beta"
+          ],
+          "name": "Beta"
+        },
+        "status": 403
+      },
+      "route": "PUT /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "project-create-relative",
+        "request": "PUT /projects",
+        "body": {
+          "folders": [
+            "beta"
+          ],
+          "name": "Beta"
+        },
+        "status": 400
+      },
+      "route": "PUT /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "folders must be absolute"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "project-create-invalid",
+        "request": "PUT /projects",
+        "body": {
+          "folders": [],
+          "name": ""
+        },
+        "status": 400
+      },
+      "route": "PUT /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: String must contain at least 1 character(s); folders: Array must contain at least 1 element(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "project-update",
+        "request": "PUT /projects",
+        "body": {
+          "folders": [
+            "{sandbox}/alpha"
+          ],
+          "id": "{project}",
+          "name": "Alpha renamed"
+        },
+        "status": 200
+      },
+      "route": "PUT /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "project": {
+            "folders": [
+              "{sandbox}/alpha"
+            ],
+            "id": "<uuid:1>",
+            "name": "Alpha renamed"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "projects",
+        "request": "GET /projects",
+        "status": 200
+      },
+      "route": "GET /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "projects": [
+            {
+              "folders": [
+                "{sandbox}/alpha"
+              ],
+              "id": "<uuid:1>",
+              "name": "Alpha renamed"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-delete",
+        "request": "POST /projects/delete",
+        "body": {
+          "id": "{project}"
+        },
+        "status": 200
+      },
+      "route": "POST /projects/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "project-delete-again",
+        "request": "POST /projects/delete",
+        "body": {
+          "id": "{project}"
+        },
+        "status": 404
+      },
+      "route": "POST /projects/delete",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "project not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "recents",
+        "request": "GET /fs/recents",
+        "status": 200
+      },
+      "route": "GET /fs/recents",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "paths": [
+            "{sandbox}/beta"
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "recent-remove",
+        "request": "POST /fs/recents/remove",
+        "body": {
+          "path": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /fs/recents/remove",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "recent-remove-without-token",
+        "request": "POST /fs/recents/remove",
+        "auth": "none",
+        "body": {
+          "path": "{sandbox}/alpha"
+        },
+        "status": 403
+      },
+      "route": "POST /fs/recents/remove",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

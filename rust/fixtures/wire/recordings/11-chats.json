@@ -1,0 +1,1949 @@
+{
+  "scenario": "11-chats",
+  "about": "Chats and workers, read side: lists, one row, and everything a transcript pane reads. Finds its ids in the lists, so it also runs on a real data folder.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "list",
+        "request": "GET /workers",
+        "status": 200,
+        "capture": {
+          "chat": "/json/[agent_role=focused]/id",
+          "chat_cwd": "/json/[agent_role=focused]/cwd",
+          "kid": "/json/[with_gateway=1]/id"
+        }
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 400
+            },
+            "cost_usd": 0.02,
+            "cwd": "{sandbox}/beta",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-BUSY",
+            "is_orchestrator": 0,
+            "last_context_tokens": 400,
+            "model": "opus",
+            "name": "Summarize notes",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "plan",
+            "pid": null,
+            "port": null,
+            "prompt": "Summarize notes.md.",
+            "scratch": 0,
+            "session_id": "<uuid:1>",
+            "started_at": 1790000400000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 400,
+            "tokens_out": 20,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": 1790000401000,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 150
+            },
+            "cost_usd": 0.01,
+            "cwd": null,
+            "effort": "medium",
+            "ended_at": 1790000330000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-BARE",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150,
+            "model": "opus",
+            "name": null,
+            "name_source": "default",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Explain what a monad is in two sentences.",
+            "scratch": 1,
+            "session_id": null,
+            "started_at": 1790000300000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 150,
+            "tokens_out": 60,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 1,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 3900
+            },
+            "cost_usd": 0.05,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-KID2",
+            "is_orchestrator": 0,
+            "last_context_tokens": 3900,
+            "model": "sonnet",
+            "name": "readme scout",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Find where the README documents flags.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000220000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 100,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 3000,
+            "tokens_in": 800,
+            "tokens_out": 200,
+            "tool_calls": 2,
+            "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "explorer",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 11700
+            },
+            "cost_usd": 0.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": 1790000290000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-KID1",
+            "is_orchestrator": 0,
+            "last_context_tokens": 11700,
+            "model": "opus",
+            "name": "json flag impl",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Implement the --json flag in cli.js.",
+            "scratch": 0,
+            "session_id": "<uuid:3>",
+            "started_at": 1790000210000,
+            "state": "DONE",
+            "tasks": "[{\"id\":\"1\",\"subject\":\"Add flag\",\"status\":\"completed\"},{\"id\":\"2\",\"subject\":\"Write test\",\"status\":\"completed\"}]",
+            "tokens_cache_create": 700,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 9000,
+            "tokens_in": 2000,
+            "tokens_out": 500,
+            "tool_calls": 6,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "general-purpose",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 3,
+              "used": 26500
+            },
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 15,
+              "used": 150000
+            },
+            "cost_usd": 2.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-LONG",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150000,
+            "model": "sonnet",
+            "name": "Long chat",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Count to a thousand.",
+            "scratch": 0,
+            "session_id": "<uuid:5>",
+            "started_at": 1790000100000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 3000,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 400000,
+            "tokens_in": 90000,
+            "tokens_out": 12000,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 7600
+            },
+            "cost_usd": 0.4321,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-CHAT",
+            "is_orchestrator": 0,
+            "last_context_tokens": 7600,
+            "model": "opus",
+            "name": "Fix the parser",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Fix the parser so empty input returns an empty list.",
+            "scratch": 0,
+            "session_id": "<uuid:6>",
+            "started_at": 1790000000000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 800,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 5600,
+            "tokens_in": 1200,
+            "tokens_out": 340,
+            "tool_calls": 3,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-brief",
+        "request": "GET /workers",
+        "query": {
+          "brief": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 400
+            },
+            "cost_usd": 0.02,
+            "cwd": "{sandbox}/beta",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-BUSY",
+            "is_orchestrator": 0,
+            "last_context_tokens": 400,
+            "model": "opus",
+            "name": "Summarize notes",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "plan",
+            "pid": null,
+            "port": null,
+            "prompt": "Summarize notes.md.",
+            "scratch": 0,
+            "session_id": "<uuid:1>",
+            "started_at": 1790000400000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 400,
+            "tokens_out": 20,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": 1790000401000,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 150
+            },
+            "cost_usd": 0.01,
+            "cwd": null,
+            "effort": "medium",
+            "ended_at": 1790000330000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-BARE",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150,
+            "model": "opus",
+            "name": null,
+            "name_source": "default",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Explain what a monad is in two sentences.",
+            "scratch": 1,
+            "session_id": null,
+            "started_at": 1790000300000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 150,
+            "tokens_out": 60,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 1,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 3900
+            },
+            "cost_usd": 0.05,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-KID2",
+            "is_orchestrator": 0,
+            "last_context_tokens": 3900,
+            "model": "sonnet",
+            "name": "readme scout",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Find where the README documents flags.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000220000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 100,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 3000,
+            "tokens_in": 800,
+            "tokens_out": 200,
+            "tool_calls": 2,
+            "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "explorer",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 11700
+            },
+            "cost_usd": 0.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": 1790000290000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-KID1",
+            "is_orchestrator": 0,
+            "last_context_tokens": 11700,
+            "model": "opus",
+            "name": "json flag impl",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Implement the --json flag in cli.js.",
+            "scratch": 0,
+            "session_id": "<uuid:3>",
+            "started_at": 1790000210000,
+            "state": "DONE",
+            "tasks": "[{\"id\":\"1\",\"subject\":\"Add flag\",\"status\":\"completed\"},{\"id\":\"2\",\"subject\":\"Write test\",\"status\":\"completed\"}]",
+            "tokens_cache_create": 700,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 9000,
+            "tokens_in": 2000,
+            "tokens_out": 500,
+            "tool_calls": 6,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "general-purpose",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 3,
+              "used": 26500
+            },
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 15,
+              "used": 150000
+            },
+            "cost_usd": 2.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-LONG",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150000,
+            "model": "sonnet",
+            "name": "Long chat",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Count to a thousand.",
+            "scratch": 0,
+            "session_id": "<uuid:5>",
+            "started_at": 1790000100000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 3000,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 400000,
+            "tokens_in": 90000,
+            "tokens_out": 12000,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 7600
+            },
+            "cost_usd": 0.4321,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-CHAT",
+            "is_orchestrator": 0,
+            "last_context_tokens": 7600,
+            "model": "opus",
+            "name": "Fix the parser",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Fix the parser so empty input returns an empty list.",
+            "scratch": 0,
+            "session_id": "<uuid:6>",
+            "started_at": 1790000000000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 800,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 5600,
+            "tokens_in": 1200,
+            "tokens_out": 340,
+            "tool_calls": 3,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "orchestrators",
+        "request": "GET /orchestrators",
+        "status": 200,
+        "capture": {
+          "orch": "/json/0/id"
+        }
+      },
+      "route": "GET /orchestrators",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-children",
+        "request": "GET /workers",
+        "query": {
+          "parentId": "{orch}"
+        },
+        "status": 200
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 1,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 3900
+            },
+            "cost_usd": 0.05,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-KID2",
+            "is_orchestrator": 0,
+            "last_context_tokens": 3900,
+            "model": "sonnet",
+            "name": "readme scout",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Find where the README documents flags.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000220000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 100,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 3000,
+            "tokens_in": 800,
+            "tokens_out": 200,
+            "tool_calls": 2,
+            "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "explorer",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 11700
+            },
+            "cost_usd": 0.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": 1790000290000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-KID1",
+            "is_orchestrator": 0,
+            "last_context_tokens": 11700,
+            "model": "opus",
+            "name": "json flag impl",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Implement the --json flag in cli.js.",
+            "scratch": 0,
+            "session_id": "<uuid:3>",
+            "started_at": 1790000210000,
+            "state": "DONE",
+            "tasks": "[{\"id\":\"1\",\"subject\":\"Add flag\",\"status\":\"completed\"},{\"id\":\"2\",\"subject\":\"Write test\",\"status\":\"completed\"}]",
+            "tokens_cache_create": 700,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 9000,
+            "tokens_in": 2000,
+            "tokens_out": 500,
+            "tool_calls": 6,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "general-purpose",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archived",
+        "request": "GET /workers/archived",
+        "status": 200,
+        "capture": {
+          "archived": "/json/0/id"
+        }
+      },
+      "route": "GET /workers/archived",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": 1789995000000,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 0.001,
+            "cwd": "{sandbox}/beta",
+            "effort": "low",
+            "ended_at": 1789990060000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-ARCH",
+            "is_orchestrator": 0,
+            "last_context_tokens": 300,
+            "model": "haiku",
+            "name": "Old question",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "What is in this folder?",
+            "scratch": 0,
+            "session_id": "<uuid:7>",
+            "started_at": 1789990000000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 300,
+            "tokens_out": 80,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "archived-brief",
+        "request": "GET /workers/archived",
+        "query": {
+          "brief": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/archived",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": 1789995000000,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 0.001,
+            "cwd": "{sandbox}/beta",
+            "effort": "low",
+            "ended_at": 1789990060000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-ARCH",
+            "is_orchestrator": 0,
+            "last_context_tokens": 300,
+            "model": "haiku",
+            "name": "Old question",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "What is in this folder?",
+            "scratch": 0,
+            "session_id": "<uuid:7>",
+            "started_at": 1789990000000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 300,
+            "tokens_out": 80,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row",
+        "request": "GET /workers/{chat}",
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": "focused",
+          "archived_at": null,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 0,
+          "context": {
+            "limit": 1000000,
+            "pct": 0,
+            "used": 400
+          },
+          "cost_usd": 0.02,
+          "cwd": "{sandbox}/beta",
+          "effort": "high",
+          "ended_at": null,
+          "exit_code": null,
+          "fork_base_sha": null,
+          "id": "w-BUSY",
+          "is_orchestrator": 0,
+          "last_context_tokens": 400,
+          "model": "opus",
+          "name": "Summarize notes",
+          "name_source": "auto",
+          "parent_id": null,
+          "permission_mode": "plan",
+          "pid": null,
+          "port": null,
+          "prompt": "Summarize notes.md.",
+          "scratch": 0,
+          "session_id": "<uuid:1>",
+          "started_at": 1790000400000,
+          "state": "SUSPENDED",
+          "tasks": null,
+          "tokens_cache_create": 0,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 0,
+          "tokens_in": 400,
+          "tokens_out": 20,
+          "tool_calls": 1,
+          "tool_scope": null,
+          "turn_started_at": 1790000401000,
+          "with_gateway": 0,
+          "worker_definition": null,
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row-orchestrator",
+        "request": "GET /workers/{orch}",
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": null,
+          "archived_at": null,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 0,
+          "context": {
+            "limit": 1000000,
+            "pct": 3,
+            "used": 26500
+          },
+          "cost_usd": 1.25,
+          "cwd": "{sandbox}/alpha",
+          "effort": "xhigh",
+          "ended_at": null,
+          "exit_code": null,
+          "fork_base_sha": null,
+          "id": "o-ORCH",
+          "is_orchestrator": 1,
+          "last_context_tokens": 26500,
+          "model": "opus",
+          "name": "JSON flag",
+          "name_source": "auto",
+          "parent_id": null,
+          "permission_mode": "acceptEdits",
+          "pid": null,
+          "port": null,
+          "prompt": "Add a --json flag and document it.",
+          "scratch": 0,
+          "session_id": "<uuid:4>",
+          "started_at": 1790000200000,
+          "state": "SUSPENDED",
+          "tasks": null,
+          "tokens_cache_create": 1500,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 20000,
+          "tokens_in": 5000,
+          "tokens_out": 900,
+          "tool_calls": 4,
+          "tool_scope": null,
+          "turn_started_at": null,
+          "with_gateway": 0,
+          "worker_definition": null,
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row-child-as-parent",
+        "request": "GET /workers/{kid}",
+        "query": {
+          "actorId": "{orch}"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": null,
+          "archived_at": null,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 1,
+          "context": {
+            "limit": 1000000,
+            "pct": 0,
+            "used": 3900
+          },
+          "cost_usd": 0.05,
+          "cwd": "{sandbox}/alpha",
+          "effort": "medium",
+          "ended_at": null,
+          "exit_code": null,
+          "fork_base_sha": null,
+          "id": "w-KID2",
+          "is_orchestrator": 0,
+          "last_context_tokens": 3900,
+          "model": "sonnet",
+          "name": "readme scout",
+          "name_source": "user",
+          "parent_id": "o-ORCH",
+          "permission_mode": "acceptEdits",
+          "pid": null,
+          "port": null,
+          "prompt": "Find where the README documents flags.",
+          "scratch": 0,
+          "session_id": "<uuid:2>",
+          "started_at": 1790000220000,
+          "state": "SUSPENDED",
+          "tasks": null,
+          "tokens_cache_create": 100,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 3000,
+          "tokens_in": 800,
+          "tokens_out": 200,
+          "tool_calls": 2,
+          "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+          "turn_started_at": null,
+          "with_gateway": 1,
+          "worker_definition": "explorer",
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row-foreign-actor",
+        "request": "GET /workers/{chat}",
+        "query": {
+          "actorId": "{kid}"
+        },
+        "status": 403
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker w-BUSY is not managed by w-KID2"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "row-archived-for-dashboard",
+        "request": "GET /workers/{archived}",
+        "status": 200
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "agent_role": "focused",
+          "archived_at": 1789995000000,
+          "backend_kind": "claude",
+          "backend_profile": null,
+          "branch": null,
+          "collaborate": 0,
+          "context": {
+            "limit": 1000000,
+            "pct": 0,
+            "used": 300
+          },
+          "cost_usd": 0.001,
+          "cwd": "{sandbox}/beta",
+          "effort": "low",
+          "ended_at": 1789990060000,
+          "exit_code": 0,
+          "fork_base_sha": null,
+          "id": "w-ARCH",
+          "is_orchestrator": 0,
+          "last_context_tokens": 300,
+          "model": "haiku",
+          "name": "Old question",
+          "name_source": "auto",
+          "parent_id": null,
+          "permission_mode": "default",
+          "pid": null,
+          "port": null,
+          "prompt": "What is in this folder?",
+          "scratch": 0,
+          "session_id": "<uuid:7>",
+          "started_at": 1789990000000,
+          "state": "DONE",
+          "tasks": null,
+          "tokens_cache_create": 0,
+          "tokens_cache_create_1h": 0,
+          "tokens_cache_read": 0,
+          "tokens_in": 300,
+          "tokens_out": 80,
+          "tool_calls": 1,
+          "tool_scope": null,
+          "turn_started_at": null,
+          "with_gateway": 0,
+          "worker_definition": null,
+          "workspace_owner_id": null,
+          "workspace_ready": 1,
+          "worktree_dir": null,
+          "worktree_from": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "row-archived-for-agent",
+        "request": "GET /workers/{archived}",
+        "query": {
+          "actorId": "{archived}"
+        },
+        "status": 404
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "row-unknown",
+        "request": "GET /workers/w-nope0000",
+        "status": 404
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "events-newest",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "limit": "5"
+        },
+        "status": 200,
+        "capture": {
+          "oldest_seen": "/json/[last]/id"
+        }
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 685,
+            "payload": "{\"state\":\"WORKING\",\"from\":\"IDLE\",\"reason\":\"turn started\"}",
+            "ts": 1790000401000,
+            "type": "state",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 686,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_read_9\",\"name\":\"Read\",\"input\":{\"file_path\":\"{sandbox}/beta/notes.md\"}}]}",
+            "ts": 1790000402000,
+            "type": "agent_event",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 687,
+            "payload": "{\"state\":\"SUSPENDED\",\"from\":\"WORKING\",\"reason\":\"boot_reconcile\"}",
+            "ts": "<now>",
+            "type": "state",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "events-older",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "beforeId": "{oldest_seen}",
+          "limit": "5"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 685,
+            "payload": "{\"state\":\"WORKING\",\"from\":\"IDLE\",\"reason\":\"turn started\"}",
+            "ts": 1790000401000,
+            "type": "state",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 686,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_read_9\",\"name\":\"Read\",\"input\":{\"file_path\":\"{sandbox}/beta/notes.md\"}}]}",
+            "ts": 1790000402000,
+            "type": "agent_event",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "events-oldest-first",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "limit": "5",
+          "order": "asc"
+        },
+        "status": 200,
+        "capture": {
+          "fifth": "/json/[last]/id"
+        }
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 685,
+            "payload": "{\"state\":\"WORKING\",\"from\":\"IDLE\",\"reason\":\"turn started\"}",
+            "ts": 1790000401000,
+            "type": "state",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 686,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_read_9\",\"name\":\"Read\",\"input\":{\"file_path\":\"{sandbox}/beta/notes.md\"}}]}",
+            "ts": 1790000402000,
+            "type": "agent_event",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 687,
+            "payload": "{\"state\":\"SUSPENDED\",\"from\":\"WORKING\",\"reason\":\"boot_reconcile\"}",
+            "ts": "<now>",
+            "type": "state",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "events-after",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "afterId": "{fifth}",
+          "limit": "3"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "events-bad-query",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "limit": "0",
+          "order": "sideways"
+        },
+        "status": 400
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: limit: Number must be greater than 0; order: Invalid enum value. Expected 'asc' | 'desc', received 'sideways'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "events-unknown-worker",
+        "request": "GET /workers/w-nope0000/events",
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "prompt-events",
+        "request": "GET /workers/{chat}/prompt-events",
+        "status": 200
+      },
+      "route": "GET /workers/:id/prompt-events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "subagent-events",
+        "request": "GET /workers/{chat}/subagent-events",
+        "status": 200
+      },
+      "route": "GET /workers/:id/subagent-events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "attachments",
+        "request": "GET /workers/{chat}/attachments",
+        "status": 200
+      },
+      "route": "GET /workers/:id/attachments",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "attachments": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "queue",
+        "request": "GET /workers/{chat}/queue",
+        "status": 200
+      },
+      "route": "GET /workers/:id/queue",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "messages": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peers",
+        "request": "GET /workers/{kid}/peers",
+        "status": 200
+      },
+      "route": "GET /workers/:id/peers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory",
+        "request": "GET /workers/{chat}/memory",
+        "status": 200
+      },
+      "route": "GET /workers/:id/memory",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "dir": "{user_home}/.claude/projects/{sandbox_slug}-beta/memory",
+          "entries": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "workflow-runs",
+        "request": "GET /workers/{chat}/workflow-runs",
+        "status": 200
+      },
+      "route": "GET /workers/:id/workflow-runs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "runs": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "workflow-run-unknown",
+        "request": "GET /workers/{chat}/workflow-runs/call_nope",
+        "status": 404
+      },
+      "route": "GET /workers/:id/workflow-runs/:callId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no workflow run with that call id"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "workflow-agent-unknown",
+        "request": "GET /workers/{chat}/workflow-runs/call_nope/agents/agent-nope",
+        "status": 404
+      },
+      "route": "GET /workers/:id/workflow-runs/:callId/agents/:agentId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no transcript for that agent"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "rewind-targets-at-rest",
+        "request": "GET /workers/{chat}/rewind-targets",
+        "status": 409
+      },
+      "route": "GET /workers/:id/rewind-targets",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not running"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "changes",
+        "request": "GET /workers/{chat}/changes",
+        "status": 200
+      },
+      "route": "GET /workers/:id/changes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "deletions": 0,
+          "files": [],
+          "insertions": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "diff",
+        "request": "GET /workers/{chat}/diff",
+        "status": 200
+      },
+      "route": "GET /workers/:id/diff",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "deletions": 0,
+          "files": 0,
+          "insertions": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "push-state",
+        "request": "GET /workers/{chat}/push-state",
+        "status": 200
+      },
+      "route": "GET /workers/:id/push-state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ahead": 0,
+          "behind": 0,
+          "branch": null,
+          "hasUncommitted": false,
+          "hasUpstream": false,
+          "kind": "blocked",
+          "pullKind": "blocked",
+          "pullable": false,
+          "pushable": false,
+          "remote": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "conflicts",
+        "request": "GET /workers/{chat}/conflicts",
+        "status": 200
+      },
+      "route": "GET /workers/:id/conflicts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "files": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "try-state",
+        "request": "GET /workers/{chat}/try/state",
+        "status": 200
+      },
+      "route": "GET /workers/:id/try/state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "activeTries": [],
+          "kept": false,
+          "syncFiles": [],
+          "syncable": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "try-preview",
+        "request": "GET /workers/{chat}/try/preview",
+        "status": 409
+      },
+      "route": "GET /workers/:id/try/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker has no worktree branch"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "transfers-of-unknown",
+        "request": "GET /workers/{chat}/transfers/tr-nope",
+        "status": 403
+      },
+      "route": "GET /workers/:id/transfers/:tid",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only a focused session can send files to another Mac"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "export",
+        "request": "GET /workers/{chat}/export",
+        "status": 200
+      },
+      "route": "GET /workers/:id/export",
+      "response": {
+        "headers": {
+          "content-disposition": "attachment; filename=\"export-Summarize notes-<date>.html\"",
+          "content-type": "text/html; charset=utf-8"
+        },
+        "status": 200,
+        "text": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"UTF-8\">\n<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n<title>Eos Export</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link href=\"https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap\" rel=\"stylesheet\">\n<style>\n  /* ═══════════════════════════════════════════════════════════════════\n     Eos Conversation Export — \"Quiet Ledger\"\n     Neutral charcoal canvas · soft muted-green accent · editorial serif\n     A vertical timeline (spine) threads every event.\n     Self-contained · flips to a clean light document for print.\n     ═══════════════════════════════════════════════════════════════════ */\n\n  :root {\n    /* neutral, faintly-cool charcoal (hue ~265, near-zero chroma) */\n    --bg:        oklch(0.195 0.003 265);\n    --surface:   oklch(0.240 0.004 265);\n    --surface-2: oklch(0.285 0.004 265);\n    --inset:     oklch(0.160 0.003 265);\n\n    --line:      oklch(0.340 0.005 265);\n    --line-soft: oklch(0.285 0.005 265);\n\n    --t1: oklch(0.930 0.003 265);   /* primary text */\n    --t2: oklch(0.760 0.004 265);   /* secondary   */\n    --t3: oklch(0.605 0.005 265);   /* muted       */\n    --t4: oklch(0.460 0.005 265);   /* faint       */\n\n    /* accents — soft pastels, matched lightness/chroma (kept quiet) */\n    --amber: oklch(0.810 0.050 158);   /* signature / user / active / links (soft green) */\n    --sage:  oklch(0.800 0.045 245);   /* tool calls (soft blue) */\n    --rust:  oklch(0.740 0.062 20);    /* errors (soft rose)     */\n\n    --r-sm: 7px;\n    --r-md: 12px;\n\n    --gutter: 58px;   /* timestamp column */\n    --spine:  76px;   /* x of the timeline line + markers */\n\n    interpolate-size: allow-keywords;\n  }\n\n  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }\n  html {\n    font-size: 16px;\n    -webkit-font-smoothing: antialiased;\n    -moz-osx-font-smoothing: grayscale;\n    text-rendering: optimizeLegibility;\n  }\n  body {\n    font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;\n    background: var(--bg);\n    color: var(--t1);\n    line-height: 1.65;\n    min-height: 100vh;\n  }\n\n  ::selection { background: color-mix(in oklch, var(--amber) 30%, transparent); color: #fff; }\n  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }\n\n  /* faint warmth bleeding from the top — the only \"glow\" in the piece */\n  body::before {\n    content: '';\n    position: fixed; inset: 0; z-index: 0; pointer-events: none;\n    background: radial-gradient(115% 55% at 50% -12%,\n      color-mix(in oklch, var(--t1) 5%, transparent), transparent 60%);\n  }\n\n  /* ── page frame ──────────────────────────────────────────────────── */\n  .archive {\n    position: relative;\n    z-index: 1;\n    max-width: 1680px;\n    margin: 0 auto;\n    padding: 5.5rem 3rem 7rem;\n  }\n\n  /* ── header ──────────────────────────────────────────────────────── */\n  .archive-header {\n    padding-bottom: 2.75rem;\n    margin-bottom: 3rem;\n    border-bottom: 1px solid var(--line-soft);\n    animation: rise .5s .04s both cubic-bezier(.22,.68,.28,1);\n  }\n  .eyebrow {\n    display: inline-flex;\n    align-items: center;\n    gap: .6rem;\n    font: 500 .7rem/1 'JetBrains Mono', ui-monospace, monospace;\n    letter-spacing: .26em;\n    text-transform: uppercase;\n    color: var(--t3);\n    margin-bottom: 1.1rem;\n  }\n  .eyebrow::before {\n    content: '';\n    width: 7px; height: 7px; border-radius: 50%;\n    background: var(--amber);\n    box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 14%, transparent);\n  }\n  .archive-title {\n    font: 400 3rem/1.02 'Instrument Serif', Georgia, 'Times New Roman', serif;\n    letter-spacing: -.005em;\n    color: var(--t1);\n    margin-bottom: 1.25rem;\n  }\n  .archive-meta {\n    display: flex;\n    align-items: center;\n    flex-wrap: wrap;\n    gap: .85rem;\n    font: 400 .78rem/1.5 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t3);\n  }\n  .archive-meta .meta-sep { color: var(--t4); }\n\n  /* ── worker switcher (multi-worker only) ─────────────────────────── */\n  .workers {\n    display: flex;\n    flex-wrap: wrap;\n    gap: .35rem;\n    margin-bottom: 3rem;\n    animation: rise .5s .1s both cubic-bezier(.22,.68,.28,1);\n  }\n  .wtab {\n    display: inline-flex;\n    align-items: center;\n    gap: .55rem;\n    padding: .5rem .9rem;\n    background: transparent;\n    border: 1px solid transparent;\n    border-radius: 999px;\n    color: var(--t3);\n    font: 500 .84rem/1 'Hanken Grotesk', system-ui, sans-serif;\n    cursor: pointer;\n    transition: background .15s ease, color .15s ease, border-color .15s ease;\n  }\n  .wtab:hover { color: var(--t1); background: var(--surface); }\n  .wdot {\n    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;\n    background: var(--t4);\n    transition: background .15s ease;\n  }\n  .wtab.orch .wdot { background: var(--amber); }\n  .wloop {\n    font: 400 .82rem/1 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t3);\n    flex-shrink: 0;\n  }\n  .wcount {\n    font: 400 .68rem/1 'JetBrains Mono', ui-monospace, monospace;\n    font-variant-numeric: tabular-nums;\n    color: var(--t4);\n  }\n  .wtab.active {\n    color: var(--t1);\n    background: var(--surface);\n    border-color: var(--line);\n  }\n  .wtab.active .wcount { color: var(--t3); }\n\n  .panels { min-width: 0; }\n  .panel { min-width: 0; }\n  .panel[hidden] { display: none; }\n  .panel.active { animation: rise .32s ease both; }\n\n  /* ── panel header (which worker you're reading) ──────────────────── */\n  .panel-head {\n    display: flex;\n    align-items: baseline;\n    gap: .8rem;\n    flex-wrap: wrap;\n    margin-bottom: 1.75rem;\n  }\n  .panel-name {\n    font: 400 1.6rem/1.2 'Instrument Serif', Georgia, serif;\n    letter-spacing: 0;\n    color: var(--t1);\n  }\n  .panel-badge {\n    font: 500 .6rem/1 'JetBrains Mono', ui-monospace, monospace;\n    text-transform: uppercase;\n    letter-spacing: .13em;\n    padding: .4em .75em;\n    border-radius: 999px;\n    border: 1px solid var(--line);\n    color: var(--t3);\n  }\n  .panel-badge.orch {\n    color: var(--amber);\n    border-color: color-mix(in oklch, var(--amber) 40%, var(--line));\n  }\n  /* a worker that ran under a goal-loop — the ↻ glyph reads at a glance */\n  .panel-badge.loop {\n    display: inline-flex;\n    align-items: center;\n    gap: .5em;\n    color: var(--t1);\n    border-color: var(--line);\n  }\n  .panel-badge.loop::before {\n    content: '\\21BB';\n    font-size: 1.15em;\n    line-height: 0;\n  }\n\n  /* ── the timeline & its spine ────────────────────────────────────── */\n  .timeline { position: relative; }\n  .timeline::before {\n    content: '';\n    position: absolute;\n    left: var(--spine); top: .8rem; bottom: .8rem;\n    width: 1px;\n    transform: translateX(-.5px);\n    background: var(--line-soft);\n  }\n\n  .event {\n    position: relative;\n    display: grid;\n    grid-template-columns: var(--gutter) 1fr;\n    padding-bottom: 1.7rem;\n  }\n  .event:last-child { padding-bottom: 0; }\n  .event-time {\n    grid-column: 1;\n    text-align: right;\n    padding-right: .9rem;\n    padding-top: .35rem;\n    font: 400 .66rem/1.4 'JetBrains Mono', ui-monospace, monospace;\n    font-variant-numeric: tabular-nums;\n    color: var(--t4);\n    transition: color .15s ease;\n  }\n  .event:hover .event-time { color: var(--t3); }\n  .event-body {\n    grid-column: 2;\n    min-width: 0;\n    padding-left: calc(var(--spine) - var(--gutter) + 1.1rem);\n    padding-top: .15rem;\n  }\n\n  /* markers sit on the spine */\n  .event-marker {\n    position: absolute;\n    left: var(--spine); top: .5rem;\n    transform: translateX(-50%);\n    width: 11px; height: 11px;\n    border-radius: 50%;\n    background: var(--bg);\n    border: 1.5px solid var(--t4);\n    z-index: 1;\n  }\n  .m-user {\n    background: var(--amber);\n    border-color: var(--amber);\n    box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 15%, transparent);\n  }\n  .m-assistant { border-color: var(--t3); }\n  .m-assistant.orch { border-color: var(--amber); }\n  .m-tool {\n    width: 8px; height: 8px; top: .62rem;\n    background: var(--t4); border: none;\n  }\n  .m-tool.err { background: var(--rust); }\n\n  /* ── user message ────────────────────────────────────────────────── */\n  .ev-user .event-body-inner {\n    padding: .95rem 1.2rem;\n    background: var(--surface);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--r-md);\n    color: var(--t1);\n    line-height: 1.7;\n    overflow-wrap: break-word;\n  }\n  .ev-user .role-label { color: var(--amber); }\n\n  .role-label {\n    display: block;\n    font: 500 .6rem/1 'JetBrains Mono', ui-monospace, monospace;\n    text-transform: uppercase;\n    letter-spacing: .16em;\n    color: var(--t4);\n    margin-bottom: .55rem;\n  }\n\n  /* ── assistant text — unboxed, flows open ────────────────────────── */\n  .msg-assistant .msg-text.md-body { color: var(--t1); }\n\n  /* ── markdown body ───────────────────────────────────────────────── */\n  .md-body {\n    font: 400 .96rem/1.75 'Hanken Grotesk', system-ui, sans-serif;\n    color: var(--t1);\n  }\n  .md-body p { margin: .7em 0; }\n  .md-body p:first-child { margin-top: 0; }\n  .md-body p:last-child { margin-bottom: 0; }\n  .md-body h1, .md-body h2 {\n    font-family: 'Instrument Serif', Georgia, serif;\n    font-weight: 400;\n    letter-spacing: 0;\n    color: var(--t1);\n    line-height: 1.2;\n  }\n  .md-body h1 { font-size: 1.7em; margin: 1.3em 0 .45em; }\n  .md-body h2 { font-size: 1.4em; margin: 1.15em 0 .4em; }\n  .md-body h3 {\n    font: 600 1em/1.4 'Hanken Grotesk', system-ui, sans-serif;\n    color: var(--t2);\n    margin: 1em 0 .3em;\n  }\n  .md-body strong { font-weight: 700; color: #fff; }\n  .md-body em { font-style: italic; color: var(--t2); }\n  .md-body a {\n    color: var(--amber);\n    text-decoration: underline;\n    text-underline-offset: 3px;\n    text-decoration-color: color-mix(in oklch, var(--amber) 40%, transparent);\n    transition: text-decoration-color .15s;\n  }\n  .md-body a:hover { text-decoration-color: var(--amber); }\n  .md-body ul, .md-body ol { margin: .5em 0; padding-left: 1.4em; }\n  .md-body li { margin: .3em 0; }\n  .md-body li::marker { color: var(--amber); }\n  .md-body hr { border: none; height: 1px; margin: 1.6em 0; background: var(--line-soft); }\n  .md-body code {\n    font: 400 .85em 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--sage);\n    background: var(--inset);\n    border: 1px solid var(--line-soft);\n    border-radius: 5px;\n    padding: .12em .4em;\n  }\n  .md-body pre {\n    background: var(--inset);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--r-md);\n    padding: 1rem 1.2rem;\n    margin: .9em 0;\n    overflow-x: auto;\n  }\n  .md-body pre code {\n    color: #cfd4de; background: none; border: none; padding: 0;\n    font-size: .8125rem; line-height: 1.65;\n  }\n\n  /* ── mermaid diagrams ────────────────────────────────────────────── */\n  /* Before the post-render pass runs, a .mermaid-block holds its raw\n     <pre><code> fallback (styled by the rules above). On success the pass\n     swaps that for the SVG and flips .mermaid-rendered. */\n  .mermaid-block { margin: .9em 0; overflow-x: auto; }\n  .mermaid-block.mermaid-rendered {\n    text-align: center;\n    background: var(--inset);\n    border: 1px solid var(--line-soft);\n    border-radius: var(--r-md);\n    padding: 1rem 1.2rem;\n  }\n  .mermaid-block.mermaid-rendered svg { max-width: 100%; height: auto; }\n\n  /* ── collapsibles: one shared quiet shape ────────────────────────── */\n  details summary { list-style: none; cursor: pointer; }\n  summary::-webkit-details-marker { display: none; }\n  summary::marker { content: ''; }\n\n  .thinking-block, .tool-call-block, .tool-result-block {\n    margin: .5rem 0;\n    border: 1px solid var(--line-soft);\n    border-radius: var(--r-md);\n    background: color-mix(in oklch, var(--surface) 45%, transparent);\n    overflow: hidden;\n    transition: border-color .15s ease, background .15s ease;\n  }\n  .thinking-block:hover, .tool-call-block:hover, .tool-result-block:hover { border-color: var(--line); }\n  .thinking-block[open], .tool-call-block[open], .tool-result-block[open] {\n    background: var(--surface);\n    border-color: var(--line);\n  }\n  .thinking-block summary,\n  .tool-call-block summary,\n  .tool-result-block summary {\n    display: flex; align-items: center; gap: .6rem;\n    padding: .58rem .85rem;\n    user-select: none;\n  }\n  .thinking-block summary::after,\n  .tool-call-block summary::after,\n  .tool-result-block summary::after {\n    content: '';\n    margin-left: auto;\n    width: 6px; height: 6px; flex-shrink: 0;\n    border-right: 1.5px solid var(--t4);\n    border-bottom: 1.5px solid var(--t4);\n    transform: rotate(-45deg);\n    transition: transform .2s cubic-bezier(.4,0,.2,1);\n  }\n  details[open] summary::after { transform: rotate(45deg); }\n\n  .lead-dot {\n    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;\n    background: var(--t4);\n  }\n\n  @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }\n  .thinking-block[open] .thinking-content,\n  .tool-call-block[open] .tool-detail,\n  .tool-result-block[open] .result-content { animation: reveal .2s ease both; }\n  details::details-content { transition: height .22s ease, content-visibility .22s allow-discrete; }\n\n  /* thinking */\n  .thinking-block .lead-dot { background: var(--t3); }\n  .thinking-label {\n    font: italic 400 .82rem/1 'Hanken Grotesk', system-ui, sans-serif;\n    color: var(--t2);\n  }\n  .thinking-content {\n    font: 400 .85rem/1.7 'Hanken Grotesk', system-ui, sans-serif;\n    color: var(--t2);\n    white-space: pre-wrap; word-break: break-word;\n    padding: .1rem 1rem 1rem 1.9rem;\n    max-height: 380px; overflow-y: auto;\n  }\n\n  /* tool call */\n  .tool-call-block .lead-dot { background: var(--sage); }\n  .tool-call-block summary { font: 500 .8rem/1 'JetBrains Mono', ui-monospace, monospace; }\n  .tool-call-block .tool-name { color: var(--sage); font-weight: 500; }\n  .tool-detail {\n    font: 400 .76rem/1.6 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t2);\n    white-space: pre-wrap; word-break: break-word;\n    background: var(--inset);\n    border-radius: var(--r-sm);\n    margin: 0 .6rem .6rem 1.9rem;\n    padding: .75rem .9rem;\n    max-height: 440px; overflow: auto;\n  }\n\n  /* tool result */\n  .tool-result-block summary {\n    font: 400 .76rem/1.5 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t3);\n  }\n  .tool-result-block .rp {\n    flex: 1; min-width: 0;\n    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\n  }\n  .result-content {\n    font: 400 .76rem/1.6 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t2);\n    white-space: pre-wrap; word-break: break-word;\n    background: var(--inset);\n    border-radius: var(--r-sm);\n    padding: .75rem .9rem;\n    margin: 0 .6rem .6rem 1.9rem;\n    max-height: 420px; overflow-y: auto;\n  }\n  .tool-result-block:has(.result-error) { border-color: color-mix(in oklch, var(--rust) 30%, var(--line-soft)); }\n  .lead-dot.result-error { background: var(--rust); }\n  .result-err-label {\n    font: 500 .6rem 'JetBrains Mono', ui-monospace, monospace;\n    text-transform: uppercase; letter-spacing: .1em;\n    color: var(--rust);\n    margin-right: .1em;\n  }\n\n  /* ── empty state ─────────────────────────────────────────────────── */\n  .empty-state { text-align: center; padding: 5rem 2rem; color: var(--t3); }\n  .empty-state .empty-title {\n    font: 400 1.6rem/1.2 'Instrument Serif', Georgia, serif;\n    color: var(--t2);\n    margin-bottom: .5rem;\n  }\n  .empty-state p { font-size: .9rem; }\n\n  /* ── footer ──────────────────────────────────────────────────────── */\n  .archive-footer {\n    margin-top: 4.5rem;\n    padding-top: 2.25rem;\n    border-top: 1px solid var(--line-soft);\n    font: 400 .72rem/1.6 'JetBrains Mono', ui-monospace, monospace;\n    color: var(--t4);\n  }\n  .archive-footer a { color: var(--t3); text-decoration: none; transition: color .15s; }\n  .archive-footer a:hover { color: var(--amber); }\n\n  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }\n\n  /* ── scrollbars ──────────────────────────────────────────────────── */\n  .thinking-content, .tool-detail, .result-content, .md-body pre {\n    scrollbar-width: thin;\n    scrollbar-color: var(--line) transparent;\n  }\n  ::-webkit-scrollbar { width: 8px; height: 8px; }\n  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }\n  ::-webkit-scrollbar-thumb:hover { background: var(--t4); }\n  ::-webkit-scrollbar-track { background: transparent; }\n\n  @media (prefers-reduced-motion: reduce) {\n    *, *::before, *::after { animation: none !important; transition: none !important; }\n  }\n\n  /* ── responsive ──────────────────────────────────────────────────── */\n  @media (max-width: 620px) {\n    html { font-size: 15px; }\n    :root { --gutter: 46px; --spine: 58px; }\n    .archive { padding: 3rem 1.15rem 4rem; }\n    .archive-title { font-size: 2.25rem; }\n    .event-time { padding-right: .5rem; font-size: .6rem; }\n  }\n\n  /* ── print: clean light document ─────────────────────────────────── */\n  @media print {\n    @page { margin: 2cm 2.2cm; }\n    :root {\n      --bg: #fff; --surface: #f6f6f8; --surface-2: #eeeef2; --inset: #f3f3f6;\n      --line: #d5d5dd; --line-soft: #e6e6ec;\n      --t1: #1a1a1f; --t2: #3a3b44; --t3: #5c5e6a; --t4: #8a8c98;\n      --amber: #2f7d55; --sage: #2f5da8; --rust: #b0433a;\n    }\n    html { font-size: 12px; }\n    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }\n    body::before { display: none !important; }\n    *, *::before, *::after { box-shadow: none !important; animation: none !important; }\n    .archive { max-width: 100%; padding: 0; }\n    .workers { display: none; }\n    .panel[hidden] { display: block !important; }\n    .panel { margin-bottom: 2.5rem; page-break-inside: auto; }\n    .event { break-inside: avoid; }\n    .md-body pre code, .tool-detail, .result-content { color: #24242d !important; }\n    .thinking-content, .tool-detail, .result-content, .md-body pre {\n      max-height: none !important; overflow: visible !important;\n    }\n    a { color: var(--amber); }\n  }\n</style>\n</head>\n<body>\n<div class=\"archive\" id=\"export-container\"></div>\n\n<!--\n  ═══════════════════════════════════════════════════════════════════════\n  EXPORT DATA — the daemon replaces the {} inside this script tag\n  with the full export JSON before sending the HTML to the browser.\n\n  The JSON shape:\n  {\n    \"exported_at\": \"ISO-8601 timestamp string\",\n    \"workers\": { \"<worker_id>\": { \"name\": \"...\", \"is_orchestrator\": true|false, \"loop\": { \"status\": \"active|passed|exhausted|stopped\" } | null }, ... },\n    \"events\": [ <event>, <event>, ... ]\n  }\n\n  Every event: { \"worker_id\", \"ts\": <unix ms>, \"type\", \"payload\" }.\n  This template renders TWO event shapes — mix them freely:\n\n  A) FLAT typed events — payload holds the fields directly:\n       user_message       payload.text            (markdown)\n       assistant_message  payload.text            (markdown)\n       thinking           payload.text\n       tool_call          payload.name, payload.input\n       tool_result        payload.content, payload.isError\n  B) ENVELOPE events — a message carrying an ordered list of blocks:\n       type \"agent_event\", payload { \"type\":\"message\", \"role\":\"assistant\"|\"tool\",\n         \"blocks\": [ {type:\"text\",text}, {type:\"reasoning\",text},\n                     {type:\"tool_call\",name,input}, {type:\"tool_result\",content,isError} ] }\n\n  Field aliases accepted: text/content, input/args/arguments, isError/is_error/error,\n  name/tool/tool_name, content/output/result. Unknown event types are ignored.\n  ═══════════════════════════════════════════════════════════════════════\n-->\n<script id=\"export-data\" type=\"application/json\">{\"exported_at\":\"<now>\",\"workers\":{\"w-BUSY\":{\"name\":\"Summarize notes\",\"is_orchestrator\":false,\"loop\":null}},\"events\":[{\"worker_id\":\"w-BUSY\",\"worker_name\":\"Summarize notes\",\"event_id\":684,\"ts\":1790000400000,\"type\":\"user_message\",\"payload\":{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}},{\"worker_id\":\"w-BUSY\",\"worker_name\":\"Summarize notes\",\"event_id\":685,\"ts\":1790000401000,\"type\":\"state\",\"payload\":{\"state\":\"WORKING\",\"from\":\"IDLE\",\"reason\":\"turn started\"}},{\"worker_id\":\"w-BUSY\",\"worker_name\":\"Summarize notes\",\"event_id\":686,\"ts\":1790000402000,\"type\":\"agent_event\",\"payload\":{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_read_9\",\"name\":\"Read\",\"input\":{\"file_path\":\"{sandbox}/beta/notes.md\"}}]}},{\"worker_id\":\"w-BUSY\",\"worker_name\":\"Summarize notes\",\"event_id\":687,\"ts\":<now>,\"type\":\"state\",\"payload\":{\"state\":\"SUSPENDED\",\"from\":\"WORKING\",\"reason\":\"boot_reconcile\"}}]}</script>\n\n<script>\n(function() {\n  'use strict';\n\n  /* ── helpers ─────────────────────────────────────────────────────── */\n  var MONTHS      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];\n  var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];\n\n  function pad(n) { return n < 10 ? '0' + n : '' + n; }\n\n  function fmtTime(ms) {\n    var d = new Date(ms);\n    return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());\n  }\n\n  function fmtDate(ms) {\n    var d = new Date(ms);\n    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();\n  }\n\n  function fmtDateTime(iso) {\n    var d = new Date(iso);\n    if (isNaN(d.getTime())) return iso;\n    return MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear() +\n           ' · ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ' UTC';\n  }\n\n  function escHtml(s) {\n    if (s == null) return '';\n    var d = document.createElement('div');\n    d.appendChild(document.createTextNode(String(s)));\n    return d.innerHTML;\n  }\n\n  function prettyJson(obj) {\n    try { return JSON.stringify(obj, null, 2); } catch(e) { return String(obj); }\n  }\n\n  /* ── minimal markdown renderer ───────────────────────────────────── */\n  // Only http(s)/mailto and relative/anchor links survive — javascript: and\n  // other active schemes are dropped (mirrors the app's DOMPurify href policy).\n  function safeUrl(u) {\n    var s = String(u).trim();\n    if (/^(https?:|mailto:)/i.test(s)) return s;\n    if (/^[/#.?]/.test(s)) return s;\n    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '#';\n    return s;\n  }\n  function inlineMd(raw) {\n    var slots = [];\n    var s = raw.replace(/`([^`\\n]+)`/g, function(_, code) {\n      slots.push('<code>' + escHtml(code) + '</code>');\n      return '\\x00' + (slots.length - 1) + '\\x00';\n    });\n    s = s.split(/(\\x00\\d+\\x00)/).map(function(part) {\n      return /^\\x00\\d+\\x00$/.test(part) ? part\n        : part.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');\n    }).join('');\n    s = s.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g,'<strong><em>$1</em></strong>');\n    s = s.replace(/\\*\\*(.+?)\\*\\*/g,'<strong>$1</strong>');\n    s = s.replace(/__(.+?)__/g,'<strong>$1</strong>');\n    s = s.replace(/\\*([^*\\n]+?)\\*/g,'<em>$1</em>');\n    s = s.replace(/_([^_\\n]+?)_/g,'<em>$1</em>');\n    s = s.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, function(_, label, url) {\n      return '<a href=\"' + escHtml(safeUrl(url)) + '\" target=\"_blank\" rel=\"noopener\">' + label + '</a>';\n    });\n    s = s.replace(/\\x00(\\d+)\\x00/g, function(_, i) { return slots[+i]; });\n    return s;\n  }\n\n  function md(text) {\n    if (!text) return '';\n    var lines = text.split('\\n');\n    var out = '';\n    var i = 0;\n    while (i < lines.length) {\n      var line = lines[i];\n      if (/^```/.test(line)) {\n        var lang = line.slice(3).trim();\n        var code = [];\n        i++;\n        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }\n        i++;\n        var codeHtml = escHtml(code.join('\\n'));\n        // A ```mermaid fence becomes a placeholder whose fallback IS the raw\n        // <pre><code>. The post-render pass reads the source back off the\n        // <code>'s textContent, renders an SVG, and replaces the block on\n        // success — a parse/load failure just leaves the fallback in place.\n        if (/^mermaid$/i.test(lang)) {\n          out += '<div class=\"mermaid-block\"><pre><code class=\"lang-mermaid\">' + codeHtml + '</code></pre></div>';\n          continue;\n        }\n        out += '<pre><code' + (lang ? ' class=\"lang-' + escHtml(lang) + '\"' : '') + '>' + codeHtml + '</code></pre>';\n        continue;\n      }\n      var hm = line.match(/^(#{1,3})\\s+(.+)$/);\n      if (hm) {\n        var lv = hm[1].length;\n        out += '<h' + lv + '>' + inlineMd(hm[2]) + '</h' + lv + '>'; i++; continue;\n      }\n      if (/^(-{3,}|\\*{3,}|_{3,})$/.test(line.trim())) { out += '<hr>'; i++; continue; }\n      if (/^[-*+] /.test(line)) {\n        out += '<ul>';\n        while (i < lines.length && /^[-*+] /.test(lines[i])) {\n          out += '<li>' + inlineMd(lines[i].replace(/^[-*+] /, '')) + '</li>'; i++;\n        }\n        out += '</ul>'; continue;\n      }\n      if (/^\\d+\\. /.test(line)) {\n        out += '<ol>';\n        while (i < lines.length && /^\\d+\\. /.test(lines[i])) {\n          out += '<li>' + inlineMd(lines[i].replace(/^\\d+\\. /, '')) + '</li>'; i++;\n        }\n        out += '</ol>'; continue;\n      }\n      if (line.trim() === '') { i++; continue; }\n      var para = [];\n      while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,3} |```|[-*+] |\\d+\\. |(-{3,}|\\*{3,}|_{3,})$)/.test(lines[i])) {\n        para.push(lines[i]); i++;\n      }\n      if (para.length) out += '<p>' + inlineMd(para.join(' ')) + '</p>';\n    }\n    return out;\n  }\n\n  /* ── mermaid (lazy, CDN) ─────────────────────────────────────────── */\n  // The standalone export can't bundle mermaid from node_modules like the live\n  // app does, so we load the v11 UMD build from a CDN (same posture as the\n  // Google Fonts <link> in <head>; no CSP meta blocks it). Loaded lazily — only\n  // when a transcript actually contains a ```mermaid fence — so a mermaid-free\n  // export pays nothing.\n  var MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';\n  var mermaidPromise = null;\n  function loadMermaid() {\n    if (mermaidPromise) return mermaidPromise;\n    mermaidPromise = new Promise(function(resolve, reject) {\n      if (window.mermaid) { resolve(window.mermaid); return; }\n      var s = document.createElement('script');\n      s.src = MERMAID_CDN;\n      s.onload = function() {\n        if (window.mermaid) resolve(window.mermaid);\n        else reject(new Error('mermaid global missing after load'));\n      };\n      s.onerror = function() { reject(new Error('mermaid failed to load')); };\n      document.head.appendChild(s);\n    });\n    return mermaidPromise;\n  }\n\n  // Source normalization — ported verbatim (in behavior) from\n  // app/ui/src/lib/mermaid.js. Encode a BARE ';' as the entity '#59;' so a\n  // semicolon in a sequence message body isn't treated as a statement\n  // separator; existing entities are matched whole and left untouched.\n  function neutralizeSemicolons(text) {\n    return text.replace(/&#?\\w+;|#\\w+;|;/g, function(m) { return m === ';' ? '#59;' : m; });\n  }\n  var SEQ_HEADER = /^\\s*sequenceDiagram\\b/m;\n  var SEQ_MESSAGE =\n    /^(\\s*[A-Za-z0-9_]+\\s*(?:<<-->>|<<->>|-->>|->>|--x|-x|--\\)|-\\)|-->|->)[+-]?\\s*[A-Za-z0-9_]+\\s*:)(.*)$/;\n  var SEQ_NOTE = /^(\\s*[Nn]ote\\s+(?:left of|right of|over)\\s+[^:\\n]+:)(.*)$/;\n  function fixSequenceSemicolons(src) {\n    if (!SEQ_HEADER.test(src)) return src;\n    return src.split('\\n').map(function(line) {\n      var msg = SEQ_MESSAGE.exec(line);\n      if (msg) return msg[1] + neutralizeSemicolons(msg[2]);\n      var note = SEQ_NOTE.exec(line);\n      if (note) return note[1] + neutralizeSemicolons(note[2]);\n      return line;\n    }).join('\\n');\n  }\n  function sanitizeMermaidSource(src) { return fixSequenceSemicolons(src); }\n\n  // khroma (mermaid's color engine) rejects oklch()/var() — it needs concrete\n  // rgb. getComputedStyle no longer down-converts oklch in current browsers, so\n  // paint the token onto a 1×1 canvas and read the rasterized pixel back as\n  // rgb(a). (A browser that can't paint these oklch tokens couldn't paint the\n  // page's own background either, so this is the same capability floor.)\n  var colorCtx = null;\n  function resolveColor(val) {\n    if (!val) return val;\n    try {\n      if (!colorCtx) colorCtx = document.createElement('canvas').getContext('2d');\n      colorCtx.clearRect(0, 0, 1, 1);\n      colorCtx.fillStyle = '#000';\n      colorCtx.fillStyle = val;\n      colorCtx.fillRect(0, 0, 1, 1);\n      var d = colorCtx.getImageData(0, 0, 1, 1).data;\n      return d[3] < 255\n        ? 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + (d[3] / 255) + ')'\n        : 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';\n    } catch (e) {\n      return val;\n    }\n  }\n  // Map mermaid themeVariables from THIS template's own design tokens (--bg,\n  // --surface, --t1…, --amber, --rust — NOT the live app's --surface-* names),\n  // so diagrams inherit the export's palette. Read at render time off <html>.\n  function mermaidThemeVars() {\n    var s = getComputedStyle(document.documentElement);\n    var v = function(name) { return resolveColor(s.getPropertyValue(name).trim()); };\n    return {\n      background: v('--surface'),\n      mainBkg: v('--surface-2'),\n      primaryColor: v('--surface-2'),\n      secondaryColor: v('--surface'),\n      tertiaryColor: v('--inset'),\n      primaryTextColor: v('--t1'),\n      textColor: v('--t1'),\n      nodeTextColor: v('--t1'),\n      titleColor: v('--t1'),\n      primaryBorderColor: v('--line'),\n      nodeBorder: v('--line'),\n      lineColor: v('--t3'),\n      edgeLabelBackground: v('--surface-2'),\n      fontFamily: \"'Hanken Grotesk', system-ui, sans-serif\",\n      activeTaskBkgColor: v('--amber'),\n      errorBkgColor: v('--rust'),\n      errorTextColor: v('--rust'),\n      successColor: v('--amber')\n    };\n  }\n\n  // WKWebView measures diagram text via getBBox, which returns 0 unless the\n  // render target is attached and laid out — pass a persistent offscreen host\n  // (position-offset, NOT display:none) as render()'s 3rd arg.\n  var measureHost = null;\n  function ensureMeasureHost() {\n    if (measureHost && measureHost.isConnected) { measureHost.innerHTML = ''; return measureHost; }\n    measureHost = document.createElement('div');\n    measureHost.setAttribute('aria-hidden', 'true');\n    measureHost.style.cssText =\n      'position:absolute;left:-99999px;top:0;width:1000px;height:auto;visibility:hidden;pointer-events:none;';\n    document.body.appendChild(measureHost);\n    return measureHost;\n  }\n  // A diagram whose text couldn't be measured collapses to viewBox \"0 0 0 0\";\n  // detect it so we keep the raw fallback instead of showing a blank box.\n  function svgCollapsed(svg) {\n    var m = /viewBox=\"([^\"]*)\"/i.exec(svg);\n    if (!m) return false;\n    var parts = m[1].trim().split(/[\\s,]+/).map(Number);\n    var w = parts[2], h = parts[3];\n    return !(w > 0 && h > 0);\n  }\n\n  // Post-render pass: replace each .mermaid-block's raw fallback with its SVG.\n  // Any failure (CDN load, parse error, zero-size) leaves that block's\n  // <pre><code> fallback untouched and never breaks the rest of the page.\n  function renderMermaidBlocks(root) {\n    var blocks = root.querySelectorAll('.mermaid-block');\n    if (!blocks.length) return;\n    loadMermaid().then(function(mermaid) {\n      mermaid.initialize({\n        startOnLoad: false,\n        securityLevel: 'strict',\n        theme: 'base',\n        htmlLabels: false,\n        flowchart: { htmlLabels: false },\n        themeVariables: mermaidThemeVars()\n      });\n      var chain = Promise.resolve();\n      for (var i = 0; i < blocks.length; i++) {\n        (function(block, idx) {\n          var codeEl = block.querySelector('code');\n          var src = (codeEl ? codeEl.textContent : block.textContent) || '';\n          var normalized = sanitizeMermaidSource(src);\n          chain = chain.then(function() {\n            return mermaid.render('export-mermaid-' + idx, normalized, ensureMeasureHost());\n          }).then(function(out) {\n            if (out && out.svg && !svgCollapsed(out.svg)) {\n              block.innerHTML = out.svg;\n              block.classList.add('mermaid-rendered');\n            }\n          }).catch(function() { /* keep the raw <pre><code> fallback */ });\n        })(blocks[i], i);\n      }\n    }).catch(function() { /* CDN load failed — every block keeps its fallback */ });\n  }\n\n  /* ── header ──────────────────────────────────────────────────────── */\n  function renderHeader(data, stats) {\n    var workerCount = stats ? stats.workers : (data.workers ? Object.keys(data.workers).length : 0);\n    var exportedDate = data.exported_at ? fmtDateTime(data.exported_at) : 'Unknown date';\n    var meta = '<span>' + escHtml(exportedDate) + '</span>' +\n      '<span class=\"meta-sep\">/</span>' +\n      '<span>' + workerCount + ' ' + (workerCount === 1 ? 'worker' : 'workers') + '</span>';\n    if (stats && stats.events != null) {\n      meta += '<span class=\"meta-sep\">/</span>' +\n        '<span>' + stats.events + ' ' + (stats.events === 1 ? 'event' : 'events') + '</span>';\n    }\n    return '<header class=\"archive-header\">' +\n      '<span class=\"eyebrow\">Eos Archive</span>' +\n      '<h1 class=\"archive-title\">Conversation Export</h1>' +\n      '<div class=\"archive-meta\">' + meta + '</div>' +\n      '</header>';\n  }\n\n  /* ── field-alias helpers (tolerate naming variants across exporters) ── */\n  function pick(o) {\n    for (var i = 1; i < arguments.length; i++) {\n      if (o && o[arguments[i]] != null) return o[arguments[i]];\n    }\n    return undefined;\n  }\n  function asText(v) { return v == null ? '' : (typeof v === 'string' ? v : prettyJson(v)); }\n  function blocksHaveError(blocks) {\n    for (var e = 0; e < blocks.length; e++) {\n      var b = blocks[e];\n      if (b && b.type === 'tool_result' && pick(b, 'isError', 'is_error', 'error')) return true;\n    }\n    return false;\n  }\n\n  /* ── one block inside a message (used by both event shapes) ──────── */\n  function renderBlock(b) {\n    if (!b || !b.type) return '';\n    if (b.type === 'text') {\n      var txt = asText(pick(b, 'text', 'content'));\n      if (!txt) return '';\n      return '<div class=\"msg-text md-body\">' + md(txt) + '</div>';\n    }\n    if (b.type === 'reasoning' || b.type === 'thinking') {\n      var rtxt = asText(pick(b, 'text', 'content'));\n      if (!rtxt) return '';\n      return '<details class=\"thinking-block\">' +\n        '<summary><span class=\"lead-dot\"></span><span class=\"thinking-label\">Thinking</span></summary>' +\n        '<div class=\"thinking-content\">' + escHtml(rtxt) + '</div>' +\n        '</details>';\n    }\n    if (b.type === 'tool_call') {\n      var name = pick(b, 'name', 'tool', 'tool_name') || 'unknown';\n      var input = asText(pick(b, 'input', 'args', 'arguments'));\n      return '<details class=\"tool-call-block\">' +\n        '<summary><span class=\"lead-dot\"></span><span class=\"tool-name\">' + escHtml(name) + '</span></summary>' +\n        (input ? '<div class=\"tool-detail\">' + escHtml(input) + '</div>' : '') +\n        '</details>';\n    }\n    if (b.type === 'tool_result') {\n      var content = asText(pick(b, 'content', 'output', 'result'));\n      var isErr = !!pick(b, 'isError', 'is_error', 'error');\n      var preview = content.length > 120 ? content.substring(0,120).replace(/\\n/g,' ') + '\\u2026' : content.replace(/\\n/g,' ');\n      var dotCls = 'lead-dot' + (isErr ? ' result-error' : '');\n      return '<details class=\"tool-result-block\">' +\n        '<summary><span class=\"' + dotCls + '\"></span>' +\n        (isErr ? '<span class=\"result-err-label\">error</span>' : '') +\n        '<span class=\"rp\">' + escHtml(preview || '(empty)') + '</span></summary>' +\n        (content ? '<div class=\"result-content\">' + escHtml(content) + '</div>' : '') +\n        '</details>';\n    }\n    return '';\n  }\n\n  /* ── small wrappers so both shapes share one row layout ──────────── */\n  function rowAssistant(timeEl, isOrch, body) {\n    return '<div class=\"event ev-assistant\">' + timeEl +\n      '<span class=\"event-marker m-assistant' + (isOrch ? ' orch' : '') + '\"></span>' +\n      '<div class=\"event-body msg-assistant\">' + body + '</div></div>';\n  }\n  function rowThinking(timeEl, isOrch, body) {\n    return '<div class=\"event ev-assistant\">' + timeEl +\n      '<span class=\"event-marker m-assistant' + (isOrch ? ' orch' : '') + '\"></span>' +\n      '<div class=\"event-body\">' + body + '</div></div>';\n  }\n  function rowTool(timeEl, hasErr, body) {\n    return '<div class=\"event ev-tool\">' + timeEl +\n      '<span class=\"event-marker m-tool' + (hasErr ? ' err' : '') + '\"></span>' +\n      '<div class=\"event-body\">' + body + '</div></div>';\n  }\n\n  /* ── one event row on the timeline ───────────────────────────────── */\n  function renderEvent(ev, isOrch) {\n    if (!ev) return null;\n    var timeEl = '<div class=\"event-time\" title=\"' + escHtml(fmtDate(ev.ts)) + '\">' + escHtml(fmtTime(ev.ts)) + '</div>';\n    var p = ev.payload || {};\n    var type = ev.type;\n\n    // ── User message (flat, or a message envelope with role \"user\") ──\n    if (type === 'user_message' || ((type === 'agent_event' || type === 'message') && p.role === 'user')) {\n      var text = asText(pick(p, 'text', 'content'));\n      return '<div class=\"event ev-user\">' + timeEl +\n        '<span class=\"event-marker m-user\"></span>' +\n        '<div class=\"event-body\"><div class=\"event-body-inner\">' +\n          '<span class=\"role-label\">User</span>' +\n          '<div class=\"msg-text md-body\">' + md(text) + '</div>' +\n        '</div></div>' +\n        '</div>';\n    }\n\n    // ── ENVELOPE: agent_event / message carrying an ordered block list ──\n    if (type === 'agent_event' || type === 'message') {\n      if (p.type && p.type !== 'message') return null;\n      if (p.role !== 'assistant' && p.role !== 'tool') return null;\n      var blocks = p.blocks || [];\n      var body = '';\n      for (var k = 0; k < blocks.length; k++) body += renderBlock(blocks[k]);\n      if (!body) return null;\n      return p.role === 'tool'\n        ? rowTool(timeEl, blocksHaveError(blocks), body)\n        : rowAssistant(timeEl, isOrch, body);\n    }\n\n    // ── FLAT typed events ────────────────────────────────────────────\n    if (type === 'assistant_message') {\n      var abody = '';\n      if (p.blocks && p.blocks.length) {\n        for (var bi = 0; bi < p.blocks.length; bi++) abody += renderBlock(p.blocks[bi]);\n      } else {\n        var atxt = asText(pick(p, 'text', 'content'));\n        if (atxt) abody = '<div class=\"msg-text md-body\">' + md(atxt) + '</div>';\n      }\n      return abody ? rowAssistant(timeEl, isOrch, abody) : null;\n    }\n    if (type === 'thinking' || type === 'reasoning') {\n      var tbody = renderBlock({ type: 'thinking', text: pick(p, 'text', 'content') });\n      return tbody ? rowThinking(timeEl, isOrch, tbody) : null;\n    }\n    if (type === 'tool_call') {\n      var cbody = renderBlock({ type: 'tool_call', name: pick(p, 'name', 'tool', 'tool_name'), input: pick(p, 'input', 'args', 'arguments') });\n      return cbody ? rowTool(timeEl, false, cbody) : null;\n    }\n    if (type === 'tool_result') {\n      var isErr = !!pick(p, 'isError', 'is_error', 'error');\n      var rbody = renderBlock({ type: 'tool_result', content: pick(p, 'content', 'output', 'result'), isError: isErr });\n      return rbody ? rowTool(timeEl, isErr, rbody) : null;\n    }\n\n    return null; // spawn, state, lifecycle, or unknown — skipped\n  }\n\n  /* ── one worker's rows → { html, count } ─────────────────────────── */\n  function renderWorkerBody(events, isOrch) {\n    var sorted = (events || []).slice().sort(function(a,b) { return a.ts - b.ts; });\n    var html = '', count = 0;\n    for (var i = 0; i < sorted.length; i++) {\n      var row = renderEvent(sorted[i], isOrch);\n      if (row) { html += row; count++; }\n    }\n    return { html: html, count: count };\n  }\n\n  /* ── worker switcher tab ─────────────────────────────────────────── */\n  function renderWorkerTab(worker, workerId, panelId, active, count) {\n    var role = worker.is_orchestrator ? ' orch' : '';\n    var roleText = worker.is_orchestrator ? 'Orchestrator' : 'Worker';\n    return '<button class=\"wtab' + role + (active ? ' active' : '') + '\" type=\"button\"' +\n      ' role=\"tab\" aria-selected=\"' + (active ? 'true' : 'false') + '\" aria-controls=\"' + panelId + '\"' +\n      ' data-target=\"' + panelId + '\" title=\"' + escHtml((worker.name || workerId) + ' · ' + roleText) + '\">' +\n      '<span class=\"wdot\"></span>' +\n      '<span class=\"wname\">' + escHtml(worker.name || workerId) + '</span>' +\n      (worker.loop ? '<span class=\"wloop\" title=\"Ran under a goal-loop\">↻</span>' : '') +\n      '<span class=\"wcount\">' + count + '</span>' +\n      '</button>';\n  }\n\n  /* ── conversation panel for one worker ───────────────────────────── */\n  function renderWorkerPanel(worker, workerId, bodyHtml, panelId, active) {\n    var badgeClass = worker.is_orchestrator ? 'panel-badge orch' : 'panel-badge';\n    var badgeText  = worker.is_orchestrator ? 'Orchestrator' : 'Worker';\n    return '<section class=\"panel' + (active ? ' active' : '') + '\"' +\n      ' id=\"' + panelId + '\" role=\"tabpanel\"' + (active ? '' : ' hidden') + '>' +\n      '<div class=\"panel-head\">' +\n        '<span class=\"panel-name\">' + escHtml(worker.name || workerId) + '</span>' +\n        '<span class=\"' + badgeClass + '\">' + badgeText + '</span>' +\n        (worker.loop ? '<span class=\"panel-badge loop\">Loop · ' + escHtml(worker.loop.status) + '</span>' : '') +\n      '</div>' +\n      '<div class=\"timeline\">' + bodyHtml + '</div>' +\n      '</section>';\n  }\n\n  /* ── main ────────────────────────────────────────────────────────── */\n  function main() {\n    var container  = document.getElementById('export-container');\n    var dataScript = document.getElementById('export-data');\n    if (!dataScript) { container.innerHTML = '<div class=\"empty-state\"><p>Missing export data.</p></div>'; return; }\n\n    var data;\n    try { data = JSON.parse(dataScript.textContent); }\n    catch(e) {\n      container.innerHTML = '<div class=\"empty-state\"><div class=\"empty-title\">Invalid Data</div><p>' + escHtml(e.message) + '</p></div>';\n      return;\n    }\n\n    if (!data.workers && !data.events) {\n      container.innerHTML = renderHeader(data || {}) +\n        '<div class=\"empty-state\"><div class=\"empty-title\">No Export Data</div></div>' +\n        '<footer class=\"archive-footer\">Eos · <a href=\"https://github.com/ibrahimalbyrk/eos\">github.com/ibrahimalbyrk/eos</a></footer>';\n      return;\n    }\n\n    var workers = data.workers || {};\n    var events  = data.events  || [];\n    var globalSorted = events.slice().sort(function(a,b) { return a.ts - b.ts; });\n\n    var workerEvents = {}, workerOrder = [], seen = {};\n    for (var i = 0; i < globalSorted.length; i++) {\n      var wid = globalSorted[i].worker_id;\n      if (!seen[wid]) {\n        seen[wid] = true;\n        workerEvents[wid] = [];\n        if (workers[wid] && workers[wid].is_orchestrator) workerOrder.unshift(wid);\n        else workerOrder.push(wid);\n      }\n      workerEvents[wid].push(globalSorted[i]);\n    }\n    for (var id in workers) {\n      if (workers.hasOwnProperty(id) && !seen[id]) {\n        workerEvents[id] = [];\n        if (workers[id].is_orchestrator) workerOrder.unshift(id); else workerOrder.push(id);\n      }\n    }\n\n    // Build a switcher tab + conversation panel per worker with visible events.\n    var tabsHtml = '', panelsHtml = '', idx = 0, totalEvents = 0;\n    for (var j = 0; j < workerOrder.length; j++) {\n      var wId = workerOrder[j];\n      var worker = workers[wId] || { name: wId, is_orchestrator: false };\n      var built = renderWorkerBody(workerEvents[wId] || [], !!worker.is_orchestrator);\n      if (!built.html) continue;\n      var active = idx === 0;\n      var panelId = 'wpanel-' + idx;\n      tabsHtml   += renderWorkerTab(worker, wId, panelId, active, built.count);\n      panelsHtml += renderWorkerPanel(worker, wId, built.html, panelId, active);\n      totalEvents += built.count;\n      idx++;\n    }\n\n    var html = renderHeader(data, { workers: idx, events: totalEvents });\n    if (idx === 0) {\n      html += '<div class=\"empty-state\"><div class=\"empty-title\">No Conversation</div>' +\n        '<p>This export contains no displayable messages.</p></div>';\n    } else if (idx === 1) {\n      html += '<div class=\"panels solo\">' + panelsHtml + '</div>';\n    } else {\n      html += '<nav class=\"workers\" role=\"tablist\" aria-label=\"Workers\">' + tabsHtml + '</nav>' +\n        '<div class=\"panels\">' + panelsHtml + '</div>';\n    }\n    html += '<footer class=\"archive-footer\">Eos · <a href=\"https://github.com/ibrahimalbyrk/eos\">github.com/ibrahimalbyrk/eos</a></footer>';\n    container.innerHTML = html;\n\n    // Mermaid needs real DOM nodes, so render diagrams AFTER injection.\n    renderMermaidBlocks(container);\n\n    // Switcher: show the selected worker's panel, hide the rest.\n    var tabs = container.querySelectorAll('.wtab');\n    if (tabs.length > 1) {\n      var panels = container.querySelectorAll('.panel');\n      var activate = function(panelId) {\n        for (var t = 0; t < tabs.length; t++) {\n          var on = tabs[t].getAttribute('data-target') === panelId;\n          tabs[t].classList.toggle('active', on);\n          tabs[t].setAttribute('aria-selected', on ? 'true' : 'false');\n        }\n        for (var p = 0; p < panels.length; p++) {\n          var onPanel = panels[p].id === panelId;\n          panels[p].classList.toggle('active', onPanel);\n          if (onPanel) panels[p].removeAttribute('hidden');\n          else panels[p].setAttribute('hidden', '');\n        }\n      };\n      for (var t2 = 0; t2 < tabs.length; t2++) {\n        tabs[t2].addEventListener('click', function() { activate(this.getAttribute('data-target')); });\n      }\n    }\n  }\n\n  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', main);\n  else main();\n})();\n</script>\n</body>\n</html>\n"
+      }
+    },
+    {
+      "step": {
+        "name": "pending",
+        "request": "GET /pending",
+        "status": 200
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "created_at": 1790000003050,
+            "decision": null,
+            "expires_at": 4102444800000,
+            "id": "p-SEED1",
+            "input": "{\"command\":\"node --test\",\"description\":\"Run the tests\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Bash",
+            "worker_id": "w-CHAT"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "jobs",
+        "request": "GET /api/jobs",
+        "status": 200
+      },
+      "route": "GET /api/jobs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "jobs": []
+        },
+        "status": 200
+      }
+    }
+  ]
+}

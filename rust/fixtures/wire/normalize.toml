@@ -1,0 +1,279 @@
+# How a recorded response is made repeatable. wire-recorder applies this file to
+# every response, when recording and when replaying; fixtures/README.md
+# describes the rule format. Order matters: rules run top to bottom.
+
+# Response headers a recording keeps (a scenario may add more with record_headers).
+headers = ["content-type", "cache-control", "content-disposition", "content-encoding", "content-range", "accept-ranges", "location", "etag", "x-accel-buffering"]
+
+[stream]
+ignore_comments = ["ka"]
+
+# ---- times -------------------------------------------------------------------
+
+[[rule]]
+about = "wall-clock times of this run; times written by the seed stay"
+now = "<now>"
+
+# ---- generated ids -----------------------------------------------------------
+# The daemon mints `<letter>-<base36>` ids; the seed uses capitals so its own
+# ids stay readable.
+
+[[rule]]
+about = "worker ids"
+find = '\bw-[0-9a-z]{8}\b'
+token = "worker"
+
+[[rule]]
+about = "orchestrator ids"
+find = '\bo-[0-9a-z]{6}\b'
+token = "orchestrator"
+
+[[rule]]
+about = "permission ask ids"
+find = '\bp-[0-9a-z]{8}\b'
+token = "ask"
+
+[[rule]]
+about = "loop ids"
+find = '\bl-[0-9a-z]{8}\b'
+token = "loop"
+
+[[rule]]
+about = "page ids"
+find = '\bpg-[0-9a-z]{8,32}\b'
+token = "page"
+
+[[rule]]
+about = "memory ids"
+find = '\bum-[0-9a-z]{8,32}\b'
+token = "memory"
+
+[[rule]]
+about = "visual answer ids"
+find = '\bv_[A-Za-z0-9]{12}\b'
+token = "view"
+
+[[rule]]
+about = "dream run ids"
+find = '\bdr-[0-9a-z]{8,}\b'
+token = "dream"
+
+[[rule]]
+about = "uuids (terminal sessions, client ids the daemon mints)"
+find = '\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
+token = "uuid"
+
+[[rule]]
+about = "weak etags are a hash of the body"
+at = "/headers/etag"
+set = "<etag>"
+
+# ---- the event stream ----------------------------------------------------------
+
+[[rule]]
+about = "stream ids are <boot epoch>-<sequence>; other topics move the sequence"
+at = "/frames/*/*/id"
+matches = '[0-9a-f]{12}-\d+'
+set = "<stream-id>"
+
+[[rule]]
+about = "hello and resync carry the boot epoch and the current sequence"
+at = "/frames/*/*/data/epoch"
+set = "<epoch>"
+
+[[rule]]
+at = "/frames/*/*/data/seq"
+set = "<seq>"
+
+# ---- this machine --------------------------------------------------------------
+
+[[rule]]
+route = "GET /health"
+at = "/json/pid"
+set = "<pid>"
+
+[[rule]]
+route = "GET /health"
+at = "/json/fds/open"
+set = "<count>"
+
+[[rule]]
+route = "GET /health"
+at = "/json/fds/limit"
+set = "<count>"
+
+[[rule]]
+about = "hash of the source tree the daemon runs from"
+route = "GET /health"
+at = "/json/sourceStamp"
+set = "<source-stamp>"
+
+[[rule]]
+about = "the clock route spells the same instant several ways"
+route = "GET /datetime"
+at = "/json/epochMs"
+set = "<now>"
+
+[[rule]]
+about = "counters move with every request"
+route = "GET /metrics"
+at = "/text"
+find = '(?m)^(eos_(?:uptime_seconds|requests_total)) \d+$'
+replace = "$1 <n>"
+
+[[rule]]
+about = "free disk space"
+key = ["freeBytes"]
+set = "<bytes>"
+
+# ---- terminals -----------------------------------------------------------------
+# A shell prints its prompt (user, machine name) and its output in as many
+# chunks as timing gives.
+
+[[rule]]
+reason = "pty:data"
+collapse = true
+
+[[rule]]
+reason = "pty:data"
+at = "/data/payload/data"
+set = "<terminal-output>"
+
+[[rule]]
+reason = "pty:data"
+at = "/data/payload/seq"
+set = "<seq>"
+
+[[rule]]
+route = "GET /pty/*/buffer"
+at = "/json/data"
+set = "<terminal-output>"
+
+[[rule]]
+route = "GET /pty/*/buffer"
+at = "/json/seq"
+set = "<seq>"
+
+[[rule]]
+reason = "terminal:chunk"
+collapse = true
+
+[[rule]]
+about = "the job list is refreshed at most twice a second per job"
+route = "POST /terminal"
+reason = "jobs:change"
+drop = true
+
+[[rule]]
+route = "POST /workers/*/terminal"
+reason = "jobs:change"
+drop = true
+
+[[rule]]
+route = "POST /terminal/*/kill"
+reason = "jobs:change"
+drop = true
+
+[[rule]]
+route = "GET /api/jobs"
+reason = "jobs:change"
+drop = true
+
+[[rule]]
+route = "POST /api/jobs/*/stop"
+reason = "jobs:change"
+drop = true
+
+[[rule]]
+about = "a plugin folder change is seen by the watcher and by the installer"
+reason = "plugins:change"
+collapse = true
+
+# ---- files and git ---------------------------------------------------------------
+
+[[rule]]
+about = "a pasted file lands in a fresh temp folder"
+find = 'eos-paste-[A-Za-z0-9]{6}'
+replace = "eos-paste-<random>"
+
+[[rule]]
+about = "a stash made during the run is a commit with the run's time"
+route = "GET /fs/stashes"
+at = "/json/stashes/*/sha"
+set = "<sha>"
+
+[[rule]]
+about = "what is installed on this Mac"
+route = "GET /fs/editors"
+at = "/json/editors"
+shape = true
+
+[[rule]]
+route = "GET /fs/default-app"
+at = "/json/app"
+shape = true
+
+[[rule]]
+about = "an app icon is whatever this macOS draws"
+route = "GET /fs/icon"
+key = ["bytes", "sha256"]
+set = "<this-mac>"
+
+[[rule]]
+about = "staged plugin installs"
+find = '\bst-[0-9a-z]{8,32}\b'
+token = "staging"
+
+[[rule]]
+about = "request ids the daemon mints"
+find = '\br-[0-9a-z]{8}\b'
+token = "request"
+
+[[rule]]
+about = "the export file name carries today's date"
+route = "GET /workers/*/export"
+at = "/headers/content-disposition"
+find = '\d{4}-\d\d-\d\d'
+replace = "<date>"
+
+[[rule]]
+about = "how long a command ran, inside a stored row"
+find = '(\\?"durationMs\\?":)\d+'
+replace = "$1<ms>"
+
+[[rule]]
+key = ["durationMs"]
+set = "<ms>"
+
+# ---- this Mac's identity ---------------------------------------------------------
+# A data folder gets its own certificate; its fingerprint is the host id.
+
+[[rule]]
+route = "* /api/host"
+at = "/json/id"
+set = "<host-id>"
+
+[[rule]]
+route = "* /api/host"
+at = "/json/deviceId"
+set = "<device-id>"
+
+[[rule]]
+route = "* /api/host"
+at = "/json/name"
+set = "<machine-name>"
+
+[[rule]]
+route = "* /api/peer"
+at = "/json/host/id"
+set = "<host-id>"
+
+[[rule]]
+route = "* /api/peer"
+at = "/json/host/deviceId"
+set = "<device-id>"
+
+[[rule]]
+route = "* /api/peer"
+at = "/json/host/name"
+set = "<machine-name>"

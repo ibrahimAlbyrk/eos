@@ -1,0 +1,127 @@
+about = "The event stream itself: the opening frames, topic filters, resuming with ?since= or Last-Event-ID, resync when the gap cannot be replayed, and POST /stream/focus."
+
+[[step]]
+name = "open"
+open = "all"
+capture = { epoch = "/frames/all/2/data/epoch" }
+
+[[step]]
+name = "one-event"
+request = "POST /workers/o-ORCH/notify"
+body = { title = "First", body = "one" }
+status = 200
+wait = ["notification:fire"]
+
+[[step]]
+name = "open-filtered"
+open = "workers-only"
+query = { topics = "worker:*" }
+
+[[step]]
+name = "event-outside-the-filter"
+request = "POST /workers/o-ORCH/notify"
+body = { title = "Second", body = "two" }
+status = 200
+wait = ["notification:fire"]
+
+[[step]]
+name = "event-inside-the-filter"
+request = "PUT /workers/w-BARE/name"
+body = { name = "Renamed while streaming" }
+status = 200
+wait = ["worker:change", "state:patch"]
+
+[[step]]
+name = "close-filtered"
+close = "workers-only"
+
+[[step]]
+name = "close"
+close = "all"
+
+[[step]]
+name = "missed-1"
+request = "POST /workers/o-ORCH/notify"
+body = { title = "Third", body = "three" }
+status = 200
+
+[[step]]
+name = "missed-2"
+request = "POST /workers/o-ORCH/notify"
+body = { title = "Fourth", body = "four" }
+status = 200
+
+[[step]]
+name = "resume-since"
+open = "resumed"
+query = { since = "{all.last_id}" }
+
+[[step]]
+name = "close-resumed"
+close = "resumed"
+
+[[step]]
+name = "resume-last-event-id"
+open = "header"
+headers = { last-event-id = "{all.last_id}" }
+
+[[step]]
+name = "close-header"
+close = "header"
+
+[[step]]
+name = "resume-filtered"
+open = "filtered-resume"
+query = { since = "{all.last_id}", topics = "worker:*" }
+
+[[step]]
+name = "close-filtered-resume"
+close = "filtered-resume"
+
+[[step]]
+name = "resume-other-boot"
+open = "stale"
+query = { since = "000000000000-5" }
+
+[[step]]
+name = "close-stale"
+close = "stale"
+
+[[step]]
+name = "resume-ahead-of-the-stream"
+open = "ahead"
+query = { since = "{epoch}-99999999" }
+
+[[step]]
+name = "close-ahead"
+close = "ahead"
+
+[[step]]
+name = "resume-malformed"
+open = "malformed"
+query = { since = "not-an-id" }
+
+[[step]]
+name = "close-malformed"
+close = "malformed"
+
+[[step]]
+name = "focus"
+request = "POST /stream/focus"
+body = { clientId = "wire-tab", workers = ["w-CHAT", "w-LONG"], ptys = [] }
+status = 200
+
+[[step]]
+name = "focus-invalid"
+request = "POST /stream/focus"
+body = { workers = "w-CHAT" }
+status = 400
+
+[[step]]
+name = "open-with-focus"
+open = "focused"
+query = { clientId = "wire-tab", focus = "w-CHAT", ptys = "" }
+
+[[step]]
+name = "close-focused"
+close = "focused"

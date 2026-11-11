@@ -1,0 +1,213 @@
+about = "Chats and workers, read side: lists, one row, and everything a transcript pane reads. Finds its ids in the lists, so it also runs on a real data folder."
+read_only = true
+
+[[step]]
+name = "list"
+request = "GET /workers"
+status = 200
+capture = { chat = "/json/[agent_role=focused]/id", chat_cwd = "/json/[agent_role=focused]/cwd", kid = "/json/[with_gateway=1]/id" }
+
+[[step]]
+name = "list-brief"
+request = "GET /workers"
+query = { brief = "1" }
+status = 200
+
+[[step]]
+name = "orchestrators"
+request = "GET /orchestrators"
+status = 200
+capture = { orch = "/json/0/id" }
+
+[[step]]
+name = "list-children"
+request = "GET /workers"
+query = { parentId = "{orch}" }
+status = 200
+
+[[step]]
+name = "archived"
+request = "GET /workers/archived"
+status = 200
+capture = { archived = "/json/0/id" }
+
+[[step]]
+name = "archived-brief"
+request = "GET /workers/archived"
+query = { brief = "1" }
+status = 200
+
+[[step]]
+name = "row"
+request = "GET /workers/{chat}"
+status = 200
+
+[[step]]
+name = "row-orchestrator"
+request = "GET /workers/{orch}"
+status = 200
+
+[[step]]
+name = "row-child-as-parent"
+request = "GET /workers/{kid}"
+query = { actorId = "{orch}" }
+status = 200
+
+[[step]]
+name = "row-foreign-actor"
+request = "GET /workers/{chat}"
+query = { actorId = "{kid}" }
+status = 403
+
+[[step]]
+name = "row-archived-for-dashboard"
+request = "GET /workers/{archived}"
+status = 200
+
+[[step]]
+name = "row-archived-for-agent"
+request = "GET /workers/{archived}"
+query = { actorId = "{archived}" }
+status = 404
+
+[[step]]
+name = "row-unknown"
+request = "GET /workers/w-nope0000"
+status = 404
+
+[[step]]
+name = "events-newest"
+request = "GET /workers/{chat}/events"
+query = { limit = "5" }
+status = 200
+capture = { oldest_seen = "/json/[last]/id" }
+
+[[step]]
+name = "events-older"
+request = "GET /workers/{chat}/events"
+query = { limit = "5", beforeId = "{oldest_seen}" }
+status = 200
+
+[[step]]
+name = "events-oldest-first"
+request = "GET /workers/{chat}/events"
+query = { limit = "5", order = "asc" }
+status = 200
+capture = { fifth = "/json/[last]/id" }
+
+[[step]]
+name = "events-after"
+request = "GET /workers/{chat}/events"
+query = { limit = "3", afterId = "{fifth}" }
+status = 200
+
+[[step]]
+name = "events-bad-query"
+request = "GET /workers/{chat}/events"
+query = { limit = "0", order = "sideways" }
+status = 400
+
+[[step]]
+name = "events-unknown-worker"
+request = "GET /workers/w-nope0000/events"
+status = 200
+
+[[step]]
+name = "prompt-events"
+request = "GET /workers/{chat}/prompt-events"
+status = 200
+
+[[step]]
+name = "subagent-events"
+request = "GET /workers/{chat}/subagent-events"
+status = 200
+
+[[step]]
+name = "attachments"
+request = "GET /workers/{chat}/attachments"
+status = 200
+
+[[step]]
+name = "queue"
+request = "GET /workers/{chat}/queue"
+status = 200
+
+[[step]]
+name = "peers"
+request = "GET /workers/{kid}/peers"
+status = 200
+
+[[step]]
+name = "memory"
+request = "GET /workers/{chat}/memory"
+status = 200
+
+[[step]]
+name = "workflow-runs"
+request = "GET /workers/{chat}/workflow-runs"
+status = 200
+
+[[step]]
+name = "workflow-run-unknown"
+request = "GET /workers/{chat}/workflow-runs/call_nope"
+status = 404
+
+[[step]]
+name = "workflow-agent-unknown"
+request = "GET /workers/{chat}/workflow-runs/call_nope/agents/agent-nope"
+status = 404
+
+[[step]]
+name = "rewind-targets-at-rest"
+request = "GET /workers/{chat}/rewind-targets"
+status = 409
+
+[[step]]
+name = "changes"
+request = "GET /workers/{chat}/changes"
+status = 200
+
+[[step]]
+name = "diff"
+request = "GET /workers/{chat}/diff"
+status = 200
+
+[[step]]
+name = "push-state"
+request = "GET /workers/{chat}/push-state"
+status = 200
+
+[[step]]
+name = "conflicts"
+request = "GET /workers/{chat}/conflicts"
+status = 200
+
+[[step]]
+name = "try-state"
+request = "GET /workers/{chat}/try/state"
+status = 200
+
+[[step]]
+name = "try-preview"
+request = "GET /workers/{chat}/try/preview"
+status = 409
+
+[[step]]
+name = "transfers-of-unknown"
+request = "GET /workers/{chat}/transfers/tr-nope"
+status = 403
+
+[[step]]
+name = "export"
+request = "GET /workers/{chat}/export"
+status = 200
+
+[[step]]
+name = "pending"
+request = "GET /pending"
+status = 200
+
+[[step]]
+name = "jobs"
+request = "GET /api/jobs"
+status = 200

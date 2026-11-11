@@ -1,0 +1,1856 @@
+about = "Every registered route as an unknown local caller would hit it: no ui-token, no body, placeholder ids. Shows which routes are gated, which check the body first, and what an unknown id answers. Generated from routes.json (see fixtures/README.md); the routes left out open a dialog, start an agent or go to the network."
+
+[[step]]
+name = "get-h-hostid"
+request = "GET /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-h-hostid"
+request = "POST /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 404
+
+[[step]]
+name = "put-h-hostid"
+request = "PUT /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 404
+
+[[step]]
+name = "delete-h-hostid"
+request = "DELETE /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 404
+
+[[step]]
+name = "head-h-hostid"
+request = "HEAD /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-health"
+request = "GET /health"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-host"
+request = "GET /api/host"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-peer"
+request = "GET /api/peer"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-peer"
+request = "PUT /api/peer"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-peer-invite"
+request = "POST /api/peer/invite"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-peer-invite"
+request = "DELETE /api/peer/invite"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-peer-devices-fp"
+request = "DELETE /api/peer/devices/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-peer-devices-fp-disconnect"
+request = "POST /api/peer/devices/0000000000000000000000000000000000000000000000000000000000000000/disconnect"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-hosts"
+request = "GET /api/hosts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-hosts"
+request = "POST /api/hosts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-hosts-fp"
+request = "PUT /api/hosts/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-hosts-fp"
+request = "DELETE /api/hosts/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-hosts-fp-view-token"
+request = "POST /api/hosts/0000000000000000000000000000000000000000000000000000000000000000/view-token"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-hosts-fp-reconnect"
+request = "POST /api/hosts/0000000000000000000000000000000000000000000000000000000000000000/reconnect"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-ui-plugins-id-rev-ext"
+request = "GET /ui/plugins/x/1.js"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-ui"
+request = "GET /ui"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-stream-focus"
+request = "POST /stream/focus"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-ui-config"
+request = "GET /api/ui-config"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-backends-name-models"
+request = "GET /api/backends/x/models"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-api-backends-presets"
+request = "GET /api/backends/presets"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-backends"
+request = "POST /api/backends"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-api-backends-test"
+request = "POST /api/backends/test"
+auth = "none"
+status = 400
+
+[[step]]
+name = "delete-api-backends-name"
+request = "DELETE /api/backends/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-metrics"
+request = "GET /metrics"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-datetime"
+request = "GET /datetime"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-fs-default-app"
+request = "GET /fs/default-app"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-open"
+request = "POST /fs/open"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-reveal"
+request = "POST /fs/reveal"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-open-in"
+request = "POST /fs/open-in"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-editors"
+request = "GET /fs/editors"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-fs-image"
+request = "GET /fs/image"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-icon"
+request = "GET /fs/icon"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-read"
+request = "GET /fs/read"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-list"
+request = "GET /fs/list"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-stat"
+request = "GET /fs/stat"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-write"
+request = "POST /fs/write"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-paste"
+request = "POST /fs/paste"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-paste-b64"
+request = "POST /fs/paste-b64"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-symbols-lookup"
+request = "GET /symbols/lookup"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-symbols-file"
+request = "GET /symbols/file"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-symbols-search"
+request = "GET /symbols/search"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-create"
+request = "POST /fs/create"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-rename"
+request = "POST /fs/rename"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-move"
+request = "POST /fs/move"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-trash"
+request = "POST /fs/trash"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-watch"
+request = "POST /fs/watch"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-unwatch"
+request = "POST /fs/unwatch"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-git-watch"
+request = "POST /fs/git/watch"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-git-unwatch"
+request = "POST /fs/git/unwatch"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-branches"
+request = "GET /fs/branches"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-unpushed"
+request = "GET /fs/unpushed"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-commit"
+request = "GET /fs/commit"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-log"
+request = "GET /fs/log"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-stashes"
+request = "GET /fs/stashes"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-changes"
+request = "GET /fs/changes"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-changes-file"
+request = "GET /fs/changes/file"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-blob"
+request = "GET /fs/blob"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-checkout"
+request = "POST /fs/checkout"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-stash-apply"
+request = "POST /fs/stash/apply"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-stash-drop"
+request = "POST /fs/stash/drop"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-branch-create"
+request = "POST /fs/branch/create"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-branch-rename"
+request = "POST /fs/branch/rename"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-branch-delete"
+request = "POST /fs/branch/delete"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-fetch"
+request = "POST /fs/fetch"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-fs-remote-branch-delete"
+request = "POST /fs/remote-branch/delete"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-fs-recents"
+request = "GET /fs/recents"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-fs-recents-remove"
+request = "POST /fs/recents/remove"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-projects"
+request = "GET /projects"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-projects"
+request = "PUT /projects"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-projects-delete"
+request = "POST /projects/delete"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-commands"
+request = "GET /commands"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-templates"
+request = "GET /api/templates"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-templates"
+request = "POST /api/templates"
+auth = "none"
+status = 400
+
+[[step]]
+name = "put-api-templates-name"
+request = "PUT /api/templates/x"
+auth = "none"
+status = 400
+
+[[step]]
+name = "delete-api-templates-name"
+request = "DELETE /api/templates/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-api-pages"
+request = "GET /api/pages"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-pages-id"
+request = "GET /api/pages/x"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-api-pages"
+request = "POST /api/pages"
+auth = "none"
+status = 201
+
+[[step]]
+name = "put-api-pages-id"
+request = "PUT /api/pages/x"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-api-pages-id-edit"
+request = "POST /api/pages/x/edit"
+auth = "none"
+status = 400
+
+[[step]]
+name = "delete-api-pages-id"
+request = "DELETE /api/pages/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-btw"
+request = "POST /workers/x/btw"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-artifacts"
+request = "GET /api/artifacts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-artifacts-refresh"
+request = "POST /api/artifacts/refresh"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-browser-status"
+request = "GET /browser/status"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-launch"
+request = "POST /browser/launch"
+auth = "none"
+status = 409
+
+[[step]]
+name = "get-browser-tabs"
+request = "GET /browser/tabs"
+auth = "none"
+status = 409
+
+[[step]]
+name = "get-browser-active-tab"
+request = "GET /browser/active-tab"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs"
+request = "POST /browser/tabs"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-show"
+request = "POST /browser/show"
+auth = "none"
+status = 409
+
+[[step]]
+name = "delete-browser-tabs-tabid"
+request = "DELETE /browser/tabs/x"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-navigate"
+request = "POST /browser/tabs/x/navigate"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-snapshot"
+request = "POST /browser/tabs/x/snapshot"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-find"
+request = "POST /browser/tabs/x/find"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-wait"
+request = "POST /browser/tabs/x/wait"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-act"
+request = "POST /browser/tabs/x/act"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-get"
+request = "POST /browser/tabs/x/get"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-capture"
+request = "POST /browser/tabs/x/capture"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-device"
+request = "POST /browser/tabs/x/device"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-elements"
+request = "POST /browser/tabs/x/elements"
+auth = "none"
+status = 409
+
+[[step]]
+name = "post-browser-tabs-tabid-mute"
+request = "POST /browser/tabs/x/mute"
+auth = "none"
+status = 409
+
+[[step]]
+name = "put-workers-id-rename-intent"
+request = "PUT /workers/x/rename-intent"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-update"
+request = "GET /api/update"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-update-check"
+request = "POST /api/update/check"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-update-download"
+request = "POST /api/update/download"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-update-restart"
+request = "POST /api/update/restart"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-update-later"
+request = "POST /api/update/later"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-update-dismiss"
+request = "POST /api/update/dismiss"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-settings-updates"
+request = "PUT /api/settings/updates"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-workflow-runs"
+request = "GET /workers/x/workflow-runs"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-workflow-runs-callid"
+request = "GET /workers/x/workflow-runs/A"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-workers-id-workflow-runs-callid-agents-agentid"
+request = "GET /workers/x/workflow-runs/A/agents/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-workflow-runs-callid-stop"
+request = "POST /workers/x/workflow-runs/A/stop"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-genui-views"
+request = "POST /api/genui/views"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-genui-apps"
+request = "POST /api/genui/apps"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-views-id"
+request = "GET /api/genui/views/v_AAAAAAAAAAAA"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-api-genui-views-id-state"
+request = "GET /api/genui/views/v_AAAAAAAAAAAA/state"
+auth = "none"
+status = 404
+
+[[step]]
+name = "put-api-genui-views-id-state"
+request = "PUT /api/genui/views/v_AAAAAAAAAAAA/state"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-media-img"
+request = "GET /api/genui/media/img"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-media-og"
+request = "GET /api/genui/media/og"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-media-icon"
+request = "GET /api/genui/media/icon"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-map-style-json"
+request = "GET /api/genui/map/style.json"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-map-t-path"
+request = "GET /api/genui/map/t/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-genui-geocode"
+request = "GET /api/genui/geocode"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-api-genui-places"
+request = "POST /api/genui/places"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-location"
+request = "GET /api/location"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-settings-genui"
+request = "GET /api/settings/genui"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-api-settings-genui"
+request = "PUT /api/settings/genui"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-dreams"
+request = "GET /api/dreams"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-dreams-status"
+request = "GET /api/dreams/status"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-dreams-id"
+request = "GET /api/dreams/dr-a"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-api-dreams"
+request = "POST /api/dreams"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-dreams-stop"
+request = "POST /api/dreams/stop"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-dreams-exclusions"
+request = "POST /api/dreams/exclusions"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-sync"
+request = "GET /api/sync"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-sync-key"
+request = "GET /api/sync/key"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-sync-create"
+request = "POST /api/sync/create"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-sync-join"
+request = "POST /api/sync/join"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-sync-now"
+request = "POST /api/sync/now"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-sync-leave"
+request = "POST /api/sync/leave"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-transfer-list"
+request = "GET /transfer/list"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-scan"
+request = "POST /transfer/scan"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-transfer-read"
+request = "GET /transfer/read"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-transfer-write"
+request = "PUT /transfer/write"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-prepare"
+request = "POST /transfer/prepare"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-commit"
+request = "POST /transfer/commit"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-abort"
+request = "POST /transfer/abort"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-key"
+request = "POST /transfer/key"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-transfer-locate"
+request = "POST /transfer/locate"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-transfers"
+request = "GET /api/transfers"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-transfers"
+request = "POST /api/transfers"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-transfers"
+request = "DELETE /api/transfers"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-transfers-destination"
+request = "POST /api/transfers/destination"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-transfers-id-action"
+request = "POST /api/transfers/tr-a/pause"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-transfers"
+request = "POST /workers/x/transfers"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-transfers-tid"
+request = "GET /workers/x/transfers/tr-a"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-plugins"
+request = "GET /api/plugins"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-plugins-install"
+request = "POST /api/plugins/install"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-plugins-install-stagingid"
+request = "POST /api/plugins/install/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-plugins-install-stagingid"
+request = "DELETE /api/plugins/install/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-plugins-id-update"
+request = "POST /api/plugins/x/update"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-plugins-id"
+request = "DELETE /api/plugins/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-plugins-id-status"
+request = "GET /api/plugins/x/status"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-api-plugins-id-report"
+request = "POST /api/plugins/x/report"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-plugins-id"
+request = "GET /api/plugins/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "put-api-plugins-id-enabled"
+request = "PUT /api/plugins/x/enabled"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-plugins-id-settings"
+request = "PUT /api/plugins/x/settings"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-plugins-id-store-key"
+request = "GET /api/plugins/x/store/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "put-api-plugins-id-store-key"
+request = "PUT /api/plugins/x/store/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-plugins-id-preview"
+request = "POST /api/plugins/x/preview"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-api-profile"
+request = "GET /api/profile"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-api-profile"
+request = "PUT /api/profile"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-profile-preview"
+request = "GET /api/profile/preview"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-profile-avatar"
+request = "GET /api/profile/avatar"
+auth = "none"
+status = 404
+
+[[step]]
+name = "put-api-profile-avatar"
+request = "PUT /api/profile/avatar"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-profile-avatar"
+request = "DELETE /api/profile/avatar"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-profile-import-claude-md"
+request = "GET /api/profile/import/claude-md"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-user-memories"
+request = "GET /api/user-memories"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-user-memories"
+request = "POST /api/user-memories"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-user-memories-suggest"
+request = "POST /api/user-memories/suggest"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-user-memories-search"
+request = "GET /api/user-memories/search"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-user-memories-approve-all"
+request = "POST /api/user-memories/approve-all"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-user-memories-id"
+request = "PUT /api/user-memories/um-a"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-user-memories-id"
+request = "DELETE /api/user-memories/um-a"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-user-memories-id-approve"
+request = "POST /api/user-memories/um-a/approve"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-user-memories-id-dismiss"
+request = "POST /api/user-memories/um-a/dismiss"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-memory"
+request = "GET /workers/x/memory"
+auth = "none"
+status = 404
+
+[[step]]
+name = "delete-workers-id-memory-name"
+request = "DELETE /workers/x/memory/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-prompts"
+request = "GET /api/prompts"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-api-prompts-preview"
+request = "POST /api/prompts/preview"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-worker-definitions"
+request = "GET /worker-definitions"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-worker-definitions"
+request = "POST /worker-definitions"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-settings"
+request = "GET /api/settings"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-api-settings"
+request = "PUT /api/settings"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-settings-archive"
+request = "GET /api/settings/archive"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-api-settings-archive"
+request = "PUT /api/settings/archive"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-settings-compaction"
+request = "GET /api/settings/compaction"
+auth = "none"
+status = 200
+
+[[step]]
+name = "put-api-settings-compaction"
+request = "PUT /api/settings/compaction"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-anthropic-config"
+request = "GET /api/anthropic/config"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-anthropic-config"
+request = "PUT /api/anthropic/config"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-accounts"
+request = "GET /api/accounts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-accounts-provider-sign-in"
+request = "POST /api/accounts/x/sign-in"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-accounts-provider-logins-id"
+request = "PUT /api/accounts/x/logins/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-accounts-provider-logins-id"
+request = "DELETE /api/accounts/x/logins/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-accounts-provider-default-login"
+request = "PUT /api/accounts/x/default-login"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-accounts-provider-auto-switch"
+request = "PUT /api/accounts/x/auto-switch"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-accounts-provider-sign-in"
+request = "DELETE /api/accounts/x/sign-in"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-workers-id-plan-resume"
+request = "PUT /workers/x/plan-resume"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-api-key-continue"
+request = "POST /workers/x/api-key-continue"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-sign-ins-id"
+request = "GET /api/sign-ins/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-api-sign-ins-id"
+request = "DELETE /api/sign-ins/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-sign-ins-id-code"
+request = "POST /api/sign-ins/x/code"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-usage"
+request = "GET /api/usage"
+auth = "none"
+status = 200
+
+[[step]]
+name = "delete-workers-id"
+request = "DELETE /workers/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-interrupt"
+request = "POST /workers/x/interrupt"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-archive"
+request = "POST /workers/x/archive"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-restore"
+request = "POST /workers/x/restore"
+auth = "none"
+status = 404
+
+[[step]]
+name = "delete-workers-id-purge"
+request = "DELETE /workers/x/purge"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-workers"
+request = "GET /workers"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-archived"
+request = "GET /workers/archived"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-archived-app-closed"
+request = "POST /workers/archived/app-closed"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id"
+request = "GET /workers/x"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-workers-id-events"
+request = "GET /workers/x/events"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-id-events"
+request = "POST /workers/x/events"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-message"
+request = "POST /workers/x/message"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-workers-id-queue"
+request = "GET /workers/x/queue"
+auth = "none"
+status = 200
+
+[[step]]
+name = "delete-workers-id-queue-queueid"
+request = "DELETE /workers/x/queue/1"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-resume"
+request = "POST /workers/x/resume"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-action"
+request = "POST /workers/x/action"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-push"
+request = "POST /workers/x/push"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-question"
+request = "POST /workers/x/question"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-workers-id-question-questionid"
+request = "GET /workers/x/question/x"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-id-question-answer"
+request = "POST /workers/x/question-answer"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-workers-id-peers"
+request = "GET /workers/x/peers"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-fromworker-peer-request"
+request = "POST /workers/x/peer-request"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-workers-fromworker-peer-request-requestid"
+request = "GET /workers/x/peer-request/x"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-id-peer-response"
+request = "POST /workers/x/peer-response"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-notify"
+request = "POST /workers/x/notify"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-keystroke"
+request = "POST /workers/x/keystroke"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-workers-id-rewind-targets"
+request = "GET /workers/x/rewind-targets"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-rewind"
+request = "POST /workers/x/rewind"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-report"
+request = "POST /workers/x/report"
+auth = "none"
+status = 400
+
+[[step]]
+name = "put-workers-id-name"
+request = "PUT /workers/x/name"
+auth = "none"
+status = 400
+
+[[step]]
+name = "put-workers-id-permission"
+request = "PUT /workers/x/permission"
+auth = "none"
+status = 400
+
+[[step]]
+name = "put-workers-id-model"
+request = "PUT /workers/x/model"
+auth = "none"
+status = 400
+
+[[step]]
+name = "put-workers-id-backend"
+request = "PUT /workers/x/backend"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-workers-id-diff"
+request = "GET /workers/x/diff"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-push-state"
+request = "GET /workers/x/push-state"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-changes"
+request = "GET /workers/x/changes"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-workers-id-warm"
+request = "POST /workers/x/warm"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-pull"
+request = "POST /workers/x/pull"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-try-preview"
+request = "GET /workers/x/try/preview"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-workers-id-try-state"
+request = "GET /workers/x/try/state"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-workers-id-try"
+request = "POST /workers/x/try"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-try-keep"
+request = "POST /workers/x/try/keep"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-try-discard"
+request = "POST /workers/x/try/discard"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-terminal"
+request = "POST /workers/x/terminal"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-terminal"
+request = "POST /terminal"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-terminal-runid-kill"
+request = "POST /terminal/x/kill"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-workers-id-open"
+request = "POST /workers/x/open"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-conflicts"
+request = "GET /workers/x/conflicts"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-conflicts-file"
+request = "GET /workers/x/conflicts/file"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-conflicts-resolve"
+request = "POST /workers/x/conflicts/resolve"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-changes-file"
+request = "GET /workers/x/changes/file"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-workers-id-changes-discard"
+request = "POST /workers/x/changes/discard"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-attachments"
+request = "GET /workers/x/attachments"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-prompt-events"
+request = "GET /workers/x/prompt-events"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-workers-id-subagent-events"
+request = "GET /workers/x/subagent-events"
+auth = "none"
+status = 200
+
+[[step]]
+name = "get-api-jobs"
+request = "GET /api/jobs"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-api-jobs-id-output"
+request = "GET /api/jobs/A/output"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-jobs-id-stop"
+request = "POST /api/jobs/A/stop"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-jobs-id-dismiss"
+request = "POST /api/jobs/A/dismiss"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-jobs-clear"
+request = "POST /api/jobs/clear"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-pty"
+request = "POST /pty"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-pty"
+request = "GET /pty"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-pty-id-input"
+request = "POST /pty/x/input"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-pty-id-resize"
+request = "POST /pty/x/resize"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-pty-id-buffer"
+request = "GET /pty/x/buffer"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-pty-id-conversation"
+request = "GET /pty/x/conversation"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-pty-id-message"
+request = "POST /pty/x/message"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-pty-id-answer"
+request = "POST /pty/x/answer"
+auth = "none"
+status = 403
+
+[[step]]
+name = "delete-pty-id"
+request = "DELETE /pty/x"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-workers-id-export"
+request = "GET /workers/x/export"
+auth = "none"
+status = 404
+
+[[step]]
+name = "get-orchestrators"
+request = "GET /orchestrators"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-orchestrators-id-message"
+request = "POST /orchestrators/x/message"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-orchestrators-id-integrate"
+request = "POST /orchestrators/x/integrate"
+auth = "none"
+status = 404
+
+[[step]]
+name = "post-orchestrators-id-loop"
+request = "POST /orchestrators/x/loop"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-orchestrators-id-loop-stop"
+request = "POST /orchestrators/x/loop/stop"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-policy-decide"
+request = "POST /policy/decide"
+auth = "none"
+status = 400
+
+[[step]]
+name = "post-api-policy-rule"
+request = "POST /api/policy/rule"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-pending"
+request = "GET /pending"
+auth = "none"
+status = 200
+
+[[step]]
+name = "post-pending-id-decision"
+request = "POST /pending/x/decision"
+auth = "none"
+status = 400
+
+[[step]]
+name = "get-api-remote-status"
+request = "GET /api/remote/status"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-remote-arm"
+request = "POST /api/remote/arm"
+auth = "none"
+status = 403
+
+[[step]]
+name = "post-api-remote-pair"
+request = "POST /api/remote/pair"
+auth = "none"
+status = 403
+
+[[step]]
+name = "put-api-remote-config"
+request = "PUT /api/remote/config"
+auth = "none"
+status = 403
+
+[[step]]
+name = "get-h-hostid-raw"
+request = "GET /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "post-h-hostid-raw"
+request = "POST /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "put-h-hostid-raw"
+request = "PUT /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "delete-h-hostid-raw"
+request = "DELETE /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "head-h-hostid-raw"
+request = "HEAD /h/0000000000000000000000000000000000000000000000000000000000000000"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "get-fs-raw-raw"
+request = "GET /fs/raw/x"
+auth = "none"
+via = "raw"
+status = 404
+
+[[step]]
+name = "get-pdfjs-raw"
+request = "GET /pdfjs"
+auth = "none"
+via = "raw"
+status = 200

@@ -1,0 +1,145 @@
+about = "The file-transfer endpoint every daemon serves over its own disk: list, scan, ranged read, staged write, commit, abort, project key."
+
+[[step]]
+name = "list"
+request = "GET /transfer/list"
+query = { path = "{sandbox}/beta" }
+status = 200
+
+[[step]]
+name = "list-hidden"
+request = "GET /transfer/list"
+query = { path = "{sandbox}/alpha", hidden = "1" }
+status = 200
+
+[[step]]
+name = "list-without-token"
+request = "GET /transfer/list"
+auth = "none"
+query = { path = "{sandbox}/beta" }
+status = 403
+
+[[step]]
+name = "list-missing"
+request = "GET /transfer/list"
+query = { path = "{sandbox}/nope" }
+status = 404
+
+[[step]]
+name = "scan"
+request = "POST /transfer/scan"
+body = { paths = ["{sandbox}/beta"] }
+status = 200
+
+[[step]]
+name = "scan-file"
+request = "POST /transfer/scan"
+body = { paths = ["{sandbox}/beta/notes.md"] }
+status = 200
+capture = { size = "/json/items/0/size", mtime = "/json/items/0/mtimeMs" }
+
+[[step]]
+name = "scan-folder-to-send"
+request = "POST /transfer/scan"
+body = { paths = ["{sandbox}/beta/sub"] }
+status = 200
+capture = { items = "/json/items" }
+
+[[step]]
+name = "scan-relative-path"
+request = "POST /transfer/scan"
+body = { paths = ["beta"] }
+status = 400
+
+[[step]]
+name = "read-range"
+request = "GET /transfer/read"
+query = { path = "{sandbox}/beta/notes.md", offset = "2", length = "5", size = "{size}", mtime = "{mtime}" }
+status = 200
+
+[[step]]
+name = "read-changed-file"
+request = "GET /transfer/read"
+query = { path = "{sandbox}/beta/notes.md", offset = "0", length = "5", size = "999", mtime = "1" }
+status = 412
+
+[[step]]
+name = "prepare"
+request = "POST /transfer/prepare"
+body = { id = "tr-wire0001", destDir = "{sandbox}/incoming", items = "{items}" }
+status = 200
+
+[[step]]
+name = "write-chunk"
+request = "PUT /transfer/write"
+query = { id = "tr-wire0001", dest = "{sandbox}/incoming", rel = "sub/inner.txt", offset = "0" }
+text = "plain text\n"
+content_type = "application/octet-stream"
+status = 200
+
+[[step]]
+name = "write-wrong-offset"
+request = "PUT /transfer/write"
+query = { id = "tr-wire0001", dest = "{sandbox}/incoming", rel = "sub/inner.txt", offset = "3" }
+text = "x"
+content_type = "application/octet-stream"
+status = 409
+
+[[step]]
+name = "commit"
+request = "POST /transfer/commit"
+body = { id = "tr-wire0001", destDir = "{sandbox}/incoming", decisions = {} }
+status = 200
+
+[[step]]
+name = "abort-unknown"
+request = "POST /transfer/abort"
+body = { id = "tr-wire0002", destDir = "{sandbox}/incoming" }
+status = 200
+
+[[step]]
+name = "key-of-repo-without-remote"
+request = "POST /transfer/key"
+body = { path = "{sandbox}/alpha" }
+status = 200
+
+[[step]]
+name = "locate-unknown-key"
+request = "POST /transfer/locate"
+body = { key = "github.com/example/none" }
+status = 200
+
+[[step]]
+name = "destination"
+request = "POST /api/transfers/destination"
+body = { from = "local", to = "00000000000000000000000000000000000000000000000000000000000000aa", paths = ["{sandbox}/beta/notes.md"] }
+status = 502
+
+[[step]]
+name = "start-same-machine"
+request = "POST /api/transfers"
+body = { from = "local", to = "local", paths = ["{sandbox}/beta/notes.md"] }
+status = 400
+
+[[step]]
+name = "agent-send-not-focused"
+request = "POST /workers/w-KID1/transfers"
+body = { machine = "desk", paths = ["notes.md"] }
+status = 403
+
+[[step]]
+name = "agent-send-without-agent-header"
+request = "POST /workers/w-CHAT/transfers"
+body = { machine = "desk", paths = ["README.md"] }
+status = 403
+
+[[step]]
+name = "agent-poll-without-agent-header"
+request = "GET /workers/w-CHAT/transfers/tr-nope"
+status = 403
+
+[[step]]
+name = "committed-file"
+request = "GET /fs/read"
+query = { path = "{sandbox}/incoming/sub/inner.txt" }
+status = 200

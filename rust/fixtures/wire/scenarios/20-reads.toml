@@ -1,0 +1,235 @@
+about = "Every list and status the dashboard reads at start, plus larger transcript pages and git reads on a chat's own folder. Finds its ids in the lists, so it also runs on a real data folder."
+read_only = true
+
+[[step]]
+name = "ui-config"
+request = "GET /api/ui-config"
+status = 200
+
+[[step]]
+name = "settings"
+request = "GET /api/settings"
+status = 200
+
+[[step]]
+name = "settings-archive"
+request = "GET /api/settings/archive"
+status = 200
+
+[[step]]
+name = "settings-compaction"
+request = "GET /api/settings/compaction"
+status = 200
+
+[[step]]
+name = "settings-genui"
+request = "GET /api/settings/genui"
+status = 200
+
+[[step]]
+name = "profile"
+request = "GET /api/profile"
+status = 200
+
+[[step]]
+name = "profile-preview"
+request = "GET /api/profile/preview"
+status = 200
+
+[[step]]
+name = "memories"
+request = "GET /api/user-memories"
+status = 200
+
+[[step]]
+name = "memory-search"
+request = "GET /api/user-memories/search"
+query = { q = "commit", limit = "5" }
+status = 200
+
+[[step]]
+name = "pages"
+request = "GET /api/pages"
+query = { all = "1" }
+status = 200
+capture = { page = "/json/pages/0/id" }
+
+[[step]]
+name = "page"
+request = "GET /api/pages/{page}"
+optional = true
+status = 200
+
+[[step]]
+name = "templates"
+request = "GET /api/templates"
+status = 200
+
+[[step]]
+name = "commands"
+request = "GET /commands"
+status = 200
+
+[[step]]
+name = "prompts"
+request = "GET /api/prompts"
+status = 200
+
+[[step]]
+name = "worker-definitions"
+request = "GET /worker-definitions"
+status = 200
+
+[[step]]
+name = "plugins"
+request = "GET /api/plugins"
+status = 200
+
+[[step]]
+name = "projects"
+request = "GET /projects"
+status = 200
+
+[[step]]
+name = "recents"
+request = "GET /fs/recents"
+status = 200
+
+[[step]]
+name = "accounts"
+request = "GET /api/accounts"
+status = 200
+
+[[step]]
+name = "usage"
+request = "GET /api/usage"
+status = 200
+
+[[step]]
+name = "artifacts"
+request = "GET /api/artifacts"
+status = 200
+
+[[step]]
+name = "dreams"
+request = "GET /api/dreams"
+status = 200
+capture = { dream = "/json/runs/0/id" }
+
+[[step]]
+name = "dream"
+request = "GET /api/dreams/{dream}"
+optional = true
+status = 200
+
+[[step]]
+name = "dream-status"
+request = "GET /api/dreams/status"
+status = 200
+
+[[step]]
+name = "transfers"
+request = "GET /api/transfers"
+status = 200
+
+[[step]]
+name = "update"
+request = "GET /api/update"
+status = 200
+
+[[step]]
+name = "sync"
+request = "GET /api/sync"
+status = 200
+
+[[step]]
+name = "host"
+request = "GET /api/host"
+status = 200
+
+[[step]]
+name = "peer"
+request = "GET /api/peer"
+status = 200
+
+[[step]]
+name = "hosts"
+request = "GET /api/hosts"
+status = 200
+
+[[step]]
+name = "remote-status"
+request = "GET /api/remote/status"
+status = 200
+
+[[step]]
+name = "terminals"
+request = "GET /pty"
+status = 200
+
+[[step]]
+name = "workers"
+request = "GET /workers"
+query = { brief = "1" }
+status = 200
+capture = { chat = "/json/[agent_role=focused]/id", cwd = "/json/[agent_role=focused]/cwd", kid = "/json/[with_gateway=1]/id" }
+
+[[step]]
+name = "orchestrators"
+request = "GET /orchestrators"
+status = 200
+capture = { orch = "/json/0/id" }
+
+[[step]]
+name = "transcript-chat"
+request = "GET /workers/{chat}/events"
+query = { limit = "500" }
+status = 200
+
+[[step]]
+name = "transcript-orchestrator"
+request = "GET /workers/{orch}/events"
+query = { limit = "500" }
+status = 200
+
+[[step]]
+name = "transcript-worker"
+request = "GET /workers/{kid}/events"
+query = { limit = "500" }
+status = 200
+
+[[step]]
+name = "folder-stat"
+request = "GET /fs/stat"
+query = { path = "{cwd}" }
+status = 200
+
+[[step]]
+name = "folder-list"
+request = "GET /fs/list"
+query = { cwd = "{cwd}" }
+status = 200
+
+[[step]]
+name = "folder-branches"
+request = "GET /fs/branches"
+query = { cwd = "{cwd}" }
+status = 200
+
+[[step]]
+name = "folder-log"
+request = "GET /fs/log"
+query = { cwd = "{cwd}", limit = "3" }
+status = 200
+
+[[step]]
+name = "folder-changes"
+request = "GET /fs/changes"
+query = { cwd = "{cwd}" }
+status = 200
+
+[[step]]
+name = "folder-stashes"
+request = "GET /fs/stashes"
+query = { cwd = "{cwd}" }
+status = 200

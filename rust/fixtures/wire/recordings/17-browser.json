@@ -1,0 +1,222 @@
+{
+  "scenario": "17-browser",
+  "about": "The browser routes while no app window is attached: status, the empty tab list, and who is refused. Opening a tab would start a browser on this Mac, so it is not recorded.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "status",
+        "request": "GET /browser/status",
+        "status": 200
+      },
+      "route": "GET /browser/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "sessionId": "global",
+          "state": "launching",
+          "tabCount": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "status-for-session",
+        "request": "GET /browser/status",
+        "query": {
+          "session": "w-CHAT"
+        },
+        "status": 200
+      },
+      "route": "GET /browser/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "sessionId": "w-CHAT",
+          "state": "launching",
+          "tabCount": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "status-as-agent",
+        "request": "GET /browser/status",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /browser/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "chromePath": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+          "sessionId": "o-ORCH",
+          "state": "launching",
+          "tabCount": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "status-as-nobody",
+        "request": "GET /browser/status",
+        "auth": "none",
+        "status": 409
+      },
+      "route": "GET /browser/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unattributed agent call — x-eos-agent-id missing or unknown"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "tabs",
+        "request": "GET /browser/tabs",
+        "status": 200
+      },
+      "route": "GET /browser/tabs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "sessionId": "global",
+          "tabs": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "active-tab-none",
+        "request": "GET /browser/active-tab",
+        "status": 409
+      },
+      "route": "GET /browser/active-tab",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no active tab"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "show-no-tab",
+        "request": "POST /browser/show",
+        "body": {},
+        "status": 409
+      },
+      "route": "POST /browser/show",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no active tab"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "open-tab-as-nobody",
+        "request": "POST /browser/tabs",
+        "auth": "none",
+        "body": {
+          "url": "https://example.com"
+        },
+        "status": 409
+      },
+      "route": "POST /browser/tabs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unattributed agent call — x-eos-agent-id missing or unknown"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "launch-as-nobody",
+        "request": "POST /browser/launch",
+        "auth": "none",
+        "status": 409
+      },
+      "route": "POST /browser/launch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unattributed agent call — x-eos-agent-id missing or unknown"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "navigate-as-nobody",
+        "request": "POST /browser/tabs/tab-1/navigate",
+        "auth": "none",
+        "body": {
+          "url": "https://example.com"
+        },
+        "status": 409
+      },
+      "route": "POST /browser/tabs/:tabId/navigate",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unattributed agent call — x-eos-agent-id missing or unknown"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "close-tab-as-nobody",
+        "request": "DELETE /browser/tabs/tab-1",
+        "auth": "none",
+        "status": 409
+      },
+      "route": "DELETE /browser/tabs/:tabId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unattributed agent call — x-eos-agent-id missing or unknown"
+        },
+        "status": 409
+      }
+    }
+  ]
+}

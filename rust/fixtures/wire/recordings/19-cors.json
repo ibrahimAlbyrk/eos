@@ -1,0 +1,490 @@
+{
+  "scenario": "19-cors",
+  "about": "Who may call the API listener from a browser: allowed and refused origins, preflight, the Host check against DNS rebinding, and the doors where neither applies.",
+  "record_headers": [
+    "access-control-allow-origin",
+    "access-control-allow-methods",
+    "access-control-allow-headers",
+    "access-control-expose-headers",
+    "access-control-max-age",
+    "vary"
+  ],
+  "exchanges": [
+    {
+      "step": {
+        "name": "no-origin",
+        "request": "GET /health",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "app-origin",
+        "request": "GET /health",
+        "headers": {
+          "origin": "eos://app"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-allow-origin": "eos://app",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "own-loopback-origin",
+        "request": "GET /health",
+        "headers": {
+          "origin": "{api_origin}"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-allow-origin": "{api_origin}",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-origin",
+        "request": "GET /health",
+        "headers": {
+          "origin": "https://evil.example"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "null-origin",
+        "request": "GET /health",
+        "headers": {
+          "origin": "null"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "raw-port-origin",
+        "request": "GET /workers",
+        "headers": {
+          "origin": "{raw_origin}"
+        },
+        "status": 403
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-origin-with-token",
+        "request": "POST /terminal",
+        "headers": {
+          "origin": "https://evil.example"
+        },
+        "body": {
+          "command": "echo never",
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 403
+      },
+      "route": "POST /terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "preflight",
+        "request": "OPTIONS /api/pages",
+        "headers": {
+          "access-control-request-headers": "content-type, x-eos-ui-token",
+          "access-control-request-method": "POST",
+          "origin": "eos://app"
+        },
+        "auth": "none",
+        "status": 204
+      },
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-allow-origin": "eos://app",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "vary": "Origin"
+        },
+        "status": 204
+      }
+    },
+    {
+      "step": {
+        "name": "preflight-foreign",
+        "request": "OPTIONS /api/pages",
+        "headers": {
+          "access-control-request-method": "POST",
+          "origin": "https://evil.example"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "preflight-unknown-route",
+        "request": "OPTIONS /nope",
+        "headers": {
+          "origin": "eos://app"
+        },
+        "auth": "none",
+        "status": 204
+      },
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-allow-origin": "eos://app",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "vary": "Origin"
+        },
+        "status": 204
+      }
+    },
+    {
+      "step": {
+        "name": "options-without-origin",
+        "request": "OPTIONS /health",
+        "auth": "none",
+        "status": 204
+      },
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "vary": "Origin"
+        },
+        "status": 204
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-host",
+        "request": "GET /health",
+        "headers": {
+          "host": "evil.example"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "host not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-host-with-port",
+        "request": "GET /health",
+        "headers": {
+          "host": "evil.example:7500"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "host not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "localhost-host",
+        "request": "GET /health",
+        "headers": {
+          "host": "localhost:9999"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ipv6-loopback-host",
+        "request": "GET /health",
+        "headers": {
+          "host": "[::1]:7500"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "access-control-allow-headers": "content-type, x-eos-ui-token, x-filename",
+          "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "access-control-expose-headers": "content-disposition",
+          "access-control-max-age": "86400",
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "malformed-host",
+        "request": "GET /health",
+        "headers": {
+          "host": "127.0.0.1@evil.example"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "host not allowed"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-origin-on-the-socket",
+        "request": "GET /health",
+        "headers": {
+          "host": "evil.example",
+          "origin": "https://evil.example"
+        },
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "foreign-origin-on-the-raw-port",
+        "request": "GET /fs/raw{sandbox}/beta/notes.md",
+        "headers": {
+          "origin": "https://evil.example"
+        },
+        "auth": "none",
+        "via": "raw",
+        "status": 200
+      },
+      "route": "GET /fs/raw/* (raw)",
+      "response": {
+        "headers": {
+          "accept-ranges": "bytes",
+          "content-type": "text/plain; charset=utf-8"
+        },
+        "status": 200,
+        "text": "# Notes\n\n- first\n- second\n"
+      }
+    },
+    {
+      "step": {
+        "name": "stream-foreign-origin",
+        "request": "GET /stream",
+        "headers": {
+          "origin": "https://evil.example"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /stream",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin"
+        },
+        "json": {
+          "error": "origin not allowed"
+        },
+        "status": 403
+      }
+    }
+  ]
+}

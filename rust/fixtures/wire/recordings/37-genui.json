@@ -1,0 +1,748 @@
+{
+  "scenario": "37-genui",
+  "about": "Visual answers: presenting a view and an app as an orchestrator or focused session, rejections with their problem list, reading a view, view state, and the media routes' refusals.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "genui:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "present",
+        "request": "POST /api/genui/views",
+        "headers": {
+          "x-eos-agent-id": "w-CHAT"
+        },
+        "auth": "none",
+        "body": {
+          "input": {
+            "actions": {
+              "pick": {
+                "kind": "send",
+                "label": "Pick {{name}}"
+              }
+            },
+            "data": {
+              "places": [
+                {
+                  "area": "Old town",
+                  "id": "a",
+                  "name": "Bean",
+                  "price": 2,
+                  "rating": 4.5,
+                  "type": "Place"
+                },
+                {
+                  "area": "Harbour",
+                  "id": "b",
+                  "name": "Roast",
+                  "price": 3,
+                  "rating": 4.1,
+                  "type": "Place"
+                }
+              ]
+            },
+            "icon": "coffee",
+            "summary": "Bean (4.5) in the Old town and Roast (4.1) at the Harbour.",
+            "title": "Two cafes",
+            "tone": "teal",
+            "ui": "<Section title=\"Cafes\"><List of=\"places\" variant=\"row\" meta=\"{{area}}\" actions=\"pick\"/></Section><Toggle bind=\"open\" label=\"Open now\"/>"
+          }
+        },
+        "status": 201,
+        "capture": {
+          "view": "/json/viewId"
+        }
+      },
+      "route": "POST /api/genui/views",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "stats": {
+            "collections": [
+              {
+                "count": 2,
+                "name": "places",
+                "type": "Place"
+              }
+            ],
+            "components": [
+              "List",
+              "Section",
+              "Toggle"
+            ],
+            "dataBytes": 174,
+            "depth": 2,
+            "elements": 3,
+            "images": 0,
+            "maps": 0,
+            "primaryActions": 0,
+            "sites": 0,
+            "uiBytes": 133
+          },
+          "viewId": "<view:1>",
+          "warnings": []
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "present-as-worker",
+        "request": "POST /api/genui/views",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "auth": "none",
+        "body": {
+          "input": {
+            "summary": "x",
+            "title": "x",
+            "ui": "<Text>x</Text>"
+          }
+        },
+        "status": 403
+      },
+      "route": "POST /api/genui/views",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only an orchestrator or a focused session can present — report to your orchestrator instead"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "present-as-nobody",
+        "request": "POST /api/genui/views",
+        "body": {
+          "input": {
+            "summary": "x",
+            "title": "x",
+            "ui": "<Text>x</Text>"
+          }
+        },
+        "status": 403
+      },
+      "route": "POST /api/genui/views",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only an orchestrator or a focused session can present — report to your orchestrator instead"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "present-rejected",
+        "request": "POST /api/genui/views",
+        "headers": {
+          "x-eos-agent-id": "o-ORCH"
+        },
+        "auth": "none",
+        "body": {
+          "input": {
+            "data": {
+              "rows": [
+                {
+                  "name": "a"
+                }
+              ]
+            },
+            "summary": "",
+            "title": "Broken",
+            "ui": "<Tabel of=\"rows\"/><List of=\"missing\"/>"
+          }
+        },
+        "status": 400
+      },
+      "route": "POST /api/genui/views",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "3 problems — nothing rendered\n· summary: is required — the plain-text answer shown when the view can't render\n· ui line 1 <Tabel of=\"rows\">: unknown component — use one of Section, Stack, Grid, Split, Carousel, Tabs, Disclosure, Divider, Text, Heading, Image, Gallery, Logo, Badge, Rating, Price, Status, Callout, Quote, Code, FileRef, Sources, Stat, KeyValue, Table, Chart, Meter, Timeline, Steps, Progress, Value, Card, Hero, List, Map, Filters, Segmented, Toggle, Slider, Stepper, Select, Field, Checklist, Choice, Form, Actions\n· ui line 1 <List of=\"missing\">: data has no collection \"missing\" — collections: rows\nfix and call present again",
+          "problems": [
+            {
+              "message": "is required — the plain-text answer shown when the view can't render",
+              "path": "summary"
+            },
+            {
+              "message": "unknown component — use one of Section, Stack, Grid, Split, Carousel, Tabs, Disclosure, Divider, Text, Heading, Image, Gallery, Logo, Badge, Rating, Price, Status, Callout, Quote, Code, FileRef, Sources, Stat, KeyValue, Table, Chart, Meter, Timeline, Steps, Progress, Value, Card, Hero, List, Map, Filters, Segmented, Toggle, Slider, Stepper, Select, Field, Checklist, Choice, Form, Actions",
+              "path": "ui line 1 <Tabel of=\"rows\">"
+            },
+            {
+              "message": "data has no collection \"missing\" — collections: rows",
+              "path": "ui line 1 <List of=\"missing\">"
+            }
+          ]
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "present-not-an-object",
+        "request": "POST /api/genui/views",
+        "headers": {
+          "x-eos-agent-id": "o-ORCH"
+        },
+        "auth": "none",
+        "body": {
+          "input": "a string"
+        },
+        "status": 400
+      },
+      "route": "POST /api/genui/views",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "1 problem — nothing rendered\n· input: must be an object with title, ui and summary\nfix and call present again",
+          "problems": [
+            {
+              "message": "must be an object with title, ui and summary",
+              "path": "input"
+            }
+          ]
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "present-app",
+        "request": "POST /api/genui/apps",
+        "headers": {
+          "x-eos-agent-id": "o-ORCH"
+        },
+        "auth": "none",
+        "body": {
+          "input": {
+            "height": 200,
+            "html": "<button id=\"b\">0</button><script>let n=0;b.onclick=()=>b.textContent=++n</script>",
+            "summary": "A button that counts clicks.",
+            "title": "Counter"
+          }
+        },
+        "status": 201,
+        "capture": {
+          "app": "/json/viewId"
+        }
+      },
+      "route": "POST /api/genui/apps",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "viewId": "<view:2>",
+          "warnings": []
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "present-app-rejected",
+        "request": "POST /api/genui/apps",
+        "headers": {
+          "x-eos-agent-id": "o-ORCH"
+        },
+        "auth": "none",
+        "body": {
+          "input": {
+            "html": "",
+            "title": ""
+          }
+        },
+        "status": 400
+      },
+      "route": "POST /api/genui/apps",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "3 problems — nothing rendered\n· title: is required — a short name for the app\n· summary: is required — what the app does, in plain text\n· html: is required — one self-contained HTML document\nfix and call present again",
+          "problems": [
+            {
+              "message": "is required — a short name for the app",
+              "path": "title"
+            },
+            {
+              "message": "is required — what the app does, in plain text",
+              "path": "summary"
+            },
+            {
+              "message": "is required — one self-contained HTML document",
+              "path": "html"
+            }
+          ]
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "view",
+        "request": "GET /api/genui/views/{view}",
+        "status": 200
+      },
+      "route": "GET /api/genui/views/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "createdAt": "<now>",
+          "id": "<view:1>",
+          "kind": "view",
+          "spec": {
+            "actions": {
+              "pick": {
+                "kind": "send",
+                "label": "Pick {name}"
+              }
+            },
+            "data": {
+              "places": [
+                {
+                  "area": "Old town",
+                  "id": "a",
+                  "name": "Bean",
+                  "price": 2,
+                  "rating": 4.5,
+                  "type": "Place"
+                },
+                {
+                  "area": "Harbour",
+                  "id": "b",
+                  "name": "Roast",
+                  "price": 3,
+                  "rating": 4.1,
+                  "type": "Place"
+                }
+              ]
+            },
+            "icon": "coffee",
+            "summary": "Bean (4.5) in the Old town and Roast (4.1) at the Harbour.",
+            "title": "Two cafes",
+            "tone": "teal",
+            "ui": "<Section title=\"Cafes\"><List of=\"places\" variant=\"row\" meta=\"{area}\" actions=\"pick\"/></Section><Toggle bind=\"open\" label=\"Open now\"/>"
+          },
+          "title": "Two cafes",
+          "workerId": "w-CHAT"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "view-app",
+        "request": "GET /api/genui/views/{app}",
+        "status": 200
+      },
+      "route": "GET /api/genui/views/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "createdAt": "<now>",
+          "id": "<view:2>",
+          "kind": "app",
+          "spec": {
+            "height": 200,
+            "html": "<button id=\"b\">0</button><script>let n=0;b.onclick=()=>b.textContent=++n</script>",
+            "summary": "A button that counts clicks.",
+            "title": "Counter"
+          },
+          "title": "Counter",
+          "workerId": "o-ORCH"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "view-unknown",
+        "request": "GET /api/genui/views/v_000000000000",
+        "status": 404
+      },
+      "route": "GET /api/genui/views/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "view not found: <view:3>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "view-bad-id",
+        "request": "GET /api/genui/views/nope",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/api/genui/views/nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "state-empty",
+        "request": "GET /api/genui/views/{view}/state",
+        "status": 200
+      },
+      "route": "GET /api/genui/views/:id/state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "state": {},
+          "updatedAt": null,
+          "viewId": "<view:1>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "state-save",
+        "request": "PUT /api/genui/views/{view}/state",
+        "body": {
+          "state": {
+            "open": true,
+            "picked": "a"
+          }
+        },
+        "status": 200,
+        "wait": [
+          "genui:change"
+        ]
+      },
+      "route": "PUT /api/genui/views/:id/state",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "state": {
+                    "open": true,
+                    "picked": "a"
+                  },
+                  "viewId": "<view:1>"
+                },
+                "reason": "genui:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "state": {
+            "open": true,
+            "picked": "a"
+          },
+          "updatedAt": "<now>",
+          "viewId": "<view:1>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "state-save-without-token",
+        "request": "PUT /api/genui/views/{view}/state",
+        "auth": "none",
+        "body": {
+          "state": {
+            "open": false
+          }
+        },
+        "status": 403
+      },
+      "route": "PUT /api/genui/views/:id/state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "state-after",
+        "request": "GET /api/genui/views/{view}/state",
+        "status": 200
+      },
+      "route": "GET /api/genui/views/:id/state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "state": {
+            "open": true,
+            "picked": "a"
+          },
+          "updatedAt": "<now>",
+          "viewId": "<view:1>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "state-unknown-view",
+        "request": "PUT /api/genui/views/v_000000000000/state",
+        "body": {
+          "state": {}
+        },
+        "status": 404
+      },
+      "route": "PUT /api/genui/views/:id/state",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "view not found: <view:3>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "media-img-without-token",
+        "request": "GET /api/genui/media/img",
+        "query": {
+          "src": "https://example.com/a.png"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/genui/media/img",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "media-img-bad-url",
+        "request": "GET /api/genui/media/img",
+        "query": {
+          "src": "not a url"
+        },
+        "status": 400
+      },
+      "route": "GET /api/genui/media/img",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: src: Invalid url"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "media-img-loopback-refused",
+        "request": "GET /api/genui/media/img",
+        "query": {
+          "src": "http://127.0.0.1:7500/health"
+        },
+        "status": 404
+      },
+      "route": "GET /api/genui/media/img",
+      "response": {
+        "headers": {
+          "cache-control": "private, max-age=3600",
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no image"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "media-icon-no-site",
+        "request": "GET /api/genui/media/icon",
+        "status": 400
+      },
+      "route": "GET /api/genui/media/icon",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: site: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "geocode-no-query",
+        "request": "GET /api/genui/geocode",
+        "status": 400
+      },
+      "route": "GET /api/genui/geocode",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: q: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "places-invalid",
+        "request": "POST /api/genui/places",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /api/genui/places",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: near: Invalid input"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "location-off",
+        "request": "GET /api/location",
+        "status": 403
+      },
+      "route": "GET /api/location",
+      "response": {
+        "headers": {
+          "cache-control": "no-store",
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "sharing-off",
+          "error": "Location sharing is off. The user can turn it on in Settings › General › Visual answers."
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "location-as-worker",
+        "request": "GET /api/location",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/location",
+      "response": {
+        "headers": {
+          "cache-control": "no-store",
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "forbidden",
+          "error": "location is only for the Eos app, an orchestrator or a focused session"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

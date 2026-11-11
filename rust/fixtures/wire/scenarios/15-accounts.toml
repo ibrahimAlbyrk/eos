@@ -1,0 +1,117 @@
+about = "Accounts, usage and artifacts while signed out, and the routes around sign-ins that can be reached without starting one."
+
+[[step]]
+name = "accounts"
+request = "GET /api/accounts"
+status = 200
+
+[[step]]
+name = "accounts-without-token"
+request = "GET /api/accounts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "sign-in-unsupported-provider"
+request = "POST /api/accounts/xai/sign-in"
+body = {}
+status = 404
+
+[[step]]
+name = "sign-out-unsupported-provider"
+request = "DELETE /api/accounts/xai/sign-in"
+status = 404
+
+[[step]]
+name = "login-rename-single-sign-in-provider"
+request = "PUT /api/accounts/openai/logins/l1"
+body = { label = "Work" }
+status = 404
+
+[[step]]
+name = "login-rename-unknown"
+request = "PUT /api/accounts/anthropic/logins/nope"
+body = { label = "Work" }
+status = 404
+
+[[step]]
+name = "login-remove-unknown"
+request = "DELETE /api/accounts/anthropic/logins/nope"
+status = 404
+
+[[step]]
+name = "default-login-unknown"
+request = "PUT /api/accounts/anthropic/default-login"
+body = { loginId = "nope" }
+status = 404
+
+[[step]]
+name = "auto-switch-off"
+request = "PUT /api/accounts/anthropic/auto-switch"
+body = { enabled = false }
+status = 200
+
+[[step]]
+name = "auto-switch-bad-body"
+request = "PUT /api/accounts/anthropic/auto-switch"
+body = { enabled = "no" }
+status = 400
+
+[[step]]
+name = "accounts-after"
+request = "GET /api/accounts"
+status = 200
+
+[[step]]
+name = "sign-in-poll-unknown"
+request = "GET /api/sign-ins/nope"
+status = 404
+
+[[step]]
+name = "sign-in-cancel-unknown"
+request = "DELETE /api/sign-ins/nope"
+status = 404
+
+[[step]]
+name = "sign-in-code-unknown"
+request = "POST /api/sign-ins/nope/code"
+body = { code = "abc" }
+status = 409
+
+[[step]]
+name = "plan-resume-unknown-row"
+request = "PUT /workers/w-CHAT/plan-resume"
+body = { rowId = 999999, on = true }
+status = 409
+
+[[step]]
+name = "api-key-continue-no-key"
+request = "POST /workers/w-CHAT/api-key-continue"
+status = 409
+
+[[step]]
+name = "usage"
+request = "GET /api/usage"
+status = 200
+
+[[step]]
+name = "usage-wait"
+request = "GET /api/usage"
+query = { wait = "1" }
+status = 200
+
+[[step]]
+name = "artifacts"
+request = "GET /api/artifacts"
+status = 200
+
+[[step]]
+name = "artifacts-without-token"
+request = "GET /api/artifacts"
+auth = "none"
+status = 403
+
+[[step]]
+name = "artifacts-refresh"
+request = "POST /api/artifacts/refresh"
+status = 200

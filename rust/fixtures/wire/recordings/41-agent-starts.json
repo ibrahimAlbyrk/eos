@@ -1,0 +1,616 @@
+{
+  "scenario": "41-agent-starts",
+  "about": "Routes that start, message or resume an agent. Only their refusals are recorded: a success would run a model.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "spawn-worker-invalid",
+        "request": "POST /workers",
+        "body": {
+          "prompt": 5
+        },
+        "status": 400
+      },
+      "route": "POST /workers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: prompt: Expected string, received number"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "spawn-orchestrator-invalid",
+        "request": "POST /orchestrators",
+        "body": {
+          "name": 5
+        },
+        "status": 400
+      },
+      "route": "POST /orchestrators",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: name: Expected string, received number"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "message-unknown",
+        "request": "POST /workers/w-nope0000/message",
+        "body": {
+          "text": "hello"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "message-invalid",
+        "request": "POST /workers/w-CHAT/message",
+        "body": {
+          "text": ""
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: text: String must contain at least 1 character(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "orchestrator-message-unknown",
+        "request": "POST /orchestrators/o-nope00/message",
+        "body": {
+          "text": "hello"
+        },
+        "status": 404
+      },
+      "route": "POST /orchestrators/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <orchestrator:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "orchestrator-message-invalid",
+        "request": "POST /orchestrators/o-ORCH/message",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /orchestrators/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: text: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "resume-unknown",
+        "request": "POST /workers/w-nope0000/resume",
+        "status": 404
+      },
+      "route": "POST /workers/:id/resume",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "warm-unknown",
+        "request": "POST /workers/w-nope0000/warm",
+        "status": 404
+      },
+      "route": "POST /workers/:id/warm",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "warm-without-token",
+        "request": "POST /workers/w-CHAT/warm",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "POST /workers/:id/warm",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "action-invalid",
+        "request": "POST /workers/w-CHAT/action",
+        "body": {
+          "action": "dance"
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/action",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: action: Invalid enum value. Expected 'commit' | 'commit-push' | 'pr' | 'draft-pr' | 'verify' | 'review', received 'dance'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "action-unknown-worker",
+        "request": "POST /workers/w-nope0000/action",
+        "body": {
+          "action": "review"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/action",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "side-question-without-token",
+        "request": "POST /workers/w-CHAT/btw",
+        "auth": "none",
+        "body": {
+          "question": "what changed?"
+        },
+        "status": 403
+      },
+      "route": "POST /workers/:id/btw",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "side-question-invalid",
+        "request": "POST /workers/w-CHAT/btw",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /workers/:id/btw",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: question: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "side-question-unknown-worker",
+        "request": "POST /workers/w-nope0000/btw",
+        "body": {
+          "question": "what changed?"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/btw",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found: <worker:1>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "report-invalid",
+        "request": "POST /workers/w-KID2/report",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "text": ""
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/report",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: text: String must contain at least 1 character(s)"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "report-unknown-worker",
+        "request": "POST /workers/w-nope0000/report",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "text": "done"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/report",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "peer-request-invalid",
+        "request": "POST /workers/w-KID2/peer-request",
+        "auth": "none",
+        "via": "socket",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /workers/:fromWorker/peer-request",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: target: Required; question: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "peer-request-poll-unknown",
+        "request": "GET /workers/w-KID2/peer-request/pr-nope",
+        "auth": "none",
+        "via": "socket",
+        "status": 200
+      },
+      "route": "GET /workers/:fromWorker/peer-request/:requestId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "status": "gone"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-response-nothing-asked",
+        "request": "POST /workers/w-KID2/peer-response",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "answer": "42"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/peer-response",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true,
+          "outcome": "none"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-response-invalid",
+        "request": "POST /workers/w-KID2/peer-response",
+        "auth": "none",
+        "via": "socket",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /workers/:id/peer-response",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: answer: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "loop-invalid",
+        "request": "POST /orchestrators/o-ORCH/loop",
+        "body": {
+          "op": "spin"
+        },
+        "status": 400
+      },
+      "route": "POST /orchestrators/:id/loop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: op: Invalid enum value. Expected 'attach' | 'amend' | 'stop', received 'spin'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "loop-attach-without-goal",
+        "request": "POST /orchestrators/o-ORCH/loop",
+        "body": {
+          "op": "attach",
+          "target": "w-KID2"
+        },
+        "status": 400
+      },
+      "route": "POST /orchestrators/:id/loop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "goal required to attach a loop"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "loop-stop-none",
+        "request": "POST /orchestrators/o-ORCH/loop/stop",
+        "body": {
+          "op": "stop",
+          "target": "w-KID2"
+        },
+        "status": 404
+      },
+      "route": "POST /orchestrators/:id/loop/stop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "loop not found: w-KID2"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "integrate-unknown",
+        "request": "POST /orchestrators/o-nope00/integrate",
+        "body": {},
+        "status": 404
+      },
+      "route": "POST /orchestrators/:id/integrate",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "orchestrator not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "integrate-invalid",
+        "request": "POST /orchestrators/o-ORCH/integrate",
+        "body": {
+          "ids": "all"
+        },
+        "status": 400
+      },
+      "route": "POST /orchestrators/:id/integrate",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: ids: Expected array, received string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "push-unknown",
+        "request": "POST /workers/w-nope0000/push",
+        "status": 404
+      },
+      "route": "POST /workers/:id/push",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pull-unknown",
+        "request": "POST /workers/w-nope0000/pull",
+        "status": 404
+      },
+      "route": "POST /workers/:id/pull",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "open-unknown",
+        "request": "POST /workers/w-nope0000/open",
+        "body": {
+          "target": "finder"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/open",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "open-without-token",
+        "request": "POST /workers/w-CHAT/open",
+        "auth": "none",
+        "body": {
+          "target": "finder"
+        },
+        "status": 403
+      },
+      "route": "POST /workers/:id/open",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "workflow-stop-unknown",
+        "request": "POST /workers/w-CHAT/workflow-runs/call_nope/stop",
+        "status": 404
+      },
+      "route": "POST /workers/:id/workflow-runs/:callId/stop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no running workflow with that call id"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-claude-refused-without-token",
+        "request": "POST /pty",
+        "auth": "none",
+        "body": {
+          "claude": {},
+          "cols": 80,
+          "rows": 24
+        },
+        "status": 403
+      },
+      "route": "POST /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    }
+  ]
+}

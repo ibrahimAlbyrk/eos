@@ -1,0 +1,386 @@
+about = "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, the worker ingest plane, archive / restore / purge / delete, discarding a change; with their stream frames."
+
+[[step]]
+name = "open-stream"
+open = "main"
+query = { topics = "worker:*,state:patch,notification:*,question:*" }
+
+[[step]]
+name = "rename"
+request = "PUT /workers/w-BARE/name"
+body = { name = "Monads in two sentences" }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "rename-unknown"
+request = "PUT /workers/w-nope0000/name"
+body = { name = "x" }
+status = 404
+
+[[step]]
+name = "rename-invalid"
+request = "PUT /workers/w-BARE/name"
+body = { name = 5 }
+status = 400
+
+[[step]]
+name = "rename-intent-on"
+request = "PUT /workers/w-BARE/rename-intent"
+body = { active = true }
+status = 200
+
+[[step]]
+name = "rename-intent-off"
+request = "PUT /workers/w-BARE/rename-intent"
+body = { active = false }
+status = 200
+
+[[step]]
+name = "row-after-rename"
+request = "GET /workers/w-BARE"
+status = 200
+
+[[step]]
+name = "permission"
+request = "PUT /workers/w-LONG/permission"
+body = { mode = "acceptEdits" }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "permission-cascade"
+request = "PUT /workers/o-ORCH/permission"
+body = { mode = "bypassPermissions", cascade = true }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "permission-bad-mode"
+request = "PUT /workers/w-LONG/permission"
+body = { mode = "yolo" }
+status = 400
+
+[[step]]
+name = "permission-unknown"
+request = "PUT /workers/w-nope0000/permission"
+body = { mode = "acceptEdits" }
+status = 404
+
+[[step]]
+name = "model"
+request = "PUT /workers/w-LONG/model"
+body = { model = "opus", effort = "high" }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "model-not-in-catalog"
+request = "PUT /workers/w-LONG/model"
+body = { model = "gpt-nope" }
+status = 422
+
+[[step]]
+name = "model-unknown-worker"
+request = "PUT /workers/w-nope0000/model"
+body = { model = "opus" }
+status = 404
+
+[[step]]
+name = "backend-invalid"
+request = "PUT /workers/w-LONG/backend"
+body = {}
+status = 400
+
+[[step]]
+name = "events-after-changes"
+request = "GET /workers/w-LONG/events"
+query = { limit = "3" }
+status = 200
+
+[[step]]
+name = "question-register"
+request = "POST /workers/o-ORCH/question"
+auth = "none"
+via = "socket"
+body = { questions = [{ question = "Ship the flag behind a setting?", header = "Rollout", multiSelect = false, options = [{ label = "Yes", description = "Off by default" }, { label = "No", description = "Always on" }] }] }
+status = 200
+capture = { question = "/json/questionId", question_call = "/json/toolUseId" }
+wait = ["worker:change", "notification:fire"]
+
+[[step]]
+name = "question-poll-waiting"
+request = "GET /workers/o-ORCH/question/{question}"
+auth = "none"
+via = "socket"
+status = 200
+
+[[step]]
+name = "question-flag-on-row"
+request = "GET /orchestrators"
+status = 200
+
+[[step]]
+name = "question-answer"
+request = "POST /workers/o-ORCH/question-answer"
+body = { toolUseId = "{question_call}", answers = { "Ship the flag behind a setting?" = "Yes" } }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "question-poll-answered"
+request = "GET /workers/o-ORCH/question/{question}"
+auth = "none"
+via = "socket"
+status = 200
+
+[[step]]
+name = "question-register-second"
+request = "POST /workers/o-ORCH/question"
+auth = "none"
+via = "socket"
+body = { toolUseId = "call_ask_wire", questions = [{ question = "Which name?", header = "Name", multiSelect = true, options = [{ label = "--json", description = "Short" }, { label = "--format=json", description = "Explicit" }] }] }
+status = 200
+capture = { question2 = "/json/questionId" }
+wait = ["worker:change"]
+
+[[step]]
+name = "question-dismiss"
+request = "POST /workers/o-ORCH/question-answer"
+body = { toolUseId = "call_ask_wire", dismissed = true }
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "question-poll-dismissed"
+request = "GET /workers/o-ORCH/question/{question2}"
+auth = "none"
+via = "socket"
+status = 200
+
+[[step]]
+name = "question-answer-gone"
+request = "POST /workers/o-ORCH/question-answer"
+body = { toolUseId = "call_never_asked", answers = {} }
+status = 200
+
+[[step]]
+name = "question-poll-unknown"
+request = "GET /workers/o-ORCH/question/q-nope"
+auth = "none"
+via = "socket"
+status = 200
+
+[[step]]
+name = "question-invalid"
+request = "POST /workers/o-ORCH/question"
+auth = "none"
+via = "socket"
+body = { questions = [] }
+status = 400
+
+[[step]]
+name = "notify"
+request = "POST /workers/o-ORCH/notify"
+auth = "none"
+via = "socket"
+body = { title = "Build finished", body = "All tests pass." }
+status = 200
+wait = ["notification:fire"]
+
+[[step]]
+name = "notify-invalid"
+request = "POST /workers/o-ORCH/notify"
+body = { title = "" }
+status = 400
+
+[[step]]
+name = "ingest-row"
+request = "POST /workers/w-BARE/events"
+auth = "none"
+via = "socket"
+body = { type = "worktree", payload = { phase = "ready", path = "{sandbox}/alpha", branch = "main", status = "clean", diffStat = "" } }
+status = 200
+
+[[step]]
+name = "ingest-session-id"
+request = "POST /workers/w-BARE/events"
+auth = "none"
+via = "socket"
+body = { type = "lifecycle", payload = { phase = "session_captured", sessionId = "99999999-9999-4999-8999-999999999999" } }
+status = 200
+
+[[step]]
+name = "ingest-no-type"
+request = "POST /workers/w-BARE/events"
+auth = "none"
+via = "socket"
+body = { payload = {} }
+status = 400
+
+[[step]]
+name = "row-after-ingest"
+request = "GET /workers/w-BARE"
+status = 200
+
+[[step]]
+name = "events-after-ingest"
+request = "GET /workers/w-BARE/events"
+query = { limit = "2" }
+status = 200
+
+[[step]]
+name = "keystroke-not-a-terminal-lane"
+request = "POST /workers/w-CHAT/keystroke"
+body = { keys = "y" }
+status = 404
+
+[[step]]
+name = "interrupt-at-rest"
+request = "POST /workers/w-CHAT/interrupt"
+status = 409
+
+[[step]]
+name = "interrupt-unknown"
+request = "POST /workers/w-nope0000/interrupt"
+status = 404
+
+[[step]]
+name = "rewind-at-rest"
+request = "POST /workers/w-CHAT/rewind"
+body = { uuid = "88888888-8888-4888-8888-888888888888" }
+status = 409
+
+[[step]]
+name = "try-no-branch"
+request = "POST /workers/w-CHAT/try"
+body = {}
+status = 409
+
+[[step]]
+name = "try-keep-no-branch"
+request = "POST /workers/w-CHAT/try/keep"
+body = { workerId = "w-CHAT" }
+status = 409
+
+[[step]]
+name = "try-discard-no-branch"
+request = "POST /workers/w-CHAT/try/discard"
+body = { workerId = "w-CHAT" }
+status = 409
+
+[[step]]
+name = "try-without-token"
+request = "POST /workers/w-CHAT/try"
+auth = "none"
+body = {}
+status = 403
+
+[[step]]
+name = "conflict-resolve-nothing"
+request = "POST /workers/w-CHAT/conflicts/resolve"
+body = { path = "README.md", content = "x" }
+status = 409
+
+[[step]]
+name = "discard-change"
+request = "POST /workers/w-CHAT/changes/discard"
+body = { path = "notes.txt" }
+status = 200
+
+[[step]]
+name = "discard-change-escape"
+request = "POST /workers/w-CHAT/changes/discard"
+body = { path = "../beta/notes.md" }
+status = 400
+
+[[step]]
+name = "changes-after-discard"
+request = "GET /workers/w-CHAT/changes"
+status = 200
+
+[[step]]
+name = "archive"
+request = "POST /workers/w-BARE/archive"
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "archive-again"
+request = "POST /workers/w-BARE/archive"
+status = 409
+
+[[step]]
+name = "archive-worker-of-orchestrator"
+request = "POST /workers/w-KID2/archive"
+status = 200
+
+[[step]]
+name = "archive-unknown"
+request = "POST /workers/w-nope0000/archive"
+status = 404
+
+[[step]]
+name = "archived-list"
+request = "GET /workers/archived"
+query = { brief = "1" }
+status = 200
+
+[[step]]
+name = "message-archived"
+request = "POST /workers/w-BARE/message"
+body = { text = "hello" }
+status = 409
+
+[[step]]
+name = "restore"
+request = "POST /workers/w-BARE/restore"
+status = 200
+wait = ["worker:change"]
+
+[[step]]
+name = "restore-not-archived"
+request = "POST /workers/w-BARE/restore"
+status = 409
+
+[[step]]
+name = "purge-not-archived"
+request = "DELETE /workers/w-BARE/purge"
+status = 409
+
+[[step]]
+name = "purge"
+request = "DELETE /workers/w-ARCH/purge"
+status = 200
+wait = ["worker:removed"]
+
+[[step]]
+name = "purge-unknown"
+request = "DELETE /workers/w-nope0000/purge"
+status = 404
+
+[[step]]
+name = "app-closed-purge-off"
+request = "POST /workers/archived/app-closed"
+status = 200
+
+[[step]]
+name = "delete-finished-child"
+request = "DELETE /workers/w-KID1"
+status = 200
+wait = ["worker:removed"]
+
+[[step]]
+name = "delete-unknown"
+request = "DELETE /workers/w-nope0000"
+status = 404
+
+[[step]]
+name = "list-after"
+request = "GET /workers"
+query = { brief = "1" }
+status = 200
+
+[[step]]
+name = "close-stream"
+close = "main"

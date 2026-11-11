@@ -1,0 +1,1282 @@
+{
+  "scenario": "36-terminals",
+  "about": "Terminals: one-shot `!` commands with their output frames and the job they register; interactive PTY sessions (create, input, resize, buffer, close).",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "terminal:*,pty:session,pty:exit,jobs:*,worker:change"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "run-without-token",
+        "request": "POST /terminal",
+        "auth": "none",
+        "body": {
+          "command": "echo hi",
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 403
+      },
+      "route": "POST /terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "run-missing-folder",
+        "request": "POST /terminal",
+        "body": {
+          "command": "echo hi",
+          "cwd": "{sandbox}/nope"
+        },
+        "status": 400
+      },
+      "route": "POST /terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "cwd does not exist"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "run-invalid",
+        "request": "POST /terminal",
+        "body": {
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 400
+      },
+      "route": "POST /terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: command: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "run",
+        "request": "POST /terminal",
+        "body": {
+          "command": "echo wire; echo problem >&2; exit 3",
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 200,
+        "capture": {
+          "run": "/json/runId"
+        },
+        "wait": [
+          "terminal:start",
+          "terminal:done"
+        ]
+      },
+      "route": "POST /terminal",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "command": "echo wire; echo problem >&2; exit 3",
+                  "runId": "<uuid:1>",
+                  "startedAt": "<now>",
+                  "workerId": null
+                },
+                "reason": "terminal:start",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "command": "echo wire; echo problem >&2; exit 3",
+                  "data": "wire\nproblem\n",
+                  "runId": "<uuid:1>",
+                  "workerId": null
+                },
+                "reason": "terminal:chunk",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "exitCode": 3,
+                  "note": null,
+                  "runId": "<uuid:1>",
+                  "workerId": null
+                },
+                "reason": "terminal:done",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "runId": "<uuid:1>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "jobs-after-run",
+        "request": "GET /api/jobs",
+        "status": 200,
+        "capture": {
+          "job": "/json/jobs/0/id"
+        }
+      },
+      "route": "GET /api/jobs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "jobs": [
+            {
+              "callId": null,
+              "canStop": false,
+              "command": "echo wire; echo problem >&2; exit 3",
+              "detail": "exit 3",
+              "endedAt": "<now>",
+              "exitCode": 3,
+              "hasOutput": true,
+              "id": "shell:eos:run-<uuid:1>",
+              "kind": "shell",
+              "progress": null,
+              "startedAt": "<now>",
+              "status": "failed",
+              "title": "echo wire; echo problem >&2; exit 3",
+              "workerId": null
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "jobs-without-token",
+        "request": "GET /api/jobs",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/jobs",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "job-output",
+        "request": "GET /api/jobs/{job}/output",
+        "status": 200
+      },
+      "route": "GET /api/jobs/:id/output",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "next": 13,
+          "reset": false,
+          "text": "wire\nproblem\n",
+          "truncated": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "job-output-unknown",
+        "request": "GET /api/jobs/nope/output",
+        "status": 404
+      },
+      "route": "GET /api/jobs/:id/output",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no output for that job"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "job-stop-finished",
+        "request": "POST /api/jobs/{job}/stop",
+        "status": 404
+      },
+      "route": "POST /api/jobs/:id/stop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no running job with that id"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "job-dismiss",
+        "request": "POST /api/jobs/{job}/dismiss",
+        "status": 200
+      },
+      "route": "POST /api/jobs/:id/dismiss",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "removed": [
+                    "shell:eos:run-<uuid:1>"
+                  ]
+                },
+                "reason": "jobs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "kill-finished-run",
+        "request": "POST /terminal/{run}/kill",
+        "status": 200
+      },
+      "route": "POST /terminal/:runId/kill",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "run-in-chat",
+        "request": "POST /workers/w-CHAT/terminal",
+        "body": {
+          "command": "git status --short"
+        },
+        "status": 200,
+        "wait": [
+          "terminal:start",
+          "terminal:done"
+        ]
+      },
+      "route": "POST /workers/:id/terminal",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "command": "git status --short",
+                  "runId": "<uuid:2>",
+                  "startedAt": "<now>",
+                  "workerId": "w-CHAT"
+                },
+                "reason": "terminal:start",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "command": "git status --short",
+                  "data": " M README.md\n?? notes.txt\n",
+                  "runId": "<uuid:2>",
+                  "workerId": "w-CHAT"
+                },
+                "reason": "terminal:chunk",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "exitCode": 0,
+                  "note": null,
+                  "runId": "<uuid:2>",
+                  "workerId": "w-CHAT"
+                },
+                "reason": "terminal:done",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "workerId": "w-CHAT"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "runId": "<uuid:2>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "run-in-chat-events",
+        "request": "GET /workers/w-CHAT/events",
+        "query": {
+          "limit": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "id": 706,
+            "payload": "{\"runId\":\"<uuid:2>\",\"command\":\"git status --short\",\"cwd\":\"{sandbox}/alpha\",\"output\":\" M README.md\\n?? notes.txt\\n\",\"exitCode\":0,\"signal\":null,\"note\":null,\"truncated\":false,\"durationMs\":<ms>}",
+            "ts": "<now>",
+            "type": "terminal",
+            "worker_id": "w-CHAT"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "run-in-chat-without-folder",
+        "request": "POST /workers/w-BARE/terminal",
+        "body": {
+          "command": "pwd"
+        },
+        "status": 400
+      },
+      "route": "POST /workers/:id/terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker has no working directory"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "run-in-unknown-chat",
+        "request": "POST /workers/w-nope0000/terminal",
+        "body": {
+          "command": "pwd"
+        },
+        "status": 404
+      },
+      "route": "POST /workers/:id/terminal",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "worker not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "run-long",
+        "request": "POST /terminal",
+        "body": {
+          "command": "echo started; sleep 30",
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 200,
+        "capture": {
+          "long_run": "/json/runId"
+        },
+        "wait": [
+          "terminal:start",
+          "terminal:chunk"
+        ]
+      },
+      "route": "POST /terminal",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "command": "echo started; sleep 30",
+                  "runId": "<uuid:3>",
+                  "startedAt": "<now>",
+                  "workerId": null
+                },
+                "reason": "terminal:start",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "command": "echo started; sleep 30",
+                  "data": "started\n",
+                  "runId": "<uuid:3>",
+                  "workerId": null
+                },
+                "reason": "terminal:chunk",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "runId": "<uuid:3>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "kill-run",
+        "request": "POST /terminal/{long_run}/kill",
+        "status": 200,
+        "wait": [
+          "terminal:done"
+        ]
+      },
+      "route": "POST /terminal/:runId/kill",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "exitCode": 1,
+                  "note": "stopped by user",
+                  "runId": "<uuid:3>",
+                  "workerId": null
+                },
+                "reason": "terminal:done",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "run-long-again",
+        "request": "POST /terminal",
+        "body": {
+          "command": "echo started; sleep 30",
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 200,
+        "wait": [
+          "terminal:start",
+          "terminal:chunk"
+        ]
+      },
+      "route": "POST /terminal",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "command": "echo started; sleep 30",
+                  "runId": "<uuid:4>",
+                  "startedAt": "<now>",
+                  "workerId": null
+                },
+                "reason": "terminal:start",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "command": "echo started; sleep 30",
+                  "data": "started\n",
+                  "runId": "<uuid:4>",
+                  "workerId": null
+                },
+                "reason": "terminal:chunk",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "runId": "<uuid:4>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "jobs-with-running",
+        "request": "GET /api/jobs",
+        "status": 200,
+        "capture": {
+          "running_job": "/json/jobs/[status=running]/id"
+        }
+      },
+      "route": "GET /api/jobs",
+      "response": {
+        "frames": {
+          "main": []
+        },
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "jobs": [
+            {
+              "callId": null,
+              "canStop": true,
+              "command": "echo started; sleep 30",
+              "detail": "started",
+              "endedAt": null,
+              "exitCode": null,
+              "hasOutput": true,
+              "id": "shell:eos:run-<uuid:4>",
+              "kind": "shell",
+              "progress": null,
+              "startedAt": "<now>",
+              "status": "running",
+              "title": "echo started; sleep 30",
+              "workerId": null
+            },
+            {
+              "callId": null,
+              "canStop": false,
+              "command": "echo started; sleep 30",
+              "detail": "stopped by user",
+              "endedAt": "<now>",
+              "exitCode": 1,
+              "hasOutput": true,
+              "id": "shell:eos:run-<uuid:3>",
+              "kind": "shell",
+              "progress": null,
+              "startedAt": "<now>",
+              "status": "stopped",
+              "title": "echo started; sleep 30",
+              "workerId": null
+            },
+            {
+              "callId": null,
+              "canStop": false,
+              "command": "git status --short",
+              "detail": "exit 0",
+              "endedAt": "<now>",
+              "exitCode": 0,
+              "hasOutput": true,
+              "id": "shell:w-CHAT:run-<uuid:2>",
+              "kind": "shell",
+              "progress": null,
+              "startedAt": "<now>",
+              "status": "completed",
+              "title": "git status --short",
+              "workerId": "w-CHAT"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "job-stop",
+        "request": "POST /api/jobs/{running_job}/stop",
+        "status": 200,
+        "wait": [
+          "terminal:done"
+        ]
+      },
+      "route": "POST /api/jobs/:id/stop",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "exitCode": 1,
+                  "note": "stopped by user",
+                  "runId": "<uuid:4>",
+                  "workerId": null
+                },
+                "reason": "terminal:done",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "jobs-clear",
+        "request": "POST /api/jobs/clear",
+        "status": 200
+      },
+      "route": "POST /api/jobs/clear",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "removed": [
+                    "shell:w-CHAT:run-<uuid:2>",
+                    "shell:eos:run-<uuid:3>",
+                    "shell:eos:run-<uuid:4>"
+                  ]
+                },
+                "reason": "jobs:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-list-empty",
+        "request": "GET /pty",
+        "status": 200
+      },
+      "route": "GET /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "sessions": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-list-without-token",
+        "request": "GET /pty",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "pty-create-invalid",
+        "request": "POST /pty",
+        "body": {
+          "cols": 0,
+          "rows": 24
+        },
+        "status": 400
+      },
+      "route": "POST /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: cols: Number must be greater than 0"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "pty-create",
+        "request": "POST /pty",
+        "body": {
+          "cols": 80,
+          "command": "echo pty-ready",
+          "cwd": "{sandbox}/beta",
+          "rows": 24
+        },
+        "status": 200,
+        "capture": {
+          "pty": "/json/sessionId"
+        },
+        "wait": [
+          "pty:session"
+        ],
+        "pause_ms": 200
+      },
+      "route": "POST /pty",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "alive": true,
+                  "claudeSessionId": null,
+                  "cols": 80,
+                  "cwd": "{sandbox}/beta",
+                  "kind": "shell",
+                  "number": 1,
+                  "owner": null,
+                  "remote": false,
+                  "rows": 24,
+                  "sessionId": "<uuid:5>",
+                  "title": null
+                },
+                "reason": "pty:session",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "alive": true,
+          "claudeSessionId": null,
+          "cols": 80,
+          "cwd": "{sandbox}/beta",
+          "kind": "shell",
+          "number": 1,
+          "owner": null,
+          "remote": false,
+          "rows": 24,
+          "sessionId": "<uuid:5>",
+          "title": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-list",
+        "request": "GET /pty",
+        "status": 200
+      },
+      "route": "GET /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "sessions": [
+            {
+              "alive": true,
+              "claudeSessionId": null,
+              "cols": 80,
+              "cwd": "{sandbox}/beta",
+              "kind": "shell",
+              "number": 1,
+              "owner": null,
+              "remote": false,
+              "rows": 24,
+              "sessionId": "<uuid:5>",
+              "title": null
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "open-output-stream",
+        "open": "output",
+        "query": {
+          "clientId": "wire-tab",
+          "focus": "",
+          "ptys": "{pty}",
+          "topics": "pty:data"
+        },
+        "pause_ms": 1500
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "output": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-input",
+        "request": "POST /pty/{pty}/input",
+        "body": {
+          "data": "echo typed\r"
+        },
+        "status": 200,
+        "wait": [
+          "pty:data"
+        ]
+      },
+      "route": "POST /pty/:id/input",
+      "response": {
+        "frames": {
+          "output": [
+            {
+              "data": {
+                "payload": {
+                  "data": "<terminal-output>",
+                  "number": 1,
+                  "seq": "<seq>",
+                  "sessionId": "<uuid:5>"
+                },
+                "reason": "pty:data",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-output-stream",
+        "close": "output"
+      },
+      "response": {
+        "closed": "output"
+      }
+    },
+    {
+      "step": {
+        "name": "pty-input-in-order",
+        "request": "POST /pty/{pty}/input",
+        "body": {
+          "data": "x",
+          "seq": 1,
+          "stream": "phone-1"
+        },
+        "status": 200
+      },
+      "route": "POST /pty/:id/input",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-resize",
+        "request": "POST /pty/{pty}/resize",
+        "body": {
+          "cols": 100,
+          "rows": 30
+        },
+        "status": 200
+      },
+      "route": "POST /pty/:id/resize",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "alive": true,
+                  "claudeSessionId": null,
+                  "cols": 100,
+                  "cwd": "{sandbox}/beta",
+                  "kind": "shell",
+                  "number": 1,
+                  "owner": null,
+                  "remote": false,
+                  "rows": 30,
+                  "sessionId": "<uuid:5>",
+                  "title": null
+                },
+                "reason": "pty:session",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-buffer",
+        "request": "GET /pty/{pty}/buffer",
+        "status": 200,
+        "pause_ms": 500
+      },
+      "route": "GET /pty/:id/buffer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "data": "<terminal-output>",
+          "seq": "<seq>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-conversation-of-shell",
+        "request": "GET /pty/{pty}/conversation",
+        "status": 404
+      },
+      "route": "GET /pty/:id/conversation",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no claude session"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-message-to-shell",
+        "request": "POST /pty/{pty}/message",
+        "body": {
+          "text": "hello"
+        },
+        "status": 404
+      },
+      "route": "POST /pty/:id/message",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no claude session"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-answer-nothing-open",
+        "request": "POST /pty/{pty}/answer",
+        "body": {
+          "answers": [],
+          "toolUseId": "call_x"
+        },
+        "status": 404
+      },
+      "route": "POST /pty/:id/answer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no claude session"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-input-unknown",
+        "request": "POST /pty/00000000-0000-4000-8000-000000000000/input",
+        "body": {
+          "data": "x"
+        },
+        "status": 404
+      },
+      "route": "POST /pty/:id/input",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "session not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-buffer-unknown",
+        "request": "GET /pty/00000000-0000-4000-8000-000000000000/buffer",
+        "status": 404
+      },
+      "route": "GET /pty/:id/buffer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "session not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pty-close",
+        "request": "DELETE /pty/{pty}",
+        "status": 200,
+        "wait": [
+          "pty:exit"
+        ]
+      },
+      "route": "DELETE /pty/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "exitCode": 1,
+                  "number": 1,
+                  "sessionId": "<uuid:5>"
+                },
+                "reason": "pty:exit",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pty-close-again",
+        "request": "DELETE /pty/{pty}",
+        "status": 404
+      },
+      "route": "DELETE /pty/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "session not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

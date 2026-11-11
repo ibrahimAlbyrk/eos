@@ -1,0 +1,698 @@
+{
+  "scenario": "38-transfer",
+  "about": "The file-transfer endpoint every daemon serves over its own disk: list, scan, ranged read, staged write, commit, abort, project key.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "list",
+        "request": "GET /transfer/list",
+        "query": {
+          "path": "{sandbox}/beta"
+        },
+        "status": 200
+      },
+      "route": "GET /transfer/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "sub",
+              "path": "{sandbox}/beta/sub",
+              "size": null,
+              "type": "directory"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "notes.md",
+              "path": "{sandbox}/beta/notes.md",
+              "size": 26,
+              "type": "file"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "pixel.png",
+              "path": "{sandbox}/beta/pixel.png",
+              "size": 70,
+              "type": "file"
+            }
+          ],
+          "home": "{user_home}",
+          "parent": "{sandbox}",
+          "path": "{sandbox}/beta"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-hidden",
+        "request": "GET /transfer/list",
+        "query": {
+          "hidden": "1",
+          "path": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /transfer/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": ".git",
+              "path": "{sandbox}/alpha/.git",
+              "size": null,
+              "type": "directory"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "docs",
+              "path": "{sandbox}/alpha/docs",
+              "size": null,
+              "type": "directory"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "src",
+              "path": "{sandbox}/alpha/src",
+              "size": null,
+              "type": "directory"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "notes.txt",
+              "path": "{sandbox}/alpha/notes.txt",
+              "size": 8,
+              "type": "file"
+            },
+            {
+              "isSymlink": false,
+              "mtimeMs": "<now>",
+              "name": "README.md",
+              "path": "{sandbox}/alpha/README.md",
+              "size": 67,
+              "type": "file"
+            }
+          ],
+          "home": "{user_home}",
+          "parent": "{sandbox}",
+          "path": "{sandbox}/alpha"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-without-token",
+        "request": "GET /transfer/list",
+        "query": {
+          "path": "{sandbox}/beta"
+        },
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /transfer/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "forbidden",
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "list-missing",
+        "request": "GET /transfer/list",
+        "query": {
+          "path": "{sandbox}/nope"
+        },
+        "status": 404
+      },
+      "route": "GET /transfer/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "not-found",
+          "error": "{sandbox}/nope doesn't exist"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "scan",
+        "request": "POST /transfer/scan",
+        "body": {
+          "paths": [
+            "{sandbox}/beta"
+          ]
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/scan",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "fileCount": 3,
+          "items": [
+            {
+              "mode": 493,
+              "mtimeMs": "<now>",
+              "rel": "beta",
+              "size": 0,
+              "type": "dir"
+            },
+            {
+              "mode": 420,
+              "mtimeMs": "<now>",
+              "rel": "beta/notes.md",
+              "size": 26,
+              "type": "file"
+            },
+            {
+              "mode": 420,
+              "mtimeMs": "<now>",
+              "rel": "beta/pixel.png",
+              "size": 70,
+              "type": "file"
+            },
+            {
+              "mode": 493,
+              "mtimeMs": "<now>",
+              "rel": "beta/sub",
+              "size": 0,
+              "type": "dir"
+            },
+            {
+              "mode": 420,
+              "mtimeMs": "<now>",
+              "rel": "beta/sub/inner.txt",
+              "size": 11,
+              "type": "file"
+            }
+          ],
+          "roots": [
+            {
+              "mtimeMs": "<now>",
+              "name": "beta",
+              "size": 107,
+              "type": "dir"
+            }
+          ],
+          "totalBytes": 107
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "scan-file",
+        "request": "POST /transfer/scan",
+        "body": {
+          "paths": [
+            "{sandbox}/beta/notes.md"
+          ]
+        },
+        "status": 200,
+        "capture": {
+          "mtime": "/json/items/0/mtimeMs",
+          "size": "/json/items/0/size"
+        }
+      },
+      "route": "POST /transfer/scan",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "fileCount": 1,
+          "items": [
+            {
+              "mode": 420,
+              "mtimeMs": "<now>",
+              "rel": "notes.md",
+              "size": 26,
+              "type": "file"
+            }
+          ],
+          "roots": [
+            {
+              "mtimeMs": "<now>",
+              "name": "notes.md",
+              "size": 26,
+              "type": "file"
+            }
+          ],
+          "totalBytes": 26
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "scan-folder-to-send",
+        "request": "POST /transfer/scan",
+        "body": {
+          "paths": [
+            "{sandbox}/beta/sub"
+          ]
+        },
+        "status": 200,
+        "capture": {
+          "items": "/json/items"
+        }
+      },
+      "route": "POST /transfer/scan",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "fileCount": 1,
+          "items": [
+            {
+              "mode": 493,
+              "mtimeMs": "<now>",
+              "rel": "sub",
+              "size": 0,
+              "type": "dir"
+            },
+            {
+              "mode": 420,
+              "mtimeMs": "<now>",
+              "rel": "sub/inner.txt",
+              "size": 11,
+              "type": "file"
+            }
+          ],
+          "roots": [
+            {
+              "mtimeMs": "<now>",
+              "name": "sub",
+              "size": 11,
+              "type": "dir"
+            }
+          ],
+          "totalBytes": 11
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "scan-relative-path",
+        "request": "POST /transfer/scan",
+        "body": {
+          "paths": [
+            "beta"
+          ]
+        },
+        "status": 400
+      },
+      "route": "POST /transfer/scan",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: paths.0: absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "read-range",
+        "request": "GET /transfer/read",
+        "query": {
+          "length": "5",
+          "mtime": "{mtime}",
+          "offset": "2",
+          "path": "{sandbox}/beta/notes.md",
+          "size": "{size}"
+        },
+        "status": 200
+      },
+      "route": "GET /transfer/read",
+      "response": {
+        "bytes": 5,
+        "headers": {
+          "content-type": "application/octet-stream"
+        },
+        "sha256": "8a7525b1492fb84833f5c4a69b30f4bfbb134f9b666b61a2c1872d63d234c085",
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read-changed-file",
+        "request": "GET /transfer/read",
+        "query": {
+          "length": "5",
+          "mtime": "1",
+          "offset": "0",
+          "path": "{sandbox}/beta/notes.md",
+          "size": "999"
+        },
+        "status": 412
+      },
+      "route": "GET /transfer/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "source-changed",
+          "error": "notes.md changed while it was being copied — send it again"
+        },
+        "status": 412
+      }
+    },
+    {
+      "step": {
+        "name": "prepare",
+        "request": "POST /transfer/prepare",
+        "body": {
+          "destDir": "{sandbox}/incoming",
+          "id": "tr-wire0001",
+          "items": "{items}"
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/prepare",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "existing": [],
+          "freeBytes": "<bytes>",
+          "staged": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "write-chunk",
+        "request": "PUT /transfer/write",
+        "query": {
+          "dest": "{sandbox}/incoming",
+          "id": "tr-wire0001",
+          "offset": "0",
+          "rel": "sub/inner.txt"
+        },
+        "text": "plain text\n",
+        "content_type": "application/octet-stream",
+        "status": 200
+      },
+      "route": "PUT /transfer/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "size": 11
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "write-wrong-offset",
+        "request": "PUT /transfer/write",
+        "query": {
+          "dest": "{sandbox}/incoming",
+          "id": "tr-wire0001",
+          "offset": "3",
+          "rel": "sub/inner.txt"
+        },
+        "text": "x",
+        "content_type": "application/octet-stream",
+        "status": 409
+      },
+      "route": "PUT /transfer/write",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "offset-mismatch",
+          "error": "sub/inner.txt holds 11 bytes, not 3",
+          "have": 11
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "commit",
+        "request": "POST /transfer/commit",
+        "body": {
+          "decisions": {},
+          "destDir": "{sandbox}/incoming",
+          "id": "tr-wire0001"
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/commit",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "placed": [
+            {
+              "name": "sub",
+              "path": "{sandbox}/incoming/sub"
+            }
+          ],
+          "skipped": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "abort-unknown",
+        "request": "POST /transfer/abort",
+        "body": {
+          "destDir": "{sandbox}/incoming",
+          "id": "tr-wire0002"
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/abort",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "key-of-repo-without-remote",
+        "request": "POST /transfer/key",
+        "body": {
+          "path": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "key": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "locate-unknown-key",
+        "request": "POST /transfer/locate",
+        "body": {
+          "key": "github.com/example/none"
+        },
+        "status": 200
+      },
+      "route": "POST /transfer/locate",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "path": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "destination",
+        "request": "POST /api/transfers/destination",
+        "body": {
+          "from": "local",
+          "paths": [
+            "{sandbox}/beta/notes.md"
+          ],
+          "to": "00000000000000000000000000000000000000000000000000000000000000aa"
+        },
+        "status": 502
+      },
+      "route": "POST /api/transfers/destination",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unreachable",
+          "error": "that computer isn't paired any more"
+        },
+        "status": 502
+      }
+    },
+    {
+      "step": {
+        "name": "start-same-machine",
+        "request": "POST /api/transfers",
+        "body": {
+          "from": "local",
+          "paths": [
+            "{sandbox}/beta/notes.md"
+          ],
+          "to": "local"
+        },
+        "status": 400
+      },
+      "route": "POST /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : pick two different computers"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "agent-send-not-focused",
+        "request": "POST /workers/w-KID1/transfers",
+        "body": {
+          "machine": "desk",
+          "paths": [
+            "notes.md"
+          ]
+        },
+        "status": 403
+      },
+      "route": "POST /workers/:id/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only a focused session can send files to another Mac"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "agent-send-without-agent-header",
+        "request": "POST /workers/w-CHAT/transfers",
+        "body": {
+          "machine": "desk",
+          "paths": [
+            "README.md"
+          ]
+        },
+        "status": 403
+      },
+      "route": "POST /workers/:id/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only a focused session can send files to another Mac"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "agent-poll-without-agent-header",
+        "request": "GET /workers/w-CHAT/transfers/tr-nope",
+        "status": 403
+      },
+      "route": "GET /workers/:id/transfers/:tid",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "only a focused session can send files to another Mac"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "committed-file",
+        "request": "GET /fs/read",
+        "query": {
+          "path": "{sandbox}/incoming/sub/inner.txt"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "content": "plain text\n",
+          "lines": 2,
+          "path": "{sandbox}/incoming/sub/inner.txt",
+          "size": 11
+        },
+        "status": 200
+      }
+    }
+  ]
+}

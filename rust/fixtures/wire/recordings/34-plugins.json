@@ -1,0 +1,1567 @@
+{
+  "scenario": "34-plugins",
+  "about": "Plugins: the list with built-ins and a folder plugin, one plugin, enable / disable (a built-in's routes then answer 404 plugin_off), settings, stored values, build reports, and the install routes' refusals.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "plugins:*,plugin:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list",
+        "request": "GET /api/plugins",
+        "status": 200
+      },
+      "route": "GET /api/plugins",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "dir": "{home}/plugins",
+          "installs": {},
+          "plugins": [
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.artifacts",
+              "manifest": {
+                "description": "Your claude.ai artifacts in the side panel — opened, previewed and listed for every Claude sign-in.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3.5\"/><path d=\"M4 9h16\"/></svg>",
+                "id": "eos.artifacts",
+                "name": "Artifacts"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.auto-name",
+              "manifest": {
+                "description": "Names a new chat after its first request.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7V5h16v2M12 5v14M9 19h6\"/></svg>",
+                "id": "eos.auto-name",
+                "name": "Auto-name"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.browser",
+              "manifest": {
+                "description": "A browser in the side panel that you and your agents can both drive.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><ellipse cx=\"12\" cy=\"12\" rx=\"3.7\" ry=\"8.5\"/><path d=\"M3.8 9h16.4M3.8 15h16.4\"/></svg>",
+                "id": "eos.browser",
+                "name": "Browser"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.btw",
+              "manifest": {
+                "description": "Ask the agent a quick question with /btw (⌘/) without adding to the chat.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 11.5a8 8 0 0 1-11.8 7L4 20l1.6-4.1A8 8 0 1 1 20 11.5Z\"/><path d=\"M10 9.3a2 2 0 1 1 2.8 1.9c-.6.3-.8.7-.8 1.3v.3M12 15.5h.01\"/></svg>",
+                "id": "eos.btw",
+                "name": "Side question"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.pages",
+              "manifest": {
+                "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+                "id": "eos.pages",
+                "name": "Pages"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.terminal",
+              "manifest": {
+                "description": "Shells in the side panel (⌃`).",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2.5\" y=\"4\" width=\"19\" height=\"16\" rx=\"2.5\"/><path d=\"m6.5 9.5 3.5 3-3.5 3M12.5 15.5h5\"/></svg>",
+                "id": "eos.terminal",
+                "name": "Terminal"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": false,
+              "dir": "{home}/plugins/hello",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "hello",
+              "manifest": {
+                "description": "An invented plugin for the wire fixtures.",
+                "id": "hello",
+                "name": "Hello",
+                "settings": {
+                  "greeting": {
+                    "default": "Hello",
+                    "title": "Greeting",
+                    "type": "string"
+                  },
+                  "loud": {
+                    "default": false,
+                    "title": "Loud",
+                    "type": "boolean"
+                  }
+                },
+                "version": "1.0.0"
+              },
+              "rev": 0,
+              "settings": {
+                "greeting": "Hello",
+                "loud": false
+              },
+              "state": "active"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-without-token",
+        "request": "GET /api/plugins",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "dir": "{home}/plugins",
+          "plugins": [
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.artifacts",
+              "manifest": {
+                "description": "Your claude.ai artifacts in the side panel — opened, previewed and listed for every Claude sign-in.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3.5\"/><path d=\"M4 9h16\"/></svg>",
+                "id": "eos.artifacts",
+                "name": "Artifacts"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.auto-name",
+              "manifest": {
+                "description": "Names a new chat after its first request.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7V5h16v2M12 5v14M9 19h6\"/></svg>",
+                "id": "eos.auto-name",
+                "name": "Auto-name"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.browser",
+              "manifest": {
+                "description": "A browser in the side panel that you and your agents can both drive.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><ellipse cx=\"12\" cy=\"12\" rx=\"3.7\" ry=\"8.5\"/><path d=\"M3.8 9h16.4M3.8 15h16.4\"/></svg>",
+                "id": "eos.browser",
+                "name": "Browser"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.btw",
+              "manifest": {
+                "description": "Ask the agent a quick question with /btw (⌘/) without adding to the chat.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 11.5a8 8 0 0 1-11.8 7L4 20l1.6-4.1A8 8 0 1 1 20 11.5Z\"/><path d=\"M10 9.3a2 2 0 1 1 2.8 1.9c-.6.3-.8.7-.8 1.3v.3M12 15.5h.01\"/></svg>",
+                "id": "eos.btw",
+                "name": "Side question"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.pages",
+              "manifest": {
+                "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+                "id": "eos.pages",
+                "name": "Pages"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.terminal",
+              "manifest": {
+                "description": "Shells in the side panel (⌃`).",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2.5\" y=\"4\" width=\"19\" height=\"16\" rx=\"2.5\"/><path d=\"m6.5 9.5 3.5 3-3.5 3M12.5 15.5h5\"/></svg>",
+                "id": "eos.terminal",
+                "name": "Terminal"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": false,
+              "dir": "{home}/plugins/hello",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "hello",
+              "manifest": {
+                "description": "An invented plugin for the wire fixtures.",
+                "id": "hello",
+                "name": "Hello",
+                "settings": {
+                  "greeting": {
+                    "default": "Hello",
+                    "title": "Greeting",
+                    "type": "string"
+                  },
+                  "loud": {
+                    "default": false,
+                    "title": "Loud",
+                    "type": "boolean"
+                  }
+                },
+                "version": "1.0.0"
+              },
+              "rev": 0,
+              "settings": {
+                "greeting": "Hello",
+                "loud": false
+              },
+              "state": "active"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "one",
+        "request": "GET /api/plugins/hello",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hello",
+              "loud": false
+            },
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "one-builtin",
+        "request": "GET /api/plugins/eos.pages",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "plugin": {
+            "builtin": true,
+            "dir": "",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "eos.pages",
+            "manifest": {
+              "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+              "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+              "id": "eos.pages",
+              "name": "Pages"
+            },
+            "rev": 0,
+            "settings": {},
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "one-unknown",
+        "request": "GET /api/plugins/nope",
+        "status": 404
+      },
+      "route": "GET /api/plugins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "plugin not found: nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "one-bad-id",
+        "request": "GET /api/plugins/Bad_Id",
+        "status": 400
+      },
+      "route": "GET /api/plugins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : lowercase letters, digits, \"-\" and \".\""
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "status",
+        "request": "GET /api/plugins/hello/status",
+        "query": {
+          "wait": "1"
+        },
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id/status",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "busy": false,
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hello",
+              "loud": false
+            },
+            "state": "active"
+          },
+          "report": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "report",
+        "request": "POST /api/plugins/hello/report",
+        "body": {
+          "error": "ReferenceError: x is not defined",
+          "ok": false,
+          "rev": 0
+        },
+        "status": 200
+      },
+      "route": "POST /api/plugins/:id/report",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "status-after-report",
+        "request": "GET /api/plugins/hello/status",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id/status",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "busy": false,
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hello",
+              "loud": false
+            },
+            "state": "active"
+          },
+          "report": {
+            "at": "<now>",
+            "error": "ReferenceError: x is not defined",
+            "ok": false,
+            "rev": 0
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-save",
+        "request": "PUT /api/plugins/hello/settings",
+        "body": {
+          "values": {
+            "greeting": "Hi",
+            "loud": true
+          }
+        },
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "PUT /api/plugins/:id/settings",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "hello"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hi",
+              "loud": true
+            },
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-save-without-token",
+        "request": "PUT /api/plugins/hello/settings",
+        "auth": "none",
+        "body": {
+          "values": {
+            "greeting": "Yo"
+          }
+        },
+        "status": 403
+      },
+      "route": "PUT /api/plugins/:id/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "settings-bad-value",
+        "request": "PUT /api/plugins/hello/settings",
+        "body": {
+          "values": {
+            "greeting": {
+              "nested": true
+            }
+          }
+        },
+        "status": 400
+      },
+      "route": "PUT /api/plugins/:id/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: values.greeting: Invalid input"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "store-read-empty",
+        "request": "GET /api/plugins/hello/store/notes",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id/store/:key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "value": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "store-write",
+        "request": "PUT /api/plugins/hello/store/notes",
+        "body": {
+          "value": {
+            "count": 2,
+            "items": [
+              "a",
+              "b"
+            ]
+          }
+        },
+        "status": 200
+      },
+      "route": "PUT /api/plugins/:id/store/:key",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "key": "notes"
+                },
+                "reason": "plugin:hello:store",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "store-read",
+        "request": "GET /api/plugins/hello/store/notes",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id/store/:key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "value": {
+            "count": 2,
+            "items": [
+              "a",
+              "b"
+            ]
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "store-bad-key",
+        "request": "GET /api/plugins/hello/store/bad%20key",
+        "status": 400
+      },
+      "route": "GET /api/plugins/:id/store/:key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : Invalid"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "disable",
+        "request": "PUT /api/plugins/hello/enabled",
+        "body": {
+          "enabled": false
+        },
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "PUT /api/plugins/:id/enabled",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "hello"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": false,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hi",
+              "loud": true
+            },
+            "state": "disabled"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "enable",
+        "request": "PUT /api/plugins/hello/enabled",
+        "body": {
+          "enabled": true
+        },
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "PUT /api/plugins/:id/enabled",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "hello"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/hello",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "hello",
+            "manifest": {
+              "description": "An invented plugin for the wire fixtures.",
+              "id": "hello",
+              "name": "Hello",
+              "settings": {
+                "greeting": {
+                  "default": "Hello",
+                  "title": "Greeting",
+                  "type": "string"
+                },
+                "loud": {
+                  "default": false,
+                  "title": "Loud",
+                  "type": "boolean"
+                }
+              },
+              "version": "1.0.0"
+            },
+            "rev": 0,
+            "settings": {
+              "greeting": "Hi",
+              "loud": true
+            },
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "builtin-off",
+        "request": "PUT /api/plugins/eos.pages/enabled",
+        "body": {
+          "enabled": false
+        },
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "PUT /api/plugins/:id/enabled",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "eos.pages"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": true,
+            "dir": "",
+            "enabled": false,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "eos.pages",
+            "manifest": {
+              "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+              "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+              "id": "eos.pages",
+              "name": "Pages"
+            },
+            "rev": 0,
+            "settings": {},
+            "state": "disabled"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "builtin-off-route",
+        "request": "GET /api/pages",
+        "status": 404
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "plugin_off",
+          "error": "Pages is turned off (Settings › Plugins)"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "builtin-off-write-route",
+        "request": "POST /api/pages",
+        "body": {
+          "title": "x"
+        },
+        "status": 404
+      },
+      "route": "POST /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "plugin_off",
+          "error": "Pages is turned off (Settings › Plugins)"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "builtin-on",
+        "request": "PUT /api/plugins/eos.pages/enabled",
+        "body": {
+          "enabled": true
+        },
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "PUT /api/plugins/:id/enabled",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "eos.pages"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": true,
+            "dir": "",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "eos.pages",
+            "manifest": {
+              "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+              "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+              "id": "eos.pages",
+              "name": "Pages"
+            },
+            "rev": 0,
+            "settings": {},
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "builtin-on-route",
+        "request": "GET /api/pages",
+        "query": {
+          "all": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "pages": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "enable-unlisted-builtin",
+        "request": "PUT /api/plugins/eos.archive/enabled",
+        "body": {
+          "enabled": false
+        },
+        "status": 404
+      },
+      "route": "PUT /api/plugins/:id/enabled",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "plugin not found: eos.archive"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "preview-without-app",
+        "request": "POST /api/plugins/hello/preview",
+        "body": {
+          "surface": "main"
+        },
+        "status": 409
+      },
+      "route": "POST /api/plugins/:id/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "can't preview \"hello\": it has no UI entry"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "install-without-token",
+        "request": "POST /api/plugins/install",
+        "auth": "none",
+        "body": {
+          "source": {
+            "kind": "local",
+            "path": "{sandbox}/beta"
+          }
+        },
+        "status": 403
+      },
+      "route": "POST /api/plugins/install",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "install-bad-source",
+        "request": "POST /api/plugins/install",
+        "body": {
+          "source": {
+            "kind": "ftp"
+          }
+        },
+        "status": 400
+      },
+      "route": "POST /api/plugins/install",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: source.kind: Invalid discriminator value. Expected 'npm' | 'git' | 'local'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "install-folder-without-manifest",
+        "request": "POST /api/plugins/install",
+        "body": {
+          "source": {
+            "kind": "local",
+            "path": "{sandbox}/beta"
+          }
+        },
+        "status": 400
+      },
+      "route": "POST /api/plugins/install",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not an Eos plugin — plugin.json is missing"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "install-stage",
+        "request": "POST /api/plugins/install",
+        "body": {
+          "source": {
+            "kind": "local",
+            "path": "{sandbox}/plugin-src"
+          }
+        },
+        "status": 200,
+        "capture": {
+          "staged": "/json/staged/stagingId"
+        }
+      },
+      "route": "POST /api/plugins/install",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "staged": {
+            "bytes": 131,
+            "files": 1,
+            "integrity": null,
+            "manifest": {
+              "description": "Installed from a folder by the wire fixtures.",
+              "id": "wire-sample",
+              "name": "Wire sample",
+              "version": "0.1.0"
+            },
+            "replaces": null,
+            "resolved": "{sandbox}/plugin-src",
+            "source": {
+              "kind": "local",
+              "path": "{sandbox}/plugin-src"
+            },
+            "stagingId": "<staging:1>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "install-commit",
+        "request": "POST /api/plugins/install/{staged}",
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "POST /api/plugins/install/:stagingId",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "wire-sample"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/wire-sample",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "wire-sample",
+            "manifest": {
+              "description": "Installed from a folder by the wire fixtures.",
+              "id": "wire-sample",
+              "name": "Wire sample",
+              "version": "0.1.0"
+            },
+            "rev": 0,
+            "settings": {},
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "installed-one",
+        "request": "GET /api/plugins/wire-sample",
+        "status": 200
+      },
+      "route": "GET /api/plugins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "plugin": {
+            "builtin": false,
+            "dir": "{home}/plugins/wire-sample",
+            "enabled": true,
+            "error": null,
+            "hasCss": false,
+            "hasUi": false,
+            "id": "wire-sample",
+            "manifest": {
+              "description": "Installed from a folder by the wire fixtures.",
+              "id": "wire-sample",
+              "name": "Wire sample",
+              "version": "0.1.0"
+            },
+            "rev": 0,
+            "settings": {},
+            "state": "active"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "installed-update-check",
+        "request": "POST /api/plugins/wire-sample/update",
+        "status": 200,
+        "capture": {
+          "staged_update": "/json/staged/stagingId"
+        }
+      },
+      "route": "POST /api/plugins/:id/update",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "staged": {
+            "bytes": 131,
+            "files": 1,
+            "integrity": null,
+            "manifest": {
+              "description": "Installed from a folder by the wire fixtures.",
+              "id": "wire-sample",
+              "name": "Wire sample",
+              "version": "0.1.0"
+            },
+            "replaces": {
+              "installed": true,
+              "version": "0.1.0"
+            },
+            "resolved": "{sandbox}/plugin-src",
+            "source": {
+              "kind": "local",
+              "path": "{sandbox}/plugin-src"
+            },
+            "stagingId": "<staging:2>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "installed-update-discard",
+        "request": "DELETE /api/plugins/install/{staged_update}",
+        "status": 200
+      },
+      "route": "DELETE /api/plugins/install/:stagingId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "installed-remove",
+        "request": "DELETE /api/plugins/wire-sample",
+        "status": 200,
+        "wait": [
+          "plugins:change"
+        ]
+      },
+      "route": "DELETE /api/plugins/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "id": "wire-sample"
+                },
+                "reason": "plugins:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "staged-commit-unknown",
+        "request": "POST /api/plugins/install/st-00000000",
+        "status": 404
+      },
+      "route": "POST /api/plugins/install/:stagingId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "staged plugin not found: <staging:3>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "staged-discard-unknown",
+        "request": "DELETE /api/plugins/install/st-00000000",
+        "status": 200
+      },
+      "route": "DELETE /api/plugins/install/:stagingId",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "update-not-installed-from-a-source",
+        "request": "POST /api/plugins/hello/update",
+        "status": 400
+      },
+      "route": "POST /api/plugins/:id/update",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "\"hello\" wasn't installed from npm, git or a folder — there's nothing to update it from"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "remove-builtin",
+        "request": "DELETE /api/plugins/eos.pages",
+        "status": 404
+      },
+      "route": "DELETE /api/plugins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "plugin not found: eos.pages"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

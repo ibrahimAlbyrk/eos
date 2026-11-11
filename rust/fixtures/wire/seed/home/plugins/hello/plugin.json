@@ -1,0 +1,10 @@
+{
+  "id": "hello",
+  "name": "Hello",
+  "description": "An invented plugin for the wire fixtures.",
+  "version": "1.0.0",
+  "settings": {
+    "greeting": { "type": "string", "title": "Greeting", "default": "Hello" },
+    "loud": { "type": "boolean", "title": "Loud", "default": false }
+  }
+}

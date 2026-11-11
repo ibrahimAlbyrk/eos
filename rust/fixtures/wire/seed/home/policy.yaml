@@ -1,0 +1,9 @@
+# Invented policy for the synthetic data folder: one rule of each kind.
+default: ask
+ttlMs: 3000
+rules:
+  - { tool: Bash, command: "rm\\s+-rf", action: deny, reason: "destructive command blocked" }
+  - { tool: Bash, command: "(^|\\s)curl(?!.*--max-time)", action: rewrite, rewriteFrom: "(^|\\s)curl\\b", rewriteTo: "$1curl --max-time 10" }
+  - { tool: Bash, action: allow }
+  - { tool: Read, action: allow }
+  - { tool: Edit, action: ask }

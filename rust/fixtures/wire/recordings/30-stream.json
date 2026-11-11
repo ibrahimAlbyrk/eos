@@ -1,0 +1,754 @@
+{
+  "scenario": "30-stream",
+  "about": "The event stream itself: the opening frames, topic filters, resuming with ?since= or Last-Event-ID, resync when the gap cannot be replayed, and POST /stream/focus.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open",
+        "open": "all",
+        "capture": {
+          "epoch": "/frames/all/2/data/epoch"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "all": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "one-event",
+        "request": "POST /workers/o-ORCH/notify",
+        "body": {
+          "body": "one",
+          "title": "First"
+        },
+        "status": 200,
+        "wait": [
+          "notification:fire"
+        ]
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "frames": {
+          "all": [
+            {
+              "data": {
+                "payload": {
+                  "body": "one",
+                  "title": "First",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "open-filtered",
+        "open": "workers-only",
+        "query": {
+          "topics": "worker:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "workers-only": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "event-outside-the-filter",
+        "request": "POST /workers/o-ORCH/notify",
+        "body": {
+          "body": "two",
+          "title": "Second"
+        },
+        "status": 200,
+        "wait": [
+          "notification:fire"
+        ]
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "frames": {
+          "all": [
+            {
+              "data": {
+                "payload": {
+                  "body": "two",
+                  "title": "Second",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "event-inside-the-filter",
+        "request": "PUT /workers/w-BARE/name",
+        "body": {
+          "name": "Renamed while streaming"
+        },
+        "status": 200,
+        "wait": [
+          "worker:change",
+          "state:patch"
+        ]
+      },
+      "route": "PUT /workers/:id/name",
+      "response": {
+        "frames": {
+          "all": [
+            {
+              "data": {
+                "payload": {
+                  "renamedBy": "user",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "changes": [
+                    {
+                      "data": {
+                        "agent_role": "focused",
+                        "archived_at": null,
+                        "backend_kind": "claude",
+                        "backend_profile": null,
+                        "branch": null,
+                        "collaborate": 0,
+                        "context": {
+                          "limit": 1000000,
+                          "pct": 0,
+                          "used": 150
+                        },
+                        "cost_usd": 0.01,
+                        "cwd": null,
+                        "effort": "medium",
+                        "ended_at": 1790000330000,
+                        "exit_code": 0,
+                        "fork_base_sha": null,
+                        "id": "w-BARE",
+                        "is_orchestrator": 0,
+                        "last_context_tokens": 150,
+                        "model": "opus",
+                        "name": "Renamed while streaming",
+                        "name_source": "user",
+                        "parent_id": null,
+                        "permission_mode": "default",
+                        "pid": null,
+                        "port": null,
+                        "prompt": "Explain what a monad is in two sentences.",
+                        "scratch": 1,
+                        "session_id": null,
+                        "started_at": 1790000300000,
+                        "state": "DONE",
+                        "tasks": null,
+                        "tokens_cache_create": 0,
+                        "tokens_cache_create_1h": 0,
+                        "tokens_cache_read": 0,
+                        "tokens_in": 150,
+                        "tokens_out": 60,
+                        "tool_calls": 0,
+                        "tool_scope": null,
+                        "turn_started_at": null,
+                        "with_gateway": 0,
+                        "worker_definition": null,
+                        "workspace_owner_id": null,
+                        "workspace_ready": 1,
+                        "worktree_dir": null,
+                        "worktree_from": null
+                      },
+                      "op": "upsert",
+                      "resource": "workers"
+                    }
+                  ]
+                },
+                "reason": "state:patch",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ],
+          "workers-only": [
+            {
+              "data": {
+                "payload": {
+                  "renamedBy": "user",
+                  "workerId": "w-BARE"
+                },
+                "reason": "worker:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-filtered",
+        "close": "workers-only"
+      },
+      "response": {
+        "closed": "workers-only"
+      }
+    },
+    {
+      "step": {
+        "name": "close",
+        "close": "all"
+      },
+      "response": {
+        "closed": "all"
+      }
+    },
+    {
+      "step": {
+        "name": "missed-1",
+        "request": "POST /workers/o-ORCH/notify",
+        "body": {
+          "body": "three",
+          "title": "Third"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "missed-2",
+        "request": "POST /workers/o-ORCH/notify",
+        "body": {
+          "body": "four",
+          "title": "Fourth"
+        },
+        "status": 200
+      },
+      "route": "POST /workers/:id/notify",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "resume-since",
+        "open": "resumed",
+        "query": {
+          "since": "{all.last_id}"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "resumed": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "three",
+                  "title": "Third",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "four",
+                  "title": "Fourth",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-resumed",
+        "close": "resumed"
+      },
+      "response": {
+        "closed": "resumed"
+      }
+    },
+    {
+      "step": {
+        "name": "resume-last-event-id",
+        "open": "header",
+        "headers": {
+          "last-event-id": "{all.last_id}"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "header": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "three",
+                  "title": "Third",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "four",
+                  "title": "Fourth",
+                  "ts": "<now>",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-header",
+        "close": "header"
+      },
+      "response": {
+        "closed": "header"
+      }
+    },
+    {
+      "step": {
+        "name": "resume-filtered",
+        "open": "filtered-resume",
+        "query": {
+          "since": "{all.last_id}",
+          "topics": "worker:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "filtered-resume": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-filtered-resume",
+        "close": "filtered-resume"
+      },
+      "response": {
+        "closed": "filtered-resume"
+      }
+    },
+    {
+      "step": {
+        "name": "resume-other-boot",
+        "open": "stale",
+        "query": {
+          "since": "000000000000-5"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "stale": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "resync",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-stale",
+        "close": "stale"
+      },
+      "response": {
+        "closed": "stale"
+      }
+    },
+    {
+      "step": {
+        "name": "resume-ahead-of-the-stream",
+        "open": "ahead",
+        "query": {
+          "since": "{epoch}-99999999"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "ahead": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "resync",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-ahead",
+        "close": "ahead"
+      },
+      "response": {
+        "closed": "ahead"
+      }
+    },
+    {
+      "step": {
+        "name": "resume-malformed",
+        "open": "malformed",
+        "query": {
+          "since": "not-an-id"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "malformed": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "resync",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-malformed",
+        "close": "malformed"
+      },
+      "response": {
+        "closed": "malformed"
+      }
+    },
+    {
+      "step": {
+        "name": "focus",
+        "request": "POST /stream/focus",
+        "body": {
+          "clientId": "wire-tab",
+          "ptys": [],
+          "workers": [
+            "w-CHAT",
+            "w-LONG"
+          ]
+        },
+        "status": 200
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "live": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "focus-invalid",
+        "request": "POST /stream/focus",
+        "body": {
+          "workers": "w-CHAT"
+        },
+        "status": 400
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: clientId: Required; workers: Expected array, received string; ptys: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "open-with-focus",
+        "open": "focused",
+        "query": {
+          "clientId": "wire-tab",
+          "focus": "w-CHAT",
+          "ptys": ""
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "focused": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-focused",
+        "close": "focused"
+      },
+      "response": {
+        "closed": "focused"
+      }
+    }
+  ]
+}

@@ -1,0 +1,1314 @@
+{
+  "scenario": "35-policy",
+  "about": "Permission decisions: the gateway's verdict per rule kind, mode and tool scope; an ask that waits for the user; the pending list; saving a rule.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "pending:*,policy:*,notification:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "allow-by-rule",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "file_path": "{sandbox}/alpha/README.md"
+          },
+          "tool_name": "Read",
+          "tool_use_id": "call_w1",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Read",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "file_path": "{sandbox}/alpha/README.md"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "deny-by-rule",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "command": "rm -rf build"
+          },
+          "tool_name": "Bash",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "tool": "Bash",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "destructive command blocked"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rewrite-by-rule",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "command": "curl https://example.com"
+          },
+          "tool_name": "Bash",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Bash",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "command": "curl --max-time 10 https://example.com"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "bypass-mode",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "content": "x",
+            "file_path": "{sandbox}/alpha/x.md"
+          },
+          "tool_name": "Write",
+          "worker_id": "w-CHAT"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Write",
+                  "workerId": "w-CHAT"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "content": "x",
+            "file_path": "{sandbox}/alpha/x.md"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "bypass-mode-still-denies",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "command": "rm -rf build"
+          },
+          "tool_name": "Bash",
+          "worker_id": "w-CHAT"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "tool": "Bash",
+                  "workerId": "w-CHAT"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "destructive command blocked"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "no-rule-for-the-tool",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "title": "x"
+          },
+          "tool_name": "mcp__github__create_issue",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "mcp__github__create_issue",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "title": "x"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "default-mode-no-rule",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "content": "x",
+            "file_path": "{sandbox}/alpha/x.md"
+          },
+          "tool_name": "Write",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Write",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "content": "x",
+            "file_path": "{sandbox}/alpha/x.md"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "plan-mode",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "content": "x",
+            "file_path": "{sandbox}/beta/x.md"
+          },
+          "tool_name": "Write",
+          "worker_id": "w-BUSY"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Write",
+                  "workerId": "w-BUSY"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "content": "x",
+            "file_path": "{sandbox}/beta/x.md"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "accept-edits-mode",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {},
+          "tool_name": "NotebookEdit",
+          "worker_id": "o-ORCH"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "NotebookEdit",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "outside-tool-scope",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "content": "x",
+            "file_path": "{sandbox}/alpha/x.md"
+          },
+          "tool_name": "Write",
+          "worker_id": "w-KID2"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "tool": "Write",
+                  "workerId": "w-KID2"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "Write is not in this worker definition's allowed tools"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ask-user-question-is-refused",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "questions": []
+          },
+          "tool_name": "AskUserQuestion",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "tool": "AskUserQuestion",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "AskUserQuestion is disabled in Eos — its native menu has no answer surface here. Orchestrator: ask the operator via mcp__orchestrator__ask_user. Worker: proceed on your best judgment or report `needs input: <ask>` to your parent."
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "inside-a-subagent",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "agent_id": "agent-aaaa1111",
+          "input": {
+            "from": "explorer"
+          },
+          "tool_name": "mcp__orchestrator__spawn_worker",
+          "worker_id": "o-ORCH"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "tool": "mcp__orchestrator__spawn_worker",
+                  "workerId": "o-ORCH"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "mcp__orchestrator__spawn_worker is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them."
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "unknown-worker",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {},
+          "tool_name": "Read",
+          "worker_id": "w-nope0000"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "Read",
+                  "workerId": "<worker:1>"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "invalid-body",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "worker_id": "w-LONG"
+        },
+        "status": 400
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: tool_name: Required; input: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "pending-before",
+        "request": "GET /pending",
+        "status": 200
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [
+          {
+            "created_at": 1790000003050,
+            "decision": null,
+            "expires_at": 4102444800000,
+            "id": "p-SEED1",
+            "input": "{\"command\":\"node --test\",\"description\":\"Run the tests\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Bash",
+            "worker_id": "w-CHAT"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ask",
+        "request": "POST /policy/decide",
+        "detach": true,
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "file_path": "{sandbox}/alpha/README.md",
+            "new_string": "small",
+            "old_string": "tiny"
+          },
+          "tool_name": "Edit",
+          "tool_use_id": "call_w2",
+          "worker_id": "w-LONG"
+        },
+        "wait": [
+          "pending:created"
+        ]
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "detached": true,
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "ask",
+                  "tool": "Edit",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "Long chat wants to run Edit: {sandbox}/alpha/README.md",
+                  "title": "Approval needed",
+                  "ts": "<now>",
+                  "workerId": "w-LONG"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "id": "<ask:1>",
+                  "workerId": "w-LONG"
+                },
+                "reason": "pending:created",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "pending-with-ask",
+        "request": "GET /pending",
+        "status": 200,
+        "capture": {
+          "ask": "/json/[tool_name=Edit]/id"
+        }
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "created_at": 1790000003050,
+            "decision": null,
+            "expires_at": 4102444800000,
+            "id": "p-SEED1",
+            "input": "{\"command\":\"node --test\",\"description\":\"Run the tests\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Bash",
+            "worker_id": "w-CHAT"
+          },
+          {
+            "created_at": "<now>",
+            "decision": null,
+            "expires_at": "<now>",
+            "id": "<ask:1>",
+            "input": "{\"file_path\":\"{sandbox}/alpha/README.md\",\"new_string\":\"small\",\"old_string\":\"tiny\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Edit",
+            "worker_id": "w-LONG"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pending-of-parent",
+        "request": "GET /pending",
+        "query": {
+          "parentId": "o-ORCH"
+        },
+        "status": 500
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "Provided value cannot be bound to SQLite parameter 1."
+        },
+        "status": 500
+      }
+    },
+    {
+      "step": {
+        "name": "decide-allow",
+        "request": "POST /pending/{ask}/decision",
+        "body": {
+          "decision": "allow"
+        },
+        "status": 200,
+        "wait": [
+          "pending:resolved"
+        ]
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "id": "<ask:1>"
+                },
+                "reason": "pending:resolved",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ask-answer",
+        "join": "ask",
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "file_path": "{sandbox}/alpha/README.md",
+            "new_string": "small",
+            "old_string": "tiny"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "decide-twice",
+        "request": "POST /pending/{ask}/decision",
+        "body": {
+          "decision": "deny"
+        },
+        "status": 409
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "already resolved: allow"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "ask-denied",
+        "request": "POST /policy/decide",
+        "detach": true,
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "file_path": "{sandbox}/alpha/docs/usage.md",
+            "new_string": "Use",
+            "old_string": "Run"
+          },
+          "tool_name": "Edit",
+          "tool_use_id": "call_w3",
+          "worker_id": "w-LONG"
+        },
+        "wait": [
+          "pending:created"
+        ]
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "detached": true,
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "ask",
+                  "tool": "Edit",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "body": "Long chat wants to run Edit: {sandbox}/alpha/docs/usage.md",
+                  "title": "Approval needed",
+                  "ts": "<now>",
+                  "workerId": "w-LONG"
+                },
+                "reason": "notification:fire",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            },
+            {
+              "data": {
+                "payload": {
+                  "id": "<ask:2>",
+                  "workerId": "w-LONG"
+                },
+                "reason": "pending:created",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "pending-with-second-ask",
+        "request": "GET /pending",
+        "status": 200,
+        "capture": {
+          "ask2": "/json/[tool_name=Edit]/id"
+        }
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "created_at": 1790000003050,
+            "decision": null,
+            "expires_at": 4102444800000,
+            "id": "p-SEED1",
+            "input": "{\"command\":\"node --test\",\"description\":\"Run the tests\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Bash",
+            "worker_id": "w-CHAT"
+          },
+          {
+            "created_at": "<now>",
+            "decision": null,
+            "expires_at": "<now>",
+            "id": "<ask:2>",
+            "input": "{\"file_path\":\"{sandbox}/alpha/docs/usage.md\",\"new_string\":\"Use\",\"old_string\":\"Run\"}",
+            "reason": null,
+            "resolved": 0,
+            "tool_name": "Edit",
+            "worker_id": "w-LONG"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "decide-deny",
+        "request": "POST /pending/{ask2}/decision",
+        "body": {
+          "decision": "deny",
+          "reason": "not now"
+        },
+        "status": 200,
+        "wait": [
+          "pending:resolved"
+        ]
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "deny",
+                  "id": "<ask:2>"
+                },
+                "reason": "pending:resolved",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "ask-denied-answer",
+        "join": "ask-denied",
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "deny",
+          "message": "not now"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "decide-seeded-ask",
+        "request": "POST /pending/p-SEED1/decision",
+        "body": {
+          "decision": "allow",
+          "updatedInput": {
+            "command": "node --test --test-reporter=dot"
+          }
+        },
+        "status": 200
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "id": "p-SEED1"
+                },
+                "reason": "pending:resolved",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "decide-unknown",
+        "request": "POST /pending/p-nope0000/decision",
+        "body": {
+          "decision": "allow"
+        },
+        "status": 404
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "pending not found: <ask:3>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "decide-invalid",
+        "request": "POST /pending/p-SEED1/decision",
+        "body": {
+          "decision": "maybe"
+        },
+        "status": 400
+      },
+      "route": "POST /pending/:id/decision",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: decision: Invalid enum value. Expected 'allow' | 'deny', received 'maybe'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "pending-after",
+        "request": "GET /pending",
+        "status": 200
+      },
+      "route": "GET /pending",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": [],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rule-save",
+        "request": "POST /api/policy/rule",
+        "body": {
+          "behavior": "allow",
+          "tool": "WebFetch"
+        },
+        "status": 200
+      },
+      "route": "POST /api/policy/rule",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rule-save-again",
+        "request": "POST /api/policy/rule",
+        "body": {
+          "behavior": "deny",
+          "tool": "WebFetch"
+        },
+        "status": 200
+      },
+      "route": "POST /api/policy/rule",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "existed": true,
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "rule-save-bad-behavior",
+        "request": "POST /api/policy/rule",
+        "body": {
+          "behavior": "sometimes",
+          "tool": "WebFetch"
+        },
+        "status": 400
+      },
+      "route": "POST /api/policy/rule",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "behavior must be one of allow, deny, ask, rewrite"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "rule-save-no-tool",
+        "request": "POST /api/policy/rule",
+        "body": {
+          "behavior": "allow"
+        },
+        "status": 400
+      },
+      "route": "POST /api/policy/rule",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "tool must be a non-empty string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "allow-by-saved-rule",
+        "request": "POST /policy/decide",
+        "auth": "none",
+        "via": "socket",
+        "body": {
+          "input": {
+            "url": "https://example.com"
+          },
+          "tool_name": "WebFetch",
+          "worker_id": "w-LONG"
+        },
+        "status": 200
+      },
+      "route": "POST /policy/decide",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "behavior": "allow",
+                  "tool": "WebFetch",
+                  "workerId": "w-LONG"
+                },
+                "reason": "policy:decision",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "behavior": "allow",
+          "updatedInput": {
+            "url": "https://example.com"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "metrics-count-decisions",
+        "request": "GET /metrics",
+        "status": 200
+      },
+      "route": "GET /metrics",
+      "response": {
+        "headers": {
+          "content-type": "text/plain; version=0.0.4"
+        },
+        "status": 200,
+        "text": "# HELP eos_uptime_seconds Daemon uptime\n# TYPE eos_uptime_seconds gauge\neos_uptime_seconds <n>\n# HELP eos_workers Worker count by state\n# TYPE eos_workers gauge\neos_workers{state=\"DONE\"} 3\neos_workers{state=\"SUSPENDED\"} 5\n# HELP eos_sse_clients Active SSE subscribers\n# TYPE eos_sse_clients gauge\neos_sse_clients 1\n# HELP eos_pending Pending permission requests\n# TYPE eos_pending gauge\neos_pending 0\n# HELP eos_policy_decisions_total Cumulative policy decisions\n# TYPE eos_policy_decisions_total counter\neos_policy_decisions_total{behavior=\"allow\"} 9\neos_policy_decisions_total{behavior=\"deny\"} 5\neos_policy_decisions_total{behavior=\"ask\"} 2\n# HELP eos_requests_total HTTP requests served\n# TYPE eos_requests_total counter\neos_requests_total <n>\n# HELP eos_body_too_large_total Requests rejected for body-size limit\n# TYPE eos_body_too_large_total counter\neos_body_too_large_total 0\n"
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

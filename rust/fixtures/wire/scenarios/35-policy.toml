@@ -1,0 +1,253 @@
+about = "Permission decisions: the gateway's verdict per rule kind, mode and tool scope; an ask that waits for the user; the pending list; saving a rule."
+
+[[step]]
+name = "open-stream"
+open = "main"
+query = { topics = "pending:*,policy:*,notification:*" }
+
+[[step]]
+name = "allow-by-rule"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "Read", input = { file_path = "{sandbox}/alpha/README.md" }, tool_use_id = "call_w1" }
+status = 200
+
+[[step]]
+name = "deny-by-rule"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "Bash", input = { command = "rm -rf build" } }
+status = 200
+
+[[step]]
+name = "rewrite-by-rule"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "Bash", input = { command = "curl https://example.com" } }
+status = 200
+
+[[step]]
+name = "bypass-mode"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-CHAT", tool_name = "Write", input = { file_path = "{sandbox}/alpha/x.md", content = "x" } }
+status = 200
+
+[[step]]
+name = "bypass-mode-still-denies"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-CHAT", tool_name = "Bash", input = { command = "rm -rf build" } }
+status = 200
+
+[[step]]
+name = "no-rule-for-the-tool"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "mcp__github__create_issue", input = { title = "x" } }
+status = 200
+
+[[step]]
+name = "default-mode-no-rule"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "Write", input = { file_path = "{sandbox}/alpha/x.md", content = "x" } }
+status = 200
+
+[[step]]
+name = "plan-mode"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-BUSY", tool_name = "Write", input = { file_path = "{sandbox}/beta/x.md", content = "x" } }
+status = 200
+
+[[step]]
+name = "accept-edits-mode"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "o-ORCH", tool_name = "NotebookEdit", input = {} }
+status = 200
+
+[[step]]
+name = "outside-tool-scope"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-KID2", tool_name = "Write", input = { file_path = "{sandbox}/alpha/x.md", content = "x" } }
+status = 200
+
+[[step]]
+name = "ask-user-question-is-refused"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "AskUserQuestion", input = { questions = [] } }
+status = 200
+
+[[step]]
+name = "inside-a-subagent"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "o-ORCH", tool_name = "mcp__orchestrator__spawn_worker", input = { from = "explorer" }, agent_id = "agent-aaaa1111" }
+status = 200
+
+[[step]]
+name = "unknown-worker"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-nope0000", tool_name = "Read", input = {} }
+status = 200
+
+[[step]]
+name = "invalid-body"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG" }
+status = 400
+
+[[step]]
+name = "pending-before"
+request = "GET /pending"
+status = 200
+
+[[step]]
+name = "ask"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+detach = true
+body = { worker_id = "w-LONG", tool_name = "Edit", input = { file_path = "{sandbox}/alpha/README.md", old_string = "tiny", new_string = "small" }, tool_use_id = "call_w2" }
+wait = ["pending:created"]
+
+[[step]]
+name = "pending-with-ask"
+request = "GET /pending"
+status = 200
+capture = { ask = "/json/[tool_name=Edit]/id" }
+
+[[step]]
+name = "pending-of-parent"
+request = "GET /pending"
+query = { parentId = "o-ORCH" }
+status = 500
+
+[[step]]
+name = "decide-allow"
+request = "POST /pending/{ask}/decision"
+body = { decision = "allow" }
+status = 200
+wait = ["pending:resolved"]
+
+[[step]]
+name = "ask-answer"
+join = "ask"
+status = 200
+
+[[step]]
+name = "decide-twice"
+request = "POST /pending/{ask}/decision"
+body = { decision = "deny" }
+status = 409
+
+[[step]]
+name = "ask-denied"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+detach = true
+body = { worker_id = "w-LONG", tool_name = "Edit", input = { file_path = "{sandbox}/alpha/docs/usage.md", old_string = "Run", new_string = "Use" }, tool_use_id = "call_w3" }
+wait = ["pending:created"]
+
+[[step]]
+name = "pending-with-second-ask"
+request = "GET /pending"
+status = 200
+capture = { ask2 = "/json/[tool_name=Edit]/id" }
+
+[[step]]
+name = "decide-deny"
+request = "POST /pending/{ask2}/decision"
+body = { decision = "deny", reason = "not now" }
+status = 200
+wait = ["pending:resolved"]
+
+[[step]]
+name = "ask-denied-answer"
+join = "ask-denied"
+status = 200
+
+[[step]]
+name = "decide-seeded-ask"
+request = "POST /pending/p-SEED1/decision"
+body = { decision = "allow", updatedInput = { command = "node --test --test-reporter=dot" } }
+status = 200
+
+[[step]]
+name = "decide-unknown"
+request = "POST /pending/p-nope0000/decision"
+body = { decision = "allow" }
+status = 404
+
+[[step]]
+name = "decide-invalid"
+request = "POST /pending/p-SEED1/decision"
+body = { decision = "maybe" }
+status = 400
+
+[[step]]
+name = "pending-after"
+request = "GET /pending"
+status = 200
+
+[[step]]
+name = "rule-save"
+request = "POST /api/policy/rule"
+body = { tool = "WebFetch", behavior = "allow" }
+status = 200
+
+[[step]]
+name = "rule-save-again"
+request = "POST /api/policy/rule"
+body = { tool = "WebFetch", behavior = "deny" }
+status = 200
+
+[[step]]
+name = "rule-save-bad-behavior"
+request = "POST /api/policy/rule"
+body = { tool = "WebFetch", behavior = "sometimes" }
+status = 400
+
+[[step]]
+name = "rule-save-no-tool"
+request = "POST /api/policy/rule"
+body = { behavior = "allow" }
+status = 400
+
+[[step]]
+name = "allow-by-saved-rule"
+request = "POST /policy/decide"
+auth = "none"
+via = "socket"
+body = { worker_id = "w-LONG", tool_name = "WebFetch", input = { url = "https://example.com" } }
+status = 200
+
+[[step]]
+name = "metrics-count-decisions"
+request = "GET /metrics"
+status = 200
+
+[[step]]
+name = "close-stream"
+close = "main"

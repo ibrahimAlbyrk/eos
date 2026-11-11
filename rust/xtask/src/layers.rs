@@ -30,6 +30,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-platform", Layer::Kit),
     ("eos-runtime", Layer::Runtime),
     // Test and dev tooling: never a normal dependency of a library crate.
+    ("wire-recorder", Layer::Support),
     ("xtask", Layer::Support),
 ];
 

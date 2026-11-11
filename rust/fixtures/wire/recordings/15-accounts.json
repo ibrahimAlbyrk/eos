@@ -1,0 +1,587 @@
+{
+  "scenario": "15-accounts",
+  "about": "Accounts, usage and artifacts while signed out, and the routes around sign-ins that can be reached without starting one.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "accounts",
+        "request": "GET /api/accounts",
+        "status": 200
+      },
+      "route": "GET /api/accounts",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "accounts": [
+            {
+              "apiKey": {
+                "set": false
+              },
+              "autoSwitch": true,
+              "id": "anthropic",
+              "label": "Claude",
+              "logins": [],
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "openai",
+              "label": "OpenAI",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": false
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "gemini",
+              "label": "Google Gemini",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "xai",
+              "label": "xAI Grok",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "qwen",
+              "label": "Alibaba Qwen",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "moonshot",
+              "label": "Moonshot Kimi",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "zhipu",
+              "label": "Zhipu GLM (Z.ai)",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "deepseek",
+              "label": "DeepSeek",
+              "route": "none",
+              "subscription": null
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "accounts-without-token",
+        "request": "GET /api/accounts",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/accounts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "sign-in-unsupported-provider",
+        "request": "POST /api/accounts/xai/sign-in",
+        "body": {},
+        "status": 404
+      },
+      "route": "POST /api/accounts/:provider/sign-in",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in is not supported for \"xai\""
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "sign-out-unsupported-provider",
+        "request": "DELETE /api/accounts/xai/sign-in",
+        "status": 404
+      },
+      "route": "DELETE /api/accounts/:provider/sign-in",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in is not supported for \"xai\""
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "login-rename-single-sign-in-provider",
+        "request": "PUT /api/accounts/openai/logins/l1",
+        "body": {
+          "label": "Work"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/accounts/:provider/logins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "\"openai\" holds a single sign-in"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "login-rename-unknown",
+        "request": "PUT /api/accounts/anthropic/logins/nope",
+        "body": {
+          "label": "Work"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/accounts/:provider/logins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in not found: nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "login-remove-unknown",
+        "request": "DELETE /api/accounts/anthropic/logins/nope",
+        "status": 404
+      },
+      "route": "DELETE /api/accounts/:provider/logins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in not found: nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "default-login-unknown",
+        "request": "PUT /api/accounts/anthropic/default-login",
+        "body": {
+          "loginId": "nope"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/accounts/:provider/default-login",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in not found: nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "auto-switch-off",
+        "request": "PUT /api/accounts/anthropic/auto-switch",
+        "body": {
+          "enabled": false
+        },
+        "status": 200
+      },
+      "route": "PUT /api/accounts/:provider/auto-switch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "auto-switch-bad-body",
+        "request": "PUT /api/accounts/anthropic/auto-switch",
+        "body": {
+          "enabled": "no"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/accounts/:provider/auto-switch",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: enabled: Expected boolean, received string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "accounts-after",
+        "request": "GET /api/accounts",
+        "status": 200
+      },
+      "route": "GET /api/accounts",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "accounts": [
+            {
+              "apiKey": {
+                "set": false
+              },
+              "autoSwitch": false,
+              "id": "anthropic",
+              "label": "Claude",
+              "logins": [],
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "openai",
+              "label": "OpenAI",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": false
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "gemini",
+              "label": "Google Gemini",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "xai",
+              "label": "xAI Grok",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "qwen",
+              "label": "Alibaba Qwen",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "moonshot",
+              "label": "Moonshot Kimi",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "zhipu",
+              "label": "Zhipu GLM (Z.ai)",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "deepseek",
+              "label": "DeepSeek",
+              "route": "none",
+              "subscription": null
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "sign-in-poll-unknown",
+        "request": "GET /api/sign-ins/nope",
+        "status": 404
+      },
+      "route": "GET /api/sign-ins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "sign-in-cancel-unknown",
+        "request": "DELETE /api/sign-ins/nope",
+        "status": 404
+      },
+      "route": "DELETE /api/sign-ins/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "sign-in-code-unknown",
+        "request": "POST /api/sign-ins/nope/code",
+        "body": {
+          "code": "abc"
+        },
+        "status": 409
+      },
+      "route": "POST /api/sign-ins/:id/code",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sign-in is not waiting for a code"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "plan-resume-unknown-row",
+        "request": "PUT /workers/w-CHAT/plan-resume",
+        "body": {
+          "on": true,
+          "rowId": 999999
+        },
+        "status": 409
+      },
+      "route": "PUT /workers/:id/plan-resume",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not an exhausted-accounts row"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "api-key-continue-no-key",
+        "request": "POST /workers/w-CHAT/api-key-continue",
+        "status": 409
+      },
+      "route": "POST /workers/:id/api-key-continue",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "No API key is set — add one in Settings › Accounts."
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "usage",
+        "request": "GET /api/usage",
+        "status": 200
+      },
+      "route": "GET /api/usage",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "errors": [
+            {
+              "provider": "claude",
+              "reason": "No Claude subscription token configured."
+            },
+            {
+              "provider": "codex",
+              "reason": "Not signed in to ChatGPT."
+            }
+          ],
+          "providers": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "usage-wait",
+        "request": "GET /api/usage",
+        "query": {
+          "wait": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /api/usage",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "errors": [
+            {
+              "provider": "claude",
+              "reason": "No Claude subscription token configured."
+            },
+            {
+              "provider": "codex",
+              "reason": "Not signed in to ChatGPT."
+            }
+          ],
+          "providers": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "artifacts",
+        "request": "GET /api/artifacts",
+        "status": 200
+      },
+      "route": "GET /api/artifacts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "accounts": [],
+          "artifacts": [],
+          "refreshing": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "artifacts-without-token",
+        "request": "GET /api/artifacts",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/artifacts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "artifacts-refresh",
+        "request": "POST /api/artifacts/refresh",
+        "status": 200
+      },
+      "route": "POST /api/artifacts/refresh",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "accounts": [],
+          "artifacts": [],
+          "refreshing": false
+        },
+        "status": 200
+      }
+    }
+  ]
+}

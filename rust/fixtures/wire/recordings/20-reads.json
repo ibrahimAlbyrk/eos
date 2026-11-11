@@ -1,0 +1,3577 @@
+{
+  "scenario": "20-reads",
+  "about": "Every list and status the dashboard reads at start, plus larger transcript pages and git reads on a chat's own folder. Finds its ids in the lists, so it also runs on a real data folder.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "ui-config",
+        "request": "GET /api/ui-config",
+        "status": 200
+      },
+      "route": "GET /api/ui-config",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "backendProfiles": [
+            {
+              "kind": "claude",
+              "label": "claude-opus (claude-opus-5-5)",
+              "model": "claude-opus-5-5",
+              "name": "claude-opus"
+            }
+          ],
+          "backends": [
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "accountSwitch": true,
+                "contextClear": true,
+                "contextCompaction": true,
+                "expandsSlashTemplates": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": true,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "sideQuestion": true,
+                "streamingThinking": true
+              },
+              "catalog": "claude",
+              "enabled": true,
+              "kind": "claude",
+              "label": "Claude",
+              "sessionStore": "claude-transcript"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "claude",
+              "enabled": true,
+              "kind": "anthropic-api",
+              "label": "Anthropic API",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "anthropic"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "openai",
+              "label": "OpenAI API",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "openai-chat"
+            },
+            {
+              "billing": "metered",
+              "capabilities": {
+                "contextClear": true,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": false,
+                "runtimePermissionSwitch": false,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "codex",
+              "label": "Codex",
+              "sessionStore": "eos-conversation",
+              "wireDialect": "openai-chat"
+            },
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "contextClear": true,
+                "contextCompaction": false,
+                "expandsSlashTemplates": false,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": false,
+              "kind": "codex-cli",
+              "label": "Codex",
+              "sessionStore": "codex-thread"
+            },
+            {
+              "billing": "subscription",
+              "capabilities": {
+                "contextClear": true,
+                "contextCompaction": false,
+                "expandsSlashTemplates": false,
+                "interrupt": true,
+                "keystroke": false,
+                "resumable": true,
+                "rewind": false,
+                "runtimeModelSwitch": true,
+                "runtimePermissionSwitch": true,
+                "streamingThinking": true
+              },
+              "catalog": "openai-compatible",
+              "enabled": true,
+              "kind": "gemini-cli",
+              "label": "Gemini",
+              "sessionStore": "gemini-session"
+            }
+          ],
+          "features": {
+            "posixShell": true,
+            "remote": true
+          },
+          "modelCatalog": [],
+          "models": [
+            "fable",
+            "opus",
+            "sonnet",
+            "haiku",
+            "glm-5.2",
+            "glm-4.7",
+            "qwen3.7-max",
+            "qwen3.7-plus",
+            "qwen3-coder-plus"
+          ],
+          "permissions": {
+            "defaultTtlMs": 0
+          },
+          "prices": {
+            "fable": {
+              "cacheCreate": 12.5,
+              "cacheCreate1h": 20,
+              "cacheRead": 1,
+              "in": 10,
+              "out": 50
+            },
+            "glm-4.7": {
+              "cacheCreate": 0,
+              "cacheCreate1h": 0,
+              "cacheRead": 0,
+              "in": 0.6,
+              "out": 2.2
+            },
+            "glm-5.2": {
+              "cacheCreate": 0,
+              "cacheCreate1h": 0,
+              "cacheRead": 0,
+              "in": 1.4,
+              "out": 4.4
+            },
+            "haiku": {
+              "cacheCreate": 1.25,
+              "cacheCreate1h": 2,
+              "cacheRead": 0.1,
+              "in": 1,
+              "out": 5
+            },
+            "opus": {
+              "cacheCreate": 18.75,
+              "cacheCreate1h": 30,
+              "cacheRead": 1.5,
+              "in": 15,
+              "out": 75
+            },
+            "qwen3-coder-plus": {
+              "tiers": [
+                {
+                  "maxInputTokens": 256000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.3,
+                    "out": 1.5
+                  }
+                },
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 6,
+                    "out": 60
+                  }
+                }
+              ]
+            },
+            "qwen3.7-max": {
+              "tiers": [
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 2.5,
+                    "out": 7.5
+                  }
+                }
+              ]
+            },
+            "qwen3.7-plus": {
+              "tiers": [
+                {
+                  "maxInputTokens": 128000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.4,
+                    "out": 1.6
+                  }
+                },
+                {
+                  "maxInputTokens": 256000,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 0.8,
+                    "out": 3.2
+                  }
+                },
+                {
+                  "maxInputTokens": null,
+                  "price": {
+                    "cacheCreate": 0,
+                    "cacheCreate1h": 0,
+                    "cacheRead": 0,
+                    "in": 1.2,
+                    "out": 4.8
+                  }
+                }
+              ]
+            },
+            "sonnet": {
+              "cacheCreate": 3.75,
+              "cacheCreate1h": 6,
+              "cacheRead": 0.3,
+              "in": 3,
+              "out": 15
+            }
+          },
+          "sse": {
+            "keepaliveMs": 25000
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings",
+        "request": "GET /api/settings",
+        "status": 200
+      },
+      "route": "GET /api/settings",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "settings": {}
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-archive",
+        "request": "GET /api/settings/archive",
+        "status": 200
+      },
+      "route": "GET /api/settings/archive",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "archive": {
+            "cmdW": "archive",
+            "purgeOnAppClose": false,
+            "retention": "off"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-compaction",
+        "request": "GET /api/settings/compaction",
+        "status": 200
+      },
+      "route": "GET /api/settings/compaction",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "compaction": {
+            "enabled": true,
+            "threshold": 0.7,
+            "timeoutMs": 300000
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "settings-genui",
+        "request": "GET /api/settings/genui",
+        "status": 200
+      },
+      "route": "GET /api/settings/genui",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apps": true,
+          "level": "balanced",
+          "locationShare": true,
+          "logoDevKey": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "profile",
+        "request": "GET /api/profile",
+        "status": 200
+      },
+      "route": "GET /api/profile",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "profile": {
+            "budgetTokens": 800,
+            "dreaming": {
+              "awayMinutes": 20,
+              "enabled": false,
+              "excludedProjects": [],
+              "includeNoFolder": true,
+              "maxChats": 20,
+              "model": "opus",
+              "morningNote": true,
+              "nightlyAt": "03:00",
+              "schedule": "nightly",
+              "usageCeiling": 0.7
+            },
+            "identity": {
+              "avatar": null,
+              "callName": "",
+              "fullName": "",
+              "handle": ""
+            },
+            "instructions": "",
+            "language": {
+              "chat": null,
+              "code": null
+            },
+            "onboardedAt": null,
+            "rev": 0,
+            "sharing": {
+              "withholdFrom": []
+            },
+            "style": {
+              "autonomy": null,
+              "commits": null,
+              "replies": null,
+              "whenUnclear": null
+            },
+            "updatedAt": 0,
+            "work": {
+              "level": null,
+              "roles": [],
+              "stack": []
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "profile-preview",
+        "request": "GET /api/profile/preview",
+        "status": 200
+      },
+      "route": "GET /api/profile/preview",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "budgetTokens": 800,
+          "includedMemoryIds": [],
+          "overflow": 0,
+          "text": "`<user_preferences>`\n\nThe user has specified the following personal preferences for how Claude should respond:\n\nBe as concise and direct as possible. Limit unnecessary explanation and verbosity. A good test of whether your writing is concise is whether you can remove words and still get the same point across.\n\nPlease keep these preferences in mind when responding.\n\n`</user_preferences>`",
+          "tokens": 112,
+          "withheld": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memories",
+        "request": "GET /api/user-memories",
+        "status": 200
+      },
+      "route": "GET /api/user-memories",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "memory-search",
+        "request": "GET /api/user-memories/search",
+        "query": {
+          "limit": "5",
+          "q": "commit"
+        },
+        "status": 200
+      },
+      "route": "GET /api/user-memories/search",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "memories": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "pages",
+        "request": "GET /api/pages",
+        "query": {
+          "all": "1"
+        },
+        "status": 200,
+        "capture": {
+          "page": "/json/pages/0/id"
+        }
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "pages": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "page",
+        "request": "GET /api/pages/{page}",
+        "status": 200,
+        "optional": true
+      },
+      "response": null
+    },
+    {
+      "step": {
+        "name": "templates",
+        "request": "GET /api/templates",
+        "status": 200
+      },
+      "route": "GET /api/templates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "templates": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "commands",
+        "request": "GET /commands",
+        "status": 200
+      },
+      "route": "GET /commands",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "commands": [
+            {
+              "argumentHint": "[name]",
+              "description": "Say hello",
+              "name": "hello",
+              "source": "user"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "prompts",
+        "request": "GET /api/prompts",
+        "status": 200
+      },
+      "route": "GET /api/prompts",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "prompts": [
+            {
+              "conditional": false,
+              "description": "Sent (never shown) after a session moved to another Claude sign-in because its own hit the plan limit mid-turn — picks the interrupted turn back up",
+              "id": "accounts/continue",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Analyze working-tree changes and create atomic conventional commits",
+              "id": "commit",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PUSH"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Seed of the session that replaces a compacted one — the summary the agent continues from; rides along with the next message (runs no turn by itself)",
+              "id": "compaction/continuation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SUMMARY",
+                "TRANSCRIPT_PATH"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "The compaction request — the rendered transcript plus the required summary structure; INSTRUCTIONS carries the text typed after /compact",
+              "id": "compaction/summarize",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "TRANSCRIPT",
+                "INSTRUCTIONS"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for the context-compaction summarizer — condenses a coding agent's conversation into the summary it continues from (tool-less, one turn)",
+              "id": "compaction/summarizer-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Create a pull request for the current branch",
+              "id": "create-pr",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "DRAFT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's consolidation pass — turns the candidates that are ready into at most a few memory proposals, written as rules that open with their situation (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/consolidate-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's consolidation request — the candidates that are ready, the existing memories, the profile",
+              "id": "dream/consolidate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CANDIDATES",
+                "MEMORIES",
+                "PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's critic pass — checks each proposed memory before the user sees it and refutes the ones that fail (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/critic-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's critic request — the proposals with the lines they rest on, the existing memories, the profile",
+              "id": "dream/critic",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PROPOSALS",
+                "MEMORIES",
+                "PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's match pass — files tonight's signals against the open candidates and the existing memories (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/match-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's match request — tonight's signals, the open candidates, the existing memories",
+              "id": "dream/match",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SIGNALS",
+                "CANDIDATES",
+                "MEMORIES"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "System prompt for Dreaming's recall pass — reads one finished chat and notes signals about how the USER wants agents to work with them, without concluding anything (one turn, answer through the StructuredOutput tool)",
+              "id": "dream/recall-system",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Dreaming's recall request — one chat's rendered transcript",
+              "id": "dream/recall",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CHAT",
+                "PROJECT",
+                "TRANSCRIPT"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Shared-worktree contract appended to an attached worker",
+              "id": "env/worktree-shared",
+              "layer": "custom",
+              "priority": 10,
+              "variables": [
+                "AGENT_NAME",
+                "WORKER_ID",
+                "WORKTREE_DIR",
+                "BRANCH",
+                "REPO_ROOT"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worktree isolation contract appended to an isolated-worktree worker",
+              "id": "env/worktree",
+              "layer": "custom",
+              "priority": 10,
+              "variables": [
+                "AGENT_NAME",
+                "WORKER_ID",
+                "WORKTREE_DIR",
+                "BRANCH",
+                "REPO_ROOT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Merge several Eos agent worktree branches into one verified result",
+              "id": "integrate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BRANCHES"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "In-process (metered API) lane base harness — generic agent framing the bundled claude_code preset normally supplies, injected for this lane ONLY via the assembly lane parameter (never a when gate). Deliberately has NO dpi block so it is never auto-selected for the claude lanes.",
+              "id": "lane/in-process",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Neutral re-arm delivered to a looped worker when the automated goal check itself failed (indeterminate verdict) — not a judgment on the work",
+              "id": "loop/check-error",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Automated dynamic-loop goal-check re-trigger delivered to a looped worker whose goal is not yet met",
+              "id": "loop/continuation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "UNMET",
+                "ATTEMPT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Escalation wrapping a looped worker's report when the goal gate pauses for a decision (unverifiable criteria or a stalled loop) instead of re-triggering",
+              "id": "loop/escalation",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "REASON",
+                "UNMET",
+                "REPORT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Annotation wrapping a looped worker's final report when its loop ended (attempt limit or no progress) unmet",
+              "id": "loop/exhausted-release",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "REASON",
+                "UNMET",
+                "REPORT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Skeptical acceptance-reviewer rubric for the LLM goal judge (grades artifacts, not claims)",
+              "id": "loop/judge-rubric",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "CRITERIA",
+                "MACHINE_SIGNALS",
+                "DIFF_BASE",
+                "DIFF",
+                "FILES",
+                "CLAIM",
+                "RETRY"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Synthesized completion report sent to the orchestrator when a looped worker met its goal but left no held report",
+              "id": "loop/loop-complete",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GOAL_SUMMARY",
+                "ATTEMPTS"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Synthesized report sent to the orchestrator when a looped worker's loop ended unmet and left no held report",
+              "id": "loop/loop-exhausted",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "REASON",
+                "ATTEMPTS",
+                "UNMET"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Message ids + replies — how an incoming turn points at an earlier message (every role)",
+              "id": "message-ids",
+              "layer": "core",
+              "priority": 90,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Name a freshly-spawned orchestrator from its first request — a distinguishing \"<Topic>\", or the NO_TITLE sentinel when the request can't be named (micro-task)",
+              "id": "micro-tasks/auto-name",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "USER_INPUT"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Rebase the current branch onto a target branch with lock handling, conflict policy, and submodule pointer alignment",
+              "id": "rebase",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "TARGET"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Review YOUR branch's changes before they are committed or merged, and report findings",
+              "id": "review",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Focused — the user's profile + memory (search_memory, suggest_memory)",
+              "id": "role/focused/01-user-profile",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "USER_PROFILE",
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — sending files to the user's other Macs (send_to_machine)",
+              "id": "role/focused/02-machines",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "SEND_TO_MACHINE_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — Visual answers (present, present_app, find_places, current_location)",
+              "id": "role/focused/03-present",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "GENUI_LEVEL",
+                "GENUI_OFF",
+                "PRESENT_TOOL",
+                "PRESENT_APP_TOOL",
+                "FIND_PLACES_TOOL",
+                "CURRENT_LOCATION_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Focused — Workflow runs show live in Eos",
+              "id": "role/focused/04-workflows",
+              "layer": "role",
+              "priority": 40,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Focused — changing Eos's own interface with plugins",
+              "id": "role/focused/05-plugins",
+              "layer": "role",
+              "priority": 50,
+              "variables": [
+                "PLUGIN_STATUS_TOOL",
+                "PLUGIN_PREVIEW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — intro",
+              "id": "role/git/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Hard rules",
+              "id": "role/git/02-hard-rules",
+              "layer": "role",
+              "priority": 20,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Operating procedure",
+              "id": "role/git/03-operating-procedure",
+              "layer": "role",
+              "priority": 30,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Commits",
+              "id": "role/git/04-commits",
+              "layer": "role",
+              "priority": 40,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Rebase / merge",
+              "id": "role/git/05-rebase-merge",
+              "layer": "role",
+              "priority": 50,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Pull requests",
+              "id": "role/git/06-pull-requests",
+              "layer": "role",
+              "priority": 60,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Recovery",
+              "id": "role/git/07-recovery",
+              "layer": "role",
+              "priority": 70,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Working economically",
+              "id": "role/git/07b-working-economically",
+              "layer": "role",
+              "priority": 75,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Git agent — Style",
+              "id": "role/git/08-style",
+              "layer": "role",
+              "priority": 80,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — intro",
+              "id": "role/orchestrator/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL",
+                "PERSONA_NAME"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Your tools",
+              "id": "role/orchestrator/02-your-tools",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "ASK_USER_TOOL",
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "INTEGRATE_WORKERS_TOOL",
+                "KILL_WORKER_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Output contracts",
+              "id": "role/orchestrator/03-output-contracts",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "NOTIFY_USER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Communicating while you work",
+              "id": "role/orchestrator/03b-communicating",
+              "layer": "role",
+              "priority": 35,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Working economically",
+              "id": "role/orchestrator/03c-working-economically",
+              "layer": "role",
+              "priority": 37,
+              "variables": [
+                "MESSAGE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Hard constraints",
+              "id": "role/orchestrator/04-hard-constraints",
+              "layer": "role",
+              "priority": 40,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Answer directly vs spawn a worker",
+              "id": "role/orchestrator/05-answer-directly-vs-spawn-a-worker",
+              "layer": "role",
+              "priority": 50,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Decompose",
+              "id": "role/orchestrator/06-decompose",
+              "layer": "role",
+              "priority": 60,
+              "variables": [
+                "ASK_USER_TOOL",
+                "CREATE_WORKER_TOOL",
+                "PERSONA_NAME",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Worker prompts",
+              "id": "role/orchestrator/07-worker-prompts",
+              "layer": "role",
+              "priority": 70,
+              "variables": [
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Isolation",
+              "id": "role/orchestrator/08-isolation",
+              "layer": "role",
+              "priority": 80,
+              "variables": [
+                "INTEGRATE_WORKERS_TOOL",
+                "KILL_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Model",
+              "id": "role/orchestrator/09-model",
+              "layer": "role",
+              "priority": 90,
+              "variables": [
+                "MODEL_TIER_TABLE",
+                "DEFAULT_TIER",
+                "EFFORT_SECTION",
+                "DEFAULT_EFFORT",
+                "EFFORT_SUPPORTED"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — worker context budgets",
+              "id": "role/orchestrator/09b-context-awareness",
+              "layer": "role",
+              "priority": 95,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Reports",
+              "id": "role/orchestrator/10-reports",
+              "layer": "role",
+              "priority": 100,
+              "variables": [
+                "KILL_WORKER_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Ask",
+              "id": "role/orchestrator/11-ask",
+              "layer": "role",
+              "priority": 110,
+              "variables": [
+                "ASK_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Notify",
+              "id": "role/orchestrator/12-notify",
+              "layer": "role",
+              "priority": 120,
+              "variables": [
+                "NOTIFY_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Pages (the user's shared notes)",
+              "id": "role/orchestrator/12b-pages",
+              "layer": "role",
+              "priority": 125,
+              "variables": [
+                "LIST_PAGES_TOOL",
+                "READ_PAGE_TOOL",
+                "CREATE_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "EDIT_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — The user's memory (search_memory, suggest_memory)",
+              "id": "role/orchestrator/12c-memory",
+              "layer": "role",
+              "priority": 126,
+              "variables": [
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Browser previews reach the human",
+              "id": "role/orchestrator/13-browser-preview",
+              "layer": "role",
+              "priority": 65,
+              "variables": [
+                "BROWSER_SHOW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — swarm playbook (coding + research swarms)",
+              "id": "role/orchestrator/14-swarm-playbook",
+              "layer": "role",
+              "priority": 140,
+              "variables": [
+                "ASK_USER_TOOL",
+                "CREATE_WORKER_TOOL",
+                "GET_WORKER_TOOL",
+                "INTEGRATE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — peer collaboration (consultable worker swarms)",
+              "id": "role/orchestrator/15-peer-collaboration",
+              "layer": "role",
+              "priority": 145,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "KILL_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — available workers (select, define, or spawn ad-hoc)",
+              "id": "role/orchestrator/16-available-workers",
+              "layer": "role",
+              "priority": 75,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "AVAILABLE_WORKERS_CATALOG",
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "CREATE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — Visual answers (present, present_app, find_places, current_location)",
+              "id": "role/orchestrator/17-present",
+              "layer": "role",
+              "priority": 128,
+              "variables": [
+                "GENUI_LEVEL",
+                "GENUI_OFF",
+                "PRESENT_TOOL",
+                "PRESENT_APP_TOOL",
+                "FIND_PLACES_TOOL",
+                "CURRENT_LOCATION_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator — changing Eos's own interface with plugins",
+              "id": "role/orchestrator/18-plugins",
+              "layer": "role",
+              "priority": 180,
+              "variables": [
+                "PLUGIN_STATUS_TOOL",
+                "PLUGIN_PREVIEW_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — intro",
+              "id": "role/worker/01-intro",
+              "layer": "role",
+              "priority": 10,
+              "variables": [
+                "PERSONA_NAME"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Where you sit",
+              "id": "role/worker/02-where-you-sit",
+              "layer": "role",
+              "priority": 20,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Hard rules",
+              "id": "role/worker/03-hard-rules",
+              "layer": "role",
+              "priority": 30,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — peer collaboration (when collaborate is enabled)",
+              "id": "role/worker/04-collaboration",
+              "layer": "role",
+              "priority": 40,
+              "variables": [
+                "LIST_PEERS_TOOL",
+                "ASK_PEER_TOOL",
+                "RESPOND_TO_PEER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — What you CAN do",
+              "id": "role/worker/05-what-you-can-do",
+              "layer": "role",
+              "priority": 50,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Working guidelines (a directive may override these)",
+              "id": "role/worker/06-working-guidelines-a-directive-may-overr",
+              "layer": "role",
+              "priority": 60,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Working economically",
+              "id": "role/worker/06b-working-economically",
+              "layer": "role",
+              "priority": 65,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Communicating while you work",
+              "id": "role/worker/06c-communicating",
+              "layer": "role",
+              "priority": 67,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Style",
+              "id": "role/worker/07-style",
+              "layer": "role",
+              "priority": 70,
+              "variables": []
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Replying to the operator directly",
+              "id": "role/worker/08-replying-to-the-operator-directly",
+              "layer": "role",
+              "priority": 80,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Reporting (the output contract — follow literally)",
+              "id": "role/worker/09-reporting-the-output-contract-follow-lit",
+              "layer": "role",
+              "priority": 90,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Preview in the Eos browser",
+              "id": "role/worker/10-eos-browser",
+              "layer": "role",
+              "priority": 55,
+              "variables": [
+                "BROWSER_NEW_TAB_TOOL",
+                "BROWSER_NAVIGATE_TOOL",
+                "BROWSER_SHOW_TOOL",
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_GET_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — Pages (the user's shared notes)",
+              "id": "role/worker/10b-pages",
+              "layer": "role",
+              "priority": 57,
+              "variables": [
+                "LIST_PAGES_TOOL",
+                "READ_PAGE_TOOL",
+                "CREATE_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "EDIT_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker — The user's memory (search_memory, suggest_memory)",
+              "id": "role/worker/10c-memory",
+              "layer": "role",
+              "priority": 58,
+              "variables": [
+                "SEARCH_MEMORY_TOOL",
+                "SUGGEST_MEMORY_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Daemon safety-net nudge to a worker that reached IDLE having never reported this life",
+              "id": "system/report-reminder",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Orchestrator system preamble — emitted FIRST in the ORCHESTRATOR's assembled system prompt only",
+              "id": "system-preamble-orchestrator",
+              "layer": "core",
+              "priority": 0,
+              "variables": [
+                "USER_PROFILE"
+              ]
+            },
+            {
+              "conditional": true,
+              "description": "Worker system preamble — emitted FIRST in the worker + git agents' assembled system prompts",
+              "id": "system-preamble-worker",
+              "layer": "core",
+              "priority": 0,
+              "variables": [
+                "USER_PROFILE"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Bash",
+              "id": "tool/Bash",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — BashOutput",
+              "id": "tool/BashOutput",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Edit",
+              "id": "tool/Edit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — ExitPlanMode",
+              "id": "tool/ExitPlanMode",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Glob",
+              "id": "tool/Glob",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Grep",
+              "id": "tool/Grep",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — KillShell",
+              "id": "tool/KillShell",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — LS",
+              "id": "tool/LS",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — MultiEdit",
+              "id": "tool/MultiEdit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — NotebookEdit",
+              "id": "tool/NotebookEdit",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Read",
+              "id": "tool/Read",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Skill (load an Agent Skill on demand)",
+              "id": "tool/Skill",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Task (in-process subagent)",
+              "id": "tool/Task",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — TodoWrite",
+              "id": "tool/TodoWrite",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — WebFetch",
+              "id": "tool/WebFetch",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — WebSearch",
+              "id": "tool/WebSearch",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Built-in tool — Write",
+              "id": "tool/Write",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — append_to_page",
+              "id": "tool/append_to_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — ask_peer",
+              "id": "tool/ask_peer",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_PEERS_TOOL",
+                "RESPOND_TO_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — ask_user",
+              "id": "tool/ask_user",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "NOTIFY_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_act",
+              "id": "tool/browser_act",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_FIND_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_close_tab",
+              "id": "tool/browser_close_tab",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TABS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_fill_form",
+              "id": "tool/browser_fill_form",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TYPE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_find",
+              "id": "tool/browser_find",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_ACT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_get",
+              "id": "tool/browser_get",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_mute",
+              "id": "tool/browser_mute",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_navigate",
+              "id": "tool/browser_navigate",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL",
+                "BROWSER_NEW_TAB_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_new_tab",
+              "id": "tool/browser_new_tab",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_press",
+              "id": "tool/browser_press",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_TYPE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_screenshot",
+              "id": "tool/browser_screenshot",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_scroll",
+              "id": "tool/browser_scroll",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_SNAPSHOT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_show",
+              "id": "tool/browser_show",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_snapshot",
+              "id": "tool/browser_snapshot",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_ACT_TOOL",
+                "BROWSER_FIND_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_tabs",
+              "id": "tool/browser_tabs",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_type",
+              "id": "tool/browser_type",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "BROWSER_FILL_FORM_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — browser_wait",
+              "id": "tool/browser_wait",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — create_page",
+              "id": "tool/create_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Tool description — create_worker",
+              "id": "tool/create_worker",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — current_datetime",
+              "id": "tool/current_datetime",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — current_location",
+              "id": "tool/current_location",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "FIND_PLACES_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — dynamic_loop",
+              "id": "tool/dynamic_loop",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "KILL_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — edit_page",
+              "id": "tool/edit_page",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "READ_PAGE_TOOL",
+                "APPEND_TO_PAGE_TOOL",
+                "SET_PAGE_TASK_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — find_places",
+              "id": "tool/find_places",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CURRENT_LOCATION_TOOL",
+                "PRESENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — get_worker",
+              "id": "tool/get_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "GET_WORKER_MESSAGES_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — get_worker_messages",
+              "id": "tool/get_worker_messages",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — integrate_workers",
+              "id": "tool/integrate_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "SPAWN_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — kill_worker",
+              "id": "tool/kill_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "INTEGRATE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_active_workers",
+              "id": "tool/list_active_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "Tool description — list_available_workers",
+              "id": "tool/list_available_workers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "CREATE_WORKER_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_pages",
+              "id": "tool/list_pages",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "READ_PAGE_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_peers",
+              "id": "tool/list_peers",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — list_pending_permissions",
+              "id": "tool/list_pending_permissions",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — message_worker",
+              "id": "tool/message_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "SPAWN_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — notify_user",
+              "id": "tool/notify_user",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_USER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — plugin_preview",
+              "id": "tool/plugin_preview",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — plugin_status",
+              "id": "tool/plugin_status",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — present",
+              "id": "tool/present",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GENUI_CATALOG"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — present_app",
+              "id": "tool/present_app",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "PRESENT_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — read_page",
+              "id": "tool/read_page",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — respond_to_peer",
+              "id": "tool/respond_to_peer",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "ASK_PEER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — search_memory",
+              "id": "tool/search_memory",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — send_message_to_parent",
+              "id": "tool/send_message_to_parent",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — send_to_machine",
+              "id": "tool/send_to_machine",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — set_page_task",
+              "id": "tool/set_page_task",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — spawn_worker",
+              "id": "tool/spawn_worker",
+              "layer": null,
+              "priority": null,
+              "variables": [
+                "GET_WORKER_TOOL",
+                "KILL_WORKER_TOOL",
+                "MESSAGE_WORKER_TOOL",
+                "SEND_MESSAGE_TO_PARENT_TOOL",
+                "LIST_AVAILABLE_WORKERS_TOOL",
+                "LIST_ACTIVE_WORKERS_TOOL",
+                "LIST_PENDING_PERMISSIONS_TOOL",
+                "CREATE_WORKER_TOOL"
+              ]
+            },
+            {
+              "conditional": false,
+              "description": "MCP tool — suggest_memory",
+              "id": "tool/suggest_memory",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            },
+            {
+              "conditional": false,
+              "description": "Run the project's checks in YOUR working directory and report honest verdicts",
+              "id": "verify",
+              "layer": null,
+              "priority": null,
+              "variables": []
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "worker-definitions",
+        "request": "GET /worker-definitions",
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "plugins",
+        "request": "GET /api/plugins",
+        "status": 200
+      },
+      "route": "GET /api/plugins",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "dir": "{home}/plugins",
+          "installs": {},
+          "plugins": [
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.artifacts",
+              "manifest": {
+                "description": "Your claude.ai artifacts in the side panel — opened, previewed and listed for every Claude sign-in.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"3.5\"/><path d=\"M4 9h16\"/></svg>",
+                "id": "eos.artifacts",
+                "name": "Artifacts"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.auto-name",
+              "manifest": {
+                "description": "Names a new chat after its first request.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7V5h16v2M12 5v14M9 19h6\"/></svg>",
+                "id": "eos.auto-name",
+                "name": "Auto-name"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.browser",
+              "manifest": {
+                "description": "A browser in the side panel that you and your agents can both drive.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><circle cx=\"12\" cy=\"12\" r=\"8.5\"/><ellipse cx=\"12\" cy=\"12\" rx=\"3.7\" ry=\"8.5\"/><path d=\"M3.8 9h16.4M3.8 15h16.4\"/></svg>",
+                "id": "eos.browser",
+                "name": "Browser"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.btw",
+              "manifest": {
+                "description": "Ask the agent a quick question with /btw (⌘/) without adding to the chat.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 11.5a8 8 0 0 1-11.8 7L4 20l1.6-4.1A8 8 0 1 1 20 11.5Z\"/><path d=\"M10 9.3a2 2 0 1 1 2.8 1.9c-.6.3-.8.7-.8 1.3v.3M12 15.5h.01\"/></svg>",
+                "id": "eos.btw",
+                "name": "Side question"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.pages",
+              "manifest": {
+                "description": "Markdown notes and task lists you and your agents write together, in the side panel.",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 3.5h7.8L18 7.7v12.8H6z\"/><path d=\"M13.5 3.5v4.5H18M9 12.5h6M9 16h4\"/></svg>",
+                "id": "eos.pages",
+                "name": "Pages"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": true,
+              "dir": "",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "eos.terminal",
+              "manifest": {
+                "description": "Shells in the side panel (⌃`).",
+                "icon": "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2.5\" y=\"4\" width=\"19\" height=\"16\" rx=\"2.5\"/><path d=\"m6.5 9.5 3.5 3-3.5 3M12.5 15.5h5\"/></svg>",
+                "id": "eos.terminal",
+                "name": "Terminal"
+              },
+              "rev": 0,
+              "settings": {},
+              "state": "active"
+            },
+            {
+              "builtin": false,
+              "dir": "{home}/plugins/hello",
+              "enabled": true,
+              "error": null,
+              "hasCss": false,
+              "hasUi": false,
+              "id": "hello",
+              "manifest": {
+                "description": "An invented plugin for the wire fixtures.",
+                "id": "hello",
+                "name": "Hello",
+                "settings": {
+                  "greeting": {
+                    "default": "Hello",
+                    "title": "Greeting",
+                    "type": "string"
+                  },
+                  "loud": {
+                    "default": false,
+                    "title": "Loud",
+                    "type": "boolean"
+                  }
+                },
+                "version": "1.0.0"
+              },
+              "rev": 0,
+              "settings": {
+                "greeting": "Hello",
+                "loud": false
+              },
+              "state": "active"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "projects",
+        "request": "GET /projects",
+        "status": 200
+      },
+      "route": "GET /projects",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "projects": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "recents",
+        "request": "GET /fs/recents",
+        "status": 200
+      },
+      "route": "GET /fs/recents",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "paths": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "accounts",
+        "request": "GET /api/accounts",
+        "status": 200
+      },
+      "route": "GET /api/accounts",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "accounts": [
+            {
+              "apiKey": {
+                "set": false
+              },
+              "autoSwitch": false,
+              "id": "anthropic",
+              "label": "Claude",
+              "logins": [],
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "openai",
+              "label": "OpenAI",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": false
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "gemini",
+              "label": "Google Gemini",
+              "route": "none",
+              "subscription": {
+                "state": "signed_out",
+                "supported": true
+              }
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "xai",
+              "label": "xAI Grok",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "qwen",
+              "label": "Alibaba Qwen",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "moonshot",
+              "label": "Moonshot Kimi",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "zhipu",
+              "label": "Zhipu GLM (Z.ai)",
+              "route": "none",
+              "subscription": null
+            },
+            {
+              "apiKey": {
+                "set": false
+              },
+              "id": "deepseek",
+              "label": "DeepSeek",
+              "route": "none",
+              "subscription": null
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "usage",
+        "request": "GET /api/usage",
+        "status": 200
+      },
+      "route": "GET /api/usage",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "errors": [
+            {
+              "provider": "claude",
+              "reason": "No Claude subscription token configured."
+            },
+            {
+              "provider": "codex",
+              "reason": "Not signed in to ChatGPT."
+            }
+          ],
+          "providers": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "artifacts",
+        "request": "GET /api/artifacts",
+        "status": 200
+      },
+      "route": "GET /api/artifacts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "accounts": [],
+          "artifacts": [],
+          "refreshing": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dreams",
+        "request": "GET /api/dreams",
+        "status": 200,
+        "capture": {
+          "dream": "/json/runs/0/id"
+        }
+      },
+      "route": "GET /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "excluded": [
+            "w-BARE"
+          ],
+          "runs": [
+            {
+              "candidates": 0,
+              "chats": [],
+              "chatsRead": 0,
+              "dropped": {
+                "capped": 0,
+                "choice": 0,
+                "critic": 0,
+                "declined": 0,
+                "invalid": 0,
+                "known": 0,
+                "oneOff": 0,
+                "product": 0,
+                "secret": 0,
+                "style": 0,
+                "taskBound": 0,
+                "weak": 0
+              },
+              "finishedAt": "<now>",
+              "id": "<dream:1>",
+              "model": "opus",
+              "narrative": null,
+              "observations": 0,
+              "proposed": 0,
+              "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+              "rejected": [],
+              "startedAt": "<now>",
+              "status": "skipped",
+              "tokens": 0,
+              "trigger": "manual"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream",
+        "request": "GET /api/dreams/{dream}",
+        "status": 200,
+        "optional": true
+      },
+      "route": "GET /api/dreams/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "run": {
+            "candidates": 0,
+            "chats": [],
+            "chatsRead": 0,
+            "dropped": {
+              "capped": 0,
+              "choice": 0,
+              "critic": 0,
+              "declined": 0,
+              "invalid": 0,
+              "known": 0,
+              "oneOff": 0,
+              "product": 0,
+              "secret": 0,
+              "style": 0,
+              "taskBound": 0,
+              "weak": 0
+            },
+            "finishedAt": "<now>",
+            "id": "<dream:1>",
+            "model": "opus",
+            "narrative": null,
+            "observations": 0,
+            "proposed": 0,
+            "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+            "rejected": [],
+            "startedAt": "<now>",
+            "status": "skipped",
+            "tokens": 0,
+            "trigger": "manual"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-status",
+        "request": "GET /api/dreams/status",
+        "status": 200
+      },
+      "route": "GET /api/dreams/status",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "blocked": "disabled",
+          "lastRun": {
+            "candidates": 0,
+            "chats": [],
+            "chatsRead": 0,
+            "dropped": {
+              "capped": 0,
+              "choice": 0,
+              "critic": 0,
+              "declined": 0,
+              "invalid": 0,
+              "known": 0,
+              "oneOff": 0,
+              "product": 0,
+              "secret": 0,
+              "style": 0,
+              "taskBound": 0,
+              "weak": 0
+            },
+            "finishedAt": "<now>",
+            "id": "<dream:1>",
+            "model": "opus",
+            "narrative": null,
+            "observations": 0,
+            "proposed": 0,
+            "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+            "rejected": [],
+            "startedAt": "<now>",
+            "status": "skipped",
+            "tokens": 0,
+            "trigger": "manual"
+          },
+          "nextAt": null,
+          "progress": null,
+          "runId": null,
+          "running": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transfers",
+        "request": "GET /api/transfers",
+        "status": 200
+      },
+      "route": "GET /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "transfers": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "update",
+        "request": "GET /api/update",
+        "status": 200
+      },
+      "route": "GET /api/update",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": false,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "sync",
+        "request": "GET /api/sync",
+        "status": 200
+      },
+      "route": "GET /api/sync",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "counts": {},
+          "error": null,
+          "lastSyncAt": null,
+          "phase": "off",
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "host",
+        "request": "GET /api/host",
+        "status": 200
+      },
+      "route": "GET /api/host",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apiStamp": "07d306e4c80470da",
+          "deviceId": "<device-id>",
+          "home": "{user_home}",
+          "id": "<host-id>",
+          "name": "<machine-name>",
+          "platform": "darwin",
+          "servesUi": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer",
+        "request": "GET /api/peer",
+        "status": 200
+      },
+      "route": "GET /api/peer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "addrs": [],
+          "devices": [],
+          "direct": false,
+          "enabled": false,
+          "host": {
+            "apiStamp": "07d306e4c80470da",
+            "deviceId": "<device-id>",
+            "home": "{user_home}",
+            "id": "<host-id>",
+            "name": "<machine-name>",
+            "platform": "darwin",
+            "servesUi": false
+          },
+          "listening": false,
+          "openInvites": 0,
+          "port": 7402,
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "hosts",
+        "request": "GET /api/hosts",
+        "status": 200
+      },
+      "route": "GET /api/hosts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "hosts": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "remote-status",
+        "request": "GET /api/remote/status",
+        "status": 200
+      },
+      "route": "GET /api/remote/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "armed": false,
+          "enabled": false,
+          "relayUrl": "wss://silver-giraffe-71764.zap.cloud/"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "terminals",
+        "request": "GET /pty",
+        "status": 200
+      },
+      "route": "GET /pty",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "sessions": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "workers",
+        "request": "GET /workers",
+        "query": {
+          "brief": "1"
+        },
+        "status": 200,
+        "capture": {
+          "chat": "/json/[agent_role=focused]/id",
+          "cwd": "/json/[agent_role=focused]/cwd",
+          "kid": "/json/[with_gateway=1]/id"
+        }
+      },
+      "route": "GET /workers",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 400
+            },
+            "cost_usd": 0.02,
+            "cwd": "{sandbox}/beta",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-BUSY",
+            "is_orchestrator": 0,
+            "last_context_tokens": 400,
+            "model": "opus",
+            "name": "Summarize notes",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "plan",
+            "pid": null,
+            "port": null,
+            "prompt": "Summarize notes.md.",
+            "scratch": 0,
+            "session_id": "<uuid:1>",
+            "started_at": 1790000400000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 400,
+            "tokens_out": 20,
+            "tool_calls": 1,
+            "tool_scope": null,
+            "turn_started_at": 1790000401000,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 150
+            },
+            "cost_usd": 0.01,
+            "cwd": null,
+            "effort": "medium",
+            "ended_at": 1790000330000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-BARE",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150,
+            "model": "opus",
+            "name": null,
+            "name_source": "default",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Explain what a monad is in two sentences.",
+            "scratch": 1,
+            "session_id": null,
+            "started_at": 1790000300000,
+            "state": "DONE",
+            "tasks": null,
+            "tokens_cache_create": 0,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 0,
+            "tokens_in": 150,
+            "tokens_out": 60,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 1,
+            "context": {
+              "limit": 1000000,
+              "pct": 0,
+              "used": 3900
+            },
+            "cost_usd": 0.05,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-KID2",
+            "is_orchestrator": 0,
+            "last_context_tokens": 3900,
+            "model": "sonnet",
+            "name": "readme scout",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Find where the README documents flags.",
+            "scratch": 0,
+            "session_id": "<uuid:2>",
+            "started_at": 1790000220000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 100,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 3000,
+            "tokens_in": 800,
+            "tokens_out": 200,
+            "tool_calls": 2,
+            "tool_scope": "{\"allow\":[\"Read\",\"Grep\",\"Glob\",\"Task\",\"Bash(rg:*)\"],\"deny\":[],\"editRegex\":null}",
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "explorer",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 11700
+            },
+            "cost_usd": 0.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": 1790000290000,
+            "exit_code": 0,
+            "fork_base_sha": null,
+            "id": "w-KID1",
+            "is_orchestrator": 0,
+            "last_context_tokens": 11700,
+            "model": "opus",
+            "name": "json flag impl",
+            "name_source": "user",
+            "parent_id": "o-ORCH",
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Implement the --json flag in cli.js.",
+            "scratch": 0,
+            "session_id": "<uuid:3>",
+            "started_at": 1790000210000,
+            "state": "DONE",
+            "tasks": "[{\"id\":\"1\",\"subject\":\"Add flag\",\"status\":\"completed\"},{\"id\":\"2\",\"subject\":\"Write test\",\"status\":\"completed\"}]",
+            "tokens_cache_create": 700,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 9000,
+            "tokens_in": 2000,
+            "tokens_out": 500,
+            "tool_calls": 6,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 1,
+            "worker_definition": "general-purpose",
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 3,
+              "used": 26500
+            },
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 15,
+              "used": 150000
+            },
+            "cost_usd": 2.5,
+            "cwd": "{sandbox}/alpha",
+            "effort": "medium",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-LONG",
+            "is_orchestrator": 0,
+            "last_context_tokens": 150000,
+            "model": "sonnet",
+            "name": "Long chat",
+            "name_source": "user",
+            "parent_id": null,
+            "permission_mode": "default",
+            "pid": null,
+            "port": null,
+            "prompt": "Count to a thousand.",
+            "scratch": 0,
+            "session_id": "<uuid:5>",
+            "started_at": 1790000100000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 3000,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 400000,
+            "tokens_in": 90000,
+            "tokens_out": 12000,
+            "tool_calls": 0,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          },
+          {
+            "agent_role": "focused",
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "context": {
+              "limit": 1000000,
+              "pct": 1,
+              "used": 7600
+            },
+            "cost_usd": 0.4321,
+            "cwd": "{sandbox}/alpha",
+            "effort": "high",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "w-CHAT",
+            "is_orchestrator": 0,
+            "last_context_tokens": 7600,
+            "model": "opus",
+            "name": "Fix the parser",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "bypassPermissions",
+            "pid": null,
+            "port": null,
+            "prompt": "Fix the parser so empty input returns an empty list.",
+            "scratch": 0,
+            "session_id": "<uuid:6>",
+            "started_at": 1790000000000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 800,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 5600,
+            "tokens_in": 1200,
+            "tokens_out": 340,
+            "tool_calls": 3,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "orchestrators",
+        "request": "GET /orchestrators",
+        "status": 200,
+        "capture": {
+          "orch": "/json/0/id"
+        }
+      },
+      "route": "GET /orchestrators",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "agent_role": null,
+            "archived_at": null,
+            "backend_kind": "claude",
+            "backend_profile": null,
+            "branch": null,
+            "collaborate": 0,
+            "cost_usd": 1.25,
+            "cwd": "{sandbox}/alpha",
+            "effort": "xhigh",
+            "ended_at": null,
+            "exit_code": null,
+            "fork_base_sha": null,
+            "id": "o-ORCH",
+            "is_orchestrator": 1,
+            "last_context_tokens": 26500,
+            "model": "opus",
+            "name": "JSON flag",
+            "name_source": "auto",
+            "parent_id": null,
+            "permission_mode": "acceptEdits",
+            "pid": null,
+            "port": null,
+            "prompt": "Add a --json flag and document it.",
+            "scratch": 0,
+            "session_id": "<uuid:4>",
+            "started_at": 1790000200000,
+            "state": "SUSPENDED",
+            "tasks": null,
+            "tokens_cache_create": 1500,
+            "tokens_cache_create_1h": 0,
+            "tokens_cache_read": 20000,
+            "tokens_in": 5000,
+            "tokens_out": 900,
+            "tool_calls": 4,
+            "tool_scope": null,
+            "turn_started_at": null,
+            "with_gateway": 0,
+            "worker_definition": null,
+            "workspace_owner_id": null,
+            "workspace_ready": 1,
+            "worktree_dir": null,
+            "worktree_from": null
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transcript-chat",
+        "request": "GET /workers/{chat}/events",
+        "query": {
+          "limit": "500"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 684,
+            "payload": "{\"text\":\"Summarize notes.md.\",\"msgId\":\"m-0401\",\"clientMsgIds\":[\"c-0401\"]}",
+            "ts": 1790000400000,
+            "type": "user_message",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 685,
+            "payload": "{\"state\":\"WORKING\",\"from\":\"IDLE\",\"reason\":\"turn started\"}",
+            "ts": 1790000401000,
+            "type": "state",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 686,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_read_9\",\"name\":\"Read\",\"input\":{\"file_path\":\"{sandbox}/beta/notes.md\"}}]}",
+            "ts": 1790000402000,
+            "type": "agent_event",
+            "worker_id": "w-BUSY"
+          },
+          {
+            "id": 687,
+            "payload": "{\"state\":\"SUSPENDED\",\"from\":\"WORKING\",\"reason\":\"boot_reconcile\"}",
+            "ts": "<now>",
+            "type": "state",
+            "worker_id": "w-BUSY"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transcript-orchestrator",
+        "request": "GET /workers/{orch}/events",
+        "query": {
+          "limit": "500"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 663,
+            "payload": "{\"resumed\":false,\"sessionId\":\"<uuid:4>\",\"pid\":null}",
+            "ts": 1790000200000,
+            "type": "spawn",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 664,
+            "payload": "{\"text\":\"Add a --json flag and document it.\",\"msgId\":\"m-0101\",\"clientMsgIds\":[\"c-0101\"]}",
+            "ts": 1790000200100,
+            "type": "user_message",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 665,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_spawn_1\",\"name\":\"mcp__orchestrator__spawn_worker\",\"input\":{\"from\":\"general-purpose\",\"prompt\":\"Implement the --json flag in cli.js.\",\"name\":\"json flag impl\"}}]}",
+            "ts": 1790000200200,
+            "type": "agent_event",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 666,
+            "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"call_spawn_1\",\"isError\":false,\"content\":\"{\\\"id\\\":\\\"w-KID1\\\"}\"}]}",
+            "ts": 1790000200300,
+            "type": "agent_event",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 667,
+            "payload": "{\"text\":\"Implemented --json in src/cli.js and added a test.\",\"fromWorker\":\"w-KID1\",\"workerName\":\"json flag impl\"}",
+            "ts": 1790000291000,
+            "type": "worker_report",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 668,
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"blocks\":[{\"type\":\"text\",\"text\":\"The flag is in. The README still needs a line.\",\"blockId\":\"b-o-1\"}]}",
+            "ts": 1790000292000,
+            "type": "agent_event",
+            "worker_id": "o-ORCH"
+          },
+          {
+            "id": 669,
+            "payload": "{\"state\":\"SUSPENDED\",\"from\":\"IDLE\",\"reason\":\"idle suspend\"}",
+            "ts": 1790000293000,
+            "type": "state",
+            "worker_id": "o-ORCH"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transcript-worker",
+        "request": "GET /workers/{kid}/events",
+        "query": {
+          "limit": "500"
+        },
+        "status": 200
+      },
+      "route": "GET /workers/:id/events",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": [
+          {
+            "id": 675,
+            "payload": "{\"resumed\":false,\"sessionId\":\"<uuid:2>\",\"pid\":null}",
+            "ts": 1790000220000,
+            "type": "spawn",
+            "worker_id": "w-KID2"
+          },
+          {
+            "id": 676,
+            "payload": "{\"text\":\"Find where the README documents flags.\",\"fromParent\":\"o-ORCH\",\"parentName\":\"JSON flag\"}",
+            "ts": 1790000220100,
+            "type": "orchestrator_message",
+            "worker_id": "w-KID2"
+          },
+          {
+            "id": 677,
+            "payload": "{\"state\":\"SUSPENDED\",\"from\":\"IDLE\",\"reason\":\"idle suspend\"}",
+            "ts": 1790000225000,
+            "type": "state",
+            "worker_id": "w-KID2"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-stat",
+        "request": "GET /fs/stat",
+        "query": {
+          "path": "{cwd}"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "absolutePath": "{sandbox}/beta",
+          "isSymlink": false,
+          "mtimeMs": "<now>",
+          "readonly": false,
+          "size": 160,
+          "type": "directory"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-list",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{cwd}"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/beta/sub",
+              "isSymlink": false,
+              "name": "sub",
+              "relativePath": "sub",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/beta/notes.md",
+              "isSymlink": false,
+              "name": "notes.md",
+              "relativePath": "notes.md",
+              "type": "file"
+            },
+            {
+              "absolutePath": "{sandbox}/beta/pixel.png",
+              "isSymlink": false,
+              "name": "pixel.png",
+              "relativePath": "pixel.png",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-branches",
+        "request": "GET /fs/branches",
+        "query": {
+          "cwd": "{cwd}"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/branches",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ahead": null,
+          "behind": null,
+          "branches": [],
+          "conflicts": 0,
+          "current": null,
+          "isGit": false,
+          "remoteUrl": null,
+          "stash": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-log",
+        "request": "GET /fs/log",
+        "query": {
+          "cwd": "{cwd}",
+          "limit": "3"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/log",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "commits": [],
+          "hasMore": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-changes",
+        "request": "GET /fs/changes",
+        "query": {
+          "cwd": "{cwd}"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/changes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "baseLabel": null,
+          "baseSha": null,
+          "deletions": 0,
+          "files": [],
+          "headLabel": "HEAD",
+          "headSha": null,
+          "insertions": 0,
+          "repoLabel": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "folder-stashes",
+        "request": "GET /fs/stashes",
+        "query": {
+          "cwd": "{cwd}"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/stashes",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "stashes": []
+        },
+        "status": 200
+      }
+    }
+  ]
+}

@@ -1,0 +1,612 @@
+{
+  "scenario": "18-http",
+  "about": "Answers that are the same on every route: unknown paths and methods, request ids, weak etags and 304, gzip, unreadable bodies.",
+  "record_headers": [
+    "x-request-id",
+    "vary"
+  ],
+  "exchanges": [
+    {
+      "step": {
+        "name": "unknown-path",
+        "request": "GET /nope",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:1>"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "unknown-method",
+        "request": "POST /health",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:2>"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/health"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "trailing-slash",
+        "request": "GET /workers/",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:3>"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/workers/"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "head-is-not-get",
+        "request": "HEAD /health",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:4>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "request-id-echoed",
+        "request": "GET /health",
+        "headers": {
+          "x-request-id": "wire-request-1"
+        },
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "wire-request-1"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "request-id-minted",
+        "request": "GET /health",
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:5>"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "request-id-on-404",
+        "request": "GET /nope",
+        "headers": {
+          "x-request-id": "wire-request-2"
+        },
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "wire-request-2"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "small-answer-has-no-etag",
+        "request": "GET /api/dreams/status",
+        "status": 200
+      },
+      "route": "GET /api/dreams/status",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:6>"
+        },
+        "json": {
+          "blocked": "disabled",
+          "lastRun": {
+            "candidates": 0,
+            "chats": [],
+            "chatsRead": 0,
+            "dropped": {
+              "capped": 0,
+              "choice": 0,
+              "critic": 0,
+              "declined": 0,
+              "invalid": 0,
+              "known": 0,
+              "oneOff": 0,
+              "product": 0,
+              "secret": 0,
+              "style": 0,
+              "taskBound": 0,
+              "weak": 0
+            },
+            "finishedAt": "<now>",
+            "id": "<dream:1>",
+            "model": "opus",
+            "narrative": null,
+            "observations": 0,
+            "proposed": 0,
+            "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+            "rejected": [],
+            "startedAt": "<now>",
+            "status": "skipped",
+            "tokens": 0,
+            "trigger": "manual"
+          },
+          "nextAt": null,
+          "progress": null,
+          "runId": null,
+          "running": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "large-answer-has-an-etag",
+        "request": "GET /worker-definitions",
+        "status": 200,
+        "capture": {
+          "etag": "/headers/etag"
+        }
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:7>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "not-modified",
+        "request": "GET /worker-definitions",
+        "headers": {
+          "if-none-match": "{etag}"
+        },
+        "status": 304
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:8>"
+        },
+        "status": 304
+      }
+    },
+    {
+      "step": {
+        "name": "etag-mismatch",
+        "request": "GET /worker-definitions",
+        "headers": {
+          "if-none-match": "W/\"other\""
+        },
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:9>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "gzip-large",
+        "request": "GET /worker-definitions",
+        "headers": {
+          "accept-encoding": "gzip, br"
+        },
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-encoding": "gzip",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:10>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "gzip-small",
+        "request": "GET /api/dreams/status",
+        "headers": {
+          "accept-encoding": "gzip"
+        },
+        "status": 200
+      },
+      "route": "GET /api/dreams/status",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:11>"
+        },
+        "json": {
+          "blocked": "disabled",
+          "lastRun": {
+            "candidates": 0,
+            "chats": [],
+            "chatsRead": 0,
+            "dropped": {
+              "capped": 0,
+              "choice": 0,
+              "critic": 0,
+              "declined": 0,
+              "invalid": 0,
+              "known": 0,
+              "oneOff": 0,
+              "product": 0,
+              "secret": 0,
+              "style": 0,
+              "taskBound": 0,
+              "weak": 0
+            },
+            "finishedAt": "<now>",
+            "id": "<dream:1>",
+            "model": "opus",
+            "narrative": null,
+            "observations": 0,
+            "proposed": 0,
+            "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+            "rejected": [],
+            "startedAt": "<now>",
+            "status": "skipped",
+            "tokens": 0,
+            "trigger": "manual"
+          },
+          "nextAt": null,
+          "progress": null,
+          "runId": null,
+          "running": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "gzip-not-accepted",
+        "request": "GET /worker-definitions",
+        "headers": {
+          "accept-encoding": "br"
+        },
+        "status": 200
+      },
+      "route": "GET /worker-definitions",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "vary": "Origin",
+          "x-request-id": "<request:12>"
+        },
+        "json": [
+          {
+            "description": "Read-only codebase explorer — locates, traces, and maps existing code; reports findings, changes nothing.",
+            "name": "explorer",
+            "source": "builtin",
+            "whenToUse": "Dispatch for read-only exploration inside the repo — find where something lives, map structure, trace call paths, summarize how existing code works. Evidence is the checked-out code; findings arrive in its report; it cannot edit, write files, or run commands. Needs web or external-doc evidence → researcher. Needs files changed or commands run → general-purpose.\n"
+          },
+          {
+            "description": "Default worker for any task with no better-matching specialist.",
+            "name": "general-purpose",
+            "source": "builtin",
+            "whenToUse": "Use when no specialist worker's whenToUse matches the task."
+          },
+          {
+            "description": "Conversational git worker for commits, rebases, pull requests, and recovery.",
+            "name": "git",
+            "source": "builtin",
+            "whenToUse": "Dispatch for interactive git work — staging and committing, rebasing or merging branches, opening pull requests, resolving conflicts, or recovering a broken working tree. Runs persistently with bypassPermissions for shell-heavy git ops.\n"
+          },
+          {
+            "description": "Web-led deep-research specialist that writes cited findings files.",
+            "name": "researcher",
+            "source": "builtin",
+            "whenToUse": "Dispatch when the needed evidence lives outside the repo — surveying the web, comparing options, verifying claims — and the deliverable is a cited findings file (verbatim quote + source URL + access date per claim). Give it a research question and an output path; for broad surveys spawn one per dimension, sharing a findings dir. It cannot run commands (no Bash) and never edits project code — code changes go to general-purpose; questions the repo alone can answer go to explorer.\n"
+          }
+        ],
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "body-not-json",
+        "request": "POST /stream/focus",
+        "text": "{ not json",
+        "content_type": "application/json",
+        "status": 500
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:13>"
+        },
+        "json": {
+          "error": "Expected property name or '}' in JSON at position 2 (line 1 column 3)"
+        },
+        "status": 500
+      }
+    },
+    {
+      "step": {
+        "name": "body-empty",
+        "request": "POST /stream/focus",
+        "status": 400
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:14>"
+        },
+        "json": {
+          "error": "invalid request: clientId: Required; workers: Required; ptys: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "body-json-array",
+        "request": "POST /stream/focus",
+        "json": "[1, 2]",
+        "status": 400
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:15>"
+        },
+        "json": {
+          "error": "invalid request: : Expected object, received array"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "body-wrong-content-type",
+        "request": "POST /stream/focus",
+        "text": "{\"clientId\":\"wire-tab\",\"workers\":[],\"ptys\":[]}",
+        "content_type": "text/plain",
+        "status": 200
+      },
+      "route": "POST /stream/focus",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:16>"
+        },
+        "json": {
+          "live": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "encoded-path-segment",
+        "request": "GET /workers/w%2DCHAT",
+        "status": 404
+      },
+      "route": "GET /workers/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:17>"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "query-on-a-literal-path",
+        "request": "GET /health",
+        "query": {
+          "anything": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /health",
+      "response": {
+        "headers": {
+          "content-type": "application/json",
+          "vary": "Origin",
+          "x-request-id": "<request:18>"
+        },
+        "json": {
+          "fds": {
+            "limit": "<count>",
+            "open": "<count>"
+          },
+          "ok": true,
+          "pid": "<pid>",
+          "sourceStamp": "<source-stamp>",
+          "startedAt": "<now>"
+        },
+        "status": 200
+      }
+    }
+  ]
+}

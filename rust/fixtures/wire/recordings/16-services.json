@@ -1,0 +1,1380 @@
+{
+  "scenario": "16-services",
+  "about": "Status shapes of the background services while they are off: updates, sync, transfers, dreams, the phone relay, hosting and paired computers.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "update",
+        "request": "GET /api/update",
+        "status": 200
+      },
+      "route": "GET /api/update",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": true,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "update-without-token",
+        "request": "GET /api/update",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/update",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "update-check",
+        "request": "POST /api/update/check",
+        "body": {},
+        "status": 202
+      },
+      "route": "POST /api/update/check",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": true,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 202
+      }
+    },
+    {
+      "step": {
+        "name": "update-check-unknown-key",
+        "request": "POST /api/update/check",
+        "body": {
+          "force": true
+        },
+        "status": 400
+      },
+      "route": "POST /api/update/check",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : Unrecognized key(s) in object: 'force'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "update-download",
+        "request": "POST /api/update/download",
+        "status": 202
+      },
+      "route": "POST /api/update/download",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": true,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 202
+      }
+    },
+    {
+      "step": {
+        "name": "update-restart-nothing-ready",
+        "request": "POST /api/update/restart",
+        "body": {
+          "when": "idle"
+        },
+        "status": 409
+      },
+      "route": "POST /api/update/restart",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no update is ready to restart into"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "update-later",
+        "request": "POST /api/update/later",
+        "status": 200
+      },
+      "route": "POST /api/update/later",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": true,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "update-dismiss",
+        "request": "POST /api/update/dismiss",
+        "status": 200
+      },
+      "route": "POST /api/update/dismiss",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": true,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "update-settings",
+        "request": "PUT /api/settings/updates",
+        "body": {
+          "autoDownload": false
+        },
+        "status": 200
+      },
+      "route": "PUT /api/settings/updates",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "autoDownload": false,
+          "current": null,
+          "lastCheckedAt": null,
+          "notes": null,
+          "notice": null,
+          "status": {
+            "agents": null,
+            "bytes": null,
+            "done": null,
+            "error": null,
+            "full": null,
+            "off": "dev-build",
+            "phase": "off",
+            "version": null
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "sync",
+        "request": "GET /api/sync",
+        "status": 200
+      },
+      "route": "GET /api/sync",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "counts": {},
+          "error": null,
+          "lastSyncAt": null,
+          "phase": "off",
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "sync-key-off",
+        "request": "GET /api/sync/key",
+        "status": 404
+      },
+      "route": "GET /api/sync/key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "sync is off"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "sync-key-without-token",
+        "request": "GET /api/sync/key",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/sync/key",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "sync-join-bad-key",
+        "request": "POST /api/sync/join",
+        "body": {
+          "key": "not-a-sync-key-at-all"
+        },
+        "status": 400
+      },
+      "route": "POST /api/sync/join",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "that isn't a sync key"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "sync-now-off",
+        "request": "POST /api/sync/now",
+        "status": 202
+      },
+      "route": "POST /api/sync/now",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "counts": {},
+          "error": null,
+          "lastSyncAt": null,
+          "phase": "off",
+          "relay": null
+        },
+        "status": 202
+      }
+    },
+    {
+      "step": {
+        "name": "sync-leave-off",
+        "request": "POST /api/sync/leave",
+        "status": 200
+      },
+      "route": "POST /api/sync/leave",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "counts": {},
+          "error": null,
+          "lastSyncAt": null,
+          "phase": "off",
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transfers",
+        "request": "GET /api/transfers",
+        "status": 200
+      },
+      "route": "GET /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "transfers": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transfers-without-token",
+        "request": "GET /api/transfers",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "forbidden",
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "transfers-clear",
+        "request": "DELETE /api/transfers",
+        "status": 200
+      },
+      "route": "DELETE /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "removed": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "transfer-start-invalid",
+        "request": "POST /api/transfers",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /api/transfers",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: from: Invalid input; to: Invalid input; paths: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "transfer-destination-invalid",
+        "request": "POST /api/transfers/destination",
+        "body": {},
+        "status": 400
+      },
+      "route": "POST /api/transfers/destination",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: from: Invalid input; to: Invalid input; paths: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "transfer-pause-unknown",
+        "request": "POST /api/transfers/tr-nope/pause",
+        "status": 404
+      },
+      "route": "POST /api/transfers/:id/:action",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "transfer not found: tr-nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "dreams",
+        "request": "GET /api/dreams",
+        "status": 200
+      },
+      "route": "GET /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "excluded": [],
+          "runs": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-status",
+        "request": "GET /api/dreams/status",
+        "status": 200
+      },
+      "route": "GET /api/dreams/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "blocked": "disabled",
+          "lastRun": null,
+          "nextAt": null,
+          "progress": null,
+          "runId": null,
+          "running": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-unknown",
+        "request": "GET /api/dreams/dr-nope",
+        "status": 404
+      },
+      "route": "GET /api/dreams/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no such dream"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "dream-now-signed-out",
+        "request": "POST /api/dreams",
+        "status": 202
+      },
+      "route": "POST /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "started": true
+        },
+        "status": 202
+      }
+    },
+    {
+      "step": {
+        "name": "dream-now-without-token",
+        "request": "POST /api/dreams",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "POST /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "dream-stop",
+        "request": "POST /api/dreams/stop",
+        "status": 200
+      },
+      "route": "POST /api/dreams/stop",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "stopping": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-exclude",
+        "request": "POST /api/dreams/exclusions",
+        "body": {
+          "excluded": true,
+          "workerId": "w-BARE"
+        },
+        "status": 200
+      },
+      "route": "POST /api/dreams/exclusions",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "excluded": [
+            "w-BARE"
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-exclude-invalid",
+        "request": "POST /api/dreams/exclusions",
+        "body": {
+          "workerId": ""
+        },
+        "status": 400
+      },
+      "route": "POST /api/dreams/exclusions",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: workerId: String must contain at least 1 character(s); excluded: Required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "dreams-with-run",
+        "request": "GET /api/dreams",
+        "status": 200,
+        "capture": {
+          "dream": "/json/runs/0/id"
+        }
+      },
+      "route": "GET /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "excluded": [
+            "w-BARE"
+          ],
+          "runs": [
+            {
+              "candidates": 0,
+              "chats": [],
+              "chatsRead": 0,
+              "dropped": {
+                "capped": 0,
+                "choice": 0,
+                "critic": 0,
+                "declined": 0,
+                "invalid": 0,
+                "known": 0,
+                "oneOff": 0,
+                "product": 0,
+                "secret": 0,
+                "style": 0,
+                "taskBound": 0,
+                "weak": 0
+              },
+              "finishedAt": "<now>",
+              "id": "<dream:1>",
+              "model": "opus",
+              "narrative": null,
+              "observations": 0,
+              "proposed": 0,
+              "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+              "rejected": [],
+              "startedAt": "<now>",
+              "status": "skipped",
+              "tokens": 0,
+              "trigger": "manual"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dream-run",
+        "request": "GET /api/dreams/{dream}",
+        "status": 200
+      },
+      "route": "GET /api/dreams/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "run": {
+            "candidates": 0,
+            "chats": [],
+            "chatsRead": 0,
+            "dropped": {
+              "capped": 0,
+              "choice": 0,
+              "critic": 0,
+              "declined": 0,
+              "invalid": 0,
+              "known": 0,
+              "oneOff": 0,
+              "product": 0,
+              "secret": 0,
+              "style": 0,
+              "taskBound": 0,
+              "weak": 0
+            },
+            "finishedAt": "<now>",
+            "id": "<dream:1>",
+            "model": "opus",
+            "narrative": null,
+            "observations": 0,
+            "proposed": 0,
+            "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+            "rejected": [],
+            "startedAt": "<now>",
+            "status": "skipped",
+            "tokens": 0,
+            "trigger": "manual"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "dreams-after",
+        "request": "GET /api/dreams",
+        "status": 200
+      },
+      "route": "GET /api/dreams",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "excluded": [
+            "w-BARE"
+          ],
+          "runs": [
+            {
+              "candidates": 0,
+              "chats": [],
+              "chatsRead": 0,
+              "dropped": {
+                "capped": 0,
+                "choice": 0,
+                "critic": 0,
+                "declined": 0,
+                "invalid": 0,
+                "known": 0,
+                "oneOff": 0,
+                "product": 0,
+                "secret": 0,
+                "style": 0,
+                "taskBound": 0,
+                "weak": 0
+              },
+              "finishedAt": "<now>",
+              "id": "<dream:1>",
+              "model": "opus",
+              "narrative": null,
+              "observations": 0,
+              "proposed": 0,
+              "reason": "Needs a Claude sign-in — dreams run on your plan, never an API key",
+              "rejected": [],
+              "startedAt": "<now>",
+              "status": "skipped",
+              "tokens": 0,
+              "trigger": "manual"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "remote-status",
+        "request": "GET /api/remote/status",
+        "status": 200
+      },
+      "route": "GET /api/remote/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "armed": false,
+          "enabled": false,
+          "relayUrl": "wss://silver-giraffe-71764.zap.cloud/"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "remote-status-without-token",
+        "request": "GET /api/remote/status",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/remote/status",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "remote-pair-not-armed",
+        "request": "POST /api/remote/pair",
+        "status": 409
+      },
+      "route": "POST /api/remote/pair",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "remote not armed; enable + set relay URL + Save"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "remote-config-bad-body",
+        "request": "PUT /api/remote/config",
+        "body": {
+          "enabled": "yes"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/remote/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: enabled: Expected boolean, received string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "remote-config-save",
+        "request": "PUT /api/remote/config",
+        "body": {
+          "enabled": false
+        },
+        "status": 200
+      },
+      "route": "PUT /api/remote/config",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "remote": {
+            "enabled": false,
+            "inactivityLeaseMs": 1800000,
+            "rateLimit": {
+              "globalPerMin": 600,
+              "pairingPerMin": 5,
+              "perDevicePerMin": 120
+            },
+            "relay": {
+              "url": "wss://silver-giraffe-71764.zap.cloud/"
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "host",
+        "request": "GET /api/host",
+        "auth": "none",
+        "status": 200
+      },
+      "route": "GET /api/host",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "apiStamp": "07d306e4c80470da",
+          "deviceId": "<device-id>",
+          "home": "{user_home}",
+          "id": "<host-id>",
+          "name": "<machine-name>",
+          "platform": "darwin",
+          "servesUi": false
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer",
+        "request": "GET /api/peer",
+        "status": 200
+      },
+      "route": "GET /api/peer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "addrs": [],
+          "devices": [],
+          "direct": true,
+          "enabled": false,
+          "host": {
+            "apiStamp": "07d306e4c80470da",
+            "deviceId": "<device-id>",
+            "home": "{user_home}",
+            "id": "<host-id>",
+            "name": "<machine-name>",
+            "platform": "darwin",
+            "servesUi": false
+          },
+          "listening": false,
+          "openInvites": 0,
+          "port": 7402,
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-without-token",
+        "request": "GET /api/peer",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/peer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "peer-save-bad-body",
+        "request": "PUT /api/peer",
+        "body": {
+          "port": "x"
+        },
+        "status": 400
+      },
+      "route": "PUT /api/peer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: port: Expected number, received string"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "peer-save",
+        "request": "PUT /api/peer",
+        "body": {
+          "direct": false
+        },
+        "status": 200
+      },
+      "route": "PUT /api/peer",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "addrs": [],
+          "devices": [],
+          "direct": false,
+          "enabled": false,
+          "host": {
+            "apiStamp": "07d306e4c80470da",
+            "deviceId": "<device-id>",
+            "home": "{user_home}",
+            "id": "<host-id>",
+            "name": "<machine-name>",
+            "platform": "darwin",
+            "servesUi": false
+          },
+          "listening": false,
+          "openInvites": 0,
+          "port": 7402,
+          "relay": null
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-invite-while-off",
+        "request": "POST /api/peer/invite",
+        "status": 409
+      },
+      "route": "POST /api/peer/invite",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "turn on remote access first"
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "peer-invites-cancel",
+        "request": "DELETE /api/peer/invite",
+        "status": 200
+      },
+      "route": "DELETE /api/peer/invite",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "cancelled": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-device-revoke-unknown",
+        "request": "DELETE /api/peer/devices/00000000000000000000000000000000000000000000000000000000000000aa",
+        "status": 404
+      },
+      "route": "DELETE /api/peer/devices/:fp",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "no such device"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "peer-device-disconnect-unknown",
+        "request": "POST /api/peer/devices/00000000000000000000000000000000000000000000000000000000000000aa/disconnect",
+        "status": 200
+      },
+      "route": "POST /api/peer/devices/:fp/disconnect",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "disconnected": 0
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "peer-pair-on-loopback",
+        "request": "POST /peer/pair",
+        "body": {},
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/peer/pair"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "peer-reverse-on-loopback",
+        "request": "POST /peer/reverse",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/peer/reverse"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "hosts",
+        "request": "GET /api/hosts",
+        "status": 200
+      },
+      "route": "GET /api/hosts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "hosts": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "hosts-without-token",
+        "request": "GET /api/hosts",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "GET /api/hosts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "host-connect-bad-invite",
+        "request": "POST /api/hosts",
+        "body": {
+          "invite": "eos://pair/not-a-real-invite-link"
+        },
+        "status": 400
+      },
+      "route": "POST /api/hosts",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invite link is damaged — copy it again"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "host-update-unknown",
+        "request": "PUT /api/hosts/00000000000000000000000000000000000000000000000000000000000000aa",
+        "body": {
+          "alias": "desk"
+        },
+        "status": 404
+      },
+      "route": "PUT /api/hosts/:fp",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "host-forget-unknown",
+        "request": "DELETE /api/hosts/00000000000000000000000000000000000000000000000000000000000000aa",
+        "status": 404
+      },
+      "route": "DELETE /api/hosts/:fp",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "host-view-token-unknown",
+        "request": "POST /api/hosts/00000000000000000000000000000000000000000000000000000000000000aa/view-token",
+        "status": 404
+      },
+      "route": "POST /api/hosts/:fp/view-token",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "host-reconnect-unknown",
+        "request": "POST /api/hosts/00000000000000000000000000000000000000000000000000000000000000aa/reconnect",
+        "status": 404
+      },
+      "route": "POST /api/hosts/:fp/reconnect",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "facade-unknown-host",
+        "request": "GET /h/00000000000000000000000000000000000000000000000000000000000000aa/workers",
+        "status": 404
+      },
+      "route": "GET /h/:hostId/*",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unknown-host",
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "facade-unknown-host-without-token",
+        "request": "GET /h/00000000000000000000000000000000000000000000000000000000000000aa/workers",
+        "auth": "none",
+        "status": 404
+      },
+      "route": "GET /h/:hostId/*",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unknown-host",
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "facade-open-route-unknown-host",
+        "request": "GET /h/00000000000000000000000000000000000000000000000000000000000000aa/api/host",
+        "auth": "none",
+        "status": 404
+      },
+      "route": "GET /h/:hostId/*",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unknown-host",
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "facade-unknown-host-local-only-route",
+        "request": "POST /h/00000000000000000000000000000000000000000000000000000000000000aa/policy/decide",
+        "body": {},
+        "status": 404
+      },
+      "route": "POST /h/:hostId/*",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unknown-host",
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "facade-on-the-raw-port",
+        "request": "GET /h/00000000000000000000000000000000000000000000000000000000000000aa/fs/raw/x",
+        "via": "raw",
+        "status": 404
+      },
+      "route": "GET /h/:hostId/* (raw)",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "code": "unknown-host",
+          "error": "unknown computer"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "ui-bundle",
+        "request": "GET /ui/index.html",
+        "auth": "none",
+        "status": 404
+      },
+      "route": "GET /ui/*",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/ui/index.html"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "plugin-bundle-unknown",
+        "request": "GET /ui/plugins/nope/1.js",
+        "auth": "none",
+        "status": 404
+      },
+      "route": "GET /ui/plugins/:id/:rev.:ext",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    }
+  ]
+}

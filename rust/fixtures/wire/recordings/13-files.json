@@ -1,0 +1,791 @@
+{
+  "scenario": "13-files",
+  "about": "Files on disk: stat, list, search, read, images, the raw-content listener, default apps and editors.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "stat-file",
+        "request": "GET /fs/stat",
+        "query": {
+          "path": "{sandbox}/beta/notes.md"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "absolutePath": "{sandbox}/beta/notes.md",
+          "isSymlink": false,
+          "mtimeMs": "<now>",
+          "readonly": false,
+          "size": 26,
+          "type": "file"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stat-folder",
+        "request": "GET /fs/stat",
+        "query": {
+          "path": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "absolutePath": "{sandbox}/alpha",
+          "isSymlink": false,
+          "mtimeMs": "<now>",
+          "readonly": false,
+          "size": 224,
+          "type": "directory"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "stat-missing",
+        "request": "GET /fs/stat",
+        "query": {
+          "path": "{sandbox}/beta/nope.md"
+        },
+        "status": 404
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path not found: {sandbox}/beta/nope.md"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "stat-relative",
+        "request": "GET /fs/stat",
+        "query": {
+          "path": "notes.md"
+        },
+        "status": 400
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "stat-no-path",
+        "request": "GET /fs/stat",
+        "status": 400
+      },
+      "route": "GET /fs/stat",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "list-root",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/alpha/docs",
+              "isSymlink": false,
+              "name": "docs",
+              "relativePath": "docs",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/src",
+              "isSymlink": false,
+              "name": "src",
+              "relativePath": "src",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/notes.txt",
+              "isSymlink": false,
+              "name": "notes.txt",
+              "relativePath": "notes.txt",
+              "type": "file"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/README.md",
+              "isSymlink": false,
+              "name": "README.md",
+              "relativePath": "README.md",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-hidden",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/alpha",
+          "includeHidden": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/alpha/docs",
+              "isSymlink": false,
+              "name": "docs",
+              "relativePath": "docs",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/src",
+              "isSymlink": false,
+              "name": "src",
+              "relativePath": "src",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/notes.txt",
+              "isSymlink": false,
+              "name": "notes.txt",
+              "relativePath": "notes.txt",
+              "type": "file"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/README.md",
+              "isSymlink": false,
+              "name": "README.md",
+              "relativePath": "README.md",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-subfolder",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/alpha",
+          "dir": "src"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/alpha/src/cli.js",
+              "isSymlink": false,
+              "name": "cli.js",
+              "relativePath": "src/cli.js",
+              "type": "file"
+            },
+            {
+              "absolutePath": "{sandbox}/alpha/src/parser.js",
+              "isSymlink": false,
+              "name": "parser.js",
+              "relativePath": "src/parser.js",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-escape",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/alpha",
+          "dir": "../beta"
+        },
+        "status": 400
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "dir escapes cwd"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "list-search",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/alpha",
+          "limit": "5",
+          "query": "pars"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/alpha/src/parser.js",
+              "name": "parser.js",
+              "relativePath": "src/parser.js",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-plain-folder",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/beta"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "entries": [
+            {
+              "absolutePath": "{sandbox}/beta/sub",
+              "isSymlink": false,
+              "name": "sub",
+              "relativePath": "sub",
+              "type": "directory"
+            },
+            {
+              "absolutePath": "{sandbox}/beta/notes.md",
+              "isSymlink": false,
+              "name": "notes.md",
+              "relativePath": "notes.md",
+              "type": "file"
+            },
+            {
+              "absolutePath": "{sandbox}/beta/pixel.png",
+              "isSymlink": false,
+              "name": "pixel.png",
+              "relativePath": "pixel.png",
+              "type": "file"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-no-cwd",
+        "request": "GET /fs/list",
+        "status": 400
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "cwd required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "list-missing-folder",
+        "request": "GET /fs/list",
+        "query": {
+          "cwd": "{sandbox}/nope"
+        },
+        "status": 404
+      },
+      "route": "GET /fs/list",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path not found: {sandbox}/nope"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "read-text",
+        "request": "GET /fs/read",
+        "query": {
+          "path": "{sandbox}/beta/notes.md"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "content": "# Notes\n\n- first\n- second\n",
+          "lines": 5,
+          "path": "{sandbox}/beta/notes.md",
+          "size": 26
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read-binary",
+        "request": "GET /fs/read",
+        "query": {
+          "path": "{sandbox}/beta/pixel.png"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "binary": true,
+          "path": "{sandbox}/beta/pixel.png",
+          "size": 70
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read-missing",
+        "request": "GET /fs/read",
+        "query": {
+          "path": "{sandbox}/beta/nope.md"
+        },
+        "status": 404
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ENOENT: no such file or directory, open '{sandbox}/beta/nope.md'"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "read-folder",
+        "request": "GET /fs/read",
+        "query": {
+          "path": "{sandbox}/beta"
+        },
+        "status": 404
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "EISDIR: illegal operation on a directory, read"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "read-no-path",
+        "request": "GET /fs/read",
+        "status": 400
+      },
+      "route": "GET /fs/read",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "absolute path required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "image",
+        "request": "GET /fs/image",
+        "query": {
+          "path": "{sandbox}/beta/pixel.png"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/image",
+      "response": {
+        "bytes": 70,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "image/png",
+          "etag": "<etag>"
+        },
+        "sha256": "4ff6ab670a58c14270e034e2090d9a432caa263a14e0a25785386b0c12f880b5",
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "image-not-an-image",
+        "request": "GET /fs/image",
+        "query": {
+          "path": "{sandbox}/beta/notes.md"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/image",
+      "response": {
+        "bytes": 26,
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/octet-stream",
+          "etag": "<etag>"
+        },
+        "sha256": "93531aa181e06b73027f1a223b9072409d2757f9085529e45251a94ce1c9d017",
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "image-missing",
+        "request": "GET /fs/image",
+        "query": {
+          "path": "{sandbox}/beta/nope.png"
+        },
+        "status": 404
+      },
+      "route": "GET /fs/image",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ENOENT: no such file or directory, stat '{sandbox}/beta/nope.png'"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "raw-file",
+        "request": "GET /fs/raw{sandbox}/beta/notes.md",
+        "via": "raw",
+        "status": 200
+      },
+      "route": "GET /fs/raw/* (raw)",
+      "response": {
+        "headers": {
+          "accept-ranges": "bytes",
+          "content-type": "text/plain; charset=utf-8"
+        },
+        "status": 200,
+        "text": "# Notes\n\n- first\n- second\n"
+      }
+    },
+    {
+      "step": {
+        "name": "raw-range",
+        "request": "GET /fs/raw{sandbox}/beta/notes.md",
+        "headers": {
+          "range": "bytes=2-6"
+        },
+        "via": "raw",
+        "status": 206
+      },
+      "route": "GET /fs/raw/* (raw)",
+      "response": {
+        "headers": {
+          "accept-ranges": "bytes",
+          "content-range": "bytes 2-6/26",
+          "content-type": "text/plain; charset=utf-8"
+        },
+        "status": 206,
+        "text": "Notes"
+      }
+    },
+    {
+      "step": {
+        "name": "raw-missing",
+        "request": "GET /fs/raw{sandbox}/beta/nope.md",
+        "via": "raw",
+        "status": 404
+      },
+      "route": "GET /fs/raw/* (raw)",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "raw-not-on-the-api-port",
+        "request": "GET /fs/raw{sandbox}/beta/notes.md",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/fs/raw{sandbox}/beta/notes.md"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "pdfjs-file",
+        "request": "GET /pdfjs/web/images/toolbarButton-zoomIn.svg",
+        "via": "raw",
+        "status": 200
+      },
+      "route": "GET /pdfjs/* (raw)",
+      "response": {
+        "headers": {
+          "accept-ranges": "bytes",
+          "content-type": "image/svg+xml"
+        },
+        "status": 200,
+        "text": "<svg width=\"16\" height=\"16\" viewBox=\"0 0 16 16\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n<path d=\"M7.00488 9.75V14C7.00488 14.1658 7.07073 14.3247 7.18794 14.4419C7.30515 14.5592 7.46412 14.625 7.62988 14.625C7.79564 14.625 7.95461 14.5592 8.07183 14.4419C8.18904 14.3247 8.25488 14.1658 8.25488 14V9.75L8.75488 9.25H13.0049C13.1706 9.25 13.3296 9.18415 13.4468 9.06694C13.564 8.94973 13.6299 8.79076 13.6299 8.625C13.6299 8.45924 13.564 8.30027 13.4468 8.18306C13.3296 8.06585 13.1706 8 13.0049 8H8.75488L8.25488 7.5V3.25C8.25488 3.08424 8.18904 2.92527 8.07183 2.80806C7.95461 2.69085 7.79564 2.625 7.62988 2.625C7.46412 2.625 7.30515 2.69085 7.18794 2.80806C7.07073 2.92527 7.00488 3.08424 7.00488 3.25V7.5L6.50488 8H2.25488C2.08912 8 1.93015 8.06585 1.81294 8.18306C1.69573 8.30027 1.62988 8.45924 1.62988 8.625C1.62988 8.79076 1.69573 8.94973 1.81294 9.06694C1.93015 9.18415 2.08912 9.25 2.25488 9.25H6.39188L7.00488 9.75Z\" fill=\"black\"/>\n</svg>\n"
+      }
+    },
+    {
+      "step": {
+        "name": "pdfjs-missing",
+        "request": "GET /pdfjs/web/nope.js",
+        "via": "raw",
+        "status": 404
+      },
+      "route": "GET /pdfjs/* (raw)",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "api-route-not-on-the-raw-port",
+        "request": "GET /workers",
+        "via": "raw",
+        "status": 404
+      },
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "not found",
+          "path": "/workers"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "default-app-by-extension",
+        "request": "GET /fs/default-app",
+        "query": {
+          "ext": "txt"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/default-app",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "app": {
+            "appName": "<string>",
+            "bundleId": "<string>",
+            "bundlePath": "<string>",
+            "iconUrl": "<string>"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "default-app-nothing-asked",
+        "request": "GET /fs/default-app",
+        "status": 400
+      },
+      "route": "GET /fs/default-app",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "path or ext required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "editors",
+        "request": "GET /fs/editors",
+        "status": 200
+      },
+      "route": "GET /fs/editors",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "editors": [
+            {
+              "id": "<string>",
+              "name": "<string>"
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "icon",
+        "request": "GET /fs/icon",
+        "query": {
+          "bundleId": "com.apple.TextEdit"
+        },
+        "status": 200
+      },
+      "route": "GET /fs/icon",
+      "response": {
+        "bytes": "<this-mac>",
+        "headers": {
+          "cache-control": "public, max-age=86400",
+          "content-type": "image/png"
+        },
+        "sha256": "<this-mac>",
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "icon-no-bundle",
+        "request": "GET /fs/icon",
+        "status": 400
+      },
+      "route": "GET /fs/icon",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "bundleId required"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "recents",
+        "request": "GET /fs/recents",
+        "status": 200
+      },
+      "route": "GET /fs/recents",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "paths": []
+        },
+        "status": 200
+      }
+    }
+  ]
+}

@@ -1,0 +1,1087 @@
+{
+  "scenario": "31-pages",
+  "about": "Pages (markdown notes): create, list by project, read, save with a base revision, targeted edits by an agent, delete; with the pages:change frames.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "open-stream",
+        "open": "main",
+        "query": {
+          "topics": "pages:*"
+        }
+      },
+      "route": "GET /stream",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "retry": 2000
+            },
+            {
+              "comment": "connected"
+            },
+            {
+              "data": {
+                "caps": [
+                  "state:patch"
+                ],
+                "epoch": "<epoch>",
+                "seq": "<seq>"
+              },
+              "event": "hello",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "cache-control": "no-cache, no-transform",
+          "content-type": "text/event-stream",
+          "x-accel-buffering": "no"
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-empty",
+        "request": "GET /api/pages",
+        "query": {
+          "all": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "pages": []
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "create",
+        "request": "POST /api/pages",
+        "body": {
+          "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n",
+          "project": "{sandbox}/alpha",
+          "title": "Release notes"
+        },
+        "status": 201,
+        "capture": {
+          "page": "/json/page/id"
+        },
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 1
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 1,
+            "title": "Release notes",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "create-by-agent",
+        "request": "POST /api/pages",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "body": {
+          "body": "Found one caller.",
+          "title": "Agent findings"
+        },
+        "status": 201,
+        "capture": {
+          "agent_page": "/json/page/id"
+        },
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": {
+                    "agentId": "w-KID1",
+                    "kind": "agent",
+                    "name": "json flag impl"
+                  },
+                  "id": "<page:2>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 1
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": "o-ORCH",
+            "body": "Found one caller.",
+            "createdAt": "<now>",
+            "id": "<page:2>",
+            "project": "{sandbox}/alpha",
+            "rev": 1,
+            "title": "Agent findings",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": "w-KID1",
+              "kind": "agent",
+              "name": "json flag impl"
+            }
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "create-empty",
+        "request": "POST /api/pages",
+        "body": {},
+        "status": 201,
+        "capture": {
+          "empty_page": "/json/page/id"
+        },
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "created",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:3>",
+                  "project": null,
+                  "rev": 1
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "",
+            "createdAt": "<now>",
+            "id": "<page:3>",
+            "project": null,
+            "rev": 1,
+            "title": "",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "step": {
+        "name": "create-bad-type",
+        "request": "POST /api/pages",
+        "body": {
+          "title": 5
+        },
+        "status": 400
+      },
+      "route": "POST /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: title: Expected string, received number"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "list-project",
+        "request": "GET /api/pages",
+        "query": {
+          "project": "{sandbox}/alpha"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "pages": [
+            {
+              "agentId": "o-ORCH",
+              "createdAt": "<now>",
+              "excerpt": "Found one caller.",
+              "id": "<page:2>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 0,
+                "open": 0
+              },
+              "title": "Agent findings",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": "w-KID1",
+                "kind": "agent",
+                "name": "json flag impl"
+              }
+            },
+            {
+              "agentId": null,
+              "createdAt": "<now>",
+              "excerpt": "write changelog tag",
+              "id": "<page:1>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 1,
+                "open": 1
+              },
+              "title": "Release notes",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": null,
+                "kind": "user",
+                "name": null
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-all",
+        "request": "GET /api/pages",
+        "query": {
+          "all": "1"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "pages": [
+            {
+              "agentId": null,
+              "createdAt": "<now>",
+              "excerpt": "",
+              "id": "<page:3>",
+              "project": null,
+              "rev": 1,
+              "tasks": {
+                "done": 0,
+                "open": 0
+              },
+              "title": "",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": null,
+                "kind": "user",
+                "name": null
+              }
+            },
+            {
+              "agentId": "o-ORCH",
+              "createdAt": "<now>",
+              "excerpt": "Found one caller.",
+              "id": "<page:2>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 0,
+                "open": 0
+              },
+              "title": "Agent findings",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": "w-KID1",
+                "kind": "agent",
+                "name": "json flag impl"
+              }
+            },
+            {
+              "agentId": null,
+              "createdAt": "<now>",
+              "excerpt": "write changelog tag",
+              "id": "<page:1>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 1,
+                "open": 1
+              },
+              "title": "Release notes",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": null,
+                "kind": "user",
+                "name": null
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-search",
+        "request": "GET /api/pages",
+        "query": {
+          "all": "1",
+          "q": "changelog"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "pages": [
+            {
+              "agentId": null,
+              "createdAt": "<now>",
+              "excerpt": "write changelog tag",
+              "id": "<page:1>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 1,
+                "open": 1
+              },
+              "title": "Release notes",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": null,
+                "kind": "user",
+                "name": null
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "list-as-agent",
+        "request": "GET /api/pages",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "status": 200
+      },
+      "route": "GET /api/pages",
+      "response": {
+        "headers": {
+          "cache-control": "no-cache",
+          "content-type": "application/json",
+          "etag": "<etag>"
+        },
+        "json": {
+          "pages": [
+            {
+              "agentId": "o-ORCH",
+              "createdAt": "<now>",
+              "excerpt": "Found one caller.",
+              "id": "<page:2>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 0,
+                "open": 0
+              },
+              "title": "Agent findings",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": "w-KID1",
+                "kind": "agent",
+                "name": "json flag impl"
+              }
+            },
+            {
+              "agentId": null,
+              "createdAt": "<now>",
+              "excerpt": "write changelog tag",
+              "id": "<page:1>",
+              "project": "{sandbox}/alpha",
+              "rev": 1,
+              "tasks": {
+                "done": 1,
+                "open": 1
+              },
+              "title": "Release notes",
+              "updatedAt": "<now>",
+              "updatedBy": {
+                "agentId": null,
+                "kind": "user",
+                "name": null
+              }
+            }
+          ]
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read",
+        "request": "GET /api/pages/{page}",
+        "status": 200
+      },
+      "route": "GET /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 1,
+            "title": "Release notes",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "read-unknown",
+        "request": "GET /api/pages/pg-00000000",
+        "status": 404
+      },
+      "route": "GET /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "page not found: <page:4>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "read-bad-id",
+        "request": "GET /api/pages/nope",
+        "status": 400
+      },
+      "route": "GET /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: : invalid page id"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "save",
+        "request": "PUT /api/pages/{page}",
+        "body": {
+          "baseRev": 1,
+          "title": "Release notes 1.1"
+        },
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "PUT /api/pages/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "updated",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 2
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 2,
+            "title": "Release notes 1.1",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "save-stale",
+        "request": "PUT /api/pages/{page}",
+        "body": {
+          "baseRev": 1,
+          "body": "overwritten"
+        },
+        "status": 409
+      },
+      "route": "PUT /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "page <page:1> changed since the revision you edited (now rev 2)",
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 2,
+            "title": "Release notes 1.1",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 409
+      }
+    },
+    {
+      "step": {
+        "name": "edit-append",
+        "request": "POST /api/pages/{page}/edit",
+        "headers": {
+          "x-eos-agent-id": "w-KID1"
+        },
+        "body": {
+          "heading": "Later",
+          "op": "append",
+          "text": "- [ ] announce"
+        },
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages/:id/edit",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "updated",
+                  "by": {
+                    "agentId": "w-KID1",
+                    "kind": "agent",
+                    "name": "json flag impl"
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 3
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write changelog\n- [x] tag\n\n## Later\n\n- [ ] announce\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 3,
+            "title": "Release notes 1.1",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": "w-KID1",
+              "kind": "agent",
+              "name": "json flag impl"
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "edit-replace",
+        "request": "POST /api/pages/{page}/edit",
+        "body": {
+          "newText": "write the changelog",
+          "oldText": "write changelog",
+          "op": "replace"
+        },
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages/:id/edit",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "updated",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 4
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write the changelog\n- [x] tag\n\n## Later\n\n- [ ] announce\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 4,
+            "title": "Release notes 1.1",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "edit-replace-not-found",
+        "request": "POST /api/pages/{page}/edit",
+        "body": {
+          "newText": "x",
+          "oldText": "not in the page",
+          "op": "replace"
+        },
+        "status": 400
+      },
+      "route": "POST /api/pages/:id/edit",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "old text was not found on the page — read the page again and copy the passage exactly"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "edit-set-task",
+        "request": "POST /api/pages/{page}/edit",
+        "body": {
+          "done": true,
+          "op": "setTask",
+          "task": "announce"
+        },
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "POST /api/pages/:id/edit",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "updated",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 5
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "page": {
+            "agentId": null,
+            "body": "# Release notes\n\n- [ ] write the changelog\n- [x] tag\n\n## Later\n\n- [x] announce\n",
+            "createdAt": "<now>",
+            "id": "<page:1>",
+            "project": "{sandbox}/alpha",
+            "rev": 5,
+            "title": "Release notes 1.1",
+            "updatedAt": "<now>",
+            "updatedBy": {
+              "agentId": null,
+              "kind": "user",
+              "name": null
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "edit-unknown-op",
+        "request": "POST /api/pages/{page}/edit",
+        "body": {
+          "op": "shuffle"
+        },
+        "status": 400
+      },
+      "route": "POST /api/pages/:id/edit",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "invalid request: op: Invalid discriminator value. Expected 'append' | 'replace' | 'setTask'"
+        },
+        "status": 400
+      }
+    },
+    {
+      "step": {
+        "name": "delete-without-token",
+        "request": "DELETE /api/pages/{empty_page}",
+        "auth": "none",
+        "status": 403
+      },
+      "route": "DELETE /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "ui token required"
+        },
+        "status": 403
+      }
+    },
+    {
+      "step": {
+        "name": "delete",
+        "request": "DELETE /api/pages/{empty_page}",
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "DELETE /api/pages/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "deleted",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:3>",
+                  "project": null,
+                  "rev": 1
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "delete-again",
+        "request": "DELETE /api/pages/{empty_page}",
+        "status": 404
+      },
+      "route": "DELETE /api/pages/:id",
+      "response": {
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "page not found: <page:3>"
+        },
+        "status": 404
+      }
+    },
+    {
+      "step": {
+        "name": "delete-agent-page",
+        "request": "DELETE /api/pages/{agent_page}",
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "DELETE /api/pages/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "deleted",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:2>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 1
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "delete-first",
+        "request": "DELETE /api/pages/{page}",
+        "status": 200,
+        "wait": [
+          "pages:change"
+        ]
+      },
+      "route": "DELETE /api/pages/:id",
+      "response": {
+        "frames": {
+          "main": [
+            {
+              "data": {
+                "payload": {
+                  "action": "deleted",
+                  "by": {
+                    "agentId": null,
+                    "kind": "user",
+                    "name": null
+                  },
+                  "id": "<page:1>",
+                  "project": "{sandbox}/alpha",
+                  "rev": 5
+                },
+                "reason": "pages:change",
+                "ts": "<now>"
+              },
+              "event": "change",
+              "id": "<stream-id>"
+            }
+          ]
+        },
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        },
+        "status": 200
+      }
+    },
+    {
+      "step": {
+        "name": "close-stream",
+        "close": "main"
+      },
+      "response": {
+        "closed": "main"
+      }
+    }
+  ]
+}

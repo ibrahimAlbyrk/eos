@@ -1,0 +1,242 @@
+about = "Terminals: one-shot `!` commands with their output frames and the job they register; interactive PTY sessions (create, input, resize, buffer, close)."
+
+[[step]]
+name = "open-stream"
+open = "main"
+query = { topics = "terminal:*,pty:session,pty:exit,jobs:*,worker:change" }
+
+[[step]]
+name = "run-without-token"
+request = "POST /terminal"
+auth = "none"
+body = { cwd = "{sandbox}/beta", command = "echo hi" }
+status = 403
+
+[[step]]
+name = "run-missing-folder"
+request = "POST /terminal"
+body = { cwd = "{sandbox}/nope", command = "echo hi" }
+status = 400
+
+[[step]]
+name = "run-invalid"
+request = "POST /terminal"
+body = { cwd = "{sandbox}/beta" }
+status = 400
+
+[[step]]
+name = "run"
+request = "POST /terminal"
+body = { cwd = "{sandbox}/beta", command = "echo wire; echo problem >&2; exit 3" }
+status = 200
+capture = { run = "/json/runId" }
+wait = ["terminal:start", "terminal:done"]
+
+[[step]]
+name = "jobs-after-run"
+request = "GET /api/jobs"
+status = 200
+capture = { job = "/json/jobs/0/id" }
+
+[[step]]
+name = "jobs-without-token"
+request = "GET /api/jobs"
+auth = "none"
+status = 403
+
+[[step]]
+name = "job-output"
+request = "GET /api/jobs/{job}/output"
+status = 200
+
+[[step]]
+name = "job-output-unknown"
+request = "GET /api/jobs/nope/output"
+status = 404
+
+[[step]]
+name = "job-stop-finished"
+request = "POST /api/jobs/{job}/stop"
+status = 404
+
+[[step]]
+name = "job-dismiss"
+request = "POST /api/jobs/{job}/dismiss"
+status = 200
+
+[[step]]
+name = "kill-finished-run"
+request = "POST /terminal/{run}/kill"
+status = 200
+
+[[step]]
+name = "run-in-chat"
+request = "POST /workers/w-CHAT/terminal"
+body = { command = "git status --short" }
+status = 200
+wait = ["terminal:start", "terminal:done"]
+
+[[step]]
+name = "run-in-chat-events"
+request = "GET /workers/w-CHAT/events"
+query = { limit = "1" }
+status = 200
+
+[[step]]
+name = "run-in-chat-without-folder"
+request = "POST /workers/w-BARE/terminal"
+body = { command = "pwd" }
+status = 400
+
+[[step]]
+name = "run-in-unknown-chat"
+request = "POST /workers/w-nope0000/terminal"
+body = { command = "pwd" }
+status = 404
+
+[[step]]
+name = "run-long"
+request = "POST /terminal"
+body = { cwd = "{sandbox}/beta", command = "echo started; sleep 30" }
+status = 200
+capture = { long_run = "/json/runId" }
+wait = ["terminal:start", "terminal:chunk"]
+
+[[step]]
+name = "kill-run"
+request = "POST /terminal/{long_run}/kill"
+status = 200
+wait = ["terminal:done"]
+
+[[step]]
+name = "run-long-again"
+request = "POST /terminal"
+body = { cwd = "{sandbox}/beta", command = "echo started; sleep 30" }
+status = 200
+wait = ["terminal:start", "terminal:chunk"]
+
+[[step]]
+name = "jobs-with-running"
+request = "GET /api/jobs"
+status = 200
+capture = { running_job = "/json/jobs/[status=running]/id" }
+
+[[step]]
+name = "job-stop"
+request = "POST /api/jobs/{running_job}/stop"
+status = 200
+wait = ["terminal:done"]
+
+[[step]]
+name = "jobs-clear"
+request = "POST /api/jobs/clear"
+status = 200
+
+[[step]]
+name = "pty-list-empty"
+request = "GET /pty"
+status = 200
+
+[[step]]
+name = "pty-list-without-token"
+request = "GET /pty"
+auth = "none"
+status = 403
+
+[[step]]
+name = "pty-create-invalid"
+request = "POST /pty"
+body = { cols = 0, rows = 24 }
+status = 400
+
+[[step]]
+name = "pty-create"
+request = "POST /pty"
+body = { cols = 80, rows = 24, cwd = "{sandbox}/beta", command = "echo pty-ready" }
+status = 200
+capture = { pty = "/json/sessionId" }
+wait = ["pty:session"]
+pause_ms = 200
+
+[[step]]
+name = "pty-list"
+request = "GET /pty"
+status = 200
+
+[[step]]
+name = "open-output-stream"
+open = "output"
+query = { topics = "pty:data", clientId = "wire-tab", focus = "", ptys = "{pty}" }
+pause_ms = 1500
+
+[[step]]
+name = "pty-input"
+request = "POST /pty/{pty}/input"
+body = { data = "echo typed\r" }
+status = 200
+wait = ["pty:data"]
+
+[[step]]
+name = "close-output-stream"
+close = "output"
+
+[[step]]
+name = "pty-input-in-order"
+request = "POST /pty/{pty}/input"
+body = { data = "x", stream = "phone-1", seq = 1 }
+status = 200
+
+[[step]]
+name = "pty-resize"
+request = "POST /pty/{pty}/resize"
+body = { cols = 100, rows = 30 }
+status = 200
+
+[[step]]
+name = "pty-buffer"
+request = "GET /pty/{pty}/buffer"
+status = 200
+pause_ms = 500
+
+[[step]]
+name = "pty-conversation-of-shell"
+request = "GET /pty/{pty}/conversation"
+status = 404
+
+[[step]]
+name = "pty-message-to-shell"
+request = "POST /pty/{pty}/message"
+body = { text = "hello" }
+status = 404
+
+[[step]]
+name = "pty-answer-nothing-open"
+request = "POST /pty/{pty}/answer"
+body = { toolUseId = "call_x", answers = [] }
+status = 404
+
+[[step]]
+name = "pty-input-unknown"
+request = "POST /pty/00000000-0000-4000-8000-000000000000/input"
+body = { data = "x" }
+status = 404
+
+[[step]]
+name = "pty-buffer-unknown"
+request = "GET /pty/00000000-0000-4000-8000-000000000000/buffer"
+status = 404
+
+[[step]]
+name = "pty-close"
+request = "DELETE /pty/{pty}"
+status = 200
+wait = ["pty:exit"]
+
+[[step]]
+name = "pty-close-again"
+request = "DELETE /pty/{pty}"
+status = 404
+
+[[step]]
+name = "close-stream"
+close = "main"

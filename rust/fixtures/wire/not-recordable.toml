@@ -1,0 +1,155 @@
+# Routes with no recorded success, and why. Read by `wire-recorder coverage`.
+# A route listed here still has its refusals recorded (see coverage.md).
+
+[[note]]
+why = "Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded."
+routes = [
+  "POST /workers/:id/btw",
+  "POST /workers",
+  "POST /workers/:id/message",
+  "POST /workers/:id/resume",
+  "POST /workers/:id/action",
+  "POST /workers/:fromWorker/peer-request",
+  "POST /workers/:id/report",
+  "POST /workers/:id/warm",
+  "GET /pty/:id/conversation",
+  "POST /pty/:id/message",
+  "POST /pty/:id/answer",
+  "POST /orchestrators",
+  "POST /orchestrators/:id/message",
+  "POST /orchestrators/:id/integrate",
+  "POST /orchestrators/:id/loop",
+]
+
+[[note]]
+why = "Needs a live agent session (a running turn, an open question, a worktree branch or a queued message), which only a real agent run produces."
+routes = [
+  "GET /workers/:id/workflow-runs/:callId",
+  "GET /workers/:id/workflow-runs/:callId/agents/:agentId",
+  "POST /workers/:id/workflow-runs/:callId/stop",
+  "PUT /workers/:id/plan-resume",
+  "POST /workers/:id/api-key-continue",
+  "POST /workers/:id/interrupt",
+  "DELETE /workers/:id/queue/:queueId",
+  "POST /workers/:id/push",
+  "POST /workers/:id/keystroke",
+  "GET /workers/:id/rewind-targets",
+  "POST /workers/:id/rewind",
+  "PUT /workers/:id/backend",
+  "POST /workers/:id/pull",
+  "GET /workers/:id/try/preview",
+  "POST /workers/:id/try",
+  "POST /workers/:id/try/keep",
+  "POST /workers/:id/try/discard",
+  "GET /workers/:id/conflicts/file",
+  "POST /workers/:id/conflicts/resolve",
+  "POST /orchestrators/:id/loop/stop",
+]
+
+[[note]]
+why = "Opens a dialog, an app or a Finder action on the owner's screen."
+routes = [
+  "GET /pick-directory",
+  "GET /pick-file",
+  "POST /fs/open",
+  "POST /fs/reveal",
+  "POST /fs/open-in",
+  "POST /fs/trash",
+  "POST /workers/:id/open",
+]
+
+[[note]]
+why = "Needs the Eos app window (the embedded browser, the plugin preview, location) or would start a browser on this Mac."
+routes = [
+  "POST /browser/launch",
+  "GET /browser/active-tab",
+  "POST /browser/tabs",
+  "POST /browser/show",
+  "DELETE /browser/tabs/:tabId",
+  "POST /browser/tabs/:tabId/navigate",
+  "POST /browser/tabs/:tabId/snapshot",
+  "POST /browser/tabs/:tabId/find",
+  "POST /browser/tabs/:tabId/wait",
+  "POST /browser/tabs/:tabId/act",
+  "POST /browser/tabs/:tabId/get",
+  "POST /browser/tabs/:tabId/capture",
+  "POST /browser/tabs/:tabId/device",
+  "POST /browser/tabs/:tabId/elements",
+  "POST /browser/tabs/:tabId/mute",
+  "GET /api/location",
+  "POST /api/plugins/:id/preview",
+]
+
+[[note]]
+why = "Goes to the network (model prices, maps, geocoding, images, provider checks)."
+routes = [
+  "POST /api/model-catalog/refresh",
+  "POST /api/backends/test",
+  "GET /api/genui/media/img",
+  "GET /api/genui/media/og",
+  "GET /api/genui/media/icon",
+  "GET /api/genui/map/style.json",
+  "GET /api/genui/map/t/:path",
+  "GET /api/genui/geocode",
+  "POST /api/genui/places",
+]
+
+[[note]]
+why = "Starts or needs a real sign-in (a browser sign-in flow, a second Claude login, a key in the macOS Keychain)."
+routes = [
+  "POST /api/backends",
+  "DELETE /api/backends/:name",
+  "POST /api/accounts/:provider/sign-in",
+  "PUT /api/accounts/:provider/logins/:id",
+  "DELETE /api/accounts/:provider/logins/:id",
+  "PUT /api/accounts/:provider/default-login",
+  "DELETE /api/accounts/:provider/sign-in",
+  "GET /api/sign-ins/:id",
+  "DELETE /api/sign-ins/:id",
+  "POST /api/sign-ins/:id/code",
+]
+
+[[note]]
+why = "Needs another computer: a paired Mac, the phone relay or the sync vault."
+routes = [
+  "GET /h/:hostId/*",
+  "POST /h/:hostId/*",
+  "PUT /h/:hostId/*",
+  "DELETE /h/:hostId/*",
+  "HEAD /h/:hostId/*",
+  "POST /api/peer/invite",
+  "DELETE /api/peer/devices/:fp",
+  "POST /api/hosts",
+  "PUT /api/hosts/:fp",
+  "DELETE /api/hosts/:fp",
+  "POST /api/hosts/:fp/view-token",
+  "POST /api/hosts/:fp/reconnect",
+  "GET /api/sync/key",
+  "POST /api/sync/create",
+  "POST /api/sync/join",
+  "POST /api/transfers",
+  "POST /api/transfers/destination",
+  "POST /api/transfers/:id/:action",
+  "POST /workers/:id/transfers",
+  "GET /workers/:id/transfers/:tid",
+  "POST /api/remote/arm",
+  "POST /api/remote/pair",
+  "GET /h/:hostId/* (raw)",
+  "POST /h/:hostId/* (raw)",
+  "PUT /h/:hostId/* (raw)",
+  "DELETE /h/:hostId/* (raw)",
+  "HEAD /h/:hostId/* (raw)",
+]
+
+[[note]]
+why = "Needs a staged update, which only a release build downloads."
+routes = [
+  "POST /api/update/restart",
+]
+
+[[note]]
+why = "Needs the dashboard bundle (app/ui/dist) or a plugin with a built UI; the recording daemon runs from source without them."
+routes = [
+  "GET /ui/plugins/:id/:rev.:ext",
+  "GET /ui/*",
+]

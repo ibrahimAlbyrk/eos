@@ -1,0 +1,102 @@
+about = "Transcript paging over the seeded 620-row chat, and the row kinds of the seeded full transcript."
+
+[[step]]
+name = "default-page"
+request = "GET /workers/w-LONG/events"
+status = 200
+capture = { oldest = "/json/[last]/id", newest = "/json/0/id" }
+
+[[step]]
+name = "page-before"
+request = "GET /workers/w-LONG/events"
+query = { beforeId = "{oldest}", limit = "200" }
+status = 200
+
+[[step]]
+name = "page-max"
+request = "GET /workers/w-LONG/events"
+query = { limit = "5000", order = "asc" }
+status = 200
+
+[[step]]
+name = "page-over-max"
+request = "GET /workers/w-LONG/events"
+query = { limit = "5001" }
+status = 400
+
+[[step]]
+name = "since-time"
+request = "GET /workers/w-LONG/events"
+query = { since = "1790000715000", order = "asc" }
+status = 200
+
+[[step]]
+name = "after-newest"
+request = "GET /workers/w-LONG/events"
+query = { afterId = "{newest}" }
+status = 200
+
+[[step]]
+name = "full-transcript"
+request = "GET /workers/w-CHAT/events"
+query = { order = "asc" }
+status = 200
+
+[[step]]
+name = "interrupted-chat"
+request = "GET /workers/w-BUSY/events"
+query = { order = "asc" }
+status = 200
+
+[[step]]
+name = "prompt-events"
+request = "GET /workers/w-CHAT/prompt-events"
+status = 200
+
+[[step]]
+name = "subagent-events"
+request = "GET /workers/w-CHAT/subagent-events"
+status = 200
+
+[[step]]
+name = "child-row"
+request = "GET /workers/w-KID1"
+status = 200
+
+[[step]]
+name = "scout-row"
+request = "GET /workers/w-KID2"
+status = 200
+
+[[step]]
+name = "peers-of-collaborator"
+request = "GET /workers/w-KID2/peers"
+status = 200
+
+[[step]]
+name = "export-orchestrator"
+request = "GET /workers/o-ORCH/export"
+status = 200
+
+[[step]]
+name = "no-folder-changes"
+request = "GET /workers/w-BARE/changes"
+status = 200
+
+[[step]]
+name = "changes-file"
+request = "GET /workers/w-CHAT/changes/file"
+query = { path = "README.md" }
+status = 200
+
+[[step]]
+name = "changes-file-escape"
+request = "GET /workers/w-CHAT/changes/file"
+query = { path = "../x" }
+status = 400
+
+[[step]]
+name = "conflict-file"
+request = "GET /workers/w-CHAT/conflicts/file"
+query = { path = "README.md" }
+status = 404

@@ -1,0 +1,134 @@
+about = "Who may call the API listener from a browser: allowed and refused origins, preflight, the Host check against DNS rebinding, and the doors where neither applies."
+record_headers = ["access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-expose-headers", "access-control-max-age", "vary"]
+
+[[step]]
+name = "no-origin"
+request = "GET /health"
+auth = "none"
+status = 200
+
+[[step]]
+name = "app-origin"
+request = "GET /health"
+auth = "none"
+headers = { origin = "eos://app" }
+status = 200
+
+[[step]]
+name = "own-loopback-origin"
+request = "GET /health"
+auth = "none"
+headers = { origin = "{api_origin}" }
+status = 200
+
+[[step]]
+name = "foreign-origin"
+request = "GET /health"
+auth = "none"
+headers = { origin = "https://evil.example" }
+status = 403
+
+[[step]]
+name = "null-origin"
+request = "GET /health"
+auth = "none"
+headers = { origin = "null" }
+status = 403
+
+[[step]]
+name = "raw-port-origin"
+request = "GET /workers"
+headers = { origin = "{raw_origin}" }
+status = 403
+
+[[step]]
+name = "foreign-origin-with-token"
+request = "POST /terminal"
+headers = { origin = "https://evil.example" }
+body = { cwd = "{sandbox}/beta", command = "echo never" }
+status = 403
+
+[[step]]
+name = "preflight"
+request = "OPTIONS /api/pages"
+auth = "none"
+headers = { origin = "eos://app", access-control-request-method = "POST", access-control-request-headers = "content-type, x-eos-ui-token" }
+status = 204
+
+[[step]]
+name = "preflight-foreign"
+request = "OPTIONS /api/pages"
+auth = "none"
+headers = { origin = "https://evil.example", access-control-request-method = "POST" }
+status = 403
+
+[[step]]
+name = "preflight-unknown-route"
+request = "OPTIONS /nope"
+auth = "none"
+headers = { origin = "eos://app" }
+status = 204
+
+[[step]]
+name = "options-without-origin"
+request = "OPTIONS /health"
+auth = "none"
+status = 204
+
+[[step]]
+name = "foreign-host"
+request = "GET /health"
+auth = "none"
+headers = { host = "evil.example" }
+status = 403
+
+[[step]]
+name = "foreign-host-with-port"
+request = "GET /health"
+auth = "none"
+headers = { host = "evil.example:7500" }
+status = 403
+
+[[step]]
+name = "localhost-host"
+request = "GET /health"
+auth = "none"
+headers = { host = "localhost:9999" }
+status = 200
+
+[[step]]
+name = "ipv6-loopback-host"
+request = "GET /health"
+auth = "none"
+headers = { host = "[::1]:7500" }
+status = 200
+
+[[step]]
+name = "malformed-host"
+request = "GET /health"
+auth = "none"
+headers = { host = "127.0.0.1@evil.example" }
+status = 403
+
+[[step]]
+name = "foreign-origin-on-the-socket"
+request = "GET /health"
+auth = "none"
+via = "socket"
+headers = { origin = "https://evil.example", host = "evil.example" }
+status = 200
+
+[[step]]
+name = "foreign-origin-on-the-raw-port"
+request = "GET /fs/raw{sandbox}/beta/notes.md"
+auth = "none"
+via = "raw"
+headers = { origin = "https://evil.example" }
+status = 200
+
+[[step]]
+name = "stream-foreign-origin"
+request = "GET /stream"
+auth = "none"
+headers = { origin = "https://evil.example" }
+status = 403
