@@ -5,7 +5,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
+use eos_accounts::{Accounts, TokioSleeper};
+use eos_auth::{
+    AccountDirs, ChatGptSignIn, ClaudeSignIn, ClaudeTokenProbe, ClaudeUsageApi, Endpoints, FilePlanLoginStore,
+    FileUsageSnapshots, HostCredentials, Stores,
+};
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
+use eos_core::accounts::{PlanAccess, SessionCredentials};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
@@ -29,12 +35,12 @@ use eos_store_sqlite::{SqliteStore, StoreOptions};
 use eos_workers::WorkerDefinitions;
 
 use crate::Error;
-use crate::agent::NoBackends;
+use crate::agent::{NoBackends, NoLiveSessions};
 use crate::announce::BusAnnouncer;
 use crate::boot;
 use crate::callers::Callers;
 use crate::display::StripSenderTags;
-use crate::host::{self, HostStats};
+use crate::host::{self, HostLocalTime, HostStats, SystemBrowser};
 use crate::modules::{self, Context};
 use crate::notes::{Notes, ProfilePrompt};
 
@@ -85,6 +91,7 @@ pub struct App {
     store: Arc<SqliteStore>,
     config: Arc<ConfigFile>,
     settings: Arc<SettingsFile>,
+    accounts: Arc<Accounts>,
     callers: Callers,
     paths: DataPaths,
     reconciled: Reconciled,
@@ -129,9 +136,30 @@ impl App {
         });
         let announcer = Arc::new(BusAnnouncer(kernel.bus.clone()));
         let store_options = StoreOptions { events_max_per_worker: current.events.max_per_worker };
-        let store = Arc::new(SqliteStore::new(db, announcer, store_options));
+        let store = Arc::new(SqliteStore::new(db, announcer.clone(), store_options));
         let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
 
+        let accounts_dir = paths.join("accounts");
+        let stores = Arc::new(Stores::new(Arc::new(HostCredentials), Endpoints::default()));
+        let accounts = Accounts::new(eos_accounts::Deps {
+            clock: clock.clone(),
+            ids: ids.clone(),
+            config: config.clone(),
+            store: store.clone(),
+            announcer,
+            login_store: Arc::new(FilePlanLoginStore::new(accounts_dir.join("logins.json"))),
+            dirs: Arc::new(AccountDirs::new(&accounts_dir)),
+            stores: stores.clone(),
+            providers: vec![Arc::new(ClaudeSignIn::new(stores.clone())), Arc::new(ChatGptSignIn::new(stores))],
+            // The shell takes this over once it routes sign-in pages itself.
+            browser: Arc::new(SystemBrowser),
+            probe: Arc::new(ClaudeTokenProbe::default()),
+            usage_api: Arc::new(ClaudeUsageApi::new(clock.clone())),
+            usage_cache: Arc::new(FileUsageSnapshots::new(paths.join("usage-cache.json"))),
+            local_time: Arc::new(HostLocalTime),
+            sleeper: Arc::new(TokioSleeper),
+            sessions: Arc::new(NoLiveSessions),
+        });
         let policy = Arc::new(PolicyGateway::new(GatewayOptions {
             store: store.clone(),
             clock: clock.clone(),
@@ -171,6 +199,7 @@ impl App {
             backends: Arc::new(NoBackends),
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
             recents: Arc::new(JsonRecents::open(paths.join("recents.json"))),
+            accounts: accounts.clone(),
             kernel: kernel.clone(),
             paths: paths.clone(),
             raw_routes: Default::default(),
@@ -191,7 +220,7 @@ impl App {
             })?;
         }
         let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
-        Ok(Self { runtime, raw_router, store, config, settings, callers, paths, reconciled })
+        Ok(Self { runtime, raw_router, store, config, settings, accounts, callers, paths, reconciled })
     }
 
     /// Starts every module, then tells them the app is ready.
@@ -236,6 +265,16 @@ impl App {
 
     pub fn settings(&self) -> Arc<dyn UserSettingsStore> {
         self.settings.clone()
+    }
+
+    /// What the agent engine asks about a session's credential.
+    pub fn session_credentials(&self) -> Arc<dyn SessionCredentials> {
+        self.accounts.clone()
+    }
+
+    /// The user's plan sign-ins, for the features that act on their behalf.
+    pub fn plan_access(&self) -> Arc<dyn PlanAccess> {
+        self.accounts.clone()
     }
 
     /// What start-up did to the worker rows the last run left behind.

@@ -64,6 +64,16 @@ pub fn process_alive(pid: u32) -> bool {
     }
 }
 
+/// Hours and minutes of `epoch_ms` on the user's clock (`16:40`), from the
+/// system's `date`; `None` where there is none or it fails.
+pub fn local_hour_minute(epoch_ms: i64) -> Option<String> {
+    let seconds = epoch_ms.div_euclid(1_000).to_string();
+    let mut date = Command::new("/bin/date");
+    date.args(["-r", &seconds, "+%H:%M"]);
+    let out = crate::tool::run_ok("date", &mut date, None, std::time::Duration::from_secs(5)).ok()?;
+    Some(out.stdout.trim().to_owned()).filter(|text| text.len() == 5)
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use std::io::{BufRead, BufReader};

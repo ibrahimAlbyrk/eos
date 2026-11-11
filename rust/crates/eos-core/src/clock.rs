@@ -8,6 +8,13 @@ pub trait Clock: Send + Sync + 'static {
     fn now_ms(&self) -> i64;
 }
 
+/// Waiting, as a port: a service that acts later asks for the wait here, so a
+/// test decides when it is over.
+pub trait Sleeper: Send + Sync + 'static {
+    /// Resolves once `ms` milliseconds have passed.
+    fn sleep(&self, ms: i64) -> crate::BoxFuture<'static, ()>;
+}
+
 /// The system's clock.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemClock;

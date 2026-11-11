@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use eos_agent_core::{BoxFuture, Credential, ModelError, RateLimitInfo, TokenSource};
+use eos_agent_core::{BoxFuture, Credential, ModelError, RateLimitInfo, StaticCredential, TokenSource};
 use eos_agent_sdk::{Account, AuthFailover, AuthFailure, ChatGptLogin};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 
@@ -29,6 +29,7 @@ fn key_of(credential: &SessionCredential) -> String {
     match credential {
         SessionCredential::Store { provider, dir } => format!("store:{provider}:{}", dir.display()),
         SessionCredential::ApiKey { provider, key } => format!("key:{provider}:{key}"),
+        SessionCredential::Bearer { provider, token } => format!("token:{provider}:{token}"),
     }
 }
 
@@ -45,6 +46,9 @@ impl Accounts {
             }
             SessionCredential::Store { dir, .. } => Account::claude_store(dir),
             SessionCredential::ApiKey { key, .. } => Account::api_key(key.clone()),
+            SessionCredential::Bearer { token, .. } => {
+                Account::new(Arc::new(StaticCredential(Credential::Bearer(token.clone()))))
+            }
         });
         made.insert(key, account.clone());
         account
@@ -54,6 +58,7 @@ impl Accounts {
 pub(crate) fn limits(info: &RateLimitInfo) -> PlanLimits {
     PlanLimits {
         status: info.status.clone(),
+        claim: info.claim.clone(),
         resets_at_ms: info.resets_at.and_then(|s| i64::try_from(s).ok()).map(|s| s.saturating_mul(1000)),
         five_hour: info.five_hour_utilization,
         seven_day: info.seven_day_utilization,

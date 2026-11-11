@@ -18,8 +18,9 @@ pub trait ConfigSource: Send + Sync + 'static {
     fn declared_backends(&self) -> Option<Vec<String>>;
     /// Reads `config.json` again and swaps the snapshot.
     fn reload(&self) -> Arc<Config>;
-    /// Merges `patch` into the file's `section` and reloads. The file is the
-    /// only way the configuration changes.
+    /// Merges `patch` into the file's `section` and reloads: a `null` value
+    /// removes its key, so a cleared field leaves nothing behind. The file is
+    /// the only way the configuration changes.
     fn patch(&self, section: &str, patch: serde_json::Map<String, serde_json::Value>) -> Result<Arc<Config>, Error>;
 }
 

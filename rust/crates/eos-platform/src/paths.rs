@@ -103,6 +103,18 @@ impl DataPaths {
     }
 }
 
+/// Makes `dir` (and the folders above it) and closes it to everyone but the
+/// user, where folders have permission bits.
+pub fn create_private_dir(dir: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

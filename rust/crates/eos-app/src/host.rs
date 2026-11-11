@@ -1,7 +1,10 @@
 //! What this build's system offers and holds, for the features that report it.
 
+use std::path::Path;
+
 use eos_contracts::UiConfigResponseFeatures;
-use eos_core::os::ProcessStats;
+use eos_core::accounts::Browser;
+use eos_core::os::{LocalTime, ProcessStats};
 
 /// File-descriptor figures from the platform kit. The limit cannot change
 /// while the process runs, and finding the system's ceiling runs a program,
@@ -38,4 +41,27 @@ impl ProcessStats for HostStats {
 pub(crate) fn features() -> UiConfigResponseFeatures {
     let features = eos_platform::host().features();
     UiConfigResponseFeatures { remote: features.remote, posix_shell: features.posix_shell }
+}
+
+/// The user's default browser.
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct SystemBrowser;
+
+impl Browser for SystemBrowser {
+    fn open(&self, url: &str) {
+        // The system's opener takes an address as it takes a path.
+        if let Err(e) = eos_platform::host().desktop().open_path(Path::new(url)) {
+            tracing::warn!(error = %e, "the browser could not be opened");
+        }
+    }
+}
+
+/// The time of day on the user's clock, from the system; UTC when it does not say.
+pub(crate) struct HostLocalTime;
+
+impl LocalTime for HostLocalTime {
+    fn hour_minute(&self, epoch_ms: i64) -> String {
+        eos_platform::local_hour_minute(epoch_ms)
+            .unwrap_or_else(|| eos_domain::time::iso_from_ms(epoch_ms).get(11..16).unwrap_or_default().to_owned())
+    }
 }

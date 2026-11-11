@@ -35,6 +35,15 @@ impl CredentialStore for FileCredentials {
         std::fs::read_to_string(dir.join(".credentials.json")).ok()
     }
 
+    fn write_claude_store(&self, store_dir: &Path, json: &str) -> Result<(), Error> {
+        let file = store_dir.join(".credentials.json");
+        std::fs::write(&file, json)?;
+        if let Some(private) = owner_only() {
+            std::fs::set_permissions(&file, private)?;
+        }
+        Ok(())
+    }
+
     fn clear_claude_store(&self, store_dir: &Path) {
         let _ = std::fs::remove_file(store_dir.join(".credentials.json"));
     }

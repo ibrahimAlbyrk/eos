@@ -25,7 +25,9 @@ use serde::Deserialize;
 ///   `host/` workspace (Tauri + CEF), checked here as well.
 const LAYERS: &[(&str, Layer)] = &[
     ("eos", Layer::Binary),
+    ("eos-accounts", Layer::Service),
     ("eos-app", Layer::App),
+    ("eos-auth", Layer::Adapter),
     ("eos-bridge", Layer::Bridge),
     ("eos-cef-helper", Layer::Shell),
     ("eos-config", Layer::Adapter),
@@ -40,6 +42,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-kit-net", Layer::Kit),
     ("eos-kit-proc", Layer::Kit),
     ("eos-kit-sqlite", Layer::Kit),
+    ("eos-mod-accounts", Layer::Feature),
     ("eos-mod-fs", Layer::Feature),
     ("eos-mod-pages", Layer::Feature),
     ("eos-mod-policy", Layer::Feature),
@@ -141,6 +144,9 @@ pub(crate) fn check() -> anyhow::Result<()> {
             continue;
         };
         for dep in &pkg.dependencies {
+            if let Some(why) = engine_violation(&pkg.name, &dep.name) {
+                problems.push(format!("{} → {}: {why}", pkg.name, dep.name));
+            }
             let Some(&theirs) = layers.get(dep.name.as_str()) else { continue };
             if let Some(why) = violation(own, theirs, dep.kind.as_deref()) {
                 problems.push(format!("{} → {}: {why}", pkg.name, dep.name));
@@ -153,6 +159,30 @@ pub(crate) fn check() -> anyhow::Result<()> {
         Ok(())
     } else {
         bail!("dependency direction violated:\n  {}", problems.join("\n  "))
+    }
+}
+
+/// The agent engine's crates (`eos-agent-*`) and who may depend on them, in
+/// tests too: `eos-engine` on any of them (it is the one crate that runs
+/// agents); `eos-auth` on the two provider sign-in crates, so the app's own
+/// token reads renew a sign-in exactly as an agent's request does. Nobody
+/// else: everything above reaches the engine through `eos-core` ports.
+const ENGINE_PREFIX: &str = "eos-agent-";
+const SIGN_IN_CRATES: &[&str] = &["eos-agent-anthropic", "eos-agent-openai"];
+
+fn engine_violation(crate_name: &str, dep: &str) -> Option<&'static str> {
+    if !dep.starts_with(ENGINE_PREFIX) {
+        return None;
+    }
+    match crate_name {
+        "eos-engine" => None,
+        "eos-auth" if SIGN_IN_CRATES.contains(&dep) => None,
+        "eos-auth" => {
+            Some("eos-auth may use only the engine's provider sign-in crates (eos-agent-anthropic, eos-agent-openai)")
+        }
+        _ => Some(
+            "only eos-engine (any engine crate) and eos-auth (the provider sign-in crates) may depend on the agent engine",
+        ),
     }
 }
 
@@ -173,6 +203,20 @@ fn violation(own: Layer, theirs: Layer, kind: Option<&str>) -> Option<&'static s
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_engine_adapter_and_the_sign_in_adapter_see_the_agent_engine() {
+        assert_eq!(engine_violation("eos-engine", "eos-agent-sdk"), None);
+        assert_eq!(engine_violation("eos-engine", "eos-agent-mock-api"), None);
+        assert_eq!(engine_violation("eos-auth", "eos-agent-anthropic"), None);
+        assert_eq!(engine_violation("eos-auth", "eos-agent-openai"), None);
+        assert!(engine_violation("eos-auth", "eos-agent-sdk").is_some());
+        assert!(engine_violation("eos-auth", "eos-agent-core").is_some());
+        assert!(engine_violation("eos-accounts", "eos-agent-anthropic").is_some());
+        assert!(engine_violation("eos-mod-accounts", "eos-agent-sdk").is_some());
+        assert_eq!(engine_violation("eos-app", "eos-engine"), None, "the adapter itself is an ordinary crate");
+        assert_eq!(engine_violation("eos-app", "eos-agents-unrelated"), None);
+    }
 
     #[test]
     fn direction_rules() {

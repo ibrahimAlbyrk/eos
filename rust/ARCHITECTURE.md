@@ -38,10 +38,10 @@ paired Mac ────┴── gateways call the Router directly
 | types | `eos-genui` | visual-answer markup / partial-JSON / expression / attribute parsers, catalog, `validate_view`, `catalog_prompt`. Self-contained. |
 | domain | `eos-domain` | pure rules (no async, no I/O, no clock reads): billing route, workflow-run reducer, dream ledger, update chunker and manifest, page merge, path rules… |
 | core | `eos-core` | ports (traits) for everything outside the process, shared `Clock` / id generation, the errors ports share. |
-| service | `eos-sessions`, `eos-policy`, `eos-prompts`, `eos-workers`, `eos-profile` | use-cases several features need: agent session lifecycle, permission decisions, prompt assembly, worker definitions, profile/memory rendering. Only ports, never adapters. |
+| service | `eos-sessions`, `eos-policy`, `eos-prompts`, `eos-workers`, `eos-profile`, `eos-accounts` | use-cases several features need: agent session lifecycle, permission decisions, prompt assembly, worker definitions, profile/memory rendering, accounts (plan sign-ins, which of them can run, moving a session to another, sign-ins in flight, plan usage). Only ports, never adapters. |
 | kit | `eos-platform` | the one OS seam: paths, credentials, trash, keep-awake, shells, process-tree kill, clone-copy. `cfg(target_os)` is allowed only here and in `eos-shell`. |
 | kit | `eos-kit-fs`, `eos-kit-sqlite`, `eos-kit-proc`, `eos-kit-net` | atomic writes and frontmatter; the SQLite writer thread, readers and migration runner; running commands; the guarded HTTP client. |
-| adapter | `eos-store-sqlite`, `eos-store-files`, `eos-config`, `eos-git`, `eos-fs`, `eos-watch`, `eos-pty`, `eos-engine`, `eos-accounts`, `eos-sync-vault`, `eos-update`, `eos-transfer-fs`, `eos-plugin-build`, `eos-genui-media`, `eos-peer`, `eos-relay`, `eos-symbols` | one outside system each, implementing core ports. `eos-engine` is the only crate that imports `eos-agent-sdk`. |
+| adapter | `eos-store-sqlite`, `eos-store-files`, `eos-config`, `eos-git`, `eos-fs`, `eos-watch`, `eos-pty`, `eos-engine`, `eos-auth`, `eos-sync-vault`, `eos-update`, `eos-transfer-fs`, `eos-plugin-build`, `eos-genui-media`, `eos-peer`, `eos-relay`, `eos-symbols` | one outside system each, implementing core ports. `eos-engine` is the only crate that imports `eos-agent-sdk` (see "The agent engine" below). |
 | runtime | `eos-runtime` | what a feature sees of the running app: `Request` / `Response` / body stream, `Router`, route access rules, `Module` trait, event bus, stream ring, job registry, idle hooks, the ordered executor. |
 | feature | `eos-mod-<name>`, `eos-tools` | one user-facing feature each (routes + its own use-cases over ports); the agent tools. Features never depend on each other: a capability another feature needs is a trait in `eos-core`, handed in at composition. |
 | app | `eos-app` | the composition root: builds adapters, services and modules, returns the `Router` and the lifecycle handle. The only place that knows every concrete type. |
@@ -99,6 +99,19 @@ bundled; `regress` for user-supplied JavaScript regexes, matching over UTF-16 co
 existing identity files; `portable-pty` + `vt100` for terminals; the update chunker is the exact
 port in `spikes/data`.
 
+**The agent engine.** Its crates (`eos-agent-*`, linked at `vendor/eos-agent-sdk`) are visible to
+two crates, and `cargo xtask layers` fails any other dependency on them, dev-dependencies included:
+- `eos-engine` may use any of them: it is the one crate that runs agents and the only one that
+  imports `eos-agent-sdk`;
+- `eos-auth` may use `eos-agent-anthropic` and `eos-agent-openai`, the provider sign-in crates, and
+  nothing else: a Claude or ChatGPT store is read, renewed and signed in by the engine's own code,
+  under the store's refresh lock, so a token the app reads for itself (usage, artifacts) is renewed
+  exactly as an agent's request renews it.
+
+No engine type crosses a port. A session's credential is plain data
+(`eos_core::accounts::SessionCredential`: a store folder, an API key); `eos-engine` and `eos-auth`
+each build the engine's object from it, and both go through the same store lock.
+
 **Tests.** Port the behaviour the TypeScript tests pin, not their structure. Unit tests beside
 the code; cross-crate scenarios in the higher crate's `tests/`. Anything that must equal today's
 output is checked against a recorded fixture or a vector, never against a hand-written
@@ -116,6 +129,8 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 | `core/src/domain` | `eos-domain` |
 | `core/src/ports` | `eos-core` |
 | `core/src/use-cases`, `core/src/services` | the service crate or the feature crate that owns the behaviour |
+| `manager/services/accounts`, `UsageService`, `PlanResumeService` | `eos-accounts` (the rules), `eos-auth` (stores, sign-in flows, the usage endpoint) |
+| `infra/src/auth`, `infra/src/usage` | `eos-auth` |
 | `infra/src/<area>` | the adapter or kit for that area (`infra/src/filesystem` → `eos-fs` for the user's files and desktop, `eos-watch` for the watchers) |
 | `manager/sse`, `manager/routes` plumbing, `manager/middleware`, `manager/services/jobs`, `IdleHooks` | `eos-runtime` |
 | `manager/modules/<feature>`, `manager/routes/<feature>` | `eos-mod-<feature>` |

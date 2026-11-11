@@ -159,6 +159,16 @@ at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
 [[known]]
+scenario = "15-accounts"
+at = "/json/accounts/1/subscription/supported"
+reason = "Sign in with ChatGPT runs on the engine's own ChatGPT route, which every build has. The daemon offered it only where a Codex CLI was installed, and the recording machine had none."
+
+[[known]]
+scenario = "15-accounts"
+at = "/json/accounts/2/subscription/supported"
+reason = "The Gemini lane is not ported, so there is no Google sign-in to offer. The daemon offered one because a Gemini CLI was installed on the recording machine."
+
+[[known]]
 scenario = "35-policy"
 step = "invalid-body"
 at = "/json/error"

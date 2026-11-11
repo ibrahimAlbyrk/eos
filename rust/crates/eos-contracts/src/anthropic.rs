@@ -24,3 +24,16 @@ pub struct AnthropicConfigStatus {
 }
 
 impl Validate for AnthropicConfigStatus {}
+
+/// What the app may write of the Claude credentials (`PUT /api/anthropic/config`):
+/// a field that is absent stays, a blank one is cleared.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AnthropicConfigPatch {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_token: Option<String>,
+}
+
+impl Validate for AnthropicConfigPatch {}

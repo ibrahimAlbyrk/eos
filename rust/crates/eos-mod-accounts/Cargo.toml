@@ -1,0 +1,22 @@
+[package]
+name = "eos-mod-accounts"
+description = "Settings › Accounts and Usage: account status, sign-ins, the sign-in list, plan usage, the Claude API key."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-accounts.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-runtime.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

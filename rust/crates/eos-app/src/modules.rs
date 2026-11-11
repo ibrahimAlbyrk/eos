@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use eos_accounts::Accounts;
 use eos_contracts::UiConfigResponseFeatures;
 use eos_core::agent::{BackendCatalog, ModelCatalog};
 use eos_core::os::ProcessStats;
@@ -34,6 +35,7 @@ pub(crate) struct Context {
     pub(crate) backends: Arc<dyn BackendCatalog>,
     pub(crate) projects: Arc<dyn ProjectStore>,
     pub(crate) recents: Arc<dyn RecentFolders>,
+    pub(crate) accounts: Arc<Accounts>,
     pub(crate) kernel: eos_runtime::Kernel,
     pub(crate) paths: eos_platform::DataPaths,
     /// Routes of the raw-content origin, collected while the modules are built.
@@ -51,6 +53,7 @@ pub(crate) struct Context {
 /// adds its line here, in alphabetical order; nothing else in the app changes.
 pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
     vec![
+        Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
         crate::files::module(cx),
         Arc::new(eos_mod_pages::PagesModule::new(
             cx.notes.pages.clone(),

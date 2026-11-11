@@ -40,6 +40,9 @@ pub struct SpawnCommand {
 pub trait CredentialStore: Send + Sync + Debug {
     /// Raw JSON of a Claude Code login store; no `store_dir` = the user's own Claude Code login.
     fn read_claude_store(&self, store_dir: Option<&Path>) -> Option<String>;
+    /// Replaces a store's login document, as the claude binary writes it: an
+    /// item that exists is rewritten in place, whoever created it.
+    fn write_claude_store(&self, store_dir: &Path, json: &str) -> Result<(), Error>;
     /// Removes a store's login, as `claude auth logout` does.
     fn clear_claude_store(&self, store_dir: &Path);
     /// A secret saved under `service` (a provider API key).

@@ -727,6 +727,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-accounts"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-agent-agents"
 version = "0.0.1"
 dependencies = [
@@ -1070,6 +1083,8 @@ name = "eos-app"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "eos-accounts",
+ "eos-auth",
  "eos-config",
  "eos-contracts",
  "eos-core",
@@ -1079,6 +1094,7 @@ dependencies = [
  "eos-kit-fs",
  "eos-kit-proc",
  "eos-kit-sqlite",
+ "eos-mod-accounts",
  "eos-mod-fs",
  "eos-mod-pages",
  "eos-mod-policy",
@@ -1103,6 +1119,28 @@ dependencies = [
  "eos-workers",
  "serde_json",
  "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-auth"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "eos-agent-anthropic",
+ "eos-agent-openai",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-kit-net",
+ "eos-platform",
+ "eos-testkit",
+ "reqwest",
+ "serde_json",
+ "sha2",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -1288,6 +1326,19 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "eos-mod-accounts"
+version = "0.0.1"
+dependencies = [
+ "eos-accounts",
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

@@ -56,9 +56,55 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The account the claude binary gives a login item it creates: `$USER`
+/// when it is a plain name, else a fixed one.
+fn claude_account() -> String {
+    std::env::var("USER")
+        .ok()
+        .filter(|u| !u.is_empty() && u.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')))
+        .unwrap_or_else(|| "claude-code-user".to_owned())
+}
+
+impl SecurityKeychain {
+    /// The account attribute of the item under `service`. An item is named by
+    /// its service and its account together, so an update must give both.
+    fn account_of(&self, service: &str) -> Option<String> {
+        let out = tool::run("security", &mut self.command(&["find-generic-password", "-s", service]), None, TIMEOUT);
+        let out = out.ok().filter(|out| out.status.success())?;
+        let line = out.stdout.lines().find(|l| l.trim_start().starts_with("\"acct\""))?;
+        Some(line.split_once("=\"")?.1.strip_suffix('"')?.to_owned())
+    }
+
+    // `-U` updates an existing item, so saving again rotates it in place.
+    // The secret travels as hex on stdin (`security -i`), so it never shows in
+    // the process list; only a line too long for the tool's reader goes as arguments.
+    fn write_item(&self, service: &str, account: &str, secret: &str) -> Result<(), Error> {
+        let value = hex(secret.as_bytes());
+        let keychain = self.keychain.as_ref().map(|k| k.to_string_lossy().into_owned());
+        let mut line =
+            format!("add-generic-password -U -s \"{}\" -a \"{}\" -X \"{value}\"", quoted(service), quoted(account));
+        if let Some(keychain) = &keychain {
+            line.push_str(&format!(" \"{}\"", quoted(keychain)));
+        }
+        line.push('\n');
+        if line.len() <= SECURITY_LINE_MAX && !service.contains('\n') && !account.contains('\n') {
+            tool::run_ok("security", Command::new(SECURITY).arg("-i"), Some(line.as_bytes()), TIMEOUT).map(drop)
+        } else {
+            let args = ["add-generic-password", "-U", "-s", service, "-a", account, "-X", &value];
+            tool::run_ok("security", &mut self.command(&args), None, TIMEOUT).map(drop)
+        }
+    }
+}
+
 impl CredentialStore for SecurityKeychain {
     fn read_claude_store(&self, store_dir: Option<&Path>) -> Option<String> {
         self.read_secret(&claude_store_service(store_dir))
+    }
+
+    fn write_claude_store(&self, store_dir: &Path, json: &str) -> Result<(), Error> {
+        let service = claude_store_service(Some(store_dir));
+        let account = self.account_of(&service).unwrap_or_else(claude_account);
+        self.write_item(&service, &account, json)
     }
 
     fn clear_claude_store(&self, store_dir: &Path) {
@@ -72,23 +118,8 @@ impl CredentialStore for SecurityKeychain {
         Some(out.stdout.trim().to_owned()).filter(|v| !v.is_empty())
     }
 
-    // `-U` updates an existing item, so saving a key again rotates it in place.
-    // The secret travels as hex on stdin (`security -i`), so it never shows in
-    // the process list; only a line too long for the tool's reader goes as arguments.
     fn write_secret(&self, service: &str, secret: &str) -> Result<(), Error> {
-        let value = hex(secret.as_bytes());
-        let keychain = self.keychain.as_ref().map(|k| k.to_string_lossy().into_owned());
-        let mut line = format!("add-generic-password -U -s \"{0}\" -a \"{0}\" -X \"{value}\"", quoted(service));
-        if let Some(keychain) = &keychain {
-            line.push_str(&format!(" \"{}\"", quoted(keychain)));
-        }
-        line.push('\n');
-        if line.len() <= SECURITY_LINE_MAX && !service.contains('\n') {
-            tool::run_ok("security", Command::new(SECURITY).arg("-i"), Some(line.as_bytes()), TIMEOUT).map(drop)
-        } else {
-            let args = ["add-generic-password", "-U", "-s", service, "-a", service, "-X", &value];
-            tool::run_ok("security", &mut self.command(&args), None, TIMEOUT).map(drop)
-        }
+        self.write_item(service, service, secret)
     }
 
     fn delete_secret(&self, service: &str) {
@@ -176,6 +207,28 @@ mod tests {
         assert_eq!(keychain.read_claude_store(Some(store)).as_deref(), Some("{\"claudeAiOauth\":{}}"));
         keychain.clear_claude_store(store);
         assert_eq!(keychain.read_claude_store(Some(store)), None);
+    }
+
+    #[test]
+    fn a_login_the_claude_binary_wrote_is_rewritten_in_place() {
+        let throwaway = Throwaway::create();
+        let keychain = SecurityKeychain::file(&throwaway.path);
+        let store = Path::new("/tmp/eos-test/accounts/claude-lg-1");
+        let service = claude_store_service(Some(store));
+        let p = throwaway.path.to_str().expect("utf-8 path");
+        // As the claude binary creates it: the account is the user's name.
+        security(&["add-generic-password", "-s", &service, "-a", "someone", "-w", "{\"claudeAiOauth\":{\"v\":1}}", p]);
+        assert_eq!(keychain.account_of(&service).as_deref(), Some("someone"));
+
+        keychain.write_claude_store(store, "{\"claudeAiOauth\":{\"v\":2}}").expect("rewrites");
+        assert_eq!(keychain.read_claude_store(Some(store)).as_deref(), Some("{\"claudeAiOauth\":{\"v\":2}}"));
+        let dump = security(&["dump-keychain", p]);
+        assert_eq!(dump.matches(&format!("\"svce\"<blob>=\"{service}\"")).count(), 1, "one item, not a second one");
+
+        // A store with no item yet gets one under the claude binary's account.
+        let fresh = Path::new("/tmp/eos-test/accounts/claude-lg-2");
+        keychain.write_claude_store(fresh, "{}").expect("creates");
+        assert_eq!(keychain.account_of(&claude_store_service(Some(fresh))), Some(claude_account()));
     }
 
     #[test]

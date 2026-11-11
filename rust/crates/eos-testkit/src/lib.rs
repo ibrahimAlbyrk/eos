@@ -18,11 +18,13 @@
 //! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`],
 //! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]);
 //! [`FakeWatcher`] stands in for the folder watcher and the git watcher.
+//! The accounts area's fakes are in `accounts` ([`FakePlanStores`], [`FakeSubscriptionProvider`], …).
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
 #![allow(clippy::missing_panics_doc)]
 
+mod accounts;
 pub mod agent;
 mod clock;
 mod db;
@@ -36,6 +38,11 @@ mod profile;
 mod watchers;
 pub mod wire;
 
+pub use accounts::{
+    FakeBrowser, FakeConfig, FakeLocalTime, FakePlanLoginDirs, FakePlanLoginStore, FakePlanStores, FakePlanUsageApi,
+    FakeSecrets, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe, FakeUsageProvider,
+    FakeUsageSnapshots, StartedSignIn,
+};
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};

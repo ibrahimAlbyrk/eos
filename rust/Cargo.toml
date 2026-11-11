@@ -13,7 +13,9 @@ license = "MIT"
 publish = false
 
 [workspace.dependencies]
+eos-accounts = { path = "crates/eos-accounts" }
 eos-app = { path = "crates/eos-app" }
+eos-auth = { path = "crates/eos-auth" }
 eos-bridge = { path = "crates/eos-bridge" }
 eos-config = { path = "crates/eos-config" }
 eos-contracts = { path = "crates/eos-contracts" }
@@ -26,6 +28,7 @@ eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-mod-accounts = { path = "crates/eos-mod-accounts" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-policy = { path = "crates/eos-mod-policy" }

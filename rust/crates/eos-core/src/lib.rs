@@ -41,7 +41,7 @@ pub mod store;
 use std::future::Future;
 use std::pin::Pin;
 
-pub use clock::{Clock, SystemClock};
+pub use clock::{Clock, Sleeper, SystemClock};
 pub use error::Error;
 pub use ids::{Alphabet, Ids, RandomIds};
 

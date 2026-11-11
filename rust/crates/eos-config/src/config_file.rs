@@ -99,7 +99,13 @@ impl ConfigSource for ConfigFile {
             Some(Value::Object(block)) => block,
             _ => Map::new(),
         };
-        block.extend(patch);
+        for (key, value) in patch {
+            if value.is_null() {
+                block.remove(&key);
+            } else {
+                block.insert(key, value);
+            }
+        }
         file.insert(section.to_owned(), Value::Object(block));
         let text = serde_json::to_string_pretty(&Value::Object(file)).map_err(Error::storage)?;
         atomic_write(&self.path, text.as_bytes(), &WriteOptions::default()).map_err(Error::storage)?;
@@ -157,6 +163,18 @@ mod tests {
 
         let created = config.patch("compaction", object(json!({ "threshold": 0.5 }))).expect("patches");
         assert_eq!(created.compaction.threshold, 0.5);
+    }
+
+    #[test]
+    fn a_null_in_a_patch_removes_its_key() {
+        let home = TempHome::new();
+        home.write("config.json", r#"{"anthropic":{"apiKey":"sk-1","authToken":"old"}}"#);
+        let config = ConfigFile::load(home.path(), Env::default(), true);
+        let patch = Map::from_iter([("authToken".to_owned(), Value::Null), ("apiKey".to_owned(), json!("sk-2"))]);
+        let after = config.patch("anthropic", patch).expect("writes");
+        assert_eq!((after.anthropic.api_key.as_deref(), after.anthropic.auth_token.as_deref()), (Some("sk-2"), None));
+        let file: Value = serde_json::from_str(&home.read("config.json")).expect("JSON");
+        assert_eq!(file, json!({ "anthropic": { "apiKey": "sk-2" } }), "a cleared field leaves nothing behind");
     }
 
     #[test]

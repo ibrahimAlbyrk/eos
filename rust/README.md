@@ -25,7 +25,7 @@ docs/      how-tos: adding-a-feature.md is the path every feature crate follows
 - A crate depends only on lower layers; `cargo xtask layers` enforces it and every crate must be listed there.
 - `unsafe` is denied workspace-wide.
 - OS differences live only in the platform kit and the shell.
-- The agent engine (`eos-agent-sdk`) is imported by one adapter crate only.
+- The agent engine (`eos-agent-sdk`) is imported by one adapter crate only; its two provider sign-in crates also by the sign-in adapter (`ARCHITECTURE.md`, "The agent engine").
 
 ## Check
 

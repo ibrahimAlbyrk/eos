@@ -82,6 +82,9 @@ pub struct SignInPages {
     pub shown: String,
 }
 
+/// What a sign-in calls when its pages are known.
+pub type OnPages = Box<dyn FnOnce(SignInPages) + Send>;
+
 /// Who signed in.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SignedIn {
@@ -95,7 +98,7 @@ pub struct SignInRequest {
     /// The account expected to sign in (a renewal), pre-filled on the page.
     pub login_hint: Option<String>,
     /// Called once, when the pages are known.
-    pub on_pages: Box<dyn FnOnce(SignInPages) + Send>,
+    pub on_pages: OnPages,
     /// Resolves with the code the user pasted, or `None` when none will come.
     pub code: BoxFuture<'static, Option<String>>,
 }
@@ -169,6 +172,14 @@ pub trait UsageProvider: Send + Sync + 'static {
     fn fetch(&self) -> BoxFuture<'_, Result<ProviderUsage, UsageError>>;
 }
 
+/// Claude's plan-usage endpoint, read with one sign-in's access token.
+pub trait PlanUsageApi: Send + Sync + 'static {
+    /// The snapshot as the endpoint gives it: `provider`, the windows, extra
+    /// usage and `fetched_at`. Whose it is (sign-in, plan) is the caller's to
+    /// add. `Err` reads as the dashboard shows it.
+    fn fetch<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<ProviderUsage, String>>;
+}
+
 /// Where the last good snapshot per provider survives a restart
 /// (`usage-cache.json`, regenerable).
 pub trait UsageSnapshotStore: Send + Sync + 'static {
@@ -186,12 +197,17 @@ pub enum SessionCredential {
     Store { provider: String, dir: PathBuf },
     /// The provider's API key.
     ApiKey { provider: String, key: String },
+    /// A fixed bearer token: the setup-token of an install from before
+    /// sign-ins had stores, which bills until the next sign-in or sign-out.
+    Bearer { provider: String, token: String },
 }
 
 impl SessionCredential {
     pub fn provider(&self) -> &str {
         match self {
-            SessionCredential::Store { provider, .. } | SessionCredential::ApiKey { provider, .. } => provider,
+            SessionCredential::Store { provider, .. }
+            | SessionCredential::ApiKey { provider, .. }
+            | SessionCredential::Bearer { provider, .. } => provider,
         }
     }
 }
@@ -205,6 +221,9 @@ impl fmt::Debug for SessionCredential {
             SessionCredential::ApiKey { provider, .. } => {
                 f.debug_struct("ApiKey").field("provider", provider).finish_non_exhaustive()
             }
+            SessionCredential::Bearer { provider, .. } => {
+                f.debug_struct("Bearer").field("provider", provider).finish_non_exhaustive()
+            }
         }
     }
 }
@@ -214,6 +233,8 @@ impl fmt::Debug for SessionCredential {
 pub struct PlanLimits {
     /// `allowed`, `allowed_warning`, `rejected`.
     pub status: Option<String>,
+    /// The window that binds: `five_hour` or `seven_day`.
+    pub claim: Option<String>,
     /// When the binding window rolls over (epoch ms).
     pub resets_at_ms: Option<i64>,
     /// Share of the five-hour window used, 0–1.
@@ -257,6 +278,18 @@ pub trait SessionCredentials: Send + Sync + 'static {
     /// A request of `worker_id` (a top-level worker) was refused because its
     /// credential stopped working. Asked while the request waits.
     fn failed<'a>(&'a self, worker_id: &'a str, failure: &'a PlanFailure) -> BoxFuture<'a, PlanVerdict>;
+}
+
+/// What another feature may read of the user's plan sign-ins (the artifact
+/// catalog, dreams). Implemented by `eos-accounts`.
+pub trait PlanAccess: Send + Sync + 'static {
+    /// The provider's sign-ins, in the order they were added.
+    fn logins(&self, provider: &str) -> Vec<eos_domain::accounts::PlanLoginRecord>;
+    /// A sign-in's access token, renewed first when it lapsed.
+    fn access_token<'a>(&'a self, provider: &'a str, login_id: &'a str) -> BoxFuture<'a, Option<String>>;
+    /// How much of its plan the sign-in a new session would use has spent:
+    /// the larger of its five-hour and weekly windows, 0–1. `None`: unknown.
+    fn utilization<'a>(&'a self, provider: &'a str) -> BoxFuture<'a, Option<f64>>;
 }
 
 /// What the accounts service asks of the engine. Implemented by the engine.
