@@ -23,10 +23,13 @@ eos-kit-fs = { path = "crates/eos-kit-fs" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-mod-pages = { path = "crates/eos-mod-pages" }
+eos-mod-profile = { path = "crates/eos-mod-profile" }
 eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-workers = { path = "crates/eos-mod-workers" }
 eos-platform = { path = "crates/eos-platform" }
+eos-profile = { path = "crates/eos-profile" }
 eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }

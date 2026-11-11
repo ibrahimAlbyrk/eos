@@ -31,14 +31,22 @@
 //! A file store is a `Send + Sync` trait a feature holds as `Arc<dyn …>`; it
 //! keeps the file's format and guards its own read-modify-write
 //! (`eos-store-files`, `eos-config`).
+//!
+//! A store of many small documents (pages, memories) holds what it loaded
+//! and writes each change through; the one service that owns the data's write
+//! path orders the changes.
 
 mod counters;
 mod documents;
 mod events;
 mod files;
 mod loops;
+mod memories;
 mod message_queue;
+mod pages;
 mod pending;
+mod profile;
+mod session;
 mod unit;
 mod workers;
 
@@ -47,7 +55,11 @@ pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, Wor
 pub use events::{EventOrder, EventQuery, EventRepo};
 pub use files::{ConfigSource, ProjectStore, RecentFolders, UserSettingsStore};
 pub use loops::{LoopRepo, NewLoop};
+pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
+pub use pages::PageStore;
 pub use pending::{NewPending, PendingRepo};
+pub use profile::{UserAvatar, UserAvatarStore, UserProfileStore};
+pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
 pub use workers::{NewWorker, WorkerRepo};

@@ -262,9 +262,16 @@ pub fn read<T: DeserializeOwned>(value: &Value) -> Result<T, ValidationError> {
 /// all); constraint failures are all reported.
 pub fn parse<T: DeserializeOwned + Validate>(value: &Value) -> Result<T, ValidationError> {
     let parsed: T = read(value)?;
+    check(&parsed)?;
+    Ok(parsed)
+}
+
+/// Checks the constraints of a value that is already typed (a record about
+/// to be stored): every failure is reported.
+pub fn check<T: Validate + ?Sized>(value: &T) -> Result<(), ValidationError> {
     let mut cx = Issues::default();
-    parsed.validate(&mut cx);
-    if cx.is_empty() { Ok(parsed) } else { Err(ValidationError { issues: cx.into_vec() }) }
+    value.validate(&mut cx);
+    if cx.is_empty() { Ok(()) } else { Err(ValidationError { issues: cx.into_vec() }) }
 }
 
 fn segment(seg: &serde_path_to_error::Segment) -> Option<String> {

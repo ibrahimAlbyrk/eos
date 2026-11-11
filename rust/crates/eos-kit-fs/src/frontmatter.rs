@@ -1,15 +1,13 @@
 //! Markdown with frontmatter (pages, memories, worker definitions): YAML
 //! metadata between `---` fences, then the body verbatim.
 //!
-//! Reading goes through `serde_norway`; writing through this crate's port of
-//! the `yaml` package's writer, so a file keeps its layout whichever app wrote it last.
-
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use serde_norway::Value;
+//! Reading and writing follow the `yaml` package the TypeScript app uses, so a
+//! file reads the same and keeps its layout whichever app wrote it last.
 
 use crate::error::Error;
-use crate::yaml::to_yaml;
+use crate::yaml::{read_yaml, to_yaml};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 /// The fence every reader shares, `/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/`:
 /// returns the YAML between the fences and the body after them.
@@ -28,38 +26,16 @@ pub fn split(raw: &str) -> Option<(&str, &str)> {
     Some((yaml, body))
 }
 
-/// Mapping keys as a JavaScript object holds them: always strings.
-fn string_keys(value: Value) -> Value {
-    match value {
-        Value::Mapping(map) => Value::Mapping(
-            map.into_iter()
-                .map(|(key, value)| {
-                    let key = match key {
-                        Value::String(_) => key,
-                        Value::Bool(b) => Value::String(b.to_string()),
-                        Value::Number(n) => Value::String(n.to_string()),
-                        Value::Null => Value::String("null".to_owned()),
-                        other => other,
-                    };
-                    (key, string_keys(value))
-                })
-                .collect(),
-        ),
-        Value::Sequence(items) => Value::Sequence(items.into_iter().map(string_keys).collect()),
-        other => other,
-    }
-}
-
 /// Splits a file and reads its metadata as `T`. `Ok(None)` when the file has
 /// no frontmatter or it is not a mapping; an error when the YAML does not
 /// parse or does not fit `T`. Merge keys (`<<`) stay ordinary keys.
 pub fn parse<T: DeserializeOwned>(raw: &str) -> Result<Option<(T, &str)>, Error> {
     let Some((yaml, body)) = split(raw) else { return Ok(None) };
-    let value: Value = serde_norway::from_str(yaml).map_err(|e| Error::Yaml(e.to_string()))?;
+    let value = read_yaml(yaml)?;
     if !value.is_mapping() {
         return Ok(None);
     }
-    let meta = serde_norway::from_value(string_keys(value)).map_err(|e| Error::Yaml(e.to_string()))?;
+    let meta = serde_norway::from_value(value).map_err(|e| Error::Yaml(e.to_string()))?;
     Ok(Some((meta, body)))
 }
 
@@ -81,6 +57,7 @@ pub fn join<T: Serialize + ?Sized>(meta: &T, body: &str) -> Result<String, Error
 #[cfg(test)]
 mod tests {
     use serde::Deserialize;
+    use serde_norway::Value;
 
     use super::*;
 
@@ -156,5 +133,23 @@ mod tests {
             parse::<Loose>("---\n1: a\ntrue: b\n<<: { x: 1 }\n---\n").expect("parse").expect("frontmatter");
         assert_eq!((loose.one.as_str(), loose.yes.as_str()), ("a", "b"));
         assert_eq!(loose.merge.get("x"), Some(&1));
+    }
+
+    #[test]
+    fn characters_the_yaml_package_writes_raw_are_read_back() {
+        // What `stringify` writes for these values: the separators stay as
+        // they are, and a C1 control only forces double quotes.
+        let file = "---\ntitle: \u{2028}line sep\nquote: \"a\u{85}b\u{9f}\"\nkey\u{2029}: x\u{feff}y\n---\nbody";
+        let (meta, body) =
+            parse::<std::collections::BTreeMap<String, String>>(file).expect("parse").expect("frontmatter");
+        assert_eq!(meta["title"], "\u{2028}line sep");
+        assert_eq!(meta["quote"], "a\u{85}b\u{9f}");
+        assert_eq!(meta["key\u{2029}"], "x\u{feff}y");
+        assert_eq!(body, "body");
+        // A file that already uses the first private-use characters gets another mark.
+        let taken = "---\na: \u{e000}\u{2028}\u{e001}2028\u{e001}\n---\n";
+        let (meta, _) =
+            parse::<std::collections::BTreeMap<String, String>>(taken).expect("parse").expect("frontmatter");
+        assert_eq!(meta["a"], "\u{e000}\u{2028}\u{e001}2028\u{e001}");
     }
 }

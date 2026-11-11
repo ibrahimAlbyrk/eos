@@ -1,0 +1,22 @@
+[package]
+name = "eos-profile"
+description = "Who the user is, as prompt text: the one place the profile and the always-on memories are rendered."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+regress.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

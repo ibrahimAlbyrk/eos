@@ -36,6 +36,18 @@ step = "focus-invalid"
 at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
+[[known]]
+scenario = "31-pages"
+step = "edit-unknown-op"
+at = "/json/error"
+reason = "eos-contracts words an unknown union tag as an invalid enum value and names what it received; Zod said `Invalid discriminator value` (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "32-profile"
+step = "memory-create-invalid"
+at = "/json/error"
+reason = "eos-contracts stops at the first field of the wrong type (the category) and does not go on to the constraints (the empty text); Zod named both (crates/eos-contracts/README.md)."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

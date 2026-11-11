@@ -88,7 +88,7 @@ pub use transfer::*;
 pub use update::*;
 pub use usage::*;
 pub use util::*;
-pub use validate::{Issue, Issues, Validate, ValidationError, parse, read};
+pub use validate::{Issue, Issues, Validate, ValidationError, check, parse, read};
 pub use worker::*;
 pub use worker_definition::*;
 pub use workflow_run::*;

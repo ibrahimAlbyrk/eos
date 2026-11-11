@@ -379,10 +379,13 @@ dependencies = [
  "eos-domain",
  "eos-kit-fs",
  "eos-kit-sqlite",
+ "eos-mod-pages",
+ "eos-mod-profile",
  "eos-mod-projects",
  "eos-mod-system",
  "eos-mod-workers",
  "eos-platform",
+ "eos-profile",
  "eos-runtime",
  "eos-sessions",
  "eos-store-files",
@@ -477,6 +480,7 @@ dependencies = [
 name = "eos-kit-fs"
 version = "0.0.1"
 dependencies = [
+ "indexmap",
  "regress",
  "ryu-js",
  "serde",
@@ -518,6 +522,41 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "eos-mod-pages"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-profile"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-profile",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -574,6 +613,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-profile"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "regress",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "eos-runtime"
 version = "0.0.1"
 dependencies = [
@@ -613,6 +665,7 @@ dependencies = [
  "eos-testkit",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -633,13 +686,17 @@ dependencies = [
 name = "eos-testkit"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "eos-contracts",
  "eos-core",
  "eos-domain",
  "eos-kit-sqlite",
  "eos-platform",
+ "eos-runtime",
  "eos-store-sqlite",
+ "indexmap",
  "serde_json",
+ "sha2",
  "tempfile",
 ]
 

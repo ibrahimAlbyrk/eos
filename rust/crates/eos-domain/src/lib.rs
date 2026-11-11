@@ -12,11 +12,16 @@ pub mod context;
 pub mod display;
 pub mod event;
 pub mod loops;
+pub mod memory_sources;
 pub mod message_queue;
 pub mod model;
+pub mod page;
 pub mod pending;
 pub mod project;
+pub mod text;
 pub mod transcript;
+pub mod user_memory;
+pub mod user_profile;
 pub mod worker;
 
 pub use event::EventRecord;

@@ -6,6 +6,9 @@
 //! - [`TempStore`]: the real store over a migrated `state.db`, in a [`TempHome`];
 //!   [`Announced`] keeps what its writes announced.
 //! - [`fixtures`]: the recorded wire and the invented seed rows.
+//! - [`wire::Replay`]: a recorded scenario replayed against a router.
+//! - [`FakePageStore`], [`FakeUserProfileStore`], [`FakeUserAvatarStore`], [`FakeUserMemoryStore`],
+//!   [`FakeMemoryProvider`]: the file-store ports, in memory.
 //!
 //! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`]).
 //!
@@ -16,12 +19,15 @@
 mod clock;
 mod db;
 mod fakes;
+mod files;
 pub mod fixtures;
 mod home;
 mod ids;
+pub mod wire;
 
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
 pub use fakes::FakeModelCatalog;
+pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use home::TempHome;
 pub use ids::SeqIds;

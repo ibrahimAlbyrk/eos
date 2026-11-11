@@ -28,6 +28,7 @@ use crate::callers::Callers;
 use crate::display::StripSenderTags;
 use crate::host::{self, HostStats};
 use crate::modules::{self, Context};
+use crate::notes::Notes;
 
 /// What the app is built from. Tests swap the clock, the id source and the
 /// environment.
@@ -108,6 +109,10 @@ impl App {
         let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
 
         let context = Context {
+            bus: kernel.bus.clone(),
+            clock: clock.clone(),
+            ids: ids.clone(),
+            notes: Notes::open(&paths, &clock, store.clone(), config.clone()),
             run: RunInfo {
                 pid: std::process::id(),
                 started_at: clock.now_ms(),

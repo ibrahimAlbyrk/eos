@@ -16,6 +16,9 @@
 //! | [`shell`] | the window shell: embedded views, screenshots, the open panel |
 //! | [`store`] | the data folder: `state.db` repositories and file stores |
 //!
+//! A capability one feature offers the others is a trait here too, in the
+//! module of the feature that implements it ([`pages`], [`profile`]).
+//!
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
 //! is the vocabulary a port fails with.
 
@@ -26,7 +29,9 @@ pub mod git;
 pub mod ids;
 pub mod net;
 pub mod os;
+pub mod pages;
 pub mod policy;
+pub mod profile;
 pub mod prompt;
 pub mod shell;
 pub mod store;

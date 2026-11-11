@@ -19,6 +19,7 @@ mod callers;
 mod display;
 mod host;
 mod modules;
+mod notes;
 
 pub use app::{App, Options};
 pub use callers::Callers;

@@ -2,8 +2,12 @@
 //! `eos-core`. Each store keeps today's file format, holds the file in
 //! memory, and replaces it atomically on every change.
 
+pub mod claude_md;
 mod json;
+pub mod memories;
 mod models;
+pub mod pages;
+pub mod profile;
 mod projects;
 mod recents;
 
