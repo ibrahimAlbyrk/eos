@@ -7,3 +7,4 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets --quiet -- -D warnings
 cargo test --workspace --quiet
 cargo xtask layers
+cargo xtask shell

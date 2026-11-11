@@ -1,0 +1,31 @@
+[package]
+name = "eos-shell"
+description = "The window shell: Tauri 3 on CEF. The only crate that sees Tauri or CEF types."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+
+[build-dependencies]
+tauri-build.workspace = true
+
+[dependencies]
+eos-bridge.workspace = true
+eos-core.workspace = true
+
+base64.workspace = true
+block2.workspace = true
+cef.workspace = true
+objc2.workspace = true
+objc2-foundation.workspace = true
+serde_json.workspace = true
+tauri.workspace = true
+tauri-runtime-cef.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "sync", "time"] }
+
+[lints]
+workspace = true

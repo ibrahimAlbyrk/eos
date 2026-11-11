@@ -1,0 +1,5 @@
+/.work/
+/target/
+# Written by tauri-build on every build.
+/eos-shell/gen/
+__pycache__/

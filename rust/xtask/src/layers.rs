@@ -20,9 +20,14 @@ use serde::Deserialize;
 /// - runtime: what a feature may see of the running app (module trait, bus, jobs, stream).
 /// - feature: one user-facing feature each, and the agent tools.
 /// - app: the composition root that wires everything below it.
-/// - host: the window shell, the bridge to the dashboard, the binary.
+/// - host: the bridge to the dashboard, then the window shell, then the binary; in that
+///   order, so each may use the one before it. The shell and the binary live in the
+///   `host/` workspace (Tauri + CEF), checked here as well.
 const LAYERS: &[(&str, Layer)] = &[
+    ("eos", Layer::Binary),
     ("eos-app", Layer::App),
+    ("eos-bridge", Layer::Bridge),
+    ("eos-cef-helper", Layer::Shell),
     ("eos-contracts", Layer::Types),
     ("eos-core", Layer::Core),
     ("eos-domain", Layer::Domain),
@@ -33,6 +38,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-kit-sqlite", Layer::Kit),
     ("eos-platform", Layer::Kit),
     ("eos-runtime", Layer::Runtime),
+    ("eos-shell", Layer::Shell),
     ("eos-store-sqlite", Layer::Adapter),
     // Test and dev tooling: never a normal dependency of a library crate.
     ("eos-testkit", Layer::Support),
@@ -53,7 +59,10 @@ enum Layer {
     Runtime,
     Feature,
     App,
-    Host,
+    // The host layer, in its inner order.
+    Bridge,
+    Shell,
+    Binary,
     Support,
 }
 
@@ -76,19 +85,35 @@ struct Dep {
     kind: Option<String>,
 }
 
-pub(crate) fn check() -> anyhow::Result<()> {
+/// The workspaces the rule covers, as manifest paths from the main workspace's root.
+/// `cargo metadata --no-deps` only reads manifests, so the host workspace's heavy
+/// dependencies are never fetched or built for this check.
+const WORKSPACES: &[&str] = &["Cargo.toml", "host/Cargo.toml"];
+
+fn metadata(manifest: &std::path::Path) -> anyhow::Result<Metadata> {
     let out = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-        .args(["metadata", "--format-version", "1", "--no-deps"])
+        .args(["metadata", "--format-version", "1", "--no-deps", "--manifest-path"])
+        .arg(manifest)
         .output()
         .context("running cargo metadata")?;
     if !out.status.success() {
-        bail!("cargo metadata failed: {}", String::from_utf8_lossy(&out.stderr));
+        bail!("cargo metadata failed for {}: {}", manifest.display(), String::from_utf8_lossy(&out.stderr));
     }
-    let meta: Metadata = serde_json::from_slice(&out.stdout)?;
+    Ok(serde_json::from_slice(&out.stdout)?)
+}
+
+pub(crate) fn check() -> anyhow::Result<()> {
+    // xtask's own manifest sits one level below the main workspace's root.
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).parent().context("workspace root")?;
     let layers: HashMap<&str, Layer> = LAYERS.iter().copied().collect();
 
     let mut problems = Vec::new();
-    for pkg in meta.packages.iter().filter(|p| meta.workspace_members.contains(&p.id)) {
+    let mut packages = Vec::new();
+    for manifest in WORKSPACES {
+        let meta = metadata(&root.join(manifest))?;
+        packages.extend(meta.packages.into_iter().filter(|p| meta.workspace_members.contains(&p.id)));
+    }
+    for pkg in &packages {
         let Some(&own) = layers.get(pkg.name.as_str()) else {
             problems.push(format!("{}: not listed in xtask LAYERS", pkg.name));
             continue;
@@ -142,6 +167,11 @@ mod tests {
         assert!(violation(Layer::Feature, Layer::App, None).is_some());
         assert!(violation(Layer::Adapter, Layer::Support, None).is_some());
         assert_eq!(violation(Layer::Adapter, Layer::Support, Some("dev")), None);
-        assert_eq!(violation(Layer::Host, Layer::App, None), None);
+        assert_eq!(violation(Layer::Bridge, Layer::App, None), None);
+        assert_eq!(violation(Layer::Bridge, Layer::Runtime, None), None);
+        assert_eq!(violation(Layer::Shell, Layer::Bridge, None), None);
+        assert_eq!(violation(Layer::Binary, Layer::Shell, None), None);
+        assert!(violation(Layer::Bridge, Layer::Shell, None).is_some());
+        assert!(violation(Layer::App, Layer::Bridge, None).is_some());
     }
 }

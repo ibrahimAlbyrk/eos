@@ -1,0 +1,61 @@
+# The host workspace: the window shell (Tauri 3 + CEF), the `eos` binary and the CEF helper.
+# Separate from the main workspace so `rust/scripts/check.sh` never builds CEF; it uses the
+# main workspace's crates by path. See ../README.md ("Host workspace") and ../ARCHITECTURE.md §5.
+[workspace]
+resolver = "3"
+members = ["cef-helper", "eos", "eos-shell"]
+exclude = ["vendor"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.95"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+eos-app = { path = "../crates/eos-app" }
+eos-bridge = { path = "../crates/eos-bridge" }
+eos-core = { path = "../crates/eos-core" }
+eos-shell = { path = "eos-shell" }
+
+base64 = "0.22"
+block2 = "0.6"
+cef = "=154.5.0"
+objc2 = "0.6"
+objc2-foundation = "0.3"
+serde_json = "1"
+tauri = { version = "=3.0.0-alpha.6", features = ["custom-protocol", "devtools", "unstable"] }
+tauri-build = "=3.0.0-alpha.4"
+tauri-runtime-cef = { version = "=3.0.0-alpha.7", features = ["devtools", "unstable"] }
+tokio = { version = "1", default-features = false }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+dbg_macro = "warn"
+todo = "warn"
+unwrap_used = "warn"
+
+[patch.crates-io]
+# tauri-runtime-cef 3.0.0-alpha.7 with the "no bridge" patch (patches/0001) and the
+# launch-without-activation switch (patches/0003).
+tauri-runtime-cef = { path = "vendor/tauri-runtime-cef" }
+
+[profile.dev]
+debug = 0
+incremental = false
+
+# As the main workspace: a panic unwinds to its task's boundary.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "unwind"
+debug = 0
+strip = true

@@ -1,0 +1,34 @@
+[package]
+name = "eos-bridge"
+description = "The shell's request path: page request to the core's router, the shell bridges, the dashboard bundle."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+# Forwards `/_core/*` to an isolated Node daemon while the Rust core grows route by route.
+# Never part of a release.
+dev-proxy = ["dep:futures-util", "dep:reqwest", "dep:tokio-tungstenite"]
+
+[dependencies]
+eos-core.workspace = true
+eos-runtime.workspace = true
+
+base64.workspace = true
+futures-util = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true, features = ["stream"] }
+rusty-leveldb.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+tokio-tungstenite = { workspace = true, optional = true }
+tracing.workspace = true
+
+[dev-dependencies]
+bytes.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "io-util", "rt-multi-thread", "sync", "time"] }
+
+[lints]
+workspace = true

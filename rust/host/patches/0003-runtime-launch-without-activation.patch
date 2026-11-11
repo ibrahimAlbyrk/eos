@@ -1,0 +1,27 @@
+Launch without taking the user's focus.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7, applied in vendor/tauri-runtime-cef.
+Not offered upstream in this form (an environment switch); a builder option would be.
+
+Why: winit activates the app when its event loop starts. An automated run (the smoke run,
+the local-network probe) must not pull the user out of what they are doing, so with
+`TAURI_CEF_NO_ACTIVATE` set the loop is built with `activate_ignoring_other_apps(false)`.
+A normal launch does not set it.
+
+diff --git a/src/runtime.rs b/src/runtime.rs
+index 1a6d3f6c..bd998217 100644
+--- a/src/runtime.rs
++++ b/src/runtime.rs
+@@ -3350,6 +3350,12 @@ impl<T: UserEvent> CefRuntime<T> {
+ 
+     #[cfg(target_os = "macos")]
+     event_loop_builder.with_default_menu(false);
++    // Lets an automated run start without
++    // taking the user's focus. winit activates the app at launch otherwise.
++    #[cfg(target_os = "macos")]
++    if std::env::var_os("TAURI_CEF_NO_ACTIVATE").is_some() {
++      event_loop_builder.with_activate_ignoring_other_apps(false);
++    }
+ 
+     let event_loop = event_loop_builder
+       .build()

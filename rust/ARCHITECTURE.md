@@ -23,6 +23,9 @@ paired Mac ────┴── gateways call the Router directly
   released iOS app and paired Macs depend on it. Recorded fixtures (`fixtures/`) are the judge.
 - `http://eos.localhost/_shell/…` are the shell's own bridges (window, views, notifications);
   `http://raw.eos.localhost/…` is the raw-content origin. No page gets Tauri IPC.
+- The shell tells the bridge who made each request, from what the browser itself knows: the
+  view's top-level load, the dashboard document, or a frame inside it. The ui-token is only
+  ever handed to the top-level load; the shell bridges answer only the dashboard document.
 
 ## 2. Layers and crates
 
@@ -42,7 +45,7 @@ paired Mac ────┴── gateways call the Router directly
 | runtime | `eos-runtime` | what a feature sees of the running app: `Request` / `Response` / body stream, `Router`, route access rules, `Module` trait, event bus, stream ring, job registry, idle hooks, the ordered executor. |
 | feature | `eos-mod-<name>`, `eos-tools` | one user-facing feature each (routes + its own use-cases over ports); the agent tools. Features never depend on each other: a capability another feature needs is a trait in `eos-core`, handed in at composition. |
 | app | `eos-app` | the composition root: builds adapters, services and modules, returns the `Router` and the lifecycle handle. The only place that knows every concrete type. |
-| host | `eos-bridge`, `eos-shell`, `eos` | request mapping, the Tauri/CEF shell (implements view ports such as `BrowserViews`, `Capture`, `Notifier`), the binary. |
+| host | `eos-bridge`, `eos-shell`, `eos` | request mapping and everything of the shell that needs no window; the Tauri/CEF shell (implements view ports such as `BrowserViews`, `Capture`, `FilePicker`); the binary. In that order: each may use the one before it. `eos-shell` and `eos` live in the `host/` workspace (§5). |
 | support | `eos-testkit`, `eos-wire-recorder`, `xtask` | fakes, fixture loading, recording and replay, repo checks. |
 
 ## 3. Conventions
@@ -124,3 +127,50 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 
 Not ported: `gateway/`, `spawner/`, the stdio MCP servers, the launchd agent, the runtime CLI,
 the Codex and Gemini lanes.
+
+## 5. The host layer
+
+Two cargo workspaces. `rust/` holds every crate except the two that need Tauri and CEF;
+`rust/host/` holds `eos-shell`, the `eos` binary and the CEF helper, with its own lockfile,
+build cache and `scripts/check.sh`, and uses the main workspace's crates by path. The reason
+is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
+`cargo xtask layers` and `cargo xtask shell` read both workspaces without building either.
+
+- **`eos-bridge` is the shell without a window** and lives in the main workspace: the
+  transport (`Req`, `Head`, `Sink`, `Body`, `Service`), the URL space, the token rule, the
+  shell bridges behind the `ShellHost` trait, the browser panel's geometry, the event stream
+  to the page, the storage carry-over, single instance, window state. It has no Tauri or CEF
+  type and is tested without a window. What it needs from the core is the `Core` trait
+  (`ui_token`, `call(plane, req, sink)`), implemented over `eos-runtime`'s `Router` by
+  `RouterCore`: the caller comes from `eos-app`'s `callers().classify`, bodies stream at the
+  reader's pace, a dropped request cancels its handler or stream, and every request is
+  answered. During the port the `dev-proxy` feature sends the routes the router does not
+  declare to an isolated Node daemon (and keeps the event stream there until its events
+  come from Rust); it is never part of a release, where an undeclared route is the
+  router's 404.
+- **`eos-shell` is the only crate that names Tauri or CEF**, and only in its private modules:
+  its public API is plain data, the ports of `eos-core::shell` and the `Hooks` the app passes
+  in (`core`, `started`, `woke`, `open_url`, `shutdown`).
+- **Every view is created without a bridge**, in one function (`views/create.rs`), the
+  dashboard included. No page has `window.ipc`, `__TAURI_INTERNALS__` or a Tauri script; no
+  Tauri command, event or scheme protocol is registered. Pages reach Rust only through the
+  in-process handler of the app's own origin; a bridge is a route under `/_shell/` that
+  requires the ui-token and a request made by the dashboard document. Shell → page is one
+  event stream. `cargo xtask shell` fails the check when any of this is broken.
+- **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
+  notifications), each use with its reason. Also checked by `cargo xtask shell`.
+- **The runtime is vendored with patches kept as diffs** (`host/patches/`, each with its
+  reason); the helper executable is built from this repo. `host/scripts/check-patches.sh`
+  proves the vendored code is upstream plus those diffs. No binary is swapped after a build.
+- **Pages stay off the local network; the user does not.** Every profile has a proxy script
+  (`eos-bridge/src/lan_guard.rs`) that refuses a LAN address, a `.local` name or a name that
+  resolves into the LAN before DNS and before connect; WebRTC may not use UDP outside a
+  proxy; device discovery features are off. Otherwise macOS asks the user to let Eos find
+  devices on the local network because of a page. A view the user sends to the local network
+  may reach it: the core calls `BrowserViews::allow_local_network` before that navigation,
+  and never for where a page takes itself (a popup, a redirect). The opening ends when the
+  view leaves the local network. The script carries the system's proxy settings.
+- **Automated runs never type into a page and never drive the dashboard.** They restore a
+  layout through the storage carry-over, observe the shell's status (`Eos --status`) and
+  send DevTools calls only to views they created. The dev proxy refuses every write that
+  could start an agent, without a switch (`eos-bridge/src/dev/guard.rs`).

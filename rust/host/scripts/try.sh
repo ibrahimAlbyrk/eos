@@ -1,0 +1,59 @@
+#!/bin/bash
+# For the owner: the things only a person can check, on the release bundle. Everything runs
+# on the isolated data copy; sending a message is refused by the dev proxy. Nothing is
+# notarized or uploaded; signing is local.
+#
+#   try.sh            open the app: drag the window by the top strip, double-click it, resize,
+#                     ⌘C/⌘V/⌘Z in the composer and in a browser tab, full screen, close the
+#                     window (the app stays in the Dock), click the Dock icon, ⌘Q
+#   try.sh fresh      the same on a fresh shell profile
+#   try.sh migrate    a fresh shell profile that carries localStorage over from a COPY of your
+#                     Electron profile (the copy is made now; the original is only read)
+#   try.sh banner     a test banner 6 seconds after launch: switch to another app, wait for it
+#                     (with the Eos sound), click it → the Memory view opens
+#   try.sh link       hand the running app an eos://pair/… link (opens the Connect sheet)
+#   try.sh status     the running app's state as JSON
+#   try.sh build      rebuild the release bundle (after a change)
+#   try.sh stop       quit the app and stop the isolated daemon
+#
+# claude.ai sign-in: in the app, open the side panel → Browser → claude.ai and sign in (also
+# with Google). That view has its own profile and no bridge of any kind.
+#
+# EOS_BUNDLE_ID=… picks the bundle identifier (default dev.eos.shell: a first launch shows
+# the system's own first-run prompts for a new app).
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+source "$HERE/env.sh"
+DATA="${EOS_DEV_DATA:-/Users/ibrahimalbyrk/Projects/CC/eos-rs-data}"
+APP="$EOS_HOST_WORK/bundle/release/Eos.app"
+build() { "$HERE/bundle.sh" release >/dev/null; }
+signed() { codesign -dvv "$APP" 2>&1 | grep -q "^Authority=Developer ID"; }
+ready() {
+  [ -d "$APP" ] || build
+  signed || "$HERE/sign.sh" "$APP" || echo "not signed (no Developer ID identity): running unsigned" >&2
+  "$HERE/daemon.sh" start
+}
+case "${1:-run}" in
+  status) "$HERE/ctl.sh" "$APP" --status; exit 0 ;;
+  stop) "$HERE/ctl.sh" "$APP" --quit || true; "$HERE/daemon.sh" stop; exit 0 ;;
+  link) "$HERE/ctl.sh" "$APP" "eos://pair/try-this-is-not-a-real-invite"; exit 0 ;;
+  build) build; exit 0 ;;
+  run) ready; "$HERE/launch.sh" "$APP" ;;
+  fresh) ready; rm -rf "$DATA/shell-out/data"; "$HERE/launch.sh" "$APP" ;;
+  migrate)
+    ready
+    SRC="$HOME/Library/Application Support/Eos/Local Storage"
+    [ -d "$SRC" ] || { echo "no Electron profile at $SRC" >&2; exit 1; }
+    COPY="$DATA/shell-out/electron-profile-copy"
+    rm -rf "$COPY" "$DATA/shell-out/data"; mkdir -p "$COPY"
+    cp -R "$SRC" "$COPY/Local Storage"
+    EOS_ELECTRON_PROFILE="$COPY" "$HERE/launch.sh" "$APP"
+    echo "carried over from the copy at $COPY; see $DATA/shell-out/data/migrated-from-electron.json" ;;
+  banner)
+    ready
+    STEPS="$DATA/shell-out/banner-steps.json"
+    echo '[{"wait": 6000}, {"notify": {"title": "Eos", "body": "A test banner. Click it: the Memory view opens.", "route": "memory"}}]' > "$STEPS"
+    EOS_DEV_SCRIPT="$STEPS" EOS_DEV_SCRIPT_OUT="$DATA/shell-out/banner-out.json" "$HERE/launch.sh" "$APP"
+    echo "switch to another app now; the banner comes in 6 seconds" ;;
+  *) sed -n '2,23p' "$0"; exit 2 ;;
+esac

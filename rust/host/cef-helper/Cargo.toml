@@ -1,0 +1,20 @@
+[package]
+name = "eos-cef-helper"
+description = "The executable of the five CEF helper apps (renderer, GPU, …), with the no-bridge patch."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "Apache-2.0 OR MIT"
+publish.workspace = true
+
+[[bin]]
+name = "eos-cef-helper"
+path = "src/main.rs"
+
+[dependencies]
+cef = { workspace = true, default-features = false }
+
+[features]
+default = ["sandbox"]
+# Mirrors `tauri-runtime-cef`: CEF sandbox support on macOS.
+sandbox = ["cef/sandbox"]

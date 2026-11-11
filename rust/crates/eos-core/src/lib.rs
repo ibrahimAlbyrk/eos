@@ -13,6 +13,7 @@
 //! | [`os`] | files, watchers, processes, the system clock's time zone |
 //! | [`policy`] | permission decisions and tool scope |
 //! | [`prompt`] | prompt sources and rendering |
+//! | [`shell`] | the window shell: embedded views, screenshots, the open panel |
 //! | [`store`] | the data folder: `state.db` repositories and file stores |
 //!
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
@@ -27,6 +28,7 @@ pub mod net;
 pub mod os;
 pub mod policy;
 pub mod prompt;
+pub mod shell;
 pub mod store;
 
 use std::future::Future;
