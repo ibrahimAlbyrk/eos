@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN tool_scope TEXT

@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN workspace_ready INTEGER DEFAULT 0

@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN workspace_owner_id TEXT

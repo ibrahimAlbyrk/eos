@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN fork_base_sha TEXT

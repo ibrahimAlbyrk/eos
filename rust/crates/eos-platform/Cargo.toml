@@ -1,0 +1,22 @@
+[package]
+name = "eos-platform"
+description = "The one OS seam: paths, credentials, trash, keep-awake, shells, process trees, clone copies, app-update checks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+sha2.workspace = true
+thiserror.workspace = true
+unicode-normalization.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+rustix.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

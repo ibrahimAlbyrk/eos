@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN turn_started_at INTEGER

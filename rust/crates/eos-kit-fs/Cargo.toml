@@ -1,0 +1,22 @@
+[package]
+name = "eos-kit-fs"
+description = "Files under the data folder: atomic writes, per-path locks, frontmatter, soft trash, path safety, bounded walks."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+regress.workspace = true
+ryu-js.workspace = true
+serde.workspace = true
+serde_norway.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

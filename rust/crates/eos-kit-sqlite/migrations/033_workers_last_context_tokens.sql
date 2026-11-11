@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN last_context_tokens INTEGER

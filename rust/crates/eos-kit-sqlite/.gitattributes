@@ -1,0 +1,2 @@
+# The SQL is embedded byte for byte: no line-ending conversion.
+migrations/*.sql -text

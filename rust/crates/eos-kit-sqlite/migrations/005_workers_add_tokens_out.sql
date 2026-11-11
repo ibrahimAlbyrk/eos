@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN tokens_out INTEGER DEFAULT 0

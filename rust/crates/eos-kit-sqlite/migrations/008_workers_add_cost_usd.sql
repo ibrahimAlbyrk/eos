@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN cost_usd REAL DEFAULT 0

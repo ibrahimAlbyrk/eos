@@ -1,0 +1,2 @@
+# Compared byte for byte: no line-ending conversion.
+tests/fixtures/** -text

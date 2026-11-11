@@ -13,11 +13,30 @@ publish = false
 
 [workspace.dependencies]
 eos-contracts = { path = "crates/eos-contracts" }
+eos-kit-fs = { path = "crates/eos-kit-fs" }
+eos-kit-net = { path = "crates/eos-kit-net" }
+eos-kit-proc = { path = "crates/eos-kit-proc" }
+eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
+eos-platform = { path = "crates/eos-platform" }
 
 anyhow = "1"
+bytes = "1"
+crossbeam-channel = "0.5"
+flate2 = "1"
+regress = { version = "0.12", features = ["utf16"] }
+reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
+rusqlite = { version = "0.42", features = ["bundled"] }
+rustix = { version = "1", features = ["process"] }
+ryu-js = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
+serde_norway = "0.9"
+sha2 = "0.11"
+tempfile = "3"
 thiserror = "2"
+tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt", "sync", "time"] }
+unicode-normalization = "0.1"
+url = "2"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

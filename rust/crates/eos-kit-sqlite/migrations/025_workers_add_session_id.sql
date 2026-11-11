@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN session_id TEXT

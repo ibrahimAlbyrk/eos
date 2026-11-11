@@ -1,0 +1,9 @@
+{
+  "name": "eos-kit-fs-vectors",
+  "private": true,
+  "type": "module",
+  "description": "Runs today's frontmatter writer (the yaml package) to produce the vectors the Rust writer is checked against.",
+  "dependencies": {
+    "yaml": "2.9.0"
+  }
+}

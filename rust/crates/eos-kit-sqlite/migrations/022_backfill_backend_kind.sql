@@ -1,0 +1,1 @@
+UPDATE workers SET backend_kind = 'claude-cli' WHERE backend_kind IS NULL

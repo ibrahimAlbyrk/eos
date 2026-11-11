@@ -1,0 +1,1 @@
+ALTER TABLE workers RENAME COLUMN worker_type TO worker_definition

@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN with_gateway INTEGER

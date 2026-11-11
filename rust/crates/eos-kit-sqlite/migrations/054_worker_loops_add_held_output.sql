@@ -1,0 +1,1 @@
+ALTER TABLE worker_loops ADD COLUMN held_output TEXT

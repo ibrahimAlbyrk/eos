@@ -1,0 +1,379 @@
+{
+  "applied": 64,
+  "autoVacuum": 2,
+  "journalMode": "wal",
+  "ids": [
+    "001_init_workers",
+    "002_workers_add_parent_id",
+    "003_workers_add_model",
+    "004_workers_add_tokens_in",
+    "005_workers_add_tokens_out",
+    "006_workers_add_tokens_cache_read",
+    "007_workers_add_tokens_cache_create",
+    "008_workers_add_cost_usd",
+    "009_init_events",
+    "010_idx_events_worker_ts",
+    "011_init_pending_permissions",
+    "012_idx_pending_unresolved",
+    "013_workers_add_is_orchestrator",
+    "014_backfill_existing_orchestrator",
+    "015_workers_add_tool_calls",
+    "016_workers_add_permission_mode",
+    "017_workers_add_effort",
+    "018_workers_add_tokens_cache_create_1h",
+    "019_workers_add_worktree_dir",
+    "020_workers_add_backend_kind",
+    "021_workers_add_backend_profile",
+    "022_backfill_backend_kind",
+    "023_workers_add_agent_role",
+    "024_workers_add_turn_started_at",
+    "025_workers_add_session_id",
+    "026_workers_add_with_gateway",
+    "027_workers_add_fork_base_sha",
+    "028_workers_add_workspace_owner_id",
+    "029_queued_messages",
+    "030_workers_add_workspace_ready",
+    "031_backfill_workspace_ready",
+    "032_idx_events_worker_id",
+    "033_workers_last_context_tokens",
+    "034_backfill_last_context_tokens",
+    "035_workers_add_tasks",
+    "036_backfill_tasks",
+    "037_backfill_taskcreate",
+    "038_collapse_permission_modes",
+    "039_workers_add_collaborate",
+    "040_pending_worktree_removals",
+    "041_queued_messages_add_meta",
+    "042_workers_add_worker_type",
+    "043_workers_add_tool_scope",
+    "044_queued_messages_add_plane",
+    "045_backfill_queued_messages_plane",
+    "046_workers_rename_worker_type_to_worker_definition",
+    "047_worker_loops",
+    "048_worker_loops_awaiting_input",
+    "049_workers_add_name_source",
+    "050_worker_definitions",
+    "051_workflow_definitions",
+    "052_workflow_runs",
+    "053_workflow_steps",
+    "054_worker_loops_add_held_output",
+    "055_worker_loops_add_check_failures",
+    "056_workers_add_archived_at",
+    "057_worker_context_marks",
+    "058_rekey_backend_kind_claude",
+    "059_worker_message_ids",
+    "060_workers_add_scratch",
+    "061_dreams",
+    "062_transfers",
+    "063_dream_candidates",
+    "064_genui_views"
+  ],
+  "objects": [
+    {
+      "type": "index",
+      "name": "dream_runs_started",
+      "tbl_name": "dream_runs",
+      "sql": "CREATE INDEX dream_runs_started ON dream_runs (started_at DESC)"
+    },
+    {
+      "type": "index",
+      "name": "genui_views_worker",
+      "tbl_name": "genui_views",
+      "sql": "CREATE INDEX genui_views_worker ON genui_views (worker_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_events_worker_id",
+      "tbl_name": "events",
+      "sql": "CREATE INDEX idx_events_worker_id ON events(worker_id, id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_events_worker_ts",
+      "tbl_name": "events",
+      "sql": "CREATE INDEX idx_events_worker_ts ON events(worker_id, ts)"
+    },
+    {
+      "type": "index",
+      "name": "idx_pending_unresolved",
+      "tbl_name": "pending_permissions",
+      "sql": "CREATE INDEX idx_pending_unresolved ON pending_permissions(resolved, expires_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_qm_worker_client",
+      "tbl_name": "queued_messages",
+      "sql": "CREATE UNIQUE INDEX idx_qm_worker_client ON queued_messages(worker_id, client_msg_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_qm_worker_dispatched",
+      "tbl_name": "queued_messages",
+      "sql": "CREATE INDEX idx_qm_worker_dispatched ON queued_messages(worker_id, dispatched_at)"
+    },
+    {
+      "type": "index",
+      "name": "idx_worker_loops_active",
+      "tbl_name": "worker_loops",
+      "sql": "CREATE UNIQUE INDEX idx_worker_loops_active ON worker_loops(worker_id) WHERE status = 'active'"
+    },
+    {
+      "type": "index",
+      "name": "idx_worker_loops_status",
+      "tbl_name": "worker_loops",
+      "sql": "CREATE INDEX idx_worker_loops_status ON worker_loops(status)"
+    },
+    {
+      "type": "index",
+      "name": "idx_worker_loops_worker",
+      "tbl_name": "worker_loops",
+      "sql": "CREATE INDEX idx_worker_loops_worker ON worker_loops(worker_id)"
+    },
+    {
+      "type": "index",
+      "name": "idx_workflow_steps_run",
+      "tbl_name": "workflow_steps",
+      "sql": "CREATE INDEX idx_workflow_steps_run ON workflow_steps(run_id)"
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_dream_candidates_1",
+      "tbl_name": "dream_candidates",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_dream_exclusions_1",
+      "tbl_name": "dream_exclusions",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_dream_runs_1",
+      "tbl_name": "dream_runs",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_dream_watermarks_1",
+      "tbl_name": "dream_watermarks",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_genui_view_state_1",
+      "tbl_name": "genui_view_state",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_genui_views_1",
+      "tbl_name": "genui_views",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_pending_permissions_1",
+      "tbl_name": "pending_permissions",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_pending_worktree_removals_1",
+      "tbl_name": "pending_worktree_removals",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_schema_migrations_1",
+      "tbl_name": "schema_migrations",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_transfers_1",
+      "tbl_name": "transfers",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_worker_context_marks_1",
+      "tbl_name": "worker_context_marks",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_worker_definitions_1",
+      "tbl_name": "worker_definitions",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_worker_loops_1",
+      "tbl_name": "worker_loops",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_worker_message_ids_1",
+      "tbl_name": "worker_message_ids",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_workers_1",
+      "tbl_name": "workers",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_workflow_definitions_1",
+      "tbl_name": "workflow_definitions",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_workflow_runs_1",
+      "tbl_name": "workflow_runs",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "sqlite_autoindex_workflow_steps_1",
+      "tbl_name": "workflow_steps",
+      "sql": null
+    },
+    {
+      "type": "index",
+      "name": "transfers_created",
+      "tbl_name": "transfers",
+      "sql": "CREATE INDEX transfers_created ON transfers (created_at DESC)"
+    },
+    {
+      "type": "table",
+      "name": "dream_candidates",
+      "tbl_name": "dream_candidates",
+      "sql": "CREATE TABLE dream_candidates (\n      id TEXT PRIMARY KEY,\n      last_seen INTEGER NOT NULL,\n      data TEXT NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "dream_exclusions",
+      "tbl_name": "dream_exclusions",
+      "sql": "CREATE TABLE dream_exclusions (\n      worker_id TEXT PRIMARY KEY\n    )"
+    },
+    {
+      "type": "table",
+      "name": "dream_runs",
+      "tbl_name": "dream_runs",
+      "sql": "CREATE TABLE dream_runs (\n      id TEXT PRIMARY KEY,\n      started_at INTEGER NOT NULL,\n      data TEXT NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "dream_watermarks",
+      "tbl_name": "dream_watermarks",
+      "sql": "CREATE TABLE dream_watermarks (\n      worker_id TEXT PRIMARY KEY,\n      last_event_id INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "events",
+      "tbl_name": "events",
+      "sql": "CREATE TABLE events (\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\n      worker_id TEXT NOT NULL,\n      ts INTEGER NOT NULL,\n      type TEXT NOT NULL,\n      payload TEXT\n    )"
+    },
+    {
+      "type": "table",
+      "name": "genui_view_state",
+      "tbl_name": "genui_view_state",
+      "sql": "CREATE TABLE genui_view_state (\n      id TEXT PRIMARY KEY,\n      data TEXT NOT NULL,\n      updated_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "genui_views",
+      "tbl_name": "genui_views",
+      "sql": "CREATE TABLE genui_views (\n      id TEXT PRIMARY KEY,\n      worker_id TEXT NOT NULL,\n      kind TEXT NOT NULL,\n      title TEXT NOT NULL,\n      data TEXT NOT NULL,\n      created_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "pending_permissions",
+      "tbl_name": "pending_permissions",
+      "sql": "CREATE TABLE pending_permissions (\n      id TEXT PRIMARY KEY,\n      worker_id TEXT NOT NULL,\n      tool_name TEXT NOT NULL,\n      input TEXT NOT NULL,\n      tool_use_id TEXT,\n      created_at INTEGER NOT NULL,\n      expires_at INTEGER NOT NULL,\n      resolved INTEGER NOT NULL DEFAULT 0,\n      decision TEXT,\n      reason TEXT,\n      updated_input TEXT\n    )"
+    },
+    {
+      "type": "table",
+      "name": "pending_worktree_removals",
+      "tbl_name": "pending_worktree_removals",
+      "sql": "CREATE TABLE pending_worktree_removals (\n      id TEXT PRIMARY KEY,\n      worker_id TEXT,\n      repo_root TEXT NOT NULL,\n      worktree_dir TEXT,\n      branch TEXT NOT NULL,\n      scheduled_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "queued_messages",
+      "tbl_name": "queued_messages",
+      "sql": "CREATE TABLE queued_messages (\n      id INTEGER PRIMARY KEY AUTOINCREMENT,\n      worker_id TEXT NOT NULL,\n      client_msg_id TEXT,\n      text TEXT NOT NULL,\n      created_at INTEGER NOT NULL,\n      dispatched_at INTEGER\n    , meta TEXT, plane TEXT NOT NULL DEFAULT 'user')"
+    },
+    {
+      "type": "table",
+      "name": "schema_migrations",
+      "tbl_name": "schema_migrations",
+      "sql": "CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)"
+    },
+    {
+      "type": "table",
+      "name": "sqlite_sequence",
+      "tbl_name": "sqlite_sequence",
+      "sql": "CREATE TABLE sqlite_sequence(name,seq)"
+    },
+    {
+      "type": "table",
+      "name": "transfers",
+      "tbl_name": "transfers",
+      "sql": "CREATE TABLE transfers (\n      id TEXT PRIMARY KEY,\n      created_at INTEGER NOT NULL,\n      data TEXT NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "worker_context_marks",
+      "tbl_name": "worker_context_marks",
+      "sql": "CREATE TABLE worker_context_marks (\n      worker_id TEXT NOT NULL,\n      stage TEXT NOT NULL,\n      marked_at INTEGER NOT NULL,\n      PRIMARY KEY (worker_id, stage)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "worker_definitions",
+      "tbl_name": "worker_definitions",
+      "sql": "CREATE TABLE worker_definitions (\n      owner TEXT NOT NULL,\n      name TEXT NOT NULL,\n      json TEXT NOT NULL,\n      created_at INTEGER NOT NULL,\n      updated_at INTEGER NOT NULL,\n      PRIMARY KEY (owner, name)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "worker_loops",
+      "tbl_name": "worker_loops",
+      "sql": "CREATE TABLE worker_loops (\n      id TEXT PRIMARY KEY,\n      worker_id TEXT NOT NULL,\n      parent_id TEXT,\n      goal_json TEXT NOT NULL,\n      strategy TEXT NOT NULL,\n      status TEXT NOT NULL,\n      attempt INTEGER NOT NULL DEFAULT 0,\n      max_attempts INTEGER,\n      held_report TEXT,\n      last_reason TEXT,\n      progress_ring TEXT,\n      started_at INTEGER NOT NULL,\n      updated_at INTEGER NOT NULL\n    , awaiting_input INTEGER NOT NULL DEFAULT 0, held_output TEXT, check_failures INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "type": "table",
+      "name": "worker_message_ids",
+      "tbl_name": "worker_message_ids",
+      "sql": "CREATE TABLE worker_message_ids (\n      worker_id TEXT PRIMARY KEY,\n      seq INTEGER NOT NULL,\n      sub INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "workers",
+      "tbl_name": "workers",
+      "sql": "CREATE TABLE workers (\n      id TEXT PRIMARY KEY,\n      state TEXT NOT NULL,\n      cwd TEXT,\n      worktree_from TEXT,\n      branch TEXT,\n      prompt TEXT NOT NULL,\n      name TEXT,\n      pid INTEGER,\n      port INTEGER,\n      started_at INTEGER NOT NULL,\n      ended_at INTEGER,\n      exit_code INTEGER\n    , parent_id TEXT, model TEXT, tokens_in INTEGER DEFAULT 0, tokens_out INTEGER DEFAULT 0, tokens_cache_read INTEGER DEFAULT 0, tokens_cache_create INTEGER DEFAULT 0, cost_usd REAL DEFAULT 0, is_orchestrator INTEGER DEFAULT 0, tool_calls INTEGER NOT NULL DEFAULT 0, permission_mode TEXT, effort TEXT, tokens_cache_create_1h INTEGER DEFAULT 0, worktree_dir TEXT, backend_kind TEXT, backend_profile TEXT, agent_role TEXT, turn_started_at INTEGER, session_id TEXT, with_gateway INTEGER, fork_base_sha TEXT, workspace_owner_id TEXT, workspace_ready INTEGER DEFAULT 0, last_context_tokens INTEGER, tasks TEXT, collaborate INTEGER, worker_definition TEXT, tool_scope TEXT, name_source TEXT, archived_at INTEGER, scratch INTEGER NOT NULL DEFAULT 0)"
+    },
+    {
+      "type": "table",
+      "name": "workflow_definitions",
+      "tbl_name": "workflow_definitions",
+      "sql": "CREATE TABLE workflow_definitions (\n      owner TEXT NOT NULL,\n      name TEXT NOT NULL,\n      json TEXT NOT NULL,\n      created_at INTEGER NOT NULL,\n      updated_at INTEGER NOT NULL,\n      PRIMARY KEY (owner, name)\n    )"
+    },
+    {
+      "type": "table",
+      "name": "workflow_runs",
+      "tbl_name": "workflow_runs",
+      "sql": "CREATE TABLE workflow_runs (\n      id TEXT PRIMARY KEY,\n      definition_name TEXT,\n      owner TEXT NOT NULL,\n      anchor_id TEXT NOT NULL,\n      status TEXT NOT NULL,\n      args_json TEXT,\n      result_json TEXT,\n      started_at INTEGER NOT NULL,\n      updated_at INTEGER NOT NULL\n    )"
+    },
+    {
+      "type": "table",
+      "name": "workflow_steps",
+      "tbl_name": "workflow_steps",
+      "sql": "CREATE TABLE workflow_steps (\n      id TEXT PRIMARY KEY,\n      run_id TEXT NOT NULL,\n      node_id TEXT NOT NULL,\n      node_type TEXT NOT NULL,\n      status TEXT NOT NULL,\n      worker_id TEXT,\n      output_json TEXT,\n      started_at INTEGER NOT NULL,\n      ended_at INTEGER\n    )"
+    }
+  ]
+}

@@ -78,8 +78,9 @@ unknown fields are ignored on input (clients may be newer); optional fields are 
 where today's wire omits them. A type that feeds a hash or signature documents its exact byte
 format and has cross-implementation vectors.
 
-**Data on disk** (`~/.eos`) keeps its formats. The database opens in place: the 67 existing
-migration ids are embedded verbatim; unknown ids found in the table are ignored; new migrations
+**Data on disk** (`~/.eos`) keeps its formats. The database opens in place: the 64 migrations
+today's code knows are embedded verbatim under their ids; other ids found in the table are ignored
+(a real file records 67 rows: two migrations older builds ran, and the vacuum marker); new migrations
 add tables, never columns to existing ones, so the previous app version can still open the file.
 Snapshot before the first open with a clone copy.
 

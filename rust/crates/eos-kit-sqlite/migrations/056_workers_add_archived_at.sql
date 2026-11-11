@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN archived_at INTEGER
