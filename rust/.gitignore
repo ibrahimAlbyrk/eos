@@ -1,0 +1,4 @@
+/target
+# Responses recorded from a real data folder hold personal data.
+/fixtures/private
+.DS_Store
