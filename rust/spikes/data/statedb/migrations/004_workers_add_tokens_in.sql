@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN tokens_in INTEGER DEFAULT 0

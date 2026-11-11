@@ -1,0 +1,1 @@
+UPDATE queued_messages SET plane = 'agent' WHERE meta IS NOT NULL

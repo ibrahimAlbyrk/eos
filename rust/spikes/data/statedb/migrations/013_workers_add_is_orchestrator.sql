@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN is_orchestrator INTEGER DEFAULT 0

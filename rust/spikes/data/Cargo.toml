@@ -1,0 +1,22 @@
+# Phase-0 data and network spikes. Its own workspace: nothing here is part of
+# the product build, and the crates under ../../crates never depend on it.
+[workspace]
+resolver = "3"
+members = ["statedb", "update", "sync", "peer", "jsregex", "pty", "yamlrt", "keychain"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+hex = "0.4.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order", "float_roundtrip"] }
+sha2 = "0.11"
+
+[profile.release]
+debug = 1

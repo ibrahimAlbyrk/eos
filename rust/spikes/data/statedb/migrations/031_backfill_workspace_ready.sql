@@ -1,0 +1,1 @@
+UPDATE workers SET workspace_ready = 1

@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_events_worker_ts ON events(worker_id, ts)

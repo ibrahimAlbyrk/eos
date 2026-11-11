@@ -1,0 +1,1 @@
+UPDATE workers SET backend_kind = 'claude' WHERE backend_kind IN ('claude-cli', 'claude-sdk')

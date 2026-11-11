@@ -1,0 +1,258 @@
+[
+  {
+    "id": "001_init_workers",
+    "sha256": "2ed9c5433177bee17c09b76529a62c69302175a2b56ce59d26ffe008c4f285c4"
+  },
+  {
+    "id": "002_workers_add_parent_id",
+    "sha256": "847971143d0c5991ba01d65f6d892d768fa02fe12f38dd155a0cc8a1d324758e"
+  },
+  {
+    "id": "003_workers_add_model",
+    "sha256": "0a5b53daaaabb74f428525fa01a7a35bd453b6429e7ed57b5fbdf13db4577f51"
+  },
+  {
+    "id": "004_workers_add_tokens_in",
+    "sha256": "240c03e6180ae2a32f70fdc48da15f488f2c9fcd73d60407cf80fb982a4776c8"
+  },
+  {
+    "id": "005_workers_add_tokens_out",
+    "sha256": "1b9b297f96052709d78051b46822b592867cf383cd0fa02e8f826044f1d0b723"
+  },
+  {
+    "id": "006_workers_add_tokens_cache_read",
+    "sha256": "07eff16f22dc996c4beda365f6825ab41a1ab06e607e253145156a91acaf413f"
+  },
+  {
+    "id": "007_workers_add_tokens_cache_create",
+    "sha256": "9b142d51e7002e23b58516bb6488befd22ec86edf1d3e13a2964f19d34149c7e"
+  },
+  {
+    "id": "008_workers_add_cost_usd",
+    "sha256": "8cc9f43b8f585aa5416591ce3704b67892017749ab4c53ce387d94a56f88eefd"
+  },
+  {
+    "id": "009_init_events",
+    "sha256": "2e3f8abc10394d57ea2d2e9b2e9b75eb1b8f8aebf4fc3aef033a214333895534"
+  },
+  {
+    "id": "010_idx_events_worker_ts",
+    "sha256": "07dd7b07db88e35aff8b776d9191e9eff9515bfd71c141d60f64c3c50d2b85ee"
+  },
+  {
+    "id": "011_init_pending_permissions",
+    "sha256": "092a3a7cb8abaf00f048502defd3573f911961c731df6c8ac9ded5dfdd58159e"
+  },
+  {
+    "id": "012_idx_pending_unresolved",
+    "sha256": "ad504906106a7066edbb98021aa832139eb4aface00c26f9ad2167a946d5bf02"
+  },
+  {
+    "id": "013_workers_add_is_orchestrator",
+    "sha256": "7b9ed30c4335d78644119af43dc0999c64b723ce63a90e72996b880358f0a74a"
+  },
+  {
+    "id": "014_backfill_existing_orchestrator",
+    "sha256": "218d103defa51707228781c61250f2d61c50b6fa40d980b00bd7c51e5778e9b5"
+  },
+  {
+    "id": "015_workers_add_tool_calls",
+    "sha256": "98b9ff854079b5cc958b807ace99b397daf399de9a82dfd6ee85c739fc59bdf6"
+  },
+  {
+    "id": "016_workers_add_permission_mode",
+    "sha256": "a3c6898ed5624db6c40b16798ac6cccd90f0d40dd0961a450528e1f9693b1632"
+  },
+  {
+    "id": "017_workers_add_effort",
+    "sha256": "dafe3f1a739a9b094c04e2546f4ee0f0e4480f976351bdc54f7e73786ad9c036"
+  },
+  {
+    "id": "018_workers_add_tokens_cache_create_1h",
+    "sha256": "ca6bda5214129363a4351662849faddb28e8a7897eed99224da50336be9bc4f8"
+  },
+  {
+    "id": "019_workers_add_worktree_dir",
+    "sha256": "c9959605b40060d6c01210b9b7eca5d2166862e99643c6502754478adedad70e"
+  },
+  {
+    "id": "020_workers_add_backend_kind",
+    "sha256": "33bce83562cfeec942edbf4655aa1629139155631edc5296a79e81667821d18c"
+  },
+  {
+    "id": "021_workers_add_backend_profile",
+    "sha256": "438dec3f0639fe14da0d819527bc46263786f0116a11e0afb53847fedd8359d7"
+  },
+  {
+    "id": "022_backfill_backend_kind",
+    "sha256": "e19975946ff364c3f8c94c21c3d0453ace832149035996c29058e68dc1362d3e"
+  },
+  {
+    "id": "023_workers_add_agent_role",
+    "sha256": "20850b25cbffd894359ef62bca06cdb565c85c00a9f1c6afe6079daca8854295"
+  },
+  {
+    "id": "024_workers_add_turn_started_at",
+    "sha256": "609f584ecbe8ba2b46e609db61fa361bb807de8f1c2a9b1ba6c99cd585ae75b0"
+  },
+  {
+    "id": "025_workers_add_session_id",
+    "sha256": "6fa54de94e96d72001b307e5651f2f6ff30f066f06c21ce229c2b12f1329f421"
+  },
+  {
+    "id": "026_workers_add_with_gateway",
+    "sha256": "4a84f8e5129feeb59bd71bc54a42106b0920817258ab86cff4978e916bca11d8"
+  },
+  {
+    "id": "027_workers_add_fork_base_sha",
+    "sha256": "c4297aea665d232603b5c62483fd33e55e129df8dbe2e0e20758ab9f779d0998"
+  },
+  {
+    "id": "028_workers_add_workspace_owner_id",
+    "sha256": "9f55398360df3234cfe82e64d8f07bf8d8f58f68bf8518c3abde7fd851b665eb"
+  },
+  {
+    "id": "029_queued_messages",
+    "sha256": "857bc4599c0ebe920cd8b962fc5f7cdb6a8900d6e7d6f85ea8e5ff46232f9005"
+  },
+  {
+    "id": "030_workers_add_workspace_ready",
+    "sha256": "30705b15f773a80c7c8e6d87c826ffc8cf3f42d63cc88750e38cdd478eab8501"
+  },
+  {
+    "id": "031_backfill_workspace_ready",
+    "sha256": "fef9b7955e2f33b065b2e2d39b48bbcc389646eefdc85e8b794d9d4dbb2a2c49"
+  },
+  {
+    "id": "032_idx_events_worker_id",
+    "sha256": "e87cd7a08e5ffe859c50a8386ad853eed80dbf65af68e19f5a9cfb801009170e"
+  },
+  {
+    "id": "033_workers_last_context_tokens",
+    "sha256": "ce0fbcc376edd1fd41b0531940cb4f88b954bd0d3ece82d3a1fe1d825e4cea7d"
+  },
+  {
+    "id": "034_backfill_last_context_tokens",
+    "sha256": "08ee086c1218e78dba63476e74c255018a2828070aa531e3115dc9c5ca24f2f7"
+  },
+  {
+    "id": "035_workers_add_tasks",
+    "sha256": "94b5aeb7539e3fe1a1fa45f60e6d248d877928127d11ccc7b59ebc8cca77c5e5"
+  },
+  {
+    "id": "036_backfill_tasks",
+    "sha256": "143718838c31f9707161d6243cc4a8bcf31249597f653017892875f89b988804"
+  },
+  {
+    "id": "037_backfill_taskcreate",
+    "sha256": "b99ffac9688eb6f28d500fdd8a72e4218042f03f6de2b9a63438d1f5d7b132e9"
+  },
+  {
+    "id": "038_collapse_permission_modes",
+    "sha256": "a782fbb3fcea914fe7f1508afc92937e87c60afd012c840ed9f667beed55f522"
+  },
+  {
+    "id": "039_workers_add_collaborate",
+    "sha256": "6f8d2c00eb8476d13c74527a4afe36a58ca5ddd30c23969e65a6369ee4305512"
+  },
+  {
+    "id": "040_pending_worktree_removals",
+    "sha256": "aed2922fbc1dfc01731c5c6613211f38316c24a48d235a95b5b85f6ef92da486"
+  },
+  {
+    "id": "041_queued_messages_add_meta",
+    "sha256": "fd102bcd30c3481c021f5a04dc01930ef3266ffe038da67fd997156c4198d63d"
+  },
+  {
+    "id": "042_workers_add_worker_type",
+    "sha256": "f0364b491889b876d225eb6abf694bc89ffcba51c70f63c864d213024537d29b"
+  },
+  {
+    "id": "043_workers_add_tool_scope",
+    "sha256": "2378fc08b1c9c63ccfb575ee3167f4db9f998961799ba09e5d719b4ca236707f"
+  },
+  {
+    "id": "044_queued_messages_add_plane",
+    "sha256": "57d9df64fa61703b23473832747302b6ecdc8cdc2440433e09498c0693c369e1"
+  },
+  {
+    "id": "045_backfill_queued_messages_plane",
+    "sha256": "7e79874cc5c7666e3991996d87a30e9ef027238933a9882ce3d1eee1099666b6"
+  },
+  {
+    "id": "046_workers_rename_worker_type_to_worker_definition",
+    "sha256": "f12849c7d5e27b3e59da8ffa7f5c2f28f006f35e7ffb16243996df3d3c6bd82c"
+  },
+  {
+    "id": "047_worker_loops",
+    "sha256": "9782f3a7ccfd7511e1c4ff750b6a6bc7f3a8e77e90aaded6c219bcbdcdec7d8a"
+  },
+  {
+    "id": "048_worker_loops_awaiting_input",
+    "sha256": "0515653c8b8ceeee99b97f5aa2d89c5363921bc8adfeb27d341234522dbc346e"
+  },
+  {
+    "id": "049_workers_add_name_source",
+    "sha256": "159af9e59ccd59b3567ceeef5ef8235d7c1813b5d215772cc62dd50c7d38f63e"
+  },
+  {
+    "id": "050_worker_definitions",
+    "sha256": "95e2ab0f6da504d93b7c8592c4d09ceba5bf74c5ad5b7e5214254d7a1d35e31e"
+  },
+  {
+    "id": "051_workflow_definitions",
+    "sha256": "8715688fff72429a465249a6deb2f69561cc0c813bb63e86073b9b82003f63e0"
+  },
+  {
+    "id": "052_workflow_runs",
+    "sha256": "b0238d43d4065588bb2b577748e7a87f8003fa4fe81aa4e550acb56874675c9e"
+  },
+  {
+    "id": "053_workflow_steps",
+    "sha256": "cfc46d5d5bb632ae60bde4ea5d58f3c1f20926663dfcd36ae53cc7fb2c7b0ada"
+  },
+  {
+    "id": "054_worker_loops_add_held_output",
+    "sha256": "f243d79498338d31180902add8c7611d133eeb0959d94ab1fe8434cc45c89462"
+  },
+  {
+    "id": "055_worker_loops_add_check_failures",
+    "sha256": "33e3007b0ab95432c362999063521c911d3309648762e0d0ec947699bf7432ca"
+  },
+  {
+    "id": "056_workers_add_archived_at",
+    "sha256": "abdfee042447d855033a769c5c588764e598f3bfc9c9f77f0988cdee500d0b8e"
+  },
+  {
+    "id": "057_worker_context_marks",
+    "sha256": "b6d3de8997eab2e0c70303298ac6134a051a4ca239fc739f44f046c147767712"
+  },
+  {
+    "id": "058_rekey_backend_kind_claude",
+    "sha256": "9ecc9da83dae63c50688985746935c80e5c80d0359a15b73dcccd442731c7762"
+  },
+  {
+    "id": "059_worker_message_ids",
+    "sha256": "bc40ce908a81949bd65178a03d3c9b0f0697155ae358b44b7d4531acb31c2458"
+  },
+  {
+    "id": "060_workers_add_scratch",
+    "sha256": "f3774824d6942d9c1127f672ad1d7f1c5d4b931f5b98d3f70b101734ae7c7734"
+  },
+  {
+    "id": "061_dreams",
+    "sha256": "8c222bddc2e1124e4eda797983f89477b1ac8072d479d73456bfa305c710b4ba"
+  },
+  {
+    "id": "062_transfers",
+    "sha256": "43059adf8300769fe3c95bd8b9b365b378308d334751372b3aa4f23b54c5451c"
+  },
+  {
+    "id": "063_dream_candidates",
+    "sha256": "f1709eba2bd0035025b1050691dd1e5afee7fe7b44e8899720d654eb932345d2"
+  },
+  {
+    "id": "064_genui_views",
+    "sha256": "1b355f038505c74bf0b2a3633a132526d54df8a0bc0752e251ecdccce72d5b5c"
+  }
+]

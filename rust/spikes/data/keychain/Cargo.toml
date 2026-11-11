@@ -1,0 +1,9 @@
+[package]
+name = "spike-keychain"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "3.7.0", features = ["OSX_10_15"] }
+serde_json.workspace = true

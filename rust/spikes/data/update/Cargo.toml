@@ -1,0 +1,18 @@
+[package]
+name = "spike-update"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+base64 = "0.23"
+ed25519-dalek = { version = "3.0", features = ["pkcs8", "alloc"] }
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+zstd = "0.14"
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }

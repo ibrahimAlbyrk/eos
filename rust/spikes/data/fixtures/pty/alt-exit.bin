@@ -1,0 +1,6 @@
+$ first
+output a
+output b
+$ app
+[?1049h[H[2Jfull screen app[5;5Hmore[?1049lafter the app
+$ 

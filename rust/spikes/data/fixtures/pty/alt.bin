@@ -1,0 +1,4 @@
+$ before the app
+some shell output
+$ app
+[?1049h[?25l[?1h[?2004h[?1000h[?1002h[?1006h[?1004h[H[2J[44;97m Title bar                                                                      [0m[3;3H[1mheading[0m[5;3H┌──────────────────────────────┐[6;3H│ [32mok[0m                           │[7;3H└──────────────────────────────┘[24;1H[7m status: ready [0m[10;5H> typing here

@@ -1,0 +1,11 @@
+{
+  "name": "eos-rs-spike-helpers",
+  "private": true,
+  "type": "module",
+  "description": "TypeScript helpers of the data spikes: they run today's Eos code to produce reference results.",
+  "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0",
+    "yaml": "2.9.0"
+  }
+}

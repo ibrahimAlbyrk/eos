@@ -1,0 +1,193 @@
+[
+ {
+  "name": "page meta",
+  "value": {
+   "id": "pg-0123456789ab",
+   "title": "A page",
+   "project": "/Users/someone/Projects/app",
+   "createdAt": 1800000000123,
+   "updatedAt": 1800000000456,
+   "rev": 3,
+   "pinned": false,
+   "workerId": null
+  }
+ },
+ {
+  "name": "titles that need quotes",
+  "value": {
+   "a": "yes",
+   "b": "no",
+   "c": "null",
+   "d": "~",
+   "e": "true",
+   "f": "123",
+   "g": "1.5",
+   "h": "0x1f",
+   "i": "1e3",
+   "j": "",
+   "k": " leading",
+   "l": "trailing ",
+   "m": "a: b",
+   "n": "# not a comment",
+   "o": "- dash",
+   "p": "it's",
+   "q": "say \"hi\"",
+   "r": "[x]",
+   "s": "{x}",
+   "t": "@at",
+   "u": "`tick",
+   "v": "%pct",
+   "w": "!bang",
+   "x": "&amp",
+   "y": "*star",
+   "z": "?q"
+  }
+ },
+ {
+  "name": "unicode and long text",
+  "value": {
+   "tr": "İstanbul'da güneşli bir gün",
+   "emoji": "done ✓ 😀",
+   "long": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+   "multiline": "first line\nsecond line\n\nfourth line",
+   "trailingNewline": "text\n",
+   "tab": "a\tb",
+   "crlf": "a\r\nb",
+   "colonEnd": "ends with colon:",
+   "url": "https://example.test/a?b=c#d"
+  }
+ },
+ {
+  "name": "numbers",
+  "value": {
+   "zero": 0,
+   "neg": -5,
+   "float": 1.5,
+   "big": 1800000000123,
+   "exp": 1e+21,
+   "small": 1e-7,
+   "intLike": 3
+  }
+ },
+ {
+  "name": "lists and nesting",
+  "value": {
+   "tags": [
+    "a",
+    "b c",
+    "1",
+    "true"
+   ],
+   "empty": [],
+   "emptyMap": {},
+   "nested": {
+    "list": [
+     {
+      "k": "v",
+      "n": 1
+     },
+     {
+      "k": "w"
+     }
+    ],
+    "deep": {
+     "deeper": {
+      "deepest": [
+       1,
+       2,
+       3
+      ]
+     }
+    }
+   },
+   "nulls": [
+    null,
+    null
+   ]
+  }
+ },
+ {
+  "name": "memory meta",
+  "value": {
+   "id": "m-1",
+   "kind": "preference",
+   "status": "active",
+   "always": true,
+   "createdAt": "2026-11-11T09:30:00.000Z",
+   "source": {
+    "producer": "dream",
+    "chat": "w_abc"
+   },
+   "evidence": [
+    "said so twice",
+    "confirmed: yes"
+   ]
+  }
+ },
+ {
+  "name": "template meta",
+  "value": {
+   "description": "Rebase onto a version: fetch, rebase, resolve",
+   "attachments": [
+    "assets/a b.png",
+    "assets/ç.pdf"
+   ]
+  }
+ },
+ {
+  "name": "hand-written: flow rules",
+  "yaml": "default: allow\nttlMs: 30000\nrules:\n  - { tool: Bash, command: \"^\\\\s*rm\\\\s+-[rRf]+\\\\s+/(\\\\s|$)\", action: deny, reason: \"rm -rf / blocked\" }\n  - { tool: [Read, Write], action: allow }\n  # a comment\n  - tool: Bash\n    command: '(^|\\s)curl(?!.*--max-time)'\n    action: rewrite\n    rewriteFrom: '(^|\\s)curl\\b'\n    rewriteTo: \"$1curl --max-time 10\"\n"
+ },
+ {
+  "name": "hand-written: block scalars and anchors",
+  "yaml": "name: reviewer\ndescription: >\n  Reviews a change\n  and reports back.\nprompt: |\n  Line one\n    indented\n  Line three\nbase: &base\n  model: sonnet\n  effort: high\nother:\n  <<: *base\n  effort: low\ntools:\n  allow: [Read, Grep, \"mcp__*\"]\n  editRegex: ^src/(?!generated/).*\\.(ts|tsx)$\n"
+ },
+ {
+  "name": "hand-written: 1.1 against 1.2 scalars",
+  "yaml": "a: yes\nb: No\nc: on\nd: off\ne: 0o17\nf: 017\ng: 0x1F\nh: 1_000\ni: 12:30:00\nj: 2026-11-11\nk: 2026-11-11T09:30:00Z\nl: .inf\nm: -.INF\nn: .nan\no: ~\np: null\nq: Null\nr: TRUE\ns: 1e3\nt: +5\nu: 0.5\nv: .5\nw: 5.\nx: !!str 123\ny: \"123\"\nz: 'yes'\n"
+ },
+ {
+  "name": "hand-written: odd but legal",
+  "yaml": "? complex key\n: value\n\"quoted key\": 1\nkey with spaces: 2\n123: numeric key\ntrue: bool key\nempty:\nlist:\n- a\n- b\ndup: 1\nmulti: \"a\\\n  b\"\nplain: a\n  b\n  c\n"
+ },
+ {
+  "name": "file: plain frontmatter",
+  "file": "---\ntitle: x\n---\nbody\n"
+ },
+ {
+  "name": "file: CRLF",
+  "file": "---\r\ntitle: x\r\n---\r\nbody\r\n"
+ },
+ {
+  "name": "file: no trailing newline after the fence",
+  "file": "---\ntitle: x\n---"
+ },
+ {
+  "name": "file: a fence line inside the body",
+  "file": "---\ntitle: x\n---\nbody\n---\nmore\n"
+ },
+ {
+  "name": "file: a rule that only looks like a fence",
+  "file": "---\ntitle: x\n----\nstill yaml?\n---\nbody\n"
+ },
+ {
+  "name": "file: empty frontmatter is no frontmatter",
+  "file": "---\n---\nbody\n"
+ },
+ {
+  "name": "file: blank frontmatter",
+  "file": "---\n\n---\nbody\n"
+ },
+ {
+  "name": "file: no frontmatter",
+  "file": "# heading\n---\ntext\n"
+ },
+ {
+  "name": "file: BOM before the fence",
+  "file": "﻿---\ntitle: x\n---\nbody\n"
+ },
+ {
+  "name": "file: document end marker in yaml",
+  "file": "---\ntitle: x\n...\n---\nbody\n"
+ }
+]

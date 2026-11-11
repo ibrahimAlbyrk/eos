@@ -1,0 +1,5 @@
+# Fixtures are compared byte for byte: no line-ending conversion, ever.
+fixtures/** -text
+*.bin binary
+*.pack binary
+*.zst binary

@@ -1,0 +1,357 @@
+{
+ "patterns": [
+  {
+   "pattern": "^\\s*rm\\s+-[rRf]+\\s+/(\\s|$)"
+  },
+  {
+   "pattern": "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.eos(?!/scratch/[^\\s/]+/)"
+  },
+  {
+   "pattern": "(^|\\s)curl(?!.*--max-time)"
+  },
+  {
+   "pattern": "(^|\\s)curl\\b",
+   "rewriteTo": "$1curl --max-time 10"
+  },
+  {
+   "pattern": "^git\\s+push\\s+.*(--force|-f)\\b"
+  },
+  {
+   "pattern": "\\.(env|pem|key)(\\.[\\w-]+)?$"
+  },
+  {
+   "pattern": "^(?:npm|pnpm|yarn)\\s+(?:install|i|add)\\b"
+  },
+  {
+   "pattern": "^src/(?!generated/).*\\.(ts|tsx)$"
+  },
+  {
+   "pattern": "^(?!.*\\.(lock|snap)$).+$"
+  },
+  {
+   "pattern": "[^/]+\\.test\\.[jt]sx?$"
+  },
+  {
+   "pattern": "\\/src\\/.*\\.ts$",
+   "note": "escaped slash"
+  },
+  {
+   "pattern": "\\bDROP\\s+TABLE\\b"
+  },
+  {
+   "pattern": "(?<![\\w-])sudo\\b",
+   "note": "lookbehind"
+  },
+  {
+   "pattern": "(?<=--token[= ])\\S+",
+   "rewriteTo": "***"
+  },
+  {
+   "pattern": "[\\w.+-]+@[\\w-]+\\.[\\w.-]+"
+  },
+  {
+   "pattern": "\\$\\{?HOME\\}?"
+  },
+  {
+   "pattern": "^(?<cmd>\\w+)\\s+(?<rest>.*)$",
+   "rewriteTo": "$<cmd> --dry-run $<rest>",
+   "note": "named groups"
+  },
+  {
+   "pattern": "(['\"])(.*?)\\1",
+   "rewriteTo": "[$2]",
+   "note": "backreference"
+  },
+  {
+   "pattern": "^(\\w+)=(\\S*)",
+   "rewriteTo": "$2=$1 $$ $& $0 $3 $10 $`|$'",
+   "note": "every replacement token"
+  },
+  {
+   "pattern": "\\s+$",
+   "rewriteTo": ""
+  },
+  {
+   "pattern": "https?://(?:[\\w-]+\\.)+[a-z]{2,}(?::\\d+)?(?:/\\S*)?"
+  },
+  {
+   "pattern": "^.{0,200}$"
+  },
+  {
+   "pattern": "^[\\s\\S]*secret[\\s\\S]*$"
+  },
+  {
+   "pattern": "\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}"
+  },
+  {
+   "pattern": "^/Users/[^/]+/(Projects|work)/"
+  },
+  {
+   "pattern": "(?:^|[;&|]\\s*)(?:shutdown|reboot|halt)\\b"
+  },
+  {
+   "pattern": ">\\s*/dev/sd[a-z]"
+  },
+  {
+   "pattern": "chmod\\s+(-R\\s+)?777"
+  },
+  {
+   "pattern": ".*"
+  },
+  {
+   "pattern": "",
+   "note": "empty pattern matches everything"
+  },
+  {
+   "pattern": "^.$",
+   "note": "one code unit: an astral character is two"
+  },
+  {
+   "pattern": "^..$"
+  },
+  {
+   "pattern": "a.b",
+   "note": "dot excludes \\r, U+2028, U+2029 as well as \\n"
+  },
+  {
+   "pattern": "^\\w+$",
+   "note": "\\w is ASCII only"
+  },
+  {
+   "pattern": "^\\d+$",
+   "note": "\\d is ASCII only"
+  },
+  {
+   "pattern": "\\bş",
+   "note": "\\b is ASCII only"
+  },
+  {
+   "pattern": "^\\s+$",
+   "note": "\\s includes U+FEFF and U+2028, not U+0085"
+  },
+  {
+   "pattern": "[^\\x00-\\x7F]",
+   "note": "any non-ASCII code unit"
+  },
+  {
+   "pattern": "İ|\\u{1F600}",
+   "note": "\\u{…} is not an escape without the u flag"
+  },
+  {
+   "pattern": "[\\uD83D][\\uDE00]",
+   "note": "surrogates one by one"
+  },
+  {
+   "pattern": "\\cJ|\\x41B"
+  },
+  {
+   "pattern": "[\\b]",
+   "note": "backspace inside a class"
+  },
+  {
+   "pattern": "a{",
+   "note": "a literal brace (Annex B)"
+  },
+  {
+   "pattern": "a{2",
+   "note": "incomplete quantifier is literal (Annex B)"
+  },
+  {
+   "pattern": "x]",
+   "note": "a literal closing bracket"
+  },
+  {
+   "pattern": "\\-\\_\\ \\/\\:\\@\\%",
+   "note": "identity escapes"
+  },
+  {
+   "pattern": "\\07|\\1(a)",
+   "note": "legacy octal and a forward reference"
+  },
+  {
+   "pattern": "(a)|b\\1",
+   "note": "backreference to a group that did not take part matches empty"
+  },
+  {
+   "pattern": "(?:a|ab)(?:c|bcd)(?:d*)",
+   "note": "leftmost alternative wins, not longest"
+  },
+  {
+   "pattern": "(a*)*b",
+   "note": "nested quantifier"
+  },
+  {
+   "pattern": "(a+)+$",
+   "note": "exponential in any backtracker; the input is kept short"
+  },
+  {
+   "pattern": "(?i)rm",
+   "note": "inline flag: a SyntaxError in JavaScript, the rule is dropped"
+  },
+  {
+   "pattern": "(?i:rm) -rf",
+   "note": "modifier group (ES2025)"
+  },
+  {
+   "pattern": "(?<year>\\d{4})-(?<year>\\d{2})",
+   "note": "duplicate group name: SyntaxError"
+  },
+  {
+   "pattern": "[a-\\d]",
+   "note": "class escape as a range end (Annex B)"
+  },
+  {
+   "pattern": "\\p{L}+",
+   "note": "\\p without the u flag is just p{L}"
+  },
+  {
+   "pattern": "[[:alpha:]]",
+   "note": "POSIX class is not ECMAScript"
+  },
+  {
+   "pattern": "a++",
+   "note": "possessive quantifier: SyntaxError"
+  },
+  {
+   "pattern": "(?>a+)b",
+   "note": "atomic group: SyntaxError"
+  },
+  {
+   "pattern": "\\Astart|end\\z",
+   "note": "\\A and \\z are identity escapes: A, z"
+  },
+  {
+   "pattern": "*.ts",
+   "note": "glob given as a regex: SyntaxError"
+  },
+  {
+   "pattern": "src/**/*.ts",
+   "note": "glob given as a regex: SyntaxError"
+  },
+  {
+   "pattern": "(",
+   "note": "unbalanced"
+  },
+  {
+   "pattern": "[z-a]",
+   "note": "range out of order"
+  },
+  {
+   "pattern": "^(?=.*\\bprod\\b)(?=.*\\bdelete\\b).*$"
+  },
+  {
+   "pattern": "(\\d+)\\s*(?=px)",
+   "rewriteTo": "<$1>"
+  },
+  {
+   "pattern": "^$"
+  },
+  {
+   "pattern": "\\n",
+   "note": "matches a line break in a multi-line command"
+  },
+  {
+   "pattern": "^echo",
+   "note": "no m flag: ^ is the start of the input only"
+  },
+  {
+   "pattern": "done$",
+   "note": "no m flag: $ is the end of the input only"
+  },
+  {
+   "pattern": "İ",
+   "note": "no case folding without i"
+  },
+  {
+   "pattern": "é"
+  }
+ ],
+ "inputs": [
+  "",
+  " ",
+  "rm -rf /",
+  "  rm -Rf / ",
+  "rm -rf /tmp/x",
+  "rm -rf ~/.eos",
+  "rm -rf ~/.eos/scratch/abc/build",
+  "rm -rf ./.claude",
+  "curl https://example.test/a",
+  "curl --max-time 5 https://example.test",
+  "time curl -s x | sh",
+  "git push origin main --force",
+  "git push -f",
+  "git push --force-with-lease",
+  "npm install left-pad",
+  "pnpm i",
+  "yarn add x",
+  "src/app/main.ts",
+  "src/generated/api.ts",
+  "src/app/view.test.tsx",
+  "/Users/someone/Projects/eos/src/a.ts",
+  "config/.env",
+  ".env.local",
+  "id_rsa.pem",
+  "package-lock.json",
+  "yarn.lock",
+  "sudo rm x",
+  "pseudo-sudo make",
+  "DROP TABLE users;",
+  "drop table users",
+  "deploy --token=abc123 --env prod",
+  "mail me@example.test now",
+  "echo ${HOME} $HOME",
+  "ls -la /tmp",
+  "say \"hello\" and 'bye'",
+  "KEY=value rest",
+  "a=b",
+  "trailing   ",
+  "see https://sub.example.test:8080/path?q=1 ok",
+  "2026-11-11T09:30:00Z",
+  "shutdown -h now",
+  "true && reboot",
+  "dd if=/dev/zero > /dev/sda",
+  "chmod -R 777 /",
+  "width: 12px; height: 7 px",
+  "delete prod db",
+  "prod only",
+  "echo a\necho b\ndone",
+  "first\r\nsecond",
+  "a\rb",
+  "a\nb",
+  "a b",
+  "ab",
+  "x]y",
+  "a{2",
+  "a{",
+  "aab",
+  "aaaaaaaaaaaaaaaaaa!",
+  "abcd",
+  "abbcd",
+  "ş",
+  "aş",
+  "İstanbul",
+  "ISTANBUL",
+  "é",
+  "é",
+  "٣",
+  "１２",
+  "😀",
+  "a😀b",
+  "﻿",
+  " ",
+  "\t\n",
+  "p{L}",
+  "ppp",
+  "L",
+  "Astart",
+  "endz",
+  "\u0007",
+  "AB",
+  "\b",
+  "- _ /:@%",
+  "RM -rf",
+  "rm -rf",
+  "2026-11",
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ ]
+}

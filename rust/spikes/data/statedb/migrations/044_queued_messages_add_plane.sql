@@ -1,0 +1,1 @@
+ALTER TABLE queued_messages ADD COLUMN plane TEXT NOT NULL DEFAULT 'user'

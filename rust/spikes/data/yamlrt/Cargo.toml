@@ -1,0 +1,13 @@
+[package]
+name = "spike-yaml"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde-saphyr = "2.1.1"
+serde_json.workspace = true
+serde_norway = "0.9.42"
+serde_yaml_ng = "0.10.0"

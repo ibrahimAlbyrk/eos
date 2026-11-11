@@ -1,0 +1,1 @@
+ALTER TABLE workers ADD COLUMN tokens_cache_create_1h INTEGER DEFAULT 0

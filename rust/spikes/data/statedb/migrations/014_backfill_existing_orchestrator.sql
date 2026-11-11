@@ -1,0 +1,1 @@
+UPDATE workers SET is_orchestrator = 1 WHERE id = 'orchestrator'

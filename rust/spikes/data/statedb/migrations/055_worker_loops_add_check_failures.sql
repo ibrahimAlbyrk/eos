@@ -1,0 +1,1 @@
+ALTER TABLE worker_loops ADD COLUMN check_failures INTEGER NOT NULL DEFAULT 0

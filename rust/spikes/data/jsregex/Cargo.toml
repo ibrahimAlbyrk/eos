@@ -1,0 +1,13 @@
+[package]
+name = "spike-jsregex"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+fancy-regex = "0.20"
+regex = "1.13"
+regress = { version = "0.12", features = ["utf16"] }
+serde.workspace = true
+serde_json.workspace = true
