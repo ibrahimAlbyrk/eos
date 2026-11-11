@@ -578,6 +578,17 @@ async fn a_burst_of_agent_suggestions_becomes_one_notification() {
     }
     // A dream's proposal is announced by the dream itself.
     sink.suggest(idea("a dream noticed this other thing"), dream("dr-1")).expect("filed");
+    // Changes are delivered on the bus's own thread. Wait for them without yielding, or the
+    // paused clock would jump past the delay between the first change and the others.
+    let (delivered, wait) = std::sync::mpsc::channel();
+    c.kernel
+        .bus
+        .lane()
+        .post(move || {
+            let _ = delivered.send(());
+        })
+        .expect("the bus runs");
+    wait.recv().expect("the bus delivered the changes");
 
     let event = fired.recv().await.expect("the notification");
     assert!(started.elapsed() >= MEMORY_NOTIFY_DELAY, "not before the delay");
