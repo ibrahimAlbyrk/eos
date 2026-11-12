@@ -53,6 +53,7 @@ impl HostShell {
 
     /// A host's page in `window`, behind `service`, loading the entry document. Blocking.
     fn page_blocking(
+        views: &Views,
         window: &tauri::Window,
         label: &str,
         profile: &str,
@@ -71,7 +72,9 @@ impl HostShell {
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
         let builder = create::builder(label, (0.0, 0.0), size, Some(&folder), policy).auto_resize();
+        let loaded = views.load_profile(&folder);
         let webview = window.add_child(builder).map_err(|e| e.to_string())?;
+        drop(loaded);
         // The door must be on the view's request context before its first request leaves.
         let (tx, rx) = std::sync::mpsc::channel();
         webview
@@ -110,6 +113,7 @@ impl HostSurface for HostShell {
                         .map(|(s, scale)| s.to_logical::<f64>(scale))
                         .map_or(WINDOW_SIZE, |s| (s.width, s.height));
                     let view = Self::page_blocking(
+                        &shell.views,
                         window,
                         &format!("host-{}", profile_dir(&id)),
                         &format!("host-{id}"),
@@ -175,7 +179,8 @@ impl HostSurface for HostShell {
                     // A profile of its own, so the window's page has a door of its own; not
                     // kept, so windows opened over time leave no storage behind.
                     let profile = format!("{THROWAWAY_PROFILE}{label}-{id}");
-                    Self::page_blocking(&window, &format!("{label}-view"), &profile, WINDOW_SIZE, service).map(drop)
+                    Self::page_blocking(&shell.views, &window, &format!("{label}-view"), &profile, WINDOW_SIZE, service)
+                        .map(drop)
                 })
                 .await;
             if let Some(Err(e)) = opened {

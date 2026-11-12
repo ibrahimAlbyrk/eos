@@ -3,8 +3,6 @@
 //!
 //! - `EOS_DEV_DAEMON_URL` / `EOS_DEV_DAEMON_RAW_URL`: the daemon's two origins.
 //! - `EOS_DEV_DAEMON_HOME`: its data folder; its ui-token is read from there.
-//! - `EOS_DEV_RUST_STREAM`: let the Rust runtime serve the event stream too (by default the
-//!   daemon keeps it, see `eos_bridge::dev::STREAM_ROUTES`).
 //! - `EOS_DEV_ALLOW_AGENTS=1`: let the Rust core answer the requests that can start an agent, a
 //!   model call or a command, reach another computer, or change files outside the data folder.
 //!   Without it a dev run refuses them (`eos_bridge::dev::guard`).
@@ -16,7 +14,7 @@ mod script;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use eos_bridge::dev::{DevDaemon, DevDaemonConfig, Hybrid, STREAM_ROUTES, spawn_notifications};
+use eos_bridge::dev::{DevDaemon, DevDaemonConfig, Hybrid, spawn_notifications};
 use eos_bridge::{Bridge, Core, NoCore, RouterCore};
 use eos_runtime::router::Router;
 use eos_shell::Ports;
@@ -45,24 +43,17 @@ impl Dev {
             Ok(daemon) => Arc::new(daemon),
             Err(_) => return Arc::new(NoCore { ui_token: self.config.ui_token.clone() }),
         };
-        // The hybrid spawns its own tasks (the woven event stream).
-        let _runtime = ports.rt.enter();
+        let Some(rust) = rust else { return daemon };
         // The Rust core runs agents itself: a dev run refuses what could start one, reach
         // another computer or change the user's own folders, unless it was started to try
         // exactly that.
-        let hybrid = |rust| {
-            let hybrid =
-                Hybrid::new(rust, daemon.clone()).allow_agents(env("EOS_DEV_ALLOW_AGENTS").as_deref() == Some("1"));
-            // The core's data folder is a copy of real data: the Files panel may write there only.
-            match env("EOS_HOME") {
-                Some(home) => hybrid.data_folder(std::fs::canonicalize(&home).unwrap_or_else(|_| PathBuf::from(home))),
-                None => hybrid,
+        let hybrid = Hybrid::new(rust, daemon).allow_agents(env("EOS_DEV_ALLOW_AGENTS").as_deref() == Some("1"));
+        // The core's data folder is a copy of real data: the Files panel may write there only.
+        match env("EOS_HOME") {
+            Some(home) => {
+                Arc::new(hybrid.data_folder(std::fs::canonicalize(&home).unwrap_or_else(|_| PathBuf::from(home))))
             }
-        };
-        match rust {
-            Some(rust) if env("EOS_DEV_RUST_STREAM").is_some() => Arc::new(hybrid(rust)),
-            Some(rust) => Arc::new(hybrid(rust).hold_back(STREAM_ROUTES)),
-            None => daemon,
+            None => Arc::new(hybrid),
         }
     }
 

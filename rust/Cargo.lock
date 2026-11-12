@@ -2163,6 +2163,7 @@ dependencies = [
 name = "eos-platform"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "if-addrs",
  "rustix",
  "serde_json",

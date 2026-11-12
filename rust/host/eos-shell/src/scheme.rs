@@ -15,7 +15,9 @@ use tauri_runtime_cef::cef::{self, *};
 
 use crate::native::buffer::{OutBuf, SendCallback};
 
-/// Requests opened and cancelled, for diagnostics.
+/// Requests opened, and dropped by the page before their answer was read whole (a closed
+/// `EventSource`, a navigation), for diagnostics. CEF calls `cancel` on every request once
+/// it is done too; those are not counted.
 pub(crate) static OPENED: AtomicU64 = AtomicU64::new(0);
 pub(crate) static CANCELLED: AtomicU64 = AtomicU64::new(0);
 
@@ -227,7 +229,9 @@ wrap_resource_handler! {
         }
 
         fn cancel(&self) {
-            CANCELLED.fetch_add(1, Ordering::Relaxed);
+            if !self.exchange.body.finished() {
+                CANCELLED.fetch_add(1, Ordering::Relaxed);
+            }
             trace(|| "cancelled".to_string());
             // Drops the pending read's waker, and with it the last copy of CEF's buffer.
             self.exchange.body.cancel();

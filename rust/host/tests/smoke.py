@@ -7,7 +7,7 @@ What it checks:
   3. DevTools round trips work: on a test view through the shell's ports (hidden view
      included), and through the core's browser route for the panel's tab;
   4. the Rust core runs beside the daemon: a route goes to the Rust router when it declares
-     it, to the write-refusing proxy otherwise (second launch: the event stream from Rust);
+     it (the event stream included), to the write-refusing proxy otherwise;
   5. a second launch hands over, `--quit` stops everything.
 
 Rules it keeps (see 08-shell-gate.md §10): it never types into a page and never drives the
@@ -271,7 +271,8 @@ def checks(run):
     check("the app is still up and answering", st.get("running") and bridge_of(st).get("requests", {}).get("core", 0) > 10, bridge_of(st).get("requests"))
     core = bridge_of(st).get("core") or {}
     check("the Rust core runs and the daemon answers what it does not declare", isinstance(core.get("rust"), int) and core.get("proxy", 0) > 0,
-          {k: core.get(k) for k in ("rust", "proxy", "proxyRefusedWrites", "rustRoutes", "heldBack")})
+          {k: core.get(k) for k in ("rust", "proxy", "proxyRefusedWrites", "rustRoutes")})
+    check("the dashboard's event stream is the Rust core's", "GET /stream" in (core.get("rustRoutes") or []))
     check("nothing failed in the shell's log", "failed" not in log and "could not" not in log and "panic" not in log)
 
     # ---- 5. single instance, then quit
@@ -320,25 +321,9 @@ def finish(code, pid=None):
         check("the window's frame was kept for the next launch", frame.get("width", 0) >= 800 and frame.get("height", 0) >= 500, {k: frame.get(k) for k in ("width", "height")})
         log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read() if os.path.exists(os.path.join(SHELL_DATA, "logs", "shell.log")) else ""
         check("quitting ran the shutdown path once", log.count("shell: quitting") == 1)
-        if code == 0:
-            rust_stream()
     failed = [name for name, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed" + (f"; failed: {failed}" if failed else ""))
     return 1 if failed else code
-
-
-def rust_stream():
-    """A second, short launch with the event stream served by the Rust router: a request that
-    stays open, through the real mapping, in the bundled app."""
-    env = dict(os.environ, EOS_DEV_DATA=DATA, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none", EOS_DEV_RUST_STREAM="1")
-    subprocess.run([os.path.join(HOST, "scripts", "launch.sh"), APP, "--quiet"], check=True, env=env)
-    st = wait_for("ready", lambda: (lambda s: s if bridge_of(s).get("ready") else None)(ctl("--status")), 40)
-    served = wait_for("stream", lambda: (lambda c: c if "GET /stream" in (c.get("rustRoutes") or []) else None)(bridge_of(ctl("--status")).get("core") or {}), 15) if st else None
-    check("the Rust router serves the event stream when asked to", served, {k: served.get(k) for k in ("rust", "proxy", "rustRoutes")} if served else "not served by Rust")
-    opened = ctl("--status").get("transport", {})
-    pid = ctl("--status").get("pid")
-    ctl("--quit")
-    check("the app with an open Rust stream quits cleanly", pid and wait_for("exit", lambda: not alive(pid), 15), f"{opened.get('opened')} requests")
 
 
 if __name__ == "__main__":

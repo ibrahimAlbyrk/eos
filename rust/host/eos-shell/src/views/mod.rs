@@ -7,6 +7,7 @@ pub(crate) mod create;
 mod fetch;
 mod hosts;
 mod preview;
+mod profiles;
 mod proxy;
 
 use std::collections::HashMap;
@@ -70,6 +71,8 @@ pub(crate) struct Views {
     me: std::sync::Weak<Views>,
     window: tauri::Window,
     app: tauri::AppHandle,
+    /// Chromium's root cache folder: a view's profile folder is relative to it.
+    cache_root: PathBuf,
     rt: tokio::runtime::Handle,
     /// The system's proxy settings, carried inside every profile's proxy script.
     system: Mutex<SystemProxy>,
@@ -106,11 +109,13 @@ impl Views {
         window: tauri::Window,
         rt: tokio::runtime::Handle,
         system: SystemProxy,
+        cache_root: PathBuf,
     ) -> Arc<Self> {
         Arc::new_cyclic(|me| Views {
             me: me.clone(),
             window,
             app,
+            cache_root,
             rt,
             system: Mutex::new(system),
             open_profiles: Mutex::default(),
@@ -119,6 +124,12 @@ impl Views {
             listeners: Arc::default(),
             counter: AtomicU64::new(0),
         })
+    }
+
+    /// Loads the profile a view in `folder` (under the root cache) will use, before the view
+    /// is made: see `profiles`. Blocking; drop the answer once the view exists.
+    pub(crate) fn load_profile(&self, folder: &std::path::Path) -> profiles::Loaded {
+        profiles::load(&self.app, &self.cache_root.join(folder))
     }
 
     fn views(&self) -> MutexGuard<'_, HashMap<String, Arc<View>>> {
@@ -173,7 +184,9 @@ impl Views {
         // the dashboard's own storage.
         let profile = format!("view-{}", profile_dir(&spec.profile));
         let builder = create::builder(id.as_str(), (0.0, 0.0), PARKED_SIZE, Some(&PathBuf::from(&profile)), policy);
+        let loaded = self.load_profile(std::path::Path::new(&profile));
         let webview = self.window.add_child(builder).map_err(shell_error)?;
+        drop(loaded);
         let cdp = Cdp::attach(&webview, {
             let (listeners, id, me) = (self.listeners.clone(), id.clone(), self.me.clone());
             move |method, params| {

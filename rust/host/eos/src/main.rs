@@ -66,6 +66,8 @@ fn options() -> Options {
         network_in_process: env("EOS_SHELL_NETWORK_IN_PROCESS").is_some(),
         paint_when_covered: env("EOS_SHELL_PAINT_WHEN_COVERED").is_some(),
         artifact_origin: artifact_origin(),
+        // The measuring probe drives the dashboard: a build with the dev proxy only.
+        probe: cfg!(feature = "dev-proxy") && env("EOS_SHELL_PROBE").is_some(),
     }
 }
 
@@ -114,6 +116,9 @@ struct Eos {
     /// The built dashboard, which a computer controlling this one loads too.
     dist: PathBuf,
     app: OnceLock<(Arc<eos_app::App>, tokio::runtime::Handle)>,
+    /// The core's own runtime (`eos_app::runtime`): the shell's small one stays free for
+    /// the window's bridges whatever the core is doing.
+    rt: tokio::runtime::Runtime,
     #[cfg(feature = "dev-proxy")]
     dev: dev::Dev,
 }
@@ -126,7 +131,7 @@ impl Eos {
             return None;
         };
         // Building the app spawns its own tasks.
-        let _runtime = ports.rt.enter();
+        let _runtime = self.rt.enter();
         let resources = bundled_resources();
         let real_data = *home == crate::home().join(".eos");
         let network = reaches_network(home, &crate::home(), RELEASE);
@@ -163,16 +168,17 @@ impl Eos {
                 return None;
             }
         };
-        if let Err(e) = ports.rt.block_on(app.start()) {
+        if let Err(e) = self.rt.block_on(app.start()) {
             eprintln!("eos: the core did not start: {e}");
             return None;
         }
         let callers = app.callers().clone();
         let ui_token = callers.ui_token().to_owned();
         let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
-        let core =
-            Arc::new(RouterCore::new(app.router(), ui_token, classify, ports.rt.clone()).with_raw(app.raw_router()));
-        let _ = self.app.set((app, ports.rt.clone()));
+        let core = Arc::new(
+            RouterCore::new(app.router(), ui_token, classify, self.rt.handle().clone()).with_raw(app.raw_router()),
+        );
+        let _ = self.app.set((app, self.rt.handle().clone()));
         Some(core)
     }
 }
@@ -241,10 +247,18 @@ fn init_logs() {
 fn main() {
     init_logs();
     let options = options();
+    let rt = match eos_app::runtime() {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("eos: no runtime for the core: {e}");
+            std::process::exit(1);
+        }
+    };
     let hooks = Eos {
         home: data_folder(env("EOS_HOME").map(PathBuf::from), &home(), RELEASE),
         dist: options.ui_dist.clone(),
         app: OnceLock::new(),
+        rt,
         #[cfg(feature = "dev-proxy")]
         dev: dev::Dev::from_env(),
     };

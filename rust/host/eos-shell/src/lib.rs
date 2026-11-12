@@ -10,6 +10,7 @@ mod host;
 mod log;
 mod menu;
 mod native;
+mod probe;
 mod scheme;
 mod splash;
 mod views;
@@ -23,6 +24,8 @@ use eos_bridge::{Bridge, Core};
 use eos_core::accounts::Browser;
 use eos_core::plugin::PluginPreviewer;
 use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
+
+pub use crate::probe::Probe;
 
 /// How the shell is started.
 #[derive(Debug, Clone)]
@@ -52,6 +55,8 @@ pub struct Options {
     /// A local page standing in for claude.ai in the artifact views (a test run's server,
     /// `http://127.0.0.1:<port>`). The binary sets it only in a build with the dev proxy.
     pub artifact_origin: Option<String>,
+    /// Start the measuring probe (`Ports::probe`): for responsiveness runs only.
+    pub probe: bool,
 }
 
 /// What the shell offers the core.
@@ -73,6 +78,8 @@ pub struct Ports {
     /// The restart splash: `Some(caption)` shows it above every window until the app quits,
     /// `None` closes it again (the restart failed). Blocking.
     pub splash: Arc<dyn Fn(Option<String>) + Send + Sync>,
+    /// The measuring probe, when `Options::probe` asked for it.
+    pub probe: Option<Arc<Probe>>,
 }
 
 impl std::fmt::Debug for Ports {

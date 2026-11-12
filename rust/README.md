@@ -100,16 +100,22 @@ scripts/check.sh                  # fmt, clippy, the bridge with its dev proxy, 
 scripts/dev.sh                    # debug bundle against the isolated Node daemon
 scripts/bundle.sh release         # Eos.app with the five helper apps → .work/bundle/release/
 scripts/sign.sh <Eos.app>         # local Developer ID signature, --timestamp=none, nothing sent anywhere
-python3 tests/smoke.py <Eos.app>  # launches quietly, 34 checks, quits (never types into a page)
+python3 tests/smoke.py <Eos.app>  # launches quietly, 36 checks, quits (never types into a page)
 python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
                                   # temporary folder; a plugin preview; 28 checks
 python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page standing in for claude.ai:
                                   # sign-in window, tab, peek (zoom, shield), reload swap, stills
 python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
+python3 tests/responsiveness.py <Eos.app>  # clicks the dashboard's harmless controls 20 times
+                                  # each, fails over budget (see "Responsiveness")
 scripts/try.sh build              # setup when needed, the release bundle, signed locally
 scripts/try.sh                    # for a person: see the header of the script
 ```
+
+A change to the shell, the bridge or the threads the core runs on is finished when
+`scripts/check.sh` of both workspaces passes and, on the rebuilt release bundle,
+`smoke.py`, `browser_smoke.py`, `artifact_smoke.py` and `responsiveness.py`.
 
 `scripts/bundle.sh` assembles the bundle itself (binary, dashboard, framework, helper apps);
 the Tauri CLI is not used, because it compiles its own copy of the helper and offers no way to
@@ -137,10 +143,8 @@ router answers it (404). Which side served a request is logged at debug level un
 `eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and `Eos --status` counts
 both sides and lists the routes Rust has served.
 
-One exception: the event stream (`/stream`, `/stream/focus`). The Rust runtime declares it
-already, but the events the dashboard lives on still come from the daemon, so the daemon keeps
-those two routes until the features that produce the events are in Rust
-(`EOS_DEV_RUST_STREAM=1` sends them to Rust; the smoke run does that once).
+The event stream (`/stream`, `/stream/focus`) is the Rust core's too. What still reaches the
+daemon is little: the raw-content origin and the model catalog's refresh (a write, refused).
 
 The daemon (`scripts/daemon.sh`) runs on a copy of the data folder, ports 7490/7491
 (`scripts/dev-env.sh`: every run can name its own copy, output folder and ports), its own
@@ -284,6 +288,55 @@ the Rust core inside the browser process (9 MB, in place of a 150 MB Node daemon
 process and the renderer are the page's own cost, the same in both shells. The storage
 service process (6 MB) can only go with a patch to CEF.
 
+### Responsiveness
+
+`tests/responsiveness.py` on the release bundle: 20 clicks of each kind on the private data
+copy, the window quiet and painting while covered, other agents building meanwhile. Before is
+the bundle at `5eb11398`, just before the fixes below; after is this one. Milliseconds; load
+4–7 for this table:
+
+| Click | paint p95 / max | UI-thread stall, max | the core held a trivial request, max |
+|---|---|---|---|
+| side panel opens on a chat's first browser tab | 48 / 64 → 48 / 64 | 30 → 0 | 1 → 2 |
+| switch to the Browser tab | 48 / 72 → 40 / 64 | 27 → 0 | 5 → 1 |
+| model picker opens | 40 / 40 → 40 / 40 | 0 → 0 | 52 → 0 |
+| switch chats | 57 / 62 → 64 / 65 | 20 → 0 | 9 → 9 |
+| switch chats with a page in the browser panel | 48 / 48 → 48 / 48 | 17 → 0 | 8 → 8 |
+| Settings opens | 48 / 56 → 48 / 48 | 0 → 0 | 2 → 1 |
+
+The gate fails the bundle before (four stalls during bridge calls, a 52 ms wait in the core)
+and passes after. The difference grows with load. The requests a chat switch sends, timed in
+the page alone and all at once, load 8–20:
+
+| | Before | After | Node daemon |
+|---|---|---|---|
+| transcript, subagent and prompt events (1–10 ms alone), sent with the git-backed routes | 77–218 | 2–8 | 1–3 |
+| git-backed routes (diff, branches, push state, changes, conflicts), alone | 90–270 | 32–100 | 33–64 |
+| the same, all at once | 300–1040 | 84–192 | 78–131 |
+| `GET /api/dreams/status` (Settings) | 150–172 | 1 | 10–11 |
+
+What made the window freeze, and the fix of each:
+
+- **Starting a process forked the app.** The process runner cleared the child's environment
+  and named `git` by its bare name, so std forked the whole process to search the child's
+  `PATH`, and the calling thread waited on the exec pipe until the child had exec'd. A sample
+  during a burst of git routes found both of the core's workers in `Command::spawn` three
+  quarters of the time (`fork`, then `read` on that pipe). `eos-kit-proc` now finds the
+  program itself, so std uses `posix_spawn`, and starts it on the blocking pool.
+- **The core shared the shell's runtime of two workers.** It has its own now
+  (`eos_app::runtime`, see ARCHITECTURE §5).
+- **A view's profile was read from disk while the UI thread spun.** The runtime makes a view on
+  the UI thread and pumps CEF's loop there until the view's profile is ready, so every chat's
+  first browser tab (and an artifact's or a paired computer's view) froze the window for
+  24–185 ms. The shell loads the profile first, with the UI thread free.
+- **The clock came from `/bin/date`**, started and polled on a core worker several times per
+  dream status. It is read in process now.
+
+Not ours to fix here, the same with Electron: a long chat's `subagent-events` answer is 33 MB
+on both sides (Node takes 330–364 ms for it); parsing it is a 60–110 ms task in the page on a
+chat switch, beside the dashboard's own rendering, which reaches 150 ms under load. The run
+clicks over DevTools: the path of a real mouse event through AppKit is not measured.
+
 ### Environment
 
 | Variable | Meaning |
@@ -299,9 +352,10 @@ service process (6 MB) can only go with a patch to CEF.
 | `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a development build (see above) |
 | `EOS_LOG` | what is logged to stderr, as a `tracing` filter (default `warn`) |
 | `EOS_DEV_DAEMON_URL`, `EOS_DEV_DAEMON_RAW_URL`, `EOS_DEV_DAEMON_HOME` | `dev-proxy`: the isolated daemon |
-| `EOS_DEV_RUST_STREAM` | `dev-proxy`: let the Rust runtime serve the event stream |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-proxy`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-proxy`: steps on test views (`eos/src/dev/script.rs`) |
+| `EOS_DEV_SCRIPT_FOLLOW` | `dev-proxy`: the steps file is JSON lines a test appends to, results come back the same way |
+| `EOS_SHELL_PROBE` | `dev-proxy`: the measuring probe (`tests/responsiveness.py`): DevTools calls and clicks on the dashboard, a UI-thread heartbeat, a Chromium trace |
 | `EOS_DEV_ARTIFACT_ORIGIN` | `dev-proxy`: a page on `http://127.0.0.1:<port>` standing in for claude.ai in the artifact views (`tests/artifact_smoke.py`) |
 
 ### Open points

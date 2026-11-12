@@ -1,3 +1,4 @@
+use std::ffi::{OsStr, OsString};
 use std::process::Stdio;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -257,6 +258,60 @@ async fn watch(
     let _ = events.send(Event::Exit(Exit { code, timed_out })).await;
 }
 
+/// Starts `command`'s process. Blocking: see [`Runner::spawn`].
+fn start(
+    command: &Command,
+    isolate: &(dyn Fn(&mut std::process::Command) + Send + Sync),
+) -> std::io::Result<tokio::process::Child> {
+    let env = command.env.resolve(std::env::vars_os());
+    let mut std_command = std::process::Command::new(program_path(&command.program, &env));
+    std_command.args(&command.args).env_clear().envs(env);
+    if let Some(cwd) = &command.cwd {
+        std_command.current_dir(cwd);
+    }
+    isolate(&mut std_command);
+
+    let mut tokio_command = tokio::process::Command::from(std_command);
+    tokio_command
+        .stdin(if command.stdin.is_some() || command.stdin_open { Stdio::piped() } else { Stdio::null() })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    tokio_command.spawn()
+}
+
+/// The program as a path, found on the child's own `PATH` when it is a bare name.
+///
+/// With a path, std starts the child with `posix_spawn`. With a bare name and a `PATH` of
+/// the child's own, it forks this whole process first, to search that `PATH` in the child:
+/// in the app, with Chromium in the same process, every fork costs the calling thread
+/// milliseconds. Only absolute `PATH` entries are searched; a name found in none of them
+/// stays as it is, and std searches as before.
+#[cfg(unix)]
+fn program_path(program: &OsStr, env: &[(OsString, OsString)]) -> OsString {
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt;
+    if program.as_bytes().contains(&b'/') {
+        return program.to_owned();
+    }
+    let executable = |path: &std::path::Path| {
+        std::fs::metadata(path).is_ok_and(|meta| meta.is_file() && meta.permissions().mode() & 0o111 != 0)
+    };
+    let path = env.iter().find(|(name, _)| name == "PATH").map(|(_, value)| value);
+    path.into_iter()
+        .flat_map(std::env::split_paths)
+        .filter(|dir| dir.is_absolute())
+        .map(|dir| dir.join(program))
+        .find(|candidate| executable(candidate))
+        .map_or_else(|| program.to_owned(), std::path::PathBuf::into_os_string)
+}
+
+/// Elsewhere a process is never forked to start a program.
+#[cfg(not(unix))]
+fn program_path(program: &OsStr, _env: &[(OsString, OsString)]) -> OsString {
+    program.to_owned()
+}
+
 fn keep(kept: &mut Vec<u8>, truncated: &mut bool, chunk: &[u8], max: usize) {
     let room = max.saturating_sub(kept.len());
     kept.extend_from_slice(&chunk[..chunk.len().min(room)]);
@@ -271,28 +326,26 @@ impl Runner {
     /// Starts the command and hands back its output as it arrives. The
     /// command's deadline applies; its output cap does not (the consumer
     /// decides what to keep).
-    pub fn spawn(&self, command: Command) -> Result<Child, Error> {
-        let mut std_command = std::process::Command::new(&command.program);
-        std_command.args(&command.args).env_clear().envs(command.env.resolve(std::env::vars_os()));
-        if let Some(cwd) = &command.cwd {
-            std_command.current_dir(cwd);
-        }
-        (self.trees.isolate)(&mut std_command);
-
-        let mut tokio_command = tokio::process::Command::from(std_command);
-        tokio_command
-            .stdin(if command.stdin.is_some() || command.stdin_open { Stdio::piped() } else { Stdio::null() })
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
-        let spawn_error = |source| Error::Spawn { program: command.program.to_string_lossy().into_owned(), source };
-        let mut child = tokio_command.spawn().map_err(spawn_error)?;
-        let stdin = if command.stdin_open { child.stdin.take().map(Stdin) } else { None };
-        let pid = child.id().ok_or_else(|| spawn_error(std::io::Error::other("the child has no process id")))?;
+    ///
+    /// Starting a process blocks the calling thread until the child runs, so it
+    /// happens on the runtime's blocking pool, never on an async worker.
+    pub async fn spawn(&self, command: Command) -> Result<Child, Error> {
+        let program = command.program.to_string_lossy().into_owned();
+        let isolate = self.trees.isolate.clone();
+        let (stdin_input, timeout, stdin_open) = (command.stdin.clone(), command.timeout, command.stdin_open);
+        let started = tokio::task::spawn_blocking(move || start(&command, isolate.as_ref()))
+            .await
+            .map_err(|e| Error::Spawn { program: program.clone(), source: std::io::Error::other(e.to_string()) })?;
+        let mut child = started.map_err(|source| Error::Spawn { program: program.clone(), source })?;
+        let stdin = if stdin_open { child.stdin.take().map(Stdin) } else { None };
+        let pid = child.id().ok_or_else(|| Error::Spawn {
+            program: program.clone(),
+            source: std::io::Error::other("the child has no process id"),
+        })?;
 
         let (tx, rx) = mpsc::channel(EVENT_QUEUE);
         let killed = Arc::new(AtomicBool::new(false));
-        tokio::spawn(watch(child, pid, tx, command.stdin, command.timeout, self.trees.clone(), killed.clone()));
+        tokio::spawn(watch(child, pid, tx, stdin_input, timeout, self.trees.clone(), killed.clone()));
         Ok(Child { pid, events: rx, stdin, trees: self.trees.clone(), killed })
     }
 
@@ -300,7 +353,7 @@ impl Runner {
     /// future ends the command's tree.
     pub async fn run(&self, command: Command) -> Result<Output, Error> {
         let (max, overflow) = (command.max_output, command.overflow);
-        let mut child = self.spawn(command)?;
+        let mut child = self.spawn(command).await?;
         let mut out = Output { pid: child.pid(), ..Output::default() };
         while let Some(event) = child.next().await {
             match event {
@@ -318,5 +371,20 @@ impl Runner {
             }
         }
         Err(Error::Lost)
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_bare_name_is_found_on_the_childs_own_path() {
+        let env = vec![(OsString::from("PATH"), OsString::from("relative/bin:/nowhere:/bin:/usr/bin"))];
+        assert_eq!(program_path(OsStr::new("sh"), &env), OsString::from("/bin/sh"));
+        // A path is kept; a name found nowhere stays for std to look up as before.
+        assert_eq!(program_path(OsStr::new("./x/sh"), &env), OsString::from("./x/sh"));
+        assert_eq!(program_path(OsStr::new("no-such-tool-here"), &env), OsString::from("no-such-tool-here"));
+        assert_eq!(program_path(OsStr::new("sh"), &[]), OsString::from("sh"));
     }
 }

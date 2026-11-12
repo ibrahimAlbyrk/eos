@@ -166,9 +166,18 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   `RouterCore`: the caller comes from `eos-app`'s `callers().classify`, bodies stream at the
   reader's pace, a dropped request cancels its handler or stream, and every request is
   answered. During the port the `dev-proxy` feature sends the routes the router does not
-  declare to an isolated Node daemon (and keeps the event stream there until its events
-  come from Rust); it is never part of a release, where an undeclared route is the
-  router's 404.
+  declare to an isolated Node daemon; it is never part of a release, where an undeclared
+  route is the router's 404.
+- **The core has threads of its own.** It runs on `eos_app::runtime()`: one async worker
+  per core the system gives the process (`available_parallelism`), never fewer than 2 nor
+  more than 8, with the blocking pool's bound stated beside them (`eos-app/src/threads.rs`).
+  Nothing that blocks a thread may run on an async worker: processes start on the blocking
+  pool and with `posix_spawn` (`eos-kit-proc` finds the program on the child's `PATH`, so
+  std never forks the app, which has Chromium in it), SQLite has its own reader and writer
+  threads, the sign-in's Keychain item is read and written through `spawn_blocking`, and
+  the clock is read in process (`eos-platform`), never from a program.
+  The shell keeps a runtime of two workers for the window's bridges, so a busy core never
+  delays them. `host/tests/responsiveness.py` holds this to a budget.
 - **`eos-shell` is the only crate that names Tauri or CEF**, and only in its private modules:
   its public API is plain data, the ports of `eos-core::shell` and the `Hooks` the app passes
   in (`core`, `started`, `woke`, `open_url`, `shutdown`).
@@ -178,6 +187,9 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   in-process handler of the app's own origin; a bridge is a route under `/_shell/` that
   requires the ui-token and a request made by the dashboard document (a host's view: its own
   token and document, on its own door). Shell → page is one event stream per page. `cargo xtask shell` fails the check when any of this is broken.
+  A view's profile is loaded before the view (`views/profiles.rs`): the runtime spins the
+  UI thread on CEF's loop until the view's profile is ready, so a profile still being read
+  from disk froze the whole window.
 - **`eos-apply` is a program of its own** (`host/eos-apply`, shipped as
   `Contents/MacOS/eos-apply`): the update applier. It runs while the app is closed, so it
   links no crate of the app, no Tauri and no CEF — `serde_json` only. It swaps the staged
@@ -196,9 +208,12 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   may reach it: the core calls `BrowserViews::allow_local_network` before that navigation,
   and never for where a page takes itself (a popup, a redirect). The opening ends when the
   view leaves the local network. The script carries the system's proxy settings.
-- **Automated runs never type into a page and never drive the dashboard.** They restore a
-  layout through the storage carry-over, observe the shell's status (`Eos --status`) and
-  send DevTools calls only to views they created. A dev run works on a copy of real data
+- **Automated runs never type into a page.** They restore a layout through the storage
+  carry-over, observe the shell's status (`Eos --status`) and send DevTools calls only to
+  views they created. The one run that drives the dashboard, `tests/responsiveness.py`,
+  only clicks, with trusted mouse events through the dev script's `click` step, which
+  refuses a control that takes text, submits a form or reads as sending, running,
+  approving or deleting; there is no keyboard step. A dev run works on a copy of real data
   and refuses whatever would act for the user from it (an agent, a model call, a command,
   another computer, files outside the data folder), on the daemon's side and before the
   Rust router (`eos-bridge/src/dev/guard.rs`); a test run that is killed leaves no process behind

@@ -216,7 +216,7 @@ pub(crate) async fn build(runner: &Runner, binary: &Path, dir: &Path, entry: &Pa
         .env(Env::empty())
         .stdin_open()
         .timeout(TIMEOUT);
-    let mut child = runner.spawn(command).map_err(|e| Failure::Start(e.to_string()))?;
+    let mut child = runner.spawn(command).await.map_err(|e| Failure::Start(e.to_string()))?;
     let mut stdin = child.stdin().ok_or_else(|| Failure::Start("esbuild started without a stdin".to_owned()))?;
 
     let mut frames = Frames::new(MAX_PACKET);

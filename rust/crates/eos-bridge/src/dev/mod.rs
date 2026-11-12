@@ -10,8 +10,7 @@ pub mod guard;
 mod hybrid;
 mod proxy;
 mod stream;
-mod weave;
 
-pub use hybrid::{Hybrid, STREAM_ROUTES};
+pub use hybrid::Hybrid;
 pub use proxy::{DevDaemon, DevDaemonConfig};
 pub use stream::spawn_notifications;

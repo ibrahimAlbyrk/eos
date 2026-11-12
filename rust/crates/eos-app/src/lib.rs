@@ -26,12 +26,14 @@ mod patches;
 mod peer;
 mod plugins;
 mod terminals;
+mod threads;
 mod tools;
 mod updates;
 
 pub use agent::AgentOptions;
 pub use app::{App, Options, Shell};
 pub use callers::Callers;
+pub use threads::{MAX_BLOCKING_THREADS, MAX_WORKERS, MIN_WORKERS, runtime, workers};
 
 /// How the installed app reaches the phone link's relay: a WebSocket it
 /// dials out, redialled when it drops and at once after the computer wakes.

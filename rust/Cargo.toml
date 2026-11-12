@@ -104,6 +104,7 @@ anyhow = "1"
 aws-lc-rs = "1"
 base64 = "0.22"
 bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
 crossbeam-channel = "0.5"
 ed25519-dalek = { version = "3", default-features = false, features = ["alloc", "pkcs8"] }
 flate2 = "1"

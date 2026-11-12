@@ -195,7 +195,9 @@ impl ArtifactShell {
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
         let builder = create::builder(&label(key), (0.0, 0.0), PARKED_SIZE, Some(&folder), policy);
+        let loaded = self.views.load_profile(&folder);
         let webview = self.views.window.add_child(builder).map_err(|e| e.to_string())?;
+        drop(loaded);
         let me = self.me.clone();
         let cdp = Cdp::attach(&webview, move |method, params| {
             if let Some(shell) = me.upgrade() {
@@ -262,7 +264,9 @@ impl ArtifactShell {
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
         let builder = create::builder(&format!("{label}-view"), (0.0, 0.0), SIGN_IN_SIZE, Some(&folder), policy);
+        let loaded = self.views.load_profile(&folder);
         let webview = window.add_child(builder.auto_resize()).map_err(|e| e.to_string())?;
+        drop(loaded);
         let cdp = Cdp::attach(&webview, |_, _| {}).map_err(|e| e.to_string())?;
         let url = tauri::Url::parse(&self.viewer.login_url()).map_err(|e| e.to_string())?;
         webview.navigate(url).map_err(|e| e.to_string())?;

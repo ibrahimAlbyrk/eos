@@ -16,19 +16,9 @@ use crate::router::RouterCore;
 use crate::token::TOKEN_HEADER;
 use crate::transport::{Req, Sink};
 
-/// The event stream's routes. The Rust runtime declares them from its first day, but most
-/// of the events the dashboard lives on (workers, agents) still come from the daemon: sent
-/// to Rust, the dashboard would load and then never update. They stay with the daemon until
-/// the features that produce those events are in Rust; meanwhile the Rust core's own events
-/// are woven into the daemon's stream (`weave`).
-pub const STREAM_ROUTES: [&str; 2] = ["/stream", "/stream/focus"];
-
 pub struct Hybrid {
     rust: Arc<RouterCore>,
     daemon: Arc<DevDaemon>,
-    rt: tokio::runtime::Handle,
-    /// Route patterns the daemon keeps although Rust declares them.
-    held_back: Vec<String>,
     /// The run was started with `EOS_DEV_ALLOW_AGENTS=1`: the Rust core may run agents.
     allow_agents: bool,
     /// The copied data folder: the only place the Files panel's writes may land.
@@ -43,7 +33,7 @@ pub struct Hybrid {
 
 impl std::fmt::Debug for Hybrid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Hybrid").field("held_back", &self.held_back).finish_non_exhaustive()
+        f.debug_struct("Hybrid").field("allow_agents", &self.allow_agents).finish_non_exhaustive()
     }
 }
 
@@ -52,13 +42,10 @@ fn path_of(target: &str) -> &str {
 }
 
 impl Hybrid {
-    /// Must be called inside the runtime the app's tasks run on.
     pub fn new(rust: Arc<RouterCore>, daemon: Arc<DevDaemon>) -> Self {
         Hybrid {
             rust,
             daemon,
-            rt: tokio::runtime::Handle::current(),
-            held_back: Vec::new(),
             allow_agents: false,
             data_folder: None,
             by_rust: AtomicU64::new(0),
@@ -66,13 +53,6 @@ impl Hybrid {
             refused: AtomicU64::new(0),
             rust_routes: Mutex::default(),
         }
-    }
-
-    /// Keeps these route patterns with the daemon even when Rust declares them.
-    #[must_use]
-    pub fn hold_back<S: Into<String>>(mut self, patterns: impl IntoIterator<Item = S>) -> Self {
-        self.held_back.extend(patterns.into_iter().map(Into::into));
-        self
     }
 
     /// The data folder the Rust core runs on: a copy of real data. Writes of the Files
@@ -92,19 +72,13 @@ impl Hybrid {
         self
     }
 
-    /// Whether this is the event stream the daemon keeps although Rust declares it.
-    fn weaves(&self, req: &Req) -> bool {
-        path_of(&req.url) == "/stream" && self.held_back.iter().any(|pattern| pattern == "/stream")
-    }
-
     /// The pattern of the Rust route that answers this request, if Rust is to answer it.
     fn rust_route(&self, plane: Plane, req: &Req) -> Option<String> {
         // The raw-content origin has no routes in Rust yet.
         if plane != Plane::Api {
             return None;
         }
-        let pattern = self.rust.pattern(&req.method, &req.url)?;
-        (!self.held_back.contains(&pattern)).then_some(pattern)
+        self.rust.pattern(&req.method, &req.url)
     }
 }
 
@@ -114,7 +88,11 @@ impl Core for Hybrid {
     }
 
     fn call(&self, plane: Plane, mut req: Req, sink: Sink) {
-        match self.rust_route(plane, &req) {
+        let route = self.rust_route(plane, &req);
+        // Which side answered, and how long it took to the head: the page reads it from its
+        // resource timing (`tests/responsiveness.py`).
+        sink.time_head(if route.is_some() { "rust" } else { "daemon" });
+        match route {
             Some(pattern)
                 if !self.allow_agents
                     && !super::guard::allows_rust(&req.method, &pattern, &req.body, self.data_folder.as_deref()) =>
@@ -134,19 +112,6 @@ impl Core for Hybrid {
                     routes.insert(format!("{} {pattern}", req.method));
                 }
                 self.rust.call(plane, req, sink);
-            }
-            // The daemon keeps the event stream, and the Rust core's own events join it.
-            None if plane == Plane::Api && req.method == "GET" && self.weaves(&req) => {
-                self.by_daemon.fetch_add(1, Ordering::Relaxed);
-                let (rust_sink, rust_body) = crate::transport::channel();
-                let (daemon_sink, daemon_body) = crate::transport::channel();
-                // Where the page left off is a place in the daemon's stream, not in Rust's.
-                let mut fresh = req.clone();
-                fresh.url = path_of(&req.url).to_owned();
-                fresh.headers.retain(|(name, _)| !name.eq_ignore_ascii_case("last-event-id"));
-                self.rust.call(plane, fresh, rust_sink);
-                self.daemon.call(plane, req, daemon_sink);
-                self.rt.spawn(super::weave::weave(daemon_body, rust_body, sink));
             }
             None => {
                 self.by_daemon.fetch_add(1, Ordering::Relaxed);
@@ -171,7 +136,6 @@ impl Core for Hybrid {
             "rustRefused": self.refused.load(Ordering::Relaxed),
             "agentsAllowed": self.allow_agents,
             "rustRoutes": self.rust_routes.lock().map(|routes| routes.iter().cloned().collect::<Vec<_>>()).unwrap_or_default(),
-            "heldBack": self.held_back,
         })
     }
 }
@@ -240,7 +204,7 @@ mod tests {
         let rust = Arc::new(RouterCore::new(Arc::new(router), RUST_TOKEN, classify, rt.clone()));
         let base = daemon().await;
         let config = DevDaemonConfig { api_base: base.clone(), raw_base: base, ui_token: daemon_token.to_string() };
-        Hybrid::new(rust, Arc::new(DevDaemon::new(config, rt).unwrap())).hold_back(STREAM_ROUTES)
+        Hybrid::new(rust, Arc::new(DevDaemon::new(config, rt).unwrap()))
     }
 
     async fn ask(core: &Hybrid, plane: Plane, method: &str, target: &str, token: Option<&str>) -> (Head, String) {
@@ -301,14 +265,10 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn the_event_stream_stays_with_the_daemon_while_held_back() {
+    async fn the_event_stream_is_the_rust_cores() {
         let core = hybrid(RUST_TOKEN).await;
         let (_, body) = ask(&core, Plane::Api, "GET", "/stream?topics=x", None).await;
-        assert!(body.starts_with("daemon|get /stream?topics=x "), "{body}");
-        // Without the hold-back Rust serves it.
-        let mut open = hybrid(RUST_TOKEN).await;
-        open.held_back.clear();
-        assert_eq!(ask(&open, Plane::Api, "GET", "/stream", None).await.1, r#"{"side":"rust","user":false}"#);
+        assert_eq!(body, r#"{"side":"rust","user":false}"#);
     }
 
     #[tokio::test]

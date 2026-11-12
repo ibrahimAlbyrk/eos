@@ -63,16 +63,17 @@ impl ShellCommands for ShellRunner {
         mut events: Box<dyn CommandEvents>,
     ) -> Arc<dyn RunningCommand> {
         let running = Arc::new(Running { stop: Notify::new() });
-        let spawned = self.runner.spawn(self.command(command).cwd(cwd).timeout(timeout));
-        let mut child = match spawned {
-            Ok(child) => child,
-            Err(e) => {
-                events.failed(e.to_string());
-                return running;
-            }
-        };
+        let (runner, command) = (self.runner.clone(), self.command(command).cwd(cwd).timeout(timeout));
         let handle = running.clone();
+        // A kill before the process is up stays pending (`notify_one`) and ends it once it is.
         tokio::spawn(async move {
+            let mut child = match runner.spawn(command).await {
+                Ok(child) => child,
+                Err(e) => {
+                    events.failed(e.to_string());
+                    return;
+                }
+            };
             let mut killed = false;
             // One decoder per stream: a character cut by a read belongs to its own.
             let (mut stdout, mut stderr) = (Utf8Stream::default(), Utf8Stream::default());

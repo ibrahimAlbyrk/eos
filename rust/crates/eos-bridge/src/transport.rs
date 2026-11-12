@@ -75,6 +75,8 @@ type Waker = Box<dyn FnOnce() + Send>;
 #[derive(Default)]
 struct State {
     head: Option<Head>,
+    /// `Sink::time_head`: a `Server-Timing` entry to add to the head, timed from then.
+    timed: Option<(&'static str, std::time::Instant)>,
     head_waker: Option<Waker>,
     queue: VecDeque<Vec<u8>>,
     front_off: usize,
@@ -128,11 +130,15 @@ pub enum Offer {
 
 impl Sink {
     /// Sends the status line and headers. Only the first call counts.
-    pub fn head(&self, head: Head) {
+    pub fn head(&self, mut head: Head) {
         let waker = {
             let mut st = self.shared.lock();
             if st.head.is_some() {
                 return;
+            }
+            if let Some((name, since)) = st.timed.take() {
+                let ms = since.elapsed().as_secs_f64() * 1000.0;
+                head.headers.push(("server-timing".into(), format!("{name};dur={ms:.1}")));
             }
             st.head = Some(head);
             st.head_waker.take()
@@ -140,6 +146,12 @@ impl Sink {
         if let Some(waker) = waker {
             waker();
         }
+    }
+
+    /// Diagnostics: the head gets a `Server-Timing` entry `name` with the time from now until
+    /// the head is sent, which the page reads from its resource timing.
+    pub fn time_head(&self, name: &'static str) {
+        self.shared.lock().timed = Some((name, std::time::Instant::now()));
     }
 
     /// Whether the head was sent already.
@@ -300,6 +312,13 @@ impl Body {
         n
     }
 
+    /// Whether the whole body was sent and read: what is left after that is only the
+    /// reader's clean-up (CEF calls `Cancel` on every request once it is done).
+    pub fn finished(&self) -> bool {
+        let st = self.shared.lock();
+        st.done && st.queue.is_empty()
+    }
+
     /// The page dropped the request: wakes everything waiting on the sink.
     pub fn cancel(&self) {
         self.shared.cancelled.store(true, Ordering::SeqCst);
@@ -362,6 +381,16 @@ mod tests {
     }
 
     #[test]
+    fn a_timed_head_carries_its_server_timing() {
+        let (sink, body) = channel();
+        sink.time_head("rust");
+        sink.respond(200, vec![], b"");
+        let head = body.head().expect("head");
+        let timing = head.header("server-timing").expect("server-timing");
+        assert!(timing.starts_with("rust;dur="), "{timing}");
+    }
+
+    #[test]
     fn head_waker_runs_now_or_when_the_head_arrives() {
         let (sink, body) = channel();
         let hits = Arc::new(AtomicUsize::new(0));
@@ -409,6 +438,18 @@ mod tests {
         assert_eq!(woken.load(Ordering::SeqCst), 2);
         assert_eq!(body.read_now(&mut buf), 0);
         assert_eq!(body.read(&mut buf, || {}), Read::End);
+    }
+
+    #[test]
+    fn a_body_is_finished_once_ended_and_read() {
+        let (sink, body) = channel();
+        sink.head(Head { status: 200, headers: vec![] });
+        sink.chunk(b"abc");
+        assert!(!body.finished());
+        sink.end();
+        assert!(!body.finished(), "unread bytes are left");
+        assert_eq!(body.read_now(&mut [0u8; 8]), 3);
+        assert!(body.finished());
     }
 
     #[test]

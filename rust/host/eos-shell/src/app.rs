@@ -238,7 +238,13 @@ impl Shell {
         let _ = self.window.set(window.clone());
         let _ = self.keeper.set(StateKeeper::new(&options.data_dir, state.fullscreen));
 
-        let views = Views::new(app.clone(), window.clone(), self.rt.handle().clone(), self.system_proxy.clone());
+        let views = Views::new(
+            app.clone(),
+            window.clone(),
+            self.rt.handle().clone(),
+            self.system_proxy.clone(),
+            options.data_dir.join("profile"),
+        );
         let _ = self.views.set(views.clone());
         let view_ports: Arc<dyn eos_core::shell::BrowserViews> = Arc::new(ViewPorts(views.clone()));
         // The panel exists before the core: the browser feature holds it too.
@@ -274,6 +280,7 @@ impl Shell {
                     }
                 })
             },
+            probe: options.probe.then(|| crate::probe::Probe::start(app.clone(), views.clone())),
         };
 
         // The dashboard may only be the dashboard: any other place opens in the system
@@ -431,7 +438,7 @@ impl Shell {
                 return;
             }
         }
-        match Cdp::attach(&dashboard, |_method, _params| {}) {
+        match Cdp::attach(&dashboard, crate::probe::dashboard_event) {
             Ok(cdp) => {
                 if let Some(views) = self.views.get() {
                     views.set_dashboard(dashboard.clone(), cdp);

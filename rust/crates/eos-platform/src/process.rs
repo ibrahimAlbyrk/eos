@@ -76,38 +76,25 @@ pub fn process_alive(pid: u32) -> bool {
     }
 }
 
-/// Hours and minutes of `epoch_ms` on the user's clock (`16:40`), from the
-/// system's `date`; `None` where there is none or it fails.
+// The user's clock is read from the zone's own rules (the `TZ` variable, else the system's
+// zone file), as `localtime` reads them, in this process: no program is started, so these
+// are cheap enough for any thread, an async worker included.
+
+/// The instant `epoch_ms` on the user's clock; `None` for an instant out of range.
+fn local(epoch_ms: i64) -> Option<chrono::DateTime<chrono::Local>> {
+    use chrono::TimeZone;
+    chrono::Local.timestamp_millis_opt(epoch_ms).single()
+}
+
+/// Hours and minutes of `epoch_ms` on the user's clock (`16:40`).
 pub fn local_hour_minute(epoch_ms: i64) -> Option<String> {
-    let seconds = epoch_ms.div_euclid(1_000).to_string();
-    let mut date = Command::new("/bin/date");
-    date.args(["-r", &seconds, "+%H:%M"]);
-    let out = crate::tool::run_ok("date", &mut date, None, std::time::Duration::from_secs(5)).ok()?;
-    Some(out.stdout.trim().to_owned()).filter(|text| text.len() == 5)
+    local(epoch_ms).map(|at| at.format("%H:%M").to_string())
 }
 
-/// Minutes east of UTC on the user's clock at `epoch_ms`, daylight saving
-/// included, from the system's `date`; `None` where it does not say.
+/// Minutes east of UTC on the user's clock at `epoch_ms`, daylight saving included.
 pub fn local_utc_offset_minutes(epoch_ms: i64) -> Option<i32> {
-    let seconds = epoch_ms.div_euclid(1_000).to_string();
-    let mut date = Command::new("/bin/date");
-    date.args(["-r", &seconds, "+%z"]);
-    let out = crate::tool::run_ok("date", &mut date, None, std::time::Duration::from_secs(5)).ok()?;
-    parse_utc_offset(out.stdout.trim())
-}
-
-/// `+0300` or `-0530` as minutes.
-fn parse_utc_offset(text: &str) -> Option<i32> {
-    let (sign, digits) = match text.split_at_checked(1)? {
-        ("+", digits) => (1, digits),
-        ("-", digits) => (-1, digits),
-        _ => return None,
-    };
-    if digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let (hours, minutes) = (digits[..2].parse::<i32>().ok()?, digits[2..].parse::<i32>().ok()?);
-    Some(sign * (hours * 60 + minutes))
+    use chrono::Offset;
+    local(epoch_ms).map(|at| at.offset().fix().local_minus_utc() / 60)
 }
 
 /// The name of the user's time zone (`Europe/Istanbul`): the `TZ` variable
@@ -143,12 +130,25 @@ mod tests {
     }
 
     #[test]
-    fn an_offset_reads_as_minutes_east_of_utc() {
-        assert_eq!(parse_utc_offset("+0300"), Some(180));
-        assert_eq!(parse_utc_offset("-0530"), Some(-330));
-        assert_eq!(parse_utc_offset("+0000"), Some(0));
-        assert_eq!(parse_utc_offset("0300"), None);
-        assert_eq!(parse_utc_offset("+03"), None);
+    fn the_clock_reads_as_the_systems_date_does() {
+        // Both sides of a daylight saving change in many zones, and today.
+        for at in [1_711_846_800_000_i64, 1_729_990_800_000, 1_800_000_000_000] {
+            let seconds = (at / 1_000).to_string();
+            let date = |format: &str| {
+                let out = Command::new("/bin/date").args(["-r", &seconds, format]).output().expect("date");
+                String::from_utf8_lossy(&out.stdout).trim().to_owned()
+            };
+            assert_eq!(local_hour_minute(at), Some(date("+%H:%M")), "{at}");
+            let offset = date("+%z");
+            let (sign, hours, minutes) = (&offset[..1], &offset[1..3], &offset[3..5]);
+            let number = |digits: &str| digits.parse::<i32>().expect("digits");
+            let minutes_east = number(hours) * 60 + number(minutes);
+            assert_eq!(
+                local_utc_offset_minutes(at),
+                Some(if sign == "-" { -minutes_east } else { minutes_east }),
+                "{at}"
+            );
+        }
         // The system answers for any instant.
         assert!(local_utc_offset_minutes(1_800_000_000_000).is_some_and(|m| m.abs() <= 14 * 60));
     }

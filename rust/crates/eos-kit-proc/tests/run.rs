@@ -181,8 +181,10 @@ async fn a_background_process_holding_the_pipe_does_not_hold_the_result() {
 
 #[tokio::test]
 async fn streamed_output_arrives_in_order_before_the_exit() {
-    let mut child =
-        runner().spawn(sh("for i in 1 2 3; do echo line $i; sleep 0.05; done; echo oops >&2; exit 7")).expect("spawn");
+    let mut child = runner()
+        .spawn(sh("for i in 1 2 3; do echo line $i; sleep 0.05; done; echo oops >&2; exit 7"))
+        .await
+        .expect("spawn");
     let (mut stdout, mut stderr, mut exit) = (Vec::new(), Vec::new(), None);
     let mut chunks = 0;
     while let Some(event) = child.next().await {
@@ -205,8 +207,10 @@ async fn streamed_output_arrives_in_order_before_the_exit() {
 
 #[tokio::test]
 async fn an_open_stdin_carries_a_conversation_and_closing_it_ends_the_input() {
-    let mut child =
-        runner().spawn(sh("while read line; do echo \"got $line\"; done; echo bye").stdin_open()).expect("spawns");
+    let mut child = runner()
+        .spawn(sh("while read line; do echo \"got $line\"; done; echo bye").stdin_open())
+        .await
+        .expect("spawns");
     let mut stdin = child.stdin().expect("the pipe");
     assert!(child.stdin().is_none(), "taken once");
 
@@ -223,7 +227,8 @@ async fn an_open_stdin_carries_a_conversation_and_closing_it_ends_the_input() {
 #[tokio::test]
 async fn a_slow_consumer_loses_nothing() {
     // 4 MB through a queue that holds 512 KB: the child has to wait for the consumer.
-    let mut child = runner().spawn(sh("head -c 4000000 /dev/zero").timeout(Duration::from_secs(30))).expect("spawn");
+    let mut child =
+        runner().spawn(sh("head -c 4000000 /dev/zero").timeout(Duration::from_secs(30))).await.expect("spawn");
     let mut total = 0usize;
     let mut exit = None;
     while let Some(event) = child.next().await {
@@ -244,7 +249,7 @@ async fn a_slow_consumer_loses_nothing() {
 
 #[tokio::test]
 async fn killing_or_dropping_a_streamed_child_ends_its_tree() {
-    let mut child = runner().spawn(sh("sleep 30 & echo $!; sleep 30").no_timeout()).expect("spawn");
+    let mut child = runner().spawn(sh("sleep 30 & echo $!; sleep 30").no_timeout()).await.expect("spawn");
     let Some(Event::Stdout(first)) = child.next().await else { panic!("expected the grandchild's id") };
     let grandchild = first_number(&first);
     child.kill();
@@ -258,7 +263,7 @@ async fn killing_or_dropping_a_streamed_child_ends_its_tree() {
     assert!(gone(grandchild).await);
     tree_is_empty(child.pid()).await;
 
-    let mut child = runner().spawn(sh("sleep 30 & echo $!; sleep 30").no_timeout()).expect("spawn");
+    let mut child = runner().spawn(sh("sleep 30 & echo $!; sleep 30").no_timeout()).await.expect("spawn");
     let Some(Event::Stdout(first)) = child.next().await else { panic!("expected the grandchild's id") };
     let (pid, grandchild) = (child.pid(), first_number(&first));
     drop(child);
@@ -284,7 +289,7 @@ async fn many_runs_leave_no_zombies() {
 #[tokio::test]
 async fn a_process_forked_while_the_tree_is_killed_does_not_escape() {
     for _ in 0..25 {
-        let mut child = runner().spawn(sh("echo go; sleep 30; sleep 30").no_timeout()).expect("spawn");
+        let mut child = runner().spawn(sh("echo go; sleep 30; sleep 30").no_timeout()).await.expect("spawn");
         let Some(Event::Stdout(_)) = child.next().await else { panic!("expected output") };
         let pid = child.pid();
         drop(child);
