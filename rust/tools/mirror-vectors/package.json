@@ -1,0 +1,10 @@
+{
+  "name": "eos-mirror-vectors",
+  "private": true,
+  "type": "module",
+  "description": "Runs today's screen mirror (manager/services/pty/screenMirror.ts) over scripted and generated terminal sessions; the Rust mirror must give the same snapshots.",
+  "dependencies": {
+    "@xterm/addon-serialize": "0.14.0",
+    "@xterm/headless": "6.0.0"
+  }
+}

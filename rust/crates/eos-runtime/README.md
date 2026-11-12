@@ -70,6 +70,10 @@ job.finish(JobStatus::Completed, |j| j.detail = None);            // a start and
 
 A module lists what it contributes (`routes`, `topics`, `job_kinds`, `idle_hooks`, …) in its
 `Module` impl; `Runtime::build` composes the modules and fails, naming both owners, on any clash.
+A job kind with more than one producer is the kernel's (`jobs::KERNEL_JOB_KINDS`: `shell`, a `!`
+command and an agent's background shell alike): modules that produce it may list it and never
+clash over it. The Jobs tab's routes (`/api/jobs`, `…/:id/output|stop|dismiss`, `/api/jobs/clear`)
+are the kernel's too (`jobs/routes.rs`); a stop goes through the handle its producer gave the job.
 
 ## Ordering guarantees
 

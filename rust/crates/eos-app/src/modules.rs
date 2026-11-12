@@ -9,10 +9,12 @@ use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::shell::Location;
 use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore, UserSettingsStore};
+use eos_core::terminal::{ClaudeLaunchEnv, ClaudeProgram, ClaudeTranscripts, ShellCommands, Terminals};
 use eos_core::{Clock, Ids};
 use eos_mod_plugins::PluginHost;
 use eos_mod_profile::PendingCaps;
 use eos_mod_system::RunInfo;
+use eos_mod_terminals::{RunDeps, SessionDeps};
 use eos_policy::PolicyGateway;
 use eos_prompts::PromptService;
 use eos_runtime::bus::Bus;
@@ -58,6 +60,18 @@ pub(crate) struct Context {
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
+    pub(crate) terminals: Terminal,
+}
+
+/// What terminals run on: the PTY, the user's shell and their Claude Code.
+pub(crate) struct Terminal {
+    pub(crate) ptys: Arc<dyn Terminals>,
+    pub(crate) commands: Arc<dyn ShellCommands>,
+    pub(crate) claude: Arc<dyn ClaudeProgram>,
+    pub(crate) claude_env: Arc<dyn ClaudeLaunchEnv>,
+    pub(crate) transcripts: Arc<dyn ClaudeTranscripts>,
+    /// Where a terminal opens when the dashboard names no folder.
+    pub(crate) default_cwd: String,
 }
 
 /// The modules, in start order (stop order is the reverse). A feature crate
@@ -119,6 +133,26 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             cx.backends.clone(),
         )),
         Arc::new(eos_mod_templates::TemplatesModule::new(cx.templates.clone())),
+        Arc::new(eos_mod_terminals::TerminalsModule::new(
+            SessionDeps {
+                terminals: cx.terminals.ptys.clone(),
+                claude: cx.terminals.claude.clone(),
+                claude_env: cx.terminals.claude_env.clone(),
+                bus: cx.bus.clone(),
+                ids: cx.ids.clone(),
+                clock: cx.clock.clone(),
+                default_cwd: cx.terminals.default_cwd.clone(),
+            },
+            cx.terminals.transcripts.clone(),
+            RunDeps {
+                commands: cx.terminals.commands.clone(),
+                store: cx.store.clone(),
+                bus: cx.bus.clone(),
+                jobs: cx.kernel.jobs.clone(),
+                clock: cx.clock.clone(),
+                ids: cx.ids.clone(),
+            },
+        )),
         cx.updates.module(cx.config.clone(), &cx.kernel),
         Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(
             cx.worker_definitions.clone(),

@@ -1,0 +1,811 @@
+{
+ "source": "manager/services/pty/transcriptRows.ts",
+ "vectors": [
+  {
+   "name": "prompt, thinking, tool call, result, answer",
+   "lines": "{\"type\":\"mode\"}\n{\"uuid\":\"u1\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n{\"uuid\":\"u2\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"hmm\"},{\"type\":\"thinking\",\"thinking\":\"  \"}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u3\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/a\"}}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u4\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u3\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"file body\"}]}}\n{\"uuid\":\"u5\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"stop_reason\":\"end_turn\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "hello"
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "reasoning",
+         "text": "hmm",
+         "blockId": "u2:0"
+        }
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "t1",
+         "name": "Read",
+         "input": {
+          "file_path": "/a"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": 5,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "tool",
+       "blocks": [
+        {
+         "type": "tool_result",
+         "callId": "t1",
+         "isError": false,
+         "content": "file body"
+        }
+       ]
+      }
+     },
+     {
+      "id": 6,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "done",
+         "blockId": "u5:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "turn ended by its marker",
+   "lines": "{\"uuid\":\"u1\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"hello\"}}\n{\"uuid\":\"u2\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"thinking\",\"thinking\":\"hmm\"},{\"type\":\"thinking\",\"thinking\":\"  \"}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u3\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u2\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/a\"}}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u4\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u3\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"file body\"}]}}\n{\"uuid\":\"u5\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u4\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"done\"}],\"stop_reason\":\"end_turn\"}}\n{\"uuid\":\"u6\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"system\",\"subtype\":\"turn_duration\",\"parentUuid\":\"u5\"}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "hello"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "reasoning",
+         "text": "hmm",
+         "blockId": "u2:0"
+        }
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "t1",
+         "name": "Read",
+         "input": {
+          "file_path": "/a"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "tool",
+       "blocks": [
+        {
+         "type": "tool_result",
+         "callId": "t1",
+         "isError": false,
+         "content": "file body"
+        }
+       ]
+      }
+     },
+     {
+      "id": 5,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "done",
+         "blockId": "u5:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "running: a prompt alone",
+   "lines": "{\"uuid\":\"u7\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"go\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "go"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "running: blocks before the stop reason",
+   "lines": "{\"uuid\":\"u7\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"go\"}}\n{\"uuid\":\"u8\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u7\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"partial\"}],\"stop_reason\":null}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "go"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "partial",
+         "blockId": "u8:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "an unfinished last line counts while it parses",
+   "lines": "{\"uuid\":\"u7\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"go\"}}\n",
+   "tail": "{\"uuid\":\"u8\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u7\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"partial\"}],\"stop_reason\":null}}",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "go"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "partial",
+         "blockId": "u8:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "a torn last line is ignored",
+   "lines": "{\"uuid\":\"u7\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"go\"}}\n",
+   "tail": "{\"uuid\":\"u8\",\"timestamp\":\"2026-09-27T10:",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "go"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "an open question",
+   "lines": "{\"uuid\":\"u9\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"ask me\"}}\n{\"uuid\":\"u10\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u9\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"one question\"},{\"type\":\"tool_use\",\"id\":\"q1\",\"name\":\"AskUserQuestion\",\"input\":{\"questions\":[{\"header\":\"Color\",\"question\":\"Which?\",\"multiSelect\":false,\"options\":[{\"label\":\"Red\"},{\"label\":\"Blue\"}]}]}}],\"stop_reason\":\"tool_use\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "ask me"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "one question",
+         "blockId": "u10:0"
+        },
+        {
+         "type": "tool_call",
+         "callId": "q1",
+         "name": "AskUserQuestion",
+         "input": {
+          "questions": [
+           {
+            "header": "Color",
+            "question": "Which?",
+            "multiSelect": false,
+            "options": [
+             {
+              "label": "Red"
+             },
+             {
+              "label": "Blue"
+             }
+            ]
+           }
+          ]
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "running": true,
+    "pending": {
+     "toolUseId": "q1",
+     "name": "AskUserQuestion",
+     "input": {
+      "questions": [
+       {
+        "header": "Color",
+        "question": "Which?",
+        "multiSelect": false,
+        "options": [
+         {
+          "label": "Red"
+         },
+         {
+          "label": "Blue"
+         }
+        ]
+       }
+      ]
+     }
+    }
+   }
+  },
+  {
+   "name": "a question answered",
+   "lines": "{\"uuid\":\"u9\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"ask me\"}}\n{\"uuid\":\"u10\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u9\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"one question\"},{\"type\":\"tool_use\",\"id\":\"q1\",\"name\":\"AskUserQuestion\",\"input\":{\"questions\":[{\"header\":\"Color\",\"question\":\"Which?\",\"multiSelect\":false,\"options\":[{\"label\":\"Red\"},{\"label\":\"Blue\"}]}]}}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u11\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u10\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"q1\",\"content\":[{\"type\":\"text\",\"text\":\"answered\"},{\"type\":\"image\"},{\"type\":\"text\",\"text\":\"!\"}]}]}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "ask me"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "one question",
+         "blockId": "u10:0"
+        },
+        {
+         "type": "tool_call",
+         "callId": "q1",
+         "name": "AskUserQuestion",
+         "input": {
+          "questions": [
+           {
+            "header": "Color",
+            "question": "Which?",
+            "multiSelect": false,
+            "options": [
+             {
+              "label": "Red"
+             },
+             {
+              "label": "Blue"
+             }
+            ]
+           }
+          ]
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "tool",
+       "blocks": [
+        {
+         "type": "tool_result",
+         "callId": "q1",
+         "isError": false,
+         "content": "answered!"
+        }
+       ]
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "an open plan",
+   "lines": "{\"uuid\":\"u12\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"plan it\"}}\n{\"uuid\":\"u13\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u12\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"p1\",\"name\":\"ExitPlanMode\",\"input\":{\"plan\":\"x\"}}],\"stop_reason\":\"tool_use\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "plan it"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "p1",
+         "name": "ExitPlanMode",
+         "input": {
+          "plan": "x"
+         }
+        }
+       ]
+      }
+     }
+    ],
+    "running": true,
+    "pending": {
+     "toolUseId": "p1",
+     "name": "ExitPlanMode",
+     "input": {
+      "plan": "x"
+     }
+    }
+   }
+  },
+  {
+   "name": "an interrupt drops the dialog and aborts the turn",
+   "lines": "{\"uuid\":\"u12\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"plan it\"}}\n{\"uuid\":\"u13\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u12\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"p1\",\"name\":\"ExitPlanMode\",\"input\":{\"plan\":\"x\"}}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u14\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u13\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"[Request interrupted by user]\"}]}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "plan it"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "p1",
+         "name": "ExitPlanMode",
+         "input": {
+          "plan": "x"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "turn",
+       "phase": "aborted"
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "a new prompt drops the dialog",
+   "lines": "{\"uuid\":\"u12\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"plan it\"}}\n{\"uuid\":\"u13\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u12\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"p1\",\"name\":\"ExitPlanMode\",\"input\":{\"plan\":\"x\"}}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u15\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u13\",\"message\":{\"role\":\"user\",\"content\":\"never mind\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "plan it"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "p1",
+         "name": "ExitPlanMode",
+         "input": {
+          "plan": "x"
+         }
+        }
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "never mind"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "slash commands as typed, harness chatter hidden",
+   "lines": "{\"uuid\":\"u16\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"<command-name>/model</command-name>\\n<command-message>model</command-message>\\n<command-args>opus</command-args>\"}}\n{\"uuid\":\"u17\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u16\",\"message\":{\"role\":\"user\",\"content\":\"<local-command-stdout>Set model</local-command-stdout>\"}}\n{\"uuid\":\"u18\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u17\",\"message\":{\"role\":\"user\",\"content\":\"caveat\"},\"isMeta\":true}\n{\"uuid\":\"u19\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u18\",\"message\":{\"role\":\"user\",\"content\":\"<command-name>/clear</command-name>\\n<command-args></command-args>\"}}\n{\"uuid\":\"u20\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u19\",\"message\":{\"role\":\"user\",\"content\":\"<bash-stdout>ls</bash-stdout>\"}}\n{\"uuid\":\"u21\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u20\",\"message\":{\"role\":\"user\",\"content\":\"<task-notification>done</task-notification>\"}}\n{\"uuid\":\"u22\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u21\",\"message\":{\"role\":\"user\",\"content\":\"   \"}}\n{\"uuid\":\"u23\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u22\",\"message\":{\"role\":\"user\",\"content\":\"the summary\"},\"isCompactSummary\":true}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "/model opus"
+      }
+     },
+     {
+      "id": 4,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "/clear"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "a pasted prompt, and one with an image",
+   "lines": "{\"uuid\":\"u24\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"\\n\\n<pasted_content id=\\\"a8cd\\\">\\nline one\\nline two\\n</pasted_content id=\\\"a8cd\\\">\\n\"}}\n{\"uuid\":\"u25\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u24\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"look\"},{\"type\":\"image\",\"source\":{}},{\"type\":\"text\",\"text\":\"\"},{\"type\":\"other\"}]}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "line one\nline two"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "look\n[image]"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "only the active branch after a rewind",
+   "lines": "{\"uuid\":\"u26\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"first\"}}\n{\"uuid\":\"u27\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u26\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"abandoned\"}],\"stop_reason\":\"end_turn\"}}\n{\"uuid\":\"u28\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"second\"}}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "second"
+      }
+     }
+    ],
+    "running": true,
+    "pending": null
+   }
+  },
+  {
+   "name": "an edit with its patch, a subagent call, an API error",
+   "lines": "{\"uuid\":\"u29\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"edit\"}}\n{\"uuid\":\"u30\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u29\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"e1\",\"name\":\"Edit\",\"input\":{\"file_path\":\"/a\",\"old_string\":\"x\",\"new_string\":\"y\"}},{\"type\":\"tool_use\",\"id\":\"g1\",\"name\":\"Agent\",\"input\":{\"prompt\":\"look around\"}},{\"type\":\"tool_use\"}],\"stop_reason\":\"tool_use\"}}\n{\"uuid\":\"u31\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u30\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"e1\",\"content\":\"ok\"},{\"type\":\"tool_result\",\"content\":\"nameless\",\"is_error\":true}]},\"toolUseResult\":{\"structuredPatch\":[{\"oldStart\":1,\"oldLines\":1,\"newStart\":1,\"newLines\":1,\"lines\":[\"-x\",\"+y\"]},{\"oldStart\":\"bad\"}]}}\n{\"uuid\":\"u32\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u31\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"API Error: overloaded\"}],\"stop_reason\":null},\"isApiErrorMessage\":true}\n",
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "edit"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "tool_call",
+         "callId": "e1",
+         "name": "Edit",
+         "input": {
+          "file_path": "/a",
+          "old_string": "x",
+          "new_string": "y"
+         }
+        },
+        {
+         "type": "tool_call",
+         "callId": "g1",
+         "name": "Agent",
+         "input": {
+          "prompt": "look around"
+         },
+         "spawnsSubagent": true
+        },
+        {
+         "type": "tool_call",
+         "callId": "",
+         "name": "",
+         "input": {}
+        }
+       ]
+      }
+     },
+     {
+      "id": 3,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "tool",
+       "blocks": [
+        {
+         "type": "tool_result",
+         "callId": "e1",
+         "isError": false,
+         "content": "ok",
+         "patch": [
+          {
+           "oldStart": 1,
+           "newStart": 1,
+           "lines": [
+            "-x",
+            "+y"
+           ]
+          }
+         ]
+        },
+        {
+         "type": "tool_result",
+         "callId": "",
+         "isError": true,
+         "content": "nameless",
+         "patch": [
+          {
+           "oldStart": 1,
+           "newStart": 1,
+           "lines": [
+            "-x",
+            "+y"
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "id": 4,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "API Error: overloaded",
+         "blockId": "u32:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "a subagent's own transcript",
+   "lines": "{\"uuid\":\"u33\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":true,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"sub task\"}}\n{\"uuid\":\"u34\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":true,\"type\":\"assistant\",\"parentUuid\":\"u33\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"sub answer\"}],\"stop_reason\":\"end_turn\"}}\n",
+   "sidechain": true,
+   "view": {
+    "rows": [
+     {
+      "id": 1,
+      "ts": 1790503200000,
+      "type": "user_message",
+      "payload": {
+       "text": "sub task"
+      }
+     },
+     {
+      "id": 2,
+      "ts": 1790503200000,
+      "type": "agent_event",
+      "payload": {
+       "type": "message",
+       "role": "assistant",
+       "blocks": [
+        {
+         "type": "text",
+         "text": "sub answer",
+         "blockId": "u34:0"
+        }
+       ]
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "sidechain entries are not the conversation",
+   "lines": "{\"uuid\":\"u33\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":true,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"sub task\"}}\n{\"uuid\":\"u34\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":true,\"type\":\"assistant\",\"parentUuid\":\"u33\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"sub answer\"}],\"stop_reason\":\"end_turn\"}}\n",
+   "view": {
+    "rows": [],
+    "running": false,
+    "pending": null
+   }
+  },
+  {
+   "name": "odd entries",
+   "lines": "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"no uuid\"}}\nnot json at all\n{\"uuid\":\"u35\",\"timestamp\":\"yesterday\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":null,\"message\":{\"role\":\"user\",\"content\":\"bad time\"}}\n{\"uuid\":\"u36\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"user\",\"parentUuid\":\"u35\",\"message\":{\"role\":\"user\",\"content\":42}}\n{\"uuid\":\"u37\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u36\",\"message\":{\"role\":\"assistant\",\"content\":\"a string, not blocks\"}}\n{\"uuid\":\"u38\",\"timestamp\":\"2026-09-27T10:00:00.000Z\",\"isSidechain\":false,\"type\":\"assistant\",\"parentUuid\":\"u37\",\"message\":{\"role\":\"assistant\",\"content\":[],\"stop_reason\":\"end_turn\"}}\n\n",
+   "view": {
+    "rows": [
+     {
+      "id": 2,
+      "ts": 0,
+      "type": "user_message",
+      "payload": {
+       "text": "bad time"
+      }
+     }
+    ],
+    "running": false,
+    "pending": null
+   }
+  }
+ ]
+}

@@ -28,6 +28,12 @@ tracing.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+eos-kit-proc.workspace = true
+eos-mod-terminals.workspace = true
+eos-platform.workspace = true
+eos-pty.workspace = true
+eos-testkit.workspace = true
+tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "net", "io-util", "rt-multi-thread", "sync", "time"] }
 
 [lints]

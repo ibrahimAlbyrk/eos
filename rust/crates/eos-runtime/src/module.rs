@@ -16,6 +16,7 @@ use eos_core::agent::ToolInputDelta;
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
 use crate::idle::IdleHook;
+use crate::jobs::KERNEL_JOB_KINDS;
 use crate::router::{BoxFuture, PluginSwitch, RouteDef, Router};
 
 /// A value the runtime carries for another crate without knowing its type
@@ -269,7 +270,7 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
         modules: Modules { list: modules.into(), plugins },
         routes: Vec::new(),
         topics: Vec::new(),
-        job_kinds: Vec::new(),
+        job_kinds: KERNEL_JOB_KINDS.to_vec(),
         idle_hooks: Vec::new(),
         slash_commands: Vec::new(),
         protected_settings: Vec::new(),
@@ -295,8 +296,12 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
             if !valid_job_kind(kind) {
                 return Err(Error::BadDeclaration { module: id.to_owned(), what: "job kind", name: kind.to_owned() });
             }
-            kinds.claim(kind, id, &mut conflicts);
-            out.job_kinds.push(kind);
+            // A kind with several producers belongs to the kernel, not to
+            // the modules that share it.
+            if !KERNEL_JOB_KINDS.contains(&kind) {
+                kinds.claim(kind, id, &mut conflicts);
+                out.job_kinds.push(kind);
+            }
         }
         for hook in module.idle_hooks() {
             hooks.claim(hook.id, id, &mut conflicts);

@@ -5,3 +5,6 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 cargo test --release -p eos-genui --test perf --quiet -- --ignored
+# Terminals: MB/s from the PTY to a client's stream, memory under a flood.
+cargo test --release -p eos-mod-terminals --test flood -- --ignored --nocapture --test-threads 1
+cargo test --release -p eos-bridge --test terminal_flood -- --ignored --nocapture

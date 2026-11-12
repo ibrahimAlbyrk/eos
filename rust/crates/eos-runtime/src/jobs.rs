@@ -9,6 +9,8 @@
 //! ambient job (compaction, sync, an update download) shows only while it
 //! runs. Nothing is persisted: a restart starts an empty list.
 
+pub mod routes;
+
 use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
@@ -165,6 +167,11 @@ impl std::fmt::Debug for JobSpec {
             .finish_non_exhaustive()
     }
 }
+
+/// Job kinds no single feature owns, because more than one produces them:
+/// `shell` is a `!` command from the composer and an agent's background
+/// shell alike. A module may list one among its kinds; it never clashes.
+pub const KERNEL_JOB_KINDS: &[&str] = &["shell"];
 
 /// `<kind>:<workerId|eos>:<ref>` — stable per job.
 pub fn job_id(kind: &str, worker_id: Option<&str>, reference: &str) -> String {

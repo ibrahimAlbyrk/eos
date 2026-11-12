@@ -96,8 +96,9 @@ Snapshot before the first open with a clone copy.
 bundled; `regress` for user-supplied JavaScript regexes, matching over UTF-16 code units;
 `serde_json` with `float_roundtrip`, numbers that feed a hash printed with `ryu-js`;
 `serde_norway` or `serde_yaml_ng` for YAML (no merge keys); `rustls` + `h2` for peers with the
-existing identity files; `portable-pty` + `vt100` for terminals; the update chunker is the exact
-port in `spikes/data`.
+existing identity files; `portable-pty` for terminals, with our own screen mirror (a port of
+xterm.js's buffer and serializer in `eos-pty`: `vt100` and `alacritty_terminal` cannot give today's
+snapshot text, which clients replay); the update chunker is the exact port in `spikes/data`.
 
 **The agent engine.** Its crates (`eos-agent-*`, linked at `vendor/eos-agent-sdk`) are visible to
 two crates, and `cargo xtask layers` fails any other dependency on them, dev-dependencies included:

@@ -1,0 +1,658 @@
+{
+ "source": "manager/services/pty/claudeLaunch.ts, claudeKeys.ts; manager/services/TerminalRunService.ts",
+ "launch": [
+  {
+   "resume": null,
+   "id": "cc49f56a-a705-42f4-bff3-7295927ffb42",
+   "command": "EOS_TTY=$(tty) claude --model opus --dangerously-skip-permissions --session-id cc49f56a-a705-42f4-bff3-7295927ffb42 --settings '{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"sid=$(sed -n '\\''s/.*\\\"session_id\\\" *: *\\\"\\\\([^\\\"]*\\\\)\\\".*/\\\\1/p'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-session=%s\\\\007'\\'' \\\"$sid\\\" > \\\"$EOS_TTY\\\" || true\"}]}],\"PreToolUse\":[{\"matcher\":\"AskUserQuestion|ExitPlanMode\",\"hooks\":[{\"type\":\"command\",\"command\":\"p=$(base64 | tr -d '\\''\\\\n'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-tool=%s\\\\007'\\'' \\\"$p\\\" > \\\"$EOS_TTY\\\" || true\"}]}]}}'"
+  },
+  {
+   "resume": "0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+   "id": "0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b",
+   "command": "EOS_TTY=$(tty) claude --model opus --dangerously-skip-permissions --resume 0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b --settings '{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"sid=$(sed -n '\\''s/.*\\\"session_id\\\" *: *\\\"\\\\([^\\\"]*\\\\)\\\".*/\\\\1/p'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-session=%s\\\\007'\\'' \\\"$sid\\\" > \\\"$EOS_TTY\\\" || true\"}]}],\"PreToolUse\":[{\"matcher\":\"AskUserQuestion|ExitPlanMode\",\"hooks\":[{\"type\":\"command\",\"command\":\"p=$(base64 | tr -d '\\''\\\\n'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-tool=%s\\\\007'\\'' \\\"$p\\\" > \\\"$EOS_TTY\\\" || true\"}]}]}}' || EOS_TTY=$(tty) claude --model opus --dangerously-skip-permissions --session-id 0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b --settings '{\"hooks\":{\"SessionStart\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"sid=$(sed -n '\\''s/.*\\\"session_id\\\" *: *\\\"\\\\([^\\\"]*\\\\)\\\".*/\\\\1/p'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-session=%s\\\\007'\\'' \\\"$sid\\\" > \\\"$EOS_TTY\\\" || true\"}]}],\"PreToolUse\":[{\"matcher\":\"AskUserQuestion|ExitPlanMode\",\"hooks\":[{\"type\":\"command\",\"command\":\"p=$(base64 | tr -d '\\''\\\\n'\\''); [ -w \\\"$EOS_TTY\\\" ] && printf '\\''\\\\033]7777;eos-claude-tool=%s\\\\007'\\'' \\\"$p\\\" > \\\"$EOS_TTY\\\" || true\"}]}]}}'"
+  }
+ ],
+ "osc": [
+  {
+   "chunks": [
+    "hi\u001b]0;✳ Fix login\u0007 \u001b]7777;eos-claude-session=0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b\u0007",
+    "\u001b]2;~/proj\u001b\\"
+   ],
+   "events": [
+    [
+     {
+      "kind": "title",
+      "title": "Fix login"
+     },
+     {
+      "kind": "claudeSession",
+      "id": "0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b"
+     }
+    ],
+    [
+     {
+      "kind": "title",
+      "title": "proj"
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "out\u001b",
+    "]0;Refac",
+    "tor auth\u0007 more"
+   ],
+   "events": [
+    [],
+    [],
+    [
+     {
+      "kind": "title",
+      "title": "Refactor auth"
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]7777;eos-claude-tool=eyJob29rX2V2ZW50X25hbWUiOiJQcmVUb29sVXNlIiwidG9vbF9uYW1lIjoiQXNrVXNlclF1ZXN0aW9uIiwidG9vbF91c2VfaWQiOiJ0b29sdV8xIiwidG9vbF9pbnB1dCI6eyJxdWVzdGlvbnMiOlt7ImhlYWRlciI6IkNvbG9yIiwicXVlc3Rpb24iOiJXaGljaD8iLCJtdWx0aVNlbGVjdCI6ZmFsc2UsIm9wdGlvbnMiOlt7ImxhYmVsIjoiUmVkIn0seyJsYWJlbCI6IkJsdWUifV19XX19\u0007"
+   ],
+   "events": [
+    [
+     {
+      "kind": "dialogTool",
+      "call": {
+       "toolUseId": "toolu_1",
+       "name": "AskUserQuestion",
+       "input": {
+        "questions": [
+         {
+          "header": "Color",
+          "question": "Which?",
+          "multiSelect": false,
+          "options": [
+           {
+            "label": "Red"
+           },
+           {
+            "label": "Blue"
+           }
+          ]
+         }
+        ]
+       }
+      }
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]7777;eos-claude-tool=eyJob29rX2V2ZW50X25hbWUiOiJQcmVUb29sVXNlIiwidG9vbF9uYW1lIjoiQmFzaCIsInRvb2xfdXNlX2lkIjoidG9vbHVfMSIsInRvb2xfaW5wdXQiOnsicXVlc3Rpb25zIjpbeyJoZWFkZXIiOiJDb2xvciIsInF1ZXN0aW9uIjoiV2hpY2g/IiwibXVsdGlTZWxlY3QiOmZhbHNlLCJvcHRpb25zIjpbeyJsYWJlbCI6IlJlZCJ9LHsibGFiZWwiOiJCbHVlIn1dfV19fQ==\u0007",
+    "\u001b]7777;eos-claude-tool=eyJob29rX2V2ZW50X25hbWUiOiJQcmVUb29sVXNlIiwidG9vbF9uYW1lIjoiRXhpdFBsYW5Nb2RlIiwidG9vbF91c2VfaWQiOiJ0b29sdV8xIiwidG9vbF9pbnB1dCI6eyJwbGFuIjoiZG8gaXQifX0=\u001b\\"
+   ],
+   "events": [
+    [],
+    [
+     {
+      "kind": "dialogTool",
+      "call": {
+       "toolUseId": "toolu_1",
+       "name": "ExitPlanMode",
+       "input": {
+        "plan": "do it"
+       }
+      }
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]8;;https://x\u0007link\u001b]8;;\u0007\u001b]7777;eos-claude-session=nope\u0007"
+   ],
+   "events": [
+    []
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]7777;eos-claude-tool=!!!\u0007\u001b]7777;eos-claude-tool=eyJ0b29sX25hbWUiOiJBc2tVc2VyUXVlc3Rpb24iLCJ0b29sX3VzZV9pZCI6NywidG9vbF9pbnB1dCI6e319\u0007\u001b]7777;eos-claude-tool=eyJ0b29sX25hbWUiOiJBc2tVc2VyUXVlc3Rpb24iLCJ0b29sX3VzZV9pZCI6IngiLCJ0b29sX2lucHV0IjpudWxsfQ==\u0007"
+   ],
+   "events": [
+    []
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]0;\u0007",
+    "\u001b]0;⠋ ✳  \u0007",
+    "\u001b]1;icon only\u0007",
+    "\u001b]0;İstanbul 2 ✓\u0007",
+    "\u001b]nosemicolon\u0007",
+    "\u001b]0;a\u0007\u001b]2;b\u001b\\\u001b]0;c\u0007"
+   ],
+   "events": [
+    [
+     {
+      "kind": "title",
+      "title": null
+     }
+    ],
+    [
+     {
+      "kind": "title",
+      "title": null
+     }
+    ],
+    [],
+    [
+     {
+      "kind": "title",
+      "title": "İstanbul 2 ✓"
+     }
+    ],
+    [],
+    [
+     {
+      "kind": "title",
+      "title": "a"
+     },
+     {
+      "kind": "title",
+      "title": "b"
+     },
+     {
+      "kind": "title",
+      "title": "c"
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]7777;eos-claude-session=0F9A1C2E-3B4D-4E5F-8A6B-7C8D9E0F1A2B\u0007",
+    "\u001b]7777;other=0f9a1c2e-3b4d-4e5f-8a6b-7c8d9e0f1a2b\u0007",
+    "\u001b]0;one\u001b",
+    "\\\u001b]0;two\u0007"
+   ],
+   "events": [
+    [
+     {
+      "kind": "claudeSession",
+      "id": "0F9A1C2E-3B4D-4E5F-8A6B-7C8D9E0F1A2B"
+     }
+    ],
+    [],
+    [],
+    [
+     {
+      "kind": "title",
+      "title": "one"
+     },
+     {
+      "kind": "title",
+      "title": "two"
+     }
+    ]
+   ]
+  },
+  {
+   "chunks": [
+    "\u001b]0;never terminated",
+    " still going",
+    "\u0007done"
+   ],
+   "events": [
+    [],
+    [],
+    [
+     {
+      "kind": "title",
+      "title": "never terminated still going"
+     }
+    ]
+   ]
+  }
+ ],
+ "keys": {
+  "prompts": [
+   {
+    "text": "line one\nline two",
+    "steps": [
+     "\u001b[200~line one\nline two\u001b[201~",
+     "\r"
+    ]
+   },
+   {
+    "text": "",
+    "steps": [
+     "\u001b[200~\u001b[201~",
+     "\r"
+    ]
+   },
+   {
+    "text": "é 漢",
+    "steps": [
+     "\u001b[200~é 漢\u001b[201~",
+     "\r"
+    ]
+   }
+  ],
+  "approvePlan": [
+   "1"
+  ],
+  "gaps": [
+   {
+    "step": "\u001b[200~x\u001b[201~",
+    "ms": 300
+   },
+   {
+    "step": "\r",
+    "ms": 150
+   },
+   {
+    "step": "1",
+    "ms": 150
+   },
+   {
+    "step": "\u001b[C",
+    "ms": 150
+   },
+   {
+    "step": "text",
+    "ms": 150
+   }
+  ],
+  "shells": [
+   {
+    "name": "zsh",
+    "shell": true
+   },
+   {
+    "name": "-bash",
+    "shell": true
+   },
+   {
+    "name": "/bin/zsh",
+    "shell": true
+   },
+   {
+    "name": "2.1.283",
+    "shell": false
+   },
+   {
+    "name": "claude",
+    "shell": false
+   },
+   {
+    "name": "fish",
+    "shell": true
+   },
+   {
+    "name": "-zsh",
+    "shell": true
+   },
+   {
+    "name": "node",
+    "shell": false
+   },
+   {
+    "name": "/usr/local/bin/nu",
+    "shell": true
+   },
+   {
+    "name": "login",
+    "shell": true
+   },
+   {
+    "name": "",
+    "shell": false
+   },
+   {
+    "name": "bash5",
+    "shell": false
+   },
+   {
+    "name": "-",
+    "shell": false
+   }
+  ],
+  "answers": [
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       1
+      ]
+     }
+    ],
+    "steps": [
+     "2"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "text": "Purple\nhaze "
+     }
+    ],
+    "steps": [
+     "4",
+     "Purple haze",
+     "\r"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": true,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       0,
+       2,
+       0
+      ]
+     }
+    ],
+    "steps": [
+     "1",
+     "3",
+     "\u001b[C",
+     "\r"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     },
+     {
+      "multiSelect": true,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "text": "Teal"
+     },
+     {
+      "options": [
+       1
+      ]
+     }
+    ],
+    "steps": [
+     "4",
+     "Teal",
+     "\r",
+     "2",
+     "\u001b[C",
+     "\r"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     },
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       2
+      ]
+     },
+     {
+      "options": [
+       0
+      ]
+     }
+    ],
+    "steps": [
+     "3",
+     "1",
+     "\r"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 8
+     }
+    ],
+    "answers": [
+     {
+      "text": "ninth key"
+     }
+    ],
+    "steps": [
+     "9",
+     "ninth key",
+     "\r"
+    ]
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": true,
+      "optionCount": 1
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       0
+      ]
+     }
+    ],
+    "steps": [
+     "1",
+     "\u001b[C",
+     "\r"
+    ]
+   },
+   {
+    "questions": [],
+    "answers": [],
+    "steps": []
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [],
+    "error": "expected 1 answers, got 0"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       0,
+       1
+      ]
+     }
+    ],
+    "error": "question 1 takes exactly one option"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 2
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       2
+      ]
+     }
+    ],
+    "error": "question 1: no such option"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": true,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "text": "x"
+     }
+    ],
+    "error": "question 1 is multi-select: free text is not supported"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "text": "\n"
+     }
+    ],
+    "error": "question 1: empty answer"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 9
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       0
+      ]
+     }
+    ],
+    "error": "question 1 has too many options to select by key"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": false,
+      "optionCount": 3
+     },
+     {
+      "multiSelect": false,
+      "optionCount": 9
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       0
+      ]
+     },
+     {
+      "text": "late"
+     }
+    ],
+    "error": "question 2 has too many options to select by key"
+   },
+   {
+    "questions": [
+     {
+      "multiSelect": true,
+      "optionCount": 3
+     }
+    ],
+    "answers": [
+     {
+      "options": [
+       5
+      ]
+     }
+    ],
+    "error": "question 1: no such option"
+   }
+  ]
+ },
+ "ansi": [
+  {
+   "input": "plain",
+   "output": "plain"
+  },
+  {
+   "input": "\u001b[31mred\u001b[0m",
+   "output": "red"
+  },
+  {
+   "input": "\u001b[?25l\u001b[1;2Hat",
+   "output": "at"
+  },
+  {
+   "input": "\u001b]0;title\u0007after",
+   "output": "after"
+  },
+  {
+   "input": "\u001b]8;;https://x\u001b\\link\u001b]8;;\u001b\\",
+   "output": "link"
+  },
+  {
+   "input": "\u001b]unterminated",
+   "output": ""
+  },
+  {
+   "input": "cut \u001b[3",
+   "output": "cut \u001b[3"
+  },
+  {
+   "input": "\u001b(B kept",
+   "output": "\u001b(B kept"
+  },
+  {
+   "input": "tab\tand\r\nnewline",
+   "output": "tab\tand\r\nnewline"
+  },
+  {
+   "input": "\u001b[38;2;1;2;3mtruecolor\u001b[m \u001b[2 qcursor",
+   "output": "truecolor cursor"
+  },
+  {
+   "input": "\u001b]0;a\u001bnot st",
+   "output": "\u001bnot st"
+  }
+ ]
+}

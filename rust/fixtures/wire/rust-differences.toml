@@ -215,6 +215,12 @@ step = "install-bad-source"
 at = "/json/error"
 reason = "eos-contracts words a bad union tag as a bad enum value and names what it got; Zod said `Invalid discriminator value` (crates/eos-contracts/README.md)."
 
+[[known]]
+scenario = "36-terminals"
+step = "jobs-with-running"
+at = "/frames"
+reason = "Timing, not content: the job's throttled `jobs:change` (dropped by the normalizer) fell inside this step when it was recorded and left an empty frame list; in process the step is over before the throttle fires, so there is no list at all."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]
@@ -239,3 +245,9 @@ scenario = "*"
 step = "ui-config"
 at = "/json/backends/**"
 reason = "One engine runs every session: its Claude backend is listed as today; the metered, Codex and Gemini lanes are not ported, so they are not offered."
+
+[[known]]
+scenario = "36-terminals"
+step = "run-in-chat-events"
+at = "/json/0/id"
+reason = "Until the scenarios before this one are all served: the new row's id counts the event rows their writes add (starting and messaging agents), which the Rust core does not write yet."

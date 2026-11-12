@@ -8,6 +8,7 @@
 //! feature only stays in that feature's crate.
 
 pub mod accounts;
+pub mod claude_transcript;
 pub mod config;
 pub mod context;
 pub mod cost;

@@ -290,17 +290,18 @@ impl App {
             clock: clock.clone(),
         });
         let hooks = Arc::new(AppHooks::new(kernel.bus.clone(), leftovers.clone()));
+        // The accounts feature picks each session's credential, unless the run names its own.
+        let credentials: Arc<dyn SessionCredentials> = match &agents.credential {
+            Some(fixed) => Arc::new(FixedCredential(Some(fixed.clone()))),
+            None => accounts.clone(),
+        };
         let engine = agent::engine(
             &paths.join("engine"),
             &agents,
             EngineDeps {
                 policy: policy.clone(),
                 tools: Arc::new(NoTools),
-                // The accounts feature picks each session's credential, unless the run names its own.
-                credentials: match &agents.credential {
-                    Some(fixed) => Arc::new(FixedCredential(Some(fixed.clone()))),
-                    None => accounts.clone(),
-                },
+                credentials: credentials.clone(),
                 questions: Arc::new(NoUser),
                 clock: clock.clone(),
             },
@@ -360,6 +361,7 @@ impl App {
             updates: updates.clone(),
             worker_definitions,
             scratch,
+            terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
         };
         let runtime = Arc::new(Runtime::build(kernel, modules::all(&context), plugins.switch())?);
         hooks.attach(&runtime);

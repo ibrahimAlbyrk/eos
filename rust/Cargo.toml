@@ -42,6 +42,7 @@ eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }
+eos-mod-terminals = { path = "crates/eos-mod-terminals" }
 eos-mod-updates = { path = "crates/eos-mod-updates" }
 eos-mod-worker-definitions = { path = "crates/eos-mod-worker-definitions" }
 eos-mod-workers = { path = "crates/eos-mod-workers" }
@@ -51,6 +52,7 @@ eos-plugin-files = { path = "crates/eos-plugin-files" }
 eos-policy = { path = "crates/eos-policy" }
 eos-profile = { path = "crates/eos-profile" }
 eos-prompts = { path = "crates/eos-prompts" }
+eos-pty = { path = "crates/eos-pty" }
 eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }
@@ -88,6 +90,7 @@ icu_collator = "2"
 indexmap = { version = "2", features = ["serde"] }
 # FSEvents on macOS: one stream per watched tree, no descriptor per file.
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+portable-pty = "0.9"
 regress = { version = "0.12", features = ["utf16"] }
 reqwest = { version = "0.13", default-features = false, features = ["brotli", "deflate", "gzip", "http2", "rustls"] }
 rusqlite = { version = "0.42", features = ["bundled"] }

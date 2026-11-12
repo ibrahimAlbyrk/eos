@@ -141,7 +141,7 @@ fn collects_what_every_module_contributes() {
     assert_eq!(composed.modules.len(), 3);
     assert_eq!(composed.routes.iter().map(|r| r.pattern()).collect::<Vec<_>>(), ["/api/pages", "/api/pages/{id}/edit"]);
     assert_eq!(composed.topics.iter().map(|t| t.name).collect::<Vec<_>>(), ["pages:change", "genui:delta"]);
-    assert_eq!(composed.job_kinds, ["compaction"]);
+    assert_eq!(composed.job_kinds, ["shell", "compaction"]);
     assert_eq!(composed.idle_hooks.iter().map(|h| (h.id, h.order)).collect::<Vec<_>>(), [("compaction", 10)]);
     assert_eq!(composed.slash_commands.iter().map(|c| c.name).collect::<Vec<_>>(), ["compact"]);
     assert_eq!(composed.protected_settings[0].keys, ["genui.level", "location.share"]);
@@ -275,4 +275,13 @@ fn protected_settings_name_the_route_that_may_write_them() {
         genui.refusal(["location.share", "genui.level"]).as_deref(),
         Some("genui.level, location.share are set only through PUT /api/settings/genui")
     );
+}
+
+#[test]
+fn a_kernel_job_kind_is_shared_without_a_clash() {
+    // `!` commands and agents' background shells both produce `shell` jobs.
+    let terminals = Fake { id: "terminals", kinds: vec!["shell"], ..Fake::default() };
+    let engine = Fake { id: "engine", kinds: vec!["shell", "workflow"], ..Fake::default() };
+    let composed = compose(vec![Arc::new(terminals), Arc::new(engine)], all_on()).expect("no clash over shell");
+    assert_eq!(composed.job_kinds, ["shell", "workflow"]);
 }

@@ -140,6 +140,7 @@ impl Runtime {
             .plugins(plugins)
             .ids(kernel.ids.0.clone())
             .routes(stream_routes::routes(kernel.stream.clone(), kernel.live_text.clone()))
+            .routes(crate::jobs::routes::routes(kernel.jobs.clone()))
             .routes(composed.routes)
             .build()?;
         Ok(Self {

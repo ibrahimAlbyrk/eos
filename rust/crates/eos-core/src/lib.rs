@@ -17,6 +17,7 @@
 //! | [`prompt`] | prompt sources and rendering |
 //! | [`shell`] | the window shell: embedded views, screenshots, the open panel, this computer's position |
 //! | [`store`] | the data folder: `state.db` repositories and file stores |
+//! | [`terminal`] | shells in a PTY, their screen mirror, one-shot command lines |
 //!
 //! A capability one feature offers the others is a trait here too, in the
 //! module of the feature that implements it ([`genui`], [`pages`], [`profile`]).
@@ -40,6 +41,7 @@ pub mod profile;
 pub mod prompt;
 pub mod shell;
 pub mod store;
+pub mod terminal;
 
 use std::future::Future;
 use std::pin::Pin;

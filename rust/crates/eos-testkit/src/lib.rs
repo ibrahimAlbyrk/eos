@@ -18,6 +18,8 @@
 //!
 //! - [`ScriptedRuntime`]: agent sessions that play scripted turns of canonical
 //!   events, with no model ([`agent`]).
+//! - [`FakeTerminals`], [`FakeShellCommands`], [`FakeTranscripts`], [`FakeClaudeProgram`], [`FakeClaudeEnv`]:
+//!   the terminal ports — terminals and commands the test speaks for.
 //!
 //! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`],
 //! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]);
@@ -44,6 +46,7 @@ mod ids;
 pub mod plugins;
 mod policy;
 mod profile;
+mod terminal;
 pub mod update;
 mod update_fakes;
 mod watchers;
@@ -67,6 +70,9 @@ pub use home::TempHome;
 pub use ids::SeqIds;
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
+pub use terminal::{
+    FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
+};
 pub use update_fakes::{
     FAKE_DOWNLOAD_BYTES, FakeBundleCheck, FakeBundleIndexer, FakeTopLevelAgents, FakeUpdateApplier, FakeUpdateFeed,
     FakeUpdateSignature, FakeUpdateWorkspace,

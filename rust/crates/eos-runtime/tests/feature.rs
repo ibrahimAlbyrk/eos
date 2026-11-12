@@ -118,7 +118,7 @@ fn build() -> Runtime {
 async fn a_feature_serves_a_route_publishes_an_event_and_registers_a_job() {
     let runtime = build();
     assert_eq!(runtime.router.undeclared(), Vec::<String>::new(), "every route has an access rule");
-    assert_eq!(runtime.job_kinds, ["note-export"]);
+    assert_eq!(runtime.job_kinds, ["shell", "note-export"], "the kernel's kinds, then the features'");
     runtime.lifecycle.start().await.expect("started");
     runtime.lifecycle.ready().await.expect("ready");
 
