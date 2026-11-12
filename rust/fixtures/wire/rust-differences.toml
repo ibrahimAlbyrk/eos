@@ -36,6 +36,20 @@ step = "focus-invalid"
 at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
+# Transfer requests that miss more than one field.
+
+[[known]]
+scenario = "16-services"
+step = "transfer-start-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "16-services"
+step = "transfer-destination-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
 # The gates of the file, git and project routes that miss more than one field.
 
 [[known]]

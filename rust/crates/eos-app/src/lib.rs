@@ -19,6 +19,7 @@ mod callers;
 mod display;
 mod files;
 mod host;
+mod machines;
 mod modules;
 mod notes;
 mod plugins;

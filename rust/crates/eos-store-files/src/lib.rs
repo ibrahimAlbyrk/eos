@@ -15,6 +15,7 @@ pub mod profile;
 mod projects;
 pub mod prompts;
 mod recents;
+pub mod sync_dir;
 pub mod templates;
 pub mod worker_definitions;
 mod yaml_value;

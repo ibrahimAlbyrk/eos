@@ -30,6 +30,7 @@
 //! [`FakeTopLevelAgents`], [`FakeUpdateApplier`].
 //! [`FakeFeatures`] is every port the agent tools call, answering from one script; [`FakeTimeZone`]
 //! is a fixed offset.
+//! [`vault`] is the relay's sync vault in memory ([`vault::FakeVault`]).
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -52,6 +53,7 @@ mod terminal;
 mod tools;
 pub mod update;
 mod update_fakes;
+pub mod vault;
 mod watchers;
 pub mod wire;
 

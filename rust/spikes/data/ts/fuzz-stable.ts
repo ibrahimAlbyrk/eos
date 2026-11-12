@@ -1,5 +1,5 @@
 // Random JSON documents and their stableStringify output, one `{json, stable}`
-// per line, for sync/src/bin/stable-check.rs. Seeded, so a failure reproduces.
+// per line, for crates/eos-domain/examples/stable_check.rs. Seeded, so a failure reproduces.
 import { stableStringify } from "../../../../core/src/domain/sync.ts";
 import { randomBytes } from "./gen.ts";
 

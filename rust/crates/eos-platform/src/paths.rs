@@ -103,6 +103,24 @@ impl DataPaths {
     }
 }
 
+/// The network name of this computer, without a trailing `.local`.
+fn host_name() -> Option<String> {
+    #[cfg(unix)]
+    let name = rustix::system::uname().nodename().to_string_lossy().into_owned();
+    #[cfg(not(unix))]
+    let name = std::env::var("COMPUTERNAME").unwrap_or_default();
+    let name = name.strip_suffix(".local").unwrap_or(&name);
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// The name this computer goes by on the user's other devices: the one
+/// people gave it, else its network name, else "Eos"
+/// (`infra/src/peer/machine.ts`). Asking the system runs a program, so read
+/// it once and keep it.
+pub fn computer_name() -> String {
+    crate::host().friendly_computer_name().or_else(host_name).unwrap_or_else(|| "Eos".to_owned())
+}
+
 /// Makes `dir` (and the folders above it) and closes it to everyone but the
 /// user, where folders have permission bits.
 pub fn create_private_dir(dir: &Path) -> std::io::Result<()> {
@@ -118,6 +136,12 @@ pub fn create_private_dir(dir: &Path) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn this_computer_has_a_name() {
+        assert!(!computer_name().is_empty());
+        assert!(host_name().is_none_or(|name| !name.ends_with(".local")));
+    }
 
     #[test]
     fn data_paths_hang_off_the_home() {

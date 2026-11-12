@@ -41,9 +41,11 @@ eos-mod-profile = { path = "crates/eos-mod-profile" }
 eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-questions = { path = "crates/eos-mod-questions" }
+eos-mod-sync = { path = "crates/eos-mod-sync" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }
 eos-mod-terminals = { path = "crates/eos-mod-terminals" }
+eos-mod-transfer = { path = "crates/eos-mod-transfer" }
 eos-mod-updates = { path = "crates/eos-mod-updates" }
 eos-mod-worker-definitions = { path = "crates/eos-mod-worker-definitions" }
 eos-mod-workers = { path = "crates/eos-mod-workers" }
@@ -59,8 +61,11 @@ eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
 eos-symbols = { path = "crates/eos-symbols" }
+eos-sync = { path = "crates/eos-sync" }
+eos-sync-vault = { path = "crates/eos-sync-vault" }
 eos-testkit = { path = "crates/eos-testkit" }
 eos-tools = { path = "crates/eos-tools" }
+eos-transfer-fs = { path = "crates/eos-transfer-fs" }
 eos-update = { path = "crates/eos-update" }
 eos-watch = { path = "crates/eos-watch" }
 eos-workers = { path = "crates/eos-workers" }
@@ -79,6 +84,7 @@ eos-agent-testkit = { path = "vendor/eos-agent-sdk/crates/eos-agent-testkit" }
 eos-agent-tools-session = { path = "vendor/eos-agent-sdk/crates/eos-agent-tools-session" }
 eos-agent-types = { path = "vendor/eos-agent-sdk/crates/eos-agent-types" }
 
+aes-gcm = "0.11"
 anyhow = "1"
 base64 = "0.22"
 bytes = "1"
@@ -88,6 +94,9 @@ flate2 = "1"
 futures-core = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4"
+hex = "0.4"
+hkdf = "0.13"
+hmac = "0.13"
 icu_collator = "2"
 indexmap = { version = "2", features = ["serde"] }
 # FSEvents on macOS: one stream per watched tree, no descriptor per file.

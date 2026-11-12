@@ -3,7 +3,10 @@
 //! (`core/src/ports/SyncVault.ts`, `Updates.ts`, `TransferEndpoint.ts`, …).
 
 mod geo;
+pub mod machines;
 mod media;
+pub mod sync;
+pub mod transfer;
 pub mod updates;
 
 pub use geo::{GeoError, Geocoder, PlaceQuery, PlaceSearch};

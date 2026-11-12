@@ -7,19 +7,21 @@ use eos_mod_agents::{AgentsModule, ToolControl};
 use eos_mod_genui::GenuiModule;
 use eos_mod_pages::PagesModule;
 use eos_mod_profile::ProfileModule;
+use eos_mod_transfer::TransferModule;
 use eos_tools::{Services, Tools, Visual};
 
 use crate::host::HostTimeZone;
 use crate::modules::Context;
 
-/// The registry. The browser, peers and transfers join when their features
-/// are in the app: until then no session has their tools.
+/// The registry. The browser and peers join when their features are in the
+/// app: until then no session has their tools.
 pub(crate) fn build(
     cx: &Context,
     agents: &AgentsModule,
     genui: &GenuiModule,
     pages: &PagesModule,
     profile: &ProfileModule,
+    transfer: &TransferModule,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
     Ok(Arc::new(Tools::new(Services {
@@ -44,6 +46,6 @@ pub(crate) fn build(
             location: genui.user_location(),
         }),
         peers: None,
-        transfers: None,
+        transfers: Some(transfer.agent_transfers()),
     })))
 }

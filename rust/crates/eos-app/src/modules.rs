@@ -39,6 +39,8 @@ pub(crate) struct Context {
     pub(crate) backends: Arc<dyn BackendCatalog>,
     pub(crate) sessions: eos_sessions::Sessions,
     pub(crate) projects: Arc<dyn ProjectStore>,
+    /// How a project folder is named between computers.
+    pub(crate) project_keys: Arc<dyn eos_core::git::ProjectKeys>,
     pub(crate) questions: eos_mod_questions::Questions,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
@@ -79,7 +81,7 @@ pub(crate) struct Terminal {
 
 /// The modules, in start order (stop order is the reverse). A feature crate
 /// adds its line here, in alphabetical order; nothing else in the app changes.
-pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, eos_runtime::Error> {
+pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
     // The features the agent tools call are built first: the tools hold them.
     let agents = Arc::new(eos_mod_agents::AgentsModule::new(
         cx.sessions.clone(),
@@ -121,9 +123,10 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, eos_runtime::Err
         place_search: cx.media.places.clone(),
         location: cx.location.clone(),
     }));
-    cx.tools.attach(crate::tools::build(cx, &agents, &genui, &pages, &profile)?);
+    let transfer = crate::machines::transfer(cx);
+    cx.tools.attach(crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer)?);
 
-    Ok(vec![
+    let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
         agents,
         crate::files::module(cx),
@@ -164,6 +167,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, eos_runtime::Err
                 ids: cx.ids.clone(),
             },
         )),
+        transfer,
         cx.updates.module(cx.config.clone(), &cx.kernel),
         Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(
             cx.worker_definitions.clone(),
@@ -173,5 +177,9 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, eos_runtime::Err
             eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())
                 .with_open_questions(Arc::new(cx.questions.clone())),
         ),
-    ])
+    ];
+    // Sync is built from what the features above let follow the user.
+    let contributions = modules.iter().flat_map(|module| module.sync()).collect();
+    modules.push(crate::machines::sync(cx, contributions)?);
+    Ok(modules)
 }

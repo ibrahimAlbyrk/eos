@@ -1,4 +1,4 @@
-// Opens records sealed by sync/src/bin/sync-seal.rs with the TypeScript sync
+// Opens records sealed by crates/eos-sync-vault/examples/sync_seal.rs with the TypeScript sync
 // code, and parses each envelope with the real schema.
 import { readFileSync } from "node:fs";
 

@@ -1,4 +1,4 @@
-// Writes fixtures/sync/vectors.json from the TypeScript sync code, with a sync
+// Writes sync-vectors.json (crates/eos-domain/tests/fixtures) from the TypeScript sync code, with a sync
 // key invented here: derived ids, record names, sealed records (envelope v1) and
 // stableStringify outputs for awkward JSON.
 import { createHash } from "node:crypto";
@@ -10,7 +10,7 @@ import { deriveSyncKeys, formatSyncKey, parseSyncKey } from "../../../../infra/s
 import { randomBytes } from "./gen.ts";
 
 const out = process.argv[2];
-if (!out) throw new Error("usage: gen-sync-vectors.ts <fixtures/sync>");
+if (!out) throw new Error("usage: gen-sync-vectors.ts <crates/eos-domain/tests/fixtures>");
 mkdirSync(out, { recursive: true });
 
 const identity = { relayUrl: "wss://relay.example.test/eos", secret: new Uint8Array(randomBytes("sync-spike-secret", 32)) };
@@ -53,7 +53,7 @@ const stable = stableInputs.map((json) => {
   return { json, stable: text, hash: keys.crypto.hash(text) };
 });
 
-writeFileSync(join(out, "vectors.json"), JSON.stringify({
+writeFileSync(join(out, "sync-vectors.json"), JSON.stringify({
   note: "invented key; nothing here opens a real vault",
   syncKey,
   relayUrl: identity.relayUrl,

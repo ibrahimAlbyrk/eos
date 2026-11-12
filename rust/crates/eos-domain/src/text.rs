@@ -109,9 +109,36 @@ pub fn locale_compare(a: &str, b: &str) -> Ordering {
     }
 }
 
+/// JavaScript's `a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" })`:
+/// `file2` before `file10`, and case and accents do not count (`a`, `A` and
+/// `á` are equal). How a folder listing a person reads is sorted.
+pub fn natural_compare(a: &str, b: &str) -> Ordering {
+    static COLLATOR: OnceLock<Option<CollatorBorrowed<'static>>> = OnceLock::new();
+    let collator = COLLATOR.get_or_init(|| {
+        let mut preferences = icu_collator::CollatorPreferences::default();
+        preferences.numeric_ordering = Some(icu_collator::preferences::CollationNumericOrdering::True);
+        let mut options = CollatorOptions::default();
+        options.strength = Some(icu_collator::options::Strength::Primary);
+        Collator::try_new(preferences, options).ok()
+    });
+    match collator {
+        Some(collator) => collator.compare(a, b),
+        None => a.cmp(b),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_listing_sorts_as_a_person_reads_it() {
+        let mut names = vec!["file10.txt", "README.md", "file2.txt", "notes.txt", "Émile", "eric"];
+        names.sort_by(|a, b| natural_compare(a, b));
+        assert_eq!(names, ["Émile", "eric", "file2.txt", "file10.txt", "notes.txt", "README.md"]);
+        assert_eq!(natural_compare("a.txt", "A.TXT"), Ordering::Equal);
+        assert_eq!(natural_compare("resume", "résumé"), Ordering::Equal);
+    }
 
     #[test]
     fn trims_what_javascript_trims() {

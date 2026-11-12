@@ -327,6 +327,8 @@ impl App {
             hooks: hooks.clone(),
         });
 
+        let projects: Arc<dyn eos_core::store::ProjectStore> =
+            Arc::new(JsonProjects::open(paths.join("projects.json"), ids.clone()));
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
@@ -344,7 +346,14 @@ impl App {
             models,
             backends: engine,
             sessions: sessions.clone(),
-            projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
+            project_keys: crate::machines::project_keys(
+                &paths,
+                &clock,
+                projects.clone(),
+                recents.clone(),
+                store.clone(),
+            ),
+            projects,
             questions,
             recents,
             accounts: accounts.clone(),

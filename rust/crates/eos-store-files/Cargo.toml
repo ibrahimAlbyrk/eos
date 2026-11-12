@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+base64.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
@@ -23,6 +24,7 @@ eos-testkit.workspace = true
 eos-workers.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt"] }
 
 [lints]
 workspace = true
