@@ -78,6 +78,7 @@ impl Mac {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
+            sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
         });
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock.clone()));
