@@ -1,6 +1,7 @@
 //! The agents feature as an agent's tools reach it
 //! ([`eos_core::agent::WorkerControl`]: `spawn_worker`, `message_worker`,
-//! `kill_worker`, `send_message_to_parent`, `integrate_workers`).
+//! `kill_worker`, `send_message_to_parent`, `integrate_workers`;
+//! [`eos_core::agent::Peers`]: `list_peers`, `ask_peer`, `respond_to_peer`).
 //!
 //! Each operation is the route the tool used to call, asked from inside the
 //! app: the same handler, so a tool and the dashboard can never answer
@@ -10,8 +11,10 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use eos_contracts::{IntegrateWorkersResponse, SpawnWorkerRequest};
-use eos_core::agent::{DirectiveSent, KilledWorker, Refused, SessionFolder, SpawnedWorker, WorkerControl};
+use eos_contracts::{IntegrateWorkersResponse, PeerListItem, PeerRef, SpawnWorkerRequest};
+use eos_core::agent::{
+    DirectiveSent, KilledWorker, PeerAnswered, PeerConsult, Peers, Refused, SessionFolder, SpawnedWorker, WorkerControl,
+};
 use eos_core::git::GitInfo;
 use eos_core::{BoxFuture, Error};
 use eos_domain::worker::{Ownership, ownership};
@@ -19,6 +22,7 @@ use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::module::Module;
 use eos_runtime::router::Router;
+use eos_sessions::{PeerAnswer, PeerAsk};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
@@ -128,8 +132,11 @@ impl WorkerControl for ToolControl {
         })
     }
 
-    fn report<'a>(&'a self, _worker_id: &'a str, _text: String) -> BoxFuture<'a, Result<(), Refused>> {
-        Box::pin(async { Err(Refused::new(NOT_AVAILABLE, "reporting to the parent is not available yet")) })
+    fn report<'a>(&'a self, worker_id: &'a str, text: String) -> BoxFuture<'a, Result<(), Refused>> {
+        Box::pin(async move {
+            self.ask(Method::Post, &format!("/workers/{worker_id}/report"), Some(json!({"text": text}))).await?;
+            Ok(())
+        })
     }
 
     fn integrate<'a>(
@@ -138,5 +145,60 @@ impl WorkerControl for ToolControl {
         _ids: Option<Vec<String>>,
     ) -> BoxFuture<'a, Result<IntegrateWorkersResponse, Refused>> {
         Box::pin(async { Err(Refused::new(NOT_AVAILABLE, "integrating workers' branches is not available yet")) })
+    }
+}
+
+/// Withdraws a consultation whose asker stopped waiting (its turn was interrupted).
+struct Withdraw<'a> {
+    agents: &'a AgentsModule,
+    request_id: String,
+    done: bool,
+}
+
+impl Drop for Withdraw<'_> {
+    fn drop(&mut self) {
+        if !self.done {
+            self.agents.sessions.withdraw_peer_request(&self.request_id);
+        }
+    }
+}
+
+impl Peers for ToolControl {
+    fn list<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<Vec<PeerListItem>, Refused>> {
+        Box::pin(async move { self.agents.sessions.peers_of(worker_id).await.map_err(|e| refused(&e)) })
+    }
+
+    fn ask<'a>(
+        &'a self,
+        worker_id: &'a str,
+        target: PeerRef,
+        question: String,
+    ) -> BoxFuture<'a, Result<PeerConsult, Refused>> {
+        Box::pin(async move {
+            let sessions = &self.agents.sessions;
+            let request_id = match sessions.ask_peer(worker_id, target, &question).await.map_err(|e| refused(&e))? {
+                PeerAsk::Declined { reason } => return Ok(PeerConsult::NotSent { reason: Some(reason) }),
+                PeerAsk::Registered { request_id } => request_id,
+            };
+            let mut waiting = Withdraw { agents: &self.agents, request_id, done: false };
+            let answer = sessions.peer_answer(&waiting.request_id).await;
+            waiting.done = true;
+            Ok(match answer {
+                PeerAnswer::Answered(answer) => PeerConsult::Answered(answer),
+                PeerAnswer::Declined(reason) => PeerConsult::Declined { reason: Some(reason) },
+                PeerAnswer::Gone | PeerAnswer::Pending => PeerConsult::Gone,
+            })
+        })
+    }
+
+    fn respond<'a>(
+        &'a self,
+        worker_id: &'a str,
+        answer: String,
+    ) -> BoxFuture<'a, Result<Option<PeerAnswered>, Refused>> {
+        Box::pin(async move {
+            let asker = self.agents.sessions.respond_to_peer(worker_id, &answer).await.map_err(|e| refused(&e))?;
+            Ok(asker.map(|asker| PeerAnswered { to_worker: Some(asker.to_worker), to_name: asker.to_name }))
+        })
     }
 }

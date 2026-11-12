@@ -13,11 +13,11 @@ use eos_core::agent::AgentRuntime;
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
-use eos_sessions::{Dispatched, MessageInput, SessionDeps, SessionHooks, Sessions, SpawnRequest};
+use eos_sessions::{CommandAnswer, Dispatched, MessageInput, SessionDeps, SessionHooks, Sessions, SpawnRequest};
 use eos_testkit::agent::Call;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeWorktrees, ScriptedRuntime, SeqIds,
-    TempStore, Turn,
+    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeSleeper, FakeWorktrees, ScriptedRuntime,
+    SeqIds, TempStore, Turn,
 };
 use serde_json::Value;
 
@@ -28,6 +28,11 @@ struct Hooks {
     held: std::sync::Mutex<Vec<String>>,
     removed: std::sync::Mutex<Vec<String>>,
     missing_folders: std::sync::Mutex<Vec<String>>,
+    /// The service, so a hook can stand for a turn that ends at that very moment.
+    sessions: std::sync::OnceLock<Sessions>,
+    /// How many more idle edges arrive while a queue is being drained.
+    edges_mid_drain: std::sync::Mutex<usize>,
+    drains: AtomicUsize,
 }
 
 impl SessionHooks for Hooks {
@@ -36,6 +41,20 @@ impl SessionHooks for Hooks {
     }
 
     fn holds_worker(&self, worker_id: &str) -> bool {
+        // Asked once per drain, while the drain has the worker.
+        self.drains.fetch_add(1, Ordering::SeqCst);
+        let arrives = {
+            let mut left = self.edges_mid_drain.lock().expect("edges");
+            let arrives = *left > 0;
+            *left = left.saturating_sub(1);
+            arrives
+        };
+        if let (true, Some(sessions)) = (arrives, self.sessions.get()) {
+            // A turn ends right now: its idle edge finds the worker taken and must not wait for it.
+            let mut edge = eos_core::agent::WorkerSessions::settled(sessions, worker_id);
+            let mut cx = std::task::Context::from_waker(std::task::Waker::noop());
+            assert!(edge.as_mut().poll(&mut cx).is_ready(), "an idle edge never waits behind a drain");
+        }
         self.held.lock().expect("held").iter().any(|w| w == worker_id)
     }
 
@@ -60,6 +79,8 @@ struct Bench {
     prompts: Arc<FakePrompts>,
     worktrees: Arc<FakeWorktrees>,
     recents: Arc<FakeRecents>,
+    sleeper: Arc<FakeSleeper>,
+    clock: Arc<FakeClock>,
 }
 
 impl Bench {
@@ -70,19 +91,23 @@ impl Bench {
         let prompts = Arc::new(FakePrompts::default());
         let worktrees = Arc::new(FakeWorktrees::default());
         let recents = Arc::new(FakeRecents::default());
+        let sleeper = Arc::new(FakeSleeper::default());
+        let clock = Arc::new(FakeClock::new());
         let sessions = Sessions::new(SessionDeps {
             store: temp.port(),
             runtime: agents.port(),
-            clock: Arc::new(FakeClock::new()),
+            clock: clock.clone(),
             ids: Arc::new(SeqIds::new()),
-            config: Arc::new(FakeConfig::default()),
+            config: Arc::new(FakeConfig::new(serde_json::json!({"loop": {"enabled": true}}))),
             models: Arc::new(FakeModelCatalog::default()),
             prompts: prompts.clone(),
             worktrees: worktrees.clone(),
             recents: recents.clone(),
             hooks: hooks.clone(),
+            sleeper: sleeper.clone(),
         });
-        Self { sessions, agents, temp, hooks, prompts, worktrees, recents }
+        let _ = hooks.sessions.set(sessions.clone());
+        Self { sessions, agents, temp, hooks, prompts, worktrees, recents, sleeper, clock }
     }
 
     fn store(&self) -> Arc<dyn Store> {
@@ -554,9 +579,17 @@ impl eos_sessions::SlashCommand for Compact {
         capabilities.context_compaction == Some(true)
     }
 
-    fn execute<'a>(&'a self, cx: eos_sessions::SlashContext<'a>) -> eos_core::BoxFuture<'a, Result<Value, Error>> {
+    fn execute<'a>(
+        &'a self,
+        cx: eos_sessions::SlashContext<'a>,
+    ) -> eos_core::BoxFuture<'a, Result<CommandAnswer, Error>> {
         self.0.lock().expect("focus").push(cx.args.to_owned());
-        Box::pin(std::future::ready(Ok(serde_json::json!({"ok": true, "compacting": true}))))
+        // The command chooses its own status: accepted while it works, a conflict when it cannot.
+        let answer = match cx.args {
+            "now?" => CommandAnswer::new(409, serde_json::json!({"ok": false, "error": "already compacting"})),
+            _ => CommandAnswer::new(202, serde_json::json!({"ok": true, "compacting": true})),
+        };
+        Box::pin(std::future::ready(Ok(answer)))
     }
 }
 
@@ -613,7 +646,7 @@ async fn replies_clicks_and_eos_commands_go_through_dispatch() {
     // `/clear` is Eos's own: it never reaches the agent, the chat folds, a reply after it quotes in full.
     let before = bench.agents.sent(&id).len();
     let cleared = bench.sessions.dispatch(bench.message(&id, "/clear")).await.expect("runs");
-    assert_eq!(cleared, Dispatched::Command(serde_json::json!({"ok": true, "cleared": true})));
+    assert_eq!(cleared, Dispatched::Command(CommandAnswer::ok(serde_json::json!({"ok": true, "cleared": true}))));
     assert_eq!(bench.agents.sent(&id).len(), before);
     assert!(bench.agents.calls().contains(&Call::ClearContext(id.clone())));
     assert_eq!(
@@ -636,8 +669,10 @@ async fn replies_clicks_and_eos_commands_go_through_dispatch() {
     let compact = Arc::new(Compact(std::sync::Mutex::new(Vec::new())));
     bench.sessions.register_command(compact.clone());
     let ran = bench.sessions.dispatch(bench.message(&id, "/compact keep the plan")).await.expect("runs");
-    assert_eq!(ran, Dispatched::Command(serde_json::json!({"ok": true, "compacting": true})));
-    assert_eq!(compact.0.lock().expect("focus").as_slice(), ["keep the plan"]);
+    assert_eq!(ran, Dispatched::Command(CommandAnswer::new(202, serde_json::json!({"ok": true, "compacting": true}))));
+    let refused = bench.sessions.dispatch(bench.message(&id, "/compact now?")).await.expect("answers");
+    assert!(matches!(&refused, Dispatched::Command(answer) if answer.status == 409), "{refused:?}");
+    assert_eq!(compact.0.lock().expect("focus").as_slice(), ["keep the plan", "now?"]);
     assert_eq!(bench.sessions.commands().iter().map(|c| c.name()).collect::<Vec<_>>(), ["clear", "compact"]);
     let sent = bench.agents.sent(&id).len();
     assert_eq!(bench.sessions.dispatch(bench.message(&id, "/clear everything")).await, Ok(Dispatched::Sent));
@@ -718,4 +753,261 @@ async fn only_worktrees_eos_made_and_nobody_uses_are_deleted() {
     bench.sessions.kill(&twin).await.expect("removes");
     assert_eq!(reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now + 10_000).await, Ok(1));
     assert_eq!(bench.worktrees.removed.lock().expect("removed").last().expect("a removal").branch, branch);
+}
+
+impl Bench {
+    /// An orchestrator and `names` collaborating workers under it, all idle.
+    async fn team(&self, names: &[&str]) -> (String, Vec<String>) {
+        let boss = SpawnRequest {
+            prompt: "lead".into(),
+            cwd: Some("/repo".into()),
+            is_orchestrator: true,
+            ..SpawnRequest::default()
+        };
+        self.agents.script(Turn::reply("on it"));
+        let boss = self.sessions.spawn(boss).await.expect("spawns").id;
+        self.agents.settled().await;
+        let mut workers = Vec::new();
+        for name in names {
+            self.agents.script(Turn::reply("ready"));
+            workers.push(self.member(&boss, name).await);
+            self.agents.settled().await;
+        }
+        (boss, workers)
+    }
+
+    async fn member(&self, boss: &str, name: &str) -> String {
+        let worker = SpawnRequest {
+            prompt: "your part".into(),
+            cwd: Some("/repo".into()),
+            parent_id: Some(boss.to_owned()),
+            name: Some(name.to_owned()),
+            collaborate: true,
+            ..SpawnRequest::default()
+        };
+        self.sessions.spawn(worker).await.expect("spawns").id
+    }
+}
+
+// core/src/__tests__/ArchiveWorker.test.ts, RestoreWorker.test.ts, PurgeWorker.test.ts, PurgeExpiredArchives.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_archived_chat_is_hidden_and_stopped_and_only_a_purge_deletes_it() {
+    use eos_domain::config::ArchiveRetention;
+
+    let bench = Bench::new();
+    let (boss, kids) = bench.team(&["a"]).await;
+    let kid = &kids[0];
+    let done = bench.sessions.archive(&boss).await.expect("archives");
+    assert_eq!((done.archived.as_slice(), done.was_state.as_str()), ([kid.clone(), boss.clone()].as_slice(), "IDLE"));
+    assert_eq!(bench.agents.live(), 0, "their sessions are stopped");
+    let row = bench.worker(&boss).await.expect("the row stays");
+    assert!(row.is_archived() && row.state == WorkerState::Done);
+    assert!(bench.hooks.removed.lock().expect("removed").is_empty(), "nothing of it is deleted");
+    assert_eq!(bench.sessions.archive(&boss).await, Err(Error::Conflict(format!("worker {boss} is already archived"))));
+    assert_eq!(bench.sessions.purge("w-nope").await, Err(Error::not_found("worker", "w-nope")));
+
+    let inside = bench.sessions.restore(kid).await.expect_err("only the top of an archived subtree is restored");
+    assert!(inside.to_string().contains("restore the topmost archived ancestor"), "{inside}");
+    let back = bench.sessions.restore(&boss).await.expect("restores");
+    assert_eq!(back.restored, [kid.clone(), boss.clone()]);
+    assert!(!bench.worker(kid).await.expect("the row").is_archived());
+    let not_archived = bench.sessions.purge(&boss).await.expect_err("only an archived chat is purged");
+    assert!(not_archived.to_string().ends_with("only archived workers can be purged"), "{not_archived}");
+    assert_eq!(bench.sessions.owned_by(&boss, kid).await, Ok(()));
+    assert!(matches!(bench.sessions.owned_by(kid, &boss).await, Err(Error::PermissionDenied(_))));
+
+    // Retention: an archived chat goes once it was kept long enough, with everything below it.
+    bench.sessions.archive(&boss).await.expect("archives");
+    assert!(bench.sessions.purge_expired_archives(ArchiveRetention::Off).await.expect("sweeps").is_empty());
+    assert!(bench.sessions.purge_expired_archives(ArchiveRetention::Daily).await.expect("sweeps").is_empty());
+    bench.clock.advance(24 * 60 * 60 * 1000);
+    let purged = bench.sessions.purge_expired_archives(ArchiveRetention::Daily).await.expect("sweeps");
+    assert_eq!(purged, std::slice::from_ref(&boss), "the subtree is purged through its root");
+    assert!(bench.worker(&boss).await.is_none() && bench.worker(kid).await.is_none());
+    assert_eq!(bench.hooks.removed.lock().expect("removed").len(), 2);
+
+    let chat = bench.chat("").await;
+    bench.sessions.archive(&chat).await.expect("archives");
+    assert_eq!(bench.sessions.purge_all_archived().await.expect("purges"), [chat]);
+}
+
+// manager/routes/__tests__/report*.test.ts, core/src/__tests__/report-signal.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_report_is_a_turn_of_the_parent_unless_the_workers_loop_holds_it() {
+    use eos_sessions::loops::{AttachLoop, attach_loop};
+
+    let bench = Bench::new();
+    let (boss, kids) = bench.team(&["a"]).await;
+    let kid = &kids[0];
+    bench.agents.script(Turn::reply("noted"));
+    let reported = bench.sessions.report(kid, "result: all green").await.expect("reports");
+    assert!(reported.delivered && !reported.held);
+    bench.agents.settled().await;
+    let heard = bench.agents.sent(&boss).pop().expect("the parent's turn");
+    assert!(heard.starts_with("<agent_message ") && heard.contains("result: all green"), "{heard}");
+    assert!(bench.temp.announced.topics().contains(&"worker:report"));
+    assert_eq!(bench.sessions.report(&boss, "hi").await, Err(Error::Validation("worker has no parent".into())));
+    assert_eq!(bench.sessions.report("w-nope", "hi").await, Err(Error::not_found("worker", "w-nope")));
+
+    // A looped worker's final report waits for its goal check; a question for the user goes through.
+    let goal = serde_json::from_value(serde_json::json!({"summary": "s", "criteria": [{"id": "c1", "text": "t"}]}));
+    let attach = AttachLoop {
+        caller_id: boss.clone(),
+        target: Some(kid.clone()),
+        goal: goal.expect("a goal"),
+        strategy: None,
+        limit: None,
+    };
+    let ids = SeqIds::new();
+    bench.store().write(move |tx, _| attach_loop(tx, &ids, 1, &attach).map(|_| ())).await.expect("arms");
+    let held = bench.sessions.report(kid, "Result: done").await.expect("reports");
+    assert!(held.held && !held.delivered);
+    let wanted = kid.clone();
+    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
+    assert_eq!(armed.as_ref().and_then(|l| l.held_report.as_deref()), Some("Result: done"));
+    bench.agents.script(Turn::reply("which one?"));
+    let question = bench.sessions.report(kid, "needs input: which db?").await.expect("reports");
+    assert!(question.delivered && !question.held);
+    let wanted = kid.clone();
+    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
+    assert!(armed.as_ref().is_some_and(|l| l.awaiting_input));
+    bench.sessions.resume_loop_on_input(kid).await.expect("resumes");
+    let wanted = kid.clone();
+    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
+    assert!(armed.is_some_and(|l| !l.awaiting_input), "the loop goes on once someone wrote to the worker");
+}
+
+// manager/services/__tests__/PendingPeerRequestService.test.ts, core/src/__tests__/Peers.test.ts,
+// manager/__tests__/peer-pump.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn workers_of_one_orchestrator_consult_each_other_one_question_a_turn() {
+    use eos_contracts::PeerRef;
+    use eos_sessions::{PeerAnswer, PeerAsk};
+
+    let bench = Bench::new();
+    let (boss, kids) = bench.team(&["api", "ui"]).await;
+    let (api, ui) = (&kids[0], &kids[1]);
+    let by_name = |name: &str| PeerRef { id: None, name: Some(name.to_owned()) };
+    let peers = bench.sessions.peers_of(ui).await.expect("lists");
+    assert_eq!(peers.iter().map(|p| p.id.as_str()).collect::<Vec<_>>(), [api.as_str()]);
+    assert!(bench.sessions.peers_of(&boss).await.expect("lists").is_empty(), "an orchestrator has no peers");
+
+    let declined = |ask: PeerAsk| match ask {
+        PeerAsk::Declined { reason } => reason,
+        PeerAsk::Registered { .. } => panic!("should have been declined"),
+    };
+    let registered = |ask: PeerAsk| match ask {
+        PeerAsk::Registered { request_id } => request_id,
+        PeerAsk::Declined { reason } => panic!("declined: {reason}"),
+    };
+    let own = bench.sessions.ask_peer(ui, by_name("ui"), "?").await.expect("asks");
+    assert_eq!(declined(own), "a worker cannot consult itself");
+    let outsider = bench.sessions.ask_peer(&boss, by_name("api"), "?").await.expect("asks");
+    assert_eq!(declined(outsider), "you are not in a collaboration group");
+
+    // The question starts a turn of the peer; its answer reaches the asker.
+    let gate = bench.agents.script_held(Turn::reply("let me look"));
+    let request = registered(bench.sessions.ask_peer(ui, by_name("api"), "which port?").await.expect("asks"));
+    bench.agents.running(1).await;
+    let delivered = bench.agents.sent(api).pop().expect("the peer's turn");
+    assert!(delivered.starts_with("<agent_message ") && delivered.contains("which port?"), "{delivered}");
+    assert!(delivered.contains("call respond_to_peer"), "{delivered}");
+    assert!(bench.tags(ui).await.contains(&"peer_consult".to_owned()));
+    assert_eq!(bench.sessions.peer_request(&request), PeerAnswer::Pending);
+    let circle = bench.sessions.ask_peer(api, by_name("ui"), "and yours?").await.expect("asks");
+    assert!(declined(circle).contains("circular wait"));
+    let waiting = {
+        let (sessions, request) = (bench.sessions.clone(), request.clone());
+        tokio::spawn(async move { sessions.peer_answer(&request).await })
+    };
+    let answered = bench.sessions.respond_to_peer(api, "8080").await.expect("answers").expect("someone asked");
+    assert_eq!((answered.to_worker.as_str(), answered.to_name.as_deref()), (ui.as_str(), Some("ui")));
+    assert_eq!(waiting.await.expect("waits"), PeerAnswer::Answered("8080".into()));
+    assert_eq!(bench.sessions.respond_to_peer(api, "again").await, Ok(None), "one answer per question");
+    gate.release();
+    bench.agents.settled().await;
+
+    // A peer that ends its turn without answering declines by doing so.
+    bench.agents.script(Turn::reply("I'd rather not"));
+    let ignored = registered(bench.sessions.ask_peer(ui, by_name("api"), "and now?").await.expect("asks"));
+    bench.agents.settled().await;
+    assert_eq!(
+        bench.sessions.peer_request(&ignored),
+        PeerAnswer::Declined("peer ended its turn without responding".into())
+    );
+
+    // A peer named before it exists is waited for, and asked once it has started.
+    let early = registered(bench.sessions.ask_peer(ui, by_name("db"), "schema?").await.expect("asks"));
+    assert_eq!(bench.sessions.peer_request(&early), PeerAnswer::Pending);
+    bench.agents.script(Turn::reply("ready"));
+    let gate = bench.agents.script_held(Turn::reply("looking"));
+    let db = bench.member(&boss, "db").await;
+    // Its own first turn ends, then the question that waited for it starts the next.
+    while !bench.agents.sent(&db).iter().any(|m| m.contains("schema?")) {
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    // A peer that goes away says so to whoever waits on it.
+    bench.sessions.kill(&db).await.expect("removes");
+    assert_eq!(bench.sessions.peer_request(&early), PeerAnswer::Gone);
+    gate.release();
+
+    // Nobody by that name ever joins: the wait ends by itself.
+    let never = registered(bench.sessions.ask_peer(ui, by_name("ghost"), "?").await.expect("asks"));
+    let waiting = {
+        let (sessions, never) = (bench.sessions.clone(), never.clone());
+        tokio::spawn(async move { sessions.peer_answer(&never).await })
+    };
+    while bench.sleeper.pending().is_empty() {
+        tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+    }
+    bench.clock.advance(10 * 60 * 1000);
+    assert!(bench.sleeper.wake(), "the asker waits no longer than the peer may take to join");
+    match waiting.await.expect("waits") {
+        PeerAnswer::Declined(reason) => assert!(reason.starts_with("no peer matching your request joined"), "{reason}"),
+        other => panic!("{other:?}"),
+    }
+    // What was settled is forgotten after a while; nothing of a removed worker stays.
+    bench.clock.advance(10 * 60 * 1000);
+    assert_eq!(bench.sessions.peer_request(&never), PeerAnswer::Gone);
+    bench.sessions.kill(&boss).await.expect("removes");
+    assert_eq!(bench.sessions.tracked_peer_requests(), 0);
+}
+
+// A turn that ends while the queue of the turn before it is still being drained.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_idle_edge_that_arrives_during_a_drain_is_settled_afterwards() {
+    use eos_core::agent::WorkerSessions;
+
+    let bench = Bench::new();
+    bench.agents.script(Turn::reply("done"));
+    let id = bench.chat("go").await;
+    let (edges, drains) = (bench.hooks.idle.load(Ordering::SeqCst), bench.hooks.drains.load(Ordering::SeqCst));
+
+    // Three edges arrive while one drain has the worker: it looks once more, and the
+    // idle edge runs once, after the last look.
+    *bench.hooks.edges_mid_drain.lock().expect("edges") = 1;
+    WorkerSessions::settled(&bench.sessions, &id).await;
+    assert_eq!(bench.hooks.drains.load(Ordering::SeqCst), drains + 2, "the queue is looked at again");
+    assert_eq!(bench.hooks.idle.load(Ordering::SeqCst), edges + 1, "one idle edge, not none and not two");
+
+    // Each further edge is one more look: none is dropped however they pile up.
+    *bench.hooks.edges_mid_drain.lock().expect("edges") = 3;
+    WorkerSessions::settled(&bench.sessions, &id).await;
+    assert_eq!(bench.hooks.drains.load(Ordering::SeqCst), drains + 6);
+    assert_eq!(bench.hooks.idle.load(Ordering::SeqCst), edges + 2);
+
+    // What the missed edge would have left behind: a message queued for the worker goes out.
+    let gate = bench.agents.script_held(Turn::reply("busy"));
+    bench.sessions.dispatch(bench.message(&id, "first")).await.expect("sends");
+    bench.agents.running(1).await;
+    let later = MessageInput { queue_when_busy: true, ..bench.message(&id, "second") };
+    assert!(matches!(bench.sessions.dispatch(later).await, Ok(Dispatched::Queued { .. })));
+    bench.agents.script(Turn::reply("and done"));
+    *bench.hooks.edges_mid_drain.lock().expect("edges") = 1;
+    gate.release();
+    bench.agents.settled().await;
+    assert!(bench.agents.sent(&id).iter().any(|m| m.ends_with("second")), "{:?}", bench.agents.sent(&id));
+    let queued = id.clone();
+    let left = bench.store().read(move |tx| tx.message_queue().list_pending(&queued)).await.expect("reads");
+    assert!(left.is_empty(), "nothing stays queued behind a lost edge");
 }

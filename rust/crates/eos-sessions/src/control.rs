@@ -75,7 +75,7 @@ fn is_claude_model(model: &str) -> bool {
 }
 
 /// `root` and every worker below it, parents before their children.
-fn subtree(tx: &dyn Tx, root: &str) -> Result<Vec<String>, Error> {
+pub(crate) fn subtree(tx: &dyn Tx, root: &str) -> Result<Vec<String>, Error> {
     let mut all = vec![root.to_owned()];
     let mut at = 0;
     while at < all.len() {
@@ -132,6 +132,8 @@ impl Sessions {
             return Err(Error::Conflict("backend does not support interrupt".into()));
         }
         self.0.turns.mark_interrupt(worker_id);
+        // What it asked a peer, and what a peer asked it, ends with the turn.
+        self.0.peers.cancel_by_worker(worker_id);
         let recall_row = self.0.turns.recallable(worker_id);
         let (id, now) = (worker_id.to_owned(), self.now());
         let recalled = self
@@ -222,6 +224,7 @@ impl Sessions {
                 .await;
             self.leaving(&id, false);
             self.0.turns.forget(&id);
+            self.0.peers.cancel_by_worker(&id);
             match removed {
                 Ok(Some(row)) => {
                     self.0.deps.runtime.forget(&id).await;

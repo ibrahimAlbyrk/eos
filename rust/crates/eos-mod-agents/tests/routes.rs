@@ -16,8 +16,8 @@ use eos_sessions::{NoHooks, SessionDeps, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeWorktrees,
-    ScriptedRuntime, SeqIds, TempStore, Turn,
+    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeSleeper,
+    FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::{Value, json};
@@ -61,6 +61,7 @@ impl Bench {
             worktrees: worktrees.clone(),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
+            sleeper: Arc::new(FakeSleeper::default()),
         });
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock));
@@ -327,4 +328,83 @@ async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_req
 
     let other_lane = spawn(json!({"prompt": "go", "cwd": "/repo", "backendKind": "codex-cli"})).await;
     assert_eq!(other_lane, (400, json!({"error": "backend \"codex-cli\" is not enabled"})));
+}
+
+// The recorded scenarios 41-agent-starts and 42-chat-writes pin these answers.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_chat_is_archived_restored_purged_nudged_and_reported_to() {
+    let bench = Bench::new(TempStore::seeded("/"));
+    let archived = bench.post("/workers/w-BARE/archive", json!({})).await;
+    assert_eq!(archived, (200, json!({"id": "w-BARE", "archived": ["w-BARE"], "was_state": "DONE"})));
+    let again = bench.post("/workers/w-BARE/archive", json!({})).await;
+    assert_eq!(again, (409, json!({"error": "worker w-BARE is already archived"})));
+    assert_eq!(bench.post("/workers/w-BARE/message", json!({"text": "hi"})).await.0, 409, "hidden until restored");
+    assert_eq!(bench.post("/workers/w-BARE/warm", json!({})).await.0, 409);
+    let stranger = bench.post("/workers/w-KID2/archive?actorId=w-CHAT", json!({})).await;
+    assert_eq!(stranger, (403, json!({"error": "worker w-KID2 is not managed by w-CHAT"})));
+    let owned = bench.post("/workers/w-KID2/archive?actorId=o-ORCH", json!({})).await;
+    assert_eq!(owned.0, 200, "{}", owned.1);
+    let restored = bench.post("/workers/w-BARE/restore", json!({})).await;
+    assert_eq!(restored, (200, json!({"id": "w-BARE", "restored": ["w-BARE"]})));
+    assert_eq!(bench.post("/workers/w-BARE/restore", json!({})).await.0, 409);
+    assert_eq!(bench.call(Method::Delete, "/workers/w-BARE/purge", None).await.0, 409);
+    let purged = bench.call(Method::Delete, "/workers/w-ARCH/purge", None).await;
+    assert_eq!(purged, (200, json!({"id": "w-ARCH", "removed": true, "name": "Old question"})));
+    assert_eq!(bench.call(Method::Delete, "/workers/w-nope/purge", None).await.0, 404);
+    let closing = bench.post("/workers/archived/app-closed", json!({})).await;
+    assert_eq!(closing, (200, json!({"ok": true, "purged": []})), "the user did not ask for a purge at quit");
+    let not_owner = bench.call(Method::Delete, "/workers/w-KID1?actorId=w-CHAT", None).await;
+    assert_eq!(not_owner.0, 403);
+
+    // A banner, a report, a consultation.
+    let before = bench.temp.announced.topics().len();
+    let notified = bench.post("/workers/o-ORCH/notify", json!({"title": "Done", "body": "All merged."})).await;
+    assert_eq!(notified, (200, json!({"ok": true})));
+    assert!(bench.temp.announced.topics()[before..].contains(&"notification:fire"));
+    assert_eq!(
+        bench.post("/workers/w-nope/report", json!({"text": "x"})).await,
+        (404, json!({"error": "worker not found"}))
+    );
+    assert_eq!(
+        bench.post("/workers/w-CHAT/report", json!({"text": "x"})).await,
+        (400, json!({"error": "worker has no parent"}))
+    );
+    bench.agents.script(Turn::reply("thanks"));
+    let reported = bench.post("/workers/w-KID1/report", json!({"text": "result: flag added"})).await;
+    assert_eq!(reported, (200, json!({"ok": true, "delivered": true})), "its parent is woken for it");
+    bench.agents.settled().await;
+    assert!(bench.agents.sent("o-ORCH")[0].contains("result: flag added"));
+    assert_eq!(bench.call(Method::Get, "/workers/w-CHAT/peers", None).await, (200, json!([])));
+    let alone = bench.post("/workers/w-CHAT/peer-request", json!({"target": {"name": "x"}, "question": "?"})).await;
+    assert_eq!(alone, (200, json!({"declined": true, "reason": "you are not in a collaboration group"})));
+    let unknown = bench.call(Method::Get, "/workers/w-CHAT/peer-request/r-nope", None).await;
+    assert_eq!(unknown, (200, json!({"status": "gone"})));
+    let nothing = bench.post("/workers/w-CHAT/peer-response", json!({"answer": "42"})).await;
+    assert_eq!(nothing, (200, json!({"ok": true, "outcome": "none"})));
+
+    // A chat's buttons, waking it, and what only a terminal-driven agent had.
+    bench.agents.script(Turn::reply("verified"));
+    let action = bench.post("/workers/w-CHAT/action", json!({"action": "verify"})).await;
+    assert_eq!(action, (200, json!({"ok": true})));
+    bench.agents.settled().await;
+    assert!(bench.kinds("w-CHAT").await.contains(&"user_message".to_owned()));
+    assert_eq!(bench.post("/workers/w-nope/action", json!({"action": "verify"})).await.0, 404);
+    assert_eq!(bench.post("/workers/w-nope/warm", json!({})).await, (404, json!({"error": "worker not found"})));
+    assert_eq!(bench.post("/workers/w-BARE/warm", json!({})).await, (202, json!({"ok": true})));
+    assert_eq!(
+        bench.post("/workers/w-CHAT/keystroke", json!({"keys": "x"})).await,
+        (404, json!({"error": "worker not found"}))
+    );
+    let same = bench.call(Method::Put, "/workers/w-CHAT/backend", Some(json!({"kind": "claude"}))).await;
+    assert_eq!(same, (409, json!({"error": "cannot switch backend: worker is already on this backend"})));
+    let other = bench.call(Method::Put, "/workers/w-CHAT/backend", Some(json!({"kind": "gemini-cli"}))).await;
+    assert_eq!(other, (409, json!({"error": "unknown backend \"gemini-cli\""})));
+
+    // Rows posted from outside: recorded, and the two kinds that change a worker applied.
+    let no_type = bench.post("/workers/w-BARE/events", json!({"payload": {}})).await;
+    assert_eq!(no_type, (400, json!({"error": "type required"})));
+    let session = json!({"type": "lifecycle", "payload": {"phase": "session_captured", "sessionId": "s-1"}});
+    assert_eq!(bench.post("/workers/w-BARE/events", session).await, (200, json!({"ok": true})));
+    assert_eq!(bench.row("w-BARE").await.session_id.as_deref(), Some("s-1"));
+    assert_eq!(bench.kinds("w-BARE").await.last().map(String::as_str), Some("lifecycle"));
 }

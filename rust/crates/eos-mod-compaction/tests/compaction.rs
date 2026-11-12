@@ -13,7 +13,9 @@ use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::module::Module;
 use eos_runtime::{Kernel, KernelOptions};
-use eos_sessions::{Dispatched, MessageInput, SessionDeps, SessionHooks, Sessions, SlashCommand, SpawnRequest};
+use eos_sessions::{
+    CommandAnswer, Dispatched, MessageInput, SessionDeps, SessionHooks, Sessions, SlashCommand, SpawnRequest,
+};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_testkit::agent::Call;
 use eos_testkit::{
@@ -81,6 +83,7 @@ impl Bench {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: hooks.clone(),
+            sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
         });
         let library = Arc::new(LibraryPromptSource::embedded());
         let model = Arc::new(ScriptedOneShot::default());
@@ -184,7 +187,7 @@ async fn summarizes_on_the_agents_model_seeds_the_session_drops_occupancy_and_re
     bench.model.text(SUMMARY);
 
     let answer = bench.sessions.dispatch(bench.message(&id, "/compact   keep the API notes ")).await;
-    assert_eq!(answer, Ok(Dispatched::Command(json!({"ok": true, "compacting": true}))));
+    assert_eq!(answer, Ok(Dispatched::Command(CommandAnswer::new(202, json!({"ok": true, "compacting": true})))));
     assert!(bench.service.is_compacting(&id), "held from the moment the command answers");
     bench.idle().await;
 

@@ -369,6 +369,10 @@ impl Sessions {
             }
             return Err(e);
         }
+        // It may be the peer an earlier worker already asked for by name.
+        if let Some(parent_id) = request.parent_id.as_deref().filter(|_| request.collaborate) {
+            self.bind_awaiting_peers(parent_id).await;
+        }
         Ok(Spawned { id, boot_msg_id })
     }
 

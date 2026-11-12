@@ -33,8 +33,13 @@ pub(crate) fn all(m: &AgentsModule) -> Vec<RouteDef> {
     ]
 }
 
-fn id_of(req: &Request) -> String {
+pub(crate) fn id_of(req: &Request) -> String {
     req.param("id").unwrap_or_default().to_owned()
+}
+
+/// The agent a request acts for (`?actorId=`): it may only touch its own workers.
+pub(crate) fn actor_of(req: &Request) -> Option<String> {
+    req.query().get("actorId").map(|actor| actor.into_owned()).filter(|actor| !actor.is_empty())
 }
 
 impl AgentsModule {
@@ -44,7 +49,7 @@ impl AgentsModule {
     }
 
     /// A chat whose session is over is continued by the first message to it.
-    async fn revive(&self, worker: &Worker) -> Result<(), Error> {
+    pub(crate) async fn revive(&self, worker: &Worker) -> Result<(), Error> {
         let at_rest = matches!(worker.state, WorkerState::Suspended | WorkerState::Done);
         let resumable = worker.session_id.as_deref().is_some_and(|s| !s.is_empty());
         if at_rest && resumable && !self.sessions.is_live(&worker.id) {
@@ -55,7 +60,7 @@ impl AgentsModule {
 }
 
 /// What a message's delivery answers, as today's dispatch does.
-fn delivered(outcome: &Dispatched) -> Response {
+pub(crate) fn delivered(outcome: &Dispatched) -> Response {
     match outcome {
         Dispatched::Sent => Response::json(200, &json!({"ok": true})),
         Dispatched::Queued { queue_id } => {
@@ -63,7 +68,7 @@ fn delivered(outcome: &Dispatched) -> Response {
         }
         Dispatched::Deduped => Response::json(200, &json!({"ok": true, "deduped": true})),
         // A command Eos ran itself answers for itself.
-        Dispatched::Command(answer) => Response::json(200, answer),
+        Dispatched::Command(answer) => Response::json(answer.status, &answer.body),
     }
 }
 
@@ -166,7 +171,9 @@ fn message(m: AgentsModule) -> RouteDef {
             m.revive(&target).await?;
 
             let Some(parent_id) = from_parent else {
-                let outcome = m.sessions.dispatch(from_dashboard(id, body)).await?;
+                let outcome = m.sessions.dispatch(from_dashboard(id.clone(), body)).await?;
+                // A loop that waited for the user goes on.
+                m.sessions.resume_loop_on_input(&id).await?;
                 return Ok(delivered(&outcome));
             };
             let parent_name = m.worker(&parent_id).await?.and_then(|p| p.name).unwrap_or_else(|| parent_id.clone());
@@ -185,6 +192,7 @@ fn message(m: AgentsModule) -> RouteDef {
             if m.sessions.dispatch(directive).await.is_err() {
                 return Err(ApiError::Unreachable("worker unreachable".into()));
             }
+            m.sessions.resume_loop_on_input(&id).await?;
             let name = m.worker(&id).await?.and_then(|w| w.name);
             Ok(Response::json(200, &json!({"ok": true, "id": id, "name": name})))
         }
@@ -302,7 +310,11 @@ fn remove(m: AgentsModule) -> RouteDef {
     RouteDef::delete("/workers/{id}", move |req: Request| {
         let m = m.clone();
         async move {
-            let gone = m.sessions.kill(&id_of(&req)).await?;
+            let id = id_of(&req);
+            if let Some(actor) = actor_of(&req) {
+                m.sessions.owned_by(&actor, &id).await?;
+            }
+            let gone = m.sessions.kill(&id).await?;
             let answer =
                 json!({"killed": [], "removed": true, "was_state": gone.was_state, "id": gone.id, "name": gone.name});
             Ok(Response::json(200, &answer))

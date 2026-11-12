@@ -40,6 +40,7 @@ impl Bench {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
+            sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
         });
         let module = Arc::new(BtwModule::new(temp.port(), Arc::new(sessions)));
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))

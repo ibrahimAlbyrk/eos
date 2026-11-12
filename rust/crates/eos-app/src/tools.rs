@@ -13,8 +13,8 @@ use eos_tools::{Services, Tools, Visual};
 use crate::host::HostTimeZone;
 use crate::modules::Context;
 
-/// The registry. The browser and peers join when their features are in the
-/// app: until then no session has their tools.
+/// The registry. The browser joins when its feature is in the app: until then
+/// no session has its tools.
 pub(crate) fn build(
     cx: &Context,
     agents: &AgentsModule,
@@ -24,6 +24,7 @@ pub(crate) fn build(
     transfer: &TransferModule,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
+    let control = Arc::new(ToolControl::new(agents, Arc::new(crate::files::git(&cx.clock)))?);
     Ok(Arc::new(Tools::new(Services {
         prompts: cx.prompts.registry().clone(),
         clock: cx.clock.clone(),
@@ -32,7 +33,7 @@ pub(crate) fn build(
         store: cx.store.clone(),
         models: cx.models.clone(),
         definitions: cx.worker_definitions.clone(),
-        workers: Arc::new(ToolControl::new(agents, Arc::new(crate::files::git(&cx.clock)))?),
+        workers: control.clone(),
         notifier: questions.clone(),
         questions,
         pages: pages.editor(),
@@ -45,7 +46,7 @@ pub(crate) fn build(
             places: genui.places(),
             location: genui.user_location(),
         }),
-        peers: None,
+        peers: Some(control),
         transfers: Some(transfer.agent_transfers()),
     })))
 }

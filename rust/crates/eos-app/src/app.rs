@@ -79,10 +79,12 @@ pub struct Options {
     /// The window shell, which draws plugin previews. Until it does, a
     /// preview answers that no window is open.
     pub plugin_previewer: Arc<dyn PluginPreviewer>,
-    /// Delete, at start-up, the worktrees and scratch folders Eos made that no
-    /// chat in the data folder uses any more. Only the installed app turns it
-    /// on: the worktrees live in the user's repositories, so an app on a copy
-    /// of a data folder (a test, a replay) must never judge them.
+    /// Delete without being asked: at start-up, the worktrees and scratch
+    /// folders Eos made that no chat in the data folder uses any more; at
+    /// start-up and every hour, archived chats past their retention. Only the
+    /// installed app turns it on: the worktrees live in the user's
+    /// repositories, so an app on a copy of a data folder (a test, a replay)
+    /// must never judge them.
     pub sweep_leftovers: bool,
     /// The running executable. A release build — one inside an app bundle
     /// that ships `update.json` — updates itself; anything else never does.
@@ -350,6 +352,7 @@ impl App {
             worktrees: git,
             recents: recents.clone(),
             hooks: hooks.clone(),
+            sleeper: Arc::new(TokioSleeper),
         });
 
         let projects: Arc<dyn eos_core::store::ProjectStore> =
@@ -400,6 +403,7 @@ impl App {
             updates: updates.clone(),
             worker_definitions,
             scratch,
+            sweep_leftovers,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
             remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {
                 config: config.clone(),

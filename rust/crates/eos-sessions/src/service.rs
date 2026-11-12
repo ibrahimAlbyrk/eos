@@ -12,11 +12,12 @@ use eos_core::agent::{
 };
 use eos_core::git::WorktreeManager;
 use eos_core::store::{ConfigSource, RecentFolders, Store};
-use eos_core::{BoxFuture, Clock, Ids};
+use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_domain::Worker;
 use serde::Serialize;
 
 use crate::commands::{Clear, SlashCommand};
+use crate::peers::PeerRequests;
 use crate::signal::{self, SignalCx};
 use crate::transition::transition_state;
 use crate::turns::Turns;
@@ -41,6 +42,8 @@ pub trait SessionHooks: Send + Sync + 'static {
     fn tool_input(&self, _worker_id: &str, _delta: ToolInputDelta) {}
     fn workflow_progress(&self, _progress: WorkflowRunProgress) {}
     fn background_task(&self, _worker_id: &str, _update: BackgroundTaskUpdate) {}
+    /// A worker was archived: its session is over, its data stays.
+    fn archived(&self, _worker: &Worker) {}
     /// A worker's row is gone for good (its scratch folder, its browser, … go too).
     fn removed(&self, _worker: &Worker) {}
     /// Whether a worker's folder still exists.
@@ -68,6 +71,8 @@ pub struct SessionDeps {
     pub worktrees: Arc<dyn WorktreeManager>,
     pub recents: Arc<dyn RecentFolders>,
     pub hooks: Arc<dyn SessionHooks>,
+    /// Waits (a peer that may still join, an idle chat's session).
+    pub sleeper: Arc<dyn Sleeper>,
 }
 
 impl std::fmt::Debug for SessionDeps {
@@ -76,15 +81,47 @@ impl std::fmt::Debug for SessionDeps {
     }
 }
 
+/// Work done for one worker at a time. A caller that finds the worker taken
+/// leaves a mark, so whoever holds it looks again when done: an idle edge
+/// that arrives mid-work is never lost.
+#[derive(Default)]
+pub(crate) struct Claims(Mutex<Vec<(String, bool)>>);
+
+impl Claims {
+    /// Takes `worker_id`; `false` when it is taken (the holder is told to look again).
+    pub(crate) fn claim(&self, worker_id: &str) -> bool {
+        let mut held = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        match held.iter_mut().find(|(id, _)| id == worker_id) {
+            Some(taken) => {
+                taken.1 = true;
+                false
+            }
+            None => {
+                held.push((worker_id.to_owned(), false));
+                true
+            }
+        }
+    }
+
+    /// Gives `worker_id` back; `true` when someone came by meanwhile.
+    pub(crate) fn release(&self, worker_id: &str) -> bool {
+        let mut held = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let at = held.iter().position(|(id, _)| id == worker_id);
+        at.is_some_and(|at| held.remove(at).1)
+    }
+}
+
 pub(crate) struct Inner {
     pub(crate) deps: SessionDeps,
     pub(crate) turns: Turns,
     /// Workers whose queue is being drained right now.
-    draining: Mutex<HashSet<String>>,
+    draining: Claims,
     /// Workers being suspended or removed on purpose: their session's exit is expected.
     pub(crate) leaving: Mutex<HashSet<String>>,
     /// The commands Eos runs itself, `/clear` first.
     pub(crate) commands: std::sync::RwLock<Vec<Arc<dyn SlashCommand>>>,
+    /// What workers ask each other.
+    pub(crate) peers: PeerRequests,
 }
 
 /// The lifecycle of agent sessions. Cheap to clone.
@@ -122,7 +159,8 @@ impl Sessions {
     pub fn new(deps: SessionDeps) -> Self {
         let turns = Turns::new(deps.clock.clone());
         let commands = std::sync::RwLock::new(vec![Arc::new(Clear) as Arc<dyn SlashCommand>]);
-        Self(Arc::new(Inner { deps, turns, draining: Mutex::default(), leaving: Mutex::default(), commands }))
+        let peers = PeerRequests::new(deps.clock.clone(), deps.ids.clone());
+        Self(Arc::new(Inner { deps, turns, draining: Claims::default(), leaving: Mutex::default(), commands, peers }))
     }
 
     /// Adds a command a feature owns (`/compact`, …). A later one of the same
@@ -279,21 +317,26 @@ impl Sessions {
             tracing::error!(worker_id, error = %e, "a session's exit could not be recorded");
         }
         self.0.turns.forget(worker_id);
+        // Whoever waits on its answer hears that it is gone.
+        self.0.peers.cancel_by_worker(worker_id);
     }
 
     /// The worker reached IDLE: its queue gets its turn, and when that is
     /// empty, whatever runs at a worker's idle edge.
     pub(crate) fn settled<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            {
-                let mut draining = self.0.draining.lock().unwrap_or_else(PoisonError::into_inner);
-                if !draining.insert(worker_id.to_owned()) {
-                    return;
-                }
+            // A peer's question starts a turn of its own; the queue waits for the next idle edge.
+            if self.pump_peer(worker_id).await {
+                return;
+            }
+            // A turn that ends while its queue is being drained settles again afterwards.
+            if !self.0.draining.claim(worker_id) {
+                return;
             }
             let outcome = self.drain(worker_id).await;
-            self.0.draining.lock().unwrap_or_else(PoisonError::into_inner).remove(worker_id);
-            if outcome == crate::dispatch::Drained::Empty {
+            if self.0.draining.release(worker_id) {
+                self.settled(worker_id).await;
+            } else if outcome == crate::dispatch::Drained::Empty {
                 self.0.deps.hooks.idle(worker_id);
             }
         })
@@ -323,5 +366,23 @@ impl SessionSink for Sessions {
 
     fn background_task(&self, worker_id: &str, update: BackgroundTaskUpdate) {
         self.0.deps.hooks.background_task(worker_id, update);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn whoever_finds_a_worker_taken_makes_its_holder_look_again() {
+        let claims = Claims::default();
+        assert!(claims.claim("w-1"));
+        assert!(claims.claim("w-2"), "workers do not wait on each other");
+        assert!(!claims.claim("w-1") && !claims.claim("w-1"));
+        assert!(claims.release("w-1"), "someone came by");
+        assert!(!claims.release("w-2"));
+        assert!(claims.claim("w-1"), "free again");
+        assert!(!claims.release("w-1"), "the mark went with the release before");
+        assert!(!claims.release("w-1"), "nothing is kept of a worker that is not held");
     }
 }

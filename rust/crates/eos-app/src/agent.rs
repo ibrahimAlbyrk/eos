@@ -332,6 +332,15 @@ impl SessionHooks for AppHooks {
         }
     }
 
+    fn archived(&self, worker: &Worker) {
+        // An archived root's session is over for the features too; its folders stay.
+        if worker.parent_id.is_none()
+            && let Some(runtime) = self.runtime()
+        {
+            runtime.modules.on_session_ended(&worker.id);
+        }
+    }
+
     fn workflow_progress(&self, progress: WorkflowRunProgress) {
         if let Some(runtime) = self.runtime() {
             runtime.modules.on_workflow_progress(&progress);

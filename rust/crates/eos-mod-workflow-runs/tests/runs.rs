@@ -127,6 +127,7 @@ impl Bench {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
+            sleeper: Arc::new(FakeSleeper::default()),
         });
         let (sleeper, files) = (Arc::new(FakeSleeper::default()), Arc::new(Files::default()));
         let relayed = tokio::sync::Mutex::new(kernel.bus.subscribe(&WORKFLOW_PROGRESS, 64));

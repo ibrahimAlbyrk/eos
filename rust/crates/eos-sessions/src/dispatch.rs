@@ -22,6 +22,7 @@ use eos_domain::message_queue::{MessagePlane, QueueMeta};
 use eos_domain::view_action::view_action_turn;
 use serde_json::{Map, Value, json};
 
+use crate::commands::CommandAnswer;
 use crate::commands::{self, SlashContext};
 use crate::service::{Changed, Sessions};
 use crate::transition::transition_state;
@@ -70,8 +71,8 @@ pub enum Dispatched {
     Queued { queue_id: i64 },
     /// A repeat of a message already taken.
     Deduped,
-    /// A command Eos ran itself; the value is its answer.
-    Command(Value),
+    /// A command Eos ran itself, with the answer it chose.
+    Command(CommandAnswer),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

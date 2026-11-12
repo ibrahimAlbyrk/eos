@@ -6,8 +6,8 @@
 
 use eos_core::agent::AgentCapabilities;
 use eos_core::{BoxFuture, Error};
-use eos_sessions::{SlashCommand, SlashContext};
-use serde_json::{Value, json};
+use eos_sessions::{CommandAnswer, SlashCommand, SlashContext};
+use serde_json::json;
 
 use crate::service::CompactionService;
 
@@ -26,12 +26,13 @@ impl SlashCommand for Compact {
         capabilities.context_compaction == Some(true)
     }
 
-    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<Value, Error>> {
+    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<CommandAnswer, Error>> {
         Box::pin(async move {
-            match self.0.start(cx.worker_id, cx.args).await {
-                Ok(()) => Ok(json!({"ok": true, "compacting": true})),
-                Err(why) => Err(Error::Conflict(why)),
-            }
+            // Accepted while it summarizes; a refusal is an answer of its own, as today.
+            Ok(match self.0.start(cx.worker_id, cx.args).await {
+                Ok(()) => CommandAnswer::new(202, json!({"ok": true, "compacting": true})),
+                Err(why) => CommandAnswer::new(409, json!({"ok": false, "error": why})),
+            })
         })
     }
 }

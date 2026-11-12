@@ -39,6 +39,7 @@ fn bench() -> Bench {
         worktrees: Arc::new(FakeWorktrees::default()),
         recents: Arc::new(FakeRecents::default()),
         hooks: Arc::new(NoHooks),
+        sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
     });
     let kernel = Kernel::new(KernelOptions::default());
     let module = AgentJobsModule::new(kernel.jobs.clone(), Arc::new(sessions.clone()));

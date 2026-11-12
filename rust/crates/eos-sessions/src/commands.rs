@@ -35,6 +35,25 @@ impl std::fmt::Debug for SlashContext<'_> {
     }
 }
 
+/// What a command answers its sender: the status and the body it chose
+/// (`/compact` answers 202 while it summarizes, 409 when it cannot).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandAnswer {
+    pub status: u16,
+    pub body: Value,
+}
+
+impl CommandAnswer {
+    pub fn new(status: u16, body: Value) -> Self {
+        Self { status, body }
+    }
+
+    /// 200 with `body`.
+    pub fn ok(body: Value) -> Self {
+        Self { status: 200, body }
+    }
+}
+
 /// One command of Eos's own. A feature registers its own through its
 /// module (`Module::slash_commands`, as `Arc<dyn SlashCommand>`).
 pub trait SlashCommand: Send + Sync + 'static {
@@ -48,8 +67,9 @@ pub trait SlashCommand: Send + Sync + 'static {
     /// Whether the command runs for these arguments on a session that can
     /// do this much; `false` lets the text go to the agent as typed.
     fn accepts(&self, args: &str, capabilities: &AgentCapabilities) -> bool;
-    /// Runs it; the value is the answer the sender gets.
-    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<Value, Error>>;
+    /// Runs it; the answer is what the sender gets. A refusal the sender can
+    /// read is an answer too (its own status); an `Err` is a failure.
+    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<CommandAnswer, Error>>;
 }
 
 /// `/name args` → `(name, args)`.
@@ -76,10 +96,12 @@ impl SlashCommand for Clear {
         args.is_empty() && capabilities.context_clear == Some(true)
     }
 
-    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<Value, Error>> {
+    fn execute<'a>(&'a self, cx: SlashContext<'a>) -> BoxFuture<'a, Result<CommandAnswer, Error>> {
         Box::pin(async move {
             let cleared = cx.session.clear_context().await.is_ok();
             let (id, now) = (cx.worker_id.to_owned(), cx.sessions.clock().now_ms());
+            // A fresh conversation knows nothing of the consultations of the old one.
+            cx.sessions.0.peers.cancel_by_worker(cx.worker_id);
             cx.sessions
                 .store()
                 .write(move |tx, out| {
@@ -93,7 +115,7 @@ impl SlashCommand for Clear {
                     Ok(())
                 })
                 .await?;
-            Ok(json!({"ok": cleared, "cleared": true}))
+            Ok(CommandAnswer::ok(json!({"ok": cleared, "cleared": true})))
         })
     }
 }

@@ -235,6 +235,20 @@ step = "jobs-with-running"
 at = "/frames"
 reason = "Timing, not content: the job's throttled `jobs:change` (dropped by the normalizer) fell inside this step when it was recorded and left an empty frame list; in process the step is over before the throttle fires, so there is no list at all."
 
+# The agent routes whose invalid bodies miss more than one field.
+
+[[known]]
+scenario = "41-agent-starts"
+step = "peer-request-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "42-chat-writes"
+step = "notify-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
 # ---- until the work lands ----------------------------------------------------
 
 [[known]]

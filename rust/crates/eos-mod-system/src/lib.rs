@@ -10,9 +10,11 @@ use eos_contracts::{
     HealthFds, HealthResponse, UiBackendProfile, UiConfigResponse, UiConfigResponseFeatures,
     UiConfigResponsePermissions, UiConfigResponseSse,
 };
+use eos_core::Clock;
 use eos_core::agent::{BackendCatalog, ModelCatalog};
-use eos_core::os::ProcessStats;
+use eos_core::os::{ProcessStats, TimeZone};
 use eos_core::store::ConfigSource;
+use eos_domain::time::current_datetime;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{Request, Response};
 use eos_runtime::module::Module;
@@ -35,6 +37,20 @@ pub struct SystemModule {
     config: Arc<dyn ConfigSource>,
     models: Arc<dyn ModelCatalog>,
     backends: Arc<dyn BackendCatalog>,
+    time: LocalClock,
+}
+
+/// The clock and the time zone of the user's computer.
+#[derive(Clone)]
+pub struct LocalClock {
+    pub clock: Arc<dyn Clock>,
+    pub zone: Arc<dyn TimeZone>,
+}
+
+impl std::fmt::Debug for LocalClock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LocalClock").field("zone", &self.zone.name()).finish_non_exhaustive()
+    }
 }
 
 impl std::fmt::Debug for SystemModule {
@@ -52,8 +68,9 @@ impl SystemModule {
         config: Arc<dyn ConfigSource>,
         models: Arc<dyn ModelCatalog>,
         backends: Arc<dyn BackendCatalog>,
+        time: LocalClock,
     ) -> Self {
-        Self { run, features, stats, config, models, backends }
+        Self { run, features, stats, config, models, backends, time }
     }
 }
 
@@ -118,6 +135,12 @@ impl Module for SystemModule {
             let body = health(&run, stats.as_ref());
             async move { Ok(Response::json(200, &body)) }
         };
+        let time = self.time.clone();
+        let datetime = move |_req: Request| {
+            let now = time.clock.now_ms();
+            let body = current_datetime(now, time.zone.offset_minutes_at(now), &time.zone.name());
+            async move { Ok(Response::json(200, &body)) }
+        };
         let (config, models, backends, features) =
             (self.config.clone(), self.models.clone(), self.backends.clone(), self.features.clone());
         let ui_config = move |_req: Request| {
@@ -127,6 +150,7 @@ impl Module for SystemModule {
         vec![
             RouteDef::get("/health", health).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/api/ui-config", ui_config).access(Access::open().phone(Tier::Read)),
+            RouteDef::get("/datetime", datetime).access(Access::open()),
         ]
     }
 }

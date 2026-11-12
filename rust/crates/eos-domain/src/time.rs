@@ -69,6 +69,30 @@ pub fn ms_from_iso(text: &str) -> Option<i64> {
     Some(days * MS_PER_DAY + h * 3_600_000 + m * 60_000 + s * 1_000 + milli - offset_min * 60_000)
 }
 
+/// `+03:00`, `-05:30`: minutes east of UTC as an offset.
+fn offset_label(minutes: i32) -> String {
+    let sign = if minutes < 0 { '-' } else { '+' };
+    let abs = minutes.abs();
+    format!("{sign}{:02}:{:02}", abs / 60, abs % 60)
+}
+
+/// An instant with the user's wall-clock reading of it, in a zone that is
+/// `offset_minutes` east of UTC then (`core/src/use-cases/CurrentDateTime.ts`).
+pub fn current_datetime(epoch_ms: i64, offset_minutes: i32, zone: &str) -> eos_contracts::CurrentDateTimeResponse {
+    let offset = offset_label(offset_minutes);
+    // The instant moved by the offset, read as UTC, is the local wall clock.
+    let local = iso_from_ms(epoch_ms + i64::from(offset_minutes) * 60_000);
+    let (date, time, millis) = (&local[..10], &local[11..19], &local[20..23]);
+    eos_contracts::CurrentDateTimeResponse {
+        epoch_ms,
+        iso: format!("{date}T{time}.{millis}{offset}"),
+        utc: iso_from_ms(epoch_ms),
+        time_zone: zone.to_owned(),
+        utc_offset_minutes: i64::from(offset_minutes),
+        formatted: format!("{date} {time} UTC{offset} ({zone})"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

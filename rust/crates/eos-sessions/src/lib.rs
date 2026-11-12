@@ -10,6 +10,11 @@
 //! - [`interrupt`](Sessions::interrupt), [`suspend`](Sessions::suspend),
 //!   [`kill`](Sessions::kill), [`set_model`](Sessions::set_model),
 //!   [`set_permission_mode`](Sessions::set_permission_mode);
+//! - [`archive`](Sessions::archive), [`restore`](Sessions::restore),
+//!   [`purge`](Sessions::purge) and the retention sweep;
+//! - [`report`](Sessions::report): a worker's report to its parent;
+//! - [`ask_peer`](Sessions::ask_peer), [`respond_to_peer`](Sessions::respond_to_peer):
+//!   workers of one orchestrator consulting each other, one question per turn;
 //! - it is the sink of every session it starts: each agent event is recorded
 //!   and applied to its worker in one write (`signal`), in the order the
 //!   session reported it, and announced in commit order.
@@ -25,6 +30,7 @@
 //! [`Outbox`](eos_core::store::Outbox), so the rows they change and the
 //! events they announce are saved, or dropped, together.
 
+mod archive;
 pub mod boot;
 pub mod cleanup;
 mod commands;
@@ -32,16 +38,21 @@ mod control;
 mod dispatch;
 mod features;
 pub mod loops;
+mod peers;
+mod report;
 mod service;
 mod signal;
 mod spawn;
 pub mod transition;
 mod turns;
 
+pub use archive::{Archived, Restored};
 pub use boot::{Reconciled, reconcile_workers_on_boot};
-pub use commands::{SlashCommand, SlashContext};
+pub use commands::{CommandAnswer, SlashCommand, SlashContext};
 pub use control::{KILL_GRACE_MS, ModeSet, ModelSet, Recalled, Removed};
 pub use dispatch::{Dispatched, MessageInput};
+pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
+pub use report::{ReportSignal, Reported, classify_report, holds_report};
 pub use service::{NoHooks, SessionDeps, SessionHooks, Sessions};
 pub use spawn::{SpawnRequest, Spawned};
 pub use transition::{Transition, transition_state};

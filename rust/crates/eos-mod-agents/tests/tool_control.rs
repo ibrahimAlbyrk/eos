@@ -51,6 +51,7 @@ fn bench() -> Bench {
         worktrees: Arc::new(FakeWorktrees::default()),
         recents: Arc::new(FakeRecents::default()),
         hooks: Arc::new(NoHooks),
+        sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
     });
     let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
     let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock.clone()));
@@ -138,8 +139,9 @@ async fn a_request_the_route_refuses_is_refused_in_its_words() {
 #[tokio::test]
 async fn what_this_feature_does_not_serve_yet_says_so() {
     let bench = bench();
-    let report = bench.control.report("w-1", "result: done".into()).await.expect_err("not served");
-    assert_eq!((report.status, report.message.as_str()), (501, "reporting to the parent is not available yet"));
+    // A report answers as its route does; one from a worker nobody knows is refused.
+    let report = bench.control.report("w-1", "result: done".into()).await.expect_err("an unknown worker");
+    assert_eq!((report.status, report.message.as_str()), (404, "worker not found"));
     let integrate = bench.control.integrate("o-1", None).await.expect_err("not served");
     assert_eq!(integrate.status, 501);
 }

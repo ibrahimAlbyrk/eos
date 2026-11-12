@@ -69,6 +69,8 @@ pub(crate) struct Context {
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
+    /// The app works on the user's own data folder: it may delete on its own.
+    pub(crate) sweep_leftovers: bool,
     pub(crate) terminals: Terminal,
     /// The phone link. Built ahead of the rest: the app hands it the router afterwards.
     pub(crate) remote: Arc<eos_mod_remote::RemoteModule>,
@@ -89,18 +91,21 @@ pub(crate) struct Terminal {
 /// adds its line here, in alphabetical order; nothing else in the app changes.
 pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
     // The features the agent tools call are built first: the tools hold them.
-    let agents = Arc::new(eos_mod_agents::AgentsModule::new(
-        cx.sessions.clone(),
-        cx.store.clone(),
-        cx.ids.clone(),
-        cx.worker_definitions.clone(),
-        eos_mod_agents::Spawning {
-            config: cx.config.clone(),
-            settings: cx.settings.clone(),
-            prompts: cx.prompts.clone(),
-            scratch: cx.scratch.clone(),
-        },
-    ));
+    let agents = Arc::new(
+        eos_mod_agents::AgentsModule::new(
+            cx.sessions.clone(),
+            cx.store.clone(),
+            cx.ids.clone(),
+            cx.worker_definitions.clone(),
+            eos_mod_agents::Spawning {
+                config: cx.config.clone(),
+                settings: cx.settings.clone(),
+                prompts: cx.prompts.clone(),
+                scratch: cx.scratch.clone(),
+            },
+        )
+        .sweeping_archives(cx.sweep_leftovers),
+    );
     let pages = Arc::new(eos_mod_pages::PagesModule::new(
         cx.notes.pages.clone(),
         cx.store.clone(),
@@ -195,6 +200,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             cx.config.clone(),
             cx.models.clone(),
             cx.backends.clone(),
+            eos_mod_system::LocalClock { clock: cx.clock.clone(), zone: Arc::new(crate::host::HostTimeZone) },
         )),
         Arc::new(eos_mod_templates::TemplatesModule::new(cx.templates.clone())),
         Arc::new(eos_mod_terminals::TerminalsModule::new(
