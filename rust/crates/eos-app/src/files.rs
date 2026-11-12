@@ -16,7 +16,7 @@ use crate::modules::Context;
 pub(crate) struct RawRoutes(Mutex<Vec<RouteDef>>);
 
 impl RawRoutes {
-    fn add(&self, routes: Vec<RouteDef>) {
+    pub(crate) fn add(&self, routes: Vec<RouteDef>) {
         self.0.lock().unwrap_or_else(|p| p.into_inner()).extend(routes);
     }
 

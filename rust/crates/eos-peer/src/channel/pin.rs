@@ -12,40 +12,11 @@ use std::sync::Arc;
 use rustls::{
     CertificateError, DigitallySignedStruct, DistinguishedName, Error, SignatureScheme,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    crypto::{CryptoProvider, WebPkiSupportedAlgorithms, verify_tls13_signature, verify_tls13_signature_with_raw_key},
-    pki_types::{CertificateDer, ServerName, SubjectPublicKeyInfoDer, UnixTime},
+    crypto::{CryptoProvider, WebPkiSupportedAlgorithms, verify_tls13_signature},
+    pki_types::{CertificateDer, ServerName, UnixTime},
     server::danger::{ClientCertVerified, ClientCertVerifier},
 };
 use sha2::{Digest, Sha256};
-use subtle::ConstantTimeEq;
-
-/// How the handshake signature is checked against the peer's certificate.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SignatureCheck {
-    /// rustls' own path: webpki parses the certificate and verifies.
-    Webpki,
-    /// The fallback if webpki ever refuses the hand-built certificate: take the
-    /// SubjectPublicKeyInfo out with x509-parser and verify against the raw key.
-    RawSpki,
-}
-
-fn check_signature(
-    how: SignatureCheck,
-    message: &[u8],
-    cert: &CertificateDer<'_>,
-    dss: &DigitallySignedStruct,
-    algs: &WebPkiSupportedAlgorithms,
-) -> Result<HandshakeSignatureValid, Error> {
-    match how {
-        SignatureCheck::Webpki => verify_tls13_signature(message, cert, dss, algs),
-        SignatureCheck::RawSpki => {
-            let (_, parsed) = x509_parser::parse_x509_certificate(cert)
-                .map_err(|_| Error::InvalidCertificate(CertificateError::BadEncoding))?;
-            let spki = SubjectPublicKeyInfoDer::from(parsed.tbs_certificate.subject_pki.raw);
-            verify_tls13_signature_with_raw_key(message, &spki, dss, algs)
-        }
-    }
-}
 
 fn tls12_is_off() -> Error {
     Error::General("the peer channel is TLS 1.3 only".into())
@@ -53,22 +24,16 @@ fn tls12_is_off() -> Error {
 
 /// Client side: the server must present exactly the pinned certificate.
 #[derive(Debug)]
-pub struct PinnedServer {
+pub(crate) struct PinnedServer {
     expected: [u8; 32],
     algs: WebPkiSupportedAlgorithms,
-    how: SignatureCheck,
 }
 
 impl PinnedServer {
-    pub fn new(
-        expected_fingerprint_hex: &str,
-        provider: &CryptoProvider,
-        how: SignatureCheck,
-    ) -> anyhow::Result<Arc<Self>> {
-        let expected: [u8; 32] = hex::decode(expected_fingerprint_hex)?
-            .try_into()
-            .map_err(|_| anyhow::anyhow!("a fingerprint is 32 bytes of hex"))?;
-        Ok(Arc::new(Self { expected, algs: provider.signature_verification_algorithms, how }))
+    /// `None` when `expected_fingerprint_hex` is not 32 bytes of hex.
+    pub(crate) fn new(expected_fingerprint_hex: &str, provider: &CryptoProvider) -> Option<Arc<Self>> {
+        let expected: [u8; 32] = hex::decode(expected_fingerprint_hex).ok()?.try_into().ok()?;
+        Some(Arc::new(Self { expected, algs: provider.signature_verification_algorithms }))
     }
 }
 
@@ -82,7 +47,8 @@ impl ServerCertVerifier for PinnedServer {
         _now: UnixTime,
     ) -> Result<ServerCertVerified, Error> {
         let actual = Sha256::digest(end_entity);
-        if bool::from(actual.as_slice().ct_eq(&self.expected)) {
+        // Every byte is compared, wherever the first difference is.
+        if actual.iter().zip(&self.expected).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0 {
             Ok(ServerCertVerified::assertion())
         } else {
             Err(Error::InvalidCertificate(CertificateError::ApplicationVerificationFailure))
@@ -104,7 +70,7 @@ impl ServerCertVerifier for PinnedServer {
         cert: &CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        check_signature(self.how, message, cert, dss, &self.algs)
+        verify_tls13_signature(message, cert, dss, &self.algs)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {
@@ -116,14 +82,13 @@ impl ServerCertVerifier for PinnedServer {
 /// the signature); who it is — trusted, pairing-only, refused — is decided
 /// from its fingerprint right after, as the TypeScript host does.
 #[derive(Debug)]
-pub struct AnyProvenClient {
+pub(crate) struct AnyProvenClient {
     algs: WebPkiSupportedAlgorithms,
-    how: SignatureCheck,
 }
 
 impl AnyProvenClient {
-    pub fn new(provider: &CryptoProvider, how: SignatureCheck) -> Arc<Self> {
-        Arc::new(Self { algs: provider.signature_verification_algorithms, how })
+    pub(crate) fn new(provider: &CryptoProvider) -> Arc<Self> {
+        Arc::new(Self { algs: provider.signature_verification_algorithms })
     }
 }
 
@@ -156,7 +121,7 @@ impl ClientCertVerifier for AnyProvenClient {
         cert: &CertificateDer<'_>,
         dss: &DigitallySignedStruct,
     ) -> Result<HandshakeSignatureValid, Error> {
-        check_signature(self.how, message, cert, dss, &self.algs)
+        verify_tls13_signature(message, cert, dss, &self.algs)
     }
 
     fn supported_verify_schemes(&self) -> Vec<SignatureScheme> {

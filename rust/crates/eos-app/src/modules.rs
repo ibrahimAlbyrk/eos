@@ -43,6 +43,8 @@ pub(crate) struct Context {
     pub(crate) workflow_files: Arc<dyn WorkflowRunFiles>,
     pub(crate) sessions: eos_sessions::Sessions,
     pub(crate) projects: Arc<dyn ProjectStore>,
+    /// The links between this computer and the ones paired with it.
+    pub(crate) peer: crate::peer::Peer,
     /// How a project folder is named between computers.
     pub(crate) project_keys: Arc<dyn eos_core::git::ProjectKeys>,
     pub(crate) questions: eos_mod_questions::Questions,
@@ -186,6 +188,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         crate::files::module(cx),
         genui,
         pages,
+        cx.peer.module(),
         profile,
         cx.plugins.module(),
         Arc::new(eos_mod_policy::PolicyModule::new(cx.policy.clone(), cx.store.clone(), cx.bus.clone())),

@@ -2,7 +2,7 @@
 # the product build, and the crates under ../../crates never depend on it.
 [workspace]
 resolver = "3"
-members = ["statedb", "peer", "jsregex", "pty", "yamlrt", "keychain"]
+members = ["statedb", "jsregex", "pty", "yamlrt", "keychain"]
 
 [workspace.package]
 version = "0.0.0"

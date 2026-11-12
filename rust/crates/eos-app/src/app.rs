@@ -13,6 +13,7 @@ use eos_auth::{
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
 use eos_core::accounts::{PlanAccess, SessionCredentials};
+use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
 use eos_core::os::KeepAwake;
@@ -96,6 +97,17 @@ pub struct Options {
     /// folder stops the TypeScript-era daemon through it before it opens the
     /// data; nothing else ever uses it.
     pub launchd: Option<Arc<dyn Launchd + Send + Sync>>,
+    /// Whether this run may listen for paired computers and dial the ones it
+    /// controls (through `relay` too, when there is one). Off unless the host
+    /// says so, whatever `config.peer` says: a
+    /// test, a replay or a run on a copy of someone's data folder holds that
+    /// person's identity and must never answer — or call — as their computer.
+    /// The installed app on the user's own data folder turns it on.
+    pub peer_network: bool,
+    /// The folder of this app's dashboard bundle (`index.html` inside it): a
+    /// computer that controls this one loads its dashboard from here
+    /// (`GET /ui/*`). Without it this app serves none.
+    pub dashboard: Option<PathBuf>,
     /// How the phone link reaches its relay ([`crate::relay`] in the real
     /// app). Without one the app never dials a relay, whatever the
     /// configuration says: a test, a replay or a tool can open a data folder
@@ -122,6 +134,8 @@ impl Options {
             exec_path: std::env::current_exe().ok(),
             update_applier: None,
             launchd: Launchctl::for_this_user().map(|launchctl| Arc::new(launchctl) as Arc<dyn Launchd + Send + Sync>),
+            peer_network: false,
+            dashboard: None,
             relay: None,
             keep_awake: None,
         }
@@ -154,6 +168,7 @@ pub struct App {
     settings: Arc<SettingsFile>,
     accounts: Arc<Accounts>,
     callers: Callers,
+    peering: Arc<dyn PeerLifecycle>,
     paths: DataPaths,
     reconciled: Reconciled,
     sessions: Sessions,
@@ -192,6 +207,8 @@ impl App {
             update_applier,
             launchd,
             sweep_leftovers,
+            peer_network,
+            dashboard,
             relay,
             keep_awake,
         } = options;
@@ -376,6 +393,16 @@ impl App {
             one_shot: engine,
             workflow_files,
             sessions: sessions.clone(),
+            peer: crate::peer::build(crate::peer::Parts {
+                paths: &paths,
+                clock: clock.clone(),
+                config: config.clone(),
+                bus: kernel.bus.clone(),
+                view_tokens: callers.view_tokens(),
+                dashboard,
+                network: peer_network,
+                relay: relay.clone(),
+            })?,
             project_keys: crate::machines::project_keys(
                 &paths,
                 &clock,
@@ -428,7 +455,11 @@ impl App {
                 None => tracing::error!(name = declared.name, "a module's slash command is not a session command"),
             }
         }
+        context.raw_routes.add(context.peer.raw_routes());
         let raw_router = Arc::new(Router::builder().routes(context.raw_routes.take()).build()?);
+        // A paired computer's requests are answered by these two routers.
+        context.peer.attach(runtime.router.clone(), raw_router.clone());
+        let peering = context.peer.lifecycle();
         if let Some((backup, dir)) = snapshot {
             // Thousands of small files: after the app is up, off the start-up path.
             runtime.lifecycle.defer("backup", move || async move {
@@ -457,6 +488,7 @@ impl App {
             settings,
             accounts,
             callers,
+            peering,
             paths,
             reconciled,
             sessions,
@@ -519,6 +551,12 @@ impl App {
 
     pub fn callers(&self) -> &Callers {
         &self.callers
+    }
+
+    /// The links to paired computers. The window shell calls `kick` when the
+    /// computer wakes, so a link that died in its sleep is probed at once.
+    pub fn peering(&self) -> Arc<dyn PeerLifecycle> {
+        self.peering.clone()
     }
 
     pub fn runtime(&self) -> &Runtime {

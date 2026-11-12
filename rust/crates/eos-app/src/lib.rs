@@ -23,6 +23,7 @@ mod machines;
 mod modules;
 mod notes;
 mod patches;
+mod peer;
 mod plugins;
 mod terminals;
 mod tools;
@@ -53,6 +54,9 @@ pub enum Error {
     /// The clients that fetch for visual answers could not be set up.
     #[error("media: {0}")]
     Media(#[from] eos_genui_media::Error),
+    /// This computer's identity for its paired computers cannot be read.
+    #[error("peering: {0}")]
+    Peer(#[from] eos_peer::Error),
     /// Two modules clash, a route has no access rule, or a module failed to start.
     #[error(transparent)]
     Runtime(#[from] eos_runtime::Error),

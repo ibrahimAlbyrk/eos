@@ -20,6 +20,16 @@ scenario = "19-cors"
 reason = "Origin and Host checks (CORS, DNS rebinding) guard a listener on a port. There is none: only the shell's bridge and the gateways can call the router."
 
 [[known]]
+scenario = "*"
+at = "/json/apiStamp"
+reason = "The stamp of the route surface is this build's own (eos-mod-peer/src/stamp.rs), never a TypeScript build's: a computer of one kind loads the other's own dashboard instead of driving it with its own."
+
+[[known]]
+scenario = "*"
+at = "/json/host/apiStamp"
+reason = "The stamp of the route surface is this build's own (eos-mod-peer/src/stamp.rs), never a TypeScript build's: a computer of one kind loads the other's own dashboard instead of driving it with its own."
+
+[[known]]
 scenario = "18-http"
 step = "body-not-json"
 reason = "A body that is not JSON is the caller's mistake: 400 `invalid request: body is not valid JSON`. The daemon answered 500 with V8's parser message."

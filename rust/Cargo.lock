@@ -1272,6 +1272,7 @@ dependencies = [
  "eos-mod-fs",
  "eos-mod-genui",
  "eos-mod-pages",
+ "eos-mod-peer",
  "eos-mod-plugins",
  "eos-mod-policy",
  "eos-mod-profile",
@@ -1288,6 +1289,7 @@ dependencies = [
  "eos-mod-worker-definitions",
  "eos-mod-workers",
  "eos-mod-workflow-runs",
+ "eos-peer",
  "eos-platform",
  "eos-plugin-build",
  "eos-plugin-files",
@@ -1743,6 +1745,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-peer"
+version = "0.0.1"
+dependencies = [
+ "bytes",
+ "eos-config",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-peer",
+ "eos-runtime",
+ "eos-testkit",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+]
+
+[[package]]
 name = "eos-mod-plugins"
 version = "0.0.1"
 dependencies = [
@@ -2021,9 +2042,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-peer"
+version = "0.0.1"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-platform",
+ "eos-relay",
+ "eos-testkit",
+ "flate2",
+ "getrandom 0.4.3",
+ "h2",
+ "hex",
+ "http",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+]
+
+[[package]]
 name = "eos-platform"
 version = "0.0.1"
 dependencies = [
+ "if-addrs",
  "rustix",
  "serde_json",
  "sha2",
@@ -3119,6 +3171,16 @@ checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
 dependencies = [
  "icu_normalizer",
  "icu_properties",
+]
+
+[[package]]
+name = "if-addrs"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a05c691e1fae256cf7013d99dad472dc52d5543322761f83ec8d47eab40d2b"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

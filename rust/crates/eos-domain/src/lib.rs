@@ -25,6 +25,7 @@ pub mod message_queue;
 pub mod model;
 pub mod model_tier;
 pub mod page;
+pub mod peer;
 pub mod pending;
 pub mod project;
 pub mod sync;

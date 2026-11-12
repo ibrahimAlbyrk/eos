@@ -17,7 +17,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 const MAX_WRITE: usize = 256 * 1024;
 
 #[derive(Debug)]
-pub struct H2Pipe {
+pub(crate) struct H2Pipe {
     send: SendStream<Bytes>,
     recv: RecvStream,
     pending: Bytes,
@@ -26,7 +26,7 @@ pub struct H2Pipe {
 }
 
 impl H2Pipe {
-    pub fn new(send: SendStream<Bytes>, recv: RecvStream) -> Self {
+    pub(crate) fn new(send: SendStream<Bytes>, recv: RecvStream) -> Self {
         Self { send, recv, pending: Bytes::new(), eof: false, closed: false }
     }
 }

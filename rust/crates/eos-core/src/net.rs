@@ -5,6 +5,7 @@
 mod geo;
 pub mod machines;
 mod media;
+pub mod peer;
 pub mod relay;
 pub mod sync;
 pub mod transfer;

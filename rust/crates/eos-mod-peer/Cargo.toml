@@ -1,0 +1,29 @@
+[package]
+name = "eos-mod-peer"
+description = "One computer controlling another: Settings › Remote access, the Machines menu, the host facade and the gateway to this app's routes."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bytes.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-runtime.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+tokio = { workspace = true, features = ["fs", "io-util", "rt"] }
+
+[dev-dependencies]
+eos-config.workspace = true
+eos-peer.workspace = true
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

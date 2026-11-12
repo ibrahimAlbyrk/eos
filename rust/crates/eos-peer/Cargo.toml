@@ -1,0 +1,40 @@
+[package]
+name = "eos-peer"
+description = "The link between two computers running Eos: identity, pairing, hosting and controlling over HTTP/2 inside pinned TLS."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+aws-lc-rs.workspace = true
+base64.workspace = true
+bytes.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-kit-fs.workspace = true
+eos-platform.workspace = true
+flate2.workspace = true
+getrandom.workspace = true
+h2.workspace = true
+hex.workspace = true
+http.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tokio-rustls.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+eos-relay.workspace = true
+eos-testkit.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+
+[lints]
+workspace = true

@@ -1334,26 +1334,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spike-peer"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "bytes",
- "h2",
- "hex",
- "http",
- "rustls",
- "rustls-webpki",
- "serde_json",
- "sha2",
- "subtle",
- "tempfile",
- "tokio",
- "tokio-rustls",
- "x509-parser",
-]
-
-[[package]]
 name = "spike-pty"
 version = "0.0.0"
 dependencies = [

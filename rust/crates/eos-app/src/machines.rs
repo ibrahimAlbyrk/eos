@@ -4,12 +4,10 @@
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
 
-use eos_contracts::HostView;
 use eos_core::git::ProjectKeys;
-use eos_core::net::machines::{Machines, PeerCallError, PeerRequest, PeerResponse};
 use eos_core::net::sync::SyncDomain;
 use eos_core::store::{ProjectStore, RecentFolders};
-use eos_core::{BoxFuture, Clock, Error};
+use eos_core::{Clock, Error};
 use eos_git::GitProjectKeys;
 use eos_kit_net::{ClientOptions, http_client};
 use eos_mod_sync::{SyncModule, SyncParts, SyncServiceDeps, Timing};
@@ -97,30 +95,6 @@ pub(crate) fn sync(cx: &Context, contributions: Vec<SyncContribution>) -> Result
     Ok(Arc::new(module))
 }
 
-/// This computer with nothing paired: what file transfer sees until the
-/// feature that pairs computers hands over its links.
-struct NoPairedComputers {
-    name: eos_mod_sync::DeviceName,
-}
-
-impl Machines for NoPairedComputers {
-    fn local_name(&self) -> String {
-        (self.name)()
-    }
-
-    fn list(&self) -> Vec<HostView> {
-        Vec::new()
-    }
-
-    fn get(&self, _id: &str) -> Option<HostView> {
-        None
-    }
-
-    fn call<'a>(&'a self, _host: &'a str, _request: PeerRequest) -> BoxFuture<'a, Result<PeerResponse, PeerCallError>> {
-        Box::pin(std::future::ready(Err(PeerCallError::NotPaired)))
-    }
-}
-
 /// File transfer: this computer's disk as an endpoint, and the engine.
 pub(crate) fn transfer(cx: &Context) -> Arc<TransferModule> {
     let fallback = cx.paths.trash_dir();
@@ -142,7 +116,7 @@ pub(crate) fn transfer(cx: &Context) -> Arc<TransferModule> {
         TransferServiceDeps {
             store: cx.store.clone(),
             local: Arc::new(local),
-            machines: Arc::new(NoPairedComputers { name: device_name(cx) }),
+            machines: cx.peer.machines(),
             bus: cx.bus.clone(),
             clock: cx.clock.clone(),
             ids: cx.ids.clone(),

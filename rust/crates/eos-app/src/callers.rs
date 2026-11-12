@@ -7,16 +7,20 @@
 
 use std::fs;
 use std::path::Path;
+use std::sync::Arc;
 
 use eos_core::Ids;
+use eos_domain::peer::{ViewTokens, is_fingerprint};
 use eos_kit_fs::{WriteOptions, atomic_write};
-use eos_runtime::access::Caller;
+use eos_runtime::access::{Caller, LocalCaller};
+use eos_runtime::http::{normalize_path, split_target};
 
 const TOKEN_FILE: &str = "ui-token";
 
 #[derive(Clone)]
 pub struct Callers {
     ui_token: String,
+    view_tokens: Arc<ViewTokens>,
 }
 
 impl std::fmt::Debug for Callers {
@@ -43,14 +47,24 @@ impl Callers {
         if let Ok(stored) = fs::read_to_string(&path)
             && well_formed(stored.trim())
         {
-            return Self { ui_token: stored.trim().to_owned() };
+            return Self::with(stored.trim().to_owned());
         }
         let ui_token = ids.ui_token();
         let options = WriteOptions::with_permissions(eos_platform::host().private_file_permissions());
         if let Err(e) = atomic_write(&path, ui_token.as_bytes(), &options) {
             tracing::warn!(error = %e, "the ui-token could not be saved");
         }
-        Self { ui_token }
+        Self::with(ui_token)
+    }
+
+    fn with(ui_token: String) -> Self {
+        Self { view_tokens: Arc::new(ViewTokens::new(ui_token.clone())), ui_token }
+    }
+
+    /// The tokens of the views that control other computers: each is derived
+    /// from the ui-token and counts only for its own host.
+    pub fn view_tokens(&self) -> Arc<ViewTokens> {
+        self.view_tokens.clone()
     }
 
     /// The token the shell gives the dashboard's own document.
@@ -64,6 +78,22 @@ impl Callers {
         match token {
             Some(given) if same(&self.ui_token, given) => Caller::DASHBOARD,
             _ => Caller::UNTRUSTED,
+        }
+    }
+
+    /// [`classify`](Self::classify) for a request whose path is known: a view
+    /// that controls the paired computer `<id>` holds that host's view token
+    /// and is that host's user under `/h/<id>/…` — and nobody anywhere else.
+    pub fn classify_for(&self, token: Option<&str>, target: &str) -> Caller {
+        let caller = self.classify(token);
+        let (Caller::Local(LocalCaller::Untrusted), Some(token)) = (&caller, token) else { return caller };
+        let path = normalize_path(split_target(target).0);
+        let host = path.strip_prefix("/h/").and_then(|rest| rest.split('/').next()).filter(|id| is_fingerprint(id));
+        match host {
+            Some(host) if self.view_tokens.valid_for(token, host) => {
+                Caller::Local(LocalCaller::HostView { host: host.into() })
+            }
+            _ => caller,
         }
     }
 }
@@ -96,6 +126,29 @@ mod tests {
         let callers = Callers::load(home.path(), &SeqIds::new());
         assert!(well_formed(callers.ui_token()));
         assert_eq!(home.read("ui-token"), callers.ui_token());
+    }
+
+    #[test]
+    fn a_view_token_makes_its_hosts_view_under_that_hosts_prefix_only() {
+        let home = TempHome::new();
+        let callers = Callers::load(home.path(), &SeqIds::new());
+        let (mine, other) = ("a".repeat(64), "b".repeat(64));
+        let token = callers.view_tokens().mint(&mine);
+        let view = Caller::Local(LocalCaller::HostView { host: mine.as_str().into() });
+        assert_eq!(callers.classify_for(Some(&token), &format!("/h/{mine}/workers?limit=3")), view);
+        assert_eq!(callers.classify_for(Some(&token), &format!("/h/{mine}")), view);
+        assert_eq!(callers.classify_for(Some(&token), &format!("/h/{other}/workers")), Caller::UNTRUSTED);
+        assert_eq!(callers.classify_for(Some(&token), "/workers"), Caller::UNTRUSTED, "never this computer's user");
+        assert_eq!(
+            callers.classify_for(Some(&token), &format!("/ui/../h/{mine}/x")),
+            view,
+            "judged on the resolved path"
+        );
+        assert_eq!(callers.classify_for(Some(callers.ui_token()), "/workers"), Caller::DASHBOARD);
+        assert_eq!(callers.classify_for(None, &format!("/h/{mine}/workers")), Caller::UNTRUSTED);
+        // Forgotten: its token stops counting.
+        callers.view_tokens().revoke_host(&mine);
+        assert_eq!(callers.classify_for(Some(&token), &format!("/h/{mine}/workers")), Caller::UNTRUSTED);
     }
 
     #[test]

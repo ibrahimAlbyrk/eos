@@ -1,0 +1,10 @@
+{
+  "name": "eos-peer-interop",
+  "private": true,
+  "description": "What today's TypeScript peer code imports from npm, for the interop tests (see harness.ts).",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.21.0",
+    "zod": "^3.23.0"
+  }
+}

@@ -22,7 +22,7 @@ use std::{
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 
-pub const REFUSED_STREAM: u32 = 0x7;
+pub(crate) const REFUSED_STREAM: u32 = 0x7;
 const FRAME_SETTINGS: u8 = 0x4;
 const FRAME_GOAWAY: u8 = 0x7;
 /// A refused session lives only long enough to deliver its GOAWAY.
@@ -31,15 +31,15 @@ const REFUSED_LINGER: Duration = Duration::from_millis(1000);
 const MAX_DEBUG_BYTES: usize = 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GoAway {
-    pub last_stream_id: u32,
-    pub code: u32,
-    pub debug_data: Vec<u8>,
+pub(crate) struct GoAway {
+    pub(crate) last_stream_id: u32,
+    pub(crate) code: u32,
+    pub(crate) debug_data: Vec<u8>,
 }
 
 impl GoAway {
     /// The refusal reason, when the debug data is text.
-    pub fn reason(&self) -> Option<&str> {
+    pub(crate) fn reason(&self) -> Option<&str> {
         std::str::from_utf8(&self.debug_data).ok().filter(|s| !s.is_empty())
     }
 }
@@ -51,7 +51,7 @@ fn frame_header(len: usize, kind: u8, flags: u8, stream: u32) -> [u8; 9] {
 }
 
 /// The bytes a refusing server sends: SETTINGS (empty) then GOAWAY.
-pub fn refusal_frames(code: u32, reason: &str) -> Vec<u8> {
+pub(crate) fn refusal_frames(code: u32, reason: &str) -> Vec<u8> {
     let mut out = Vec::with_capacity(9 + 9 + 8 + reason.len());
     out.extend_from_slice(&frame_header(0, FRAME_SETTINGS, 0, 0));
     out.extend_from_slice(&frame_header(8 + reason.len(), FRAME_GOAWAY, 0, 0));
@@ -62,7 +62,7 @@ pub fn refusal_frames(code: u32, reason: &str) -> Vec<u8> {
 }
 
 /// Turns the peer away on an established TLS stream and closes it.
-pub async fn refuse<IO>(mut io: IO, reason: &str) -> io::Result<()>
+pub(crate) async fn refuse<IO>(mut io: IO, reason: &str) -> io::Result<()>
 where
     IO: AsyncRead + AsyncWrite + Unpin,
 {
@@ -152,10 +152,10 @@ impl FrameWatcher {
 
 /// Where a tap leaves the GOAWAY it saw.
 #[derive(Debug, Clone, Default)]
-pub struct GoAwaySlot(Arc<Mutex<Option<GoAway>>>);
+pub(crate) struct GoAwaySlot(Arc<Mutex<Option<GoAway>>>);
 
 impl GoAwaySlot {
-    pub fn get(&self) -> Option<GoAway> {
+    pub(crate) fn get(&self) -> Option<GoAway> {
         self.0.lock().unwrap_or_else(|p| p.into_inner()).clone()
     }
 }
@@ -163,14 +163,14 @@ impl GoAwaySlot {
 /// A pass-through stream for the dialing side of an HTTP/2 connection (what it
 /// reads is frames from the first byte) that records the server's GOAWAY.
 #[derive(Debug)]
-pub struct GoAwayTap<IO> {
+pub(crate) struct GoAwayTap<IO> {
     io: IO,
     watcher: FrameWatcher,
     slot: GoAwaySlot,
 }
 
 impl<IO> GoAwayTap<IO> {
-    pub fn new(io: IO) -> (Self, GoAwaySlot) {
+    pub(crate) fn new(io: IO) -> (Self, GoAwaySlot) {
         let slot = GoAwaySlot::default();
         (Self { io, watcher: FrameWatcher::default(), slot: slot.clone() }, slot)
     }
@@ -210,7 +210,7 @@ mod tests {
         for c in chunks {
             w.feed(c, &slot);
         }
-        slot.into_inner().unwrap()
+        slot.into_inner().expect("not poisoned")
     }
 
     #[test]
@@ -243,9 +243,9 @@ mod tests {
     #[test]
     fn a_goaway_without_data_has_no_reason_and_oversized_data_is_cut() {
         let plain = refusal_frames(0, "");
-        assert_eq!(watch(&[&plain]).unwrap().reason(), None);
+        assert_eq!(watch(&[&plain]).expect("a frame").reason(), None);
         let long = "x".repeat(5000);
-        let got = watch(&[&refusal_frames(REFUSED_STREAM, &long)]).unwrap();
+        let got = watch(&[&refusal_frames(REFUSED_STREAM, &long)]).expect("a frame");
         assert_eq!(got.debug_data.len(), MAX_DEBUG_BYTES);
     }
 }
