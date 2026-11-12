@@ -12,13 +12,17 @@
 # served yet"), and so are differences listed with their reason in
 # fixtures/wire/rust-differences.toml; the exit status is non-zero only when
 # an answered step differs in a way nobody listed.
-# EOS_WIRE_RUN  where run folders are made (default $TMPDIR/eos-wire)
+# EOS_WIRE_RUN  where run folders are made (default: a folder per checkout under
+#               $TMPDIR, so two checkouts replaying at once do not share data;
+#               its name keeps the length of "eos-wire" because a few recorded
+#               answers hold the path and sit near a size threshold)
 set -euo pipefail
 
 rust="$(cd "$(dirname "$0")/.." && pwd)"
 repo="$(dirname "$rust")"
 wire="$rust/fixtures/wire"
-root="${EOS_WIRE_RUN:-${TMPDIR:-/tmp}/eos-wire}"
+checkout="$(printf %s "$rust" | shasum | cut -c1-3)"
+root="${EOS_WIRE_RUN:-${TMPDIR:-/tmp}/eos-w$checkout}"
 mkdir -p "$root"
 root="$(cd "$root" && pwd -P)"
 
