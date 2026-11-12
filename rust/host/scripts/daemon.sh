@@ -23,6 +23,7 @@ case "${1:-start}" in
   start)
     up && { echo "already up"; exit 0; }
     [ -d "$HOME_COPY" ] || { echo "no data copy at $HOME_COPY (cp -R $EOS_DEV_DATA/home $HOME_COPY)" >&2; exit 1; }
+    [ -d "$REPO/manager/node_modules" ] || { echo "the daemon has no node modules: run rust/host/scripts/setup.sh" >&2; exit 1; }
     mkdir -p "$HOME_COPY/claude-config"
     [ -z "$(ls -A "$HOME_COPY/claude-config")" ] || { echo "$HOME_COPY/claude-config must stay empty" >&2; exit 1; }
     cd "$REPO"

@@ -712,7 +712,8 @@ async fn replies_clicks_and_eos_commands_go_through_dispatch() {
 
     // A feature's command is caught before dispatch; with arguments `/clear` is the agent's to read.
     let compact = Arc::new(Compact(std::sync::Mutex::new(Vec::new())));
-    bench.sessions.register_command(compact.clone());
+    let command: Arc<dyn eos_sessions::SlashCommand> = compact.clone();
+    bench.sessions.register_command(&command);
     let ran = bench.sessions.dispatch(bench.message(&id, "/compact keep the plan")).await.expect("runs");
     assert_eq!(ran, Dispatched::Command(CommandAnswer::new(202, serde_json::json!({"ok": true, "compacting": true}))));
     let refused = bench.sessions.dispatch(bench.message(&id, "/compact now?")).await.expect("answers");

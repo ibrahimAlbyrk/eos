@@ -19,17 +19,18 @@
 #                        source never replaces itself. See ../docs/first-rust-release.md.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
+require_setup
 PROFILE="${1:-release}"
 FEATURES="${EOS_BUNDLE_FEATURES-dev-proxy}"
 ID="${EOS_BUNDLE_ID:-dev.eos.shell}"
 NAME="Eos"
 REPO="$(cd "$HOST_DIR/../.." && pwd)"
 DIST="${EOS_UI_DIST:-$REPO/app/ui/dist}"
-[ -f "$DIST/index.html" ] || { echo "no dashboard at $DIST: run 'npm ci && npm run build' in app/ui" >&2; exit 1; }
+[ -f "$DIST/index.html" ] || { echo "no dashboard at $DIST: run rust/host/scripts/setup.sh" >&2; exit 1; }
 # The plugin builder talks to one esbuild release only (its packets are private to a release).
 ESBUILD_VERSION="$(sed -n 's/^pub const ESBUILD_VERSION: &str = "\(.*\)";/\1/p' "$REPO/rust/crates/eos-plugin-build/src/service.rs")"
 ESBUILD="${EOS_ESBUILD:-$(ls "$REPO"/infra/node_modules/@esbuild/darwin-*/bin/esbuild 2>/dev/null | head -1)}"
-[ -x "$ESBUILD" ] || { echo "no esbuild binary: run 'npm ci' in infra, or set EOS_ESBUILD" >&2; exit 1; }
+[ -x "$ESBUILD" ] || { echo "no esbuild binary: run rust/host/scripts/setup.sh, or set EOS_ESBUILD" >&2; exit 1; }
 [ "$("$ESBUILD" --version)" = "$ESBUILD_VERSION" ] || { echo "$ESBUILD is not esbuild $ESBUILD_VERSION" >&2; exit 1; }
 
 cd "$HOST_DIR"

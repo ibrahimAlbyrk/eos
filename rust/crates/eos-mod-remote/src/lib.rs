@@ -21,7 +21,7 @@ mod frames;
 mod gateway;
 mod routes;
 
-use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, Weak};
 
 use eos_contracts::{EosPairLit, PairingQr};
 use eos_core::net::relay::{Relay, RoomClaim};
@@ -80,8 +80,10 @@ pub struct ArmState {
 struct Shared {
     parts: RemoteParts,
     /// The app's router, handed over once it is built: the gateway's requests
-    /// go to the same routes the dashboard calls.
-    router: OnceLock<Arc<Router>>,
+    /// go to the same routes the dashboard calls. Weak, because the router
+    /// holds this module's routes; only an armed gateway holds it, until
+    /// `stop` disarms.
+    router: OnceLock<Weak<Router>>,
     armed: Mutex<Option<Armed>>,
 }
 
@@ -118,7 +120,7 @@ impl Shared {
             tracing::warn!("remote enabled but relay.url missing — not armed");
             return None;
         };
-        let (relay, router) = (self.parts.relay.as_ref()?, self.router.get()?);
+        let (relay, router) = (self.parts.relay.as_ref()?, self.router.get()?.upgrade()?);
         let secrets = match self.parts.store.secrets() {
             Ok(secrets) => secrets,
             Err(error) => {
@@ -137,7 +139,7 @@ impl Shared {
         });
         let gateway = Gateway::start(GatewayParts {
             room,
-            router: router.clone(),
+            router,
             kernel: self.parts.kernel.clone(),
             clock: self.parts.clock.clone(),
             ids: self.parts.ids.clone(),
@@ -182,8 +184,8 @@ impl RemoteModule {
 
     /// Hands over the app's router, once, after it was built and before the
     /// modules start. Until then nothing can be armed.
-    pub fn attach_router(&self, router: Arc<Router>) {
-        let _ = self.shared.router.set(router);
+    pub fn attach_router(&self, router: &Arc<Router>) {
+        let _ = self.shared.router.set(Arc::downgrade(router));
     }
 
     /// Arms or disarms for the configuration as it is now. Call inside the

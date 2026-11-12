@@ -296,17 +296,26 @@ impl Inner {
     }
 
     fn remove(&self, filter: &Filter, id: u64) {
-        let mut table = self.table();
-        match filter {
-            Filter::All => table.all = table.all.iter().filter(|e| e.id != id).cloned().collect(),
-            Filter::Topic(name) => {
-                let Some(list) = table.by_topic.get_mut(name.as_str()) else { return };
-                *list = list.iter().filter(|e| e.id != id).cloned().collect();
-                if list.is_empty() {
-                    table.by_topic.remove(name.as_str());
+        // The list that goes is dropped once the table is unlocked: a handler
+        // may own subscriptions of its own, and dropping them comes back here.
+        let _gone = {
+            let mut table = self.table();
+            match filter {
+                Filter::All => {
+                    let kept = table.all.iter().filter(|e| e.id != id).cloned().collect();
+                    std::mem::replace(&mut table.all, kept)
+                }
+                Filter::Topic(name) => {
+                    let Some(list) = table.by_topic.get_mut(name.as_str()) else { return };
+                    let kept: Arc<[Entry]> = list.iter().filter(|e| e.id != id).cloned().collect();
+                    let gone = std::mem::replace(list, kept);
+                    if list.is_empty() {
+                        table.by_topic.remove(name.as_str());
+                    }
+                    gone
                 }
             }
-        }
+        };
     }
 }
 

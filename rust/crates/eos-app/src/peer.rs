@@ -92,7 +92,7 @@ impl Peer {
     }
 
     /// The app's routers exist: paired computers' requests go to them.
-    pub(crate) fn attach(&self, api: Arc<Router>, raw: Arc<Router>) {
+    pub(crate) fn attach(&self, api: &Arc<Router>, raw: &Arc<Router>) {
         self.peering.serve(Arc::new(RouterApi::new(api, raw)));
     }
 }

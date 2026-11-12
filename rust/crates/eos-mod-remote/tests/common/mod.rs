@@ -182,7 +182,7 @@ impl Harness {
         let modules: Vec<Arc<dyn eos_runtime::module::Module>> =
             vec![Arc::new(Feature(routes(&script))), module.clone()];
         let runtime = Runtime::build(kernel, modules, Arc::new(AllPluginsOn)).expect("a runtime");
-        module.attach_router(runtime.router.clone());
+        module.attach_router(&runtime.router);
         Self { runtime, relay, store, script, module, clock, awake, config }
     }
 

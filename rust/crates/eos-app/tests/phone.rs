@@ -130,7 +130,7 @@ impl Mac {
             Arc::new(WorkersModule::new(temp.port(), models, clock.clone())),
         ];
         let runtime = Runtime::build(kernel, modules, Arc::new(AllPluginsOn)).expect("composes");
-        remote.attach_router(runtime.router.clone());
+        remote.attach_router(&runtime.router);
         runtime.lifecycle.start().await.expect("starts");
         // Armed: the room is registered before any phone tries to join it.
         for _ in 0..500 {

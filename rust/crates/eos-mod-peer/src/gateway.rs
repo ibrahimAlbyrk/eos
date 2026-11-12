@@ -8,7 +8,7 @@
 //! judged on the resolved path, so `/ui/../policy/decide` does not pass as
 //! `/ui/…`.
 
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use bytes::Bytes;
 use eos_core::BoxFuture;
@@ -18,10 +18,12 @@ use eos_runtime::http::{Body, BodyStream, Method, Request, normalize_path, split
 use eos_runtime::router::Router;
 
 /// The app's two routers as a paired computer reaches them: the API, and the
-/// raw-content origin for a file viewer's content.
+/// raw-content origin for a file viewer's content. Held weakly: the routers
+/// hold the peer feature's routes, which hold what serves this. Once the app
+/// is gone a request is answered as by a computer shutting down.
 pub struct RouterApi {
-    api: Arc<Router>,
-    raw: Arc<Router>,
+    api: Weak<Router>,
+    raw: Weak<Router>,
 }
 
 impl std::fmt::Debug for RouterApi {
@@ -31,17 +33,17 @@ impl std::fmt::Debug for RouterApi {
 }
 
 impl RouterApi {
-    pub fn new(api: Arc<Router>, raw: Arc<Router>) -> Self {
-        Self { api, raw }
+    pub fn new(api: &Arc<Router>, raw: &Arc<Router>) -> Self {
+        Self { api: Arc::downgrade(api), raw: Arc::downgrade(raw) }
     }
 
     /// Raw content (`/fs/raw/…`, the PDF viewer) lives on its own router.
-    fn router_for(&self, target: &str) -> &Router {
+    fn router_for(&self, target: &str) -> Option<Arc<Router>> {
         let path = normalize_path(split_target(target).0);
         if path.starts_with("/fs/raw/") || path == "/pdfjs" || path.starts_with("/pdfjs/") {
-            &self.raw
+            self.raw.upgrade()
         } else {
-            &self.api
+            self.api.upgrade()
         }
     }
 }
@@ -73,7 +75,8 @@ fn error(status: u16, message: &str) -> PeerAnswer {
 
 impl LocalApi for RouterApi {
     fn body_limit(&self, method: &str, target: &str) -> usize {
-        Method::parse(method).map_or(0, |method| self.router_for(target).body_limit(method, target))
+        let router = self.router_for(target);
+        Method::parse(method).zip(router).map_or(0, |(method, router)| router.body_limit(method, target))
     }
 
     fn call(&self, call: PeerCall) -> BoxFuture<'_, PeerAnswer> {
@@ -86,7 +89,10 @@ impl LocalApi for RouterApi {
             for (name, value) in &call.headers {
                 request = request.header(name, value);
             }
-            let response = self.router_for(&call.target).handle(request).await;
+            let Some(router) = self.router_for(&call.target) else {
+                return error(503, "shutting down");
+            };
+            let response = router.handle(request).await;
             let body = match response.body {
                 Body::Empty => AnswerBody::Whole(None),
                 Body::Bytes(bytes) => AnswerBody::Whole(Some(bytes)),

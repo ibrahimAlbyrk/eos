@@ -13,7 +13,6 @@ pub mod rules;
 mod run;
 mod service;
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::DreamChangeEvent;
@@ -25,6 +24,7 @@ use eos_runtime::jobs::JobRegistry;
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::{BoxFuture, RouteDef};
 use serde_json::Value;
+use tokio::sync::Notify;
 
 pub use run::{DreamParts, dream_over_chats};
 pub use service::Dreams;
@@ -44,7 +44,8 @@ pub struct DreamsModule {
     store: Arc<dyn eos_core::store::Store>,
     bus: Bus,
     sleeper: Arc<dyn Sleeper>,
-    stopped: Arc<AtomicBool>,
+    /// Ends the schedule's loop at once, also in the middle of its wait.
+    stop: Arc<Notify>,
     activity: Mutex<Option<Subscription>>,
 }
 
@@ -64,7 +65,7 @@ impl DreamsModule {
     ) -> Self {
         let store = parts.store.clone();
         let dreams = Dreams::new(parts, plan, bus.clone(), jobs);
-        Self { dreams, store, bus, sleeper, stopped: Arc::default(), activity: Mutex::default() }
+        Self { dreams, store, bus, sleeper, stop: Arc::default(), activity: Mutex::default() }
     }
 
     pub fn dreams(&self) -> &Dreams {
@@ -108,14 +109,13 @@ impl Module for DreamsModule {
                 });
             });
             *self.activity.lock().unwrap_or_else(PoisonError::into_inner) = Some(activity);
-            let (dreams, sleeper, stopped) = (self.dreams.clone(), self.sleeper.clone(), self.stopped.clone());
+            let (dreams, sleeper, stop) = (self.dreams.clone(), self.sleeper.clone(), self.stop.clone());
             tasks.spawn(async move {
                 loop {
-                    sleeper.sleep(TICK_MS).await;
-                    if stopped.load(Ordering::SeqCst) {
-                        return;
+                    tokio::select! {
+                        () = sleeper.sleep(TICK_MS) => dreams.tick().await,
+                        () = stop.notified() => return,
                     }
-                    dreams.tick().await;
                 }
             });
             Ok(())
@@ -124,7 +124,8 @@ impl Module for DreamsModule {
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            self.stopped.store(true, Ordering::SeqCst);
+            // A stop before the loop waits is kept until it does.
+            self.stop.notify_one();
             self.activity.lock().unwrap_or_else(PoisonError::into_inner).take();
         })
     }

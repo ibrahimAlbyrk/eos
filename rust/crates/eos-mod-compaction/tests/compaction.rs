@@ -51,6 +51,8 @@ struct Bench {
     module: CompactionModule,
     hooks: Arc<Hooks>,
     kernel: Kernel,
+    /// The session service holds the module's commands weakly.
+    _commands: Vec<Arc<dyn SlashCommand>>,
 }
 
 const SUMMARY: &str = "<analysis>x</analysis><summary>the summary</summary>";
@@ -100,11 +102,13 @@ impl Bench {
         });
         let service = module.service().clone();
         let _ = hooks.service.set(service.clone());
+        let mut commands = Vec::new();
         for declared in module.slash_commands() {
             let command = declared.command.downcast_ref::<Arc<dyn SlashCommand>>().expect("a session command");
-            sessions.register_command(command.clone());
+            sessions.register_command(command);
+            commands.push(command.clone());
         }
-        Self { sessions, agents, temp, model, service, module, hooks, kernel }
+        Self { sessions, agents, temp, model, service, module, hooks, kernel, _commands: commands }
     }
 
     fn store(&self) -> Arc<dyn Store> {

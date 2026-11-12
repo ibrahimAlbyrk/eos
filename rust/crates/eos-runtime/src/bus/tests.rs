@@ -311,3 +311,22 @@ async fn coalesces_deltas_over_real_windows() {
     tokio::time::sleep(WINDOW * 3).await;
     assert_eq!(texts.lock().expect("texts").len(), 4, "an idle window sends nothing");
 }
+
+#[test]
+fn a_handler_that_owns_subscriptions_can_be_dropped() {
+    let bus = bus();
+    // The handler is the only owner of two subscriptions: one to everything, one to a topic.
+    let inner = Mutex::new(vec![bus.on(Filter::All, |_| {}), bus.on(&OTHER, |_| {})]);
+    let outer = bus.on(&CHANGE, move |_| drop(inner.lock().map(|held| held.len())));
+    let outer_all = {
+        let held = bus.on(&CHANGE, |_| {});
+        bus.on(Filter::All, move |_| {
+            let _ = &held;
+        })
+    };
+    assert_eq!(bus.subscriber_count(), 5);
+    // Dropping each one drops its handler, and with it the subscriptions the handler held.
+    drop(outer);
+    drop(outer_all);
+    assert_eq!(bus.subscriber_count(), 0);
+}

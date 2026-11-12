@@ -65,10 +65,11 @@ eos-apply/     the update applier: swaps the staged app in while Eos is closed (
 vendor/        tauri-runtime-cef 3.0.0-alpha.7 with our patches applied
 patches/       those patches as diffs (scripts/check-patches.sh proves vendor = upstream + patches)
 bundle/        Info.plist templates, entitlements
-scripts/       env, check, bundle, sign, dev, try, the isolated daemon
+scripts/       setup, env, check, bundle, sign, dev, try, the isolated daemon
 tests/         smoke run, browser run on a local page, memory measurement, local-network
                probe, proxy-script test; guard.py stops what a killed run started
-.work/         build caches (not in git): cargo registry, CEF (~460 MB), target, bundles
+.work/         build caches (not in git): cmake and ninja (scripts/setup.sh), cargo registry,
+               CEF (~460 MB), target, bundles
 ```
 
 The portable half of the shell lives in the main workspace and is tested there without a
@@ -78,10 +79,23 @@ view ports the shell implements).
 
 ### Build, check, run
 
-Needs: Xcode command line tools, `ninja` and `cmake` on PATH (or a cmake under
-`.work/tools/`), Node for the dashboard build (`app/ui`: `npm ci && npm run build`).
+Needs: rustup's `cargo`, Xcode (`swiftc`, `codesign`), Node 23.6 or later with `npm`, `curl`.
+Everything else comes from `scripts/setup.sh`, run once on a clean checkout and again whenever
+you like (it keeps what is in place and prints what it did):
+
+- cmake and ninja, pinned releases from their GitHub release pages, checked against the SHA-256
+  in the script, under `.work/tools/` (`env.sh` puts them on `PATH`);
+- `npm ci` in `app/ui`, `infra` (the esbuild the bundle ships) and the isolated dev daemon's
+  folders (`contracts`, `core`, `infra`, `gateway`, `spawner`, `manager`), inside this
+  checkout only, where the lockfile changed since the last install;
+- the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
+
+CEF (~460 MB) is fetched by `cef-dll-sys`'s build script on the first build into `.work/cef`
+and checked against the CEF builds index's SHA-1. `bundle.sh` and `check.sh` stop with one line
+naming `scripts/setup.sh` when something it provides is missing; `try.sh build` runs it itself.
 
 ```bash
+scripts/setup.sh                  # a clean checkout → buildable (tools, node modules, dashboard)
 scripts/check.sh                  # fmt, clippy, the bridge with its dev proxy, patches, repo guards
 scripts/dev.sh                    # debug bundle against the isolated Node daemon
 scripts/bundle.sh release         # Eos.app with the five helper apps → .work/bundle/release/
@@ -93,6 +107,7 @@ python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page 
                                   # sign-in window, tab, peek (zoom, shield), reload swap, stills
 python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
+scripts/try.sh build              # setup when needed, the release bundle, signed locally
 scripts/try.sh                    # for a person: see the header of the script
 ```
 

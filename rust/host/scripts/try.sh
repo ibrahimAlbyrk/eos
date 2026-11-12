@@ -20,7 +20,8 @@
 #                     tab swaps without a blank frame, ⌘C/⌘V inside the artifact, a link in
 #                     it opens in your browser
 #   try.sh status     the running app's state as JSON
-#   try.sh build      rebuild the release bundle (after a change)
+#   try.sh build      rebuild the release bundle (after a change) and sign it; sets the
+#                     checkout up first (scripts/setup.sh) when it is not
 #   try.sh stop       quit the app and stop the isolated daemon
 #
 # claude.ai sign-in: in the app, open the side panel → Browser → claude.ai and sign in (also
@@ -34,18 +35,19 @@ source "$HERE/env.sh"
 source "$HERE/dev-env.sh"
 OUT="$EOS_DEV_OUT"
 APP="$EOS_HOST_WORK/bundle/release/Eos.app"
-build() { "$HERE/bundle.sh" release >/dev/null; }
+build() { require_setup 2>/dev/null || "$HERE/setup.sh"; "$HERE/bundle.sh" release >/dev/null; }
 signed() { codesign -dvv "$APP" 2>&1 | grep -q "^Authority=Developer ID"; }
+sign() { signed || "$HERE/sign.sh" "$APP" || echo "not signed (no Developer ID identity): running unsigned" >&2; }
 ready() {
   [ -d "$APP" ] || build
-  signed || "$HERE/sign.sh" "$APP" || echo "not signed (no Developer ID identity): running unsigned" >&2
+  sign
   "$HERE/daemon.sh" start
 }
 case "${1:-run}" in
   status) "$HERE/ctl.sh" "$APP" --status; exit 0 ;;
   stop) "$HERE/ctl.sh" "$APP" --quit || true; "$HERE/daemon.sh" stop; exit 0 ;;
   link) "$HERE/ctl.sh" "$APP" "eos://pair/try-this-is-not-a-real-invite"; exit 0 ;;
-  build) build; exit 0 ;;
+  build) build; sign; exit 0 ;;
   run) ready; "$HERE/launch.sh" "$APP" ;;
   fresh) ready; rm -rf "$OUT/data"; "$HERE/launch.sh" "$APP" ;;
   migrate)

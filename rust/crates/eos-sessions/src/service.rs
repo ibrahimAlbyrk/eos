@@ -2,7 +2,7 @@
 //! and end them, and where every session's events land.
 
 use std::collections::HashSet;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use eos_contracts::stream::topics::WORKER_EXIT;
 use eos_contracts::{AgentEvent, AgentMessageEventRole, DeltaEvent, WorkerEventType, WorkerState, WorkflowRunProgress};
@@ -118,8 +118,11 @@ pub(crate) struct Inner {
     draining: Claims,
     /// Workers being suspended or removed on purpose: their session's exit is expected.
     pub(crate) leaving: Mutex<HashSet<String>>,
-    /// The commands Eos runs itself, `/clear` first.
-    pub(crate) commands: std::sync::RwLock<Vec<Arc<dyn SlashCommand>>>,
+    /// The commands Eos runs itself, `/clear` first. Held weakly: a
+    /// feature's command holds the feature, which holds this service; the
+    /// app keeps each one for as long as it runs, and `_clear` keeps `/clear`.
+    pub(crate) commands: std::sync::RwLock<Vec<Weak<dyn SlashCommand>>>,
+    _clear: Arc<dyn SlashCommand>,
     /// What workers ask each other.
     pub(crate) peers: PeerRequests,
 }
@@ -158,22 +161,32 @@ struct ExitRow {
 impl Sessions {
     pub fn new(deps: SessionDeps) -> Self {
         let turns = Turns::new(deps.clock.clone());
-        let commands = std::sync::RwLock::new(vec![Arc::new(Clear) as Arc<dyn SlashCommand>]);
+        let clear: Arc<dyn SlashCommand> = Arc::new(Clear);
+        let commands = std::sync::RwLock::new(vec![Arc::downgrade(&clear)]);
         let peers = PeerRequests::new(deps.clock.clone(), deps.ids.clone());
-        Self(Arc::new(Inner { deps, turns, draining: Claims::default(), leaving: Mutex::default(), commands, peers }))
+        let inner = Inner {
+            deps,
+            turns,
+            draining: Claims::default(),
+            leaving: Mutex::default(),
+            commands,
+            _clear: clear,
+            peers,
+        };
+        Self(Arc::new(inner))
     }
 
-    /// Adds a command a feature owns (`/compact`, …). A later one of the same
-    /// name replaces the earlier.
-    pub fn register_command(&self, command: Arc<dyn SlashCommand>) {
+    /// Adds a command a feature owns (`/compact`, …), for as long as the
+    /// caller keeps it. A later one of the same name replaces the earlier.
+    pub fn register_command(&self, command: &Arc<dyn SlashCommand>) {
         let mut commands = self.0.commands.write().unwrap_or_else(PoisonError::into_inner);
-        commands.retain(|c| c.name() != command.name());
-        commands.push(command);
+        commands.retain(|held| held.upgrade().is_some_and(|c| c.name() != command.name()));
+        commands.push(Arc::downgrade(command));
     }
 
     /// The commands Eos runs itself, for the composer's menu.
     pub fn commands(&self) -> Vec<Arc<dyn SlashCommand>> {
-        self.0.commands.read().unwrap_or_else(PoisonError::into_inner).clone()
+        self.0.commands.read().unwrap_or_else(PoisonError::into_inner).iter().filter_map(Weak::upgrade).collect()
     }
 
     pub(crate) fn command(&self, name: &str) -> Option<Arc<dyn SlashCommand>> {

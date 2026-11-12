@@ -12,7 +12,7 @@ use eos_auth::{
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
-use eos_core::accounts::{Browser, PlanAccess, SessionCredentials};
+use eos_core::accounts::{Browser, PlanAccess, SessionAccountSwitch, SessionCredentials};
 use eos_core::browser::{BrowserTools, ElementPicker};
 use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
@@ -50,7 +50,10 @@ use eos_update::legacy::{Launchctl, Launchd};
 use eos_workers::WorkerDefinitions;
 
 use crate::Error;
-use crate::agent::{self, AgentOptions, AppHooks, AppPrompts, FixedCredential, LateTools, Leftovers, NoLiveSessions};
+use crate::agent::{
+    self, AgentOptions, AppHooks, AppPrompts, EngineAccountSwitch, FixedCredential, LateTools, Leftovers,
+    NoLiveSessions,
+};
 use crate::announce::BusAnnouncer;
 use crate::boot;
 use crate::callers::Callers;
@@ -210,6 +213,8 @@ pub struct App {
     remote: Arc<eos_mod_remote::RemoteModule>,
     /// The dashboard's row patches, from start to shutdown.
     patches: std::sync::Mutex<Option<StatePatcher>>,
+    /// Eos's agent tools: the engine holds them weakly, the app keeps them.
+    _tools: Arc<dyn eos_core::agent::ToolSets>,
 }
 
 impl std::fmt::Debug for App {
@@ -394,7 +399,8 @@ impl App {
                 runtime.clone()
             }
             None => {
-                accounts.attach_sessions(engine.clone());
+                let switch: Arc<dyn SessionAccountSwitch> = engine.clone();
+                accounts.attach_sessions(Arc::new(EngineAccountSwitch(Arc::downgrade(&switch))));
                 engine.clone()
             }
         };
@@ -512,23 +518,24 @@ impl App {
             })),
         };
         let remote = context.remote.clone();
-        let mut all = modules::all(&context)?;
+        let features = modules::all(&context)?;
+        let mut all = features.modules;
         all.extend(extra_modules);
         let runtime = Arc::new(Runtime::build(kernel, all, plugins.switch())?);
         hooks.attach(&runtime);
         // The phone's requests go to the same routes the dashboard calls.
-        remote.attach_router(runtime.router.clone());
+        remote.attach_router(&runtime.router);
         // The commands features run themselves (`/compact`, …), beside the session service's own.
         for declared in &runtime.slash_commands {
             match declared.command.downcast_ref::<Arc<dyn SlashCommand>>() {
-                Some(command) => sessions.register_command(command.clone()),
+                Some(command) => sessions.register_command(command),
                 None => tracing::error!(name = declared.name, "a module's slash command is not a session command"),
             }
         }
         context.raw_routes.add(context.peer.raw_routes());
         let raw_router = Arc::new(Router::builder().routes(context.raw_routes.take()).build()?);
         // A paired computer's requests are answered by these two routers.
-        context.peer.attach(runtime.router.clone(), raw_router.clone());
+        context.peer.attach(&runtime.router, &raw_router);
         let peering = context.peer.lifecycle();
         if let Some((backup, dir)) = snapshot {
             // Thousands of small files: after the app is up, off the start-up path.
@@ -568,6 +575,7 @@ impl App {
             browser,
             remote,
             patches: std::sync::Mutex::new(None),
+            _tools: features.tools,
         })
     }
 

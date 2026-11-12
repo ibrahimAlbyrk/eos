@@ -67,6 +67,8 @@ impl Module for OtherFeatures {
 struct Computer {
     home: Arc<TempHome>,
     runtime: Arc<Runtime>,
+    /// Held here: the peering holds the routers weakly.
+    _raw: Arc<Router>,
     peering: Arc<Peering>,
     config: Arc<ConfigFile>,
     id: String,
@@ -134,11 +136,12 @@ async fn computer(setup: Setup) -> Computer {
     let runtime = Arc::new(
         Runtime::build(kernel, vec![module, Arc::new(OtherFeatures)], Arc::new(AllPluginsOn)).expect("the app builds"),
     );
-    peering.serve(Arc::new(RouterApi::new(runtime.router.clone(), Arc::new(raw))));
+    let raw = Arc::new(raw);
+    peering.serve(Arc::new(RouterApi::new(&runtime.router, &raw)));
     runtime.lifecycle.start().await.expect("starts");
     runtime.lifecycle.ready().await.expect("ready");
     let id = peering.fingerprint().to_owned();
-    Computer { home, runtime, peering, config, id }
+    Computer { home, runtime, _raw: raw, peering, config, id }
 }
 
 impl Computer {

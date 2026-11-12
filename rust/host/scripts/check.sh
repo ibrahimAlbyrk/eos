@@ -3,6 +3,7 @@
 # problem. The main workspace's scripts/check.sh covers the rest and never builds CEF.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
+require_setup
 cd "$HOST_DIR"
 
 # The vendored runtime and the helper keep upstream's formatting: only our crates.

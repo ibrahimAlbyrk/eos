@@ -88,19 +88,37 @@ pub(crate) fn engine(dir: &Path, options: &AgentOptions, deps: EngineDeps) -> Ar
 
 /// Eos's own tools. The engine is built before the features its tools
 /// call, so the registry is attached once they exist; a session started
-/// before that (none is) would get no tool of Eos's.
+/// before that (none is) would get no tool of Eos's. Held weakly: the tools
+/// reach the sessions, which hold the engine; the app keeps the registry.
 #[derive(Default)]
-pub(crate) struct LateTools(OnceLock<Arc<dyn ToolSets>>);
+pub(crate) struct LateTools(OnceLock<Weak<dyn ToolSets>>);
 
 impl LateTools {
-    pub(crate) fn attach(&self, tools: Arc<dyn ToolSets>) {
-        let _ = self.0.set(tools);
+    pub(crate) fn attach(&self, tools: &Arc<dyn ToolSets>) {
+        let _ = self.0.set(Arc::downgrade(tools));
     }
 }
 
 impl ToolSets for LateTools {
     fn for_session(&self, spec: &LaunchSpec) -> Vec<Arc<dyn HostTool>> {
-        self.0.get().map(|tools| tools.for_session(spec)).unwrap_or_default()
+        self.0.get().and_then(Weak::upgrade).map(|tools| tools.for_session(spec)).unwrap_or_default()
+    }
+}
+
+/// The engine's side of an account move, held weakly by the accounts
+/// feature: the engine asks the accounts for every session's credential.
+pub(crate) struct EngineAccountSwitch(pub(crate) Weak<dyn SessionAccountSwitch>);
+
+impl SessionAccountSwitch for EngineAccountSwitch {
+    fn move_session<'a>(
+        &'a self,
+        worker_id: &'a str,
+        credential: SessionCredential,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        match self.0.upgrade() {
+            Some(engine) => Box::pin(async move { engine.move_session(worker_id, credential).await }),
+            None => NoLiveSessions.move_session(worker_id, credential),
+        }
     }
 }
 

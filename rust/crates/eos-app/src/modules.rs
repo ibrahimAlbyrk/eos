@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use eos_accounts::Accounts;
 use eos_contracts::UiConfigResponseFeatures;
-use eos_core::agent::{BackendCatalog, ModelCatalog, OneShot, ScratchFolders, WorkflowRunFiles};
+use eos_core::agent::{BackendCatalog, ModelCatalog, OneShot, ScratchFolders, ToolSets, WorkflowRunFiles};
 use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::shell::Location;
@@ -101,9 +101,17 @@ pub(crate) struct Terminal {
     pub(crate) default_cwd: String,
 }
 
-/// The modules, in start order (stop order is the reverse). A feature crate
-/// adds its line here, in alphabetical order; nothing else in the app changes.
-pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
+/// What the app is made of besides the kernel.
+pub(crate) struct Features {
+    /// In start order (stop order is the reverse).
+    pub(crate) modules: Vec<Arc<dyn Module>>,
+    /// Eos's agent tools, which the engine holds weakly.
+    pub(crate) tools: Arc<dyn ToolSets>,
+}
+
+/// The modules and the agent tools over them. A feature crate adds its line
+/// here, in alphabetical order; nothing else in the app changes.
+pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     // The features the agent tools call are built first: the tools hold them.
     let agents = Arc::new(
         eos_mod_agents::AgentsModule::new(
@@ -156,7 +164,8 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         location: cx.location.clone(),
     }));
     let transfer = crate::machines::transfer(cx);
-    cx.tools.attach(crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer)?);
+    let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer)?;
+    cx.tools.attach(&tools);
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
@@ -282,5 +291,5 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);
-    Ok(modules)
+    Ok(Features { modules, tools })
 }
