@@ -33,6 +33,25 @@ pub fn js_trim_start(s: &str) -> &str {
     s.trim_start_matches(is_js_space)
 }
 
+/// The first line of `text` that says something, trimmed and cut to `max`
+/// UTF-16 units with an ellipsis; `None` when no line does.
+pub fn first_line(text: Option<&str>, max: usize) -> Option<String> {
+    let line = text?.split('\n').map(js_trim).find(|line| !line.is_empty())?;
+    if line.encode_utf16().count() <= max {
+        return Some(line.to_owned());
+    }
+    let mut used = 0;
+    let mut cut: String = line
+        .chars()
+        .take_while(|c| {
+            used += c.len_utf16();
+            used < max
+        })
+        .collect();
+    cut.push('…');
+    Some(cut)
+}
+
 /// `s.replace(/\s+/g, " ")`.
 pub fn collapse_spaces(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -129,6 +148,14 @@ pub fn natural_compare(a: &str, b: &str) -> Ordering {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_first_line_that_says_something_is_trimmed_and_cut() {
+        assert_eq!(super::first_line(Some("\n  found 3 issues  \nmore"), 160).as_deref(), Some("found 3 issues"));
+        assert_eq!(super::first_line(Some(&"x".repeat(200)), 160).map(|l| l.chars().count()), Some(160));
+        assert_eq!(super::first_line(Some("  \n"), 160), None);
+        assert_eq!(super::first_line(None, 160), None);
+    }
+
     use super::*;
 
     #[test]

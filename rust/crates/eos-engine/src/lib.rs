@@ -24,8 +24,10 @@ mod registry;
 mod session;
 mod tools;
 mod transcript;
+mod workflow_files;
 
 pub use engine::{Engine, EngineDeps, EngineOptions, LazyEngine};
+pub use workflow_files::WorkflowFiles;
 
 /// The engine's scripted stand-in for the model API (tests only).
 #[cfg(feature = "mock-api")]

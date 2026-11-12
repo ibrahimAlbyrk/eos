@@ -7,8 +7,8 @@ use eos_contracts::UserSettings;
 use eos_contracts::{AllowVariant, CatalogModel, DenyVariant, ExternalDecision, UnknownRecord};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 use eos_core::agent::{
-    HostTool, LaunchSpec, ModelCatalog, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition,
-    ToolReply, ToolSets, UserQuestions,
+    HostTool, LaunchSpec, ModelCatalog, OneShot, OneShotAnswer, OneShotError, OneShotRequest, PromptAssembler,
+    ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolReply, ToolSets, UserQuestions,
 };
 use eos_core::git::{WorktreeCreate, WorktreeCreated, WorktreeEntry, WorktreeManager, WorktreeRef, WorktreeRemoved};
 use eos_core::policy::{PolicyDecider, ToolCall};
@@ -269,5 +269,69 @@ impl PromptAssembler for FakePrompts {
     fn system_prompt(&self, facts: &SpawnFacts) -> Option<String> {
         self.0.lock().expect("facts").push(facts.clone());
         Some(format!("PROMPT FOR {}", facts.worker_id))
+    }
+}
+
+/// A model that answers one-shot requests from a script and keeps what it
+/// was asked. A request with no scripted answer left fails.
+#[derive(Debug, Default)]
+pub struct ScriptedOneShot {
+    answers: Mutex<VecDeque<Result<OneShotAnswer, OneShotError>>>,
+    pub asked: Mutex<Vec<OneShotRequest>>,
+    count: tokio::sync::watch::Sender<usize>,
+    gate: Mutex<Option<Arc<tokio::sync::Notify>>>,
+}
+
+impl ScriptedOneShot {
+    /// The next request answers with this text.
+    pub fn text(&self, text: &str) -> &Self {
+        self.push(Ok(OneShotAnswer { text: text.to_owned(), structured: None }))
+    }
+
+    /// The next request answers with this data.
+    pub fn data(&self, data: serde_json::Value) -> &Self {
+        self.push(Ok(OneShotAnswer { text: String::new(), structured: Some(data) }))
+    }
+
+    /// The next request fails.
+    pub fn fail(&self, error: OneShotError) -> &Self {
+        self.push(Err(error))
+    }
+
+    fn push(&self, answer: Result<OneShotAnswer, OneShotError>) -> &Self {
+        self.answers.lock().expect("answers").push_back(answer);
+        self
+    }
+
+    /// Every request from now on waits until the returned gate is notified
+    /// (once per request).
+    pub fn hold(&self) -> Arc<tokio::sync::Notify> {
+        let gate = Arc::new(tokio::sync::Notify::new());
+        *self.gate.lock().expect("gate") = Some(gate.clone());
+        gate
+    }
+
+    pub fn asked(&self) -> Vec<OneShotRequest> {
+        self.asked.lock().expect("asked").clone()
+    }
+
+    /// Resolves once `n` requests were made.
+    pub async fn until_asked(&self, n: usize) {
+        let _ = self.count.subscribe().wait_for(|count| *count >= n).await;
+    }
+}
+
+impl OneShot for ScriptedOneShot {
+    fn complete(&self, request: OneShotRequest) -> BoxFuture<'_, Result<OneShotAnswer, OneShotError>> {
+        self.asked.lock().expect("asked").push(request);
+        self.count.send_modify(|n| *n += 1);
+        let gate = self.gate.lock().expect("gate").clone();
+        Box::pin(async move {
+            if let Some(gate) = gate {
+                gate.notified().await;
+            }
+            let next = self.answers.lock().expect("answers").pop_front();
+            next.unwrap_or_else(|| Err(OneShotError::Failed("no scripted answer".into())))
+        })
     }
 }

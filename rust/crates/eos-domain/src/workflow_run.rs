@@ -149,6 +149,92 @@ pub fn settle_workflow_snapshot(mut snapshot: WorkflowRunSnapshot, end: RunEnd) 
     snapshot
 }
 
+/// A run's record (`<session>/workflows/<runId>.json`), as far as a view uses it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorkflowRecord {
+    /// `(title, detail)` of each phase the script planned, in order.
+    pub phases: Vec<(String, Option<String>)>,
+    pub logs: Vec<String>,
+    /// The run's progress rows as the record kept them.
+    pub progress: Value,
+}
+
+/// Reads a record's JSON text; `None` when it is not a JSON object.
+pub fn parse_workflow_record(json: &str) -> Option<WorkflowRecord> {
+    let record: Value = serde_json::from_str(json).ok()?;
+    let record = record.as_object()?;
+    let list = |key: &str| record.get(key).and_then(Value::as_array).map(Vec::as_slice).unwrap_or_default();
+    let phases = list("phases")
+        .iter()
+        .filter(|p| p.is_object())
+        .map(|p| (text(p.get("title")).unwrap_or_default(), text(p.get("detail"))))
+        .collect();
+    let logs = list("logs").iter().filter_map(|l| l.as_str().map(str::to_owned)).collect();
+    Some(WorkflowRecord { phases, logs, progress: record.get("workflowProgress").cloned().unwrap_or(Value::Null) })
+}
+
+/// The snapshot with what only the record knows: each phase's detail and the
+/// script's logs. The record's own progress fills in a run nothing was
+/// reported about (a reload after the app lost its memory of it).
+pub fn with_workflow_record(snapshot: &WorkflowRunSnapshot, record: &WorkflowRecord) -> WorkflowRunSnapshot {
+    let base =
+        if snapshot.agents.is_empty() { apply_workflow_progress(snapshot, &record.progress) } else { snapshot.clone() };
+    let mut phases: BTreeMap<i64, WorkflowPhase> = base.phases.iter().map(|p| (p.index, p.clone())).collect();
+    for (i, (planned, detail)) in record.phases.iter().enumerate() {
+        let index = i as i64 + 1;
+        let current = phases.get(&index);
+        let title = current.map_or_else(|| planned.clone(), |p| p.title.clone());
+        if !title.is_empty() {
+            let detail = detail.clone().or_else(|| current.and_then(|p| p.detail.clone()));
+            phases.insert(index, WorkflowPhase { index, title, detail });
+        }
+    }
+    WorkflowRunSnapshot {
+        phases: phases.into_values().collect(),
+        agents: base.agents,
+        logs: if base.logs.is_empty() { record.logs.clone() } else { base.logs },
+    }
+}
+
+/// The session folder, the separator and the run id of a run's transcript
+/// folder (`<session>/subagents/workflows/<runId>`): an absolute path on
+/// macOS (`/…`) or Windows (`C:\…`, `\\server\…`) with no `..` in it.
+fn parse_transcript_dir(dir: &str) -> Option<(&str, char, &str)> {
+    let bytes = dir.as_bytes();
+    let drive =
+        bytes.len() > 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':' && matches!(bytes[2], b'\\' | b'/');
+    let root = if dir.starts_with('/') {
+        1
+    } else if drive {
+        3
+    } else if dir.starts_with("\\\\") {
+        2
+    } else {
+        return None;
+    };
+    let sep = if dir.starts_with('/') { '/' } else { '\\' };
+    let (rest, run_id) = dir.rsplit_once(sep)?;
+    let id = run_id.strip_prefix("wf_")?;
+    if id.is_empty() || !id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-') {
+        return None;
+    }
+    let session = rest.strip_suffix("workflows")?.strip_suffix(sep)?.strip_suffix("subagents")?.strip_suffix(sep)?;
+    (session.len() > root && !session.split(['/', '\\']).any(|part| part == "..")).then_some((session, sep, run_id))
+}
+
+/// The record's path for a run's transcript folder; `None` when the folder is not one.
+pub fn workflow_record_path(transcript_dir: &str) -> Option<String> {
+    let (session, sep, run_id) = parse_transcript_dir(transcript_dir)?;
+    Some(format!("{session}{sep}workflows{sep}{run_id}.json"))
+}
+
+/// One agent's transcript inside a run's transcript folder, as Claude Code
+/// wrote them. The caller checks `agent_id`.
+pub fn workflow_agent_transcript_path(transcript_dir: &str, agent_id: &str) -> Option<String> {
+    let (_, sep, _) = parse_transcript_dir(transcript_dir)?;
+    Some(format!("{transcript_dir}{sep}agent-{agent_id}.jsonl"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -205,5 +291,75 @@ mod tests {
         assert_eq!(states(&settle_workflow_snapshot(running.clone(), RunEnd::Completed)), [done, done, done]);
         assert_eq!(states(&settle_workflow_snapshot(running.clone(), RunEnd::Stopped)), [done, cancelled, cancelled]);
         assert_eq!(states(&settle_workflow_snapshot(running, RunEnd::Failed)), [done, cancelled, cancelled]);
+    }
+
+    fn phase(index: i64, title: &str) -> Value {
+        json!({"type": "workflow_phase", "index": index, "title": title})
+    }
+
+    fn done_agent() -> Value {
+        json!({"type": "workflow_agent", "index": 1, "label": "contracts", "phaseIndex": 1, "agentId": "a543b520564afb462",
+               "state": "done", "startedAt": 1_791_493_056_944_i64, "tokens": 361_652, "durationMs": 2_027_306})
+    }
+
+    fn record() -> String {
+        json!({
+            "runId": "wf_5dc20956-fb7", "status": "completed",
+            "phases": [{"title": "Contracts", "detail": "the shared interface"}, {"title": "Build", "detail": "7 specialists"}],
+            "logs": ["Contracts: done — 25 files"],
+            "workflowProgress": [phase(1, "Contracts"), phase(2, "Build"), done_agent()],
+        })
+        .to_string()
+    }
+
+    #[test]
+    fn a_record_adds_phase_details_and_logs_and_rebuilds_an_unknown_run() {
+        let queued =
+            json!({"type": "workflow_agent", "index": 2, "label": "agent-plane", "phaseIndex": 2, "state": "start"});
+        let live = apply_workflow_progress(
+            &empty_snapshot(),
+            &json!([phase(1, "Contracts"), phase(2, "Build"), done_agent(), queued]),
+        );
+        let parsed = parse_workflow_record(&record()).expect("a record");
+        let merged = with_workflow_record(&live, &parsed);
+        let details: Vec<_> = merged.phases.iter().map(|p| p.detail.as_deref()).collect();
+        assert_eq!(details, [Some("the shared interface"), Some("7 specialists")]);
+        assert_eq!(merged.logs, ["Contracts: done — 25 files"]);
+        assert_eq!(merged.agents.len(), 2, "the live agents win over the record's");
+
+        let alone = with_workflow_record(&empty_snapshot(), &parsed);
+        assert_eq!((alone.agents.len(), alone.phases[1].title.as_str()), (1, "Build"));
+        assert_eq!(parse_workflow_record("nope"), None);
+        assert_eq!(parse_workflow_record("[1]"), None);
+    }
+
+    #[test]
+    fn the_record_and_agent_paths_come_only_from_a_real_transcript_folder() {
+        let dir = "/Users/u/.claude/projects/-p/3cad/subagents/workflows/wf_5dc20956-fb7";
+        assert_eq!(
+            workflow_record_path(dir).as_deref(),
+            Some("/Users/u/.claude/projects/-p/3cad/workflows/wf_5dc20956-fb7.json")
+        );
+        assert_eq!(
+            workflow_agent_transcript_path(dir, "a543b520564afb462"),
+            Some(format!("{dir}/agent-a543b520564afb462.jsonl"))
+        );
+        let win = "C:\\Users\\u\\.claude\\projects\\C--p\\3cad\\subagents\\workflows\\wf_1";
+        assert_eq!(
+            workflow_record_path(win).as_deref(),
+            Some("C:\\Users\\u\\.claude\\projects\\C--p\\3cad\\workflows\\wf_1.json")
+        );
+        assert_eq!(workflow_agent_transcript_path(win, "a1"), Some(format!("{win}\\agent-a1.jsonl")));
+        for bad in [
+            "relative/subagents/workflows/wf_1",
+            "/x/subagents/workflows/../wf_1",
+            "/x/../y/subagents/workflows/wf_1",
+            "/x/workflows/wf_1",
+            "/x/subagents/workflows/wf_1/",
+            "C:\\x\\..\\y\\subagents\\workflows\\wf_1",
+            "x\\subagents\\workflows\\wf_1",
+        ] {
+            assert_eq!(workflow_record_path(bad), None, "{bad}");
+        }
     }
 }

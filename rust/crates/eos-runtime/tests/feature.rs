@@ -90,7 +90,7 @@ impl Module for Notes {
         vec!["note-export"]
     }
     fn idle_hooks(&self) -> Vec<IdleHook> {
-        vec![IdleHook::new("notes-nudge", 50, |_| false)]
+        vec![IdleHook::new("notes-nudge", 50, |_| std::future::ready(false))]
     }
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         Box::pin(async { Ok(()) })

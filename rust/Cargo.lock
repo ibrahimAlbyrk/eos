@@ -1263,7 +1263,12 @@ dependencies = [
  "eos-kit-proc",
  "eos-kit-sqlite",
  "eos-mod-accounts",
+ "eos-mod-agent-jobs",
  "eos-mod-agents",
+ "eos-mod-auto-name",
+ "eos-mod-btw",
+ "eos-mod-compaction",
+ "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
  "eos-mod-pages",
@@ -1281,6 +1286,7 @@ dependencies = [
  "eos-mod-updates",
  "eos-mod-worker-definitions",
  "eos-mod-workers",
+ "eos-mod-workflow-runs",
  "eos-platform",
  "eos-plugin-build",
  "eos-plugin-files",
@@ -1572,6 +1578,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-agent-jobs"
+version = "0.0.1"
+dependencies = [
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "eos-mod-agents"
 version = "0.0.1"
 dependencies = [
@@ -1591,6 +1610,72 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "eos-mod-auto-name"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-btw"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-compaction"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-store-files",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-dreams"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "regress",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "unicode-normalization",
 ]
 
 [[package]]
@@ -1894,6 +1979,20 @@ dependencies = [
  "eos-runtime",
  "eos-testkit",
  "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "eos-mod-workflow-runs"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-testkit",
  "serde_json",
  "tokio",
 ]

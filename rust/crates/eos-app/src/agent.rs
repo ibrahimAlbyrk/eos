@@ -12,11 +12,13 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
 use eos_contracts::stream::topics::{AGENT_DELTA, PENDING_CREATED};
-use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole};
+use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole, WorkflowRunProgress};
 use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
-use eos_core::agent::{HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets};
+use eos_core::agent::{
+    BackgroundTaskUpdate, HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
+};
 use eos_core::git::WorktreeManager;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::store::Store;
@@ -312,8 +314,11 @@ impl SessionHooks for AppHooks {
     }
 
     fn idle(&self, worker_id: &str) {
-        if let Some(runtime) = self.runtime() {
-            runtime.idle.run(worker_id);
+        // The hooks read the database before they decide, so they run in a
+        // task of their own; the worker's state is what tells them it moved on.
+        if let (Some(runtime), Ok(tasks)) = (self.runtime(), Handle::try_current()) {
+            let id = worker_id.to_owned();
+            tasks.spawn(async move { runtime.idle.run(&id).await });
         }
     }
 
@@ -324,6 +329,18 @@ impl SessionHooks for AppHooks {
     fn tool_input(&self, worker_id: &str, delta: ToolInputDelta) {
         if let Some(runtime) = self.runtime() {
             runtime.modules.on_tool_input_delta(worker_id, &delta.name, &delta);
+        }
+    }
+
+    fn workflow_progress(&self, progress: WorkflowRunProgress) {
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.on_workflow_progress(&progress);
+        }
+    }
+
+    fn background_task(&self, worker_id: &str, update: BackgroundTaskUpdate) {
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.on_background_task(worker_id, &update);
         }
     }
 

@@ -6,7 +6,7 @@ use std::sync::Arc;
 use eos_agent_compat::ClaudePaths;
 use eos_agent_core::{Extensions, TranscriptStore};
 use eos_agent_engine::JsonlStore;
-use eos_agent_sdk::{AgentOptions, Sdk, SystemPromptOverride};
+use eos_agent_sdk::{AgentOptions, CompleteRequest, Sdk, SystemPromptOverride};
 use eos_contracts::tool_scope::disallowed_builtin_tools_for;
 use eos_contracts::{
     AgentEvent, SessionEvent, SessionEventPhase, UiBackendDescriptor, UiBackendDescriptorBilling,
@@ -15,7 +15,7 @@ use eos_contracts::{
 use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendCatalog, BackendDescriptor, LaunchSpec,
-    ModelSource, SessionSink, ToolSets, UserQuestions,
+    ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink, ToolSets, UserQuestions,
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
@@ -344,6 +344,38 @@ impl AgentRuntime for Engine {
     }
 }
 
+impl OneShot for Engine {
+    fn complete(&self, request: OneShotRequest) -> BoxFuture<'_, Result<OneShotAnswer, OneShotError>> {
+        Box::pin(async move {
+            let shared = &self.0.shared;
+            // What a new session would run on: a plan sign-in, else the key.
+            let credential = shared.credentials.for_new_session(PROVIDER).await.ok_or(OneShotError::NoCredential)?;
+            let OneShotRequest { model, system, prompt, schema, effort, timeout } = request;
+            let mut ask = CompleteRequest::new(prompt).auth(shared.accounts.of(&credential));
+            ask.model = model;
+            ask.system = system;
+            ask.effort = effort;
+            let structured = schema.is_some();
+            ask.schema = schema;
+            let answered = match timeout {
+                Some(limit) => tokio::time::timeout(limit, self.0.sdk.complete(ask))
+                    .await
+                    .map_err(|_| OneShotError::TimedOut(limit))?,
+                None => self.0.sdk.complete(ask).await,
+            };
+            let answered = answered.map_err(|e| OneShotError::Failed(e.to_string()))?;
+            let data = match answered.structured {
+                Some(raw) => Some(serde_json::from_str(raw.get()).map_err(|e| OneShotError::Failed(e.to_string()))?),
+                None if structured => {
+                    return Err(OneShotError::Failed("the model returned no structured output".into()));
+                }
+                None => None,
+            };
+            Ok(OneShotAnswer { text: answered.text, structured: data })
+        })
+    }
+}
+
 impl BackendCatalog for Engine {
     fn descriptors(&self) -> Vec<UiBackendDescriptor> {
         vec![self.0.descriptor.to_ui()]
@@ -426,6 +458,15 @@ impl AgentRuntime for LazyEngine {
             if let Ok(engine) = self.engine().await {
                 engine.forget(worker_id).await;
             }
+        })
+    }
+}
+
+impl OneShot for LazyEngine {
+    fn complete(&self, request: OneShotRequest) -> BoxFuture<'_, Result<OneShotAnswer, OneShotError>> {
+        Box::pin(async move {
+            let engine = self.engine().await.map_err(|e| OneShotError::Failed(e.to_string()))?;
+            engine.complete(request).await
         })
     }
 }

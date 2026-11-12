@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use eos_accounts::Accounts;
 use eos_contracts::UiConfigResponseFeatures;
-use eos_core::agent::{BackendCatalog, ModelCatalog, ScratchFolders};
+use eos_core::agent::{BackendCatalog, ModelCatalog, OneShot, ScratchFolders, WorkflowRunFiles};
 use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::shell::Location;
@@ -37,6 +37,10 @@ pub(crate) struct Context {
     pub(crate) config: Arc<dyn ConfigSource>,
     pub(crate) models: Arc<dyn ModelCatalog>,
     pub(crate) backends: Arc<dyn BackendCatalog>,
+    /// The model, asked once outside any conversation (summaries, titles, dreams).
+    pub(crate) one_shot: Arc<dyn OneShot>,
+    /// The workflow run records and agent conversations the engine keeps.
+    pub(crate) workflow_files: Arc<dyn WorkflowRunFiles>,
     pub(crate) sessions: eos_sessions::Sessions,
     pub(crate) projects: Arc<dyn ProjectStore>,
     /// How a project folder is named between computers.
@@ -128,7 +132,50 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
+        Arc::new(eos_mod_agent_jobs::AgentJobsModule::new(cx.kernel.jobs.clone(), Arc::new(cx.sessions.clone()))),
         agents,
+        Arc::new(eos_mod_auto_name::AutoNameModule::new(
+            eos_mod_auto_name::RunnerParts {
+                bus: cx.bus.clone(),
+                one_shot: cx.one_shot.clone(),
+                prompts: cx.prompts.clone(),
+                config: cx.config.clone(),
+                plugins: cx.plugins.switch(),
+                clock: cx.clock.clone(),
+                sleeper: Arc::new(eos_accounts::TokioSleeper),
+            },
+            cx.store.clone(),
+        )),
+        Arc::new(eos_mod_btw::BtwModule::new(cx.store.clone(), Arc::new(cx.sessions.clone()))),
+        Arc::new(eos_mod_compaction::CompactionModule::new(eos_mod_compaction::Parts {
+            store: cx.store.clone(),
+            sessions: Arc::new(cx.sessions.clone()),
+            config: cx.config.clone(),
+            models: cx.models.clone(),
+            summarizer: cx.one_shot.clone(),
+            prompts: cx.prompts.clone(),
+            clock: cx.clock.clone(),
+            jobs: cx.kernel.jobs.clone(),
+        })),
+        Arc::new(eos_mod_dreams::DreamsModule::new(
+            eos_mod_dreams::DreamParts {
+                store: cx.store.clone(),
+                one_shot: cx.one_shot.clone(),
+                prompts: cx.prompts.clone(),
+                memories: profile.memory_reader(),
+                suggestions: profile.suggestion_sink(),
+                profile: profile.profile_reader(),
+                profile_text: cx.profile_prompt.clone(),
+                config: cx.config.clone(),
+                clock: cx.clock.clone(),
+                ids: cx.ids.clone(),
+                zone: Arc::new(crate::host::HostTimeZone),
+            },
+            cx.accounts.clone(),
+            cx.bus.clone(),
+            cx.kernel.jobs.clone(),
+            Arc::new(eos_accounts::TokioSleeper),
+        )),
         crate::files::module(cx),
         genui,
         pages,
@@ -177,6 +224,15 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())
                 .with_open_questions(Arc::new(cx.questions.clone())),
         ),
+        Arc::new(eos_mod_workflow_runs::WorkflowRunsModule::new(eos_mod_workflow_runs::Parts {
+            store: cx.store.clone(),
+            sessions: Arc::new(cx.sessions.clone()),
+            files: cx.workflow_files.clone(),
+            bus: cx.bus.clone(),
+            jobs: cx.kernel.jobs.clone(),
+            clock: cx.clock.clone(),
+            sleeper: Arc::new(eos_accounts::TokioSleeper),
+        })),
     ];
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();

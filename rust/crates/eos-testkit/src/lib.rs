@@ -22,7 +22,8 @@
 //!   the terminal ports — terminals and commands the test speaks for.
 //!
 //! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`],
-//! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]);
+//! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]); [`ScriptedOneShot`] answers
+//! one-shot model requests from a script;
 //! [`FakeWatcher`] stands in for the folder watcher and the git watcher.
 //! The accounts area's fakes are in `accounts` ([`FakePlanStores`], [`FakeSubscriptionProvider`], …).
 //! [`plugins`] holds the fakes of the plugin ports. The update ports: [`FakeUpdateFeed`],
@@ -67,7 +68,7 @@ pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
 pub use fakes::{
     EchoTool, FakeCredentials, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch, FakeSettings,
-    FakeToolSets, FakeUser, FakeWorktrees,
+    FakeToolSets, FakeUser, FakeWorktrees, ScriptedOneShot,
 };
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use genui::{FakeGeocoder, FakeLocation, FakeMap, FakeMedia, FakePlaceSearch};

@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
-use eos_contracts::AgentEvent;
-use eos_core::agent::ToolInputDelta;
+use eos_contracts::{AgentEvent, WorkflowRunProgress};
+use eos_core::agent::{BackgroundTaskUpdate, ToolInputDelta};
 
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
@@ -163,6 +163,13 @@ pub trait Module: Send + Sync + 'static {
 
     /// Every event an agent's session emits, before it is processed and logged.
     fn on_agent_event(&self, _worker_id: &str, _event: &AgentEvent) {}
+
+    /// A running workflow's latest snapshot. Never logged; must not block.
+    fn on_workflow_progress(&self, _progress: &WorkflowRunProgress) {}
+
+    /// A background command or monitor of a session's own agent moved on.
+    /// Never logged; must not block.
+    fn on_background_task(&self, _worker_id: &str, _update: &BackgroundTaskUpdate) {}
 
     /// A session (a root worker and its subtree) was killed, archived or purged.
     fn on_session_ended(&self, _session_key: &str) {}
@@ -369,6 +376,20 @@ impl Modules {
     pub fn on_tool_input_delta(&self, worker_id: &str, tool: &str, delta: &ToolInputDelta) {
         for module in self.list.iter().filter(|m| m.follows_tool_input(tool)) {
             Self::guarded(module.as_ref(), "on_tool_input_delta", || module.on_tool_input_delta(worker_id, delta));
+        }
+    }
+
+    pub fn on_workflow_progress(&self, progress: &WorkflowRunProgress) {
+        for module in self.list.iter() {
+            if module.plugin().is_none_or(|plugin| self.plugins.is_on(plugin)) {
+                Self::guarded(module.as_ref(), "on_workflow_progress", || module.on_workflow_progress(progress));
+            }
+        }
+    }
+
+    pub fn on_background_task(&self, worker_id: &str, update: &BackgroundTaskUpdate) {
+        for module in self.list.iter() {
+            Self::guarded(module.as_ref(), "on_background_task", || module.on_background_task(worker_id, update));
         }
     }
 

@@ -399,3 +399,33 @@ async fn a_worker_has_one_session_at_a_time() {
     assert!(matches!(again, Some(Error::Conflict(_))), "{again:?}");
     assert_eq!(bench.engine.live(), 1);
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn one_request_outside_any_conversation_answers_text_or_data_on_a_new_sessions_credential() {
+    use eos_core::agent::{OneShot, OneShotError, OneShotRequest};
+
+    let bench = Bench::new([
+        Reply::text("a summary"),
+        Reply::tool_use("t1", "StructuredOutput", r#"{"title":"Fix the parser"}"#),
+        Reply::text("late").slowed(Duration::from_millis(400)),
+    ])
+    .await;
+    let asked = OneShotRequest::new("condense this").system("You summarize.").model(Some("mock-model"));
+    let answer = bench.engine.complete(asked).await.expect("answers");
+    assert_eq!((answer.text.as_str(), answer.structured), ("a summary", None));
+    let request = &bench.mock.requests()[0];
+    assert_eq!(key_of(request).as_deref(), Some("k-first"));
+    let sent = request.json();
+    assert!(sent["system"].to_string().contains("You summarize."), "{}", sent["system"]);
+    assert!(sent["messages"].to_string().contains("condense this"));
+    assert!(sent.get("tools").is_none_or(Value::is_null), "no tools: {}", sent["tools"]);
+
+    let schema =
+        serde_json::json!({"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]});
+    let answer = bench.engine.complete(OneShotRequest::new("name it").schema(schema)).await.expect("answers");
+    assert_eq!(answer.structured, Some(serde_json::json!({"title": "Fix the parser"})));
+
+    let slow = bench.engine.complete(OneShotRequest::new("slow").timeout_ms(50)).await;
+    assert_eq!(slow, Err(OneShotError::TimedOut(Duration::from_millis(50))));
+    assert_eq!(bench.engine.live(), 0, "no session was started for any of it");
+}

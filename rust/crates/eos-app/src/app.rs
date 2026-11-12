@@ -17,7 +17,7 @@ use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
-use eos_engine::EngineDeps;
+use eos_engine::{EngineDeps, EngineOptions, WorkflowFiles};
 use eos_git::ScratchRepos;
 use eos_kit_sqlite::Db;
 use eos_mod_plugins::{NoPreviewWindow, PluginHost};
@@ -280,6 +280,9 @@ impl App {
         let git = Arc::new(crate::files::git(&clock));
         // Chats without a folder work in a scratch folder of their own, deleted with them.
         let claude_projects = agents.claude_home.clone().unwrap_or_else(claude_home).join("projects");
+        // Workflow runs on disk: the engine's own, and Claude Code's for chats from before the engine.
+        let workflow_files =
+            Arc::new(WorkflowFiles::new(&EngineOptions::new(paths.join("engine")), Some(claude_projects.clone())));
         let scratch = Arc::new(ScratchRepos::new(git.as_ref().clone(), paths.join("scratch"), claude_projects));
         let leftovers = Arc::new(Leftovers {
             store: store.clone(),
@@ -344,7 +347,9 @@ impl App {
             store: store.clone(),
             config: config.clone(),
             models,
-            backends: engine,
+            backends: engine.clone(),
+            one_shot: engine,
+            workflow_files,
             sessions: sessions.clone(),
             project_keys: crate::machines::project_keys(
                 &paths,

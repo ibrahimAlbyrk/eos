@@ -54,7 +54,7 @@ impl Module for Fake {
         self.kinds.clone()
     }
     fn idle_hooks(&self) -> Vec<IdleHook> {
-        self.hooks.iter().map(|(id, order)| IdleHook::new(id, *order, |_| false)).collect()
+        self.hooks.iter().map(|(id, order)| IdleHook::new(id, *order, |_| std::future::ready(false))).collect()
     }
     fn slash_commands(&self) -> Vec<SlashCommandDecl> {
         self.commands.iter().map(|name| SlashCommandDecl { name, command: Arc::new(()) }).collect()

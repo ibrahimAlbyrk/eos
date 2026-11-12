@@ -30,6 +30,7 @@ pub mod cleanup;
 mod commands;
 mod control;
 mod dispatch;
+mod features;
 pub mod loops;
 mod service;
 mod signal;

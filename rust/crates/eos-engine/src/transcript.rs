@@ -13,13 +13,13 @@ use eos_domain::message_id::strip_turn_head;
 use eos_domain::time::iso_from_ms;
 
 /// Text the harness wrote into the conversation, not something anyone said.
-fn is_noise(text: &str) -> bool {
+pub(crate) fn is_noise(text: &str) -> bool {
     text.starts_with("[Request interrupted")
         || text.starts_with("<local-command-stdout")
         || text.starts_with("<system-reminder>")
 }
 
-fn result_text(content: Option<&ToolResultContent>) -> String {
+pub(crate) fn result_text(content: Option<&ToolResultContent>) -> String {
     match content {
         None => String::new(),
         Some(ToolResultContent::Text(text)) => text.clone(),

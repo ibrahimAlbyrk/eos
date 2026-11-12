@@ -7,12 +7,14 @@
 //!   do. Branch on these, never on a backend's name.
 //! - [`PromptAssembler`], [`ToolSets`] / [`HostTool`], [`UserQuestions`]: what
 //!   the engine asks of the rest of Eos.
+//! - [`OneShot`]: one tool-less request to a model, outside any conversation.
 //! - [`WorkerControl`], [`Peers`]: what agents ask of each other through
 //!   their tools.
 
 mod control;
 mod descriptor;
 mod host;
+mod oneshot;
 mod session;
 
 pub use control::{
@@ -22,8 +24,9 @@ pub use control::{
 pub use descriptor::{AgentCapabilities, BackendAuth, BackendDescriptor, ModelSource};
 pub use host::{
     HostTool, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolImage, ToolReply, ToolSets,
-    UserMessage, UserMessages, UserNotifier, UserQuestions,
+    UserMessage, UserMessages, UserNotifier, UserQuestions, WorkerSessions, WorkflowRunFiles,
 };
+pub use oneshot::{OneShot, OneShotAnswer, OneShotError, OneShotRequest};
 pub use session::{
     AgentRuntime, AgentSession, BackgroundTaskKind, BackgroundTaskUpdate, LaunchSpec, Rewound, SessionError,
     SessionSink, SessionTranscript, TaskOutcome, TranscriptEntry,

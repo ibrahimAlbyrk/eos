@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{SessionFactsRole, UnknownRecord};
+use eos_contracts::{PtyConversationRow, SessionFactsRole, UnknownRecord};
 use serde_json::Value;
 
 use super::session::LaunchSpec;
@@ -151,6 +151,40 @@ pub trait ScratchFolders: Send + Sync + 'static {
     fn remove<'a>(&'a self, dir: &'a str) -> BoxFuture<'a, ()>;
     /// Every scratch folder on disk.
     fn list(&self) -> Vec<String>;
+}
+
+/// What a feature that works on a worker outside its turns (a side question,
+/// a compaction) needs of the session service.
+pub trait WorkerSessions: Send + Sync + 'static {
+    /// What a session can do, known before one is live.
+    fn capabilities(&self) -> &super::AgentCapabilities;
+
+    /// The worker's live session, if it has one.
+    fn session(&self, worker_id: &str) -> Option<Arc<dyn super::AgentSession>>;
+
+    /// Brings back the session of a chat that is at rest, as a message to it
+    /// would. Does nothing for a live one.
+    fn revive<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, Result<(), crate::Error>>;
+
+    /// The worker is IDLE again after work that was not a turn: its queue
+    /// gets its turn and, when that is empty, the idle hooks run.
+    fn settled<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;
+}
+
+/// What is kept on disk about workflow runs: each run's record, written when
+/// it ends, and its agents' conversations. A run is named by the transcript
+/// folder its start event carried; a folder that is not one of this app's
+/// run folders reads as nothing.
+pub trait WorkflowRunFiles: Send + Sync + 'static {
+    /// The run's record as JSON text.
+    fn record<'a>(&'a self, transcript_dir: &'a str) -> BoxFuture<'a, Option<String>>;
+
+    /// One agent's conversation as worker-event rows, oldest first.
+    fn agent_rows<'a>(
+        &'a self,
+        transcript_dir: &'a str,
+        agent_id: &'a str,
+    ) -> BoxFuture<'a, Option<Vec<PtyConversationRow>>>;
 }
 
 /// A banner on the user's computer, shown while the app's window is not in
