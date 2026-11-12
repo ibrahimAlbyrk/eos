@@ -3,18 +3,21 @@
 
 use std::sync::Arc;
 
-use eos_core::agent::AgentRuntime;
+use eos_core::agent::{AgentRuntime, ScratchFolders};
 use eos_core::store::{EventOrder, EventQuery, Store};
-use eos_mod_agents::AgentsModule;
+use eos_mod_agents::{AgentsModule, Spawning};
+use eos_prompts::tool_names::tool_name_vars;
+use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::access::Caller;
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_sessions::{NoHooks, SessionDeps, Sessions};
+use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeWorktrees, ScriptedRuntime, SeqIds,
-    TempStore, Turn,
+    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeWorktrees,
+    ScriptedRuntime, SeqIds, TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::{Value, json};
@@ -23,11 +26,28 @@ struct Bench {
     runtime: Runtime,
     agents: ScriptedRuntime,
     temp: TempStore,
+    settings: Arc<FakeSettings>,
+    scratch: Arc<FakeScratch>,
+    worktrees: Arc<FakeWorktrees>,
 }
 
 impl Bench {
     fn new(temp: TempStore) -> Self {
+        Self::with_config(temp, json!({}))
+    }
+
+    fn with_config(temp: TempStore, config: Value) -> Self {
         let agents = ScriptedRuntime::new();
+        let config = Arc::new(FakeConfig::new(config));
+        let (settings, scratch) = (Arc::new(FakeSettings::default()), Arc::new(FakeScratch::default()));
+        let worktrees = Arc::new(FakeWorktrees::default());
+        let library = Arc::new(LibraryPromptSource::with_overrides(Vec::new()));
+        let spawning = Spawning {
+            config: config.clone(),
+            settings: settings.clone(),
+            prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
+            scratch: scratch.clone(),
+        };
         let clock = Arc::new(FakeClock::new());
         let ids = Arc::new(SeqIds::new());
         let sessions = Sessions::new(SessionDeps {
@@ -35,19 +55,19 @@ impl Bench {
             runtime: agents.port(),
             clock: clock.clone(),
             ids: ids.clone(),
-            config: Arc::new(FakeConfig::default()),
+            config,
             models: Arc::new(FakeModelCatalog::default()),
             prompts: Arc::new(FakePrompts::default()),
-            worktrees: Arc::new(FakeWorktrees::default()),
+            worktrees: worktrees.clone(),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
         });
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock));
-        let module = Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions));
+        let module = Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning));
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");
-        Self { runtime, agents, temp }
+        Self { runtime, agents, temp, settings, scratch, worktrees }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -76,6 +96,11 @@ impl Bench {
             after_id: None,
         };
         store.read(move |tx| tx.events().list(&query)).await.expect("reads").into_iter().map(|r| r.kind).collect()
+    }
+
+    async fn row(&self, worker: &str) -> eos_domain::Worker {
+        let (store, id): (Arc<dyn Store>, String) = (self.temp.port(), worker.into());
+        store.read(move |tx| tx.workers().find(&id)).await.expect("reads").expect("the row")
     }
 
     async fn state(&self, worker: &str) -> Option<String> {
@@ -137,9 +162,24 @@ async fn a_chat_is_created_talked_to_interrupted_and_removed() {
     assert_eq!(bench.agents.live(), 0);
     assert!(bench.temp.announced.topics().contains(&"worker:removed"));
 
-    // What is not ported answers so, never a made-up success.
-    let scratch = bench.post("/orchestrators", json!({"mode": "focused", "scratch": true})).await;
-    assert_eq!(scratch.0, 501);
+    // A chat without a folder works in a scratch folder of its own; one that fails to start leaves none.
+    bench.agents.script(Turn::reply("hi"));
+    let scratch = bench.post("/orchestrators", json!({"mode": "focused", "scratch": true, "prompt": "hi"})).await;
+    assert_eq!(scratch.0, 201, "{}", scratch.1);
+    let id = scratch.1["id"].as_str().expect("an id");
+    let row = bench.row(id).await;
+    assert_eq!((row.cwd.as_deref(), row.scratch), (Some(format!("/scratch/{id}").as_str()), true));
+    assert_eq!(bench.scratch.list(), [format!("/scratch/{id}")]);
+    bench.agents.fail_next_start(eos_core::Error::Rule("no credential".into()));
+    let failed = bench.post("/orchestrators", json!({"mode": "focused", "scratch": true})).await;
+    assert_ne!(failed.0, 201);
+    assert_eq!(bench.scratch.list().len(), 1, "the folder of a chat that never started is gone again");
+    let neither = bench.post("/orchestrators", json!({"mode": "focused"})).await;
+    assert_eq!(neither.0, 400);
+    let other_lane = bench.post("/orchestrators", json!({"cwd": "/sandbox/alpha", "backendKind": "gemini-cli"})).await;
+    assert_eq!(other_lane, (400, json!({"error": "backend \"gemini-cli\" is not enabled"})));
+    let old_name = bench.post("/orchestrators", json!({"cwd": "/sandbox/alpha", "backendKind": "claude-cli"})).await;
+    assert_eq!(old_name.0, 201, "the Claude lanes of earlier versions are the engine now: {}", old_name.1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -215,4 +255,76 @@ async fn a_worker_is_spawned_from_its_definition() {
         !bench.kinds(&id).await.contains(&"user_message".to_owned()),
         "an agent's directive is not the user's message"
     );
+}
+
+// manager/commands/__tests__/spawn-worker*.test.ts, core/src/__tests__/worktree-policy.test.ts,
+// manager/services/__tests__/arm-loop-at-spawn.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_request() {
+    let bench = Bench::with_config(TempStore::seeded("/"), json!({"loop": {"enabled": true, "maxAttempts": 7}}));
+    let spawn = async |body: Value| {
+        bench.agents.script(Turn::reply("done"));
+        let spawned = bench.post("/workers", body).await;
+        bench.agents.settled().await;
+        spawned
+    };
+
+    // A repository to fork from: its own worktree, the user's uncommitted work carried only when they said so.
+    let tree = spawn(json!({"prompt": "go", "worktreeFrom": "/repo", "parentId": "o-ORCH", "name": "impl"})).await;
+    assert_eq!((tree.0, &tree.1["isolation"]), (201, &json!("worktree")), "{}", tree.1);
+    let row = bench.row(tree.1["id"].as_str().expect("an id")).await;
+    assert_eq!(row.worktree_from.as_deref(), Some("/repo"));
+    assert!(row.branch.as_deref().is_some_and(|b| b.starts_with("eos-impl-")), "{:?}", row.branch);
+    assert_eq!(row.permission_mode.as_deref(), Some("acceptEdits"), "its orchestrator's mode");
+    assert!(!bench.worktrees.created.lock().expect("created")[0].carry_uncommitted);
+
+    // The user switched worktrees off: the same request works in the folder itself.
+    let flag = |key: &str| [(key.to_owned(), eos_contracts::SettingValue::Flag(true))].into_iter().collect();
+    eos_core::store::UserSettingsStore::patch(bench.settings.as_ref(), flag("git.spawnWithoutWorktree")).expect("set");
+    let plain = spawn(json!({"prompt": "go", "worktreeFrom": "/repo", "parentId": "o-ORCH"})).await;
+    assert_eq!((plain.0, &plain.1["isolation"]), (201, &json!("cwd")), "{}", plain.1);
+    let row = bench.row(plain.1["id"].as_str().expect("an id")).await;
+    assert_eq!((row.cwd.as_deref(), row.worktree_from, row.branch), (Some("/repo"), None, None));
+
+    // A sub-worker takes the mode of the nearest worker above it that has one.
+    let sub =
+        spawn(json!({"prompt": "go", "cwd": "/repo", "parentId": row.id, "permissionMode": "bypassPermissions"})).await;
+    assert_eq!(sub.0, 201, "{}", sub.1);
+    let leaf = spawn(json!({"prompt": "go", "cwd": "/repo", "parentId": sub.1["id"]})).await;
+    assert_eq!(leaf.0, 201, "{}", leaf.1);
+    assert_eq!(
+        bench.row(leaf.1["id"].as_str().expect("an id")).await.permission_mode.as_deref(),
+        Some("bypassPermissions")
+    );
+
+    // A prompt from the library, rendered with the request's values.
+    let unknown = spawn(json!({"promptTemplate": {"id": "no/such-prompt"}, "cwd": "/repo"})).await;
+    assert_eq!(unknown.0, 400);
+    assert!(
+        unknown.1["error"].as_str().is_some_and(|e| e.starts_with("promptTemplate render failed: ")),
+        "{}",
+        unknown.1
+    );
+
+    // A loop armed at spawn is on record before the first turn ends.
+    let unparented = spawn(json!({"prompt": "go", "cwd": "/repo", "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}}})).await;
+    assert_eq!(unparented.0, 400);
+    let not_orchestrator = spawn(json!({
+        "prompt": "go", "cwd": "/repo", "parentId": row.id, "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}},
+    }))
+    .await;
+    assert_eq!(not_orchestrator.0, 403, "{}", not_orchestrator.1);
+    let before = bench.temp.announced.topics().len();
+    let looped = spawn(json!({
+        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH", "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass"}]}},
+    }))
+    .await;
+    assert_eq!(looped.0, 201, "{}", looped.1);
+    let (store, id): (Arc<dyn Store>, String) = (bench.temp.port(), looped.1["id"].as_str().expect("an id").into());
+    let armed = store.read(move |tx| tx.loops().find_active_by_worker(&id)).await.expect("reads").expect("a loop");
+    assert_eq!((armed.parent_id.as_deref(), armed.max_attempts), (Some("o-ORCH"), Some(7)));
+    assert!(bench.temp.announced.topics()[before..].contains(&"loop:change"));
+
+    let other_lane = spawn(json!({"prompt": "go", "cwd": "/repo", "backendKind": "codex-cli"})).await;
+    assert_eq!(other_lane, (400, json!({"error": "backend \"codex-cli\" is not enabled"})));
 }

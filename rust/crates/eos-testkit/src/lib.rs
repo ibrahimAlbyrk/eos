@@ -54,8 +54,8 @@ pub use agent::{RecordingSink, ScriptedRuntime, Turn};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
 pub use fakes::{
-    EchoTool, FakeCredentials, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeToolSets, FakeUser,
-    FakeWorktrees,
+    EchoTool, FakeCredentials, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch, FakeSettings,
+    FakeToolSets, FakeUser, FakeWorktrees,
 };
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
 pub use home::TempHome;

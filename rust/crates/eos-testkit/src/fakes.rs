@@ -3,15 +3,16 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
+use eos_contracts::UserSettings;
 use eos_contracts::{AllowVariant, CatalogModel, DenyVariant, ExternalDecision, UnknownRecord};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 use eos_core::agent::{
-    HostTool, LaunchSpec, ModelCatalog, PromptAssembler, SpawnFacts, ToolCaller, ToolDefinition, ToolReply, ToolSets,
-    UserQuestions,
+    HostTool, LaunchSpec, ModelCatalog, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition,
+    ToolReply, ToolSets, UserQuestions,
 };
 use eos_core::git::{WorktreeCreate, WorktreeCreated, WorktreeEntry, WorktreeManager, WorktreeRef, WorktreeRemoved};
 use eos_core::policy::{PolicyDecider, ToolCall};
-use eos_core::store::RecentFolders;
+use eos_core::store::{RecentFolders, UserSettingsStore};
 use eos_core::{BoxFuture, Error};
 
 /// A model catalog with a fixed list: windows come from it, else from the
@@ -177,6 +178,52 @@ impl RecentFolders for FakeRecents {
     }
 }
 
+/// The user's settings, in memory.
+#[derive(Debug, Default)]
+pub struct FakeSettings(pub Mutex<UserSettings>);
+
+impl UserSettingsStore for FakeSettings {
+    fn read(&self) -> UserSettings {
+        self.0.lock().expect("settings").clone()
+    }
+
+    fn patch(&self, partial: UserSettings) -> Result<UserSettings, Error> {
+        let mut all = self.0.lock().expect("settings");
+        all.extend(partial);
+        Ok(all.clone())
+    }
+}
+
+/// Scratch folders that exist only as a list: `/scratch/<id>`.
+#[derive(Debug, Default)]
+pub struct FakeScratch {
+    pub folders: Mutex<Vec<String>>,
+    /// The next create fails.
+    pub refuse: Mutex<bool>,
+}
+
+impl ScratchFolders for FakeScratch {
+    fn create<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<String, Error>> {
+        let made = if std::mem::take(&mut *self.refuse.lock().expect("refuse")) {
+            Err(Error::Storage("scratch folder: disk full".into()))
+        } else {
+            let dir = format!("/scratch/{id}");
+            self.folders.lock().expect("folders").push(dir.clone());
+            Ok(dir)
+        };
+        Box::pin(std::future::ready(made))
+    }
+
+    fn remove<'a>(&'a self, dir: &'a str) -> BoxFuture<'a, ()> {
+        self.folders.lock().expect("folders").retain(|d| d != dir);
+        Box::pin(std::future::ready(()))
+    }
+
+    fn list(&self) -> Vec<String> {
+        self.folders.lock().expect("folders").clone()
+    }
+}
+
 /// Worktrees that exist only as a list of what was asked for: each one
 /// "lands" at `<repo>/.eos/worktrees/<branch>`.
 #[derive(Debug, Default)]
@@ -184,6 +231,9 @@ pub struct FakeWorktrees {
     pub created: Mutex<Vec<WorktreeCreate>>,
     /// The next create is refused with this reason.
     pub refuse: Mutex<Option<String>>,
+    /// What `list_worktrees` answers, whatever the repository.
+    pub listed: Mutex<Vec<WorktreeEntry>>,
+    pub removed: Mutex<Vec<WorktreeRef>>,
 }
 
 impl WorktreeManager for FakeWorktrees {
@@ -201,12 +251,13 @@ impl WorktreeManager for FakeWorktrees {
         Box::pin(std::future::ready(outcome))
     }
 
-    fn remove<'a>(&'a self, _worktree: &'a WorktreeRef) -> BoxFuture<'a, WorktreeRemoved> {
+    fn remove<'a>(&'a self, worktree: &'a WorktreeRef) -> BoxFuture<'a, WorktreeRemoved> {
+        self.removed.lock().expect("removed").push(worktree.clone());
         Box::pin(std::future::ready(WorktreeRemoved::Removed))
     }
 
     fn list_worktrees<'a>(&'a self, _repo_root: &'a std::path::Path) -> BoxFuture<'a, Vec<WorktreeEntry>> {
-        Box::pin(std::future::ready(Vec::new()))
+        Box::pin(std::future::ready(self.listed.lock().expect("listed").clone()))
     }
 }
 

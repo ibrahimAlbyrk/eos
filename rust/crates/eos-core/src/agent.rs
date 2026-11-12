@@ -14,7 +14,8 @@ mod session;
 
 pub use descriptor::{AgentCapabilities, BackendAuth, BackendDescriptor, ModelSource};
 pub use host::{
-    HostTool, PromptAssembler, SpawnFacts, ToolCaller, ToolDefinition, ToolImage, ToolReply, ToolSets, UserQuestions,
+    HostTool, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolImage, ToolReply, ToolSets,
+    UserMessage, UserMessages, UserQuestions,
 };
 pub use session::{
     AgentRuntime, AgentSession, BackgroundTaskKind, BackgroundTaskUpdate, LaunchSpec, Rewound, SessionError,

@@ -12,11 +12,15 @@ mod spawn;
 use std::sync::Arc;
 
 use eos_core::Ids;
-use eos_core::store::Store;
+use eos_core::agent::ScratchFolders;
+use eos_core::store::{ConfigSource, Store, UserSettingsStore};
+use eos_prompts::PromptService;
 use eos_runtime::module::Module;
 use eos_runtime::router::RouteDef;
 use eos_sessions::Sessions;
 use eos_workers::WorkerDefinitions;
+
+pub use spawn::SpawnedWorker;
 
 /// What the routes are built from.
 #[derive(Clone)]
@@ -25,6 +29,23 @@ pub struct AgentsModule {
     store: Arc<dyn Store>,
     ids: Arc<dyn Ids>,
     definitions: Arc<WorkerDefinitions>,
+    spawning: Spawning,
+}
+
+/// What starting an agent reads besides the request: the user's settings and
+/// configuration, the prompt library, where scratch folders are made.
+#[derive(Clone)]
+pub struct Spawning {
+    pub config: Arc<dyn ConfigSource>,
+    pub settings: Arc<dyn UserSettingsStore>,
+    pub prompts: Arc<PromptService>,
+    pub scratch: Arc<dyn ScratchFolders>,
+}
+
+impl std::fmt::Debug for Spawning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Spawning").finish_non_exhaustive()
+    }
 }
 
 impl std::fmt::Debug for AgentsModule {
@@ -39,8 +60,9 @@ impl AgentsModule {
         store: Arc<dyn Store>,
         ids: Arc<dyn Ids>,
         definitions: Arc<WorkerDefinitions>,
+        spawning: Spawning,
     ) -> Self {
-        Self { sessions, store, ids, definitions }
+        Self { sessions, store, ids, definitions, spawning }
     }
 }
 

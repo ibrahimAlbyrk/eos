@@ -120,3 +120,35 @@ pub trait UserQuestions: Send + Sync + 'static {
         questions: Vec<UnknownRecord>,
     ) -> BoxFuture<'a, Option<UnknownRecord>>;
 }
+
+/// A message sent to a worker in the user's name by a feature (a click in a
+/// visual answer).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct UserMessage {
+    /// What the agent reads.
+    pub text: String,
+    /// What the chat shows instead of `text`.
+    pub display_text: Option<String>,
+    /// What the chat's reply chip is drawn from.
+    pub action: Option<Value>,
+}
+
+/// Sending a worker a message as the user. Implemented by the session
+/// service; a feature that needs only this holds only this.
+pub trait UserMessages: Send + Sync + 'static {
+    /// Delivers `message`, or queues it while the worker is busy. Fails
+    /// when there is no such worker or its session cannot be reached.
+    fn send<'a>(&'a self, worker_id: &'a str, message: UserMessage) -> BoxFuture<'a, Result<(), crate::Error>>;
+}
+
+/// The folders of chats that were started without one: each gets a scratch
+/// folder of its own, deleted with the chat.
+pub trait ScratchFolders: Send + Sync + 'static {
+    /// Makes the scratch folder of worker `id` and returns its path.
+    fn create<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<String, crate::Error>>;
+    /// Deletes a scratch folder and what Claude Code kept about it. A folder
+    /// this did not make is left alone.
+    fn remove<'a>(&'a self, dir: &'a str) -> BoxFuture<'a, ()>;
+    /// Every scratch folder on disk.
+    fn list(&self) -> Vec<String>;
+}

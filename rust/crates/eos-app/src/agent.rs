@@ -9,16 +9,20 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
+use std::time::Duration;
 
 use eos_contracts::stream::topics::{AGENT_DELTA, PENDING_CREATED};
 use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole, UnknownRecord};
-use eos_core::BoxFuture;
 use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
-use eos_core::agent::{HostTool, LaunchSpec, PromptAssembler, SpawnFacts, ToolInputDelta, ToolSets, UserQuestions};
+use eos_core::agent::{
+    HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets, UserQuestions,
+};
+use eos_core::git::WorktreeManager;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::store::Store;
+use eos_core::{BoxFuture, Clock};
 use eos_domain::{ProviderIdentity, Worker};
 use eos_engine::{EngineDeps, EngineOptions, LazyEngine};
 use eos_policy::ask::parent_nudge;
@@ -27,7 +31,8 @@ use eos_prompts::spawn::{SpawnPrompt, system_prompt_for};
 use eos_runtime::Runtime;
 use eos_runtime::bus::{Bus, Scope, Subscription};
 use eos_runtime::module::PromptValue;
-use eos_sessions::{MessageInput, SessionHooks, Sessions};
+use eos_sessions::cleanup::{prune_orphan_scratch, prune_orphan_worktrees, reap_worktree_removals};
+use eos_sessions::{KILL_GRACE_MS, MessageInput, SessionHooks, Sessions};
 use eos_workers::WorkerDefinitions;
 use eos_workers::catalog::render_catalog;
 use eos_workers::resolve::resolve_by_name;
@@ -179,6 +184,56 @@ impl PromptAssembler for AppPrompts {
     }
 }
 
+/// The folders Eos made for workers that are gone: worktrees and scratch
+/// folders.
+pub(crate) struct Leftovers {
+    pub(crate) store: Arc<dyn Store>,
+    pub(crate) worktrees: Arc<dyn WorktreeManager>,
+    pub(crate) scratch: Arc<dyn ScratchFolders>,
+    pub(crate) clock: Arc<dyn Clock>,
+}
+
+impl Leftovers {
+    async fn reap(&self) {
+        let reaped = reap_worktree_removals(self.store.as_ref(), self.worktrees.as_ref(), self.clock.now_ms()).await;
+        if let Err(e) = reaped {
+            tracing::warn!(error = %e, "worktrees queued for removal could not be deleted");
+        }
+    }
+
+    /// At start-up: what a run that ended abruptly left behind. A chat that
+    /// exists in the data keeps its folders.
+    pub(crate) async fn sweep(&self) {
+        if let Err(e) = prune_orphan_worktrees(self.store.as_ref(), self.worktrees.as_ref()).await {
+            tracing::warn!(error = %e, "orphan worktrees could not be pruned");
+        }
+        self.reap().await;
+        if let Err(e) = prune_orphan_scratch(self.store.as_ref(), self.scratch.as_ref()).await {
+            tracing::warn!(error = %e, "orphan scratch folders could not be pruned");
+        }
+    }
+
+    /// A removed worker's folders go once its session's last writes are done.
+    fn after_removal(self: &Arc<Self>, worker: &Worker) {
+        let scratch = worker.cwd.clone().filter(|_| worker.scratch);
+        let has_worktree = worker.worktree_from.is_some() && worker.branch.is_some();
+        if scratch.is_none() && !has_worktree {
+            return;
+        }
+        let Ok(tasks) = Handle::try_current() else { return };
+        let this = self.clone();
+        tasks.spawn(async move {
+            tokio::time::sleep(Duration::from_millis(KILL_GRACE_MS.unsigned_abs() + 50)).await;
+            if has_worktree {
+                this.reap().await;
+            }
+            if let Some(dir) = scratch {
+                this.scratch.remove(&dir).await;
+            }
+        });
+    }
+}
+
 /// Open live blocks whose offsets are remembered, at most.
 const MAX_OPEN_BLOCKS: usize = 512;
 
@@ -218,11 +273,12 @@ pub(crate) struct AppHooks {
     bus: Bus,
     offsets: Mutex<DeltaOffsets>,
     runtime: OnceLock<Weak<Runtime>>,
+    leftovers: Arc<Leftovers>,
 }
 
 impl AppHooks {
-    pub(crate) fn new(bus: Bus) -> Self {
-        Self { bus, offsets: Mutex::default(), runtime: OnceLock::new() }
+    pub(crate) fn new(bus: Bus, leftovers: Arc<Leftovers>) -> Self {
+        Self { bus, offsets: Mutex::default(), runtime: OnceLock::new(), leftovers }
     }
 
     pub(crate) fn attach(&self, runtime: &Arc<Runtime>) {
@@ -279,6 +335,7 @@ impl SessionHooks for AppHooks {
     }
 
     fn removed(&self, worker: &Worker) {
+        self.leftovers.after_removal(worker);
         // A root's subtree is one session to the features (its browser, …).
         if worker.parent_id.is_none()
             && let Some(runtime) = self.runtime()

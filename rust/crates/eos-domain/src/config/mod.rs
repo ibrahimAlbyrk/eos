@@ -22,6 +22,13 @@ pub use eos_contracts::ModelPricing;
 pub use model::*;
 pub use overrides::ConfigOverride;
 
+/// A backend kind as it is called today: the Claude lanes of earlier versions
+/// are one backend now, so a kind an old client or an old row still names
+/// stands for it.
+pub fn current_backend_kind(kind: &str) -> &str {
+    overrides::renamed_kind(kind).unwrap_or(kind)
+}
+
 /// Why a `config.json` was not applied. The defaults still stand: a broken
 /// file never stops the app from starting.
 #[derive(Debug, Clone, PartialEq, Eq)]

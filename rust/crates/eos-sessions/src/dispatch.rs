@@ -6,22 +6,31 @@
 //! oldest waiting message, one per turn. A repeated send (the same client
 //! id) is delivered once.
 
+use eos_contracts::ViewAction;
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_contracts::{WorkerEventType, WorkerState};
-use eos_core::Error;
+use eos_core::agent::{UserMessage, UserMessages};
 use eos_core::store::{NewQueuedMessage, Outbox, Tx};
+use eos_core::{BoxFuture, Error};
 use eos_domain::Worker;
 use eos_domain::envelope::{Envelope, apply_sender_tag, sender_tag};
-use eos_domain::message_id::{prefix_operator_turn, starts_with_slash_command};
+use eos_domain::message_id::{
+    ReplyTarget, build_reply_block, prefix_operator_turn, reply_ref_of, reply_target_from_row,
+    starts_with_slash_command,
+};
 use eos_domain::message_queue::{MessagePlane, QueueMeta};
+use eos_domain::view_action::view_action_turn;
 use serde_json::{Map, Value, json};
 
+use crate::commands::{self, SlashContext};
 use crate::service::{Changed, Sessions};
 use crate::transition::transition_state;
 
 /// The same text again inside this window is noted as a likely duplicate.
 const DUPLICATE_TEXT_WINDOW_MS: i64 = 10_000;
-const EXCERPT_CHARS: usize = 500;
+/// How much of a suspected duplicate's text is noted (more for an orchestrator).
+const EXCERPT_CHARS: usize = 200;
+const ORCHESTRATOR_EXCERPT_CHARS: usize = 500;
 
 /// One message for a worker.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -41,8 +50,13 @@ pub struct MessageInput {
     pub origin: Option<String>,
     /// Set when the message is not the operator's own.
     pub envelope: Option<Envelope>,
-    /// What a click in a visual answer carries.
+    /// What the chat's reply chip of a click in a visual answer is drawn from.
     pub action: Option<Value>,
+    /// The row of the message this one replies to.
+    pub reply_to: Option<i64>,
+    /// A click in a visual answer: it becomes the turn's text, what the chat
+    /// shows and `action`.
+    pub view_action: Option<ViewAction>,
     /// Only an orchestrator may be addressed (the orchestrator routes).
     pub require_orchestrator: bool,
 }
@@ -56,6 +70,8 @@ pub enum Dispatched {
     Queued { queue_id: i64 },
     /// A repeat of a message already taken.
     Deduped,
+    /// A command Eos ran itself; the value is its answer.
+    Command(Value),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,13 +95,14 @@ fn meta(input: &MessageInput) -> QueueMeta {
     QueueMeta {
         envelope: input.envelope.as_ref().and_then(|e| serde_json::to_value(e).ok()),
         display_text: input.display_text.clone(),
-        reply_to: None,
+        reply_to: input.reply_to.map(|row| json!({"rowId": row})),
         action: input.action.clone(),
     }
 }
 
-fn excerpt(text: &str) -> String {
-    text.chars().take(EXCERPT_CHARS).collect()
+fn excerpt(input: &MessageInput) -> String {
+    let max = if input.require_orchestrator { ORCHESTRATOR_EXCERPT_CHARS } else { EXCERPT_CHARS };
+    input.text.chars().take(max).collect()
 }
 
 /// The chat row of a delivered message: what the transcript shows.
@@ -95,11 +112,15 @@ fn chat_row(
     input: &MessageInput,
     msg_id: Option<i64>,
     client_ids: Option<&[String]>,
+    reply: Option<&ReplyTarget>,
 ) -> Result<Option<i64>, Error> {
     let mut base = Map::new();
     base.insert("text".into(), input.display_text.clone().unwrap_or_else(|| input.text.clone()).into());
     if let Some(id) = msg_id {
         base.insert("msgId".into(), id.to_string().into());
+    }
+    if let Some(target) = reply {
+        base.insert("replyTo".into(), serde_json::to_value(reply_ref_of(target)).map_err(Error::storage)?);
     }
     let with = |mut base: Map<String, Value>, extra: [(&str, &str); 2]| {
         for (key, value) in extra {
@@ -142,7 +163,7 @@ fn chat_row(
 
 /// The message as the agent reads it: the operator's own words carry their
 /// message id; anyone else's are wrapped in the sender's tag.
-fn outgoing(tx: &dyn Tx, input: &MessageInput) -> Result<(String, Option<i64>), Error> {
+fn outgoing(tx: &dyn Tx, input: &MessageInput, reply: Option<&str>) -> Result<(String, Option<i64>), Error> {
     match &input.envelope {
         Some(envelope) => {
             let msg_id = tx.message_ids().next_inbound(&input.worker_id)?;
@@ -154,9 +175,20 @@ fn outgoing(tx: &dyn Tx, input: &MessageInput) -> Result<(String, Option<i64>), 
         None if starts_with_slash_command(&input.text) => Ok((input.text.clone(), None)),
         None => {
             let msg_id = tx.message_ids().next_inbound(&input.worker_id)?;
-            Ok((prefix_operator_turn(&input.text, Some(msg_id), None), Some(msg_id)))
+            Ok((prefix_operator_turn(&input.text, Some(msg_id), reply), Some(msg_id)))
         }
     }
+}
+
+/// The last row before which the agent no longer has the conversation.
+fn context_boundary(tx: &dyn Tx, worker_id: &str) -> Result<i64, Error> {
+    let mut boundary = 0;
+    for kind in [WorkerEventType::CompactionCompleted, WorkerEventType::ConversationCleared] {
+        if let Some(last) = tx.events().list_by_type(worker_id, kind, None)?.last() {
+            boundary = boundary.max(last.id);
+        }
+    }
+    Ok(boundary)
 }
 
 fn plan(
@@ -169,6 +201,20 @@ fn plan(
     let now = sessions.now();
     let id = input.worker_id.as_str();
     let worker = tx.workers().find(id)?.ok_or_else(|| Error::not_found("worker", id))?;
+    let drained = input.origin.as_deref() == Some("queue-drain");
+    // The message this one replies to; one that is gone fails the send (a
+    // queued message goes out without it instead).
+    let target = match input.reply_to {
+        Some(row) => {
+            let found =
+                tx.events().find(id, row)?.and_then(|r| reply_target_from_row(r.id, &r.kind, r.payload.as_deref()));
+            if found.is_none() && !drained {
+                return Err(Error::not_found("message", row.to_string()));
+            }
+            found
+        }
+        None => None,
+    };
     let backlog = || Ok::<bool, Error>(!tx.message_queue().list_pending(id)?.is_empty());
     let busy = worker.state == WorkerState::Working || (worker.state == WorkerState::Idle && backlog()?);
     if must_queue && busy {
@@ -197,7 +243,6 @@ fn plan(
         meta: QueueMeta::default(),
         plane: plane(input),
     };
-    let drained = input.origin.as_deref() == Some("queue-drain");
     let mut claim = None;
     if input.client_msg_id.is_some() {
         claim = tx.message_queue().insert(&record(true))?;
@@ -206,8 +251,7 @@ fn plan(
         }
     } else {
         if tx.message_queue().has_recent_dispatch(id, &input.text, now - DUPLICATE_TEXT_WINDOW_MS)? {
-            let note =
-                json!({"phase": "duplicate_dispatch_suspected", "text": excerpt(&input.text), "origin": input.origin});
+            let note = json!({"phase": "duplicate_dispatch_suspected", "text": excerpt(input), "origin": input.origin});
             tx.events().append_json(id, now, WorkerEventType::Lifecycle, &note)?;
         }
         if !drained {
@@ -216,9 +260,17 @@ fn plan(
         }
     }
 
-    let (text, msg_id) = outgoing(tx, input)?;
+    // Only the operator's own, untagged turn carries a reply. The target is
+    // named when the agent still has it in context, quoted when a summary or
+    // a clear took it out.
+    let reply = target.filter(|_| input.envelope.is_none() && !starts_with_slash_command(&input.text));
+    let block = match &reply {
+        Some(target) => Some(build_reply_block(target, target.row_id > context_boundary(tx, id)?)),
+        None => None,
+    };
+    let (text, msg_id) = outgoing(tx, input, block.as_deref())?;
     let client_ids = input.record_client_msg_ids.clone().or(input.client_msg_id.clone().map(|id| vec![id]));
-    let row = chat_row(tx, now, input, msg_id, client_ids.as_deref())?;
+    let row = chat_row(tx, now, input, msg_id, client_ids.as_deref(), reply.as_ref())?;
     sessions.0.turns.clear_settle(id);
     sessions.0.turns.reset_output(id);
     if let Some(row) = row {
@@ -243,6 +295,13 @@ impl Sessions {
     /// prompt they answer. A session that turns out to be gone gives the
     /// worker its idle state back and the caller an error.
     pub async fn dispatch(&self, input: MessageInput) -> Result<Dispatched, Error> {
+        let mut input = input;
+        if let Some(click) = input.view_action.take().filter(|_| input.envelope.is_none()) {
+            let turn = view_action_turn(&click, Some(&input.text));
+            input.text = turn.text;
+            input.display_text = Some(turn.display_text);
+            input.action = serde_json::to_value(turn.action).ok();
+        }
         let id = input.worker_id.clone();
         let worker = self.worker(&id).await?.ok_or_else(|| Error::not_found("worker", &id))?;
         if input.require_orchestrator && !worker.is_orchestrator {
@@ -251,6 +310,24 @@ impl Sessions {
         let session = self.session(&id);
         if input.require_orchestrator && session.is_none() {
             return Err(Error::Conflict("orchestrator process not running (was killed)".into()));
+        }
+        // A command of Eos's own runs here and never reaches the agent.
+        if input.envelope.is_none()
+            && let Some((name, args)) = commands::parse(&input.text)
+            && let (Some(command), Some(session)) = (self.command(name), session.clone())
+            && command.accepts(args, session.capabilities())
+        {
+            self.0.turns.clear_settle(&id);
+            let cx = SlashContext { worker_id: &id, args, session, sessions: self };
+            let answer = command.execute(cx).await?;
+            let worker = id.clone();
+            self.store()
+                .write(move |_tx, out| {
+                    out.push(WORKER_CHANGE, &Changed { worker_id: &worker, queued: None });
+                    Ok(())
+                })
+                .await?;
+            return Ok(Dispatched::Command(answer));
         }
         // A message taken from the queue is never put back in it.
         let drained = input.origin.as_deref() == Some("queue-drain");
@@ -322,6 +399,7 @@ impl Sessions {
                 origin: Some("queue-drain".into()),
                 envelope,
                 action: head.meta.action.clone(),
+                reply_to: head.meta.reply_to.as_ref().and_then(|r| r["rowId"].as_i64()),
                 ..MessageInput::default()
             };
             if let Err(e) = self.dispatch(message).await {
@@ -332,5 +410,22 @@ impl Sessions {
             let marked = self.store().write(move |tx, _| tx.message_queue().mark_dispatched(&[head.id], now)).await;
             if marked.is_ok() { Drained::Dispatched } else { Drained::Failed }
         }
+    }
+}
+
+impl UserMessages for Sessions {
+    fn send<'a>(&'a self, worker_id: &'a str, message: UserMessage) -> BoxFuture<'a, Result<(), Error>> {
+        Box::pin(async move {
+            let input = MessageInput {
+                worker_id: worker_id.to_owned(),
+                text: message.text,
+                display_text: message.display_text,
+                action: message.action,
+                queue_when_busy: true,
+                origin: Some("view-action".into()),
+                ..MessageInput::default()
+            };
+            self.dispatch(input).await.map(drop)
+        })
     }
 }

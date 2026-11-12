@@ -343,7 +343,7 @@ pub(super) fn check(raw: &Value) -> Result<Value, String> {
 }
 
 /// Profile kinds and names of the lanes that merged into one Claude backend.
-fn renamed_kind(kind: &str) -> Option<&'static str> {
+pub(super) fn renamed_kind(kind: &str) -> Option<&'static str> {
     matches!(kind, "claude-cli" | "claude-sdk").then_some("claude")
 }
 

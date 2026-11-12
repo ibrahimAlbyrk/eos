@@ -7,7 +7,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 use eos_contracts::stream::topics::WORKER_EXIT;
 use eos_contracts::{AgentEvent, AgentMessageEventRole, DeltaEvent, WorkerEventType, WorkerState, WorkflowRunProgress};
 use eos_core::agent::{
-    AgentRuntime, AgentSession, BackgroundTaskUpdate, ModelCatalog, PromptAssembler, SessionSink, ToolInputDelta,
+    AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, ModelCatalog, PromptAssembler, SessionSink,
+    ToolInputDelta,
 };
 use eos_core::git::WorktreeManager;
 use eos_core::store::{ConfigSource, RecentFolders, Store};
@@ -15,6 +16,7 @@ use eos_core::{BoxFuture, Clock, Ids};
 use eos_domain::Worker;
 use serde::Serialize;
 
+use crate::commands::{Clear, SlashCommand};
 use crate::signal::{self, SignalCx};
 use crate::transition::transition_state;
 use crate::turns::Turns;
@@ -81,6 +83,8 @@ pub(crate) struct Inner {
     draining: Mutex<HashSet<String>>,
     /// Workers being suspended or removed on purpose: their session's exit is expected.
     pub(crate) leaving: Mutex<HashSet<String>>,
+    /// The commands Eos runs itself, `/clear` first.
+    pub(crate) commands: std::sync::RwLock<Vec<Arc<dyn SlashCommand>>>,
 }
 
 /// The lifecycle of agent sessions. Cheap to clone.
@@ -117,7 +121,25 @@ struct ExitRow {
 impl Sessions {
     pub fn new(deps: SessionDeps) -> Self {
         let turns = Turns::new(deps.clock.clone());
-        Self(Arc::new(Inner { deps, turns, draining: Mutex::default(), leaving: Mutex::default() }))
+        let commands = std::sync::RwLock::new(vec![Arc::new(Clear) as Arc<dyn SlashCommand>]);
+        Self(Arc::new(Inner { deps, turns, draining: Mutex::default(), leaving: Mutex::default(), commands }))
+    }
+
+    /// Adds a command a feature owns (`/compact`, …). A later one of the same
+    /// name replaces the earlier.
+    pub fn register_command(&self, command: Arc<dyn SlashCommand>) {
+        let mut commands = self.0.commands.write().unwrap_or_else(PoisonError::into_inner);
+        commands.retain(|c| c.name() != command.name());
+        commands.push(command);
+    }
+
+    /// The commands Eos runs itself, for the composer's menu.
+    pub fn commands(&self) -> Vec<Arc<dyn SlashCommand>> {
+        self.0.commands.read().unwrap_or_else(PoisonError::into_inner).clone()
+    }
+
+    pub(crate) fn command(&self, name: &str) -> Option<Arc<dyn SlashCommand>> {
+        self.commands().into_iter().find(|c| c.name() == name || c.aliases().contains(&name))
     }
 
     /// Where the runtime reports the sessions this service starts.
@@ -125,7 +147,7 @@ impl Sessions {
         Arc::new(self.clone())
     }
 
-    pub(crate) fn store(&self) -> &Arc<dyn Store> {
+    pub fn store(&self) -> &Arc<dyn Store> {
         &self.0.deps.store
     }
 
@@ -136,6 +158,11 @@ impl Sessions {
     /// The clock the service stamps rows with.
     pub fn clock(&self) -> &Arc<dyn Clock> {
         &self.0.deps.clock
+    }
+
+    /// What the engine behind every session is and can do.
+    pub fn descriptor(&self) -> &BackendDescriptor {
+        self.0.deps.runtime.descriptor()
     }
 
     /// The worker's live session, if it has one.

@@ -148,10 +148,15 @@ fn normalize_edit_regex(pattern: &str) -> String {
 
 /// The tool scope a definition bakes onto its worker at spawn.
 pub fn materialize_tool_scope(definition: &WorkerDefinition) -> ToolScope {
+    tool_scope(definition.tools_allow.as_deref(), definition.tools_deny.as_deref(), definition.edit_regex.as_deref())
+}
+
+/// A tool scope from its parts, as a definition or a one-off request names them.
+pub fn tool_scope(allow: Option<&[String]>, deny: Option<&[String]>, edit_regex: Option<&str>) -> ToolScope {
     ToolScope {
-        allow: definition.tools_allow.clone().unwrap_or_default(),
-        deny: definition.tools_deny.clone().unwrap_or_default(),
-        edit_regex: definition.edit_regex.as_deref().map(normalize_edit_regex),
+        allow: allow.unwrap_or_default().to_vec(),
+        deny: deny.unwrap_or_default().to_vec(),
+        edit_regex: edit_regex.map(normalize_edit_regex),
     }
 }
 

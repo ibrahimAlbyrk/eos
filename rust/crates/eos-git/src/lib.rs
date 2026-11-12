@@ -9,7 +9,8 @@
 //! `ConflictResolution`, `WorkingTreeRestore`, `WorktreeManager` and
 //! `CandidateFiles`. The composition root hands it out as whichever trait a
 //! feature asks for. [`GitProjectKeys`] names project folders by their
-//! repository's remote (`ProjectKeys`).
+//! repository's remote (`ProjectKeys`); [`ScratchRepos`] makes the folders of
+//! chats started without one (`ScratchFolders`).
 //!
 //! Reads collapse every failure (no repository, no `git`, a bad revision) to
 //! an empty answer; writes return git's own message.
@@ -22,6 +23,7 @@ mod info;
 mod project_keys;
 mod records;
 mod run;
+mod scratch;
 mod worktree;
 
 use std::sync::Arc;
@@ -31,6 +33,7 @@ use eos_kit_proc::Runner;
 
 pub use files::list_candidate_files;
 pub use project_keys::{GitProjectKeys, KnownFolders};
+pub use scratch::ScratchRepos;
 
 /// The git adapter. Cheap to clone.
 #[derive(Clone)]

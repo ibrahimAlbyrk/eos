@@ -17,7 +17,7 @@ use crate::transition::transition_state;
 
 /// How long a removed worker's worktree waits before it is deleted, so its
 /// session's last writes are done.
-const KILL_GRACE_MS: i64 = 2000;
+pub const KILL_GRACE_MS: i64 = 2000;
 
 /// A prompt an interrupt took back before the agent answered it.
 #[derive(Debug, Clone, PartialEq, Eq)]

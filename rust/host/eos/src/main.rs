@@ -83,7 +83,13 @@ impl Eos {
         };
         // Building the app spawns its own tasks.
         let _runtime = ports.rt.enter();
-        let mut options = eos_app::Options { resources: bundled_resources(), ..eos_app::Options::new(home) };
+        // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
+        // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
+        let mut options = eos_app::Options {
+            resources: bundled_resources(),
+            sweep_leftovers: *home == crate::home().join(".eos"),
+            ..eos_app::Options::new(home)
+        };
         // Restarting into an update: leave the applier what it needs, start it, quit.
         if let Some(exe) = &options.exec_path {
             let handover = Handover::beside(exe, home);

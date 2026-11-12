@@ -33,8 +33,10 @@ pub mod transcript;
 pub mod update;
 pub mod user_memory;
 pub mod user_profile;
+pub mod view_action;
 pub mod worker;
 pub mod workflow_run;
+pub mod worktree_policy;
 
 pub use event::EventRecord;
 pub use loops::WorkerLoop;

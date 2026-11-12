@@ -62,26 +62,24 @@ fn delivered(outcome: &Dispatched) -> Response {
             Response::json(202, &json!({"ok": true, "queued": true, "queueId": queue_id}))
         }
         Dispatched::Deduped => Response::json(200, &json!({"ok": true, "deduped": true})),
+        // A command Eos ran itself answers for itself.
+        Dispatched::Command(answer) => Response::json(200, answer),
     }
 }
 
 /// What the operator's message carries besides its text.
-fn from_dashboard(id: String, body: MessageRequest) -> Result<MessageInput, ApiError> {
-    // Replies and clicks in a visual answer are their features' to deliver.
-    if body.reply_to.is_some() {
-        return Err(ApiError::status_with(501, "replying to a message is not available yet"));
-    }
-    if body.action.is_some() {
-        return Err(ApiError::status_with(501, "view actions are not available yet"));
-    }
-    Ok(MessageInput {
+fn from_dashboard(id: String, body: MessageRequest) -> MessageInput {
+    let origin = if body.action.is_some() { "view-action" } else { "dashboard" };
+    MessageInput {
         worker_id: id,
         text: body.text,
         client_msg_id: body.client_msg_id,
         queue_when_busy: body.queue_when_busy.unwrap_or(false),
-        origin: Some("dashboard".into()),
+        reply_to: body.reply_to.map(|reply| reply.row_id),
+        view_action: body.action,
+        origin: Some(origin.into()),
         ..MessageInput::default()
-    })
+    }
 }
 
 fn rename(m: AgentsModule) -> RouteDef {
@@ -168,7 +166,7 @@ fn message(m: AgentsModule) -> RouteDef {
             m.revive(&target).await?;
 
             let Some(parent_id) = from_parent else {
-                let outcome = m.sessions.dispatch(from_dashboard(id, body)?).await?;
+                let outcome = m.sessions.dispatch(from_dashboard(id, body)).await?;
                 return Ok(delivered(&outcome));
             };
             let parent_name = m.worker(&parent_id).await?.and_then(|p| p.name).unwrap_or_else(|| parent_id.clone());
@@ -203,7 +201,7 @@ fn orchestrator_message(m: AgentsModule) -> RouteDef {
             if let Some(target) = m.worker(&id).await? {
                 m.revive(&target).await?;
             }
-            let input = MessageInput { require_orchestrator: true, ..from_dashboard(id, body)? };
+            let input = MessageInput { require_orchestrator: true, ..from_dashboard(id, body) };
             Ok(delivered(&m.sessions.dispatch(input).await?))
         }
     })

@@ -537,3 +537,185 @@ async fn a_thousand_workers_come_and_go_and_nothing_is_left() {
     let left = bench.store().read(|tx| tx.events().prune_all(0)).await;
     assert!(left.is_err() || left == Ok(0), "no rows of removed workers stay behind");
 }
+
+/// A command a feature owns: it takes any arguments and says what it got.
+struct Compact(std::sync::Mutex<Vec<String>>);
+
+impl eos_sessions::SlashCommand for Compact {
+    fn name(&self) -> &'static str {
+        "compact"
+    }
+
+    fn description(&self) -> &'static str {
+        "Summarize the conversation"
+    }
+
+    fn accepts(&self, _args: &str, capabilities: &eos_core::agent::AgentCapabilities) -> bool {
+        capabilities.context_compaction == Some(true)
+    }
+
+    fn execute<'a>(&'a self, cx: eos_sessions::SlashContext<'a>) -> eos_core::BoxFuture<'a, Result<Value, Error>> {
+        self.0.lock().expect("focus").push(cx.args.to_owned());
+        Box::pin(std::future::ready(Ok(serde_json::json!({"ok": true, "compacting": true}))))
+    }
+}
+
+// core/src/__tests__/DispatchMessage.replies.test.ts, DispatchMessage.viewAction.test.ts, slash-command.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn replies_clicks_and_eos_commands_go_through_dispatch() {
+    let bench = Bench::new();
+    bench.agents.script(Turn::reply("the plan is ready"));
+    let id = bench.chat("make a plan").await;
+    let rows = bench.rows(&id).await;
+    let answer = rows.iter().position(|(_, p)| p["type"] == "message").expect("the answer") as i64 + 1;
+
+    // A reply to the agent's own message quotes it; the chat row keeps what it replied to.
+    let reply = MessageInput { reply_to: Some(answer), ..bench.message(&id, "go ahead") };
+    bench.sessions.dispatch(reply).await.expect("sends");
+    bench.agents.settled().await;
+    assert_eq!(
+        bench.agents.sent(&id)[0],
+        "<msg id=\"2\"/>\n<reply_to id=\"1.1\">the plan is ready</reply_to>\ngo ahead"
+    );
+    let rows = bench.rows(&id).await;
+    let said = rows.iter().rfind(|(kind, _)| kind == "user_message").expect("the row");
+    assert_eq!(
+        said.1["replyTo"],
+        serde_json::json!({"rowId": answer, "msgId": "1.1", "role": "assistant", "excerpt": "the plan is ready"})
+    );
+    let user_row = rows.iter().position(|(kind, _)| kind == "user_message").expect("the row") as i64 + 1;
+    // The user's own earlier message is still in the agent's context: named by its id, not quoted.
+    bench
+        .sessions
+        .dispatch(MessageInput { reply_to: Some(user_row), ..bench.message(&id, "as I said") })
+        .await
+        .expect("sends");
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.sent(&id)[1], "<msg id=\"3\"/>\n<reply_to id=\"2\"/>\nas I said");
+    let gone = bench.sessions.dispatch(MessageInput { reply_to: Some(9999), ..bench.message(&id, "to what?") }).await;
+    assert_eq!(gone, Err(Error::not_found("message", "9999")));
+
+    // A click in a visual answer: the agent reads the label and the payload, the chat shows the label.
+    let click =
+        serde_json::from_value(serde_json::json!({"viewId": "v_abcdefghijkl", "actionId": "book", "label": "Book it"}))
+            .expect("a view action");
+    bench.sessions.dispatch(MessageInput { view_action: Some(click), ..bench.message(&id, "") }).await.expect("sends");
+    bench.agents.settled().await;
+    assert_eq!(
+        bench.agents.sent(&id)[2],
+        "<msg id=\"4\"/>\n[view action] Book it\n{\"viewId\":\"v_abcdefghijkl\",\"actionId\":\"book\"}"
+    );
+    let rows = bench.rows(&id).await;
+    let chip = rows.iter().rfind(|(kind, _)| kind == "user_message").expect("the row");
+    assert_eq!(chip.1["text"], "Book it");
+    assert_eq!(chip.1["action"], serde_json::json!({"viewId": "v_abcdefghijkl", "label": "Book it"}));
+
+    // `/clear` is Eos's own: it never reaches the agent, the chat folds, a reply after it quotes in full.
+    let before = bench.agents.sent(&id).len();
+    let cleared = bench.sessions.dispatch(bench.message(&id, "/clear")).await.expect("runs");
+    assert_eq!(cleared, Dispatched::Command(serde_json::json!({"ok": true, "cleared": true})));
+    assert_eq!(bench.agents.sent(&id).len(), before);
+    assert!(bench.agents.calls().contains(&Call::ClearContext(id.clone())));
+    assert_eq!(
+        bench.rows(&id).await.pop().expect("a row"),
+        ("conversation_cleared".to_owned(), serde_json::json!({"via": "slash-command"}))
+    );
+    bench
+        .sessions
+        .dispatch(MessageInput { reply_to: Some(user_row), ..bench.message(&id, "about this") })
+        .await
+        .expect("sends");
+    bench.agents.settled().await;
+    assert!(
+        bench.agents.sent(&id)[before].contains("<reply_to id=\"2\">go ahead</reply_to>"),
+        "out of context now, so quoted: {}",
+        bench.agents.sent(&id)[before]
+    );
+
+    // A feature's command is caught before dispatch; with arguments `/clear` is the agent's to read.
+    let compact = Arc::new(Compact(std::sync::Mutex::new(Vec::new())));
+    bench.sessions.register_command(compact.clone());
+    let ran = bench.sessions.dispatch(bench.message(&id, "/compact keep the plan")).await.expect("runs");
+    assert_eq!(ran, Dispatched::Command(serde_json::json!({"ok": true, "compacting": true})));
+    assert_eq!(compact.0.lock().expect("focus").as_slice(), ["keep the plan"]);
+    assert_eq!(bench.sessions.commands().iter().map(|c| c.name()).collect::<Vec<_>>(), ["clear", "compact"]);
+    let sent = bench.agents.sent(&id).len();
+    assert_eq!(bench.sessions.dispatch(bench.message(&id, "/clear everything")).await, Ok(Dispatched::Sent));
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.sent(&id)[sent], "/clear everything");
+
+    // What a feature holds of the service to speak for the user.
+    let as_user: Arc<dyn eos_core::agent::UserMessages> = Arc::new(bench.sessions.clone());
+    let message =
+        eos_core::agent::UserMessage { text: "from a view".into(), display_text: Some("Clicked".into()), action: None };
+    as_user.send(&id, message).await.expect("sends");
+    bench.agents.settled().await;
+    assert!(bench.agents.sent(&id).last().expect("a message").ends_with("from a view"));
+}
+
+// core/src/__tests__/PruneOrphanWorktrees.test.ts, ReapWorktreeRemovals.test.ts
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn only_worktrees_eos_made_and_nobody_uses_are_deleted() {
+    use eos_core::git::WorktreeEntry;
+    use eos_sessions::cleanup::{prune_orphan_worktrees, reap_worktree_removals};
+
+    let bench = Bench::new();
+    let worker = SpawnRequest {
+        prompt: "go".into(),
+        worktree_from: Some("/repo".into()),
+        name: Some("impl".into()),
+        ..SpawnRequest::default()
+    };
+    let kept = bench.sessions.spawn(worker.clone()).await.expect("spawns").id;
+    bench.agents.settled().await;
+    let branch = bench.worker(&kept).await.expect("the row").branch.expect("a branch");
+    let entry = |path: &str, branch: Option<&str>, locked: bool, is_main: bool| WorktreeEntry {
+        path: path.into(),
+        branch: branch.map(str::to_owned),
+        locked,
+        is_main,
+    };
+    *bench.worktrees.listed.lock().expect("listed") = vec![
+        entry("/repo", Some("main"), false, true),
+        entry(&format!("/repo/.eos/worktrees/{branch}"), Some(&branch), false, false),
+        entry("/repo/.eos/worktrees/eos-old-w-gone-abc", Some("eos-old-w-gone-abc"), false, false),
+        entry("/repo/.eos/worktrees/eos-locked", Some("eos-locked"), true, false),
+        entry("/repo/.eos/worktrees/feature", Some("feature"), false, false),
+        entry("/elsewhere/eos-mine", Some("eos-mine"), false, false),
+        entry("/repo/.eos/worktrees/detached", None, false, false),
+    ];
+    let pruned = prune_orphan_worktrees(bench.store().as_ref(), bench.worktrees.as_ref()).await.expect("prunes");
+    assert_eq!(pruned, [std::path::PathBuf::from("/repo/.eos/worktrees/eos-old-w-gone-abc")]);
+    let removed = bench.worktrees.removed.lock().expect("removed").clone();
+    assert_eq!(removed.len(), 1, "a chat that exists keeps its worktree; a user's own worktrees are never touched");
+    assert_eq!(removed[0].branch, "eos-old-w-gone-abc");
+
+    // A worktree worker with no branch on its row: its worktree cannot be told from an orphan, so nothing goes.
+    bench.temp.exec(&format!("UPDATE workers SET branch = NULL WHERE id = '{kept}'"));
+    assert!(prune_orphan_worktrees(bench.store().as_ref(), bench.worktrees.as_ref()).await.expect("prunes").is_empty());
+    bench.temp.exec(&format!("UPDATE workers SET branch = '{branch}' WHERE id = '{kept}'"));
+
+    // A removed worker's worktree goes after its grace period, unless another worker still works in it.
+    let twin = SpawnRequest { workspace_of: Some(kept.clone()), worktree_from: None, ..worker };
+    let twin = bench.sessions.spawn(twin).await.expect("attaches").id;
+    bench.agents.settled().await;
+    bench.sessions.kill(&kept).await.expect("removes");
+    let now = FakeClock::START_MS;
+    assert_eq!(
+        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now).await,
+        Ok(0),
+        "inside the grace period"
+    );
+    assert_eq!(
+        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now + 10_000).await,
+        Ok(0),
+        "its twin still works there"
+    );
+    assert!(
+        bench.store().read(|tx| tx.worktree_removals().list()).await.expect("reads").is_empty(),
+        "the entry leaves the queue"
+    );
+    bench.sessions.kill(&twin).await.expect("removes");
+    assert_eq!(reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now + 10_000).await, Ok(1));
+    assert_eq!(bench.worktrees.removed.lock().expect("removed").last().expect("a removal").branch, branch);
+}

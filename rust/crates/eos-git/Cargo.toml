@@ -18,6 +18,8 @@ tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 eos-platform.workspace = true
+eos-sessions.workspace = true
+eos-testkit.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 

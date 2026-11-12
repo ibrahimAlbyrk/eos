@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use eos_accounts::Accounts;
 use eos_contracts::UiConfigResponseFeatures;
-use eos_core::agent::{BackendCatalog, ModelCatalog};
+use eos_core::agent::{BackendCatalog, ModelCatalog, ScratchFolders};
 use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
-use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore};
+use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore, UserSettingsStore};
 use eos_core::{Clock, Ids};
 use eos_mod_plugins::PluginHost;
 use eos_mod_profile::PendingCaps;
@@ -51,6 +51,8 @@ pub(crate) struct Context {
     pub(crate) templates: Arc<dyn TemplateStore>,
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
+    pub(crate) settings: Arc<dyn UserSettingsStore>,
+    pub(crate) scratch: Arc<dyn ScratchFolders>,
 }
 
 /// The modules, in start order (stop order is the reverse). A feature crate
@@ -63,6 +65,12 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             cx.store.clone(),
             cx.ids.clone(),
             cx.worker_definitions.clone(),
+            eos_mod_agents::Spawning {
+                config: cx.config.clone(),
+                settings: cx.settings.clone(),
+                prompts: cx.prompts.clone(),
+                scratch: cx.scratch.clone(),
+            },
         )),
         crate::files::module(cx),
         Arc::new(eos_mod_pages::PagesModule::new(
