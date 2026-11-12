@@ -1,9 +1,11 @@
 //! Files of the data folder that are not the database: `config.json`,
-//! `settings.json`, `projects.json`, `recents.json`.
+//! `settings.json`, `projects.json`, `recents.json`; and Claude Code's memory
+//! of a project.
 
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use eos_contracts::{Project, ProjectUpsertRequest, UserSettings};
+use eos_contracts::{MemoryEntry, Project, ProjectUpsertRequest, UserSettings};
 use eos_domain::config::Config;
 
 use crate::Error;
@@ -46,4 +48,18 @@ pub trait RecentFolders: Send + Sync + 'static {
     fn list(&self) -> Vec<String>;
     fn push(&self, path: &str);
     fn remove(&self, path: &str);
+}
+
+/// Claude Code's file memory of a project: one markdown file per memory under
+/// `<Claude home>/projects/<project key>/memory`, and the `MEMORY.md` index.
+pub trait ProjectMemoryStore: Send + Sync + 'static {
+    /// The memory folder of a project folder, keyed by its real path as
+    /// Claude Code keys it.
+    fn dir_of(&self, project: &Path) -> PathBuf;
+    /// Every memory in `dir`, the most recently changed first; empty when the
+    /// folder is not there. `MEMORY.md` and the `.trash` folder are left out.
+    fn list(&self, dir: &Path) -> Vec<MemoryEntry>;
+    /// Moves `<name>.md` into `dir/.trash` (recoverable) and drops its line
+    /// from `MEMORY.md`. `false` when there is no such memory.
+    fn remove(&self, dir: &Path, name: &str) -> Result<bool, Error>;
 }

@@ -3,17 +3,22 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use eos_contracts::UserSettings;
+use eos_contracts::{ActiveTry, TryPreviewResponse, UserSettings};
 use eos_contracts::{AllowVariant, CatalogModel, DenyVariant, ExternalDecision, UnknownRecord};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 use eos_core::agent::{
     HostTool, LaunchSpec, ModelCatalog, OneShot, OneShotAnswer, OneShotError, OneShotRequest, PromptAssembler,
     ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolReply, ToolSets, UserQuestions,
 };
-use eos_core::git::{WorktreeCreate, WorktreeCreated, WorktreeEntry, WorktreeManager, WorktreeRef, WorktreeRemoved};
+use eos_core::git::{
+    BranchIntegration, TryApplied, TryDiscarded, TrySync, WorktreeCreate, WorktreeCreated, WorktreeEntry,
+    WorktreeManager, WorktreeRef, WorktreeRemoved,
+};
+use eos_core::os::{AppInfo, DesktopFiles, Editor, OpenIn};
 use eos_core::policy::{PolicyDecider, ToolCall};
 use eos_core::store::{RecentFolders, UserSettingsStore};
 use eos_core::{BoxFuture, Error};
+use eos_domain::WorkerBranch;
 
 /// A model catalog with a fixed list: windows come from it, else from the
 /// built-in baseline, exactly as the real catalog answers.
@@ -258,6 +263,124 @@ impl WorktreeManager for FakeWorktrees {
 
     fn list_worktrees<'a>(&'a self, _repo_root: &'a std::path::Path) -> BoxFuture<'a, Vec<WorktreeEntry>> {
         Box::pin(std::future::ready(self.listed.lock().expect("listed").clone()))
+    }
+}
+
+/// Try with no checkout behind it: applies answer with `apply`, and the
+/// snapshots settled after a worker is gone are listed as `(repo, worker)`.
+#[derive(Debug)]
+pub struct FakeTries {
+    pub apply: Mutex<TryApplied>,
+    pub applied: Mutex<Vec<WorkerBranch>>,
+    pub cleaned: Mutex<Vec<(std::path::PathBuf, String)>>,
+}
+
+impl Default for FakeTries {
+    fn default() -> Self {
+        Self {
+            apply: Mutex::new(TryApplied::Applied { files: vec!["a.txt".into()], lockfile_changed: false }),
+            applied: Mutex::default(),
+            cleaned: Mutex::default(),
+        }
+    }
+}
+
+impl BranchIntegration for FakeTries {
+    fn preview<'a>(&'a self, _worker: &'a WorkerBranch) -> BoxFuture<'a, TryPreviewResponse> {
+        let preview = TryPreviewResponse {
+            supported: true,
+            ahead: 0,
+            behind: 0,
+            conflicts: Vec::new(),
+            files: Vec::new(),
+            lockfile_changed: false,
+            active_tries: Vec::new(),
+        };
+        Box::pin(std::future::ready(preview))
+    }
+
+    fn apply<'a>(&'a self, worker: &'a WorkerBranch) -> BoxFuture<'a, TryApplied> {
+        self.applied.lock().expect("applied").push(worker.clone());
+        Box::pin(std::future::ready(self.apply.lock().expect("apply").clone()))
+    }
+
+    fn discard<'a>(&'a self, _repo_root: &'a std::path::Path, _worker_id: &'a str) -> BoxFuture<'a, TryDiscarded> {
+        Box::pin(std::future::ready(TryDiscarded::Discarded))
+    }
+
+    fn keep<'a>(&'a self, _repo_root: &'a std::path::Path, _worker_id: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(std::future::ready(true))
+    }
+
+    fn active_tries<'a>(&'a self, _repo_root: &'a std::path::Path) -> BoxFuture<'a, Vec<ActiveTry>> {
+        Box::pin(std::future::ready(Vec::new()))
+    }
+
+    fn was_kept<'a>(&'a self, _repo_root: &'a std::path::Path, _worker_id: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(std::future::ready(false))
+    }
+
+    fn sync_status<'a>(&'a self, _worker: &'a WorkerBranch) -> BoxFuture<'a, TrySync> {
+        Box::pin(std::future::ready(TrySync::default()))
+    }
+
+    fn cleanup_snapshot<'a>(&'a self, repo_root: &'a std::path::Path, worker_id: &'a str) -> BoxFuture<'a, ()> {
+        self.cleaned.lock().expect("cleaned").push((repo_root.to_owned(), worker_id.to_owned()));
+        Box::pin(std::future::ready(()))
+    }
+}
+
+/// A desktop that opens nothing and lists what it was asked to open, as
+/// `<app>: <path>` (`default` for the default app, an editor's id otherwise).
+#[derive(Debug, Default)]
+pub struct FakeDesktop {
+    pub opened: Mutex<Vec<String>>,
+}
+
+impl FakeDesktop {
+    fn record(&self, entry: String) -> BoxFuture<'_, Result<(), Error>> {
+        self.opened.lock().expect("opened").push(entry);
+        Box::pin(std::future::ready(Ok(())))
+    }
+}
+
+impl DesktopFiles for FakeDesktop {
+    fn resolve_default_app<'a>(
+        &'a self,
+        _path: Option<&'a str>,
+        _ext: Option<&'a str>,
+    ) -> BoxFuture<'a, Option<AppInfo>> {
+        Box::pin(std::future::ready(None))
+    }
+
+    fn icon_path_for_bundle_id<'a>(&'a self, _bundle_id: &'a str) -> BoxFuture<'a, Option<std::path::PathBuf>> {
+        Box::pin(std::future::ready(None))
+    }
+
+    fn open_path<'a>(&'a self, target: &'a str) -> BoxFuture<'a, Result<(), Error>> {
+        self.record(format!("default: {target}"))
+    }
+
+    fn reveal_path<'a>(&'a self, path: &'a std::path::Path) -> BoxFuture<'a, Result<(), Error>> {
+        self.record(format!("reveal: {}", path.display()))
+    }
+
+    fn open_in<'a>(
+        &'a self,
+        target: OpenIn<'a>,
+        path: &'a std::path::Path,
+        _line: Option<u32>,
+        _column: Option<u32>,
+    ) -> BoxFuture<'a, Result<(), Error>> {
+        let app = match target {
+            OpenIn::FileManager => "file manager",
+            OpenIn::Editor(id) => id,
+        };
+        self.record(format!("{app}: {}", path.display()))
+    }
+
+    fn installed_editors(&self) -> Vec<Editor> {
+        Vec::new()
     }
 }
 

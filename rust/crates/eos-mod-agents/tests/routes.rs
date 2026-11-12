@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use eos_core::agent::{AgentRuntime, ScratchFolders};
 use eos_core::store::{EventOrder, EventQuery, Store};
-use eos_mod_agents::{AgentsModule, Spawning, Watch};
+use eos_git::Git;
+use eos_kit_proc::{ProcessTrees, Runner};
+use eos_mod_agents::{AgentsModule, Spawning, Watch, WorkerGit};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::access::Caller;
@@ -16,8 +18,8 @@ use eos_sessions::{NoHooks, SessionDeps, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeSleeper,
-    FakeWatcher, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
+    FakeClock, FakeConfig, FakeDesktop, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings,
+    FakeSleeper, FakeTries, FakeWatcher, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::{Value, json};
@@ -30,6 +32,8 @@ struct Bench {
     scratch: Arc<FakeScratch>,
     worktrees: Arc<FakeWorktrees>,
     watcher: Arc<FakeWatcher>,
+    tries: Arc<FakeTries>,
+    desktop: Arc<FakeDesktop>,
 }
 
 impl Bench {
@@ -39,6 +43,7 @@ impl Bench {
 
     fn with_config(temp: TempStore, config: Value) -> Self {
         let agents = ScriptedRuntime::new();
+        let (tries, desktop) = (Arc::new(FakeTries::default()), Arc::new(FakeDesktop::default()));
         let config = Arc::new(FakeConfig::new(config));
         let (settings, scratch) = (Arc::new(FakeSettings::default()), Arc::new(FakeScratch::default()));
         let worktrees = Arc::new(FakeWorktrees::default());
@@ -74,9 +79,24 @@ impl Bench {
             git_watcher: watcher.clone(),
             models: Arc::new(FakeModelCatalog::default()),
         };
-        let module = Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning).watching(watch));
+        let trees =
+            ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
+        let git = Arc::new(Git::new(Runner::new(trees), Arc::new(FakeClock::new())));
+        let worker_git = WorkerGit {
+            info: git.clone(),
+            diffs: git.clone(),
+            push: git.clone(),
+            remotes: git.clone(),
+            conflicts: git.clone(),
+            restore: git.clone(),
+            tries: tries.clone(),
+            merge: git,
+            desktop: desktop.clone(),
+        };
+        let module =
+            Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning, worker_git).watching(watch));
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
-        Self { runtime, agents, temp, settings, scratch, worktrees, watcher }
+        Self { runtime, agents, temp, settings, scratch, worktrees, watcher, tries, desktop }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -323,14 +343,24 @@ async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_req
     }))
     .await;
     assert_eq!(not_orchestrator.0, 403, "{}", not_orchestrator.1);
-    // Nothing checks a loop's goal yet, so a loop is refused rather than armed and never run.
-    let looped = spawn(json!({
+    // A goal that could never pass is refused before a worker exists.
+    let unpassable = spawn(json!({
         "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH",
-        "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass"}]}},
+        "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}, "strategy": "command"},
     }))
     .await;
-    assert_eq!(looped.0, 400, "{}", looped.1);
-    assert!(looped.1["error"].as_str().is_some_and(|e| e.starts_with("a dynamic loop cannot run yet")), "{}", looped.1);
+    assert_eq!(unpassable.0, 400, "{}", unpassable.1);
+    // The loop is armed on the new worker, with the configured cap when the request names none.
+    let looped = spawn(json!({
+        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH",
+        "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass", "verify": "true"}]}},
+    }))
+    .await;
+    assert_eq!(looped.0, 201, "{}", looped.1);
+    let id = looped.1["id"].as_str().expect("an id").to_owned();
+    let store: Arc<dyn Store> = bench.temp.port();
+    let armed = store.read(move |tx| tx.loops().find_active_by_worker(&id)).await.expect("reads").expect("a loop");
+    assert_eq!((armed.parent_id.as_deref(), armed.max_attempts), (Some("o-ORCH"), Some(7)));
 
     let other_lane = spawn(json!({"prompt": "go", "cwd": "/repo", "backendKind": "codex-cli"})).await;
     assert_eq!(other_lane, (400, json!({"error": "backend \"codex-cli\" is not enabled"})));
@@ -419,6 +449,57 @@ async fn a_chat_is_archived_restored_purged_nudged_and_reported_to() {
     bench.runtime.shutdown(std::time::Duration::from_secs(20)).await;
     assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SUSPENDED"));
     assert_eq!(bench.agents.live(), 0);
+}
+
+// manager/routes/workers.ts: report with git.autoApplyOnReport, open
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_report_applies_the_work_when_the_user_asked_and_a_folder_opens_on_the_desktop() {
+    let sandbox = tempfile::tempdir().expect("a folder");
+    std::fs::create_dir(sandbox.path().join("alpha")).expect("the chat's folder");
+    let root = sandbox.path().to_string_lossy().into_owned();
+    let bench = Bench::new(TempStore::seeded(&root));
+    let tree = format!("{root}/alpha/.eos/worktrees/eos-kid");
+    bench.temp.exec(&format!(
+        "UPDATE workers SET worktree_from = '{root}/alpha', branch = 'eos-kid', worktree_dir = '{tree}' WHERE id = 'w-KID1'"
+    ));
+    bench.agents.script(Turn::reply("thanks"));
+    assert_eq!(bench.post("/workers/w-KID1/report", json!({"text": "result: a"})).await.0, 200);
+    bench.agents.settled().await;
+    assert!(bench.tries.applied.lock().expect("applied").is_empty(), "not asked for");
+
+    let flag = [("git.autoApplyOnReport".to_owned(), eos_contracts::SettingValue::Flag(true))].into_iter().collect();
+    eos_core::store::UserSettingsStore::patch(bench.settings.as_ref(), flag).expect("set");
+    bench.agents.script(Turn::reply("thanks"));
+    assert_eq!(bench.post("/workers/w-KID1/report", json!({"text": "result: b"})).await.0, 200);
+    bench.agents.settled().await;
+    for _ in 0..2000 {
+        if bench.kinds("w-KID1").await.contains(&"try_applied".to_owned()) {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    let applied = bench.tries.applied.lock().expect("applied").clone();
+    assert_eq!(applied.len(), 1);
+    assert_eq!(
+        (applied[0].repo_root.clone(), applied[0].worktree_dir.clone(), applied[0].branch.as_str()),
+        (format!("{root}/alpha").into(), Some(tree.into()), "eos-kid")
+    );
+    assert!(bench.kinds("w-KID1").await.contains(&"try_applied".to_owned()));
+
+    // "Open in": the folder from the row, in the file manager or an editor.
+    let finder = bench.post("/workers/w-CHAT/open", json!({"target": "finder"})).await;
+    assert_eq!(finder, (200, json!({"ok": true})));
+    let editor = bench.post("/workers/w-CHAT/open", json!({"target": "vscode"})).await;
+    assert_eq!(editor.0, 200);
+    let opened = bench.desktop.opened.lock().expect("opened").clone();
+    assert_eq!(opened.len(), 2);
+    assert!(opened[0].starts_with("default: ") && opened[1].starts_with("vscode: "), "{opened:?}");
+    assert_eq!(
+        bench.post("/workers/w-nope/open", json!({"target": "finder"})).await,
+        (404, json!({"error": "worker not found"}))
+    );
+    let missing = bench.post("/workers/w-KID1/open", json!({"target": "finder"})).await;
+    assert_eq!(missing, (400, json!({"error": "worker has no working directory"})), "its tree is not on disk");
 }
 
 /// Waits, on the paused clock, until `done` holds: the bus hands events over on a

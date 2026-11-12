@@ -24,7 +24,7 @@ use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
 use eos_engine::{EngineDeps, EngineOptions, WorkflowFiles};
-use eos_git::ScratchRepos;
+use eos_git::{GitTries, ScratchRepos};
 use eos_kit_sqlite::Db;
 use eos_mod_plugins::{NoPreviewWindow, PluginHost};
 use eos_mod_system::RunInfo;
@@ -348,14 +348,18 @@ impl App {
         let recents = Arc::new(JsonRecents::open(paths.join("recents.json")));
         let git = Arc::new(crate::files::git(&clock));
         // Chats without a folder work in a scratch folder of their own, deleted with them.
-        let claude_projects = agents.claude_home.clone().unwrap_or_else(claude_home).join("projects");
+        let claude_dir = agents.claude_home.clone().unwrap_or_else(claude_home);
+        let claude_projects = claude_dir.join("projects");
         // Workflow runs on disk: the engine's own, and Claude Code's for chats from before the engine.
         let workflow_files =
             Arc::new(WorkflowFiles::new(&EngineOptions::new(paths.join("engine")), Some(claude_projects.clone())));
         let scratch = Arc::new(ScratchRepos::new(git.as_ref().clone(), paths.join("scratch"), claude_projects));
+        // Try's state: one stack per checkout, outliving the workers it came from.
+        let tries = Arc::new(GitTries::new(git.as_ref().clone(), paths.join("tries")));
         let leftovers = Arc::new(Leftovers {
             store: store.clone(),
             worktrees: git.clone(),
+            tries: tries.clone(),
             scratch: scratch.clone(),
             clock: clock.clone(),
         });
@@ -430,6 +434,7 @@ impl App {
             config: config.clone(),
             models,
             backends: engine.clone(),
+            commands: engine.clone(),
             one_shot: engine,
             workflow_files,
             sessions: sessions.clone(),
@@ -472,6 +477,11 @@ impl App {
             updates: updates.clone(),
             worker_definitions,
             scratch,
+            tries,
+            project_memory: Arc::new(eos_store_files::project_memory::FileProjectMemory::new(
+                claude_dir,
+                clock.clone(),
+            )),
             sweep_leftovers,
             git_watcher: crate::files::git_watcher(&clock, &kernel.bus),
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),

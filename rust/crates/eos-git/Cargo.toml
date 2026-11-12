@@ -13,8 +13,9 @@ eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-fs.workspace = true
 eos-kit-proc.workspace = true
+serde.workspace = true
 serde_json.workspace = true
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["rt", "sync"] }
 
 [dev-dependencies]
 eos-platform.workspace = true

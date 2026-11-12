@@ -5,17 +5,17 @@ use std::sync::Arc;
 
 use eos_contracts::SpawnWorkerRequest;
 use eos_core::agent::{Refused, WorkerControl};
-use eos_git::Git;
+use eos_git::{Git, GitTries};
 use eos_kit_proc::{ProcessTrees, Runner};
-use eos_mod_agents::{AgentsModule, Spawning, ToolControl};
+use eos_mod_agents::{AgentsModule, Spawning, ToolControl, WorkerGit};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_sessions::{NoHooks, SessionDeps, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeWorktrees,
-    ScriptedRuntime, SeqIds, TempStore, Turn,
+    FakeClock, FakeConfig, FakeDesktop, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings,
+    FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::json;
@@ -55,10 +55,22 @@ fn bench() -> Bench {
     });
     let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
     let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock.clone()));
-    let module = AgentsModule::new(sessions.clone(), temp.port(), ids, definitions, spawning);
     let trees = ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
     let git = Arc::new(Git::new(Runner::new(trees), clock));
-    let control = ToolControl::new(&module, git).expect("the routes compose");
+    let tries = Arc::new(GitTries::new(git.as_ref().clone(), temp.home.path().join("tries")));
+    let worker_git = WorkerGit {
+        info: git.clone(),
+        diffs: git.clone(),
+        push: git.clone(),
+        remotes: git.clone(),
+        conflicts: git.clone(),
+        restore: git.clone(),
+        tries,
+        merge: git,
+        desktop: Arc::new(FakeDesktop::default()),
+    };
+    let module = AgentsModule::new(sessions.clone(), temp.port(), ids, definitions, spawning, worker_git);
+    let control = ToolControl::new(&module).expect("the routes compose");
     Bench { control, agents, sessions, _temp: temp }
 }
 
@@ -136,12 +148,18 @@ async fn a_request_the_route_refuses_is_refused_in_its_words() {
     assert_eq!(bench.control.spawn(request).await, Err(Refused::new(400, "unknown worker definition: no-such-worker")));
 }
 
-#[tokio::test]
-async fn what_this_feature_does_not_serve_yet_says_so() {
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_report_and_integrating_answer_as_their_routes_do() {
     let bench = bench();
-    // A report answers as its route does; one from a worker nobody knows is refused.
     let report = bench.control.report("w-1", "result: done".into()).await.expect_err("an unknown worker");
     assert_eq!((report.status, report.message.as_str()), (404, "worker not found"));
-    let integrate = bench.control.integrate("o-1", None).await.expect_err("not served");
-    assert_eq!(integrate.status, 501);
+    let unknown = bench.control.integrate("o-1", None).await.expect_err("an unknown orchestrator");
+    assert_eq!((unknown.status, unknown.message.as_str()), (404, "orchestrator not found"));
+
+    // An orchestrator with no workers in a folder that is no repository: nothing comes in.
+    let folder = tempfile::tempdir().expect("a folder");
+    let orchestrator = bench.orchestrator(&folder.path().to_string_lossy()).await;
+    let integrated = bench.control.integrate(&orchestrator, None).await.expect("answers");
+    assert!(!integrated.ok && integrated.workers.is_empty());
+    assert_eq!(integrated.message, "Integration failed: not a git repo / no HEAD");
 }

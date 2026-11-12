@@ -46,6 +46,10 @@ pub enum Outcome {
     Skipped { missing: String },
     /// The target has no route for the step's request yet.
     NotServed { method: String, path: String },
+    /// The target has no route for the step's request, and its router
+    /// answered by itself (a 404 for an unknown path, …): the same answer
+    /// as the recording's when the daemon had no route either.
+    Unrouted { response: Value, method: String, path: String },
 }
 
 /// A request still waiting for its answer, with the method and path it went to.
@@ -138,6 +142,12 @@ impl<'a> Runner<'a> {
                 self.unserved.insert(name.clone());
             } else if step.detach {
                 self.unserved.insert(step.name.clone());
+            } else {
+                let response = document(&self.target.send(&request)?);
+                return match self.answered(step, response, method, path)? {
+                    Outcome::Answered { response, method, path } => Ok(Outcome::Unrouted { response, method, path }),
+                    other => Ok(other),
+                };
             }
             return Ok(Outcome::NotServed { method: method.to_owned(), path });
         }

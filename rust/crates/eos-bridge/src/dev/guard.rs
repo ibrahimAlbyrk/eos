@@ -81,8 +81,6 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/btw"),
     ("PUT", "/workers/{id}/rename-intent"),
     ("POST", "/api/dreams"),
-    // Asks Claude Code itself, in the chat's project folder (a read that starts `claude`).
-    ("GET", "/commands"),
     // Terminals: a shell or a Claude pane, keys typed into one, a `!` command.
     ("POST", "/pty"),
     ("POST", "/pty/{id}/input"),
@@ -127,11 +125,24 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/sync/create"),
     ("POST", "/api/sync/join"),
     ("POST", "/api/sync/now"),
+    // A worker's folder: what writes into the user's checkout (Try, discarding a change,
+    // a resolved conflict, merging workers' work), talks to its remote (push, pull) or opens
+    // it in an app.
+    ("POST", "/workers/{id}/try"),
+    ("POST", "/workers/{id}/try/discard"),
+    ("POST", "/workers/{id}/changes/discard"),
+    ("POST", "/workers/{id}/conflicts/resolve"),
+    ("POST", "/orchestrators/{id}/integrate"),
+    ("POST", "/workers/{id}/push"),
+    ("POST", "/workers/{id}/pull"),
+    ("POST", "/workers/{id}/open"),
+    // Forgetting a project memory removes a file of Claude Code's, outside the data folder.
+    ("DELETE", "/workers/{id}/memory/{name}"),
+    // Arming a loop makes its worker's idle edges send it back to work.
+    ("POST", "/orchestrators/{id}/loop"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
-    ("POST", "/orchestrators/{id}/integrate"),
-    ("POST", "/orchestrators/{id}/loop"),
 ];
 
 /// Routes that act on folders the request names: the Files and Changes panels, which work
@@ -169,8 +180,23 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/workers/{id}/rewind-targets"),
     ("GET", "/workers/{id}/peers"),
     ("GET", "/workers/{fromWorker}/peer-request/{requestId}"),
+    // What git says of a worker's folder. A Try preview and its state write only
+    // unreferenced objects into the repository (and a temporary index), as the daemon's
+    // own reads behind the proxy do.
+    ("GET", "/workers/{id}/diff"),
+    ("GET", "/workers/{id}/changes"),
+    ("GET", "/workers/{id}/changes/file"),
+    ("GET", "/workers/{id}/push-state"),
+    ("GET", "/workers/{id}/conflicts"),
+    ("GET", "/workers/{id}/conflicts/file"),
+    ("GET", "/workers/{id}/try/preview"),
+    ("GET", "/workers/{id}/try/state"),
     // A banner for the user.
     ("POST", "/workers/{id}/notify"),
+    // Stopping a loop only writes its row.
+    ("POST", "/orchestrators/{id}/loop/stop"),
+    // Keeping a Try changes no file of the checkout, only its record in the data folder.
+    ("POST", "/workers/{id}/try/keep"),
     ("GET", "/pty"),
     ("GET", "/pty/{id}/buffer"),
     ("GET", "/pty/{id}/conversation"),
@@ -227,6 +253,11 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/projects"),
     ("POST", "/projects/delete"),
     ("POST", "/fs/recents/remove"),
+    // The user's settings and the archive and compaction sections of `config.json`, in the
+    // data copy.
+    ("PUT", "/api/settings"),
+    ("PUT", "/api/settings/archive"),
+    ("PUT", "/api/settings/compaction"),
     // Renders a prompt; no model is asked.
     ("POST", "/api/prompts/preview"),
     // Visual answers: a view or an app an agent presents, its state, a place lookup on the
@@ -417,7 +448,6 @@ mod tests {
             ("POST", "/api/dreams"),
             ("POST", "/api/sync/now"),
             ("POST", "/api/transfers"),
-            ("GET", "/commands"),
         ] {
             assert!(!allows_rust(method, pattern, b"{}", None), "{method} {pattern}");
         }

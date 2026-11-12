@@ -8,11 +8,11 @@
 //! not, keeps its worktree and its scratch folder.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use eos_core::Error;
 use eos_core::agent::ScratchFolders;
-use eos_core::git::{WorktreeManager, WorktreeRef, WorktreeRemoved};
+use eos_core::git::{BranchIntegration, WorktreeManager, WorktreeRef, WorktreeRemoved};
 use eos_core::store::Store;
 
 /// Where Eos puts the worktrees it makes, inside a repository.
@@ -79,15 +79,18 @@ pub async fn prune_orphan_worktrees(store: &dyn Store, worktrees: &dyn WorktreeM
 
 /// Deletes the queued worktrees whose grace period is over. A worktree
 /// another worker still works in (same repository and branch) is kept; its
-/// entry leaves the queue either way.
+/// entry leaves the queue either way. The removed worker's Try snapshot,
+/// which lives outside the worktree, is settled in both cases.
 pub async fn reap_worktree_removals(
     store: &dyn Store,
     worktrees: &dyn WorktreeManager,
+    tries: &dyn BranchIntegration,
     now: i64,
 ) -> Result<usize, Error> {
     let (queue, rows) = store.read(|tx| Ok((tx.worktree_removals().list()?, tx.workers().list_all()?))).await?;
     let mut reaped = 0;
     for entry in queue.into_iter().filter(|e| e.scheduled_at <= now) {
+        tries.cleanup_snapshot(Path::new(&entry.repo_root), &entry.worker_id).await;
         let shared = rows.iter().any(|w| {
             w.branch.as_deref() == Some(&entry.branch) && w.worktree_from.as_deref() == Some(&entry.repo_root)
         });

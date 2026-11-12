@@ -6,6 +6,9 @@
 //! reads the request, calls the use-case and answers in today's shape. The
 //! read side of the same routes is `eos-mod-workers`.
 //!
+//! The routes over a worker's folder (diff, changes, push, pull, Try,
+//! conflicts, integrating an orchestrator's workers) are in `git`.
+//!
 //! The module also runs what happens around agents by itself (`watch`): idle
 //! chats are parked, a finished turn fires a banner, the report reminder and
 //! the context threshold run at the idle edge, the active workers' folders
@@ -14,6 +17,7 @@
 
 mod archive;
 mod collab;
+mod git;
 mod ingest;
 mod nudge;
 mod routes;
@@ -21,6 +25,7 @@ mod spawn;
 mod tool_control;
 mod watch;
 
+pub use git::WorkerGit;
 pub use tool_control::ToolControl;
 
 use std::sync::{Arc, Mutex};
@@ -48,6 +53,7 @@ pub struct AgentsModule {
     ids: Arc<dyn Ids>,
     definitions: Arc<WorkerDefinitions>,
     spawning: Spawning,
+    git: WorkerGit,
     /// Purge archived chats past their retention without being asked.
     sweeps_archives: bool,
     /// The watchers around agents; none in a module built without them.
@@ -86,6 +92,7 @@ impl AgentsModule {
         ids: Arc<dyn Ids>,
         definitions: Arc<WorkerDefinitions>,
         spawning: Spawning,
+        git: WorkerGit,
     ) -> Self {
         Self {
             sessions,
@@ -93,6 +100,7 @@ impl AgentsModule {
             ids,
             definitions,
             spawning,
+            git,
             sweeps_archives: false,
             watch: None,
             watching: Arc::default(),
@@ -128,6 +136,7 @@ impl Module for AgentsModule {
         all.extend(archive::all(self));
         all.extend(collab::all(self));
         all.extend(nudge::all(self));
+        all.extend(git::all(self));
         all.push(ingest::route(self.clone()));
         all
     }

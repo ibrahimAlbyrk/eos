@@ -5,6 +5,8 @@
 //! book only: writing the row, logging the event and announcing it are the
 //! caller's (`core/src/domain/state-machine.ts`, `value-objects.ts`).
 
+use std::path::PathBuf;
+
 use eos_contracts::{NameSource, Num, WorkerRow, WorkerState};
 
 /// The state as it is stored and wired (`SPAWNING`, …).
@@ -168,11 +170,60 @@ pub struct Worker {
     pub scratch: bool,
 }
 
+/// A worker's branch in its own worktree: what Try and integrating bring
+/// back into the repository it forked from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkerBranch {
+    /// The repository the worktree forks from.
+    pub repo_root: PathBuf,
+    /// `None`, or a folder that is gone: the branch's tip stands for the work.
+    pub worktree_dir: Option<PathBuf>,
+    pub branch: String,
+    pub worker_id: String,
+}
+
+/// Why a worker has no [`WorkerBranch`] to bring back yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BranchUnready {
+    /// It works without a worktree of its own.
+    NoBranch,
+    /// Its worktree is not on disk yet.
+    NotReady,
+}
+
 impl Worker {
     /// Where the agent edits: its worktree, else its folder, else (before the
     /// worktree is known) the repository it forks from.
     pub fn work_dir(&self) -> Option<&str> {
         self.worktree_dir.as_deref().or(self.cwd.as_deref()).or(self.worktree_from.as_deref())
+    }
+
+    /// [`work_dir`](Self::work_dir) for git reads: `None` while a worktree
+    /// worker's tree is not on disk yet. Read before then, git would fail, or
+    /// walk up into the source repository and report its changes as the
+    /// worker's, or see a half checked-out tree.
+    pub fn readable_work_dir(&self) -> Option<&str> {
+        if self.worktree_from.is_some() && self.worktree_dir.is_some() && !self.workspace_ready {
+            return None;
+        }
+        self.work_dir()
+    }
+
+    /// The worker's branch in its own worktree, once that tree is on disk.
+    pub fn branch_ref(&self) -> Result<WorkerBranch, BranchUnready> {
+        let (Some(repo_root), Some(branch)) = (&self.worktree_from, &self.branch) else {
+            return Err(BranchUnready::NoBranch);
+        };
+        // The folder is written on the row at insert, long before the tree exists.
+        let Some(worktree_dir) = self.worktree_dir.as_ref().filter(|_| self.workspace_ready) else {
+            return Err(BranchUnready::NotReady);
+        };
+        Ok(WorkerBranch {
+            repo_root: PathBuf::from(repo_root),
+            worktree_dir: Some(PathBuf::from(worktree_dir)),
+            branch: branch.clone(),
+            worker_id: self.id.clone(),
+        })
     }
 
     pub fn is_archived(&self) -> bool {

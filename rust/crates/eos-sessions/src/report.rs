@@ -64,6 +64,8 @@ pub struct Reported {
     pub delivered: bool,
     /// It waits for the worker's goal check.
     pub held: bool,
+    /// It went on to a parent that exists (delivered or not).
+    pub parent_found: bool,
 }
 
 impl Sessions {
@@ -101,36 +103,80 @@ impl Sessions {
                 Ok((worker, parent, held))
             })
             .await?;
-        let Some(parent) = parent.filter(|_| !held) else { return Ok(Reported { delivered: false, held }) };
+        let Some(parent) = parent.filter(|_| !held) else {
+            return Ok(Reported { delivered: false, held, parent_found: false });
+        };
+        let delivered = self.forward_report(Some(&worker), &worker.id, parent, text, "agent").await?;
+        Ok(Reported { delivered, held: false, parent_found: true })
+    }
+
+    /// Hands a report a goal loop held (or wrote itself) to the worker's
+    /// parent, as a report delivered then. `provenance`: `agent` for the
+    /// worker's own words, `system` for a message the app wrote for a worker
+    /// that left none. `false` when the parent is gone or it could not be delivered.
+    pub async fn release_report(
+        &self,
+        worker_id: &str,
+        parent_id: &str,
+        text: &str,
+        provenance: &str,
+    ) -> Result<bool, Error> {
+        let (id, parent_id) = (worker_id.to_owned(), parent_id.to_owned());
+        let (worker, parent) =
+            self.store().read(move |tx| Ok((tx.workers().find(&id)?, tx.workers().find(&parent_id)?))).await?;
+        let Some(parent) = parent else { return Ok(false) };
+        self.forward_report(worker.as_ref(), worker_id, parent, text, provenance).await
+    }
+
+    /// A report as a turn of `parent`, queued while it is busy; a parent at
+    /// rest is continued first. A worker that is gone is named by its id.
+    async fn forward_report(
+        &self,
+        worker: Option<&eos_domain::Worker>,
+        worker_id: &str,
+        parent: eos_domain::Worker,
+        text: &str,
+        provenance: &str,
+    ) -> Result<bool, Error> {
         let at_rest = matches!(parent.state, WorkerState::Suspended | WorkerState::Done);
         if at_rest && parent.session_id.as_deref().is_some_and(|s| !s.is_empty()) && !self.is_live(&parent.id) {
             self.resume(&parent.id).await?;
         }
-        let message = MessageInput {
-            worker_id: parent.id.clone(),
-            text: text.to_owned(),
-            display_text: Some(text.to_owned()),
-            envelope: Some(Envelope::WorkerReport {
-                provenance: Some("agent".into()),
+        let envelope = match worker {
+            Some(worker) => Envelope::WorkerReport {
+                provenance: Some(provenance.to_owned()),
                 from_worker: worker.id.clone(),
                 worker_name: Some(worker.name.clone().unwrap_or_else(|| worker.id.clone())),
                 branch: worker.branch.clone(),
                 worktree_dir: worker.worktree_dir.clone(),
                 status: None,
-            }),
+            },
+            None => Envelope::WorkerReport {
+                provenance: Some(provenance.to_owned()),
+                from_worker: worker_id.to_owned(),
+                worker_name: Some(worker_id.to_owned()),
+                branch: None,
+                worktree_dir: None,
+                status: None,
+            },
+        };
+        let message = MessageInput {
+            worker_id: parent.id.clone(),
+            text: text.to_owned(),
+            display_text: Some(text.to_owned()),
+            envelope: Some(envelope),
             // Each report gets a turn of its own, in the order they came.
             queue_when_busy: true,
             origin: Some("report".into()),
             ..MessageInput::default()
         };
-        let delivered = match self.dispatch(message).await {
-            Ok(_) => true,
+        match self.dispatch(message).await {
+            Ok(_) => Ok(true),
             Err(e) => {
-                tracing::warn!(worker_id, parent = %parent.id, error = %e, "a report could not be delivered");
-                false
+                tracing::warn!(parent = %parent.id, error = %e, "a report could not be delivered");
+                Ok(false)
             }
-        };
-        Ok(Reported { delivered, held: false })
+        }
     }
 
     /// The user or the parent wrote to a worker whose loop waited for input:

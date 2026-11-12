@@ -16,6 +16,7 @@
 //! session's questions go to [`UserQuestions`](eos_core::agent::UserQuestions).
 
 mod accounts;
+mod commands;
 mod engine;
 mod gate;
 mod mapper;

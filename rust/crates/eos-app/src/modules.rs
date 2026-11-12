@@ -37,6 +37,8 @@ pub(crate) struct Context {
     pub(crate) config: Arc<dyn ConfigSource>,
     pub(crate) models: Arc<dyn ModelCatalog>,
     pub(crate) backends: Arc<dyn BackendCatalog>,
+    /// The skills and slash commands of a folder, as the engine finds them.
+    pub(crate) commands: Arc<dyn eos_core::agent::CommandCatalog>,
     /// The model, asked once outside any conversation (summaries, titles, dreams).
     pub(crate) one_shot: Arc<dyn OneShot>,
     /// The workflow run records and agent conversations the engine keeps.
@@ -74,6 +76,10 @@ pub(crate) struct Context {
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
+    /// Try: workers' work shown in the user's checkouts.
+    pub(crate) tries: Arc<dyn eos_core::git::BranchIntegration>,
+    /// Claude Code's memory of the projects workers work in.
+    pub(crate) project_memory: Arc<dyn eos_core::store::ProjectMemoryStore>,
     pub(crate) git_watcher: Arc<dyn eos_core::git::GitWatcher>,
     /// The app works on the user's own data folder: it may delete on its own.
     pub(crate) sweep_leftovers: bool,
@@ -109,6 +115,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
                 prompts: cx.prompts.clone(),
                 scratch: cx.scratch.clone(),
             },
+            crate::files::worker_git(cx),
         )
         .sweeping_archives(cx.sweep_leftovers)
         .watching(eos_mod_agents::Watch {
@@ -198,6 +205,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         cx.browser.clone(),
         crate::files::module(cx),
         genui,
+        Arc::new(crate::files::loops(cx)),
         pages,
         cx.peer.module(),
         profile,
@@ -212,8 +220,11 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             cx.features.clone(),
             cx.stats.clone(),
             cx.config.clone(),
-            cx.models.clone(),
-            cx.backends.clone(),
+            eos_mod_system::Offers {
+                models: cx.models.clone(),
+                backends: cx.backends.clone(),
+                commands: cx.commands.clone(),
+            },
             eos_mod_system::LocalClock { clock: cx.clock.clone(), zone: Arc::new(crate::host::HostTimeZone) },
         )),
         Arc::new(eos_mod_templates::TemplatesModule::new(cx.templates.clone())),
@@ -244,8 +255,9 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             cx.bus.clone(),
         )),
         Arc::new(
-            eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())
-                .with_open_questions(Arc::new(cx.questions.clone())),
+            eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
+                .with_open_questions(Arc::new(cx.questions.clone()))
+                .with_project_memory(cx.project_memory.clone()),
         ),
         Arc::new(eos_mod_workflow_runs::WorkflowRunsModule::new(eos_mod_workflow_runs::Parts {
             store: cx.store.clone(),
@@ -257,6 +269,9 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             sleeper: Arc::new(eos_accounts::TokioSleeper),
         })),
     ];
+    // Settings refuses the keys the features above set through routes of their own.
+    let protected = modules.iter().filter_map(|module| module.protected_settings()).collect();
+    modules.push(Arc::new(eos_mod_settings::SettingsModule::new(cx.settings.clone(), cx.config.clone(), protected)));
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);

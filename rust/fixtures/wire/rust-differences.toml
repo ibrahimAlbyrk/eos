@@ -30,6 +30,17 @@ at = "/json/host/apiStamp"
 reason = "The stamp of the route surface is this build's own (eos-mod-peer/src/stamp.rs), never a TypeScript build's: a computer of one kind loads the other's own dashboard instead of driving it with its own."
 
 [[known]]
+scenario = "33-settings"
+step = "commands-for-folder"
+reason = "A folder's menu is what a session there would run: the engine's own bundled skills, not the ones the Claude Code binary ships, and a name found twice is the one the engine's precedence picks."
+
+[[known]]
+scenario = "18-http"
+step = "head-is-not-get"
+at = "/json"
+reason = "HTTP never carries the body of an answer to HEAD. In process the router's 404 keeps its JSON body; a page's HEAD request gets none."
+
+[[known]]
 scenario = "18-http"
 step = "body-not-json"
 reason = "A body that is not JSON is the caller's mistake: 400 `invalid request: body is not valid JSON`. The daemon answered 500 with V8's parser message."

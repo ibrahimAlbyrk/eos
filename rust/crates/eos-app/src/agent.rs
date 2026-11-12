@@ -19,7 +19,7 @@ use eos_core::accounts::{
 use eos_core::agent::{
     BackgroundTaskUpdate, HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
 };
-use eos_core::git::WorktreeManager;
+use eos_core::git::{BranchIntegration, WorktreeManager};
 use eos_core::prompt::ProfileRenderer;
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock};
@@ -184,13 +184,17 @@ impl PromptAssembler for AppPrompts {
 pub(crate) struct Leftovers {
     pub(crate) store: Arc<dyn Store>,
     pub(crate) worktrees: Arc<dyn WorktreeManager>,
+    /// A removed worker's Try snapshot is settled with its worktree.
+    pub(crate) tries: Arc<dyn BranchIntegration>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
     pub(crate) clock: Arc<dyn Clock>,
 }
 
 impl Leftovers {
     async fn reap(&self) {
-        let reaped = reap_worktree_removals(self.store.as_ref(), self.worktrees.as_ref(), self.clock.now_ms()).await;
+        let now = self.clock.now_ms();
+        let reaped =
+            reap_worktree_removals(self.store.as_ref(), self.worktrees.as_ref(), self.tries.as_ref(), now).await;
         if let Err(e) = reaped {
             tracing::warn!(error = %e, "worktrees queued for removal could not be deleted");
         }

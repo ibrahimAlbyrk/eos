@@ -1,11 +1,13 @@
 //! A worker's goal loop on record (`core/src/use-cases/attachLoop.ts`).
 //!
 //! A step of a database write job: the loop row is saved with whatever else
-//! the job writes.
+//! the job writes. The loop feature runs it and arms loops from its route;
+//! starting a worker arms one from the spawn request.
 
 use eos_contracts::{GoalSpec, LoopStrategy};
 use eos_core::store::{NewLoop, Tx};
 use eos_core::{Error, Ids};
+use eos_domain::loops::lint::lint_goal_criteria;
 
 /// Who arms a loop on whom, and with what.
 #[derive(Debug, Clone, PartialEq)]
@@ -20,9 +22,17 @@ pub struct AttachLoop {
     pub limit: Option<i64>,
 }
 
-/// Arms a loop and returns its id. The caller must be an orchestrator and the
-/// target itself or a worker it spawned; a worker has one active loop at most.
-pub fn attach_loop(tx: &dyn Tx, ids: &dyn Ids, now: i64, input: &AttachLoop) -> Result<String, Error> {
+/// An armed loop, and what its goal's criteria were warned about.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Attached {
+    pub id: String,
+    pub warnings: Vec<String>,
+}
+
+/// Arms a loop. The caller must be an orchestrator and the target itself or a
+/// worker it spawned; a worker has one active loop at most; a goal that can
+/// never pass under its strategy is refused.
+pub fn attach_loop(tx: &dyn Tx, ids: &dyn Ids, now: i64, input: &AttachLoop) -> Result<Attached, Error> {
     let caller = tx.workers().find(&input.caller_id)?.ok_or_else(|| Error::not_found("worker", &input.caller_id))?;
     if !caller.is_orchestrator {
         return Err(Error::PermissionDenied(format!("worker {} is not an orchestrator", input.caller_id)));
@@ -39,15 +49,17 @@ pub fn attach_loop(tx: &dyn Tx, ids: &dyn Ids, now: i64, input: &AttachLoop) -> 
     if tx.loops().find_active_by_worker(target_id)?.is_some() {
         return Err(Error::Conflict(format!("an active loop already exists on {target_id}")));
     }
+    let strategy = input.strategy.unwrap_or(LoopStrategy::Hybrid);
+    let warnings = lint_goal_criteria(strategy, &input.goal).map_err(Error::Validation)?;
     let id = ids.loop_id();
     tx.loops().insert(&NewLoop {
         id: id.clone(),
         worker_id: target_id.to_owned(),
         parent_id,
         goal: input.goal.clone(),
-        strategy: input.strategy.unwrap_or(LoopStrategy::Hybrid),
+        strategy,
         max_attempts: input.limit,
         started_at: now,
     })?;
-    Ok(id)
+    Ok(Attached { id, warnings })
 }

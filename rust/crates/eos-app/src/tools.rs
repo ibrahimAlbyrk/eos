@@ -23,7 +23,7 @@ pub(crate) fn build(
     transfer: &TransferModule,
 ) -> Result<Arc<Tools>, eos_runtime::Error> {
     let questions = Arc::new(cx.questions.clone());
-    let control = Arc::new(ToolControl::new(agents, Arc::new(crate::files::git(&cx.clock)))?);
+    let control = Arc::new(ToolControl::new(agents)?);
     Ok(Arc::new(Tools::new(Services {
         prompts: cx.prompts.registry().clone(),
         clock: cx.clock.clone(),

@@ -2,14 +2,16 @@
 
 use eos_contracts::{LoopStatus, LoopStrategy};
 use eos_core::Error;
-use eos_core::store::{LoopRepo, NewLoop};
+use eos_core::store::{LoopAmend, LoopRepo, NewLoop};
 use eos_domain::WorkerLoop;
+use eos_domain::loops::LoopAttempt;
+use eos_domain::loops::progress::with_attempt;
 use eos_kit_sqlite::rusqlite::{Row, params};
 
 use crate::tx::{SqliteTx, failed};
 
 const COLUMNS: &str = "id, worker_id, parent_id, goal_json, strategy, status, attempt, max_attempts, held_report, \
-    last_reason, awaiting_input, check_failures, started_at, updated_at";
+    last_reason, awaiting_input, check_failures, started_at, updated_at, progress_ring";
 
 /// A stored enum name (`active`, `hybrid`) as its type.
 fn named<T: serde::de::DeserializeOwned>(what: &str, name: String) -> Result<T, Error> {
@@ -19,7 +21,7 @@ fn named<T: serde::de::DeserializeOwned>(what: &str, name: String) -> Result<T, 
 
 fn worker_loop(row: &Row<'_>) -> Result<WorkerLoop, Error> {
     // The three columns that need decoding, then the rest as stored.
-    let read = || -> eos_kit_sqlite::rusqlite::Result<(String, String, String, WorkerLoop)> {
+    let read = || -> eos_kit_sqlite::rusqlite::Result<(String, String, String, Option<String>, WorkerLoop)> {
         let partial = WorkerLoop {
             id: row.get(0)?,
             worker_id: row.get(1)?,
@@ -35,10 +37,14 @@ fn worker_loop(row: &Row<'_>) -> Result<WorkerLoop, Error> {
             check_failures: row.get::<_, Option<i64>>(11)?.unwrap_or(0),
             started_at: row.get(12)?,
             updated_at: row.get(13)?,
+            progress_ring: Vec::new(),
         };
-        Ok((row.get(3)?, row.get(4)?, row.get(5)?, partial))
+        Ok((row.get(3)?, row.get(4)?, row.get(5)?, row.get::<_, Option<String>>(14)?, partial))
     };
-    let (goal, strategy, status, partial) = read().map_err(failed)?;
+    let (goal, strategy, status, ring, partial) = read().map_err(failed)?;
+    // A ring that does not read is a fresh window, as today's code reads it.
+    let progress_ring = ring.and_then(|text| serde_json::from_str::<Vec<LoopAttempt>>(&text).ok()).unwrap_or_default();
+    let partial = WorkerLoop { progress_ring, ..partial };
     let goal = serde_json::from_str(&goal)
         .map_err(|e| Error::Storage(format!("loop {} has an unreadable goal: {e}", partial.id)))?;
     Ok(WorkerLoop { goal, strategy: named("strategy", strategy)?, status: named("status", status)?, ..partial })
@@ -114,6 +120,38 @@ impl LoopRepo for SqliteTx<'_> {
         self.exec(
             "UPDATE worker_loops SET check_failures = ?1, updated_at = ?2 WHERE id = ?3",
             params![failures, now, id],
+        )
+        .map(drop)
+    }
+
+    fn amend(&self, id: &str, patch: &LoopAmend, now: i64) -> Result<(), Error> {
+        let Some(current) = self.find(id)? else { return Ok(()) };
+        let goal = match &patch.goal {
+            Some(goal) => serde_json::to_string(goal).map_err(Error::storage)?,
+            None => serde_json::to_string(&current.goal).map_err(Error::storage)?,
+        };
+        let strategy = name_of(patch.strategy.unwrap_or(current.strategy))?;
+        let max_attempts = patch.max_attempts.unwrap_or(current.max_attempts);
+        self.exec(
+            "UPDATE worker_loops SET goal_json = ?1, strategy = ?2, max_attempts = ?3, updated_at = ?4 WHERE id = ?5",
+            params![goal, strategy, max_attempts, now, id],
+        )
+        .map(drop)
+    }
+
+    fn reset_progress(&self, id: &str, now: i64) -> Result<(), Error> {
+        self.exec("UPDATE worker_loops SET progress_ring = NULL, updated_at = ?1 WHERE id = ?2", params![now, id])
+            .map(drop)
+    }
+
+    fn record_attempt(&self, id: &str, attempt: &LoopAttempt, now: i64) -> Result<(), Error> {
+        let Some(current) = self.find(id)? else { return Ok(()) };
+        let ring =
+            serde_json::to_string(&with_attempt(&current.progress_ring, attempt.clone())).map_err(Error::storage)?;
+        self.exec(
+            "UPDATE worker_loops SET attempt = attempt + 1, progress_ring = ?1, last_reason = ?2, updated_at = ?3 \
+             WHERE id = ?4",
+            params![ring, attempt.reason, now, id],
         )
         .map(drop)
     }

@@ -12,7 +12,7 @@ use crate::run::{Limits, parse_int};
 
 /// Git knows a repository by its real path (and `/tmp` is a link on macOS),
 /// while callers may hold the path as the user typed it.
-fn real_path_or(path: &Path) -> PathBuf {
+pub(crate) fn real_path_or(path: &Path) -> PathBuf {
     fs::canonicalize(path).unwrap_or_else(|_| path.to_owned())
 }
 
@@ -35,7 +35,7 @@ fn is_managed_dir(dir: &Path) -> bool {
 }
 
 /// The number in base 36, as JavaScript's `n.toString(36)`.
-fn base36(mut n: u64) -> String {
+pub(crate) fn base36(mut n: u64) -> String {
     const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
     let mut out = Vec::new();
     loop {

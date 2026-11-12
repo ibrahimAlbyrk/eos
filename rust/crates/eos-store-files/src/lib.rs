@@ -12,6 +12,7 @@ mod models;
 pub mod pages;
 pub mod policy;
 pub mod profile;
+pub mod project_memory;
 mod projects;
 pub mod prompts;
 mod recents;

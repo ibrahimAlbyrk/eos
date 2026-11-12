@@ -57,8 +57,8 @@ pub use counters::{ContextMarkRepo, MessageIdRepo, WorktreeRemoval, WorktreeRemo
 pub use definitions::{DefinitionFile, WorkerDefinitionFiles};
 pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, WorkerDefinitionRepo};
 pub use events::{EventOrder, EventQuery, EventRepo};
-pub use files::{ConfigSource, ProjectStore, RecentFolders, UserSettingsStore};
-pub use loops::{LoopRepo, NewLoop};
+pub use files::{ConfigSource, ProjectMemoryStore, ProjectStore, RecentFolders, UserSettingsStore};
+pub use loops::{LoopAmend, LoopRepo, NewLoop};
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
 pub use pages::PageStore;

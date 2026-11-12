@@ -5,17 +5,14 @@
 //!
 //! Each operation is the route the tool used to call, asked from inside the
 //! app: the same handler, so a tool and the dashboard can never answer
-//! differently. An operation whose route this crate does not serve yet is
-//! refused as not available.
+//! differently.
 
 use std::path::Path;
-use std::sync::Arc;
 
-use eos_contracts::{IntegrateWorkersResponse, PeerListItem, PeerRef, SpawnWorkerRequest};
+use eos_contracts::{IntegrateWorkersRequest, IntegrateWorkersResponse, PeerListItem, PeerRef, SpawnWorkerRequest};
 use eos_core::agent::{
     DirectiveSent, KilledWorker, PeerAnswered, PeerConsult, Peers, Refused, SessionFolder, SpawnedWorker, WorkerControl,
 };
-use eos_core::git::GitInfo;
 use eos_core::{BoxFuture, Error};
 use eos_domain::worker::{Ownership, ownership};
 use eos_runtime::access::Caller;
@@ -28,14 +25,10 @@ use serde_json::{Value, json};
 
 use crate::AgentsModule;
 
-/// What an operation without a route here answers.
-const NOT_AVAILABLE: u16 = 501;
-
 pub struct ToolControl {
     agents: AgentsModule,
     /// The feature's own routes, for calls from inside the app.
     routes: Router,
-    git: Arc<dyn GitInfo>,
 }
 
 impl std::fmt::Debug for ToolControl {
@@ -55,9 +48,9 @@ fn field<T: DeserializeOwned>(answer: &Value, key: &str) -> Result<T, Refused> {
 }
 
 impl ToolControl {
-    pub fn new(agents: &AgentsModule, git: Arc<dyn GitInfo>) -> Result<Self, eos_runtime::Error> {
+    pub fn new(agents: &AgentsModule) -> Result<Self, eos_runtime::Error> {
         let routes = Router::builder().routes(agents.routes()).build()?;
-        Ok(Self { agents: agents.clone(), routes, git })
+        Ok(Self { agents: agents.clone(), routes })
     }
 
     /// Asks one of the feature's routes; a refusal is its status and `error` text.
@@ -86,7 +79,7 @@ impl WorkerControl for ToolControl {
         Box::pin(async move {
             let row = self.agents.worker(worker_id).await.ok().flatten();
             let cwd = row.and_then(|w| w.worktree_dir.or(w.cwd)).unwrap_or_default();
-            let git_repo = !cwd.is_empty() && self.git.is_repo(Path::new(&cwd)).await;
+            let git_repo = !cwd.is_empty() && self.agents.git().info.is_repo(Path::new(&cwd)).await;
             SessionFolder { cwd, git_repo }
         })
     }
@@ -141,10 +134,14 @@ impl WorkerControl for ToolControl {
 
     fn integrate<'a>(
         &'a self,
-        _orchestrator_id: &'a str,
-        _ids: Option<Vec<String>>,
+        orchestrator_id: &'a str,
+        ids: Option<Vec<String>>,
     ) -> BoxFuture<'a, Result<IntegrateWorkersResponse, Refused>> {
-        Box::pin(async { Err(Refused::new(NOT_AVAILABLE, "integrating workers' branches is not available yet")) })
+        Box::pin(async move {
+            let target = format!("/orchestrators/{orchestrator_id}/integrate");
+            let answer = self.ask(Method::Post, &target, Some(json!(IntegrateWorkersRequest { ids }))).await?;
+            serde_json::from_value(answer).map_err(|e| Refused::new(500, format!("the answer was not understood: {e}")))
+        })
     }
 }
 

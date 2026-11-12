@@ -736,22 +736,29 @@ async fn only_worktrees_eos_made_and_nobody_uses_are_deleted() {
     bench.agents.settled().await;
     bench.sessions.kill(&kept).await.expect("removes");
     let now = FakeClock::START_MS;
+    let tries = eos_testkit::FakeTries::default();
     assert_eq!(
-        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now).await,
+        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), &tries, now).await,
         Ok(0),
         "inside the grace period"
     );
+    assert!(tries.cleaned.lock().expect("cleaned").is_empty());
     assert_eq!(
-        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now + 10_000).await,
+        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), &tries, now + 10_000).await,
         Ok(0),
         "its twin still works there"
     );
+    // The removed worker's Try snapshot is settled even when its worktree stays.
+    assert_eq!(*tries.cleaned.lock().expect("cleaned"), [(std::path::PathBuf::from("/repo"), kept.clone())]);
     assert!(
         bench.store().read(|tx| tx.worktree_removals().list()).await.expect("reads").is_empty(),
         "the entry leaves the queue"
     );
     bench.sessions.kill(&twin).await.expect("removes");
-    assert_eq!(reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), now + 10_000).await, Ok(1));
+    assert_eq!(
+        reap_worktree_removals(bench.store().as_ref(), bench.worktrees.as_ref(), &tries, now + 10_000).await,
+        Ok(1)
+    );
     assert_eq!(bench.worktrees.removed.lock().expect("removed").last().expect("a removal").branch, branch);
 }
 

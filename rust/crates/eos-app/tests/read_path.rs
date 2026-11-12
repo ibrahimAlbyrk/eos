@@ -90,6 +90,8 @@ async fn the_seeded_folder_answers_as_the_daemon_did() {
         ("12-transcript", "child-row", "/workers/w-KID1"),
         ("20-reads", "projects", "/projects"),
         ("20-reads", "recents", "/fs/recents"),
+        ("33-settings", "backend-models", "/api/backends/claude-opus/models"),
+        ("33-settings", "backend-models-unknown", "/api/backends/nope/models"),
     ];
     for (scenario, step, target) in steps {
         let recorded = fixtures::recorded_response(scenario, step);

@@ -11,7 +11,11 @@ use eos_testkit::{FakeModelCatalog, TempStore};
 use serde_json::Value;
 
 fn runtime(temp: &TempStore) -> Runtime {
-    let module = Arc::new(WorkersModule::new(temp.port(), Arc::new(FakeModelCatalog::default())));
+    let module = Arc::new(WorkersModule::new(
+        temp.port(),
+        Arc::new(FakeModelCatalog::default()),
+        Arc::new(eos_testkit::FakeClock::new()),
+    ));
     Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes")
 }
 

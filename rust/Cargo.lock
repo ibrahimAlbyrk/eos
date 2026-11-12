@@ -1272,6 +1272,7 @@ dependencies = [
  "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
+ "eos-mod-loops",
  "eos-mod-pages",
  "eos-mod-peer",
  "eos-mod-plugins",
@@ -1281,6 +1282,7 @@ dependencies = [
  "eos-mod-prompts",
  "eos-mod-questions",
  "eos-mod-remote",
+ "eos-mod-settings",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -1436,6 +1438,7 @@ dependencies = [
  "eos-agent-engine",
  "eos-agent-mock-api",
  "eos-agent-sdk",
+ "eos-agent-skills",
  "eos-agent-testkit",
  "eos-agent-tools-session",
  "eos-agent-types",
@@ -1517,6 +1520,7 @@ dependencies = [
  "eos-platform",
  "eos-sessions",
  "eos-testkit",
+ "serde",
  "serde_json",
  "tempfile",
  "tokio",
@@ -1604,6 +1608,7 @@ dependencies = [
  "eos-core",
  "eos-domain",
  "eos-git",
+ "eos-kit-fs",
  "eos-kit-proc",
  "eos-platform",
  "eos-prompts",
@@ -1745,6 +1750,30 @@ dependencies = [
  "indexmap",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-loops"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-git",
+ "eos-kit-fs",
+ "eos-kit-proc",
+ "eos-platform",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-sessions",
+ "eos-store-files",
+ "eos-testkit",
+ "futures-util",
+ "regress",
+ "serde_json",
+ "tempfile",
  "tokio",
  "tracing",
 ]
@@ -1905,6 +1934,21 @@ dependencies = [
  "sha2",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-settings"
+version = "0.0.1"
+dependencies = [
+ "eos-config",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

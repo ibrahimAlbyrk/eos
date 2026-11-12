@@ -32,7 +32,9 @@ pub use session::{
     SessionSink, SessionTranscript, TaskOutcome, TranscriptEntry,
 };
 
-use eos_contracts::{CatalogModel, UiBackendDescriptor};
+use std::path::Path;
+
+use eos_contracts::{CatalogModel, CommandItem, UiBackendDescriptor};
 use serde::{Deserialize, Serialize};
 
 /// The models the provider offers, as last fetched.
@@ -42,6 +44,14 @@ pub trait ModelCatalog: Send + Sync + 'static {
     /// The model's context window in tokens. Never blocks: the cached list,
     /// else the built-in baseline (`eos_domain::model`).
     fn context_window_for(&self, model: Option<&str>) -> i64;
+}
+
+/// The skills and slash commands a user can type in a chat, as the composer's
+/// menu lists them before any session runs: the folder's own, the user's,
+/// the plugins', and (with a folder) the engine's bundled ones. A name given
+/// twice is listed once, the folder's first.
+pub trait CommandCatalog: Send + Sync + 'static {
+    fn commands<'a>(&'a self, cwd: Option<&'a Path>) -> crate::BoxFuture<'a, Vec<CommandItem>>;
 }
 
 /// The agent backends this build can run sessions on, as the dashboard's

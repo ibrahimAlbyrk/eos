@@ -247,7 +247,7 @@ fn record(args: &Args) -> anyhow::Result<ExitCode> {
                     skipped += 1;
                     (None, Value::Null)
                 }
-                Outcome::NotServed { method, path } => {
+                Outcome::NotServed { method, path } | Outcome::Unrouted { method, path, .. } => {
                     bail!("{name} / {}: the target does not serve {method} {path}", step.name)
                 }
                 Outcome::Answered { response, method, path } => {
@@ -322,7 +322,7 @@ fn replay(args: &Args) -> anyhow::Result<ExitCode> {
         for exchange in &recording.exchanges {
             let step = &exchange.step;
             let outcome = runner.step(step).with_context(|| format!("{name} / {}", step.name))?;
-            let actual = match outcome {
+            let actual = match &outcome {
                 Outcome::NotServed { method, path } => {
                     starved |= !step.capture.is_empty();
                     unserved_write |= !step.only_reads();
@@ -335,9 +335,9 @@ fn replay(args: &Args) -> anyhow::Result<ExitCode> {
                     continue;
                 }
                 Outcome::Skipped { .. } => Value::Null,
-                Outcome::Answered { response, .. } => {
+                Outcome::Answered { response, .. } | Outcome::Unrouted { response, .. } => {
                     let all: Vec<&Step> = recording.exchanges.iter().map(|e| &e.step).collect();
-                    normalizer.normalize(&rule_route(step, &all), &recording.record_headers, response)
+                    normalizer.normalize(&rule_route(step, &all), &recording.record_headers, response.clone())
                 }
             };
             let mut reasons: Vec<String> = Vec::new();
@@ -351,6 +351,14 @@ fn replay(args: &Args) -> anyhow::Result<ExitCode> {
                 }
                 None => true,
             });
+            // No route of the core's took it: its router's own answer counts
+            // only when it is the daemon's (an unknown path, a refused method).
+            if let (Outcome::Unrouted { method, path, .. }, false) = (&outcome, differences.is_empty()) {
+                starved |= !step.capture.is_empty();
+                unserved_write |= !step.only_reads();
+                report.not_served.push(format!("{:<28} {method} {path}", step.name));
+                continue;
+            }
             if unserved_write && !differences.is_empty() {
                 report.stale.push(format!("{:<28} {}", step.name, what(step)));
                 continue;

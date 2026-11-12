@@ -1,7 +1,40 @@
-//! A worker's goal loop: it keeps working until its goal's criteria pass.
+//! A worker's goal loop: it keeps working until its goal's criteria pass
+//! (`core/src/domain/loop-*.ts`, `judge-rubric.ts`).
+//!
+//! | Module | |
+//! |---|---|
+//! | `progress` | whether the attempts still make progress |
+//! | `lint` | a goal's criteria checked against its strategy when it is armed |
+//! | `feedback` | the variables of the messages a tick sends |
+//! | `verdict` | the judge's prompt variables, reading its answer, the command check's verdict |
+
+pub mod feedback;
+pub mod lint;
+pub mod progress;
+pub mod verdict;
 
 use eos_contracts::{GoalSpec, LoopStatus, LoopStrategy, WorkerRowLoop};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+/// One checked attempt, as the no-progress safety remembers it. Stored as
+/// JSON in the loop's `progress_ring`, in today's field names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoopAttempt {
+    /// A hash of the worker's change-set; empty when there is none to hash.
+    pub state_hash: String,
+    /// [`progress::outcome_key`] of the unmet criteria.
+    pub outcome_hash: String,
+    pub unmet_count: i64,
+    pub reason: String,
+}
+
+/// Whether a loop in `from` may move to `to`. Only an active loop moves; a
+/// move to the same status is allowed (the caller writes nothing then).
+pub fn can_transition(from: LoopStatus, to: LoopStatus) -> bool {
+    from == to || (from == LoopStatus::Active && to != LoopStatus::Active)
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WorkerLoop {
@@ -25,6 +58,8 @@ pub struct WorkerLoop {
     pub awaiting_input: bool,
     /// Checks in a row that could not run.
     pub check_failures: i64,
+    /// The last attempts, oldest first (at most [`progress::RING_CAP`]).
+    pub progress_ring: Vec<LoopAttempt>,
     pub started_at: i64,
     pub updated_at: i64,
 }

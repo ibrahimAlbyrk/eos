@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use eos_core::git::GitWatcher;
 use eos_git::Git;
 use eos_kit_proc::{ProcessTrees, Runner};
+use eos_mod_agents::WorkerGit;
 use eos_mod_fs::{CandidateCache, FsModule, Ports, fs_change_sink, git_change_sink};
 use eos_runtime::module::Module;
 use eos_runtime::router::RouteDef;
@@ -42,6 +43,44 @@ pub(crate) fn git_watcher(clock: &Arc<dyn eos_core::Clock>, bus: &eos_runtime::b
     });
     let recursive = eos_platform::host().native_recursive_watch();
     Arc::new(RepoWatcher::new(resolve, clock.clone(), git_change_sink(bus.clone()), recursive))
+}
+
+/// What the routes over a worker's folder reach: git, Try and the desktop.
+pub(crate) fn worker_git(cx: &Context) -> WorkerGit {
+    let git = Arc::new(git(&cx.clock));
+    WorkerGit {
+        info: git.clone(),
+        diffs: git.clone(),
+        push: git.clone(),
+        remotes: git.clone(),
+        conflicts: git.clone(),
+        restore: git.clone(),
+        tries: cx.tries.clone(),
+        merge: git,
+        desktop: Arc::new(eos_fs::DesktopApps::new(
+            eos_platform::host(),
+            cx.clock.clone(),
+            cx.paths.join("icon-cache"),
+        )),
+    }
+}
+
+/// The goal loop: its checks run the worker's verify commands and read its diff.
+pub(crate) fn loops(cx: &Context) -> eos_mod_loops::LoopsModule {
+    let trees = ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
+    let commands = eos_mod_loops::ShellCommands::new(Runner::new(trees), eos_platform::host().script_shell());
+    eos_mod_loops::LoopsModule::new(eos_mod_loops::Parts {
+        store: cx.store.clone(),
+        sessions: cx.sessions.clone(),
+        config: cx.config.clone(),
+        prompts: cx.prompts.clone(),
+        judge: cx.one_shot.clone(),
+        diffs: Arc::new(git(&cx.clock)),
+        commands: Arc::new(commands),
+        ids: cx.ids.clone(),
+        bus: cx.bus.clone(),
+    })
+    .rearming(cx.sweep_leftovers)
 }
 
 pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {

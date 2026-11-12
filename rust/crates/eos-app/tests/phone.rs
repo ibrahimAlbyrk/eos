@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use eos_core::Clock;
 use eos_core::net::relay::Relay;
-use eos_mod_agents::{AgentsModule, Spawning};
+use eos_mod_agents::{AgentsModule, Spawning, WorkerGit};
 use eos_mod_remote::{GatewayOptions, RemoteModule, RemoteParts};
 use eos_mod_terminals::{RunDeps, SessionDeps as TerminalDeps, TerminalsModule};
 use eos_mod_workers::WorkersModule;
@@ -105,7 +105,7 @@ impl Mac {
             options: GatewayOptions { patch_debounce: Duration::from_millis(10), ..GatewayOptions::default() },
         }));
         let modules: Vec<Arc<dyn Module>> = vec![
-            Arc::new(AgentsModule::new(sessions, temp.port(), ids.clone(), definitions, spawning)),
+            Arc::new(AgentsModule::new(sessions, temp.port(), ids.clone(), definitions, spawning, worker_git(&temp))),
             remote.clone(),
             Arc::new(TerminalsModule::new(
                 TerminalDeps {
@@ -127,7 +127,7 @@ impl Mac {
                     ids,
                 },
             )),
-            Arc::new(WorkersModule::new(temp.port(), models)),
+            Arc::new(WorkersModule::new(temp.port(), models, clock.clone())),
         ];
         let runtime = Runtime::build(kernel, modules, Arc::new(AllPluginsOn)).expect("composes");
         remote.attach_router(runtime.router.clone());
@@ -456,5 +456,24 @@ mod composed {
         assert_eq!((&same["room"], &same["bearer"]), (&code["room"], &code["bearer"]));
         assert!(again.shutdown(Duration::from_secs(5)).await.clean());
         relay.stop().await;
+    }
+}
+
+/// The routes over a worker's folder, on git and with a desktop that opens nothing.
+fn worker_git(temp: &TempStore) -> WorkerGit {
+    let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
+        eos_platform::kill_process_tree(pid).is_ok()
+    });
+    let git = Arc::new(eos_git::Git::new(eos_kit_proc::Runner::new(trees), Arc::new(FakeClock::new())));
+    WorkerGit {
+        info: git.clone(),
+        diffs: git.clone(),
+        push: git.clone(),
+        remotes: git.clone(),
+        conflicts: git.clone(),
+        restore: git.clone(),
+        tries: Arc::new(eos_git::GitTries::new(git.as_ref().clone(), temp.home.path().join("tries"))),
+        merge: git,
+        desktop: Arc::new(eos_testkit::FakeDesktop::default()),
     }
 }

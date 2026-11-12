@@ -18,6 +18,7 @@ eos-agent-compat.workspace = true
 eos-agent-core.workspace = true
 eos-agent-engine.workspace = true
 eos-agent-sdk.workspace = true
+eos-agent-skills.workspace = true
 eos-agent-tools-session.workspace = true
 eos-agent-types.workspace = true
 eos-contracts.workspace = true

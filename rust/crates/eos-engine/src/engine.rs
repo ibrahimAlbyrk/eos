@@ -1,6 +1,6 @@
 //! The engine, built once, and the sessions it starts.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use eos_agent_compat::ClaudePaths;
@@ -9,19 +9,21 @@ use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{AgentOptions, CompleteRequest, Sdk, SystemPromptOverride};
 use eos_contracts::tool_scope::disallowed_builtin_tools_for;
 use eos_contracts::{
-    AgentEvent, SessionEvent, SessionEventPhase, UiBackendDescriptor, UiBackendDescriptorBilling,
+    AgentEvent, CommandItem, SessionEvent, SessionEventPhase, UiBackendDescriptor, UiBackendDescriptorBilling,
     UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
 };
 use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
-    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendCatalog, BackendDescriptor, LaunchSpec,
-    ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink, ToolSets, UserQuestions,
+    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendCatalog, BackendDescriptor, CommandCatalog,
+    LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink, ToolSets,
+    UserQuestions,
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
 use tokio::sync::mpsc;
 
 use crate::accounts::{Accounts, Failover, NotSignedIn};
+use crate::commands::folder_commands;
 use crate::gate::EosGate;
 use crate::prompter::Prompter;
 use crate::registry::Registry;
@@ -467,6 +469,25 @@ impl OneShot for LazyEngine {
         Box::pin(async move {
             let engine = self.engine().await.map_err(|e| OneShotError::Failed(e.to_string()))?;
             engine.complete(request).await
+        })
+    }
+}
+
+impl CommandCatalog for LazyEngine {
+    fn commands<'a>(&'a self, cwd: Option<&'a Path>) -> BoxFuture<'a, Vec<CommandItem>> {
+        Box::pin(async move {
+            // Read from the engine's configuration: listing never builds the engine.
+            let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+            let Some((options, _)) = setup else { return Vec::new() };
+            let Some(paths) = options.claude_home.as_deref().map(ClaudePaths::for_home).or_else(ClaudePaths::from_env)
+            else {
+                return Vec::new();
+            };
+            let cwd = cwd.map(Path::to_path_buf);
+            let listed =
+                tokio::task::spawn_blocking(move || folder_commands(&paths, &options.plugin_dirs, cwd.as_deref()))
+                    .await;
+            listed.unwrap_or_default()
         })
     }
 }

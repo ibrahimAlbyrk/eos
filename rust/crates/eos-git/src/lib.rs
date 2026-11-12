@@ -6,9 +6,11 @@
 //!
 //! One value, [`Git`], implements every port: `GitInfo`, `GitDiffs`,
 //! `WorkingTree`, `BranchAdmin`, `RemoteSync`, `BranchPush`,
-//! `ConflictResolution`, `WorkingTreeRestore`, `WorktreeManager` and
-//! `CandidateFiles`. The composition root hands it out as whichever trait a
-//! feature asks for. [`GitProjectKeys`] names project folders by their
+//! `ConflictResolution`, `WorkingTreeRestore`, `WorktreeManager`,
+//! `BranchMerge` and `CandidateFiles`. The composition root hands it out as
+//! whichever trait a feature asks for. [`GitTries`] is Try
+//! (`BranchIntegration`), which keeps state in a folder of its own.
+//! [`GitProjectKeys`] names project folders by their
 //! repository's remote (`ProjectKeys`); [`ScratchRepos`] makes the folders of
 //! chats started without one (`ScratchFolders`).
 //!
@@ -20,10 +22,13 @@ mod diffs;
 mod files;
 mod hydrate;
 mod info;
+mod merge;
+mod plumbing;
 mod project_keys;
 mod records;
 mod run;
 mod scratch;
+mod tries;
 mod worktree;
 
 use std::sync::Arc;
@@ -34,6 +39,7 @@ use eos_kit_proc::Runner;
 pub use files::list_candidate_files;
 pub use project_keys::{GitProjectKeys, KnownFolders};
 pub use scratch::ScratchRepos;
+pub use tries::GitTries;
 
 /// The git adapter. Cheap to clone.
 #[derive(Clone)]

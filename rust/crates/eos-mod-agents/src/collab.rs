@@ -4,7 +4,7 @@
 //! notify). An agent's tools reach the same use-cases through the methods here.
 
 use eos_contracts::stream::topics::NOTIFICATION_FIRE;
-use eos_contracts::{NotifyRequest, PeerRequestRegisterRequest, PeerResponseRequest, ReportRequest};
+use eos_contracts::{NotifyRequest, PeerRequestRegisterRequest, PeerResponseRequest, ReportRequest, SettingValue};
 use eos_core::Error;
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
@@ -27,6 +27,11 @@ pub(crate) fn all(m: &AgentsModule) -> Vec<RouteDef> {
 }
 
 impl AgentsModule {
+    /// `git.autoApplyOnReport`: a finished worker's work goes into the user's checkout by itself.
+    fn applies_on_report(&self) -> bool {
+        matches!(self.spawning.settings.read().get("git.autoApplyOnReport"), Some(SettingValue::Flag(true)))
+    }
+
     /// A banner on the user's computer, shown while the app's window is not
     /// in front; clicking it opens `worker_id`.
     pub async fn notify_user(&self, worker_id: &str, title: &str, body: &str) -> Result<(), Error> {
@@ -45,11 +50,18 @@ fn report(m: AgentsModule) -> RouteDef {
         let m = m.clone();
         async move {
             let body: ReportRequest = req.parse()?;
-            let done = match m.sessions.report(&id_of(&req), &body.text).await {
+            let id = id_of(&req);
+            let done = match m.sessions.report(&id, &body.text).await {
                 Ok(done) => done,
                 Err(Error::NotFound { .. }) => return Err(ApiError::NotFound("worker not found".into())),
                 Err(e) => return Err(e.into()),
             };
+            if done.parent_found
+                && m.applies_on_report()
+                && let Some(worker) = m.worker(&id).await?
+            {
+                crate::git::auto_apply(&m, &worker);
+            }
             let mut answer = json!({"ok": true, "delivered": done.delivered});
             if let (true, Some(fields)) = (done.held, answer.as_object_mut()) {
                 fields.insert("held".into(), true.into());

@@ -40,6 +40,7 @@ eos-mod-compaction = { path = "crates/eos-mod-compaction" }
 eos-mod-dreams = { path = "crates/eos-mod-dreams" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-genui = { path = "crates/eos-mod-genui" }
+eos-mod-loops = { path = "crates/eos-mod-loops" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-peer = { path = "crates/eos-mod-peer" }
 eos-mod-plugins = { path = "crates/eos-mod-plugins" }
@@ -49,6 +50,7 @@ eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-questions = { path = "crates/eos-mod-questions" }
 eos-mod-remote = { path = "crates/eos-mod-remote" }
+eos-mod-settings = { path = "crates/eos-mod-settings" }
 eos-mod-sync = { path = "crates/eos-mod-sync" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }
@@ -91,6 +93,7 @@ eos-agent-engine = { path = "vendor/eos-agent-sdk/crates/eos-agent-engine" }
 eos-agent-mock-api = { path = "vendor/eos-agent-sdk/tools/mock-api" }
 eos-agent-openai = { path = "vendor/eos-agent-sdk/crates/eos-agent-openai" }
 eos-agent-sdk = { path = "vendor/eos-agent-sdk/crates/eos-agent-sdk" }
+eos-agent-skills = { path = "vendor/eos-agent-sdk/crates/eos-agent-skills" }
 eos-agent-testkit = { path = "vendor/eos-agent-sdk/crates/eos-agent-testkit" }
 eos-agent-tools-session = { path = "vendor/eos-agent-sdk/crates/eos-agent-tools-session" }
 eos-agent-types = { path = "vendor/eos-agent-sdk/crates/eos-agent-types" }
