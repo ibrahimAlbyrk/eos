@@ -3,12 +3,12 @@
 Written by `wire-recorder coverage`. Do not edit by hand.
 
 - Registered routes: **314**
-  - a success answer recorded: **206**
-  - only refusals and errors recorded: **105**
-  - not recorded: **3**
+  - a success answer recorded: **208**
+  - only refusals and errors recorded: **102**
+  - not recorded: **4**
   - without a recorded success and without a reason: **0**
-- `ROUTES` keys: **270**, with a success recorded for at least one method: **180**
-- Recorded steps: **1089**
+- `ROUTES` keys: **270**, with a success recorded for at least one method: **183**
+- Recorded steps: **1094**
 
 ## Registered routes
 
@@ -247,9 +247,9 @@ In registration order (the router takes the first match).
 | `GET /workers` | phone READ | 7 | recorded |  |
 | `GET /workers/archived` | phone READ | 4 | recorded |  |
 | `POST /workers/archived/app-closed` |  | 2 | recorded |  |
-| `GET /workers/:id` | phone READ | 13 | recorded |  |
-| `GET /workers/:id/events` | phone READ | 21 | recorded |  |
-| `POST /workers/:id/events` | local-only | 4 | recorded |  |
+| `GET /workers/:id` | phone READ | 12 | recorded |  |
+| `GET /workers/:id/events` | phone READ | 20 | recorded |  |
+| `POST /workers/:id/events` | local-only | 0 | not recorded | Not in the Rust app: the terminal-driven agent lane posted its rows here, and every agent now reports through its session. Today's daemon still serves it; nothing records it. |
 | `POST /workers/:id/message` | phone LOW | 4 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
 | `GET /workers/:id/queue` | phone READ | 2 | recorded |  |
 | `DELETE /workers/:id/queue/:queueId` | phone LOW | 1 | errors only | Needs a live agent session (a running turn, an open question, a worktree branch or a queued message), which only a real agent run produces. |
@@ -299,15 +299,15 @@ In registration order (the router takes the first match).
 | `POST /api/jobs/:id/stop` |  | 3 | recorded |  |
 | `POST /api/jobs/:id/dismiss` |  | 2 | recorded |  |
 | `POST /api/jobs/clear` |  | 2 | recorded |  |
-| `POST /pty` | phone HIGH +token | 4 | recorded |  |
+| `POST /pty` | phone HIGH +token | 5 | recorded |  |
 | `GET /pty` | phone READ +token | 5 | recorded |  |
 | `POST /pty/:id/input` | phone HIGH +token | 4 | recorded |  |
 | `POST /pty/:id/resize` |  | 2 | recorded |  |
 | `GET /pty/:id/buffer` | phone READ +token | 3 | recorded |  |
-| `GET /pty/:id/conversation` | phone READ +token | 2 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
-| `POST /pty/:id/message` | phone HIGH +token | 2 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
-| `POST /pty/:id/answer` | phone HIGH +token | 2 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
-| `DELETE /pty/:id` | phone HIGH +token | 3 | recorded |  |
+| `GET /pty/:id/conversation` | phone READ +token | 6 | recorded |  |
+| `POST /pty/:id/message` | phone HIGH +token | 5 | recorded |  |
+| `POST /pty/:id/answer` | phone HIGH +token | 4 | recorded |  |
+| `DELETE /pty/:id` | phone HIGH +token | 4 | recorded |  |
 | `GET /workers/:id/export` |  | 3 | recorded |  |
 | `GET /orchestrators` | phone READ | 4 | recorded |  |
 | `POST /orchestrators` | phone HIGH | 1 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
@@ -477,11 +477,11 @@ In registration order (the router takes the first match).
 | `promptPreview` | `/api/prompts/preview` | POST recorded |
 | `prompts` | `/api/prompts` | GET recorded |
 | `pty` | `/pty` | POST recorded, GET recorded |
-| `ptyAnswer` | `/pty/:p0/answer` | POST errors only |
+| `ptyAnswer` | `/pty/:p0/answer` | POST recorded |
 | `ptyBuffer` | `/pty/:p0/buffer` | GET recorded |
-| `ptyConversation` | `/pty/:p0/conversation` | GET errors only |
+| `ptyConversation` | `/pty/:p0/conversation` | GET recorded |
 | `ptyInput` | `/pty/:p0/input` | POST recorded |
-| `ptyMessage` | `/pty/:p0/message` | POST errors only |
+| `ptyMessage` | `/pty/:p0/message` | POST recorded |
 | `ptyResize` | `/pty/:p0/resize` | POST recorded |
 | `ptySession` | `/pty/:p0` | DELETE recorded |
 | `remoteArm` | `/api/remote/arm` | POST errors only |
@@ -553,7 +553,7 @@ In registration order (the router takes the first match).
 | `workerConflicts` | `/workers/:p0/conflicts` | GET recorded |
 | `workerDefinitions` | `/worker-definitions` | GET recorded, POST recorded |
 | `workerDiff` | `/workers/:p0/diff` | GET recorded |
-| `workerEvents` | `/workers/:p0/events` | GET recorded, POST recorded |
+| `workerEvents` | `/workers/:p0/events` | GET recorded, POST not recorded |
 | `workerExport` | `/workers/:p0/export` | GET recorded |
 | `workerFileDiff` | `/workers/:p0/changes/file` | GET recorded |
 | `workerInterrupt` | `/workers/:p0/interrupt` | POST errors only |

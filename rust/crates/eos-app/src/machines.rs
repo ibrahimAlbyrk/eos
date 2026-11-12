@@ -120,7 +120,7 @@ pub(crate) fn transfer(cx: &Context) -> Arc<TransferModule> {
             bus: cx.bus.clone(),
             clock: cx.clock.clone(),
             ids: cx.ids.clone(),
-            sleeper: Arc::new(eos_accounts::TokioSleeper),
+            sleeper: cx.sleeper.clone(),
         },
         cx.kernel.jobs.clone(),
     ))

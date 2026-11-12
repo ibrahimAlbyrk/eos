@@ -71,7 +71,7 @@ pub mod wire;
 pub use accounts::{
     FakeBrowser, FakeConfig, FakeLocalTime, FakePlanLoginDirs, FakePlanLoginStore, FakePlanStores, FakePlanUsageApi,
     FakeSecrets, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe, FakeUsageProvider,
-    FakeUsageSnapshots, StartedSignIn,
+    FakeUsageSnapshots, NoKeychain, StartedSignIn,
 };
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};

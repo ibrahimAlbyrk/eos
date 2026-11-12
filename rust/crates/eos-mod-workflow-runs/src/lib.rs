@@ -7,6 +7,7 @@
 //! events. [`WorkflowRuns`] holds what is live; the routes under
 //! `/workers/:id/workflow-runs` read it.
 
+mod agent_rows;
 mod jobs;
 mod routes;
 mod service;

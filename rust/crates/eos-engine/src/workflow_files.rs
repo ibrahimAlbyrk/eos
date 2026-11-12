@@ -18,7 +18,7 @@ use eos_agent_engine::JsonlStore;
 use eos_agent_types::{ContentBlock, Role};
 use eos_contracts::PtyConversationRow;
 use eos_core::BoxFuture;
-use eos_core::agent::WorkflowRunFiles;
+use eos_core::agent::{FileStamp, WorkflowRunFiles};
 use eos_domain::claude_transcript::transcript_view;
 use eos_domain::workflow_run::{workflow_agent_transcript_path, workflow_record_path};
 use serde_json::{Map, Value, json};
@@ -179,6 +179,26 @@ impl WorkflowRunFiles for WorkflowFiles {
             None
         })
     }
+
+    fn agent_stamp<'a>(&'a self, transcript_dir: &'a str, agent_id: &'a str) -> BoxFuture<'a, Option<FileStamp>> {
+        Box::pin(async move {
+            let legacy = workflow_agent_transcript_path(transcript_dir, agent_id)?;
+            let path = if self.is_own(transcript_dir) {
+                self.transcripts.path(agent_id)
+            } else if self.is_claudes(transcript_dir) {
+                PathBuf::from(legacy)
+            } else {
+                return None;
+            };
+            let meta = tokio::fs::metadata(&path).await.ok()?;
+            let modified = meta.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?;
+            Some(FileStamp {
+                path: path.to_string_lossy().into_owned(),
+                size: meta.len(),
+                modified_ms: i64::try_from(modified.as_millis()).ok()?,
+            })
+        })
+    }
 }
 
 #[cfg(test)]
@@ -252,6 +272,13 @@ mod tests {
         let rows = files.agent_rows(&own, "a0123456789abcdef").await.expect("rows");
         assert_eq!(rows[0].payload, Some(json!({"text": "go"})));
         assert_eq!(files.agent_rows(&own, "anobody").await, None);
+        // What a cache of it is keyed by: the conversation's file as it is.
+        let stamp = files.agent_stamp(&own, "a0123456789abcdef").await.expect("a stamp");
+        assert_eq!(stamp.path, store.path("a0123456789abcdef").to_string_lossy());
+        eos_agent_core::TranscriptStore::append(&store, "a0123456789abcdef", &said, None).await.expect("appends");
+        let grown = files.agent_stamp(&own, "a0123456789abcdef").await.expect("a stamp");
+        assert!(grown.size > stamp.size, "{stamp:?} → {grown:?}");
+        assert_eq!(files.agent_stamp(&own, "anobody").await, None);
 
         // Claude Code's run: the agent's transcript lies beside the journal.
         let old = home.join("claude/projects/-p/sess/subagents/workflows/wf_2");
@@ -263,6 +290,8 @@ mod tests {
         let rows = files.agent_rows(&old, "a1b2c3").await.expect("rows");
         assert_eq!(rows[0].payload, Some(json!({"text": "old task"})));
         assert_eq!(files.record(&old).await, None, "it wrote no record");
+        let stamp = files.agent_stamp(&old, "a1b2c3").await.expect("a stamp");
+        assert!(stamp.path.ends_with("wf_2/agent-a1b2c3.jsonl"), "{stamp:?}");
 
         // Anywhere else is nobody's run folder.
         let elsewhere = home.join("other/sess/subagents/workflows/wf_3");
@@ -271,5 +300,6 @@ mod tests {
         let elsewhere = elsewhere.to_string_lossy().into_owned();
         assert_eq!(files.record(&elsewhere).await, None);
         assert_eq!(files.agent_rows(&elsewhere, "a1b2c3").await, None);
+        assert_eq!(files.agent_stamp(&elsewhere, "a1b2c3").await, None);
     }
 }

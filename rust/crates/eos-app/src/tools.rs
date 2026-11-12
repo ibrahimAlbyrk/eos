@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use eos_accounts::TokioSleeper;
 use eos_mod_agents::{AgentsModule, ToolControl};
 use eos_mod_genui::GenuiModule;
 use eos_mod_pages::PagesModule;
@@ -27,7 +26,7 @@ pub(crate) fn build(
     Ok(Arc::new(Tools::new(Services {
         prompts: cx.prompts.registry().clone(),
         clock: cx.clock.clone(),
-        sleeper: Arc::new(TokioSleeper),
+        sleeper: cx.sleeper.clone(),
         zone: Arc::new(HostTimeZone),
         store: cx.store.clone(),
         models: cx.models.clone(),

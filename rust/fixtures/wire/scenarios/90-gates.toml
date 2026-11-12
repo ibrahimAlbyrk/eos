@@ -1369,12 +1369,6 @@ auth = "none"
 status = 200
 
 [[step]]
-name = "post-workers-id-events"
-request = "POST /workers/x/events"
-auth = "none"
-status = 400
-
-[[step]]
 name = "post-workers-id-message"
 request = "POST /workers/x/message"
 auth = "none"

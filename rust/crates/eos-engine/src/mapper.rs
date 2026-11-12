@@ -77,7 +77,8 @@ pub(crate) struct Mapper {
     /// Every subagent's first call, to tell a woken one from a new one.
     first_calls: HashMap<Arc<str>, String>,
     first_order: std::collections::VecDeque<Arc<str>>,
-    profiles: HashMap<String, String>,
+    /// The model and effort last reported for each top-level subagent call.
+    profiles: HashMap<String, (String, Option<String>)>,
     tasks: Tasks,
 }
 
@@ -226,12 +227,13 @@ impl Mapper {
                 if first.is_none() {
                     self.remember_first(agent_id.clone(), call_id.clone());
                 }
-                if top_level && !about.model.is_empty() && self.profiles.get(&call_id) != Some(&about.model) {
-                    self.profiles.insert(call_id.clone(), about.model.clone());
+                let profile = (about.model.clone(), about.effort.clone());
+                if top_level && !about.model.is_empty() && self.profiles.get(&call_id) != Some(&profile) {
+                    self.profiles.insert(call_id.clone(), profile);
                     out.push(AgentEvent::SubagentProfile(SubagentProfileEvent {
                         call_id: call_id.clone(),
                         model: Some(about.model.clone()),
-                        effort: None,
+                        effort: about.effort.clone(),
                     }));
                 }
                 let background = about.background || first.is_some();

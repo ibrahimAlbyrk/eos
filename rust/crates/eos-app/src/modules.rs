@@ -10,7 +10,7 @@ use eos_core::prompt::ProfileRenderer;
 use eos_core::shell::Location;
 use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore, UserSettingsStore};
 use eos_core::terminal::{ClaudeLaunchEnv, ClaudeProgram, ClaudeTranscripts, ShellCommands, Terminals};
-use eos_core::{Clock, Ids};
+use eos_core::{Clock, Ids, Sleeper};
 use eos_mod_plugins::PluginHost;
 use eos_mod_profile::PendingCaps;
 use eos_mod_system::RunInfo;
@@ -28,6 +28,7 @@ use crate::notes::Notes;
 pub(crate) struct Context {
     pub(crate) bus: Bus,
     pub(crate) clock: Arc<dyn Clock>,
+    pub(crate) sleeper: Arc<dyn Sleeper>,
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) notes: Notes,
     pub(crate) run: RunInfo,
@@ -175,7 +176,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             source: cx.artifacts.clone(),
             access: cx.accounts.clone(),
             clock: cx.clock.clone(),
-            sleeper: Arc::new(eos_accounts::TokioSleeper),
+            sleeper: cx.sleeper.clone(),
             lane: cx.kernel.ordered.clone(),
             bus: cx.bus.clone(),
         })),
@@ -187,7 +188,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
                 config: cx.config.clone(),
                 plugins: cx.plugins.switch(),
                 clock: cx.clock.clone(),
-                sleeper: Arc::new(eos_accounts::TokioSleeper),
+                sleeper: cx.sleeper.clone(),
             },
             cx.store.clone(),
         )),
@@ -219,7 +220,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             cx.accounts.clone(),
             cx.bus.clone(),
             cx.kernel.jobs.clone(),
-            Arc::new(eos_accounts::TokioSleeper),
+            cx.sleeper.clone(),
         )),
         cx.browser.clone(),
         crate::files::module(cx),
@@ -282,7 +283,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             bus: cx.bus.clone(),
             jobs: cx.kernel.jobs.clone(),
             clock: cx.clock.clone(),
-            sleeper: Arc::new(eos_accounts::TokioSleeper),
+            sleeper: cx.sleeper.clone(),
         })),
     ];
     // Settings refuses the keys the features above set through routes of their own.

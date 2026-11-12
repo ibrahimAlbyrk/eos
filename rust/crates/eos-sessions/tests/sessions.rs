@@ -1064,3 +1064,19 @@ async fn an_idle_edge_that_arrives_during_a_drain_is_settled_afterwards() {
     let left = bench.store().read(move |tx| tx.message_queue().list_pending(&queued)).await.expect("reads");
     assert!(left.is_empty(), "nothing stays queued behind a lost edge");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn top_level_agents_in_a_turn_are_the_ones_without_a_parent_that_work() {
+    use eos_core::net::updates::TopLevelAgents;
+    let bench = Bench::new();
+    assert_eq!(bench.sessions.working().await, 0);
+    bench.temp.exec(
+        "INSERT INTO workers (id, state, prompt, started_at, tool_calls, scratch, parent_id) VALUES
+           ('w-A', 'WORKING', 'go', 1, 0, 0, NULL),
+           ('w-B', 'WORKING', 'go', 1, 0, 0, NULL),
+           ('w-IDLE', 'IDLE', 'go', 1, 0, 0, NULL),
+           ('w-KID', 'WORKING', 'go', 1, 0, 0, 'w-A'),
+           ('w-DONE', 'DONE', 'go', 1, 0, 0, NULL)",
+    );
+    assert_eq!(bench.sessions.working().await, 2, "a subagent's work and a resting chat do not count");
+}

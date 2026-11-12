@@ -1,5 +1,5 @@
-//! A shallow clone through the `git` program, for a plugin published as a
-//! repository.
+//! A plugin published as a repository, for the git source of an install
+//! (`PluginCloner`): one shallow clone, pinned to the commit it landed on.
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -7,7 +7,9 @@ use std::time::Duration;
 
 use eos_core::plugin::PluginCloner;
 use eos_core::{BoxFuture, Error};
-use eos_kit_proc::{Command, Env, Runner};
+use eos_kit_proc::{Command, Env};
+
+use crate::Git;
 
 const TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -20,21 +22,21 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 /// - no submodules, no tags, one branch, one commit deep;
 /// - only the allowed transport, and never a prompt for credentials.
 #[derive(Debug, Clone)]
-pub struct GitCloner {
-    runner: Runner,
-    git: OsString,
+pub struct PluginClones {
+    git: Git,
+    program: OsString,
     protocols: String,
 }
 
-impl GitCloner {
-    /// Clones over https only.
-    pub fn new(runner: Runner) -> Self {
-        Self { runner, git: "git".into(), protocols: "https".to_owned() }
+impl PluginClones {
+    /// Clones over https only, with the `git` on the `PATH`.
+    pub fn new(git: Git) -> Self {
+        Self { git, program: "git".into(), protocols: "https".to_owned() }
     }
 
     /// Another `git` than the one on the `PATH`.
     pub fn program(mut self, git: impl Into<OsString>) -> Self {
-        self.git = git.into();
+        self.program = git.into();
         self
     }
 
@@ -45,13 +47,13 @@ impl GitCloner {
     }
 
     fn command(&self) -> Command {
-        Command::new(&self.git)
+        Command::new(&self.program)
             .env(Env::inherit().set("GIT_TERMINAL_PROMPT", "0").set("GIT_ALLOW_PROTOCOL", &self.protocols))
             .timeout(TIMEOUT)
     }
 }
 
-impl PluginCloner for GitCloner {
+impl PluginCloner for PluginClones {
     fn shallow_clone<'a>(
         &'a self,
         url: &'a str,
@@ -80,7 +82,8 @@ impl PluginCloner for GitCloner {
             if let Some(reference) = reference {
                 clone = clone.args(["--branch", reference]);
             }
-            let out = self.runner.run(clone.arg("--").arg(url).arg(dir)).await.map_err(|e| failed(&e.to_string()))?;
+            let runner = &self.git.runner;
+            let out = runner.run(clone.arg("--").arg(url).arg(dir)).await.map_err(|e| failed(&e.to_string()))?;
             if out.timed_out {
                 return Err(failed(&format!("no answer within {} s", TIMEOUT.as_secs())));
             }
@@ -89,7 +92,7 @@ impl PluginCloner for GitCloner {
             }
 
             let head = self.command().arg("-C").arg(dir).args(["rev-parse", "HEAD"]);
-            let out = self.runner.run(head).await.map_err(|e| failed(&e.to_string()))?;
+            let out = runner.run(head).await.map_err(|e| failed(&e.to_string()))?;
             if !out.success() {
                 return Err(failed(&out.stderr_text()));
             }

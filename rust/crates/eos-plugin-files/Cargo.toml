@@ -13,7 +13,6 @@ eos-contracts.workspace = true
 eos-core.workspace = true
 eos-kit-fs.workspace = true
 eos-kit-net.workspace = true
-eos-kit-proc.workspace = true
 flate2.workspace = true
 indexmap.workspace = true
 notify.workspace = true

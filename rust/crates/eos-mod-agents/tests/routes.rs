@@ -436,13 +436,9 @@ async fn a_chat_is_archived_restored_purged_nudged_and_reported_to() {
     let other = bench.call(Method::Put, "/workers/w-CHAT/backend", Some(json!({"kind": "gemini-cli"}))).await;
     assert_eq!(other, (409, json!({"error": "unknown backend \"gemini-cli\""})));
 
-    // Rows posted from outside: recorded, and the two kinds that change a worker applied.
-    let no_type = bench.post("/workers/w-BARE/events", json!({"payload": {}})).await;
-    assert_eq!(no_type, (400, json!({"error": "type required"})));
+    // Nothing posts rows from outside any more: every agent reports through its session.
     let session = json!({"type": "lifecycle", "payload": {"phase": "session_captured", "sessionId": "s-1"}});
-    assert_eq!(bench.post("/workers/w-BARE/events", session).await, (200, json!({"ok": true})));
-    assert_eq!(bench.row("w-BARE").await.session_id.as_deref(), Some("s-1"));
-    assert_eq!(bench.kinds("w-BARE").await.last().map(String::as_str), Some("lifecycle"));
+    assert_eq!(bench.post("/workers/w-BARE/events", session).await.0, 404);
     // Quitting parks every live chat: nothing goes on by itself afterwards.
     bench.runtime.lifecycle.start().await.expect("starts");
     assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("IDLE"));

@@ -8,7 +8,6 @@
 //! - local — a copy of a folder on this computer (`node_modules`, `.git` and
 //!   dot-files left out).
 
-mod git;
 mod local;
 mod npm;
 
@@ -19,7 +18,6 @@ use eos_contracts::PluginSource;
 use eos_core::plugin::{FetchedPlugin, PluginCloner, PluginFetcher};
 use eos_core::{BoxFuture, Error};
 
-pub use git::GitCloner;
 pub use npm::{GuardedHttp, HttpFailure, NPM_REGISTRY, RegistryHttp};
 
 use crate::tarball::{PACKAGE_LIMITS, PackageLimits};

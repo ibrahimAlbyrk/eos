@@ -82,6 +82,8 @@ pub struct EngineDeps {
     pub credentials: Arc<dyn SessionCredentials>,
     pub questions: Arc<dyn UserQuestions>,
     pub clock: Arc<dyn Clock>,
+    /// The system's secret store: a Claude sign-in's login is read there.
+    pub secrets: Arc<dyn eos_platform::CredentialStore>,
 }
 
 impl std::fmt::Debug for EngineDeps {
@@ -155,9 +157,9 @@ impl Engine {
     /// Builds what every session shares: one HTTP client, the tools, the
     /// prompts, the MCP hub, the transcript store. Reads no credential.
     pub async fn build(options: EngineOptions, deps: EngineDeps) -> Result<Self, Error> {
-        let EngineDeps { policy, tools, credentials, questions, clock } = deps;
+        let EngineDeps { policy, tools, credentials, questions, clock, secrets } = deps;
         let sessions = Arc::new(Registry::default());
-        let accounts = Arc::new(Accounts::default());
+        let accounts = Arc::new(Accounts::new(secrets));
         let store = JsonlStore::new(options.dir.join("transcripts"));
         let claude = options.claude_home.as_deref().map(ClaudePaths::for_home);
         let failover =

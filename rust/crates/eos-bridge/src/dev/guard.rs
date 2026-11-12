@@ -56,13 +56,11 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/resume"),
     ("POST", "/workers/{id}/rewind"),
     // Reach another agent: a report to the parent, a question to a peer and its answer, a
-    // key sent to a session, an event fed into one (an idle edge sends the next queued
-    // message).
+    // key sent to a session.
     ("POST", "/workers/{id}/report"),
     ("POST", "/workers/{fromWorker}/peer-request"),
     ("POST", "/workers/{id}/peer-response"),
     ("POST", "/workers/{id}/keystroke"),
-    ("POST", "/workers/{id}/events"),
     // Continues a stopped session on an API key; schedules a resume for later.
     ("POST", "/workers/{id}/api-key-continue"),
     ("PUT", "/workers/{id}/plan-resume"),

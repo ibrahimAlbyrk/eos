@@ -109,6 +109,12 @@ impl Tasks {
                         .background_task(side.worker_id, BackgroundTaskUpdate::Output { task_id, output_file: file });
                 }
             }
+            // What a monitor told its agent while it runs: only for a task this session announced.
+            TaskEventKind::Event { text } => {
+                if self.shells.contains_key(&task_id) {
+                    side.sink.background_task(side.worker_id, BackgroundTaskUpdate::Event { task_id, text });
+                }
+            }
             TaskEventKind::Progress { usage, workflow_progress, .. } => {
                 let run = self.workflows.get_mut(&task_id)?;
                 fold(&mut run.snapshot, workflow_progress.as_deref());

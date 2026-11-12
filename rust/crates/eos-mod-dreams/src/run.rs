@@ -247,7 +247,8 @@ pub async fn dream_over_chats(
     };
     let chats = pick_chats(sessions, &filter);
     let now = parts.clock.now_ms();
-    let offset = parts.zone.offset_minutes_at(now);
+    let zone = parts.zone.clone();
+    let offset_at = move |at: i64| zone.offset_minutes_at(at);
     let run = DreamRun {
         id: parts.ids.dream_run_id(),
         trigger,
@@ -371,7 +372,7 @@ pub async fn dream_over_chats(
             Err(why) => return dream.fail("file tonight's signals", Some(why)).await,
         };
         let (stem, mut n) = (dream.run.id.trim_start_matches("dr-").to_owned(), 0);
-        let matched = apply_matches(ledger, &night, &groups, &memories, offset, || {
+        let matched = apply_matches(ledger, &night, &groups, &memories, &offset_at, || {
             n += 1;
             format!("dc-{stem}-{n}")
         });

@@ -26,7 +26,7 @@ mod workspace;
 
 pub use authoring::{AUTHORING_PLUGIN_DIR, authoring_plugin};
 pub use data::{FsPluginDataStore, FsPluginInstallStore};
-pub use fetch::{GitCloner, GuardedHttp, HttpFailure, NPM_REGISTRY, PluginFetchers, RegistryHttp};
+pub use fetch::{GuardedHttp, HttpFailure, NPM_REGISTRY, PluginFetchers, RegistryHttp};
 pub use preview::TempPreviewFiles;
 pub use staging::FsPluginStaging;
 pub use tarball::{BadPackage, PACKAGE_LIMITS, PackageLimits, extract_tar_gz, safe_join};

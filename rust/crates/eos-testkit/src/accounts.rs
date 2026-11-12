@@ -563,3 +563,31 @@ impl Sleeper for FakeSleeper {
         })
     }
 }
+
+/// The system's secret store, empty: every read finds nothing and a write is
+/// refused, so a Claude sign-in is read from its store's plaintext
+/// `.credentials.json` and nothing reaches the real keychain.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoKeychain;
+
+impl eos_platform::CredentialStore for NoKeychain {
+    fn read_claude_store(&self, _store_dir: Option<&std::path::Path>) -> Option<String> {
+        None
+    }
+
+    fn write_claude_store(&self, _store_dir: &std::path::Path, _json: &str) -> Result<(), eos_platform::Error> {
+        Err(eos_platform::Error::Unsupported("secret storage"))
+    }
+
+    fn clear_claude_store(&self, _store_dir: &std::path::Path) {}
+
+    fn read_secret(&self, _service: &str) -> Option<String> {
+        None
+    }
+
+    fn write_secret(&self, _service: &str, _secret: &str) -> Result<(), eos_platform::Error> {
+        Err(eos_platform::Error::Unsupported("secret storage"))
+    }
+
+    fn delete_secret(&self, _service: &str) {}
+}

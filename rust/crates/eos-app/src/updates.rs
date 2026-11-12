@@ -9,10 +9,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use eos_contracts::WorkerState;
 use eos_contracts::update::{UPDATE_FEED_URL, UpdateApply, UpdateOffReason};
 use eos_core::net::updates::{TopLevelAgents, UpdateApplier, UpdateSignals};
-use eos_core::store::{ConfigSource, Store};
+use eos_core::store::ConfigSource;
 use eos_core::{BoxFuture, Clock};
 use eos_domain::update::UpdateInstall;
 use eos_mod_updates::{DownloadDeps, UpdateDeps, UpdateService, UpdatesModule};
@@ -71,14 +70,15 @@ pub(crate) struct Parts<'a> {
     pub(crate) install: Install,
     pub(crate) paths: &'a DataPaths,
     pub(crate) config: Arc<dyn ConfigSource>,
-    pub(crate) store: Arc<dyn Store>,
+    /// Asked whether top-level agents are in a turn: the session service.
+    pub(crate) agents: Arc<dyn TopLevelAgents>,
     pub(crate) kernel: &'a Kernel,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) applier: Option<Arc<dyn UpdateApplier>>,
 }
 
 pub(crate) fn build(parts: Parts<'_>) -> Result<Arc<Updates>, Error> {
-    let Parts { install, paths, config, store, kernel, clock, applier } = parts;
+    let Parts { install, paths, config, agents, kernel, clock, applier } = parts;
     let updates_dir = paths.join("updates");
     let platform = eos_platform::host().app_updates();
     let file_modes = platform.is_none_or(|platform| platform.file_modes());
@@ -95,7 +95,7 @@ pub(crate) fn build(parts: Parts<'_>) -> Result<Arc<Updates>, Error> {
             bundle_check: Arc::new(PlatformBundleCheck::new(platform)),
         },
         signature: Arc::new(Ed25519Keys::trusted().map_err(eos_core::Error::storage)?),
-        agents: Arc::new(WorkingAgents(store)),
+        agents,
         applier: applier.unwrap_or_else(|| Arc::new(NoApplier)),
         config,
         bus: kernel.bus.clone(),
@@ -148,21 +148,6 @@ impl Updates {
         {
             tracing::warn!(error = %e, "the previous Eos's daemon plist could not be removed");
         }
-    }
-}
-
-/// Top-level agents in a turn, read from the worker rows. The sessions side
-/// takes this over once it tracks turns itself.
-struct WorkingAgents(Arc<dyn Store>);
-
-impl TopLevelAgents for WorkingAgents {
-    fn working(&self) -> BoxFuture<'_, usize> {
-        Box::pin(async move {
-            let active = self.0.read(|tx| tx.workers().list_active()).await;
-            active.map_or(0, |workers| {
-                workers.iter().filter(|w| w.parent_id.is_none() && w.state == WorkerState::Working).count()
-            })
-        })
     }
 }
 

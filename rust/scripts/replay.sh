@@ -29,6 +29,11 @@ root="$(cd "$root" && pwd -P)"
 
 cargo build --quiet --manifest-path "$rust/Cargo.toml" -p wire-recorder
 tool="$rust/target/debug/wire-recorder"
+# The `claude` a synthetic run's Claude pane starts: the compiled stand-in, as the recording
+# run had it (scripts/wire.sh). A run on a copy of real data gets none.
+cargo build --quiet --manifest-path "$rust/Cargo.toml" -p eos-mod-terminals --example fake_claude
+mkdir -p "$root/bin"
+ln -sf "$rust/target/debug/examples/fake_claude" "$root/bin/claude"
 
 # The core runs inside the tool: give it the recording daemon's surroundings
 # (its own $HOME and Claude folder, UTC, a fixed locale, the phone link and
@@ -61,13 +66,14 @@ rm -rf "$run"
 mkdir -p "$home" "$user"
 cp -R "$wire/seed/home/." "$home/"
 cp -R "$wire/seed/user/." "$user/"
+PATH="$root/bin:$PATH" "$rust/scripts/stand-in-claude.sh" "$user" "$root/bin"
 "$wire/seed/sandbox.sh" "$sandbox"
 memory="$user/.claude/projects/$(echo "$sandbox/alpha" | tr '/.' '--')/memory"
 mkdir -p "$memory"
 cp "$wire/seed/project-memory/"*.md "$memory/"
 "$tool" seed --home "$home" --sql "$wire/seed/state.sql" --var "sandbox=$sandbox"
 
-isolated "$user" "$tool" replay --recordings "$wire/recordings" --rules "$wire/normalize.toml" \
+PATH="$root/bin:$PATH" isolated "$user" "$tool" replay --recordings "$wire/recordings" --rules "$wire/normalize.toml" \
   --known "$wire/rust-differences.toml" --rust-home "$home" \
   --var "sandbox=$sandbox" --var "sandbox_slug=$(echo "$sandbox" | tr '/.' '--')" --var "home=$home" \
   --var "user_home=$user" --var "repo=$repo" \

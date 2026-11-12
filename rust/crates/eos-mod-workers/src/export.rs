@@ -159,6 +159,29 @@ fn streamed_page(store: Arc<dyn Store>, plan: Plan, now: String) -> Option<Body>
     Some(body)
 }
 
+/// The `content-disposition` of a download called `name` (RFC 6266). A name
+/// of plain ASCII goes as today: `filename="…"`. Any other carries the real
+/// name in `filename*` (RFC 5987: UTF-8, percent-encoded) and an ASCII stand-in
+/// in `filename`, each other character an `_`. `filename*` comes first, so a
+/// reader that looks for `filename="` finds the stand-in, never both.
+fn attachment(name: &str) -> String {
+    let plain = |c: char| c.is_ascii() && !c.is_ascii_control() && c != '"' && c != '\\';
+    if name.chars().all(plain) {
+        return format!("attachment; filename=\"{name}\"");
+    }
+    let stand_in: String = name.chars().map(|c| if plain(c) { c } else { '_' }).collect();
+    let mut encoded = String::with_capacity(name.len() * 3);
+    for byte in name.bytes() {
+        // RFC 5987's attr-char: what may stand as it is.
+        if byte.is_ascii_alphanumeric() || b"!#$&+-.^_`|~".contains(&byte) {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    format!("attachment; filename*=UTF-8''{encoded}; filename=\"{stand_in}\"")
+}
+
 pub(crate) fn route(store: Arc<dyn Store>, clock: Arc<dyn Clock>) -> RouteDef {
     RouteDef::get("/workers/{id}/export", move |req: Request| {
         let (store, clock) = (store.clone(), clock.clone());
@@ -168,7 +191,7 @@ pub(crate) fn route(store: Arc<dyn Store>, clock: Arc<dyn Clock>) -> RouteDef {
             let plan = plan(store.as_ref(), id, tree).await?;
             let plan = plan.ok_or_else(|| ApiError::NotFound("worker not found".into()))?;
             let now = iso_from_ms(clock.now_ms());
-            let disposition = format!("attachment; filename=\"export-{}-{}.html\"", plan.root_name, &now[..10]);
+            let disposition = attachment(&format!("export-{}-{}.html", plan.root_name, &now[..10]));
             const HTML: &str = "text/html; charset=utf-8";
             // A long conversation leaves in slices; a short one at once.
             if plan.rows.len() > stream::STREAM_ROWS {
@@ -198,5 +221,30 @@ mod tests {
         let escaped = "{\"text\":\"\\u003c/script>\\u003cb>\"}";
         assert!(html.contains(&format!(r#"<script id="export-data" type="application/json">{escaped}</script>"#)));
         assert!(!html.contains(PLACEHOLDER));
+    }
+
+    #[test]
+    fn a_plain_name_is_sent_as_today_and_any_other_with_its_utf8_form() {
+        assert_eq!(
+            attachment("export-Notes 1-2026-11-12.html"),
+            r#"attachment; filename="export-Notes 1-2026-11-12.html""#
+        );
+        assert_eq!(
+            attachment("export-şişe ğı-2026-11-12.html"),
+            "attachment; filename*=UTF-8''export-%C5%9Fi%C5%9Fe%20%C4%9F%C4%B1-2026-11-12.html; \
+             filename=\"export-_i_e __-2026-11-12.html\""
+        );
+        assert_eq!(
+            attachment("export-日本 🍾-x.html"),
+            "attachment; filename*=UTF-8''export-%E6%97%A5%E6%9C%AC%20%F0%9F%8D%BE-x.html; filename=\"export-__ _-x.html\""
+        );
+        // A quote or a backslash would end or escape the plain form.
+        assert_eq!(
+            attachment(r#"export-say "hi"\.html"#),
+            "attachment; filename*=UTF-8''export-say%20%22hi%22%5C.html; filename=\"export-say _hi__.html\""
+        );
+        for name in ["export-şişe.html", "export-日本.html", "export-🍾.html"] {
+            assert!(attachment(name).is_ascii(), "a header value is ASCII: {name}");
+        }
     }
 }

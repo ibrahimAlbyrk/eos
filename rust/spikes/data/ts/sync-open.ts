@@ -1,5 +1,5 @@
-// Opens records sealed by crates/eos-sync-vault/examples/sync_seal.rs with the TypeScript sync
-// code, and parses each envelope with the real schema.
+// Opens records sealed by Rust (crates/eos-sync-vault/tests/typescript.rs) with the TypeScript
+// sync code, and parses each envelope with the real schema.
 import { readFileSync } from "node:fs";
 
 import { SyncEnvelopeSchema } from "../../../../contracts/src/sync.ts";

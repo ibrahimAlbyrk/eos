@@ -14,6 +14,7 @@ mock-api = ["dep:eos-agent-mock-api"]
 
 [dependencies]
 eos-agent-mock-api = { workspace = true, optional = true }
+eos-agent-anthropic.workspace = true
 eos-agent-compat.workspace = true
 eos-agent-core.workspace = true
 eos-agent-engine.workspace = true
@@ -24,6 +25,7 @@ eos-agent-types.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true
+eos-platform.workspace = true
 futures-util.workspace = true
 indexmap.workspace = true
 serde.workspace = true

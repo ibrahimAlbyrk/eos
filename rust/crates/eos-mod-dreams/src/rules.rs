@@ -24,27 +24,56 @@ const DAY_MS: i64 = 24 * 60 * 60_000;
 
 // ---- schedule ---------------------------------------------------------------
 
-/// The most recent `HH:MM` on the user's clock at or before `now`.
-/// `offset_minutes` is how far that clock is east of UTC.
-pub fn nightly_slot(now: i64, nightly_at: &str, offset_minutes: i32) -> i64 {
-    let mut parts = nightly_at.split(':').map(|part| part.parse::<i64>().ok());
-    let (hours, minutes) = (parts.next().flatten().unwrap_or(3), parts.next().flatten().unwrap_or(0));
-    let offset = i64::from(offset_minutes) * 60_000;
-    let midnight = (now + offset).div_euclid(DAY_MS) * DAY_MS;
-    let slot = midnight + hours * 3_600_000 + minutes * 60_000 - offset;
-    if slot > now { slot - DAY_MS } else { slot }
+/// How far the user's clock is east of UTC at an instant, in minutes: the
+/// zone's rules, summer time included.
+pub type OffsetAt<'a> = &'a dyn Fn(i64) -> i32;
+
+/// The user's wall-clock time at `at`, as milliseconds since 1970 on that clock.
+pub fn wall_clock(at: i64, offset_at: OffsetAt<'_>) -> i64 {
+    at + i64::from(offset_at(at)) * 60_000
 }
 
-pub fn next_nightly(now: i64, nightly_at: &str, offset_minutes: i32) -> i64 {
-    nightly_slot(now, nightly_at, offset_minutes) + DAY_MS
+/// The instant a wall-clock time names, as JavaScript's `Date` reads one: of
+/// a time the clocks pass twice (when they go back) the first, and a time
+/// they skip (when they go forward) as many minutes after the change as it
+/// was after the skipped hour began.
+pub fn instant_of(wall: i64, offset_at: OffsetAt<'_>) -> i64 {
+    // The offsets in force around it: a zone changes at most once a day.
+    let (before, after) = (offset_at(wall - DAY_MS), offset_at(wall + DAY_MS));
+    let fits = |offset: i32| {
+        let at = wall - i64::from(offset) * 60_000;
+        (offset_at(at) == offset).then_some(at)
+    };
+    match (fits(before), fits(after)) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(at), None) | (None, Some(at)) => at,
+        (None, None) => wall - i64::from(before) * 60_000,
+    }
+}
+
+/// The most recent `HH:MM` on the user's clock at or before `now`.
+pub fn nightly_slot(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
+    let mut parts = nightly_at.split(':').map(|part| part.parse::<i64>().ok());
+    let (hours, minutes) = (parts.next().flatten().unwrap_or(3), parts.next().flatten().unwrap_or(0));
+    let midnight = wall_clock(now, offset_at).div_euclid(DAY_MS) * DAY_MS;
+    let wall = midnight + hours * 3_600_000 + minutes * 60_000;
+    let slot = instant_of(wall, offset_at);
+    if slot > now { instant_of(wall - DAY_MS, offset_at) } else { slot }
+}
+
+/// The same time on the user's clock a day after the latest slot: 23 or 25
+/// hours later on the nights the clocks change.
+pub fn next_nightly(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
+    let slot = nightly_slot(now, nightly_at, offset_at);
+    instant_of(wall_clock(slot, offset_at) + DAY_MS, offset_at)
 }
 
 /// Due once the clock passed tonight's slot and nothing started since: a
 /// computer asleep at 03:00 dreams when it wakes. `since` is the last run's
 /// start, or when dreaming was switched on (switching it on in the afternoon
 /// does not dream at once).
-pub fn is_nightly_due(now: i64, nightly_at: &str, since: i64, offset_minutes: i32) -> bool {
-    since < nightly_slot(now, nightly_at, offset_minutes)
+pub fn is_nightly_due(now: i64, nightly_at: &str, since: i64, offset_at: OffsetAt<'_>) -> bool {
+    since < nightly_slot(now, nightly_at, offset_at)
 }
 
 /// Away: no user message for `away_minutes`, nothing working, and no dream
@@ -388,18 +417,69 @@ mod tests {
     /// 2026-03-10 00:00 UTC.
     const MIDNIGHT: i64 = 1_773_100_800_000;
 
+    /// New York in 2026: summer time from 8 March 07:00 UTC (02:00 EST → 03:00
+    /// EDT) to 1 November 06:00 UTC (02:00 EDT → 01:00 EST).
+    fn new_york(at: i64) -> i32 {
+        const SPRING: i64 = 1_772_953_200_000;
+        const FALL: i64 = 1_793_512_800_000;
+        if (SPRING..FALL).contains(&at) { -240 } else { -300 }
+    }
+
+    fn utc(iso: &str) -> i64 {
+        eos_domain::time::ms_from_iso(iso).expect("a time")
+    }
+
+    #[test]
+    fn the_nightly_slot_follows_the_clocks_when_they_go_forward() {
+        let ny: OffsetAt<'_> = &new_york;
+        // 01:30 that morning was still winter time, although "now" is summer time.
+        let slot = nightly_slot(utc("2026-03-08T08:00:00.000Z"), "01:30", ny);
+        assert_eq!(slot, utc("2026-03-08T06:30:00.000Z"));
+        // From the night before, the next 03:00 is 23 hours later.
+        let before = nightly_slot(utc("2026-03-07T12:00:00.000Z"), "03:00", ny);
+        assert_eq!(before, utc("2026-03-07T08:00:00.000Z"));
+        assert_eq!(next_nightly(utc("2026-03-07T12:00:00.000Z"), "03:00", ny), utc("2026-03-08T07:00:00.000Z"));
+        // 02:30 never happens that night: as in JavaScript, it is 03:30 summer time.
+        assert_eq!(nightly_slot(utc("2026-03-08T12:00:00.000Z"), "02:30", ny), utc("2026-03-08T07:30:00.000Z"));
+        // Dreamed at 06:30 UTC: not due again that morning, due the next.
+        let since = utc("2026-03-08T06:30:00.000Z");
+        assert!(!is_nightly_due(utc("2026-03-08T12:00:00.000Z"), "01:30", since, ny));
+        assert!(is_nightly_due(utc("2026-03-09T12:00:00.000Z"), "01:30", since, ny));
+    }
+
+    #[test]
+    fn the_nightly_slot_follows_the_clocks_when_they_go_back() {
+        let ny: OffsetAt<'_> = &new_york;
+        // 00:30 that night was still summer time, although "now" is winter time.
+        assert_eq!(nightly_slot(utc("2026-11-01T17:00:00.000Z"), "00:30", ny), utc("2026-11-01T04:30:00.000Z"));
+        // From the night before, the next 03:00 is 25 hours later.
+        assert_eq!(next_nightly(utc("2026-10-31T12:00:00.000Z"), "03:00", ny), utc("2026-11-01T08:00:00.000Z"));
+        // 01:30 happens twice that night: as in JavaScript, the first.
+        assert_eq!(nightly_slot(utc("2026-11-01T17:00:00.000Z"), "01:30", ny), utc("2026-11-01T05:30:00.000Z"));
+    }
+
+    #[test]
+    fn a_signals_day_is_its_own_days_on_the_users_clock() {
+        let ny: OffsetAt<'_> = &new_york;
+        // 00:30 on 1 November, summer time; with winter time's offset it read as 31 October.
+        assert_eq!(crate::ledger::day_key(utc("2026-11-01T04:30:00.000Z"), ny), "2026-11-01");
+        assert_eq!(crate::ledger::day_key(utc("2026-11-01T04:30:00.000Z"), &|_| -300), "2026-10-31");
+        // 23:30 on 7 March, winter time.
+        assert_eq!(crate::ledger::day_key(utc("2026-03-08T04:30:00.000Z"), ny), "2026-03-07");
+    }
+
     // core/src/__tests__/dream.test.ts
     #[test]
     fn the_slot_is_tonights_once_passed_else_last_nights_on_the_users_clock() {
-        assert_eq!(nightly_slot(MIDNIGHT + 4 * HOUR, "03:00", 0), MIDNIGHT + 3 * HOUR);
-        assert_eq!(nightly_slot(MIDNIGHT + 2 * HOUR, "03:00", 0), MIDNIGHT - 21 * HOUR);
-        assert_eq!(next_nightly(MIDNIGHT + 4 * HOUR, "03:00", 0), MIDNIGHT + 27 * HOUR);
+        assert_eq!(nightly_slot(MIDNIGHT + 4 * HOUR, "03:00", &|_| 0), MIDNIGHT + 3 * HOUR);
+        assert_eq!(nightly_slot(MIDNIGHT + 2 * HOUR, "03:00", &|_| 0), MIDNIGHT - 21 * HOUR);
+        assert_eq!(next_nightly(MIDNIGHT + 4 * HOUR, "03:00", &|_| 0), MIDNIGHT + 27 * HOUR);
         // Three hours east of UTC, 03:00 is midnight UTC.
-        assert_eq!(nightly_slot(MIDNIGHT + HOUR, "03:00", 180), MIDNIGHT);
+        assert_eq!(nightly_slot(MIDNIGHT + HOUR, "03:00", &|_| 180), MIDNIGHT);
         // Due once per slot; a computer asleep at 03:00 dreams when it wakes.
-        assert!(is_nightly_due(MIDNIGHT + 9 * HOUR, "03:00", MIDNIGHT - 10 * HOUR, 0));
-        assert!(!is_nightly_due(MIDNIGHT + 9 * HOUR, "03:00", MIDNIGHT + 4 * HOUR, 0));
-        assert!(!is_nightly_due(MIDNIGHT + 2 * HOUR, "03:00", MIDNIGHT - 20 * HOUR, 0));
+        assert!(is_nightly_due(MIDNIGHT + 9 * HOUR, "03:00", MIDNIGHT - 10 * HOUR, &|_| 0));
+        assert!(!is_nightly_due(MIDNIGHT + 9 * HOUR, "03:00", MIDNIGHT + 4 * HOUR, &|_| 0));
+        assert!(!is_nightly_due(MIDNIGHT + 2 * HOUR, "03:00", MIDNIGHT - 20 * HOUR, &|_| 0));
     }
 
     #[test]

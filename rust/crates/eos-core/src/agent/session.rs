@@ -132,6 +132,9 @@ pub enum BackgroundTaskUpdate {
     },
     /// Its output file has grown.
     Output { task_id: String, output_file: String },
+    /// A monitor told its agent of new lines (one batch), or added a notice
+    /// of its own (lines dropped, a timeout).
+    Event { task_id: String, text: String },
     Ended {
         task_id: String,
         outcome: TaskOutcome,

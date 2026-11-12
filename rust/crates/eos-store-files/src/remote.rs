@@ -6,6 +6,7 @@
 //! bearer.secret        the same shape                        (user only)
 //! relay-owner.secret   the same shape                        (user only)
 //! remote-audit.log     one JSON object per line, appended
+//! remote-audit.log.1   the log before, once the log reached its size
 //! ```
 
 use std::fs::{self, File, OpenOptions};
@@ -19,21 +20,40 @@ use eos_core::Error;
 use eos_core::store::{RemoteAuditEntry, RemoteStore, RoomSecrets};
 use eos_kit_fs::{WriteOptions, atomic_write};
 
+/// How big the audit log grows (about 40,000 phone requests) before it
+/// becomes `remote-audit.log.1`, replacing the one there.
+pub const AUDIT_LOG_MAX: u64 = 8 * 1024 * 1024;
+
+#[derive(Debug)]
+struct OpenLog {
+    file: File,
+    size: u64,
+}
+
 #[derive(Debug)]
 pub struct RemoteFiles {
     dir: PathBuf,
-    log: Mutex<Option<File>>,
+    log: Mutex<Option<OpenLog>>,
+    log_max: u64,
 }
 
 impl RemoteFiles {
     /// Over `<home>/remote`. Nothing is created until it is used.
     pub fn new(dir: impl Into<PathBuf>) -> Self {
-        Self { dir: dir.into(), log: Mutex::new(None) }
+        Self { dir: dir.into(), log: Mutex::new(None), log_max: AUDIT_LOG_MAX }
     }
 
-    fn log(&self) -> MutexGuard<'_, Option<File>> {
+    fn log(&self) -> MutexGuard<'_, Option<OpenLog>> {
         // Holds an open file or nothing: valid after any panic.
         self.log.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn open_log(&self) -> Result<OpenLog, Error> {
+        fs::create_dir_all(&self.dir).map_err(Error::storage)?;
+        let path = self.dir.join("remote-audit.log");
+        let file = OpenOptions::new().create(true).append(true).open(path).map_err(Error::storage)?;
+        let size = file.metadata().map_err(Error::storage)?.len();
+        Ok(OpenLog { file, size })
     }
 }
 
@@ -71,16 +91,24 @@ impl RemoteStore for RemoteFiles {
         let mut line = serde_json::to_vec(entry).map_err(Error::storage)?;
         line.push(b'\n');
         let mut log = self.log();
-        if log.is_none() {
-            fs::create_dir_all(&self.dir).map_err(Error::storage)?;
+        let mut open = match log.take() {
+            Some(open) => open,
+            None => self.open_log()?,
+        };
+        // A line never splits across the two files.
+        if open.size > 0 && open.size + line.len() as u64 > self.log_max {
+            drop(open);
             let path = self.dir.join("remote-audit.log");
-            *log = Some(OpenOptions::new().create(true).append(true).open(path).map_err(Error::storage)?);
+            fs::rename(&path, path.with_extension("log.1")).map_err(Error::storage)?;
+            open = self.open_log()?;
         }
-        match log.as_mut() {
-            // One write per line: lines of concurrent appends never mix.
-            Some(file) => file.write_all(&line).map_err(Error::storage),
-            None => Ok(()),
+        // One write per line: lines of concurrent appends never mix.
+        let written = open.file.write_all(&line).map_err(Error::storage);
+        if written.is_ok() {
+            open.size += line.len() as u64;
         }
+        *log = Some(open);
+        written
     }
 }
 
@@ -144,5 +172,39 @@ mod tests {
                  {{\"device\":\"{device}\",\"action\":\"POST /workers\",\"target\":\"/workers\",\"ts\":1731400000000,\"result\":\"denied\"}}\n"
             )
         );
+    }
+
+    #[test]
+    fn the_audit_log_starts_over_at_its_size_and_keeps_the_one_before() {
+        let home = tempfile::tempdir().expect("a folder");
+        let dir = home.path().join("remote");
+        let line = |n: u32| RemoteAuditEntry {
+            device: "d".into(),
+            action: format!("POST /pty/p-{n}/input"),
+            target: "/pty".into(),
+            ts: 1,
+            result: RemoteAuditResult::Ok,
+        };
+        let one = serde_json::to_vec(&line(1)).expect("json").len() as u64 + 1;
+        // Room for three lines a file.
+        let files = RemoteFiles { dir: dir.clone(), log: Mutex::new(None), log_max: one * 3 };
+        for n in 1..=8 {
+            files.audit(&line(n)).expect("appended");
+        }
+        let read = |name: &str| fs::read_to_string(dir.join(name)).expect("a log");
+        let actions = |text: String| -> Vec<String> {
+            text.lines()
+                .map(|l| serde_json::from_str::<serde_json::Value>(l).expect("a line")["action"].to_string())
+                .collect()
+        };
+        assert_eq!(actions(read("remote-audit.log")), ["\"POST /pty/p-7/input\"", "\"POST /pty/p-8/input\""]);
+        assert_eq!(actions(read("remote-audit.log.1")).len(), 3, "only the one before is kept");
+        assert!(!dir.join("remote-audit.log.2").exists());
+
+        // A log that was already full when the app started is rotated on its first line.
+        let again = RemoteFiles { dir: dir.clone(), log: Mutex::new(None), log_max: one * 2 };
+        again.audit(&line(9)).expect("appended");
+        assert_eq!(actions(read("remote-audit.log")), ["\"POST /pty/p-9/input\""]);
+        assert_eq!(actions(read("remote-audit.log.1")).len(), 2);
     }
 }

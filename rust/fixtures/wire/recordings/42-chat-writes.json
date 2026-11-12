@@ -1,6 +1,6 @@
 {
   "scenario": "42-chat-writes",
-  "about": "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, the worker ingest plane, archive / restore / purge / delete, discarding a change; with their stream frames.",
+  "about": "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, archive / restore / purge / delete, discarding a change; with their stream frames.",
   "exchanges": [
     {
       "step": {
@@ -1713,345 +1713,6 @@
     },
     {
       "step": {
-        "name": "ingest-row",
-        "request": "POST /workers/w-BARE/events",
-        "auth": "none",
-        "via": "socket",
-        "body": {
-          "payload": {
-            "branch": "main",
-            "diffStat": "",
-            "path": "{sandbox}/alpha",
-            "phase": "ready",
-            "status": "clean"
-          },
-          "type": "worktree"
-        },
-        "status": 200
-      },
-      "route": "POST /workers/:id/events",
-      "response": {
-        "frames": {
-          "main": [
-            {
-              "data": {
-                "payload": {
-                  "rowId": 717,
-                  "type": "worktree",
-                  "workerId": "w-BARE"
-                },
-                "reason": "worker:change",
-                "ts": "<now>"
-              },
-              "event": "change",
-              "id": "<stream-id>"
-            },
-            {
-              "data": {
-                "payload": {
-                  "changes": [
-                    {
-                      "data": {
-                        "agent_role": "focused",
-                        "archived_at": null,
-                        "backend_kind": "claude",
-                        "backend_profile": null,
-                        "branch": null,
-                        "collaborate": 0,
-                        "context": {
-                          "limit": 1000000,
-                          "pct": 0,
-                          "used": 150
-                        },
-                        "cost_usd": 0.01,
-                        "cwd": null,
-                        "effort": "medium",
-                        "ended_at": 1790000330000,
-                        "exit_code": 0,
-                        "fork_base_sha": null,
-                        "id": "w-BARE",
-                        "is_orchestrator": 0,
-                        "last_context_tokens": 150,
-                        "model": "opus",
-                        "name": "Monads in two sentences",
-                        "name_source": "user",
-                        "parent_id": null,
-                        "permission_mode": "default",
-                        "pid": null,
-                        "port": null,
-                        "prompt": "Explain what a monad is in two sentences.",
-                        "scratch": 1,
-                        "session_id": null,
-                        "started_at": 1790000300000,
-                        "state": "DONE",
-                        "tasks": null,
-                        "tokens_cache_create": 0,
-                        "tokens_cache_create_1h": 0,
-                        "tokens_cache_read": 0,
-                        "tokens_in": 150,
-                        "tokens_out": 60,
-                        "tool_calls": 0,
-                        "tool_scope": null,
-                        "turn_started_at": null,
-                        "with_gateway": 0,
-                        "worker_definition": null,
-                        "workspace_owner_id": null,
-                        "workspace_ready": 1,
-                        "worktree_dir": null,
-                        "worktree_from": null
-                      },
-                      "op": "upsert",
-                      "resource": "workers"
-                    }
-                  ]
-                },
-                "reason": "state:patch",
-                "ts": "<now>"
-              },
-              "event": "change",
-              "id": "<stream-id>"
-            }
-          ]
-        },
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "ok": true
-        },
-        "status": 200
-      }
-    },
-    {
-      "step": {
-        "name": "ingest-session-id",
-        "request": "POST /workers/w-BARE/events",
-        "auth": "none",
-        "via": "socket",
-        "body": {
-          "payload": {
-            "phase": "session_captured",
-            "sessionId": "99999999-9999-4999-8999-999999999999"
-          },
-          "type": "lifecycle"
-        },
-        "status": 200
-      },
-      "route": "POST /workers/:id/events",
-      "response": {
-        "frames": {
-          "main": [
-            {
-              "data": {
-                "payload": {
-                  "rowId": 718,
-                  "type": "lifecycle",
-                  "workerId": "w-BARE"
-                },
-                "reason": "worker:change",
-                "ts": "<now>"
-              },
-              "event": "change",
-              "id": "<stream-id>"
-            },
-            {
-              "data": {
-                "payload": {
-                  "changes": [
-                    {
-                      "data": {
-                        "agent_role": "focused",
-                        "archived_at": null,
-                        "backend_kind": "claude",
-                        "backend_profile": null,
-                        "branch": null,
-                        "collaborate": 0,
-                        "context": {
-                          "limit": 1000000,
-                          "pct": 0,
-                          "used": 150
-                        },
-                        "cost_usd": 0.01,
-                        "cwd": null,
-                        "effort": "medium",
-                        "ended_at": 1790000330000,
-                        "exit_code": 0,
-                        "fork_base_sha": null,
-                        "id": "w-BARE",
-                        "is_orchestrator": 0,
-                        "last_context_tokens": 150,
-                        "model": "opus",
-                        "name": "Monads in two sentences",
-                        "name_source": "user",
-                        "parent_id": null,
-                        "permission_mode": "default",
-                        "pid": null,
-                        "port": null,
-                        "prompt": "Explain what a monad is in two sentences.",
-                        "scratch": 1,
-                        "session_id": "<uuid:5>",
-                        "started_at": 1790000300000,
-                        "state": "DONE",
-                        "tasks": null,
-                        "tokens_cache_create": 0,
-                        "tokens_cache_create_1h": 0,
-                        "tokens_cache_read": 0,
-                        "tokens_in": 150,
-                        "tokens_out": 60,
-                        "tool_calls": 0,
-                        "tool_scope": null,
-                        "turn_started_at": null,
-                        "with_gateway": 0,
-                        "worker_definition": null,
-                        "workspace_owner_id": null,
-                        "workspace_ready": 1,
-                        "worktree_dir": null,
-                        "worktree_from": null
-                      },
-                      "op": "upsert",
-                      "resource": "workers"
-                    }
-                  ]
-                },
-                "reason": "state:patch",
-                "ts": "<now>"
-              },
-              "event": "change",
-              "id": "<stream-id>"
-            }
-          ]
-        },
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "ok": true
-        },
-        "status": 200
-      }
-    },
-    {
-      "step": {
-        "name": "ingest-no-type",
-        "request": "POST /workers/w-BARE/events",
-        "auth": "none",
-        "via": "socket",
-        "body": {
-          "payload": {}
-        },
-        "status": 400
-      },
-      "route": "POST /workers/:id/events",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "error": "type required"
-        },
-        "status": 400
-      }
-    },
-    {
-      "step": {
-        "name": "row-after-ingest",
-        "request": "GET /workers/w-BARE",
-        "status": 200
-      },
-      "route": "GET /workers/:id",
-      "response": {
-        "headers": {
-          "cache-control": "no-cache",
-          "content-type": "application/json",
-          "etag": "<etag>"
-        },
-        "json": {
-          "agent_role": "focused",
-          "archived_at": null,
-          "backend_kind": "claude",
-          "backend_profile": null,
-          "branch": null,
-          "collaborate": 0,
-          "context": {
-            "limit": 1000000,
-            "pct": 0,
-            "used": 150
-          },
-          "cost_usd": 0.01,
-          "cwd": null,
-          "effort": "medium",
-          "ended_at": 1790000330000,
-          "exit_code": 0,
-          "fork_base_sha": null,
-          "id": "w-BARE",
-          "is_orchestrator": 0,
-          "last_context_tokens": 150,
-          "model": "opus",
-          "name": "Monads in two sentences",
-          "name_source": "user",
-          "parent_id": null,
-          "permission_mode": "default",
-          "pid": null,
-          "port": null,
-          "prompt": "Explain what a monad is in two sentences.",
-          "scratch": 1,
-          "session_id": "<uuid:5>",
-          "started_at": 1790000300000,
-          "state": "DONE",
-          "tasks": null,
-          "tokens_cache_create": 0,
-          "tokens_cache_create_1h": 0,
-          "tokens_cache_read": 0,
-          "tokens_in": 150,
-          "tokens_out": 60,
-          "tool_calls": 0,
-          "tool_scope": null,
-          "turn_started_at": null,
-          "with_gateway": 0,
-          "worker_definition": null,
-          "workspace_owner_id": null,
-          "workspace_ready": 1,
-          "worktree_dir": null,
-          "worktree_from": null
-        },
-        "status": 200
-      }
-    },
-    {
-      "step": {
-        "name": "events-after-ingest",
-        "request": "GET /workers/w-BARE/events",
-        "query": {
-          "limit": "2"
-        },
-        "status": 200
-      },
-      "route": "GET /workers/:id/events",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": [
-          {
-            "id": 717,
-            "payload": "{\"branch\":\"main\",\"diffStat\":\"\",\"path\":\"{sandbox}/alpha\",\"phase\":\"ready\",\"status\":\"clean\"}",
-            "ts": "<now>",
-            "type": "worktree",
-            "worker_id": "w-BARE"
-          },
-          {
-            "id": 718,
-            "payload": "{\"phase\":\"session_captured\",\"sessionId\":\"<uuid:5>\"}",
-            "ts": "<now>",
-            "type": "lifecycle",
-            "worker_id": "w-BARE"
-          }
-        ],
-        "status": 200
-      }
-    },
-    {
-      "step": {
         "name": "keystroke-not-a-terminal-lane",
         "request": "POST /workers/w-CHAT/keystroke",
         "body": {
@@ -2287,7 +1948,7 @@
                         "port": null,
                         "prompt": "Fix the parser so empty input returns an empty list.",
                         "scratch": 0,
-                        "session_id": "<uuid:6>",
+                        "session_id": "<uuid:5>",
                         "started_at": 1790000000000,
                         "state": "SUSPENDED",
                         "tasks": null,
@@ -2573,7 +2234,7 @@
             "port": null,
             "prompt": "Explain what a monad is in two sentences.",
             "scratch": 1,
-            "session_id": "<uuid:5>",
+            "session_id": null,
             "started_at": 1790000300000,
             "state": "DONE",
             "tasks": null,
@@ -2661,7 +2322,7 @@
             "port": null,
             "prompt": "What is in this folder?",
             "scratch": 0,
-            "session_id": "<uuid:7>",
+            "session_id": "<uuid:6>",
             "started_at": 1789990000000,
             "state": "DONE",
             "tasks": null,
@@ -2764,7 +2425,7 @@
                         "port": null,
                         "prompt": "Explain what a monad is in two sentences.",
                         "scratch": 1,
-                        "session_id": "<uuid:5>",
+                        "session_id": null,
                         "started_at": 1790000300000,
                         "state": "DONE",
                         "tasks": null,
@@ -3055,7 +2716,7 @@
             "port": null,
             "prompt": "Summarize notes.md.",
             "scratch": 0,
-            "session_id": "<uuid:8>",
+            "session_id": "<uuid:7>",
             "started_at": 1790000400000,
             "state": "SUSPENDED",
             "tasks": null,
@@ -3104,7 +2765,7 @@
             "port": null,
             "prompt": "Explain what a monad is in two sentences.",
             "scratch": 1,
-            "session_id": "<uuid:5>",
+            "session_id": null,
             "started_at": 1790000300000,
             "state": "DONE",
             "tasks": null,
@@ -3251,7 +2912,7 @@
             "port": null,
             "prompt": "Fix the parser so empty input returns an empty list.",
             "scratch": 0,
-            "session_id": "<uuid:6>",
+            "session_id": "<uuid:5>",
             "started_at": 1790000000000,
             "state": "SUSPENDED",
             "tasks": null,

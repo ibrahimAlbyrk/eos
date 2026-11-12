@@ -22,6 +22,7 @@ struct Bench {
     sink: Arc<RecordingSink>,
     policy: Arc<FakePolicy>,
     credentials: Arc<FakeCredentials>,
+    user: Arc<FakeUser>,
     dir: tempfile::TempDir,
 }
 
@@ -34,6 +35,7 @@ impl Bench {
         }
         let policy = Arc::new(FakePolicy::default());
         let credentials = Arc::new(FakeCredentials::with_key("k-first"));
+        let user = Arc::new(FakeUser::default());
         let options = EngineOptions {
             default_model: Some("mock-model".into()),
             base_url: Some(mock.base_url()),
@@ -45,11 +47,12 @@ impl Bench {
             policy: policy.clone(),
             tools: Arc::new(FakeToolSets(vec![EchoTool::named(TOOL)])),
             credentials: credentials.clone(),
-            questions: Arc::new(FakeUser::default()),
+            questions: user.clone(),
             clock: Arc::new(FakeClock::new()),
+            secrets: Arc::new(eos_testkit::NoKeychain),
         };
         let engine = Engine::build(options, deps).await.expect("the engine");
-        Self { engine, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, dir }
+        Self { engine, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
     }
 
     fn project(&self) -> PathBuf {
@@ -428,4 +431,19 @@ async fn one_request_outside_any_conversation_answers_text_or_data_on_a_new_sess
     let slow = bench.engine.complete(OneShotRequest::new("slow").timeout_ms(50)).await;
     assert_eq!(slow, Err(OneShotError::TimedOut(Duration::from_millis(50))));
     assert_eq!(bench.engine.live(), 0, "no session was started for any of it");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_question_reaches_the_user_with_the_call_that_asks_it() {
+    let ask = r#"{"questions":[{"question":"Which one?","header":"Pick","multiSelect":false,
+        "options":[{"label":"A","description":"the first"},{"label":"B","description":"the second"}]}]}"#;
+    let bench = Bench::new([Reply::tool_use("toolu_ask", "AskUserQuestion", ask), Reply::text("going with A")]).await;
+    *bench.user.answers.lock().expect("answers") =
+        Some([("Which one?".to_owned(), serde_json::json!("A"))].into_iter().collect());
+    let spec = LaunchSpec { role: eos_contracts::SessionFactsRole::Focused, ..bench.spec("w-q") };
+    let session = bench.start(spec).await;
+    session.send("ask me".into()).await.expect("sends");
+    bench.after_turns("w-q", 1).await;
+    assert_eq!(*bench.user.calls.lock().expect("calls"), [Some("toolu_ask".to_owned())]);
+    assert!(bench.request_text(1).contains("Which one?"), "the answer went back to the model");
 }

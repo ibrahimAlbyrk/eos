@@ -20,6 +20,7 @@ tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+eos-git.workspace = true
 eos-kit-proc.workspace = true
 eos-platform.workspace = true
 eos-plugin-build.workspace = true

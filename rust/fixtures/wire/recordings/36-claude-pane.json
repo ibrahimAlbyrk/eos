@@ -1,0 +1,445 @@
+{
+  "scenario": "36-claude-pane",
+  "about": "A Claude pane in a terminal, as the phone drives it: its conversation, a prompt, a question and its answer. The pane runs the compiled stand-in for Claude Code (crates/eos-mod-terminals/examples/fake_claude.rs) that wire.sh and replay.sh put first on PATH.",
+  "exchanges": [
+    {
+      "step": {
+        "name": "claude-pane-create",
+        "request": "POST /pty",
+        "body": {
+          "claude": {},
+          "cols": 100,
+          "cwd": "{sandbox}/beta",
+          "rows": 30
+        },
+        "status": 200,
+        "capture": {
+          "pty": "/json/sessionId"
+        },
+        "pause_ms": 1500
+      },
+      "route": "POST /pty",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "sessionId": "<uuid:1>",
+          "number": 1,
+          "cwd": "{sandbox}/beta",
+          "cols": 100,
+          "rows": 30,
+          "alive": true,
+          "kind": "claude",
+          "claudeSessionId": "<uuid:2>",
+          "title": null,
+          "remote": false,
+          "owner": null
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-conversation-empty",
+        "request": "GET /pty/{pty}/conversation",
+        "status": 200
+      },
+      "route": "GET /pty/:id/conversation",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "claudeSessionId": "<uuid:2>",
+          "rows": [],
+          "running": false,
+          "pending": null
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-message",
+        "request": "POST /pty/{pty}/message",
+        "body": {
+          "text": "hello there"
+        },
+        "status": 200,
+        "pause_ms": 200
+      },
+      "route": "POST /pty/:id/message",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-conversation-answered",
+        "request": "GET /pty/{pty}/conversation",
+        "status": 200,
+        "pause_ms": 1500
+      },
+      "route": "GET /pty/:id/conversation",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "claudeSessionId": "<uuid:2>",
+          "rows": [
+            {
+              "id": 1,
+              "ts": "<now>",
+              "type": "user_message",
+              "payload": {
+                "text": "hello there"
+              }
+            },
+            {
+              "id": 2,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "assistant",
+                "blocks": [
+                  {
+                    "type": "text",
+                    "text": "echo: hello there",
+                    "blockId": "<transcript:1>2:0"
+                  }
+                ]
+              }
+            }
+          ],
+          "running": false,
+          "pending": null
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-ask",
+        "request": "POST /pty/{pty}/message",
+        "body": {
+          "text": "ask me"
+        },
+        "status": 200
+      },
+      "route": "POST /pty/:id/message",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-conversation-pending",
+        "request": "GET /pty/{pty}/conversation",
+        "status": 200,
+        "capture": {
+          "call": "/json/pending/toolUseId"
+        },
+        "pause_ms": 1500
+      },
+      "route": "GET /pty/:id/conversation",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "cache-control": "no-cache"
+        },
+        "json": {
+          "claudeSessionId": "<uuid:2>",
+          "rows": [
+            {
+              "id": 1,
+              "ts": "<now>",
+              "type": "user_message",
+              "payload": {
+                "text": "hello there"
+              }
+            },
+            {
+              "id": 2,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "assistant",
+                "blocks": [
+                  {
+                    "type": "text",
+                    "text": "echo: hello there",
+                    "blockId": "<transcript:1>2:0"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 4,
+              "ts": "<now>",
+              "type": "user_message",
+              "payload": {
+                "text": "ask me"
+              }
+            }
+          ],
+          "running": true,
+          "pending": {
+            "toolUseId": "toolu_ask4",
+            "name": "AskUserQuestion",
+            "input": {
+              "questions": [
+                {
+                  "question": "Which colour?",
+                  "header": "Colour",
+                  "multiSelect": false,
+                  "options": [
+                    {
+                      "label": "Red"
+                    },
+                    {
+                      "label": "Blue"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-message-while-asked",
+        "request": "POST /pty/{pty}/message",
+        "body": {
+          "text": "never mind"
+        },
+        "status": 409
+      },
+      "route": "POST /pty/:id/message",
+      "response": {
+        "status": 409,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "Claude is waiting for an answer",
+          "pending": "AskUserQuestion"
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-answer-two-options",
+        "request": "POST /pty/{pty}/answer",
+        "body": {
+          "answers": [
+            {
+              "options": [
+                0,
+                1
+              ]
+            }
+          ],
+          "toolUseId": "{call}"
+        },
+        "status": 400
+      },
+      "route": "POST /pty/:id/answer",
+      "response": {
+        "status": 400,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "error": "question 1 takes exactly one option"
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-answer",
+        "request": "POST /pty/{pty}/answer",
+        "body": {
+          "answers": [
+            {
+              "options": [
+                1
+              ]
+            }
+          ],
+          "toolUseId": "{call}"
+        },
+        "status": 200
+      },
+      "route": "POST /pty/:id/answer",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-conversation-picked",
+        "request": "GET /pty/{pty}/conversation",
+        "status": 200,
+        "pause_ms": 1500
+      },
+      "route": "GET /pty/:id/conversation",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json",
+          "etag": "<etag>",
+          "cache-control": "no-cache"
+        },
+        "json": {
+          "claudeSessionId": "<uuid:2>",
+          "rows": [
+            {
+              "id": 1,
+              "ts": "<now>",
+              "type": "user_message",
+              "payload": {
+                "text": "hello there"
+              }
+            },
+            {
+              "id": 2,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "assistant",
+                "blocks": [
+                  {
+                    "type": "text",
+                    "text": "echo: hello there",
+                    "blockId": "<transcript:1>2:0"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 4,
+              "ts": "<now>",
+              "type": "user_message",
+              "payload": {
+                "text": "ask me"
+              }
+            },
+            {
+              "id": 5,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "assistant",
+                "blocks": [
+                  {
+                    "type": "tool_call",
+                    "callId": "toolu_ask4",
+                    "name": "AskUserQuestion",
+                    "input": {
+                      "questions": [
+                        {
+                          "question": "Which colour?",
+                          "header": "Colour",
+                          "multiSelect": false,
+                          "options": [
+                            {
+                              "label": "Red"
+                            },
+                            {
+                              "label": "Blue"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "id": 6,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "tool",
+                "blocks": [
+                  {
+                    "type": "tool_result",
+                    "callId": "toolu_ask4",
+                    "isError": false,
+                    "content": "answered 2"
+                  }
+                ]
+              }
+            },
+            {
+              "id": 7,
+              "ts": "<now>",
+              "type": "agent_event",
+              "payload": {
+                "type": "message",
+                "role": "assistant",
+                "blocks": [
+                  {
+                    "type": "text",
+                    "text": "You picked 2.",
+                    "blockId": "<transcript:1>7:0"
+                  }
+                ]
+              }
+            }
+          ],
+          "running": false,
+          "pending": null
+        }
+      }
+    },
+    {
+      "step": {
+        "name": "claude-pane-close",
+        "request": "DELETE /pty/{pty}",
+        "status": 200,
+        "pause_ms": 300
+      },
+      "route": "DELETE /pty/:id",
+      "response": {
+        "status": 200,
+        "headers": {
+          "content-type": "application/json"
+        },
+        "json": {
+          "ok": true
+        }
+      }
+    }
+  ]
+}

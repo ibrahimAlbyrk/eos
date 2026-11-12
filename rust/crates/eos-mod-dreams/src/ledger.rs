@@ -18,6 +18,8 @@ use eos_domain::time::iso_from_ms;
 use eos_domain::user_memory::scope_covers;
 use unicode_normalization::UnicodeNormalization;
 
+use crate::rules::{OffsetAt, wall_clock};
+
 pub const CANDIDATE_TTL_MS: i64 = 30 * 24 * 60 * 60_000;
 pub const LEDGER_MAX: usize = 200;
 const SUPPORT_MAX: usize = 24;
@@ -82,17 +84,17 @@ fn says_everywhere(folded: &str) -> bool {
 
 // ---- support ----------------------------------------------------------------------
 
-/// The date of `at` on the user's clock, `offset_minutes` east of UTC.
-pub fn day_key(at: i64, offset_minutes: i32) -> String {
-    iso_from_ms(at + i64::from(offset_minutes) * 60_000).chars().take(10).collect()
+/// The date of `at` on the user's clock, by the zone's rules at that instant.
+pub fn day_key(at: i64, offset_at: OffsetAt<'_>) -> String {
+    iso_from_ms(wall_clock(at, offset_at)).chars().take(10).collect()
 }
 
-fn support_of(night: &NightSignal, offset_minutes: i32) -> DreamSupport {
+fn support_of(night: &NightSignal, offset_at: OffsetAt<'_>) -> DreamSupport {
     DreamSupport {
         worker_id: night.worker_id.clone(),
         chat: night.chat.clone(),
         project: night.project.clone(),
-        day: day_key(night.at, offset_minutes),
+        day: day_key(night.at, offset_at),
         at: night.at.into(),
         stance: night.signal.stance,
         marker: night.signal.marker.clone(),
@@ -184,13 +186,13 @@ pub fn apply_matches(
     night: &[NightSignal],
     groups: &[DreamMatchGroup],
     memories: &[UserMemory],
-    offset_minutes: i32,
+    offset_at: OffsetAt<'_>,
     mut new_id: impl FnMut() -> String,
 ) -> MatchResult {
     let mut next = ledger;
     let mut used: HashSet<usize> = HashSet::new();
     let (mut known, mut declined, mut invalid) = (0, 0, 0);
-    let supports = |signals: &[&NightSignal]| signals.iter().map(|s| support_of(s, offset_minutes)).collect::<Vec<_>>();
+    let supports = |signals: &[&NightSignal]| signals.iter().map(|s| support_of(s, offset_at)).collect::<Vec<_>>();
     let reinforce = |next: &mut Vec<DreamCandidate>, at: usize, add: Vec<DreamSupport>| {
         let candidate = next.remove(at);
         next.insert(at, with_support(candidate, add));
@@ -319,7 +321,7 @@ mod tests {
             &tonight,
             &[group(json!({"signals": [0, 1], "claim": " Run tests "}))],
             &[],
-            0,
+            &|_| 0,
             ids(),
         );
         assert_eq!((first.ledger.len(), first.known, first.declined, first.invalid), (1, 0, 0, 0));
@@ -335,12 +337,12 @@ mod tests {
         // Another chat on another day backs it; rereading the same lines never counts twice.
         let later = [night("w2", Some("/p"), NOON + DAY, 9, None), night("w1", Some("/p"), NOON, 1, None)];
         let groups = [group(json!({"signals": [0, 1], "candidate": "dc-1"}))];
-        let second = apply_matches(first.ledger, &later, &groups, &[], 0, ids());
+        let second = apply_matches(first.ledger, &later, &groups, &[], &|_| 0, ids());
         assert_eq!(second.ledger[0].support.len(), 3);
         assert!(is_candidate_ready(&second.ledger[0]));
         assert_eq!(second.ledger[0].last_seen.0 as i64, NOON + DAY);
-        assert_eq!(day_key(NOON + DAY, 0), "2026-03-11");
-        assert_eq!(day_key(NOON + DAY, 13 * 60), "2026-03-12", "the user's own date");
+        assert_eq!(day_key(NOON + DAY, &|_| 0), "2026-03-11");
+        assert_eq!(day_key(NOON + DAY, &|_| 13 * 60), "2026-03-12", "the user's own date");
     }
 
     #[test]
@@ -367,7 +369,7 @@ mod tests {
             group(json!({"signals": [4, 99]})),
             group(json!({"signals": [9]})),
         ];
-        let matched = apply_matches(Vec::new(), &tonight, &groups, &memories, 0, ids());
+        let matched = apply_matches(Vec::new(), &tonight, &groups, &memories, &|_| 0, ids());
         assert_eq!((matched.known, matched.declined, matched.invalid), (2, 1, 2));
         assert_eq!(matched.ledger.len(), 1, "the contradiction and the other setting aim at the same memory");
         let aimed = &matched.ledger[0];
@@ -384,7 +386,7 @@ mod tests {
             &[night("w1", Some("/p"), NOON, 1, Some("always"))],
             &[group(json!({"signals": [0], "claim": "c"}))],
             &[],
-            0,
+            &|_| 0,
             ids(),
         );
         assert!(is_candidate_ready(&stated.ledger[0]), "stated as a standing rule");
@@ -395,13 +397,13 @@ mod tests {
             &[night("w1", Some("/p"), NOON, 1, Some("her projede"))],
             &[group(json!({"signals": [0], "claim": "c"}))],
             &[],
-            0,
+            &|_| 0,
             ids(),
         );
         assert_eq!(candidate_scope(&everywhere.ledger[0]), UserMemoryScope::Global);
         let two = [night("w1", Some("/p"), NOON, 1, None), night("w2", None, NOON + DAY, 2, None)];
         let settings =
-            apply_matches(Vec::new(), &two, &[group(json!({"signals": [0, 1], "claim": "c"}))], &[], 0, ids());
+            apply_matches(Vec::new(), &two, &[group(json!({"signals": [0, 1], "claim": "c"}))], &[], &|_| 0, ids());
         assert_eq!(
             candidate_scope(&settings.ledger[0]),
             UserMemoryScope::Global,
@@ -410,8 +412,14 @@ mod tests {
 
         let mut irreversible = night("w1", Some("/p"), NOON, 1, None);
         irreversible.signal.irreversible = true;
-        let guarded =
-            apply_matches(Vec::new(), &[irreversible], &[group(json!({"signals": [0], "claim": "c"}))], &[], 0, ids());
+        let guarded = apply_matches(
+            Vec::new(),
+            &[irreversible],
+            &[group(json!({"signals": [0], "claim": "c"}))],
+            &[],
+            &|_| 0,
+            ids(),
+        );
         assert!(is_candidate_ready(&guarded.ledger[0]));
 
         let ledger = vec![stated.ledger[0].clone(), settings.ledger[0].clone()];

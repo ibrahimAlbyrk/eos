@@ -149,16 +149,19 @@ impl ToolSets for FakeToolSets {
 pub struct FakeUser {
     pub answers: Mutex<Option<UnknownRecord>>,
     pub asked: Mutex<Vec<Vec<UnknownRecord>>>,
+    /// The tool call each question came with.
+    pub calls: Mutex<Vec<Option<String>>>,
 }
 
 impl UserQuestions for FakeUser {
     fn ask<'a>(
         &'a self,
         _worker_id: &'a str,
-        _call_id: Option<&'a str>,
+        call_id: Option<&'a str>,
         questions: Vec<UnknownRecord>,
     ) -> BoxFuture<'a, Option<UnknownRecord>> {
         self.asked.lock().expect("asked").push(questions);
+        self.calls.lock().expect("calls").push(call_id.map(str::to_owned));
         Box::pin(std::future::ready(self.answers.lock().expect("answers").clone()))
     }
 }

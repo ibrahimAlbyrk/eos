@@ -171,6 +171,15 @@ pub trait WorkerSessions: Send + Sync + 'static {
     fn settled<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;
 }
 
+/// One version of a file: where it is, how long, and when it last changed.
+/// The same stamp again means the same contents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileStamp {
+    pub path: String,
+    pub size: u64,
+    pub modified_ms: i64,
+}
+
 /// What is kept on disk about workflow runs: each run's record, written when
 /// it ends, and its agents' conversations. A run is named by the transcript
 /// folder its start event carried; a folder that is not one of this app's
@@ -185,6 +194,10 @@ pub trait WorkflowRunFiles: Send + Sync + 'static {
         transcript_dir: &'a str,
         agent_id: &'a str,
     ) -> BoxFuture<'a, Option<Vec<PtyConversationRow>>>;
+
+    /// The file that conversation is read from, as it is now; `None` when
+    /// there is none.
+    fn agent_stamp<'a>(&'a self, transcript_dir: &'a str, agent_id: &'a str) -> BoxFuture<'a, Option<FileStamp>>;
 }
 
 /// A banner on the user's computer, shown while the app's window is not in

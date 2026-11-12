@@ -7,13 +7,14 @@ use std::sync::Arc;
 
 use eos_core::plugin::PluginPreviewer;
 use eos_core::{Clock, Ids};
+use eos_git::PluginClones;
 use eos_kit_net::SafeFetcher;
 use eos_kit_proc::{ProcessTrees, Runner};
 use eos_mod_plugins::{PluginHost, PluginHostDeps, PluginServiceOptions};
 use eos_platform::DataPaths;
 use eos_plugin_build::{EsbuildPluginBuilder, dev_checkout, locate};
 use eos_plugin_files::{
-    FsPluginDataStore, FsPluginInstallStore, FsPluginStaging, FsPluginWorkspace, GitCloner, GuardedHttp, NPM_REGISTRY,
+    FsPluginDataStore, FsPluginInstallStore, FsPluginStaging, FsPluginWorkspace, GuardedHttp, NPM_REGISTRY,
     PluginFetchers, TempPreviewFiles, authoring_plugin,
 };
 use eos_runtime::bus::Bus;
@@ -43,9 +44,13 @@ pub(crate) fn host(parts: Parts<'_>) -> Result<Arc<PluginHost>, Error> {
     let registry = GuardedHttp(SafeFetcher::new().map_err(eos_core::Error::storage)?);
     Ok(PluginHost::new(PluginHostDeps {
         workspace: Arc::new(FsPluginWorkspace::new(&dir)),
-        builder: Arc::new(EsbuildPluginBuilder::new(processes.clone(), esbuild)),
+        builder: Arc::new(EsbuildPluginBuilder::new(processes, esbuild)),
         data: Arc::new(FsPluginDataStore::new(&data)),
-        fetcher: Arc::new(PluginFetchers::new(Arc::new(registry), NPM_REGISTRY, Arc::new(GitCloner::new(processes)))),
+        fetcher: Arc::new(PluginFetchers::new(
+            Arc::new(registry),
+            NPM_REGISTRY,
+            Arc::new(PluginClones::new(crate::files::git(&parts.clock))),
+        )),
         staging: Arc::new(FsPluginStaging::new(&dir, parts.ids, parts.clock.clone())),
         records: Arc::new(FsPluginInstallStore::new(&data)),
         previewer: parts.previewer,

@@ -106,8 +106,19 @@ async fn every_kind_of_turn_runs_through_the_app_and_ends_idle() {
         assert!(frames.until(WAIT, |f| rig::went(f, &id, "IDLE")).await.is_some(), "{kind}: the turn ends");
     }
     agents.settled().await;
-    let (_, row) = rig::call(&app, Method::Get, &format!("/workers/{id}"), None).await;
+    // The "big" turn's idle edge compacts the chat, and the IDLE that ends the
+    // compaction can be the one a later kind's wait took: that kind's turn,
+    // queued behind it, may still be running here.
+    let deadline = tokio::time::Instant::now() + WAIT;
+    let row = loop {
+        let (_, row) = rig::call(&app, Method::Get, &format!("/workers/{id}"), None).await;
+        if row["state"] == "IDLE" || tokio::time::Instant::now() > deadline {
+            break row;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    };
     assert_eq!(row["state"], "IDLE", "{row}");
+    agents.settled().await;
     let (_, rows) = rig::call(&app, Method::Get, &format!("/workers/{id}/events?limit=5000&order=asc"), None).await;
     let count = rows.as_array().map_or(0, Vec::len);
     assert!(count > 40, "the turns were logged: {count} rows");

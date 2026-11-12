@@ -12,12 +12,14 @@
 //! (`BranchIntegration`), which keeps state in a folder of its own.
 //! [`GitProjectKeys`] names project folders by their
 //! repository's remote (`ProjectKeys`); [`ScratchRepos`] makes the folders of
-//! chats started without one (`ScratchFolders`).
+//! chats started without one (`ScratchFolders`); [`PluginClones`] clones a
+//! plugin's repository for an install (`PluginCloner`).
 //!
 //! Reads collapse every failure (no repository, no `git`, a bad revision) to
 //! an empty answer; writes return git's own message.
 
 mod branch;
+mod clone;
 mod diffs;
 mod files;
 mod hydrate;
@@ -36,6 +38,7 @@ use std::sync::Arc;
 use eos_core::Clock;
 use eos_kit_proc::Runner;
 
+pub use clone::PluginClones;
 pub use files::list_candidate_files;
 pub use project_keys::{GitProjectKeys, KnownFolders};
 pub use scratch::ScratchRepos;

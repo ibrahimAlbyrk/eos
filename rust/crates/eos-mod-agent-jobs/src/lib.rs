@@ -7,8 +7,9 @@
 //! through the session that runs it, and the task's own end closes it.
 //! (Workflow runs are the workflow feature's.)
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_core::agent::{BackgroundTaskKind, BackgroundTaskUpdate, TaskOutcome, WorkerSessions};
 use eos_domain::text::first_line;
@@ -24,6 +25,9 @@ const DETAIL_CHARS: usize = 160;
 pub struct AgentJobsModule {
     jobs: JobRegistry,
     sessions: Arc<dyn WorkerSessions>,
+    /// Events each running monitor has told its agent, by worker and task;
+    /// an entry goes with its task's end.
+    events: Mutex<HashMap<(String, String), u32>>,
 }
 
 impl std::fmt::Debug for AgentJobsModule {
@@ -34,7 +38,7 @@ impl std::fmt::Debug for AgentJobsModule {
 
 impl AgentJobsModule {
     pub fn new(jobs: JobRegistry, sessions: Arc<dyn WorkerSessions>) -> Self {
-        Self { jobs, sessions }
+        Self { jobs, sessions, events: Mutex::default() }
     }
 
     /// The job of a task: updates name the task only, not its kind.
@@ -96,7 +100,27 @@ impl Module for AgentJobsModule {
                     job.update_now(|_| {});
                 }
             }
+            BackgroundTaskUpdate::Event { task_id, text } => {
+                let Some(job) = self.job(worker_id, task_id) else { return };
+                let count = {
+                    let mut events = self.events.lock().unwrap_or_else(PoisonError::into_inner);
+                    let count = events.entry((worker_id.to_owned(), task_id.clone())).or_default();
+                    *count += 1;
+                    *count
+                };
+                job.append_output(&format!("{text}\n"));
+                let plural = if count == 1 { "" } else { "s" };
+                let detail = match first_line(Some(text), DETAIL_CHARS) {
+                    Some(last) => format!("{count} event{plural} · {last}"),
+                    None => format!("{count} event{plural}"),
+                };
+                job.update(|job| job.detail = Some(detail));
+            }
             BackgroundTaskUpdate::Ended { task_id, outcome, summary, output_file, exit_code } => {
+                self.events
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .remove(&(worker_id.to_owned(), task_id.clone()));
                 let Some(job) = self.job(worker_id, task_id) else { return };
                 if let Some(file) = output_file {
                     job.set_output_file(Some(PathBuf::from(file)));

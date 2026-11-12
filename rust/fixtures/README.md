@@ -26,7 +26,11 @@ scripts/wire.sh replay    # another fresh synthetic folder, diffed against the r
 Both start the Node daemon from this checkout in isolation (`scripts/wire-daemon.sh`): its own
 data folder and `$HOME` under `$TMPDIR/eos-wire`, ports 7500/7501, no launchd, phone relay and
 hosting off, UTC. They need the daemon's packages installed (`npm install` in `contracts`, `core`,
-`infra`, `gateway`, `spawner`, `manager`) and never touch `~/.eos` or a running Eos. Arguments
+`infra`, `gateway`, `spawner`, `manager`) and never touch `~/.eos` or a running Eos. A terminal's
+`claude` is a compiled stand-in for Claude Code (`crates/eos-mod-terminals/examples/fake_claude.rs`):
+`scripts/stand-in-claude.sh` gives the run's home shell profiles that put it first (a macOS login
+shell puts `/etc/paths.d`, Homebrew's folder among them, ahead of the PATH it is given) and stops the
+run unless the shell then finds the stand-in. `replay.sh` does the same for the Rust core. Arguments
 after the mode go to the tool: `--only 31-pages,32-profile`, `--verbose`, `--lenient`.
 
 `replay` exits non-zero when anything differs and prints where:
@@ -172,7 +176,8 @@ A recording keeps each step next to its answer, so `replay` needs only the recor
 `90-gates.toml` is generated: one request per registered route with no token, no body and a
 placeholder id. Regenerate it from `routes.json` when routes are added, leaving out the routes
 that open a dialog (`/pick-directory`, `/pick-file`), start an agent (`POST /workers`,
-`POST /orchestrators`), never end (`/stream`) or go to the network.
+`POST /orchestrators`), never end (`/stream`) or go to the network, and `POST /workers/:id/events`,
+which the Rust app does not have.
 
 ## Normalizing
 

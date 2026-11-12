@@ -12,8 +12,8 @@ use eos_kit_proc::{ProcessTrees, Runner as Processes};
 use eos_mod_plugins::{NoPreviewWindow, PluginHost, PluginHostDeps, PluginServiceOptions};
 use eos_plugin_build::{EsbuildPluginBuilder, dev_checkout, locate};
 use eos_plugin_files::{
-    FsPluginDataStore, FsPluginInstallStore, FsPluginStaging, FsPluginWorkspace, GitCloner, HttpFailure,
-    PluginFetchers, RegistryHttp, TempPreviewFiles,
+    FsPluginDataStore, FsPluginInstallStore, FsPluginStaging, FsPluginWorkspace, HttpFailure, PluginFetchers,
+    RegistryHttp, TempPreviewFiles,
 };
 use eos_runtime::access::{Access, Caller};
 use eos_runtime::http::{Method, Request, Response};
@@ -77,7 +77,7 @@ impl Default for Parts {
     fn default() -> Self {
         Self {
             registry: Arc::new(NoRegistry),
-            cloner: Arc::new(GitCloner::new(processes())),
+            cloner: Arc::new(eos_git::PluginClones::new(eos_git::Git::new(processes(), Arc::new(SystemClock)))),
             builder: Arc::new(EsbuildPluginBuilder::new(processes(), esbuild())),
             previewer: Arc::new(NoPreviewWindow),
             settle_timeout: Duration::from_millis(300),

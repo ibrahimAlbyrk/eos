@@ -100,10 +100,15 @@ fn tag(e: &Value) -> String {
 }
 
 fn started(call: &str, model: &str, background: bool) -> SubagentEventKind {
+    started_at(call, model, None, background)
+}
+
+fn started_at(call: &str, model: &str, effort: Option<&str>, background: bool) -> SubagentEventKind {
     SubagentEventKind::Started(Arc::new(SubagentStarted {
         tool_use_id: call.into(),
         agent_type: "general-purpose".into(),
         model: model.into(),
+        effort: effort.map(str::to_owned),
         description: "look around".into(),
         name: None,
         background,
@@ -606,6 +611,8 @@ fn background_commands_go_to_the_job_list_only() {
     run.task("t2", "m1", shell("", None));
     run.task("t1", "b1", TaskEventKind::Output { total_bytes: 10 });
     run.task("t2", "m1", TaskEventKind::Output { total_bytes: 10 });
+    run.task("t2", "m1", TaskEventKind::Event { text: "build failed\nsee the log".into() });
+    run.task("t9", "x1", TaskEventKind::Event { text: "a task this session never announced".into() });
     let end = TaskEventKind::Ended {
         status: "completed".into(),
         summary: "Background command \"Dev server\" completed (exit code 0)".into(),
@@ -638,6 +645,7 @@ fn background_commands_go_to_the_job_list_only() {
                 output_file: None,
             },
             BackgroundTaskUpdate::Output { task_id: "t1".into(), output_file: "/d/tasks/t1.output".into() },
+            BackgroundTaskUpdate::Event { task_id: "t2".into(), text: "build failed\nsee the log".into() },
             BackgroundTaskUpdate::Ended {
                 task_id: "t1".into(),
                 outcome: TaskOutcome::Completed,
@@ -754,4 +762,30 @@ fn a_restarted_stream_closes_its_live_blocks_and_starts_new_ones() {
     );
     assert_eq!((events[2]["blockId"].as_str(), events[3]["blockId"].as_str()), (Some("L-1:0"), Some("L-2:0")));
     assert_eq!(events[5]["blocks"][0]["text"], "whole", "only the attempt that finished is recorded");
+}
+
+#[test]
+fn a_subagents_profile_names_its_model_and_effort_once_and_again_when_they_change() {
+    let mut run = Run::new(&[]);
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(tool_use("agent_1", "Agent", json!({"description": "look around", "run_in_background": true})));
+    run.sub("a1", WORKER, started_at("agent_1", "claude-haiku-5", Some("medium"), true));
+    let profiles =
+        |run: &Run| -> Vec<Value> { run.json().into_iter().filter(|e| e["type"] == "subagent_profile").collect() };
+    assert_eq!(
+        profiles(&run),
+        [json!({"type": "subagent_profile", "callId": "agent_1", "model": "claude-haiku-5", "effort": "medium"})]
+    );
+    // Woken on the same profile: nothing new. On another effort: said again.
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.sub("a1", WORKER, started_at("agent_1", "claude-haiku-5", Some("medium"), true));
+    assert_eq!(profiles(&run).len(), 1);
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.sub("a1", WORKER, started_at("agent_1", "claude-haiku-5", Some("high"), true));
+    assert_eq!(profiles(&run).last().map(|p| p["effort"].clone()), Some(json!("high")));
+    // A model that takes no effort says none.
+    run.agent(tool_use("agent_2", "Agent", json!({})));
+    run.sub("a2", WORKER, started_at("agent_2", "claude-3-haiku", None, false));
+    let last = profiles(&run).last().cloned().expect("a profile");
+    assert_eq!(last, json!({"type": "subagent_profile", "callId": "agent_2", "model": "claude-3-haiku"}));
 }

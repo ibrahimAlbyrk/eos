@@ -87,8 +87,8 @@ impl Dreams {
         self.0.parts.clock.now_ms()
     }
 
-    fn offset(&self, at: i64) -> i32 {
-        self.0.parts.zone.offset_minutes_at(at)
+    fn offset_at(&self) -> impl Fn(i64) -> i32 + '_ {
+        |at| self.0.parts.zone.offset_minutes_at(at)
     }
 
     /// An Eos Claude sign-in, or the setup-token of an install from before sign-ins.
@@ -123,11 +123,11 @@ impl Dreams {
         let (settings, now, last_run) = (self.settings(), self.now(), self.latest().await);
         let nightly = settings.enabled && settings.schedule == DreamSchedule::Nightly;
         let next_at = nightly.then(|| {
-            let (at, offset) = (settings.nightly_at.as_str(), self.offset(now));
-            if is_nightly_due(now, at, self.since(last_run.as_ref()), offset) {
+            let (at, offset_at) = (settings.nightly_at.as_str(), self.offset_at());
+            if is_nightly_due(now, at, self.since(last_run.as_ref()), &offset_at) {
                 now
             } else {
-                next_nightly(now, at, offset)
+                next_nightly(now, at, &offset_at)
             }
         });
         let blocked = match (settings.enabled, self.signed_in()) {
@@ -162,7 +162,7 @@ impl Dreams {
         }
         let since = self.since(latest.as_ref());
         let (due, trigger) = if settings.schedule == DreamSchedule::Nightly {
-            (is_nightly_due(now, &settings.nightly_at, since, self.offset(now)), DreamTrigger::Nightly)
+            (is_nightly_due(now, &settings.nightly_at, since, &self.offset_at()), DreamTrigger::Nightly)
         } else {
             let working = self.0.parts.store.read(|tx| tx.workers().list_all()).await;
             let any_working = working.is_ok_and(|rows| rows.iter().any(|w| w.state == WorkerState::Working));

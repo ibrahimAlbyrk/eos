@@ -18,7 +18,6 @@
 mod archive;
 mod collab;
 mod git;
-mod ingest;
 mod nudge;
 mod routes;
 mod spawn;
@@ -137,7 +136,6 @@ impl Module for AgentsModule {
         all.extend(collab::all(self));
         all.extend(nudge::all(self));
         all.extend(git::all(self));
-        all.push(ingest::route(self.clone()));
         all
     }
 

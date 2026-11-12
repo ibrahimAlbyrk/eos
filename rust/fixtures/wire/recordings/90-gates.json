@@ -6445,7 +6445,7 @@
             "port": null,
             "prompt": "Explain what a monad is in two sentences.",
             "scratch": 1,
-            "session_id": "<uuid:2>",
+            "session_id": null,
             "started_at": 1790000300000,
             "state": "DONE",
             "tasks": null,
@@ -6494,7 +6494,7 @@
             "port": null,
             "prompt": "Add a --json flag and document it.",
             "scratch": 0,
-            "session_id": "<uuid:3>",
+            "session_id": "<uuid:2>",
             "started_at": 1790000200000,
             "state": "SUSPENDED",
             "tasks": null,
@@ -6543,7 +6543,7 @@
             "port": null,
             "prompt": "Count to a thousand.",
             "scratch": 0,
-            "session_id": "<uuid:4>",
+            "session_id": "<uuid:3>",
             "started_at": 1790000100000,
             "state": "SUSPENDED",
             "tasks": null,
@@ -6592,7 +6592,7 @@
             "port": null,
             "prompt": "Fix the parser so empty input returns an empty list.",
             "scratch": 0,
-            "session_id": "<uuid:5>",
+            "session_id": "<uuid:4>",
             "started_at": 1790000000000,
             "state": "SUSPENDED",
             "tasks": null,
@@ -6655,7 +6655,7 @@
             "port": null,
             "prompt": "Find where the README documents flags.",
             "scratch": 0,
-            "session_id": "<uuid:6>",
+            "session_id": "<uuid:5>",
             "started_at": 1790000220000,
             "state": "SUSPENDED",
             "tasks": null,
@@ -6729,24 +6729,6 @@
         },
         "json": [],
         "status": 200
-      }
-    },
-    {
-      "step": {
-        "name": "post-workers-id-events",
-        "request": "POST /workers/x/events",
-        "auth": "none",
-        "status": 400
-      },
-      "route": "POST /workers/:id/events",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "error": "type required"
-        },
-        "status": 400
       }
     },
     {
@@ -7858,7 +7840,7 @@
             "port": null,
             "prompt": "Add a --json flag and document it.",
             "scratch": 0,
-            "session_id": "<uuid:3>",
+            "session_id": "<uuid:2>",
             "started_at": 1790000200000,
             "state": "SUSPENDED",
             "tasks": null,

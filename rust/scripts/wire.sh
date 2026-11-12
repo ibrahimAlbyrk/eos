@@ -29,6 +29,16 @@ recorder() {
   cargo run --quiet --manifest-path "$rust/Cargo.toml" -p wire-recorder -- "$@"
 }
 
+# A synthetic run's `claude`: the compiled stand-in (crates/eos-mod-terminals/examples/
+# fake_claude.rs), so a Claude pane runs it and never a real Claude Code. Never given to a
+# run on a copy of real data.
+stand_in_claude() {
+  cargo build --quiet --manifest-path "$rust/Cargo.toml" -p eos-mod-terminals --example fake_claude
+  mkdir -p "$root/bin"
+  ln -sf "$rust/target/debug/examples/fake_claude" "$root/bin/claude"
+  export PATH="$root/bin:$PATH"
+}
+
 target() {
   local home="$1"
   echo --api "http://127.0.0.1:$port" --raw "http://127.0.0.1:$raw_port" --socket "$home/daemon.sock" \
@@ -44,6 +54,7 @@ synthetic() {
   mkdir -p "$home" "$user"
   cp -R "$wire/seed/home/." "$home/"
   cp -R "$wire/seed/user/." "$user/"
+  "$rust/scripts/stand-in-claude.sh" "$user" "$root/bin"
   "$wire/seed/sandbox.sh" "$sandbox"
   # Claude Code's own file memory for the alpha project, where the daemon looks for it.
   local memory
@@ -59,6 +70,7 @@ synthetic() {
 
 case "$mode" in
   up)
+    stand_in_claude
     synthetic "$root/dev"
     "$rust/scripts/wire-daemon.sh" start "$root/dev/home" >/dev/null
     echo "up: $root/dev (stop it with: wire.sh down)"
@@ -67,6 +79,7 @@ case "$mode" in
     "$rust/scripts/wire-daemon.sh" stop "$root/dev/home"
     ;;
   record | replay)
+    stand_in_claude
     run="$root/$mode"
     [ -n "${EOS_WIRE_REUSE:-}" ] && run="$root/dev"
     home="$run/home"

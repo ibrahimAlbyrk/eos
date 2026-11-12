@@ -64,6 +64,13 @@ find = '\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
 token = "uuid"
 
 [[rule]]
+about = "a Claude pane's transcript entries are named after its conversation's random id (`<first 8 hex>-<n>`), and its blocks after them"
+route = "GET /pty/*/conversation"
+key = ["blockId"]
+find = '^[0-9a-f]{8}-'
+token = "transcript"
+
+[[rule]]
 about = "weak etags are a hash of the body"
 at = "/headers/etag"
 set = "<etag>"

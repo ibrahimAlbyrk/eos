@@ -21,14 +21,14 @@ use eos_core::os::KeepAwake;
 use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
-use eos_core::{Clock, Ids, RandomIds, SystemClock};
+use eos_core::{Clock, Ids, RandomIds, Sleeper, SystemClock};
 use eos_domain::config::Env;
 use eos_engine::{EngineDeps, EngineOptions, WorkflowFiles};
 use eos_git::{GitTries, ScratchRepos};
 use eos_kit_sqlite::Db;
 use eos_mod_plugins::{NoPreviewWindow, PluginHost};
 use eos_mod_system::RunInfo;
-use eos_platform::DataPaths;
+use eos_platform::{CredentialStore, DataPaths};
 use eos_policy::{GatewayOptions, PolicyGateway};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
@@ -63,14 +63,18 @@ use crate::modules::{self, Context};
 use crate::notes::{Notes, ProfilePrompt};
 use crate::updates::{Install, Updates};
 
-/// What the app is built from. Tests swap the clock, the id source and the
-/// environment.
+/// What the app is built from. Tests swap the clock, the timers, the id
+/// source, the system's secret store and the environment.
 #[derive(Clone)]
 pub struct Options {
     /// The data folder (`~/.eos`).
     pub home: PathBuf,
     pub clock: Arc<dyn Clock>,
+    /// What every timer of the app waits on.
+    pub sleeper: Arc<dyn Sleeper>,
     pub ids: Arc<dyn Ids>,
+    /// Where sign-ins' logins and API keys are kept: the system's own store.
+    pub secrets: Arc<dyn CredentialStore>,
     /// The `EOS_*` variables that override configuration defaults.
     pub env: Env,
     /// The folder of the bundled PDF viewer (`web/viewer.html` inside it);
@@ -155,7 +159,9 @@ impl Options {
         Self {
             home: home.into(),
             clock: Arc::new(SystemClock),
+            sleeper: Arc::new(TokioSleeper),
             ids: Arc::new(RandomIds),
+            secrets: Arc::new(HostCredentials),
             env: env_from_process(),
             pdfjs_root: None,
             agents: AgentOptions::default(),
@@ -233,7 +239,9 @@ impl App {
         let Options {
             home,
             clock,
+            sleeper,
             ids,
+            secrets,
             env,
             pdfjs_root,
             agents,
@@ -293,7 +301,7 @@ impl App {
             previewer: plugin_previewer,
         })?;
         let accounts_dir = paths.join("accounts");
-        let stores = Arc::new(Stores::new(Arc::new(HostCredentials), Endpoints::default()));
+        let stores = Arc::new(Stores::new(secrets.clone(), Endpoints::default()));
         let accounts = Accounts::new(eos_accounts::Deps {
             clock: clock.clone(),
             ids: ids.clone(),
@@ -309,7 +317,7 @@ impl App {
             usage_api: Arc::new(ClaudeUsageApi::new(clock.clone())),
             usage_cache: Arc::new(FileUsageSnapshots::new(paths.join("usage-cache.json"))),
             local_time: Arc::new(HostLocalTime),
-            sleeper: Arc::new(TokioSleeper),
+            sleeper: sleeper.clone(),
             sessions: Arc::new(NoLiveSessions),
         });
         let policy = Arc::new(PolicyGateway::new(GatewayOptions {
@@ -341,16 +349,6 @@ impl App {
 
         let notes = Notes::open(&paths, &clock, store.clone(), config.clone());
         let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
-        let updates = crate::updates::build(crate::updates::Parts {
-            install,
-            paths: &paths,
-            config: config.clone(),
-            store: store.clone(),
-            kernel: &kernel,
-            clock: clock.clone(),
-            applier: update_applier,
-        })?;
-
         // Agents: the engine (built when the first session starts), and the
         // session service every feature that touches an agent goes through.
         let models = Arc::new(CachedModelCatalog::open(&paths.join("models.json")));
@@ -390,6 +388,7 @@ impl App {
                 credentials: credentials.clone(),
                 questions: Arc::new(questions.clone()),
                 clock: clock.clone(),
+                secrets: secrets.clone(),
             },
         );
         // "Resume at" and "Use API key" reach the live session through the engine.
@@ -421,8 +420,18 @@ impl App {
             worktrees: git,
             recents: recents.clone(),
             hooks: hooks.clone(),
-            sleeper: Arc::new(TokioSleeper),
+            sleeper: sleeper.clone(),
         });
+
+        let updates = crate::updates::build(crate::updates::Parts {
+            install,
+            paths: &paths,
+            config: config.clone(),
+            agents: Arc::new(sessions.clone()),
+            kernel: &kernel,
+            clock: clock.clone(),
+            applier: update_applier,
+        })?;
 
         // The browser's tabs are the shell's views; without a shell the feature is there
         // and says the browser is absent.
@@ -432,7 +441,7 @@ impl App {
             store: store.clone(),
             files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir())),
             clock: clock.clone(),
-            sleeper: Arc::new(TokioSleeper),
+            sleeper: sleeper.clone(),
             bus: kernel.bus.clone(),
         }));
 
@@ -441,6 +450,7 @@ impl App {
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
+            sleeper,
             ids: ids.clone(),
             notes,
             run: RunInfo {

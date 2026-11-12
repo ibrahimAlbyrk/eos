@@ -1,4 +1,4 @@
-about = "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, the worker ingest plane, archive / restore / purge / delete, discarding a change; with their stream frames."
+about = "Changing chats without running an agent: rename, mode, model, questions to the user, notifications, archive / restore / purge / delete, discarding a change; with their stream frames."
 
 [[step]]
 name = "open-stream"
@@ -193,41 +193,6 @@ name = "notify-invalid"
 request = "POST /workers/o-ORCH/notify"
 body = { title = "" }
 status = 400
-
-[[step]]
-name = "ingest-row"
-request = "POST /workers/w-BARE/events"
-auth = "none"
-via = "socket"
-body = { type = "worktree", payload = { phase = "ready", path = "{sandbox}/alpha", branch = "main", status = "clean", diffStat = "" } }
-status = 200
-
-[[step]]
-name = "ingest-session-id"
-request = "POST /workers/w-BARE/events"
-auth = "none"
-via = "socket"
-body = { type = "lifecycle", payload = { phase = "session_captured", sessionId = "99999999-9999-4999-8999-999999999999" } }
-status = 200
-
-[[step]]
-name = "ingest-no-type"
-request = "POST /workers/w-BARE/events"
-auth = "none"
-via = "socket"
-body = { payload = {} }
-status = 400
-
-[[step]]
-name = "row-after-ingest"
-request = "GET /workers/w-BARE"
-status = 200
-
-[[step]]
-name = "events-after-ingest"
-request = "GET /workers/w-BARE/events"
-query = { limit = "2" }
-status = 200
 
 [[step]]
 name = "keystroke-not-a-terminal-lane"

@@ -12,9 +12,6 @@ routes = [
   "POST /workers/:fromWorker/peer-request",
   "POST /workers/:id/report",
   "POST /workers/:id/warm",
-  "GET /pty/:id/conversation",
-  "POST /pty/:id/message",
-  "POST /pty/:id/answer",
   "POST /orchestrators",
   "POST /orchestrators/:id/message",
   "POST /orchestrators/:id/integrate",
@@ -152,4 +149,10 @@ why = "Needs the dashboard bundle (app/ui/dist) or a plugin with a built UI; the
 routes = [
   "GET /ui/plugins/:id/:rev.:ext",
   "GET /ui/*",
+]
+
+[[note]]
+why = "Not in the Rust app: the terminal-driven agent lane posted its rows here, and every agent now reports through its session. Today's daemon still serves it; nothing records it."
+routes = [
+  "POST /workers/:id/events",
 ]

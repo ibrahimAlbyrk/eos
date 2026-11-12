@@ -333,7 +333,7 @@ reason = "Until the scenarios before this one are all served: the new row's id c
 [[known]]
 scenario = "p10-chats"
 step = "*export*"
-reason = "A chat whose name holds a character above U+00FF (ş, ğ, ı, …) does not export today: Node refuses such a `content-disposition` header and the daemon answers 500. The Rust core exports it (200, the same page and file name as for any other chat). Decided as a fix; the owner's Turkish chat names hit it."
+reason = "A chat whose name holds a character above U+00FF (ş, ğ, ı, …) does not export today: Node refuses such a `content-disposition` header and the daemon answers 500. The Rust core exports it (200, the same page; the name travels as RFC 6266 says, UTF-8 in `filename*` with an ASCII stand-in in `filename`: docs/ui-patches/export-filename.md). Decided as a fix; the owner's Turkish chat names hit it."
 
 [[known]]
 scenario = "*"

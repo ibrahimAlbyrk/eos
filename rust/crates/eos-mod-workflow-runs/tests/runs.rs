@@ -10,7 +10,7 @@ use eos_contracts::{
     WorkflowRunSnapshot, WorkflowRunStatus, WorkflowStartedEvent,
 };
 use eos_core::BoxFuture;
-use eos_core::agent::WorkflowRunFiles;
+use eos_core::agent::{FileStamp, WorkflowRunFiles};
 use eos_domain::workflow_run::{apply_workflow_progress, empty_snapshot};
 use eos_mod_workflow_runs::{Parts, WORKFLOW_PROGRESS, WorkflowRuns, WorkflowRunsModule};
 use eos_runtime::access::Caller;
@@ -29,11 +29,14 @@ use serde_json::{Value, json};
 
 const DIR: &str = "/engine/workflows/w-CHAT/subagents/workflows/wf_1";
 
-/// The run files of one folder, in memory.
+/// The run files of one folder, in memory. An agent's file is as big as its
+/// rows, and changes when they do.
 #[derive(Default)]
 struct Files {
     records: Mutex<HashMap<String, String>>,
     agents: Mutex<HashMap<(String, String), Vec<PtyConversationRow>>>,
+    /// How many times a conversation was read.
+    reads: std::sync::atomic::AtomicUsize,
 }
 
 impl WorkflowRunFiles for Files {
@@ -47,7 +50,18 @@ impl WorkflowRunFiles for Files {
         agent_id: &'a str,
     ) -> BoxFuture<'a, Option<Vec<PtyConversationRow>>> {
         let key = (transcript_dir.to_owned(), agent_id.to_owned());
+        self.reads.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         Box::pin(std::future::ready(self.agents.lock().expect("agents").get(&key).cloned()))
+    }
+
+    fn agent_stamp<'a>(&'a self, transcript_dir: &'a str, agent_id: &'a str) -> BoxFuture<'a, Option<FileStamp>> {
+        let key = (transcript_dir.to_owned(), agent_id.to_owned());
+        let stamp = self.agents.lock().expect("agents").get(&key).map(|rows| FileStamp {
+            path: format!("{transcript_dir}/agent-{agent_id}.jsonl"),
+            size: rows.len() as u64,
+            modified_ms: rows.last().map_or(0, |row| row.id),
+        });
+        Box::pin(std::future::ready(stamp))
     }
 }
 
@@ -355,4 +369,53 @@ async fn stop_needs_the_user_and_stops_the_runs_task_through_its_session() {
     assert_eq!(bench.call(Method::Post, Caller::DASHBOARD, stop).await, (200, json!({"ok": true})));
     assert!(bench.agents.calls().contains(&Call::StopTask { worker_id: "w-CHAT".into(), task_id: "t1".into() }));
     assert_eq!(bench.runs.live_count(), 1, "the run's own end event closes it");
+}
+
+fn rows(count: i64) -> Vec<PtyConversationRow> {
+    (1..=count)
+        .map(|id| PtyConversationRow {
+            id,
+            ts: 0.0.into(),
+            r#type: "user_message".into(),
+            payload: Some(json!({"text": "hi"})),
+        })
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_agents_conversation_is_read_again_only_once_its_file_changed() {
+    let bench = Bench::new();
+    bench.runs.observe("w-CHAT", &started());
+    let reads = || bench.files.reads.load(std::sync::atomic::Ordering::SeqCst);
+    let agent = |n: usize| format!("a{n:016}");
+    let path = |n: usize| format!("/workers/w-CHAT/workflow-runs/call_1/agents/{}", agent(n));
+    let write = |n: usize, count: i64| {
+        bench.files.agents.lock().expect("agents").insert((DIR.into(), agent(n)), rows(count));
+    };
+
+    write(1, 3);
+    assert_eq!(bench.get(&path(1)).await.1["rows"].as_array().map(Vec::len), Some(3));
+    assert_eq!(bench.get(&path(1)).await.1["rows"].as_array().map(Vec::len), Some(3));
+    assert_eq!(reads(), 1, "the same file: read once");
+    write(1, 4);
+    assert_eq!(bench.get(&path(1)).await.1["rows"].as_array().map(Vec::len), Some(4), "the file grew");
+    assert_eq!(reads(), 2);
+
+    // Four kept; a fifth pushes out the least recently read.
+    for n in 2..=5 {
+        write(n, 1);
+        bench.get(&path(n)).await;
+    }
+    assert_eq!((reads(), bench.runs.kept_conversations()), (6, 4));
+    bench.get(&path(1)).await;
+    assert_eq!(reads(), 7, "the first one went");
+    bench.get(&path(5)).await;
+    assert_eq!(reads(), 7, "the last one stayed");
+
+    // A run that ends lets its conversations go.
+    bench.record(5_000, &started());
+    bench.runs.observe("w-CHAT", &completed(WorkflowCompletedEventStatus::Completed, None));
+    assert_eq!(bench.runs.kept_conversations(), 0);
+    bench.get(&path(5)).await;
+    assert_eq!(reads(), 8);
 }

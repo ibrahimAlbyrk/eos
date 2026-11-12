@@ -23,6 +23,7 @@ use eos_domain::workflow_run::{
 };
 use eos_runtime::jobs::{JobActionError, JobSpec, JobStatus};
 
+use crate::agent_rows::AgentRows;
 use crate::jobs::{DETAIL_CHARS, progress_of};
 use crate::{JOB_KIND, Parts, WORKFLOW_PROGRESS};
 
@@ -48,6 +49,7 @@ type Key = (String, String);
 struct Inner {
     parts: Parts,
     live: Mutex<HashMap<Key, LiveRun>>,
+    agent_rows: AgentRows,
 }
 
 /// Why a run was not stopped: the status and the words of the answer.
@@ -83,7 +85,7 @@ fn valid_agent_id(id: &str) -> bool {
 
 impl WorkflowRuns {
     pub fn new(parts: Parts) -> Self {
-        Self(Arc::new(Inner { parts, live: Mutex::default() }))
+        Self(Arc::new(Inner { parts, live: Mutex::default(), agent_rows: AgentRows::default() }))
     }
 
     fn live(&self) -> MutexGuard<'_, HashMap<Key, LiveRun>> {
@@ -211,6 +213,7 @@ impl WorkflowRuns {
             // here, not from the transcript it may not have loaded.
             let mut live = self.live();
             let run = live.remove(&key);
+            self.0.agent_rows.forget_run(&key);
             let last = run.as_ref().map(|run| run.snapshot.clone());
             let snapshot = completed.snapshot.clone().or(last).unwrap_or_else(empty_snapshot);
             let payload = WorkflowRunProgress {
@@ -359,10 +362,20 @@ impl WorkflowRuns {
             None => self.recorded(worker_id, call_id).await?.0.map(|(event, _)| event),
         };
         let Some(dir) = started.and_then(|s| s.transcript_dir) else { return Ok(None) };
-        let Some(mut rows) = self.0.parts.files.agent_rows(&dir, agent_id).await else { return Ok(None) };
+        let files = &self.0.parts.files;
+        let run = (worker_id.to_owned(), call_id.to_owned());
+        // Read again only once the file changed: a drawer asks every few seconds.
+        let stamp = files.agent_stamp(&dir, agent_id).await;
+        if let Some(rows) = stamp.as_ref().and_then(|stamp| self.0.agent_rows.get(&run, agent_id, stamp)) {
+            return Ok(Some(rows));
+        }
+        let Some(mut rows) = files.agent_rows(&dir, agent_id).await else { return Ok(None) };
         let max = usize::try_from(WORKFLOW_AGENT_ROWS_MAX).unwrap_or(usize::MAX);
         if rows.len() > max {
             rows.drain(..rows.len() - max);
+        }
+        if let Some(stamp) = stamp {
+            self.0.agent_rows.put(run, agent_id, stamp, &rows);
         }
         Ok(Some(rows))
     }
@@ -383,5 +396,10 @@ impl WorkflowRuns {
     /// How many runs are held in memory.
     pub fn live_count(&self) -> usize {
         self.live().len()
+    }
+
+    /// How many agent conversations are kept parsed.
+    pub fn kept_conversations(&self) -> usize {
+        self.0.agent_rows.len()
     }
 }

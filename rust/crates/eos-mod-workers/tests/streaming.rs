@@ -154,3 +154,29 @@ async fn a_long_export_streams_the_same_page() {
     let again = data.to_string().replace('<', "\\u003c");
     assert_eq!(json, again);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chat_named_beyond_latin1_downloads_under_its_own_name() {
+    let temp = TempStore::seeded("/sandbox");
+    seed(&temp);
+    temp.exec("UPDATE workers SET name = 'şişe 日本 🍾' WHERE id IN ('w-CHAT', 'w-BIG')");
+    let runtime = runtime(&temp);
+    // At once and in slices: the same header.
+    for chat in ["w-CHAT", "w-BIG"] {
+        let res = runtime
+            .router
+            .handle(Request::new(Method::Get, &format!("/workers/{chat}/export"), Caller::DASHBOARD))
+            .await;
+        assert_eq!(res.status, 200, "{chat}");
+        let disposition = res
+            .headers
+            .iter()
+            .find(|(name, _)| name == "content-disposition")
+            .map(|(_, v)| v.to_string())
+            .expect("named");
+        assert!(disposition.is_ascii(), "a header value carries bytes, not text: {disposition}");
+        let real = "export-%C5%9Fi%C5%9Fe%20%E6%97%A5%E6%9C%AC%20%F0%9F%8D%BE-";
+        assert!(disposition.starts_with(&format!("attachment; filename*=UTF-8''{real}")), "{disposition}");
+        assert!(disposition.contains("; filename=\"export-_i_e __ _-"), "the ASCII stand-in: {disposition}");
+    }
+}

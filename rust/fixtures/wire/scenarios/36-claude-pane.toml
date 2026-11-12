@@ -1,0 +1,70 @@
+about = "A Claude pane in a terminal, as the phone drives it: its conversation, a prompt, a question and its answer. The pane runs the compiled stand-in for Claude Code (crates/eos-mod-terminals/examples/fake_claude.rs) that wire.sh and replay.sh put first on PATH."
+
+[[step]]
+name = "claude-pane-create"
+request = "POST /pty"
+body = { cols = 100, rows = 30, cwd = "{sandbox}/beta", claude = {} }
+status = 200
+capture = { pty = "/json/sessionId" }
+pause_ms = 1500
+
+[[step]]
+name = "claude-pane-conversation-empty"
+request = "GET /pty/{pty}/conversation"
+status = 200
+
+[[step]]
+name = "claude-pane-message"
+request = "POST /pty/{pty}/message"
+body = { text = "hello there" }
+status = 200
+pause_ms = 200
+
+[[step]]
+name = "claude-pane-conversation-answered"
+request = "GET /pty/{pty}/conversation"
+status = 200
+pause_ms = 1500
+
+[[step]]
+name = "claude-pane-ask"
+request = "POST /pty/{pty}/message"
+body = { text = "ask me" }
+status = 200
+
+[[step]]
+name = "claude-pane-conversation-pending"
+request = "GET /pty/{pty}/conversation"
+status = 200
+pause_ms = 1500
+capture = { call = "/json/pending/toolUseId" }
+
+[[step]]
+name = "claude-pane-message-while-asked"
+request = "POST /pty/{pty}/message"
+body = { text = "never mind" }
+status = 409
+
+[[step]]
+name = "claude-pane-answer-two-options"
+request = "POST /pty/{pty}/answer"
+body = { toolUseId = "{call}", answers = [{ options = [0, 1] }] }
+status = 400
+
+[[step]]
+name = "claude-pane-answer"
+request = "POST /pty/{pty}/answer"
+body = { toolUseId = "{call}", answers = [{ options = [1] }] }
+status = 200
+
+[[step]]
+name = "claude-pane-conversation-picked"
+request = "GET /pty/{pty}/conversation"
+status = 200
+pause_ms = 1500
+
+[[step]]
+name = "claude-pane-close"
+request = "DELETE /pty/{pty}"
+status = 200
+pause_ms = 300

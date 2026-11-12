@@ -18,6 +18,28 @@ use crate::channel::goaway;
 use crate::channel::h2util::server_handshake;
 use crate::channel::{BoxIo, Channel};
 
+/// Where the direct listener binds: the interface asked for, or every
+/// interface (`[::]`, taking IPv4 too), as Node's `listen(port)` does.
+pub(crate) fn listen_address(host: Option<IpAddr>, port: u16) -> SocketAddr {
+    SocketAddr::new(host.unwrap_or(IpAddr::V6(Ipv6Addr::UNSPECIFIED)), port)
+}
+
+/// A listening socket at `addr`. An IPv6 one also takes IPv4 connections
+/// (as IPv4-mapped addresses) whatever the system's default for new sockets.
+pub(crate) fn listener(addr: SocketAddr) -> io::Result<TcpListener> {
+    use socket2::{Domain, Socket, Type};
+    let socket = Socket::new(Domain::for_address(addr), Type::STREAM, None)?;
+    if addr.is_ipv6() {
+        socket.set_only_v6(false)?;
+    }
+    // A restart may bind the port again while the last run's connections wait out TIME_WAIT.
+    socket.set_reuse_address(true)?;
+    socket.set_nonblocking(true)?;
+    socket.bind(&addr.into())?;
+    socket.listen(1024)?;
+    TcpListener::from_std(socket.into())
+}
+
 /// Who is on the other end of a session that was let in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SessionPeer {
@@ -138,8 +160,7 @@ impl SecureServer {
     /// Starts taking direct connections. `host` `None` is every interface,
     /// IPv4 and IPv6.
     pub(crate) async fn listen(self: &Arc<Self>, port: u16, host: Option<IpAddr>) -> io::Result<SocketAddr> {
-        let bind = SocketAddr::new(host.unwrap_or(IpAddr::V6(Ipv6Addr::UNSPECIFIED)), port);
-        let listener = TcpListener::bind(bind).await?;
+        let listener = listener(listen_address(host, port))?;
         let addr = listener.local_addr()?;
         let server = self.clone();
         let accept_loop = tokio::spawn(async move {
@@ -261,3 +282,58 @@ impl SecureServer {
 
 /// Where a connection is listed until its handshake says who it is.
 const PENDING: &str = "";
+
+#[cfg(test)]
+mod tests {
+    use std::net::{Ipv4Addr, Ipv6Addr};
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    use super::*;
+
+    #[test]
+    fn every_interface_is_the_ipv6_wildcard_and_an_asked_one_is_kept() {
+        assert_eq!(listen_address(None, 7402), "[::]:7402".parse().expect("an address"));
+        let v4 = IpAddr::V4(Ipv4Addr::LOCALHOST);
+        assert_eq!(listen_address(Some(v4), 7402), SocketAddr::new(v4, 7402));
+        let v6 = IpAddr::V6(Ipv6Addr::LOCALHOST);
+        assert_eq!(listen_address(Some(v6), 0), SocketAddr::new(v6, 0));
+    }
+
+    /// The one IPv6 socket takes an IPv4 caller: bound to the loopback's
+    /// IPv4-mapped address, a test never listens beyond this computer.
+    #[tokio::test]
+    async fn an_ipv6_listener_takes_ipv4_callers_too() {
+        let mapped = SocketAddr::new(IpAddr::V6(Ipv4Addr::LOCALHOST.to_ipv6_mapped()), 0);
+        let listener = match listener(mapped) {
+            Ok(listener) => listener,
+            Err(e) => return eprintln!("skipped: this system binds no IPv4-mapped address ({e})"),
+        };
+        let socket = socket2::SockRef::from(&listener);
+        assert!(!socket.only_v6().expect("readable"), "dual stack");
+        let port = listener.local_addr().expect("bound").port();
+        let accepted = tokio::spawn(async move {
+            let (mut stream, from) = listener.accept().await.expect("accepts");
+            let mut said = [0u8; 2];
+            stream.read_exact(&mut said).await.expect("reads");
+            (from, said)
+        });
+        let mut caller =
+            tokio::net::TcpStream::connect((Ipv4Addr::LOCALHOST, port)).await.expect("an IPv4 caller connects");
+        caller.write_all(b"hi").await.expect("writes");
+        let (from, said) = accepted.await.expect("the listener's task");
+        assert_eq!(&said, b"hi");
+        assert_eq!(from.ip(), IpAddr::V6(Ipv4Addr::LOCALHOST.to_ipv6_mapped()), "seen as IPv4-mapped");
+    }
+
+    #[tokio::test]
+    async fn an_ipv6_loopback_listener_is_dual_stack_too() {
+        let Ok(listener) = listener(SocketAddr::new(IpAddr::V6(Ipv6Addr::LOCALHOST), 0)) else {
+            return eprintln!("skipped: no IPv6 loopback here");
+        };
+        assert!(!socket2::SockRef::from(&listener).only_v6().expect("readable"));
+        let addr = listener.local_addr().expect("bound");
+        let caller = tokio::net::TcpStream::connect(addr).await;
+        assert!(caller.is_ok(), "an IPv6 caller connects");
+    }
+}

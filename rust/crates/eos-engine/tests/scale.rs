@@ -36,6 +36,7 @@ async fn sessions_that_ended_hold_no_memory() {
         credentials: Arc::new(FakeCredentials::default()),
         questions: Arc::new(FakeUser::default()),
         clock: Arc::new(FakeClock::new()),
+        secrets: Arc::new(eos_testkit::NoKeychain),
     };
     let engine = Engine::build(options, deps).await.expect("the engine");
     let project = dir.path().join("project").canonicalize().expect("the project");

@@ -126,3 +126,26 @@ async fn a_job_is_stopped_through_the_session_that_runs_it() {
     assert!(b.agents.calls().contains(&Call::StopTask { worker_id: "w-CHAT".into(), task_id: "t1".into() }));
     assert_eq!(b.kernel.jobs.list()[0].status, JobStatus::Running, "the task's own end closes it");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_monitor_shows_what_it_tells_its_agent() {
+    let b = bench();
+    b.module.on_background_task("w-CHAT", &started("m1", BackgroundTaskKind::Monitor, "Watch the build", None));
+    let event = |text: &str| BackgroundTaskUpdate::Event { task_id: "m1".into(), text: text.into() };
+    b.module.on_background_task("w-CHAT", &event("compiling"));
+    b.module.on_background_task("w-CHAT", &event("\nbuild failed: 2 errors\nsee the log"));
+    let jobs = b.kernel.jobs.list();
+    let monitor = jobs.iter().find(|j| j.id == "monitor:w-CHAT:m1").expect("the monitor");
+    assert_eq!(monitor.detail.as_deref(), Some("2 events · build failed: 2 errors"));
+    assert!(monitor.has_output, "its events are its output");
+    let output = b.kernel.jobs.output("monitor:w-CHAT:m1", 0).map(|o| o.text);
+    assert_eq!(output.as_deref(), Some("compiling\n\nbuild failed: 2 errors\nsee the log\n"));
+
+    // The count goes with the task: a task of the same id later starts again at one.
+    b.module.on_background_task("w-CHAT", &ended("m1", TaskOutcome::Completed, None, Some(0)));
+    b.module.on_background_task("w-CHAT", &started("m1", BackgroundTaskKind::Monitor, "Watch again", None));
+    b.module.on_background_task("w-CHAT", &event("one"));
+    let jobs = b.kernel.jobs.list();
+    let again = jobs.iter().find(|j| j.id == "monitor:w-CHAT:m1" && j.status == JobStatus::Running).expect("again");
+    assert_eq!(again.detail.as_deref(), Some("1 event · one"));
+}

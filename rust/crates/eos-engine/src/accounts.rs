@@ -2,11 +2,14 @@
 //! session on it, and the accounts feature's say when one stops working.
 
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use eos_agent_anthropic::auth::{ClaudeLogin, FallbackSecrets, SecretStore};
 use eos_agent_core::{BoxFuture, Credential, ModelError, RateLimitInfo, StaticCredential, TokenSource};
 use eos_agent_sdk::{Account, AuthFailover, AuthFailure, ChatGptLogin};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
+use eos_platform::CredentialStore;
 
 use crate::registry::Registry;
 
@@ -20,10 +23,42 @@ impl TokenSource for NotSignedIn {
     }
 }
 
+/// The file the claude binary keeps a login in where the store has no
+/// keychain item.
+const CLAUDE_FILE: &str = ".credentials.json";
+
+/// A Claude store's keychain item, read and written through the system's
+/// secret store as the rest of Eos reaches it.
+struct StoreItem {
+    secrets: Arc<dyn CredentialStore>,
+    dir: PathBuf,
+}
+
+impl SecretStore for StoreItem {
+    fn read(&self) -> BoxFuture<'_, std::io::Result<Option<String>>> {
+        let (secrets, dir) = (self.secrets.clone(), self.dir.clone());
+        Box::pin(async move {
+            let read = tokio::task::spawn_blocking(move || secrets.read_claude_store(Some(&dir)));
+            read.await.map_err(std::io::Error::other)
+        })
+    }
+
+    fn write<'a>(&'a self, value: &'a str) -> BoxFuture<'a, std::io::Result<()>> {
+        let (secrets, dir, value) = (self.secrets.clone(), self.dir.clone(), value.to_owned());
+        Box::pin(async move {
+            let write = tokio::task::spawn_blocking(move || secrets.write_claude_store(&dir, &value));
+            write.await.map_err(std::io::Error::other)?.map_err(std::io::Error::other)
+        })
+    }
+}
+
 /// The engine accounts made so far. One per store folder or key, so every
 /// agent on a sign-in renews through the same holder.
-#[derive(Default)]
-pub(crate) struct Accounts(Mutex<HashMap<String, Arc<Account>>>);
+pub(crate) struct Accounts {
+    made: Mutex<HashMap<String, Arc<Account>>>,
+    /// Where a Claude store's login is kept (beside its plaintext file).
+    secrets: Arc<dyn CredentialStore>,
+}
 
 fn key_of(credential: &SessionCredential) -> String {
     match credential {
@@ -34,9 +69,19 @@ fn key_of(credential: &SessionCredential) -> String {
 }
 
 impl Accounts {
+    pub(crate) fn new(secrets: Arc<dyn CredentialStore>) -> Self {
+        Self { made: Mutex::default(), secrets }
+    }
+
+    fn claude_store(&self, dir: &Path) -> Account {
+        let item = StoreItem { secrets: self.secrets.clone(), dir: dir.to_owned() };
+        let secrets = Arc::new(FallbackSecrets::new(Arc::new(item), dir.join(CLAUDE_FILE)));
+        Account::new(Arc::new(ClaudeLogin::new(secrets, dir.to_owned())))
+    }
+
     pub(crate) fn of(&self, credential: &SessionCredential) -> Arc<Account> {
         let key = key_of(credential);
-        let mut made = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut made = self.made.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(account) = made.get(&key) {
             return account.clone();
         }
@@ -44,7 +89,7 @@ impl Accounts {
             SessionCredential::Store { provider, dir } if provider == "openai" => {
                 Account::new(Arc::new(ChatGptLogin::new(dir)))
             }
-            SessionCredential::Store { dir, .. } => Account::claude_store(dir),
+            SessionCredential::Store { dir, .. } => self.claude_store(dir),
             SessionCredential::ApiKey { key, .. } => Account::api_key(key.clone()),
             SessionCredential::Bearer { token, .. } => {
                 Account::new(Arc::new(StaticCredential(Credential::Bearer(token.clone()))))

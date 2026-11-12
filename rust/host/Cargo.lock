@@ -1992,6 +1992,7 @@ dependencies = [
 name = "eos-engine"
 version = "0.0.1"
 dependencies = [
+ "eos-agent-anthropic",
  "eos-agent-compat",
  "eos-agent-core",
  "eos-agent-engine",
@@ -2002,6 +2003,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-platform",
  "futures-util",
  "indexmap 2.14.2",
  "serde",
@@ -2071,6 +2073,7 @@ dependencies = [
  "eos-kit-proc",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -2582,6 +2585,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "socket2",
  "thiserror 2.0.21",
  "tokio",
  "tokio-rustls",
@@ -2619,7 +2623,6 @@ dependencies = [
  "eos-core",
  "eos-kit-fs",
  "eos-kit-net",
- "eos-kit-proc",
  "flate2",
  "indexmap 2.14.2",
  "notify",
