@@ -36,7 +36,8 @@ source "$HERE/dev-env.sh"
 OUT="$EOS_DEV_OUT"
 APP="$EOS_HOST_WORK/bundle/release/Eos.app"
 build() { require_setup 2>/dev/null || "$HERE/setup.sh"; "$HERE/bundle.sh" release >/dev/null; }
-signed() { codesign -dvv "$APP" 2>&1 | grep -q "^Authority=Developer ID"; }
+# The output is read whole first: grep -q leaving early would fail the pipe and sign again.
+signed() { local said; said="$(codesign -dvv "$APP" 2>&1 || true)"; grep -q "^Authority=Developer ID" <<<"$said"; }
 sign() { signed || "$HERE/sign.sh" "$APP" || echo "not signed (no Developer ID identity): running unsigned" >&2; }
 ready() {
   [ -d "$APP" ] || build

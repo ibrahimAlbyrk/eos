@@ -22,7 +22,11 @@ case "${1:-start}" in
     up && echo "still up" || echo "stopped" ;;
   start)
     up && { echo "already up"; exit 0; }
-    [ -d "$HOME_COPY" ] || { echo "no data copy at $HOME_COPY (cp -R $EOS_DEV_DATA/home $HOME_COPY)" >&2; exit 1; }
+    if [ ! -d "$HOME_COPY" ]; then
+      [ -d "$EOS_DEV_DATA/home" ] || { echo "no data to copy at $EOS_DEV_DATA/home" >&2; exit 1; }
+      echo "making the data copy at $HOME_COPY" >&2
+      cp -R "$EOS_DEV_DATA/home" "$HOME_COPY" && chmod -R go-rwx "$HOME_COPY"
+    fi
     [ -d "$REPO/manager/node_modules" ] || { echo "the daemon has no node modules: run rust/host/scripts/setup.sh" >&2; exit 1; }
     mkdir -p "$HOME_COPY/claude-config"
     [ -z "$(ls -A "$HOME_COPY/claude-config")" ] || { echo "$HOME_COPY/claude-config must stay empty" >&2; exit 1; }
