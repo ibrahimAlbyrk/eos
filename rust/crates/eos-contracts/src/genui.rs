@@ -664,7 +664,11 @@ pub enum GenuiSettingsPatchLogoDevKey {
 
 impl Validate for GenuiSettingsPatchLogoDevKey {
     fn validate(&self, cx: &mut Issues) {
-        if let Self::LogoDevKey(v) = self {
+        // Reading tries the variants in order, so `""` arrives as a key: it is
+        // the union's second member, which clears the key.
+        if let Self::LogoDevKey(v) = self
+            && !v.0.is_empty()
+        {
             v.validate(cx);
         }
     }

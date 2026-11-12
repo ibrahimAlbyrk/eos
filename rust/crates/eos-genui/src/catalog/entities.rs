@@ -4,7 +4,7 @@
 use std::sync::LazyLock;
 
 use super::limits::{ACTION_KINDS, GENUI_ICONS, GENUI_LIMITS, SITE_RE, URL_RE};
-use super::schema::{NumCheck, Schema, StrCheck};
+use super::schema::{NumCheck, Schema, Segment, StrCheck};
 use crate::value::Value;
 
 fn short_text(max: usize) -> Schema {
@@ -186,6 +186,22 @@ pub(crate) static ENTITY: LazyLock<Schema> = LazyLock::new(|| {
 
 /// An untyped row in a collection (chart points, steps, table rows): free-form,
 /// but the fields every lens reads are still checked.
+/// The top-level fields of an entity that break its schema, in the order the
+/// issues are raised (a field can appear twice); empty when the entity is
+/// accepted. A caller that builds entities from outside data drops these
+/// fields and keeps the rest.
+pub fn entity_issue_fields(entity: &Value) -> Vec<String> {
+    ENTITY
+        .check(Some(entity))
+        .into_iter()
+        .map(|issue| match issue.path.first() {
+            Some(Segment::Key(key)) => key.clone(),
+            Some(Segment::Index(index)) => index.to_string(),
+            None => "undefined".to_owned(),
+        })
+        .collect()
+}
+
 pub(crate) static ROW: LazyLock<Schema> = LazyLock::new(|| {
     Schema::Object(vec![
         ("id", id().optional()),

@@ -16,6 +16,7 @@ pub use components::{
     AttrDef, AttrKind, COLLECTION_ATTRS, COMPONENT_GROUPS, COMPONENTS, ChildPolicy, CollectionUse, ComponentDef,
     ComponentGroup, GLOBAL_ATTRS, component_def, component_names, is_component_name,
 };
+pub use entities::entity_issue_fields;
 pub use limits::{
     ACTION_KINDS, ENTITY_TYPES, GENUI_ICONS, GENUI_LIMITS, GENUI_TONES, GenuiLimits, PRESENT_KEYS, is_genui_name,
     is_state_key,

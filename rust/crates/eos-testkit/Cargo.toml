@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 base64.workspace = true
+bytes.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
 eos-domain.workspace = true

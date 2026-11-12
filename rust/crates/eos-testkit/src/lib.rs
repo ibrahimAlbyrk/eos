@@ -13,6 +13,9 @@
 //! - [`FakePageStore`], [`FakeUserProfileStore`], [`FakeUserAvatarStore`], [`FakeUserMemoryStore`],
 //!   [`FakeMemoryProvider`]: the file-store ports, in memory.
 //!
+//! - [`FakeMedia`], [`FakeMap`], [`FakeGeocoder`], [`FakePlaceSearch`], [`FakeLocation`]: what visual
+//!   answers reach outside for.
+//!
 //! - [`ScriptedRuntime`]: agent sessions that play scripted turns of canonical
 //!   events, with no model ([`agent`]).
 //!
@@ -35,6 +38,7 @@ mod db;
 mod fakes;
 mod files;
 pub mod fixtures;
+mod genui;
 mod home;
 mod ids;
 pub mod plugins;
@@ -58,6 +62,7 @@ pub use fakes::{
     FakeToolSets, FakeUser, FakeWorktrees,
 };
 pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUserMemoryStore, FakeUserProfileStore};
+pub use genui::{FakeGeocoder, FakeLocation, FakeMap, FakeMedia, FakePlaceSearch};
 pub use home::TempHome;
 pub use ids::SeqIds;
 pub use policy::FakePolicyFile;

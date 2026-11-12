@@ -73,6 +73,17 @@ impl Value {
     pub fn to_json(&self) -> String {
         crate::js::stringify(self)
     }
+
+    /// `Number(value)`: text is read as JavaScript reads it (`""` is 0,
+    /// `"0x10"` is 16, anything else unreadable is NaN).
+    pub fn to_js_number(&self) -> f64 {
+        crate::js::to_number(Some(self))
+    }
+
+    /// `String(value)`, as a template literal prints it.
+    pub fn to_js_string(&self) -> String {
+        crate::js::to_string(Some(self))
+    }
 }
 
 impl From<bool> for Value {

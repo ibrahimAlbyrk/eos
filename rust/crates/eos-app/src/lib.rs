@@ -39,6 +39,9 @@ pub enum Error {
     /// A start-up step over the stored data failed.
     #[error("start-up: {0}")]
     Data(#[from] eos_core::Error),
+    /// The clients that fetch for visual answers could not be set up.
+    #[error("media: {0}")]
+    Media(#[from] eos_genui_media::Error),
     /// Two modules clash, a route has no access rule, or a module failed to start.
     #[error(transparent)]
     Runtime(#[from] eos_runtime::Error),

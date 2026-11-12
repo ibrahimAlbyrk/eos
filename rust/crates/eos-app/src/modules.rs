@@ -7,6 +7,7 @@ use eos_contracts::UiConfigResponseFeatures;
 use eos_core::agent::{BackendCatalog, ModelCatalog, ScratchFolders};
 use eos_core::os::ProcessStats;
 use eos_core::prompt::ProfileRenderer;
+use eos_core::shell::Location;
 use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore, UserSettingsStore};
 use eos_core::{Clock, Ids};
 use eos_mod_plugins::PluginHost;
@@ -45,13 +46,17 @@ pub(crate) struct Context {
     pub(crate) raw_routes: crate::files::RawRoutes,
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
+    pub(crate) settings: Arc<dyn UserSettingsStore>,
+    /// What visual answers fetch: images, the map, geocoding, place search.
+    pub(crate) media: eos_genui_media::Services,
+    /// The window shell's reading of this computer's position, when there is a shell.
+    pub(crate) location: Option<Arc<dyn Location>>,
     pub(crate) policy: Arc<PolicyGateway>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
-    pub(crate) settings: Arc<dyn UserSettingsStore>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
 }
 
@@ -73,6 +78,19 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             },
         )),
         crate::files::module(cx),
+        Arc::new(eos_mod_genui::GenuiModule::new(eos_mod_genui::GenuiParts {
+            store: cx.store.clone(),
+            settings: cx.settings.clone(),
+            config: cx.config.clone(),
+            clock: cx.clock.clone(),
+            ids: cx.ids.clone(),
+            bus: cx.bus.clone(),
+            media: cx.media.media.clone(),
+            map: cx.media.map.clone(),
+            geocoder: cx.media.geocoder.clone(),
+            place_search: cx.media.places.clone(),
+            location: cx.location.clone(),
+        })),
         Arc::new(eos_mod_pages::PagesModule::new(
             cx.notes.pages.clone(),
             cx.store.clone(),

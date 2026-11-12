@@ -1,0 +1,2630 @@
+{
+ "pages": [
+  {
+   "url": "https://example.com/a/b.html",
+   "html": "<html><head><meta property=\"og:image\" content=\"/img/og.png\"><meta name=\"twitter:image\" content=\"https://cdn.example.com/tw.png\"></head></html>",
+   "preview": "https://example.com/img/og.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/a/b.html",
+   "html": "<head><meta property=\"og:image:secure_url\" content=\"https://s.example.com/secure.png\"><meta property=\"og:image\" content=\"http://example.com/plain.png\"></head>",
+   "preview": "https://s.example.com/secure.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/a/",
+   "html": "<head><meta name=\"twitter:image:src\" content=\"tw.jpg\"><link rel=\"image_src\" href=\"link.png\"></head>",
+   "preview": "https://example.com/a/tw.jpg",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><link rel=\"image_src\" href=\"//cdn.example.com/x.png\"></head><body><meta property=\"og:image\" content=\"/late.png\"></body>",
+   "preview": "https://cdn.example.com/x.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta content=\"https://example.com/a.png?x=1&amp;y=2\" property=\"OG:IMAGE\">",
+   "preview": "https://example.com/a.png?x=1&y=2",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta property=og:image content=/unquoted.png>",
+   "preview": "https://example.com/unquoted.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta property='og:image' content='  /spaced.png  '>",
+   "preview": "https://example.com/spaced.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta itemprop=\"image\" content=\"item.png\">",
+   "preview": "https://example.com/item.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta property=\"og:image\" content=\"javascript:alert(1)\"><meta name=\"twitter:image\" content=\"data:image/png;base64,AA\"><meta name=\"image\" content=\"ftp://example.com/a.png\">",
+   "preview": null,
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<meta property=\"og:image\" content=\"\">",
+   "preview": null,
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<p>no head at all</p>",
+   "preview": null,
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/dir/page",
+   "html": "<HEAD><META PROPERTY=\"og:image:url\" CONTENT=\"../up.png\"></HEAD>",
+   "preview": "https://example.com/up.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><meta property=\"og:image\" content=\"https://example.com/q&quot;uote&#39;s&#x2F;x&lt;y&unknown;.png\"></head>",
+   "preview": "https://example.com/q%22uote's/x%3Cy&unknown;.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><meta property=\"og:image\" content=\"https://exa mple.com/bad host.png\"><meta name=\"twitter:image\" content=\"/second.png\"></head>",
+   "preview": "https://example.com/second.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><meta property=\"og:image\" content=\"/İstanbul/kadıköy.png\"></head>",
+   "preview": "https://example.com/%C4%B0stanbul/kad%C4%B1k%C3%B6y.png",
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "not a url",
+   "html": "<meta property=\"og:image\" content=\"/x.png\">",
+   "preview": null,
+   "icons": {
+    "throws": "TypeError"
+   }
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><link rel=\"apple-touch-icon\" sizes=\"180x180\" href=\"/apple-180.png\"><link rel=\"apple-touch-icon\" sizes=\"120x120\" href=\"/apple-120.png\"><link rel=\"icon\" type=\"image/svg+xml\" href=\"/icon.svg\"><link rel=\"icon\" sizes=\"32x32\" href=\"/favicon-32.png\"><link rel=\"shortcut icon\" href=\"/favicon.ico\"></head>",
+   "preview": null,
+   "icons": [
+    "https://example.com/apple-180.png",
+    "https://example.com/apple-120.png",
+    "https://example.com/icon.svg",
+    "https://example.com/favicon-32.png",
+    "https://example.com/favicon.ico",
+    "https://example.com/apple-touch-icon.png"
+   ]
+  },
+  {
+   "url": "https://example.com/sub/",
+   "html": "<head><link rel=\"icon\" sizes=\"16x16 48x48\" href=\"multi.ico\"><link rel=\"ICON\" sizes=\"any\" href=\"any.png\"><link rel=\"apple-touch-icon-precomposed\" href=\"pre.png\"><link rel=\"mask-icon\" href=\"mask.svg\"><link rel=\"stylesheet\" href=\"a.css\"></head>",
+   "preview": null,
+   "icons": [
+    "https://example.com/sub/pre.png",
+    "https://example.com/sub/any.png",
+    "https://example.com/sub/multi.ico",
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "<head><link rel=\"icon\" href=\"/a.svg?v=2\"><link rel=\"icon\" href=\"/b.png\" sizes=\"64X64\"><link href=\"/c.png\" rel=\"alternate icon\"></head>",
+   "preview": null,
+   "icons": [
+    "https://example.com/a.svg?v=2",
+    "https://example.com/b.png",
+    "https://example.com/c.png",
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://example.com/",
+   "html": "",
+   "preview": null,
+   "icons": [
+    "https://example.com/apple-touch-icon.png",
+    "https://example.com/favicon.ico"
+   ]
+  },
+  {
+   "url": "https://www.example.com/deep/path?q=1",
+   "html": "<head><link rel=\"icon\" href=\"mailto:x@example.com\"><link rel=\"icon\"></head>",
+   "preview": null,
+   "icons": [
+    "https://www.example.com/apple-touch-icon.png",
+    "https://www.example.com/favicon.ico"
+   ]
+  }
+ ],
+ "sites": [
+  {
+   "site": "Example.com",
+   "host": "example.com"
+  },
+  {
+   "site": "https://www.example.com/a",
+   "host": "www.example.com"
+  },
+  {
+   "site": " example.com. ",
+   "host": "example.com"
+  },
+  {
+   "site": "http://EXAMPLE.co.uk:8080/x",
+   "host": "example.co.uk"
+  },
+  {
+   "site": "localhost",
+   "host": null
+  },
+  {
+   "site": "127.0.0.1",
+   "host": null
+  },
+  {
+   "site": "exa mple.com",
+   "host": null
+  },
+  {
+   "site": "",
+   "host": null
+  },
+  {
+   "site": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "host": null
+  },
+  {
+   "site": "xn--mnchen-3ya.de",
+   "host": "xn--mnchen-3ya.de"
+  },
+  {
+   "site": "münchen.de",
+   "host": "xn--mnchen-3ya.de"
+  },
+  {
+   "site": "foo.xn--p1ai",
+   "host": "foo.xn--p1ai"
+  },
+  {
+   "site": "-bad.example.com",
+   "host": null
+  },
+  {
+   "site": "ftp://files.example.org/x",
+   "host": "files.example.org"
+  },
+  {
+   "site": "example.c",
+   "host": null
+  },
+  {
+   "site": "sub.domain.example.museum",
+   "host": "sub.domain.example.museum"
+  },
+  {
+   "site": "user:pw@example.com",
+   "host": "example.com"
+  },
+  {
+   "site": "[::1]",
+   "host": null
+  },
+  {
+   "site": "example.com/path?x#y",
+   "host": "example.com"
+  },
+  {
+   "site": "EXAMPLE.COM:443",
+   "host": "example.com"
+  }
+ ],
+ "images": [
+  {
+   "hex": "89504e470d0a1a0a0000000d",
+   "sniffed": "image/png",
+   "asOctetStream": "image/png",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "ffd8ffe000104a464946",
+   "sniffed": "image/jpeg",
+   "asOctetStream": "image/jpeg",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "4749463839612e2e2e2e2e2e",
+   "sniffed": "image/gif",
+   "asOctetStream": "image/gif",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "4749463837612e2e2e2e2e2e",
+   "sniffed": "image/gif",
+   "asOctetStream": "image/gif",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "4749463838612e2e2e2e2e2e",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "52494646000000005745425056503820",
+   "sniffed": "image/webp",
+   "asOctetStream": "image/webp",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "00000020667479706176696600000000",
+   "sniffed": "image/avif",
+   "asOctetStream": "image/avif",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "00000020667479706176697300000000",
+   "sniffed": "image/avif",
+   "asOctetStream": "image/avif",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "00000020667479706865696300000000",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "000001000100101000000100",
+   "sniffed": "image/x-icon",
+   "asOctetStream": "image/x-icon",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "424d2e2e2e2e2e2e",
+   "sniffed": "image/bmp",
+   "asOctetStream": "image/bmp",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "3c73766720786d6c6e733d22687474703a2f2f7777772e77332e6f72672f323030302f737667223e3c2f7376673e",
+   "sniffed": "image/svg+xml",
+   "asOctetStream": "image/svg+xml",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "efbbbf20203c3f786d6c2076657273696f6e3d22312e30223f3e0a3c212d2d2063202d2d3e3c21444f435459504520737667205055424c494320227822202279223e0a3c7376672077696474683d2231223e",
+   "sniffed": "image/svg+xml",
+   "asOctetStream": "image/svg+xml",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "3c3f786d6c2076657273696f6e3d22312e30223f3e3c68746d6c3e3c7376673e3c2f7376673e3c2f68746d6c3e",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "3c737667783e",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "3c5356470a3e",
+   "sniffed": "image/svg+xml",
+   "asOctetStream": "image/svg+xml",
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "3c21646f63747970652068746d6c3e3c68746d6c3e3c2f68746d6c3e",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "8950",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  },
+  {
+   "hex": "20202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020203c7376673e",
+   "sniffed": null,
+   "asOctetStream": null,
+   "asDeclaredPng": "image/png"
+  }
+ ],
+ "imageish": [
+  {
+   "type": "",
+   "ok": true
+  },
+  {
+   "type": "image/png",
+   "ok": true
+  },
+  {
+   "type": "image/svg+xml",
+   "ok": true
+  },
+  {
+   "type": "application/octet-stream",
+   "ok": true
+  },
+  {
+   "type": "binary/octet-stream",
+   "ok": true
+  },
+  {
+   "type": "application/binary",
+   "ok": true
+  },
+  {
+   "type": "application/unknown",
+   "ok": true
+  },
+  {
+   "type": "text/html",
+   "ok": false
+  },
+  {
+   "type": "application/json",
+   "ok": false
+  },
+  {
+   "type": "imagex/png",
+   "ok": false
+  }
+ ],
+ "etags": [
+  {
+   "hex": "89504e470d0a1a0a0000000d",
+   "etag": "\"IYrYWiM-_4KWGKaGWraBIitzTGL\""
+  },
+  {
+   "hex": "ffd8ffe000104a464946",
+   "etag": "\"Ra5wUneHn38B13j3yVoGW7DAarm\""
+  },
+  {
+   "hex": "68656c6c6f",
+   "etag": "\"LPJNul-wow4m6DsqxbninhsWHlw\""
+  }
+ ],
+ "cacheKeys": [
+  {
+   "namespace": "img",
+   "url": "https://example.com/a.png",
+   "key": "521c2c2b9e19627f9a8b3c4fd7c0b40267df85a32ea6c4502edb32557a42595c"
+  },
+  {
+   "namespace": "og",
+   "url": "https://example.com/",
+   "key": "7116559223b64ec93f50081c86f6fd85ba9f6a2171de91a2e5bda36bda9f1c2d"
+  },
+  {
+   "namespace": "icon",
+   "url": "example.com",
+   "key": "26f8412da13b6e77eee123563212924e0866ae31956ab2509e8ba4c069184b1c"
+  },
+  {
+   "namespace": "img",
+   "url": "https://example.com/ü?x=1&y=2",
+   "key": "635c8b53fbca5ac963586ccf5b9d1ddc7d86fc15395eb688a6c455f76b472acb"
+  }
+ ],
+ "metaFiles": [
+  {
+   "meta": {
+    "url": "https://example.com/a.png",
+    "kind": "blob",
+    "contentType": "image/png",
+    "size": 0,
+    "fetchedAt": 1700000000000
+   },
+   "bodyLength": 11,
+   "json": "{\"url\":\"https://example.com/a.png\",\"kind\":\"blob\",\"contentType\":\"image/png\",\"size\":11,\"fetchedAt\":1700000000000}"
+  },
+  {
+   "meta": {
+    "url": "example.com",
+    "kind": "ref",
+    "contentType": "",
+    "size": 0,
+    "fetchedAt": 5,
+    "ref": "https://example.com/favicon.ico"
+   },
+   "bodyLength": null,
+   "json": "{\"url\":\"example.com\",\"kind\":\"ref\",\"contentType\":\"\",\"size\":0,\"fetchedAt\":5,\"ref\":\"https://example.com/favicon.ico\"}"
+  },
+  {
+   "meta": {
+    "url": "https://example.com/x",
+    "kind": "miss",
+    "contentType": "",
+    "size": 0,
+    "fetchedAt": 9,
+    "reason": "the server answered 404"
+   },
+   "bodyLength": null,
+   "json": "{\"url\":\"https://example.com/x\",\"kind\":\"miss\",\"contentType\":\"\",\"size\":0,\"fetchedAt\":9,\"reason\":\"the server answered 404\"}"
+  }
+ ],
+ "rewrites": [
+  {
+   "value": {
+    "2": "https://tiles.openfreemap.org/x",
+    "10": "index-like key",
+    "version": 8,
+    "name": "dark",
+    "metadata": {
+     "maputnik:renderer": "mbgljs"
+    },
+    "sources": {
+     "openmaptiles": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet"
+     },
+     "other": {
+      "type": "raster",
+      "tiles": [
+       "https://tile.example.org/{z}/{x}/{y}.png"
+      ]
+     }
+    },
+    "sprite": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm",
+    "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    "layers": [
+     {
+      "id": "bg",
+      "type": "background",
+      "paint": {
+       "background-color": "#000"
+      }
+     },
+     null,
+     3,
+     true,
+     "https://tiles.openfreemap.org",
+     "https://tiles.openfreemap.org/"
+    ]
+   },
+   "json": "{\"2\":\"/api/genui/map/t/x\",\"10\":\"index-like key\",\"version\":8,\"name\":\"dark\",\"metadata\":{\"maputnik:renderer\":\"mbgljs\"},\"sources\":{\"openmaptiles\":{\"type\":\"vector\",\"url\":\"/api/genui/map/t/planet\"},\"other\":{\"type\":\"raster\",\"tiles\":[\"https://tile.example.org/{z}/{x}/{y}.png\"]}},\"sprite\":\"/api/genui/map/t/sprites/ofm_f384/ofm\",\"glyphs\":\"/api/genui/map/t/fonts/{fontstack}/{range}.pbf\",\"layers\":[{\"id\":\"bg\",\"type\":\"background\",\"paint\":{\"background-color\":\"#000\"}},null,3,true,\"https://tiles.openfreemap.org\",\"/api/genui/map/t/\"]}"
+  },
+  {
+   "value": "https://tiles.openfreemap.org/a/b",
+   "json": "\"/api/genui/map/t/a/b\""
+  },
+  {
+   "value": "https://tiles.openfreemap.org.evil.example/a",
+   "json": "\"https://tiles.openfreemap.org.evil.example/a\""
+  },
+  {
+   "value": [
+    "https://tiles.openfreemap.org/t/{z}/{x}/{y}.pbf"
+   ],
+   "json": "[\"/api/genui/map/t/t/{z}/{x}/{y}.pbf\"]"
+  },
+  {
+   "value": {
+    "tiles": [
+     "https://tiles.openfreemap.org/planet/20250101_001001_pt/{z}/{x}/{y}.pbf"
+    ],
+    "n": 1.5
+   },
+   "json": "{\"tiles\":[\"/api/genui/map/t/planet/20250101_001001_pt/{z}/{x}/{y}.pbf\"],\"n\":1.5}"
+  }
+ ],
+ "styleServed": {
+  "upstream": "{\"2\":\"https://tiles.openfreemap.org/x\",\"10\":\"index-like key\",\"version\":8,\"name\":\"dark\",\"metadata\":{\"maputnik:renderer\":\"mbgljs\"},\"sources\":{\"openmaptiles\":{\"type\":\"vector\",\"url\":\"https://tiles.openfreemap.org/planet\"},\"other\":{\"type\":\"raster\",\"tiles\":[\"https://tile.example.org/{z}/{x}/{y}.png\"]}},\"sprite\":\"https://tiles.openfreemap.org/sprites/ofm_f384/ofm\",\"glyphs\":\"https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf\",\"layers\":[{\"id\":\"bg\",\"type\":\"background\",\"paint\":{\"background-color\":\"#000\"}},null,3,true,\"https://tiles.openfreemap.org\",\"https://tiles.openfreemap.org/\"]}",
+  "status": 200,
+  "contentType": "application/json",
+  "cacheControl": "private, max-age=3600",
+  "body": "{\"2\":\"/api/genui/map/t/x\",\"10\":\"index-like key\",\"version\":8,\"name\":\"dark\",\"metadata\":{\"maputnik:renderer\":\"mbgljs\",\"eos:attribution\":\"OpenFreeMap © OpenMapTiles Data from OpenStreetMap\"},\"sources\":{\"openmaptiles\":{\"type\":\"vector\",\"url\":\"/api/genui/map/t/planet\"},\"other\":{\"type\":\"raster\",\"tiles\":[\"https://tile.example.org/{z}/{x}/{y}.png\"]}},\"sprite\":\"/api/genui/map/t/sprites/ofm_f384/ofm\",\"glyphs\":\"/api/genui/map/t/fonts/{fontstack}/{range}.pbf\",\"layers\":[{\"id\":\"bg\",\"type\":\"background\",\"paint\":{\"background-color\":\"#000\"}},null,3,true,\"https://tiles.openfreemap.org\",\"/api/genui/map/t/\"]}"
+ },
+ "upstream": [
+  {
+   "path": "planet",
+   "url": "https://tiles.openfreemap.org/planet"
+  },
+  {
+   "path": "styles/dark",
+   "url": "https://tiles.openfreemap.org/styles/dark"
+  },
+  {
+   "path": "planet/20250101_001001_pt/14/8192/5461.pbf",
+   "url": "https://tiles.openfreemap.org/planet/20250101_001001_pt/14/8192/5461.pbf"
+  },
+  {
+   "path": "fonts/Noto Sans Regular/0-255.pbf",
+   "url": "https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular/0-255.pbf"
+  },
+  {
+   "path": "fonts/Noto%20Sans%20Regular,Noto%20Sans%20Bold/0-255.pbf",
+   "url": "https://tiles.openfreemap.org/fonts/Noto%20Sans%20Regular,Noto%20Sans%20Bold/0-255.pbf"
+  },
+  {
+   "path": "fonts/{fontstack}/{range}.pbf",
+   "url": "https://tiles.openfreemap.org/fonts/%7Bfontstack%7D/%7Brange%7D.pbf"
+  },
+  {
+   "path": "sprites/ofm_f384/ofm@2x.png",
+   "url": "https://tiles.openfreemap.org/sprites/ofm_f384/ofm@2x.png"
+  },
+  {
+   "path": "",
+   "url": null
+  },
+  {
+   "path": "/abs",
+   "url": null
+  },
+  {
+   "path": "//evil.example/x",
+   "url": null
+  },
+  {
+   "path": "../up",
+   "url": null
+  },
+  {
+   "path": "a/../b",
+   "url": null
+  },
+  {
+   "path": "a/./b",
+   "url": null
+  },
+  {
+   "path": "a/%2e%2e/b",
+   "url": null
+  },
+  {
+   "path": "a\\b",
+   "url": null
+  },
+  {
+   "path": "a?b=1",
+   "url": null
+  },
+  {
+   "path": "a#b",
+   "url": null
+  },
+  {
+   "path": "https://evil.example/x",
+   "url": null
+  },
+  {
+   "path": "a/%zz",
+   "url": null
+  },
+  {
+   "path": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "url": null
+  },
+  {
+   "path": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "url": "https://tiles.openfreemap.org/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  {
+   "path": "a/..b",
+   "url": null
+  },
+  {
+   "path": "a b/c",
+   "url": "https://tiles.openfreemap.org/a%20b/c"
+  },
+  {
+   "path": ".hidden",
+   "url": "https://tiles.openfreemap.org/.hidden"
+  },
+  {
+   "path": "a/%2Fb",
+   "url": "https://tiles.openfreemap.org/a/%2Fb"
+  },
+  {
+   "path": "%2Fabs",
+   "url": null
+  },
+  {
+   "path": "tiles/ü.pbf",
+   "url": null
+  },
+  {
+   "path": "a/b/",
+   "url": "https://tiles.openfreemap.org/a/b/"
+  }
+ ],
+ "areas": [
+  {
+   "address": null,
+   "area": null
+  },
+  {
+   "address": {},
+   "area": null
+  },
+  {
+   "address": {
+    "suburb": "Moda",
+    "city": "İstanbul",
+    "country": "Türkiye",
+    "country_code": "tr"
+   },
+   "area": {
+    "district": "Moda",
+    "city": "İstanbul",
+    "country": "Türkiye"
+   }
+  },
+  {
+   "address": {
+    "city_district": "Kadıköy",
+    "town": "X",
+    "country": "Y"
+   },
+   "area": {
+    "district": "Kadıköy",
+    "city": "X",
+    "country": "Y"
+   }
+  },
+  {
+   "address": {
+    "neighbourhood": " Caferağa ",
+    "village": "V"
+   },
+   "area": {
+    "district": "Caferağa",
+    "city": "V"
+   }
+  },
+  {
+   "address": {
+    "quarter": "Q",
+    "municipality": "M"
+   },
+   "area": {
+    "district": "Q",
+    "city": "M"
+   }
+  },
+  {
+   "address": {
+    "borough": "B",
+    "county": "C"
+   },
+   "area": {
+    "district": "B",
+    "city": "C"
+   }
+  },
+  {
+   "address": {
+    "district": "D",
+    "province": "P"
+   },
+   "area": {
+    "district": "D",
+    "city": "P"
+   }
+  },
+  {
+   "address": {
+    "state": "S"
+   },
+   "area": {
+    "city": "S"
+   }
+  },
+  {
+   "address": {
+    "suburb": "  ",
+    "city": "",
+    "country": "Z"
+   },
+   "area": {
+    "country": "Z"
+   }
+  },
+  {
+   "address": {
+    "road": "Only a road"
+   },
+   "area": null
+  }
+ ],
+ "geocodeResults": [
+  {
+   "place": {
+    "lat": "40.9876",
+    "lon": "29.0321",
+    "display_name": "Moda, Kadıköy, İstanbul, Türkiye",
+    "name": "Moda",
+    "type": "suburb",
+    "addresstype": "suburb",
+    "address": {
+     "suburb": "Moda",
+     "city": "İstanbul",
+     "country": "Türkiye"
+    }
+   },
+   "result": {
+    "lat": 40.9876,
+    "lon": 29.0321,
+    "label": "Moda, Kadıköy, İstanbul, Türkiye",
+    "area": {
+     "district": "Moda",
+     "city": "İstanbul",
+     "country": "Türkiye"
+    },
+    "kind": "suburb"
+   }
+  },
+  {
+   "place": {
+    "lat": "40.5",
+    "lon": "29",
+    "name": "Just a name",
+    "addresstype": "place"
+   },
+   "result": {
+    "lat": 40.5,
+    "lon": 29,
+    "label": "Just a name",
+    "kind": "place"
+   }
+  },
+  {
+   "place": {
+    "lat": "1.123456789",
+    "lon": "-2.987654321"
+   },
+   "result": {
+    "lat": 1.123456789,
+    "lon": -2.987654321,
+    "label": "1.12346, -2.98765"
+   }
+  },
+  {
+   "place": {
+    "lat": "91",
+    "lon": "0",
+    "display_name": "off the globe"
+   },
+   "result": null
+  },
+  {
+   "place": {
+    "lat": "0",
+    "lon": "-181",
+    "display_name": "off the globe"
+   },
+   "result": null
+  },
+  {
+   "place": {
+    "lat": "abc",
+    "lon": "1"
+   },
+   "result": null
+  },
+  {
+   "place": {
+    "lon": "1"
+   },
+   "result": null
+  },
+  {
+   "place": {
+    "lat": "",
+    "lon": ""
+   },
+   "result": {
+    "lat": 0,
+    "lon": 0,
+    "label": "0.00000, 0.00000"
+   }
+  },
+  {
+   "place": {
+    "lat": "-0",
+    "lon": "1e1",
+    "display_name": "",
+    "name": ""
+   },
+   "result": {
+    "lat": 0,
+    "lon": 10,
+    "label": "0.00000, 10.00000"
+   }
+  },
+  {
+   "place": {
+    "lat": " 12.5 ",
+    "lon": "0x10",
+    "type": "",
+    "addresstype": "road"
+   },
+   "result": {
+    "lat": 12.5,
+    "lon": 16,
+    "label": "12.50000, 16.00000",
+    "kind": "road"
+   }
+  }
+ ],
+ "geocodeCalls": [
+  {
+   "search": "Moda",
+   "limit": 5,
+   "url": "https://nominatim.openstreetmap.org/search?q=Moda&format=jsonv2&addressdetails=1&limit=5"
+  },
+  {
+   "search": "  Kadıköy   Moda, İstanbul ",
+   "limit": 1,
+   "url": "https://nominatim.openstreetmap.org/search?q=Kad%C4%B1k%C3%B6y+Moda%2C+%C4%B0stanbul&format=jsonv2&addressdetails=1&limit=1"
+  },
+  {
+   "search": "a&b=c d",
+   "limit": 99,
+   "url": "https://nominatim.openstreetmap.org/search?q=a%26b%3Dc+d&format=jsonv2&addressdetails=1&limit=10"
+  },
+  {
+   "search": "x",
+   "limit": 0,
+   "url": "https://nominatim.openstreetmap.org/search?q=x&format=jsonv2&addressdetails=1&limit=1"
+  },
+  {
+   "search": "x",
+   "limit": 2.9,
+   "url": "https://nominatim.openstreetmap.org/search?q=x&format=jsonv2&addressdetails=1&limit=2"
+  },
+  {
+   "search": "   ",
+   "limit": 5,
+   "url": null
+  },
+  {
+   "reverse": [
+    40.98765,
+    29.03219
+   ],
+   "url": "https://nominatim.openstreetmap.org/reverse?lat=40.988&lon=29.032&format=jsonv2&addressdetails=1&zoom=14"
+  },
+  {
+   "reverse": [
+    -0.0004,
+    179.9996
+   ],
+   "url": "https://nominatim.openstreetmap.org/reverse?lat=-0.000&lon=180.000&format=jsonv2&addressdetails=1&zoom=14"
+  },
+  {
+   "reverse": [
+    5,
+    -5
+   ],
+   "url": "https://nominatim.openstreetmap.org/reverse?lat=5.000&lon=-5.000&format=jsonv2&addressdetails=1&zoom=14"
+  },
+  {
+   "reverse": [
+    1.0005,
+    2.0015
+   ],
+   "url": "https://nominatim.openstreetmap.org/reverse?lat=1.000&lon=2.002&format=jsonv2&addressdetails=1&zoom=14"
+  },
+  {
+   "reverse": [
+    12.3455,
+    -12.3455
+   ],
+   "url": "https://nominatim.openstreetmap.org/reverse?lat=12.345&lon=-12.345&format=jsonv2&addressdetails=1&zoom=14"
+  }
+ ],
+ "regexes": [
+  {
+   "text": "ramen",
+   "regex": "ramen"
+  },
+  {
+   "text": "a.b*c",
+   "regex": "a\\\\.b\\\\*c"
+  },
+  {
+   "text": "what? (yes) [no] {1} ^$ | +",
+   "regex": "what\\\\? \\\\(yes\\\\) \\\\[no\\\\] \\\\{1\\\\} \\\\^\\\\$ \\\\| \\\\+"
+  },
+  {
+   "text": "back\\slash \"quoted\"",
+   "regex": "back\\\\\\\\slash \\\"quoted\\\""
+  },
+  {
+   "text": "tab\tnew\nline",
+   "regex": "tab new line"
+  },
+  {
+   "text": "İstanbul kahve",
+   "regex": "İstanbul kahve"
+  },
+  {
+   "text": "50%",
+   "regex": "50%"
+  },
+  {
+   "text": "a/b",
+   "regex": "a/b"
+  }
+ ],
+ "queries": [
+  {
+   "q": {
+    "category": "cafe",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^cafe$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "Cafes",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^cafe$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "coffee",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^cafe$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^coffee$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "  Ice   Cream ",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^ice_cream$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "bike repair",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^bike_repair$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^bike_repair$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"tourism\"~\"^bike_repair$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"leisure\"~\"^bike_repair$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"(^|;)bike_repair($|;)\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "sushi.bar",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^sushi\\\\.bar$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^sushi\\\\.bar$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"tourism\"~\"^sushi\\\\.bar$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"leisure\"~\"^sushi\\\\.bar$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"(^|;)sushi\\\\.bar($|;)\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "ramen",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"name\"~\"ramen\",i][\"amenity\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"ramen\",i][\"shop\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"ramen\",i][\"tourism\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"ramen\",i][\"leisure\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"ramen\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[~\"^(amenity|shop|tourism|leisure)$\"~\"^ramen$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "Moda Kıyı",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"name\"~\"Moda Kıyı\",i][\"amenity\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"Moda Kıyı\",i][\"shop\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"Moda Kıyı\",i][\"tourism\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"Moda Kıyı\",i][\"leisure\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"Moda Kıyı\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[~\"^(amenity|shop|tourism|leisure)$\"~\"^Moda_Kıyı$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "the \"best\" (really)",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"name\"~\"the \\\"best\\\" \\\\(really\\\\)\",i][\"amenity\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"the \\\"best\\\" \\\\(really\\\\)\",i][\"shop\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"the \\\"best\\\" \\\\(really\\\\)\",i][\"tourism\"];nwr(around:1500,40.987600,29.032100)[\"name\"~\"the \\\"best\\\" \\\\(really\\\\)\",i][\"leisure\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"the \\\"best\\\" \\\\(really\\\\)\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[~\"^(amenity|shop|tourism|leisure)$\"~\"^the_\\\"best\\\"_\\\\(really\\\\)$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "ramen",
+    "category": "restaurant",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^(restaurant|food_court)$\",i][\"name\"~\"ramen\",i];nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^(restaurant|food_court)$\",i][\"cuisine\"~\"ramen\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "espresso",
+    "category": "coffee",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^cafe$\",i][\"name\"~\"espresso\",i];nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^cafe$\",i][\"cuisine\"~\"espresso\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^coffee$\",i][\"name\"~\"espresso\",i];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^coffee$\",i][\"cuisine\"~\"espresso\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "x",
+    "category": "bookstores",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^books$\",i][\"name\"~\"x\",i];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^books$\",i][\"cuisine\"~\"x\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "query": "  ",
+    "category": "sights",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"tourism\"~\"^(attraction|viewpoint|museum)$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"historic\"~\".\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "glass",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:1500,40.987600,29.032100)[\"amenity\"~\"^glass$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"shop\"~\"^glass$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"tourism\"~\"^glass$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"leisure\"~\"^glass$\",i][\"name\"];nwr(around:1500,40.987600,29.032100)[\"cuisine\"~\"(^|;)glass($|;)\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "atm",
+    "center": {
+     "lat": -33.8688197,
+     "lon": 151.2092955
+    },
+    "radiusM": 249.5,
+    "limit": 3
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:250,-33.868820,151.209295)[\"amenity\"~\"^atm$\",i][\"name\"];);out center tags 300;"
+  },
+  {
+   "q": {
+    "category": "atm",
+    "center": {
+     "lat": 1,
+     "lon": 2
+    },
+    "radiusM": 50,
+    "limit": 3
+   },
+   "ql": "[out:json][timeout:20];(nwr(around:50,1.000000,2.000000)[\"amenity\"~\"^atm$\",i][\"name\"];);out center tags 300;"
+  }
+ ],
+ "distances": [
+  {
+   "a": {
+    "lat": 40.9876,
+    "lon": 29.0321
+   },
+   "b": {
+    "lat": 40.9876,
+    "lon": 29.0321
+   },
+   "m": 0
+  },
+  {
+   "a": {
+    "lat": 40.9876,
+    "lon": 29.0321
+   },
+   "b": {
+    "lat": 40.99,
+    "lon": 29.03
+   },
+   "m": 319.8227891517677
+  },
+  {
+   "a": {
+    "lat": 0,
+    "lon": 0
+   },
+   "b": {
+    "lat": 0,
+    "lon": 1
+   },
+   "m": 111194.92664455874
+  },
+  {
+   "a": {
+    "lat": 89.9,
+    "lon": 0
+   },
+   "b": {
+    "lat": 89.9,
+    "lon": 180
+   },
+   "m": 22238.985328911145
+  },
+  {
+   "a": {
+    "lat": -33.8688,
+    "lon": 151.2093
+   },
+   "b": {
+    "lat": 51.5074,
+    "lon": -0.1278
+   },
+   "m": 16993933.459795907
+  }
+ ],
+ "formatted": [
+  {
+   "m": 0,
+   "text": "10 m"
+  },
+  {
+   "m": 4,
+   "text": "10 m"
+  },
+  {
+   "m": 5,
+   "text": "10 m"
+  },
+  {
+   "m": 14.9,
+   "text": "10 m"
+  },
+  {
+   "m": 15,
+   "text": "20 m"
+  },
+  {
+   "m": 944.9,
+   "text": "940 m"
+  },
+  {
+   "m": 945,
+   "text": "950 m"
+  },
+  {
+   "m": 949.9,
+   "text": "950 m"
+  },
+  {
+   "m": 950,
+   "text": "0.9 km"
+  },
+  {
+   "m": 999,
+   "text": "1.0 km"
+  },
+  {
+   "m": 1000,
+   "text": "1.0 km"
+  },
+  {
+   "m": 1049,
+   "text": "1.0 km"
+  },
+  {
+   "m": 1050,
+   "text": "1.1 km"
+  },
+  {
+   "m": 9949,
+   "text": "9.9 km"
+  },
+  {
+   "m": 9950,
+   "text": "10 km"
+  },
+  {
+   "m": 9951,
+   "text": "10 km"
+  },
+  {
+   "m": 10499,
+   "text": "10 km"
+  },
+  {
+   "m": 10500,
+   "text": "11 km"
+  },
+  {
+   "m": 123456,
+   "text": "123 km"
+  }
+ ],
+ "elements": [
+  {
+   "el": {
+    "type": "node",
+    "id": 1,
+    "lat": 40.98801,
+    "lon": 29.03301,
+    "tags": {
+     "name": "Bean",
+     "amenity": "cafe",
+     "cuisine": "coffee_shop;breakfast",
+     "opening_hours": "Mo-Su 08:00-22:00",
+     "website": "https://www.bean.example/menu",
+     "addr:street": "Moda Cd.",
+     "addr:housenumber": "12",
+     "addr:suburb": "Moda",
+     "outdoor_seating": "yes",
+     "internet_access": "wlan",
+     "phone": "+90 216 000 00 00"
+    }
+   },
+   "place": {
+    "id": "osm:node/1",
+    "name": "Bean",
+    "site": "bean.example",
+    "url": "https://www.bean.example/menu",
+    "tags": [
+     "outdoor seating",
+     "wi-fi"
+    ],
+    "geo": [
+     40.98801,
+     29.03301
+    ],
+    "address": "Moda Cd. 12, Moda",
+    "type": "Place",
+    "hours": {
+     "text": "Mo-Su 08:00-22:00"
+    },
+    "area": "Moda",
+    "cuisine": "coffee shop, breakfast",
+    "distance": "90 m",
+    "distanceM": 89,
+    "kind": "cafe",
+    "phone": "+90 216 000 00 00",
+    "osm": "https://www.openstreetmap.org/node/1"
+   }
+  },
+  {
+   "el": {
+    "type": "way",
+    "id": 22,
+    "center": {
+     "lat": 40.9912345678,
+     "lon": 29.0298765432
+    },
+    "tags": {
+     "name": "Roast",
+     "shop": "coffee",
+     "opening_hours": "24/7",
+     "contact:website": "roast.example",
+     "takeaway": "only",
+     "diet:vegan": "yes",
+     "diet:vegetarian": "only",
+     "delivery": "yes",
+     "wheelchair": "yes"
+    }
+   },
+   "place": {
+    "id": "osm:way/22",
+    "name": "Roast",
+    "site": "roast.example",
+    "url": "https://roast.example/",
+    "tags": [
+     "vegan options",
+     "vegetarian options",
+     "takeaway",
+     "delivery",
+     "wheelchair accessible"
+    ],
+    "geo": [
+     40.991235,
+     29.029877
+    ],
+    "type": "Place",
+    "hours": {
+     "text": "Open 24/7"
+    },
+    "distance": "450 m",
+    "distanceM": 445,
+    "kind": "coffee",
+    "osm": "https://www.openstreetmap.org/way/22"
+   }
+  },
+  {
+   "el": {
+    "type": "relation",
+    "id": 333,
+    "center": {
+     "lat": 40.98,
+     "lon": 29.04
+    },
+    "tags": {
+     "name": "Old Market",
+     "amenity": "marketplace",
+     "opening_hours": "closed",
+     "url": "not a url at all",
+     "addr:place": "Çarşı",
+     "addr:city": "İstanbul"
+    }
+   },
+   "place": {
+    "id": "osm:relation/333",
+    "name": "Old Market",
+    "geo": [
+     40.98,
+     29.04
+    ],
+    "address": "Çarşı, İstanbul",
+    "type": "Place",
+    "hours": {
+     "closed": true,
+     "text": "Closed"
+    },
+    "area": "İstanbul",
+    "distance": "1.1 km",
+    "distanceM": 1074,
+    "kind": "marketplace",
+    "osm": "https://www.openstreetmap.org/relation/333"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 4,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "name": "Odd Site",
+     "tourism": "museum",
+     "website": "ftp://files.example/x;https://second.example",
+     "contact:phone": "111111111111111111111111111111111111111111111111111111111111",
+     "opening_hours": "off"
+    }
+   },
+   "place": {
+    "id": "osm:node/4",
+    "name": "Odd Site",
+    "url": "https://ftp//files.example/x",
+    "geo": [
+     40.99,
+     29.03
+    ],
+    "type": "Place",
+    "hours": {
+     "closed": true,
+     "text": "Closed"
+    },
+    "distance": "320 m",
+    "distanceM": 320,
+    "kind": "museum",
+    "phone": "111111111111111111111111111111111111111…",
+    "osm": "https://www.openstreetmap.org/node/4"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 5,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+     "leisure": "park",
+     "cuisine": " ; ;",
+     "opening_hours": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "website": "https://exämple.com/"
+    }
+   },
+   "place": {
+    "id": "osm:node/5",
+    "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN…",
+    "site": "xn--exmple-cua.com",
+    "url": "https://xn--exmple-cua.com/",
+    "geo": [
+     40.99,
+     29.03
+    ],
+    "type": "Place",
+    "hours": {
+     "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+    },
+    "distance": "320 m",
+    "distanceM": 320,
+    "kind": "park",
+    "osm": "https://www.openstreetmap.org/node/5"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 6,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "amenity": "cafe"
+    }
+   },
+   "place": null
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 7,
+    "tags": {
+     "name": "No position"
+    }
+   },
+   "place": null
+  },
+  {
+   "el": {
+    "id": 8,
+    "lat": 1,
+    "lon": 2,
+    "tags": {
+     "name": "No type"
+    }
+   },
+   "place": null
+  },
+  {
+   "el": {
+    "type": "node",
+    "lat": 1,
+    "lon": 2,
+    "tags": {
+     "name": "No id"
+    }
+   },
+   "place": null
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 9,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "name": "Historic",
+     "historic": "castle",
+     "website": "https://localhost/",
+     "addr:district": "D"
+    }
+   },
+   "place": {
+    "id": "osm:node/9",
+    "name": "Historic",
+    "url": "https://localhost/",
+    "geo": [
+     40.99,
+     29.03
+    ],
+    "address": "D",
+    "type": "Place",
+    "area": "D",
+    "distance": "320 m",
+    "distanceM": 320,
+    "kind": "castle",
+    "osm": "https://www.openstreetmap.org/node/9"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 10,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "name": "Long site",
+     "amenity": "fast_food",
+     "website": "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+   },
+   "place": {
+    "id": "osm:node/10",
+    "name": "Long site",
+    "site": "example.com",
+    "geo": [
+     40.99,
+     29.03
+    ],
+    "type": "Place",
+    "distance": "320 m",
+    "distanceM": 320,
+    "kind": "fast food",
+    "osm": "https://www.openstreetmap.org/node/10"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 11,
+    "lat": 95,
+    "lon": 29.03,
+    "tags": {
+     "name": "Off the globe",
+     "amenity": "bar"
+    }
+   },
+   "place": {
+    "id": "osm:node/11",
+    "name": "Off the globe",
+    "type": "Place",
+    "distance": "6006 km",
+    "distanceM": 6005905,
+    "kind": "bar",
+    "osm": "https://www.openstreetmap.org/node/11"
+   }
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 12,
+    "lat": 40.99,
+    "lon": 29.03,
+    "tags": {
+     "name": "   ",
+     "amenity": "bar"
+    }
+   },
+   "place": null
+  },
+  {
+   "el": {
+    "type": "node",
+    "id": 0,
+    "lat": 40.987612349,
+    "lon": 29.032149999,
+    "tags": {
+     "name": "Zero id",
+     "shop": "department_store",
+     "addr:housenumber": "7"
+    }
+   },
+   "place": {
+    "id": "osm:node/0",
+    "name": "Zero id",
+    "geo": [
+     40.987612,
+     29.03215
+    ],
+    "address": "7",
+    "type": "Place",
+    "distance": "10 m",
+    "distanceM": 4,
+    "kind": "department store",
+    "osm": "https://www.openstreetmap.org/node/0"
+   }
+  }
+ ],
+ "searches": [
+  {
+   "q": {
+    "category": "cafe",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 12
+   },
+   "elements": [
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "way",
+     "id": 22,
+     "center": {
+      "lat": 40.9912345678,
+      "lon": 29.0298765432
+     },
+     "tags": {
+      "name": "Roast",
+      "shop": "coffee",
+      "opening_hours": "24/7",
+      "contact:website": "roast.example",
+      "takeaway": "only",
+      "diet:vegan": "yes",
+      "diet:vegetarian": "only",
+      "delivery": "yes",
+      "wheelchair": "yes"
+     }
+    },
+    {
+     "type": "relation",
+     "id": 333,
+     "center": {
+      "lat": 40.98,
+      "lon": 29.04
+     },
+     "tags": {
+      "name": "Old Market",
+      "amenity": "marketplace",
+      "opening_hours": "closed",
+      "url": "not a url at all",
+      "addr:place": "Çarşı",
+      "addr:city": "İstanbul"
+     }
+    },
+    {
+     "type": "node",
+     "id": 4,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Odd Site",
+      "tourism": "museum",
+      "website": "ftp://files.example/x;https://second.example",
+      "contact:phone": "111111111111111111111111111111111111111111111111111111111111",
+      "opening_hours": "off"
+     }
+    },
+    {
+     "type": "node",
+     "id": 5,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "leisure": "park",
+      "cuisine": " ; ;",
+      "opening_hours": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "website": "https://exämple.com/"
+     }
+    },
+    {
+     "type": "node",
+     "id": 6,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 7,
+     "tags": {
+      "name": "No position"
+     }
+    },
+    {
+     "id": 8,
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No type"
+     }
+    },
+    {
+     "type": "node",
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No id"
+     }
+    },
+    {
+     "type": "node",
+     "id": 9,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Historic",
+      "historic": "castle",
+      "website": "https://localhost/",
+      "addr:district": "D"
+     }
+    },
+    {
+     "type": "node",
+     "id": 10,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Long site",
+      "amenity": "fast_food",
+      "website": "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     }
+    },
+    {
+     "type": "node",
+     "id": 11,
+     "lat": 95,
+     "lon": 29.03,
+     "tags": {
+      "name": "Off the globe",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 12,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "   ",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 0,
+     "lat": 40.987612349,
+     "lon": 29.032149999,
+     "tags": {
+      "name": "Zero id",
+      "shop": "department_store",
+      "addr:housenumber": "7"
+     }
+    },
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "node",
+     "id": 99,
+     "lat": 41.2,
+     "lon": 29.3,
+     "tags": {
+      "name": "Far away",
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 98,
+     "lat": 41.00155,
+     "lon": 29.0321,
+     "tags": {
+      "name": "Just outside the radius",
+      "amenity": "cafe"
+     }
+    }
+   ],
+   "body": "data=%5Bout%3Ajson%5D%5Btimeout%3A20%5D%3B%28nwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22amenity%22%7E%22%5Ecafe%24%22%2Ci%5D%5B%22name%22%5D%3B%29%3Bout+center+tags+300%3B",
+   "places": [
+    {
+     "id": "osm:node/0",
+     "name": "Zero id",
+     "geo": [
+      40.987612,
+      29.03215
+     ],
+     "address": "7",
+     "type": "Place",
+     "distance": "10 m",
+     "distanceM": 4,
+     "kind": "department store",
+     "osm": "https://www.openstreetmap.org/node/0"
+    },
+    {
+     "id": "osm:node/1",
+     "name": "Bean",
+     "site": "bean.example",
+     "url": "https://www.bean.example/menu",
+     "tags": [
+      "outdoor seating",
+      "wi-fi"
+     ],
+     "geo": [
+      40.98801,
+      29.03301
+     ],
+     "address": "Moda Cd. 12, Moda",
+     "type": "Place",
+     "hours": {
+      "text": "Mo-Su 08:00-22:00"
+     },
+     "area": "Moda",
+     "cuisine": "coffee shop, breakfast",
+     "distance": "90 m",
+     "distanceM": 89,
+     "kind": "cafe",
+     "phone": "+90 216 000 00 00",
+     "osm": "https://www.openstreetmap.org/node/1"
+    },
+    {
+     "id": "osm:node/4",
+     "name": "Odd Site",
+     "url": "https://ftp//files.example/x",
+     "geo": [
+      40.99,
+      29.03
+     ],
+     "type": "Place",
+     "hours": {
+      "closed": true,
+      "text": "Closed"
+     },
+     "distance": "320 m",
+     "distanceM": 320,
+     "kind": "museum",
+     "phone": "111111111111111111111111111111111111111…",
+     "osm": "https://www.openstreetmap.org/node/4"
+    },
+    {
+     "id": "osm:node/5",
+     "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN…",
+     "site": "xn--exmple-cua.com",
+     "url": "https://xn--exmple-cua.com/",
+     "geo": [
+      40.99,
+      29.03
+     ],
+     "type": "Place",
+     "hours": {
+      "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx…"
+     },
+     "distance": "320 m",
+     "distanceM": 320,
+     "kind": "park",
+     "osm": "https://www.openstreetmap.org/node/5"
+    },
+    {
+     "id": "osm:node/9",
+     "name": "Historic",
+     "url": "https://localhost/",
+     "geo": [
+      40.99,
+      29.03
+     ],
+     "address": "D",
+     "type": "Place",
+     "area": "D",
+     "distance": "320 m",
+     "distanceM": 320,
+     "kind": "castle",
+     "osm": "https://www.openstreetmap.org/node/9"
+    },
+    {
+     "id": "osm:node/10",
+     "name": "Long site",
+     "site": "example.com",
+     "geo": [
+      40.99,
+      29.03
+     ],
+     "type": "Place",
+     "distance": "320 m",
+     "distanceM": 320,
+     "kind": "fast food",
+     "osm": "https://www.openstreetmap.org/node/10"
+    },
+    {
+     "id": "osm:way/22",
+     "name": "Roast",
+     "site": "roast.example",
+     "url": "https://roast.example/",
+     "tags": [
+      "vegan options",
+      "vegetarian options",
+      "takeaway",
+      "delivery",
+      "wheelchair accessible"
+     ],
+     "geo": [
+      40.991235,
+      29.029877
+     ],
+     "type": "Place",
+     "hours": {
+      "text": "Open 24/7"
+     },
+     "distance": "450 m",
+     "distanceM": 445,
+     "kind": "coffee",
+     "osm": "https://www.openstreetmap.org/way/22"
+    },
+    {
+     "id": "osm:relation/333",
+     "name": "Old Market",
+     "geo": [
+      40.98,
+      29.04
+     ],
+     "address": "Çarşı, İstanbul",
+     "type": "Place",
+     "hours": {
+      "closed": true,
+      "text": "Closed"
+     },
+     "area": "İstanbul",
+     "distance": "1.1 km",
+     "distanceM": 1074,
+     "kind": "marketplace",
+     "osm": "https://www.openstreetmap.org/relation/333"
+    },
+    {
+     "id": "osm:node/98",
+     "name": "Just outside the radius",
+     "geo": [
+      41.00155,
+      29.0321
+     ],
+     "type": "Place",
+     "distance": "1.6 km",
+     "distanceM": 1551,
+     "kind": "cafe",
+     "osm": "https://www.openstreetmap.org/node/98"
+    }
+   ]
+  },
+  {
+   "q": {
+    "query": "bean",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 1500,
+    "limit": 2
+   },
+   "elements": [
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "way",
+     "id": 22,
+     "center": {
+      "lat": 40.9912345678,
+      "lon": 29.0298765432
+     },
+     "tags": {
+      "name": "Roast",
+      "shop": "coffee",
+      "opening_hours": "24/7",
+      "contact:website": "roast.example",
+      "takeaway": "only",
+      "diet:vegan": "yes",
+      "diet:vegetarian": "only",
+      "delivery": "yes",
+      "wheelchair": "yes"
+     }
+    },
+    {
+     "type": "relation",
+     "id": 333,
+     "center": {
+      "lat": 40.98,
+      "lon": 29.04
+     },
+     "tags": {
+      "name": "Old Market",
+      "amenity": "marketplace",
+      "opening_hours": "closed",
+      "url": "not a url at all",
+      "addr:place": "Çarşı",
+      "addr:city": "İstanbul"
+     }
+    },
+    {
+     "type": "node",
+     "id": 4,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Odd Site",
+      "tourism": "museum",
+      "website": "ftp://files.example/x;https://second.example",
+      "contact:phone": "111111111111111111111111111111111111111111111111111111111111",
+      "opening_hours": "off"
+     }
+    },
+    {
+     "type": "node",
+     "id": 5,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "leisure": "park",
+      "cuisine": " ; ;",
+      "opening_hours": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "website": "https://exämple.com/"
+     }
+    },
+    {
+     "type": "node",
+     "id": 6,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 7,
+     "tags": {
+      "name": "No position"
+     }
+    },
+    {
+     "id": 8,
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No type"
+     }
+    },
+    {
+     "type": "node",
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No id"
+     }
+    },
+    {
+     "type": "node",
+     "id": 9,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Historic",
+      "historic": "castle",
+      "website": "https://localhost/",
+      "addr:district": "D"
+     }
+    },
+    {
+     "type": "node",
+     "id": 10,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Long site",
+      "amenity": "fast_food",
+      "website": "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     }
+    },
+    {
+     "type": "node",
+     "id": 11,
+     "lat": 95,
+     "lon": 29.03,
+     "tags": {
+      "name": "Off the globe",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 12,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "   ",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 0,
+     "lat": 40.987612349,
+     "lon": 29.032149999,
+     "tags": {
+      "name": "Zero id",
+      "shop": "department_store",
+      "addr:housenumber": "7"
+     }
+    },
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "node",
+     "id": 99,
+     "lat": 41.2,
+     "lon": 29.3,
+     "tags": {
+      "name": "Far away",
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 98,
+     "lat": 41.00155,
+     "lon": 29.0321,
+     "tags": {
+      "name": "Just outside the radius",
+      "amenity": "cafe"
+     }
+    }
+   ],
+   "body": "data=%5Bout%3Ajson%5D%5Btimeout%3A20%5D%3B%28nwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22name%22%7E%22bean%22%2Ci%5D%5B%22amenity%22%5D%3Bnwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22name%22%7E%22bean%22%2Ci%5D%5B%22shop%22%5D%3Bnwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22name%22%7E%22bean%22%2Ci%5D%5B%22tourism%22%5D%3Bnwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22name%22%7E%22bean%22%2Ci%5D%5B%22leisure%22%5D%3Bnwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%22cuisine%22%7E%22bean%22%2Ci%5D%5B%22name%22%5D%3Bnwr%28around%3A1500%2C40.987600%2C29.032100%29%5B%7E%22%5E%28amenity%7Cshop%7Ctourism%7Cleisure%29%24%22%7E%22%5Ebean%24%22%2Ci%5D%5B%22name%22%5D%3B%29%3Bout+center+tags+300%3B",
+   "places": [
+    {
+     "id": "osm:node/0",
+     "name": "Zero id",
+     "geo": [
+      40.987612,
+      29.03215
+     ],
+     "address": "7",
+     "type": "Place",
+     "distance": "10 m",
+     "distanceM": 4,
+     "kind": "department store",
+     "osm": "https://www.openstreetmap.org/node/0"
+    },
+    {
+     "id": "osm:node/1",
+     "name": "Bean",
+     "site": "bean.example",
+     "url": "https://www.bean.example/menu",
+     "tags": [
+      "outdoor seating",
+      "wi-fi"
+     ],
+     "geo": [
+      40.98801,
+      29.03301
+     ],
+     "address": "Moda Cd. 12, Moda",
+     "type": "Place",
+     "hours": {
+      "text": "Mo-Su 08:00-22:00"
+     },
+     "area": "Moda",
+     "cuisine": "coffee shop, breakfast",
+     "distance": "90 m",
+     "distanceM": 89,
+     "kind": "cafe",
+     "phone": "+90 216 000 00 00",
+     "osm": "https://www.openstreetmap.org/node/1"
+    }
+   ]
+  },
+  {
+   "q": {
+    "category": "cafe",
+    "center": {
+     "lat": 40.9876,
+     "lon": 29.0321
+    },
+    "radiusM": 120,
+    "limit": 12
+   },
+   "elements": [
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "way",
+     "id": 22,
+     "center": {
+      "lat": 40.9912345678,
+      "lon": 29.0298765432
+     },
+     "tags": {
+      "name": "Roast",
+      "shop": "coffee",
+      "opening_hours": "24/7",
+      "contact:website": "roast.example",
+      "takeaway": "only",
+      "diet:vegan": "yes",
+      "diet:vegetarian": "only",
+      "delivery": "yes",
+      "wheelchair": "yes"
+     }
+    },
+    {
+     "type": "relation",
+     "id": 333,
+     "center": {
+      "lat": 40.98,
+      "lon": 29.04
+     },
+     "tags": {
+      "name": "Old Market",
+      "amenity": "marketplace",
+      "opening_hours": "closed",
+      "url": "not a url at all",
+      "addr:place": "Çarşı",
+      "addr:city": "İstanbul"
+     }
+    },
+    {
+     "type": "node",
+     "id": 4,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Odd Site",
+      "tourism": "museum",
+      "website": "ftp://files.example/x;https://second.example",
+      "contact:phone": "111111111111111111111111111111111111111111111111111111111111",
+      "opening_hours": "off"
+     }
+    },
+    {
+     "type": "node",
+     "id": 5,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN",
+      "leisure": "park",
+      "cuisine": " ; ;",
+      "opening_hours": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "website": "https://exämple.com/"
+     }
+    },
+    {
+     "type": "node",
+     "id": 6,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 7,
+     "tags": {
+      "name": "No position"
+     }
+    },
+    {
+     "id": 8,
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No type"
+     }
+    },
+    {
+     "type": "node",
+     "lat": 1,
+     "lon": 2,
+     "tags": {
+      "name": "No id"
+     }
+    },
+    {
+     "type": "node",
+     "id": 9,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Historic",
+      "historic": "castle",
+      "website": "https://localhost/",
+      "addr:district": "D"
+     }
+    },
+    {
+     "type": "node",
+     "id": 10,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "Long site",
+      "amenity": "fast_food",
+      "website": "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+     }
+    },
+    {
+     "type": "node",
+     "id": 11,
+     "lat": 95,
+     "lon": 29.03,
+     "tags": {
+      "name": "Off the globe",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 12,
+     "lat": 40.99,
+     "lon": 29.03,
+     "tags": {
+      "name": "   ",
+      "amenity": "bar"
+     }
+    },
+    {
+     "type": "node",
+     "id": 0,
+     "lat": 40.987612349,
+     "lon": 29.032149999,
+     "tags": {
+      "name": "Zero id",
+      "shop": "department_store",
+      "addr:housenumber": "7"
+     }
+    },
+    {
+     "type": "node",
+     "id": 1,
+     "lat": 40.98801,
+     "lon": 29.03301,
+     "tags": {
+      "name": "Bean",
+      "amenity": "cafe",
+      "cuisine": "coffee_shop;breakfast",
+      "opening_hours": "Mo-Su 08:00-22:00",
+      "website": "https://www.bean.example/menu",
+      "addr:street": "Moda Cd.",
+      "addr:housenumber": "12",
+      "addr:suburb": "Moda",
+      "outdoor_seating": "yes",
+      "internet_access": "wlan",
+      "phone": "+90 216 000 00 00"
+     }
+    },
+    {
+     "type": "node",
+     "id": 99,
+     "lat": 41.2,
+     "lon": 29.3,
+     "tags": {
+      "name": "Far away",
+      "amenity": "cafe"
+     }
+    },
+    {
+     "type": "node",
+     "id": 98,
+     "lat": 41.00155,
+     "lon": 29.0321,
+     "tags": {
+      "name": "Just outside the radius",
+      "amenity": "cafe"
+     }
+    }
+   ],
+   "body": "data=%5Bout%3Ajson%5D%5Btimeout%3A20%5D%3B%28nwr%28around%3A120%2C40.987600%2C29.032100%29%5B%22amenity%22%7E%22%5Ecafe%24%22%2Ci%5D%5B%22name%22%5D%3B%29%3Bout+center+tags+300%3B",
+   "places": [
+    {
+     "id": "osm:node/0",
+     "name": "Zero id",
+     "geo": [
+      40.987612,
+      29.03215
+     ],
+     "address": "7",
+     "type": "Place",
+     "distance": "10 m",
+     "distanceM": 4,
+     "kind": "department store",
+     "osm": "https://www.openstreetmap.org/node/0"
+    },
+    {
+     "id": "osm:node/1",
+     "name": "Bean",
+     "site": "bean.example",
+     "url": "https://www.bean.example/menu",
+     "tags": [
+      "outdoor seating",
+      "wi-fi"
+     ],
+     "geo": [
+      40.98801,
+      29.03301
+     ],
+     "address": "Moda Cd. 12, Moda",
+     "type": "Place",
+     "hours": {
+      "text": "Mo-Su 08:00-22:00"
+     },
+     "area": "Moda",
+     "cuisine": "coffee shop, breakfast",
+     "distance": "90 m",
+     "distanceM": 89,
+     "kind": "cafe",
+     "phone": "+90 216 000 00 00",
+     "osm": "https://www.openstreetmap.org/node/1"
+    }
+   ]
+  }
+ ]
+}

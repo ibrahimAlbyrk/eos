@@ -1159,6 +1159,7 @@ dependencies = [
  "eos-domain",
  "eos-engine",
  "eos-fs",
+ "eos-genui-media",
  "eos-git",
  "eos-kit-fs",
  "eos-kit-net",
@@ -1167,6 +1168,7 @@ dependencies = [
  "eos-mod-accounts",
  "eos-mod-agents",
  "eos-mod-fs",
+ "eos-mod-genui",
  "eos-mod-pages",
  "eos-mod-plugins",
  "eos-mod-policy",
@@ -1271,8 +1273,10 @@ dependencies = [
 name = "eos-core"
 version = "0.0.1"
 dependencies = [
+ "bytes",
  "eos-contracts",
  "eos-domain",
+ "eos-genui",
  "getrandom 0.4.3",
  "indexmap",
  "serde",
@@ -1343,6 +1347,32 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+]
+
+[[package]]
+name = "eos-genui-media"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-genui",
+ "eos-kit-fs",
+ "eos-kit-net",
+ "eos-testkit",
+ "futures-util",
+ "indexmap",
+ "regress",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]
@@ -1461,6 +1491,26 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-genui"
+version = "0.0.1"
+dependencies = [
+ "bytes",
+ "eos-config",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-genui",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-testkit",
+ "indexmap",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]
@@ -1652,6 +1702,7 @@ name = "eos-platform"
 version = "0.0.1"
 dependencies = [
  "rustix",
+ "serde_json",
  "sha2",
  "tempfile",
  "thiserror",
@@ -1828,6 +1879,7 @@ name = "eos-testkit"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "bytes",
  "eos-contracts",
  "eos-core",
  "eos-domain",

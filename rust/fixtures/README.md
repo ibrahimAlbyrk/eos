@@ -198,7 +198,7 @@ it unchanged.
 
 ## Vectors from the TypeScript
 
-Besides the recorded wire, three corpora hold what today's TypeScript computes for inputs no
+Besides the recorded wire, four corpora hold what today's TypeScript computes for inputs no
 route shows. Each is written by a Node script that imports the TypeScript sources directly
 (Node ≥ 23.6; `npm ci` in `contracts/`, `core/`, `infra/`), and each has `--check` to say
 whether the committed corpus is still what the sources produce.
@@ -208,3 +208,4 @@ whether the committed corpus is still what the sources produce.
 | `policy/` | `tools/policy-vectors/generate.mjs` | `eos-policy` (47,040 permission decisions over policies × tools × inputs × modes × tool scopes), the `policy.yaml` reader |
 | `workers/` | `tools/workers-vectors/generate.mjs` | `eos-workers` (resolution, `extends`, defaults, the catalog), the definition-file reader, model tiers |
 | `prompts/` | `tools/prompt-vectors/generate.mjs` | `eos-prompts` and the shipped library (every prompt read and rendered, 641 assembled system prompts byte for byte) |
+| `genui-media/` | `tools/genui-media-vectors/generate.mjs` | `eos-genui-media` (what a page names as its preview image and icons, image sniffing, cache keys and files, the map proxy's paths and rewritten documents, Nominatim requests and answers, Overpass queries, elements as `Place` entities, distances) |

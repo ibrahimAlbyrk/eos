@@ -7,7 +7,7 @@ use std::process::Command;
 
 use crate::error::Error;
 use crate::host::{
-    AppUpdatePlatform, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
+    AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
     SpawnCommand, TerminalShell,
 };
 use crate::paths::home_dir;
@@ -157,6 +157,10 @@ impl HostPlatform for Generic {
 
     fn chromium_browsers(&self) -> Vec<PathBuf> {
         Vec::new()
+    }
+
+    fn location_helper(&self, _resources: &Path, _wait_seconds: u32) -> Option<Argv> {
+        None
     }
 
     fn app_updates(&self) -> Option<&dyn AppUpdatePlatform> {

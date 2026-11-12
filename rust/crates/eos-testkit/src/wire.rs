@@ -182,10 +182,11 @@ fn encode(text: &str) -> String {
     out
 }
 
-/// The strings of a request body with the variables filled in.
+/// The strings of a request body with the variables filled in. `{{name}}`
+/// is how a scenario writes the literal text `{name}`.
 fn filled(value: &Value, matcher: &Matcher) -> Value {
     match value {
-        Value::String(s) => Value::String(matcher.fill(s)),
+        Value::String(s) => Value::String(matcher.fill(s).replace("{{", "{").replace("}}", "}")),
         Value::Array(items) => Value::Array(items.iter().map(|v| filled(v, matcher)).collect()),
         Value::Object(map) => Value::Object(map.iter().map(|(k, v)| (k.clone(), filled(v, matcher))).collect()),
         other => other.clone(),

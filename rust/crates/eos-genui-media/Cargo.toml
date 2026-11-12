@@ -1,0 +1,36 @@
+[package]
+name = "eos-genui-media"
+description = "What visual answers fetch: images behind the address guard and a disk cache, the map proxy, geocoding and place search."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64.workspace = true
+bytes.workspace = true
+eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-genui.workspace = true
+eos-kit-fs.workspace = true
+eos-kit-net.workspace = true
+futures-util.workspace = true
+indexmap.workspace = true
+regress.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+tracing.workspace = true
+url.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt-multi-thread"] }
+
+[lints]
+workspace = true

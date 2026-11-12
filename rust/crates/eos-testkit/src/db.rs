@@ -3,6 +3,7 @@ use std::sync::{Arc, Mutex};
 use eos_core::store::{Announcement, Announcer, Store};
 use eos_kit_sqlite::rusqlite::Connection;
 use eos_kit_sqlite::{Db, Error, Options};
+use eos_runtime::bus::Bus;
 use eos_store_sqlite::{SqliteStore, StoreOptions};
 
 use crate::home::TempHome;
@@ -29,6 +30,21 @@ impl Announcer for Announced {
     }
 }
 
+/// Keeps the announcements and publishes them, in commit order.
+struct OnBus {
+    kept: Arc<Announced>,
+    bus: Bus,
+}
+
+impl Announcer for OnBus {
+    fn announce(&self, events: Vec<Announcement>) {
+        for event in &events {
+            self.bus.publish_raw(event.topic, None, event.payload.clone().into());
+        }
+        self.kept.announce(events);
+    }
+}
+
 /// The real store over a `state.db` with every migration applied, in its own
 /// [`TempHome`]: the same writer thread, readers and SQL as the app's.
 #[derive(Debug)]
@@ -46,10 +62,27 @@ impl TempStore {
 
     /// Opens (and migrates) the database of an existing folder.
     pub fn in_home(home: TempHome) -> Self {
+        Self::open(home, None)
+    }
+
+    fn open(home: TempHome, bus: Option<Bus>) -> Self {
         let (db, _) = Db::open(home.paths().state_db(), Options::default(), 0).expect("a migrated database");
         let announced = Arc::new(Announced::default());
-        let store = Arc::new(SqliteStore::new(db, announced.clone(), StoreOptions::default()));
+        let announcer: Arc<dyn Announcer> = match bus {
+            Some(bus) => Arc::new(OnBus { kept: announced.clone(), bus }),
+            None => announced.clone(),
+        };
+        let store = Arc::new(SqliteStore::new(db, announcer, StoreOptions::default()));
         Self { store, announced, home }
+    }
+
+    /// [`seeded`](Self::seeded), with every write's announcements also
+    /// published on `bus`, as in the app: for a test that reads events off
+    /// the bus or a stream.
+    pub fn seeded_on_bus(sandbox: &str, bus: &Bus) -> Self {
+        let temp = Self::open(TempHome::new(), Some(bus.clone()));
+        temp.exec(&crate::fixtures::seed_sql(sandbox));
+        temp
     }
 
     /// With the invented rows of the wire fixtures; `sandbox` stands in for

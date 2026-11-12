@@ -16,6 +16,7 @@ mod backup;
 mod copy;
 mod error;
 mod host;
+mod location;
 mod paths;
 mod process;
 mod shell;
@@ -33,6 +34,7 @@ pub use host::{
     AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
     SpawnCommand, TerminalShell, claude_store_service,
 };
+pub use location::{LOCATION_WAIT_SECONDS, LocationFailure, LocationReading, parse_location, read_location};
 pub use paths::{DataPaths, USER_DATA_ENTRIES, create_private_dir, eos_home, expand_path, home_dir};
 pub use process::{
     isolate_command, kill_process_tree, local_hour_minute, open_fd_count, process_alive, soft_fd_limit, user_id,

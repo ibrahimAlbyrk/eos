@@ -16,7 +16,8 @@ pub use keychain::SecurityKeychain;
 use crate::error::Error;
 use crate::generic::owner_only;
 use crate::host::{
-    AppUpdatePlatform, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, SpawnCommand, TerminalShell,
+    AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, SpawnCommand,
+    TerminalShell,
 };
 use crate::process;
 use crate::shell::PosixShell;
@@ -167,6 +168,13 @@ impl HostPlatform for Darwin {
     }
 
     // Releases are built for Apple Silicon only.
+    // macOS shows the location prompt only for a bundle's executable, so the
+    // helper is an app of its own inside the app's resources.
+    fn location_helper(&self, resources: &Path, wait_seconds: u32) -> Option<Argv> {
+        let file = resources.join("EosLocation.app").join("Contents").join("MacOS").join("eos-location");
+        Some(Argv { file: file.to_string_lossy().into_owned(), args: vec![wait_seconds.to_string()] })
+    }
+
     fn app_updates(&self) -> Option<&dyn AppUpdatePlatform> {
         if cfg!(target_arch = "aarch64") { Some(&self.updates) } else { None }
     }

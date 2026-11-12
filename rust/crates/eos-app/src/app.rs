@@ -254,6 +254,15 @@ impl App {
             clock.clone(),
         ));
 
+        let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
+        // Asked of the helper the app ships; a run without a bundle has none.
+        let location = resources.as_deref().and_then(|resources| host::helper_location(resources, clock.clone()));
+        let media = eos_genui_media::build(
+            &paths.join(eos_genui_media::MEDIA_CACHE_DIR),
+            clock.clone(),
+            eos_genui_media::Options::new()?,
+        )?;
+
         let notes = Notes::open(&paths, &clock, store.clone(), config.clone());
         let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
         let updates = crate::updates::build(crate::updates::Parts {
@@ -316,7 +325,6 @@ impl App {
             hooks: hooks.clone(),
         });
 
-        let settings = Arc::new(SettingsFile::new(paths.join("settings.json")));
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
@@ -342,13 +350,15 @@ impl App {
             paths: paths.clone(),
             raw_routes: Default::default(),
             pdfjs_root,
+            settings: settings.clone(),
+            media,
+            location,
             policy,
             profile_prompt,
             prompts,
             templates,
             updates: updates.clone(),
             worker_definitions,
-            settings: settings.clone(),
             scratch,
         };
         let runtime = Arc::new(Runtime::build(kernel, modules::all(&context), plugins.switch())?);

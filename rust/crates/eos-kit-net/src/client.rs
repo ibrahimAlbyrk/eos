@@ -11,6 +11,9 @@ pub struct ClientOptions {
     /// Idle connections kept per host, and for how long.
     pub pool_max_idle_per_host: usize,
     pub pool_idle_timeout: Duration,
+    /// Follow redirects (ten at most). When off, a redirect is the answer:
+    /// the caller reads its `location` and decides.
+    pub follow_redirects: bool,
 }
 
 impl ClientOptions {
@@ -21,6 +24,7 @@ impl ClientOptions {
             timeout: None,
             pool_max_idle_per_host: 8,
             pool_idle_timeout: Duration::from_secs(90),
+            follow_redirects: true,
         }
     }
 }
@@ -33,6 +37,9 @@ pub(crate) fn builder(options: &ClientOptions) -> reqwest::ClientBuilder {
         .pool_idle_timeout(options.pool_idle_timeout)
         // As today: requests go out directly, whatever HTTP_PROXY says.
         .no_proxy();
+    if !options.follow_redirects {
+        builder = builder.redirect(reqwest::redirect::Policy::none());
+    }
     if let Some(timeout) = options.timeout {
         builder = builder.timeout(timeout);
     }
@@ -40,7 +47,7 @@ pub(crate) fn builder(options: &ClientOptions) -> reqwest::ClientBuilder {
 }
 
 /// A client for ordinary API traffic: TLS through rustls with the system's
-/// roots, HTTP/2 where offered, gzip/brotli/deflate decoded, redirects followed.
+/// roots, HTTP/2 where offered, gzip/brotli/deflate decoded, redirects followed unless the options say otherwise.
 pub fn http_client(options: &ClientOptions) -> Result<reqwest::Client, Error> {
     builder(options).build().map_err(|e| Error::Client(e.to_string()))
 }

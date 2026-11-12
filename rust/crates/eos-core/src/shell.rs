@@ -1,4 +1,5 @@
-//! What the core may ask of the window shell: embedded Chromium views and screenshots.
+//! What the core may ask of the window shell: embedded Chromium views, screenshots, the
+//! open panel and this computer's position.
 //!
 //! The shell implements these on its own threads; every method returns at once and resolves
 //! later, so a caller never blocks the window.
@@ -146,4 +147,41 @@ pub trait Capture: Send + Sync {
 pub trait FilePicker: Send + Sync {
     fn pick_directory(&self) -> BoxFuture<'_, Option<String>>;
     fn pick_files(&self) -> BoxFuture<'_, Option<Vec<String>>>;
+}
+
+/// One reading of the system's location service.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PositionFix {
+    pub lat: f64,
+    pub lon: f64,
+    /// Metres.
+    pub accuracy: f64,
+    /// When the system took it, in epoch milliseconds.
+    pub at: i64,
+}
+
+/// Why the system gave no position.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+pub enum PositionError {
+    /// The user refused Eos location access (or a policy restricts it).
+    #[error("location access denied")]
+    Denied,
+    /// Location services are off for the whole computer.
+    #[error("location services are off")]
+    Disabled,
+    /// No fix could be worked out right now.
+    #[error("no location fix")]
+    Unavailable,
+    /// The system did not answer in time (a permission prompt may be open).
+    #[error("no location in time")]
+    Timeout,
+    /// This build or system has no way to ask.
+    #[error("location is not supported here")]
+    Unsupported,
+}
+
+/// This computer's position. Asking may show the system's permission prompt
+/// once, so it can take as long as the user takes to answer it.
+pub trait Location: Send + Sync {
+    fn current(&self) -> BoxFuture<'_, Result<PositionFix, PositionError>>;
 }

@@ -15,11 +15,11 @@
 //! | [`plugin`] | plugin folders, their builder, their data, where installs come from |
 //! | [`policy`] | permission decisions and tool scope |
 //! | [`prompt`] | prompt sources and rendering |
-//! | [`shell`] | the window shell: embedded views, screenshots, the open panel |
+//! | [`shell`] | the window shell: embedded views, screenshots, the open panel, this computer's position |
 //! | [`store`] | the data folder: `state.db` repositories and file stores |
 //!
 //! A capability one feature offers the others is a trait here too, in the
-//! module of the feature that implements it ([`pages`], [`profile`]).
+//! module of the feature that implements it ([`genui`], [`pages`], [`profile`]).
 //!
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
 //! is the vocabulary a port fails with.
@@ -28,6 +28,7 @@ pub mod accounts;
 pub mod agent;
 pub mod clock;
 pub mod error;
+pub mod genui;
 pub mod git;
 pub mod ids;
 pub mod net;

@@ -185,6 +185,11 @@ pub trait HostPlatform: Send + Sync + Debug {
     fn process_alive(&self, pid: u32) -> bool;
     /// Where a Chromium browser is usually installed, most preferred first.
     fn chromium_browsers(&self) -> Vec<PathBuf>;
+    /// The command that prints one location fix as JSON
+    /// ([`read_location`](crate::read_location)), or `None` on a system
+    /// without a helper. `resources` is where the app keeps what it ships
+    /// beside its executable; `wait_seconds` is how long the helper waits.
+    fn location_helper(&self, resources: &Path, wait_seconds: u32) -> Option<Argv>;
     /// In-app updates; `None` where Eos cannot update itself.
     fn app_updates(&self) -> Option<&dyn AppUpdatePlatform>;
     fn desktop(&self) -> &dyn Desktop;
