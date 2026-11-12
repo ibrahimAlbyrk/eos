@@ -3,7 +3,7 @@
 # main workspace's crates by path. See ../README.md ("Host workspace") and ../ARCHITECTURE.md §5.
 [workspace]
 resolver = "3"
-members = ["cef-helper", "eos", "eos-shell"]
+members = ["cef-helper", "eos", "eos-apply", "eos-shell"]
 exclude = ["vendor"]
 
 [workspace.package]
@@ -18,6 +18,7 @@ eos-app = { path = "../crates/eos-app" }
 eos-bridge = { path = "../crates/eos-bridge" }
 eos-core = { path = "../crates/eos-core" }
 eos-shell = { path = "eos-shell" }
+eos-update = { path = "../crates/eos-update" }
 
 base64 = "0.22"
 block2 = "0.6"

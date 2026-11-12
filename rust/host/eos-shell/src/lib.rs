@@ -51,6 +51,8 @@ pub struct Ports {
     pub picker: Arc<dyn FilePicker>,
     /// The runtime the shell's own tasks run on.
     pub rt: tokio::runtime::Handle,
+    /// Quits the app as its menu does: the shutdown hook runs, then the process exits.
+    pub quit: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl std::fmt::Debug for Ports {
@@ -66,6 +68,9 @@ pub trait Hooks: Send + Sync + 'static {
 
     /// The dashboard is loading: the bridge exists and requests are being answered.
     fn started(&self, _bridge: &Arc<Bridge>, _ports: &Ports) {}
+
+    /// The window was brought back: a click on the Dock icon, a later launch, a link.
+    fn window_shown(&self) {}
 
     /// The Mac slept for about this long and is awake again.
     fn woke(&self, _away: Duration) {}

@@ -8,6 +8,7 @@
 //! - [`fixtures`]: the recorded wire and the invented seed rows.
 //! - [`FakePolicyFile`]: a policy file held in memory.
 //! - [`FakeProfileRenderer`]: a user profile block that is one fixed text.
+//! - [`update`]: the update fixtures and the generators of their inputs.
 //! - [`wire::Replay`]: a recorded scenario replayed against a router.
 //! - [`FakePageStore`], [`FakeUserProfileStore`], [`FakeUserAvatarStore`], [`FakeUserMemoryStore`],
 //!   [`FakeMemoryProvider`]: the file-store ports, in memory.
@@ -19,7 +20,9 @@
 //! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]);
 //! [`FakeWatcher`] stands in for the folder watcher and the git watcher.
 //! The accounts area's fakes are in `accounts` ([`FakePlanStores`], [`FakeSubscriptionProvider`], …).
-//! [`plugins`] holds the fakes of the plugin ports.
+//! [`plugins`] holds the fakes of the plugin ports. The update ports: [`FakeUpdateFeed`],
+//! [`FakeUpdateSignature`], [`FakeBundleIndexer`], [`FakeUpdateWorkspace`], [`FakeBundleCheck`],
+//! [`FakeTopLevelAgents`], [`FakeUpdateApplier`].
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -37,6 +40,8 @@ mod ids;
 pub mod plugins;
 mod policy;
 mod profile;
+pub mod update;
+mod update_fakes;
 mod watchers;
 pub mod wire;
 
@@ -57,4 +62,8 @@ pub use home::TempHome;
 pub use ids::SeqIds;
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
+pub use update_fakes::{
+    FAKE_DOWNLOAD_BYTES, FakeBundleCheck, FakeBundleIndexer, FakeTopLevelAgents, FakeUpdateApplier, FakeUpdateFeed,
+    FakeUpdateSignature, FakeUpdateWorkspace,
+};
 pub use watchers::FakeWatcher;

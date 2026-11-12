@@ -17,6 +17,7 @@ eos-app.workspace = true
 eos-bridge.workspace = true
 eos-core = { workspace = true, optional = true }
 eos-shell.workspace = true
+eos-update.workspace = true
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true

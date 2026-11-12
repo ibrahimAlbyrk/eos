@@ -34,7 +34,9 @@ pub use host::{
     SpawnCommand, TerminalShell, claude_store_service,
 };
 pub use paths::{DataPaths, USER_DATA_ENTRIES, create_private_dir, eos_home, expand_path, home_dir};
-pub use process::{isolate_command, kill_process_tree, local_hour_minute, open_fd_count, process_alive, soft_fd_limit};
+pub use process::{
+    isolate_command, kill_process_tree, local_hour_minute, open_fd_count, process_alive, soft_fd_limit, user_id,
+};
 pub use shell::{PosixShell, shell_invocation};
 
 #[cfg(target_os = "macos")]

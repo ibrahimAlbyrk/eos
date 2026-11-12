@@ -27,6 +27,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos", Layer::Binary),
     ("eos-accounts", Layer::Service),
     ("eos-app", Layer::App),
+    ("eos-apply", Layer::Shell),
     ("eos-auth", Layer::Adapter),
     ("eos-bridge", Layer::Bridge),
     ("eos-cef-helper", Layer::Shell),
@@ -53,6 +54,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-mod-prompts", Layer::Feature),
     ("eos-mod-system", Layer::Feature),
     ("eos-mod-templates", Layer::Feature),
+    ("eos-mod-updates", Layer::Feature),
     ("eos-mod-worker-definitions", Layer::Feature),
     ("eos-mod-workers", Layer::Feature),
     ("eos-platform", Layer::Kit),
@@ -67,6 +69,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-store-files", Layer::Adapter),
     ("eos-store-sqlite", Layer::Adapter),
     ("eos-symbols", Layer::Adapter),
+    ("eos-update", Layer::Adapter),
     ("eos-watch", Layer::Adapter),
     ("eos-workers", Layer::Service),
     // Test and dev tooling: never a normal dependency of a library crate.

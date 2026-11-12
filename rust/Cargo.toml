@@ -40,6 +40,7 @@ eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }
+eos-mod-updates = { path = "crates/eos-mod-updates" }
 eos-mod-worker-definitions = { path = "crates/eos-mod-worker-definitions" }
 eos-mod-workers = { path = "crates/eos-mod-workers" }
 eos-platform = { path = "crates/eos-platform" }
@@ -54,6 +55,7 @@ eos-store-files = { path = "crates/eos-store-files" }
 eos-store-sqlite = { path = "crates/eos-store-sqlite" }
 eos-symbols = { path = "crates/eos-symbols" }
 eos-testkit = { path = "crates/eos-testkit" }
+eos-update = { path = "crates/eos-update" }
 eos-watch = { path = "crates/eos-watch" }
 eos-workers = { path = "crates/eos-workers" }
 
@@ -75,6 +77,7 @@ anyhow = "1"
 base64 = "0.22"
 bytes = "1"
 crossbeam-channel = "0.5"
+ed25519-dalek = { version = "3", default-features = false, features = ["alloc", "pkcs8"] }
 flate2 = "1"
 futures-core = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
@@ -104,6 +107,7 @@ tokio-tungstenite = { version = "0.26", default-features = false, features = ["c
 tracing = "0.1"
 unicode-normalization = "0.1"
 url = "2"
+zstd = { version = "0.14", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

@@ -172,6 +172,11 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   in-process handler of the app's own origin; a bridge is a route under `/_shell/` that
   requires the ui-token and a request made by the dashboard document. Shell → page is one
   event stream. `cargo xtask shell` fails the check when any of this is broken.
+- **`eos-apply` is a program of its own** (`host/eos-apply`, shipped as
+  `Contents/MacOS/eos-apply`): the update applier. It runs while the app is closed, so it
+  links no crate of the app, no Tauri and no CEF — `serde_json` only. It swaps the staged
+  bundle in and puts the old one back unless the new app writes `boot-ok` in time
+  (`docs/first-rust-release.md`).
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
   notifications), each use with its reason. Also checked by `cargo xtask shell`.
 - **The runtime is vendored with patches kept as diffs** (`host/patches/`, each with its

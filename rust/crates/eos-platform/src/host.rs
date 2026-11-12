@@ -119,6 +119,8 @@ pub trait AppUpdatePlatform: Send + Sync + Debug {
     fn feed_platform(&self) -> &'static str;
     /// The installed app the running executable belongs to, or `None` when it is not inside one.
     fn bundle_root(&self, exec_path: &Path) -> Option<PathBuf>;
+    /// Where an app at `bundle_root` keeps the files it ships with (its `update.json`).
+    fn resources_dir(&self, bundle_root: &Path) -> PathBuf;
     /// Files keep their permission bits here, so a staged copy's modes must match the release.
     fn file_modes(&self) -> bool;
     /// The staged copy is signed by the same developer as the installed app and

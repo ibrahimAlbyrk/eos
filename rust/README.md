@@ -11,14 +11,16 @@ crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
 host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a workspace of its own
 tools/     dev tooling: wire-recorder (records and replays what the daemon answers);
            *-vectors (what today's TypeScript computes, for the corpora under fixtures/)
-xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`)
+xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`) and the update feed's release
+           builder (`cargo xtask publish-update`, see docs/first-rust-release.md)
 scripts/   link-sdk.sh: link the agent engine's checkout (run once per checkout, see "The agent engine");
            check.sh: everything CI runs for the main workspace; wire.sh: record the wire fixtures from
            today's daemon; replay.sh: replay them against the Rust core, in process
 fixtures/  recorded responses and TypeScript-made vectors the Rust code must reproduce,
            see fixtures/README.md
            (fixtures/private is never committed)
-docs/      how-tos: adding-a-feature.md is the path every feature crate follows
+docs/      how-tos: adding-a-feature.md is the path every feature crate follows;
+           first-rust-release.md is what the first Rust release must be to install over 0.1.x
 ```
 
 ## Rules
@@ -59,6 +61,7 @@ relative to `host/`.
 eos-shell/     the only crate that sees Tauri or CEF types
 eos/           the binary: options from the environment, the app's hooks
 cef-helper/    the executable of the five CEF helper apps (renderer, GPU, …)
+eos-apply/     the update applier: swaps the staged app in while Eos is closed (serde_json only)
 vendor/        tauri-runtime-cef 3.0.0-alpha.7 with our patches applied
 patches/       those patches as diffs (scripts/check-patches.sh proves vendor = upstream + patches)
 bundle/        Info.plist templates, entitlements

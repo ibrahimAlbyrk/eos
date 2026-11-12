@@ -14,6 +14,9 @@
 #   EOS_ESBUILD          the esbuild binary that builds plugins. Default: the one `npm ci`
 #                        puts under `infra/node_modules` for this Mac. It must be the release
 #                        `eos-plugin-build` speaks; without one the bundle is not made.
+#   EOS_UPDATE_CHANNEL   `stable` marks the bundle as a release that updates itself
+#                        (Resources/update.json). Unset for every other build: a build from
+#                        source never replaces itself. See ../docs/first-rust-release.md.
 set -euo pipefail
 source "$(dirname "$0")/env.sh"
 PROFILE="${1:-release}"
@@ -34,6 +37,8 @@ FLAG=(); [ "$PROFILE" = "release" ] && FLAG=(--release)
 cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos --features "$FEATURES" >&2
 # Its own build: the helper wants the `cef` crate with other features than the app.
 cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos-cef-helper >&2
+# The update applier: runs while the app is closed, so it links nothing of the app.
+cargo build ${FLAG[@]+"${FLAG[@]}"} -p eos-apply >&2
 
 VERSION="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
 FRAMEWORK="$(ls -d "$CEF_PATH"/*/cef_macos_*/"Chromium Embedded Framework.framework" | head -1)"
@@ -46,6 +51,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 fill bundle/Info.plist.in > "$APP/Contents/Info.plist"
 cp "$BIN/eos" "$APP/Contents/MacOS/$NAME"
+cp "$BIN/eos-apply" "$APP/Contents/MacOS/eos-apply"
+if [ "${EOS_UPDATE_CHANNEL:-}" = "stable" ]; then
+  printf '{"version":"%s","channel":"stable","platform":"darwin-arm64"}' "$VERSION" > "$APP/Contents/Resources/update.json"
+fi
 cp "$REPO/app/build/icon.icns" "$APP/Contents/Resources/icon.icns"
 # Banners play it by name; macOS finds it in the bundle's resources.
 cp "$REPO/app/build/eos-notification.aiff" "$APP/Contents/Resources/"

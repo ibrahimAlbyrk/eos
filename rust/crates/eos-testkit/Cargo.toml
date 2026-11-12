@@ -17,10 +17,11 @@ eos-platform.workspace = true
 eos-runtime.workspace = true
 eos-store-sqlite.workspace = true
 indexmap.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["rt", "sync"] }
+tokio = { workspace = true, features = ["io-util", "net", "rt", "sync"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

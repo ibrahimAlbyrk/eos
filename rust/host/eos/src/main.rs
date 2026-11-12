@@ -13,6 +13,7 @@ use std::time::Duration;
 
 use eos_bridge::{Bridge, Classify, Core, RouterCore};
 use eos_shell::{Hooks, Options, Ports};
+use eos_update::handover::{ApplierLauncher, Handover};
 
 fn env(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
@@ -61,6 +62,8 @@ fn options() -> Options {
 
 /// How long quitting waits for the modules to stop before it gives up on them.
 const SHUTDOWN: Duration = Duration::from_secs(5);
+/// How long after a wake the updater is told (as today).
+const AFTER_WAKE: Duration = Duration::from_secs(10);
 
 struct Eos {
     /// The core's data folder. There is no default while the port is under way: the app
@@ -80,7 +83,12 @@ impl Eos {
         };
         // Building the app spawns its own tasks.
         let _runtime = ports.rt.enter();
-        let options = eos_app::Options { resources: bundled_resources(), ..eos_app::Options::new(home) };
+        let mut options = eos_app::Options { resources: bundled_resources(), ..eos_app::Options::new(home) };
+        // Restarting into an update: leave the applier what it needs, start it, quit.
+        if let Some(exe) = &options.exec_path {
+            let handover = Handover::beside(exe, home);
+            options.update_applier = Some(Arc::new(ApplierLauncher::new(handover, ports.quit.clone())));
+        }
         let app = match eos_app::App::build(options) {
             Ok(app) => Arc::new(app),
             Err(e) => {
@@ -114,8 +122,31 @@ impl Hooks for Eos {
     }
 
     fn started(&self, _bridge: &Arc<Bridge>, _ports: &Ports) {
+        if let Some((app, _)) = self.app.get() {
+            // After an update the applier waits for this, and puts the previous version
+            // back without it.
+            app.mark_update_booted();
+            app.update_signals().window_shown();
+        }
         #[cfg(feature = "dev-proxy")]
         self.dev.started(_bridge, _ports);
+    }
+
+    fn window_shown(&self) {
+        if let Some((app, _)) = self.app.get() {
+            app.update_signals().window_shown();
+        }
+    }
+
+    fn woke(&self, _away: Duration) {
+        if let Some((app, rt)) = self.app.get() {
+            let signals = app.update_signals();
+            // The network needs a moment after a wake.
+            rt.spawn(async move {
+                tokio::time::sleep(AFTER_WAKE).await;
+                signals.woke();
+            });
+        }
     }
 
     fn shutdown(&self) {

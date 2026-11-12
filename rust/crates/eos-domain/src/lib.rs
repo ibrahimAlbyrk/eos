@@ -30,6 +30,7 @@ pub mod tasks;
 pub mod text;
 pub mod time;
 pub mod transcript;
+pub mod update;
 pub mod user_memory;
 pub mod user_profile;
 pub mod worker;

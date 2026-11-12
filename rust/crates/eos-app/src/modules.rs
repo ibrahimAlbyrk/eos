@@ -49,6 +49,7 @@ pub(crate) struct Context {
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,
+    pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
 }
 
@@ -92,6 +93,7 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             cx.backends.clone(),
         )),
         Arc::new(eos_mod_templates::TemplatesModule::new(cx.templates.clone())),
+        cx.updates.module(cx.config.clone(), &cx.kernel),
         Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(
             cx.worker_definitions.clone(),
             cx.bus.clone(),

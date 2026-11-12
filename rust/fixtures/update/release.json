@@ -1,0 +1,124 @@
+{
+ "publicKey": "28vqn5iiJYjRyAM2XBAb8mb4Zd5ScaVsjtNkCZCp3zk",
+ "privateKey": "MC4CAQAwBQYDK2VwBCIEIDCV3FhEC5HBOFluTNMx648ImHSJ3i2iWhyHTaAOqRIh",
+ "releasedAt": "2026-11-11T00:00:00.000Z",
+ "tree": [
+  {
+   "path": "Contents",
+   "dir": true
+  },
+  {
+   "path": "Contents/Info.plist",
+   "gen": {
+    "kind": "text",
+    "len": 900
+   }
+  },
+  {
+   "path": "Contents/MacOS",
+   "dir": true
+  },
+  {
+   "path": "Contents/MacOS/Eos",
+   "gen": {
+    "kind": "random",
+    "seed": "bin",
+    "len": 150000
+   },
+   "mode": 493
+  },
+  {
+   "path": "Contents/Resources",
+   "dir": true
+  },
+  {
+   "path": "Contents/Resources/empty",
+   "gen": {
+    "kind": "zeros",
+    "len": 0
+   }
+  },
+  {
+   "path": "Contents/Resources/app.js",
+   "gen": {
+    "kind": "text",
+    "len": 1200000
+   }
+  },
+  {
+   "path": "Contents/Resources/ünïcode ✓.txt",
+   "gen": {
+    "kind": "text",
+    "len": 40
+   }
+  },
+  {
+   "path": "Contents/Resources/😀.txt",
+   "gen": {
+    "kind": "text",
+    "len": 10,
+    "tag": "astral"
+   }
+  },
+  {
+   "path": "Contents/Resources/～.txt",
+   "gen": {
+    "kind": "text",
+    "len": 10,
+    "tag": "bmp"
+   }
+  },
+  {
+   "path": "Contents/Resources/current",
+   "link": "app.js"
+  },
+  {
+   "path": "Contents/Resources/update.json",
+   "gen": {
+    "kind": "literal",
+    "text": "{\"version\":\"9.0.0\",\"channel\":\"stable\",\"platform\":\"darwin-arm64\"}"
+   }
+  }
+ ],
+ "second": {
+  "Contents/Resources/app.js": {
+   "kind": "drift",
+   "seed": "app2",
+   "block": 60000,
+   "every": 1024,
+   "len": 300000
+  },
+  "Contents/Resources/update.json": {
+   "kind": "literal",
+   "text": "{\"version\":\"9.0.1\",\"channel\":\"stable\",\"platform\":\"darwin-arm64\"}"
+  }
+ },
+ "secondPatch": {
+  "path": "Contents/MacOS/Eos",
+  "at": 75000,
+  "bytes": "re-signed"
+ },
+ "built": {
+  "9.0.0": {
+   "files": [
+    "packs/darwin-arm64/9.0.0.pack",
+    "releases/9.0.0/darwin-arm64.manifest.json.zst",
+    "notes/9.0.0.md",
+    "stable/darwin-arm64.json"
+   ],
+   "packBytes": 170431,
+   "newChunks": 18,
+   "wholeFiles": 0
+  },
+  "9.0.1": {
+   "files": [
+    "packs/darwin-arm64/9.0.1.pack",
+    "releases/9.0.1/darwin-arm64.manifest.json.zst",
+    "stable/darwin-arm64.json"
+   ],
+   "packBytes": 264745,
+   "newChunks": 5,
+   "wholeFiles": 1
+  }
+ }
+}

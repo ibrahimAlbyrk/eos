@@ -12,6 +12,7 @@ use eos_auth::{
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_core::accounts::{PlanAccess, SessionCredentials};
+use eos_core::net::updates::{UpdateApplier, UpdateSignals};
 use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
@@ -36,6 +37,7 @@ use eos_store_files::templates::FsTemplateStore;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_store_files::{CachedModelCatalog, JsonProjects, JsonRecents};
 use eos_store_sqlite::{SqliteStore, StoreOptions};
+use eos_update::legacy::{Launchctl, Launchd};
 use eos_workers::WorkerDefinitions;
 
 use crate::Error;
@@ -47,6 +49,7 @@ use crate::display::StripSenderTags;
 use crate::host::{self, HostLocalTime, HostStats, SystemBrowser};
 use crate::modules::{self, Context};
 use crate::notes::{Notes, ProfilePrompt};
+use crate::updates::{Install, Updates};
 
 /// What the app is built from. Tests swap the clock, the id source and the
 /// environment.
@@ -70,6 +73,16 @@ pub struct Options {
     /// The window shell, which draws plugin previews. Until it does, a
     /// preview answers that no window is open.
     pub plugin_previewer: Arc<dyn PluginPreviewer>,
+    /// The running executable. A release build — one inside an app bundle
+    /// that ships `update.json` — updates itself; anything else never does.
+    pub exec_path: Option<PathBuf>,
+    /// The window shell's hand-over to the update applier (start it, quit).
+    /// Without one, restarting into an update answers that it cannot.
+    pub update_applier: Option<Arc<dyn UpdateApplier>>,
+    /// The user's launchd session. A release build on the user's own data
+    /// folder stops the TypeScript-era daemon through it before it opens the
+    /// data; nothing else ever uses it.
+    pub launchd: Option<Arc<dyn Launchd + Send + Sync>>,
 }
 
 impl Options {
@@ -84,6 +97,9 @@ impl Options {
             agents: AgentOptions::default(),
             resources: None,
             plugin_previewer: Arc::new(NoPreviewWindow),
+            exec_path: std::env::current_exe().ok(),
+            update_applier: None,
+            launchd: Launchctl::for_this_user().map(|launchctl| Arc::new(launchctl) as Arc<dyn Launchd + Send + Sync>),
         }
     }
 }
@@ -115,6 +131,7 @@ pub struct App {
     /// Kept for as long as the app runs.
     nudges: std::sync::Mutex<Option<eos_runtime::bus::Subscription>>,
     plugins: Arc<PluginHost>,
+    updates: Arc<Updates>,
 }
 
 impl std::fmt::Debug for App {
@@ -130,9 +147,25 @@ impl App {
     /// the kernel and the modules. Nothing runs yet: call
     /// [`start`](Self::start). Blocks on file and database work.
     pub fn build(options: Options) -> Result<Self, Error> {
-        let Options { home, clock, ids, env, pdfjs_root, agents, resources, plugin_previewer } = options;
+        let Options {
+            home,
+            clock,
+            ids,
+            env,
+            pdfjs_root,
+            agents,
+            resources,
+            plugin_previewer,
+            exec_path,
+            update_applier,
+            launchd,
+        } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
+        // Before anything in the data folder is read: the previous Eos's
+        // daemon must not be working on it too.
+        let install = Install::resolve(exec_path.as_deref(), &paths);
+        install.retire_legacy_daemon(launchd.as_deref());
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
         let current = config.current();
         let callers = Callers::load(paths.home(), ids.as_ref());
@@ -208,6 +241,15 @@ impl App {
 
         let notes = Notes::open(&paths, &clock, store.clone(), config.clone());
         let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
+        let updates = crate::updates::build(crate::updates::Parts {
+            install,
+            paths: &paths,
+            config: config.clone(),
+            store: store.clone(),
+            kernel: &kernel,
+            clock: clock.clone(),
+            applier: update_applier,
+        })?;
 
         // Agents: the engine (built when the first session starts), and the
         // session service every feature that touches an agent goes through.
@@ -278,6 +320,7 @@ impl App {
             profile_prompt,
             prompts,
             templates,
+            updates: updates.clone(),
             worker_definitions,
         };
         let runtime = Arc::new(Runtime::build(kernel, modules::all(&context), plugins.switch())?);
@@ -311,6 +354,7 @@ impl App {
             sessions,
             nudges,
             plugins,
+            updates,
         })
     }
 
@@ -326,6 +370,21 @@ impl App {
         self.runtime.lifecycle.start().await?;
         self.runtime.lifecycle.ready().await?;
         Ok(())
+    }
+
+    /// What the window shell tells the updater: its window showed, the
+    /// computer woke. Each may start a check for a new release.
+    pub fn update_signals(&self) -> Arc<dyn UpdateSignals> {
+        self.updates.signals()
+    }
+
+    /// Call once the core is ready and the window is up. When this start
+    /// follows an update, the applier that swapped the app in is waiting for
+    /// this mark and puts the previous version back without it
+    /// (`eos_update::handover::BOOT_TIMEOUT` after it opened the app). Does
+    /// nothing in a build that does not update itself.
+    pub fn mark_update_booted(&self) {
+        self.updates.mark_booted();
     }
 
     /// What answers requests. The caller of each request is set by whoever

@@ -22,6 +22,7 @@ mod host;
 mod modules;
 mod notes;
 mod plugins;
+mod updates;
 
 pub use agent::AgentOptions;
 pub use app::{App, Options};

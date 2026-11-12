@@ -1396,21 +1396,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "spike-update"
-version = "0.0.0"
-dependencies = [
- "anyhow",
- "base64",
- "ed25519-dalek",
- "hex",
- "rand_core 0.6.4",
- "serde",
- "serde_json",
- "sha2",
- "zstd",
-]
-
-[[package]]
 name = "spike-yaml"
 version = "0.0.0"
 dependencies = [

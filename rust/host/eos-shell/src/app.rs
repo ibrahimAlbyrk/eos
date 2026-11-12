@@ -213,6 +213,14 @@ impl Shell {
             capture: Arc::new(ViewPorts(views.clone())),
             picker: Arc::new(ViewPorts(views.clone())),
             rt: self.rt.handle().clone(),
+            quit: {
+                let shell = Arc::downgrade(self);
+                Arc::new(move || {
+                    if let Some(shell) = shell.upgrade() {
+                        shell.quit();
+                    }
+                })
+            },
         };
 
         // The dashboard may only be the dashboard: any other place opens in the system
@@ -331,6 +339,7 @@ impl Shell {
                 appkit::activate_app();
             }
         });
+        self.hooks.window_shown();
     }
 
     fn quit(&self) {

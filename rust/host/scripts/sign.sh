@@ -24,5 +24,8 @@ for helper in "$APP"/Contents/Frameworks/*.app; do sign --options runtime --enti
 # sealed. A plain program (no JIT, no Chromium): hardened runtime without entitlements.
 ESBUILD="$APP/Contents/Resources/esbuild"
 [ ! -f "$ESBUILD" ] || sign --options runtime "$ESBUILD"
+# The update applier is a program of its own beside the main executable: signed by itself
+# (it runs from a copy outside the bundle), with no entitlement.
+[ -f "$APP/Contents/MacOS/eos-apply" ] && sign --options runtime "$APP/Contents/MacOS/eos-apply"
 sign --options runtime --entitlements "$ENT" "$APP"
 codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"

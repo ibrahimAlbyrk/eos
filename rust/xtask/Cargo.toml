@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Repo checks and generators: crate dependency direction, contract export."
+description = "Repo checks and generators: crate dependency direction, contract export, the update feed's release builder."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,8 +10,17 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 eos-contracts.workspace = true
+eos-core.workspace = true
+eos-domain.workspace = true
+eos-update.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
+zstd.workspace = true
+
+[dev-dependencies]
+eos-testkit.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 
 [lints]
 workspace = true

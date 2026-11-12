@@ -46,6 +46,18 @@ pub fn kill_process_tree(pid: u32) -> Result<(), Error> {
     }
 }
 
+/// The id of the user this process runs as; `None` where users have no numeric id.
+pub fn user_id() -> Option<u32> {
+    #[cfg(unix)]
+    {
+        Some(rustix::process::getuid().as_raw())
+    }
+    #[cfg(not(unix))]
+    {
+        None
+    }
+}
+
 /// A process with that id exists (it may be a zombie nobody has reaped).
 pub fn process_alive(pid: u32) -> bool {
     #[cfg(unix)]

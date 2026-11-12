@@ -63,6 +63,10 @@ impl AppUpdatePlatform for MacAppUpdates {
         (named(macos, "MacOS") && named(contents, "Contents") && is_app).then(|| app.to_owned())
     }
 
+    fn resources_dir(&self, bundle_root: &Path) -> PathBuf {
+        bundle_root.join("Contents/Resources")
+    }
+
     fn file_modes(&self) -> bool {
         true
     }
@@ -116,6 +120,10 @@ mod tests {
         assert_eq!(updates.bundle_root(Path::new("/Applications/Eos.app/Contents/Helpers/eos")), None);
         assert_eq!(updates.bundle_root(Path::new("/Applications/Eos/Contents/MacOS/Eos")), None);
         assert_eq!(updates.feed_platform(), "darwin-arm64");
+        assert_eq!(
+            updates.resources_dir(Path::new("/Applications/Eos.app")),
+            PathBuf::from("/Applications/Eos.app/Contents/Resources")
+        );
         assert!(updates.file_modes());
     }
 

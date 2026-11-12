@@ -1,0 +1,20 @@
+[package]
+name = "eos-apply"
+description = "The in-app update applier: swaps the staged app in while Eos is closed, and puts the old one back unless the new one reports in."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "eos-apply"
+path = "src/main.rs"
+
+# Nothing else: this runs while the app is closed and must stay small. No
+# Tauri, no CEF, no crate of the app.
+[dependencies]
+serde_json.workspace = true
+
+[lints]
+workspace = true
