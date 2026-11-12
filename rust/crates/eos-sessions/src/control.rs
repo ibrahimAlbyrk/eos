@@ -199,6 +199,27 @@ impl Sessions {
         parked
     }
 
+    /// Closes every live session whose conversation can be continued and
+    /// parks its worker (the app is quitting). Returns how many.
+    pub async fn suspend_all(&self, reason: &str) -> usize {
+        if self.descriptor().capabilities.resumable != Some(true) {
+            return 0;
+        }
+        let Ok(rows) = self.store().read(|tx| tx.workers().list_all()).await else { return 0 };
+        let mut parked = 0;
+        for row in rows {
+            let live = matches!(row.state, WorkerState::Spawning | WorkerState::Working | WorkerState::Idle);
+            if !live || row.session_id.as_deref().is_none_or(str::is_empty) {
+                continue;
+            }
+            match self.suspend(&row.id, reason).await {
+                Ok(()) => parked += 1,
+                Err(e) => tracing::warn!(worker_id = %row.id, error = %e, "a chat could not be parked"),
+            }
+        }
+        parked
+    }
+
     /// Removes a worker for good, the workers it spawned first: sessions
     /// stopped, rows and everything on them deleted, worktrees queued for
     /// removal, recorded conversations deleted.

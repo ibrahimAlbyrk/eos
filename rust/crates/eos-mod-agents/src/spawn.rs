@@ -3,7 +3,6 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use eos_contracts::stream::topics::LOOP_CHANGE;
 use eos_contracts::{
     DEFAULT_WORKER_DEFINITION, FOCUSED_ROLE, NameSource, PermissionMode, SettingValue, SpawnOrchestratorRequest,
     SpawnOrchestratorRequestMode, SpawnWorkerRequest, SpawnWorkerResponseIsolation, UserSettings, WorkerIsolation,
@@ -19,7 +18,6 @@ use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_sessions::SpawnRequest;
-use eos_sessions::loops::{AttachLoop, attach_loop};
 use eos_workers::resolve::{
     apply_defaults, is_restrictive, materialize_tool_scope, resolve_combined_model, resolve_definition_name, tool_scope,
 };
@@ -217,7 +215,7 @@ impl AgentsModule {
 
     /// Starts a worker from a request (`manager/commands/handlers/spawn-worker.ts`):
     /// its definition's defaults and tool scope, where it works, the mode it
-    /// inherits, the loop armed on it. The route and an agent's `spawn_worker`
+    /// inherits. The route and an agent's `spawn_worker`
     /// tool both start workers here.
     pub async fn spawn_worker(&self, body: SpawnWorkerRequest) -> Result<SpawnedWorker, Error> {
         let m = self;
@@ -240,6 +238,10 @@ impl AgentsModule {
             if !parent.is_orchestrator {
                 return Err(Error::PermissionDenied(format!("worker {parent_id} is not an orchestrator")));
             }
+            // Nothing checks a loop's goal yet: an armed loop would hold its worker's report for
+            // ever. Refused until the goal checks run (`eos_sessions::loops::attach_loop` arms
+            // one), so the orchestrator can spawn without it.
+            return Err(Error::Rule("a dynamic loop cannot run yet — spawn the worker without `loop`".into()));
         }
         if let Some(target) = &body.workspace_of
             && m.worker(target).await?.is_some_and(|w| w.is_archived())
@@ -343,27 +345,6 @@ impl AgentsModule {
         };
         let spawned = m.sessions.spawn(request).await?;
 
-        // The loop is on record before the worker's first turn ends: its first idle edge ticks it.
-        if let (Some(armed), Some(parent_id)) = (body.r#loop, body.parent_id) {
-            let attach = AttachLoop {
-                caller_id: parent_id,
-                target: Some(spawned.id.clone()),
-                goal: armed.goal,
-                strategy: armed
-                    .strategy
-                    .or_else(|| serde_json::from_value(serde_json::Value::String(config.r#loop.strategy.clone())).ok()),
-                // No limit named takes the configured one; an explicit one, "none" included, wins.
-                limit: armed.limit.unwrap_or(config.r#loop.max_attempts),
-            };
-            let (ids, now, id) = (m.ids.clone(), m.sessions.clock().now_ms(), spawned.id.clone());
-            m.store
-                .write(move |tx, out| {
-                    attach_loop(tx, ids.as_ref(), now, &attach)?;
-                    out.push(LOOP_CHANGE, &json!({"workerId": id, "status": "active"}));
-                    Ok(())
-                })
-                .await?;
-        }
         Ok(SpawnedWorker { id: spawned.id, boot_msg_id: spawned.boot_msg_id, isolation })
     }
 }

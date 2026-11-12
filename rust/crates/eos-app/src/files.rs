@@ -2,6 +2,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use eos_core::git::GitWatcher;
 use eos_git::Git;
 use eos_kit_proc::{ProcessTrees, Runner};
 use eos_mod_fs::{CandidateCache, FsModule, Ports, fs_change_sink, git_change_sink};
@@ -31,16 +32,21 @@ pub(crate) fn git(clock: &Arc<dyn eos_core::Clock>) -> Git {
     Git::new(Runner::new(trees), clock.clone())
 }
 
+/// What watches repositories for git changes: one for the app, shared by the
+/// git panels and by the watch on the active workers' folders.
+pub(crate) fn git_watcher(clock: &Arc<dyn eos_core::Clock>, bus: &eos_runtime::bus::Bus) -> Arc<dyn GitWatcher> {
+    let git = Arc::new(git(clock));
+    let resolve: ResolveGitDirs = Arc::new(move |dir| {
+        let git = git.clone();
+        Box::pin(async move { eos_core::git::GitInfo::git_dirs(git.as_ref(), &dir).await })
+    });
+    let recursive = eos_platform::host().native_recursive_watch();
+    Arc::new(RepoWatcher::new(resolve, clock.clone(), git_change_sink(bus.clone()), recursive))
+}
+
 pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     let host = eos_platform::host();
     let git = Arc::new(git(&cx.clock));
-    let resolve: ResolveGitDirs = {
-        let git = git.clone();
-        Arc::new(move |dir| {
-            let git = git.clone();
-            Box::pin(async move { eos_core::git::GitInfo::git_dirs(git.as_ref(), &dir).await })
-        })
-    };
     let candidates = Arc::new(CandidateCache::new(git.clone(), cx.clock.clone()));
     let bus = &cx.kernel.bus;
     let module = FsModule::new(
@@ -56,12 +62,7 @@ pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
             tree: git.clone(),
             branches: git.clone(),
             remotes: git.clone(),
-            git_watcher: Arc::new(RepoWatcher::new(
-                resolve,
-                cx.clock.clone(),
-                git_change_sink(bus.clone()),
-                host.native_recursive_watch(),
-            )),
+            git_watcher: cx.git_watcher.clone(),
             candidates: candidates.clone(),
             symbols: Some(Arc::new(eos_symbols::TagIndex::new(candidates.clone()))),
             pdfjs_root: cx.pdfjs_root.clone(),

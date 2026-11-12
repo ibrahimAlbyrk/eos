@@ -28,7 +28,7 @@ eos-platform.workspace = true
 eos-store-files.workspace = true
 eos-testkit.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 [lints]
 workspace = true

@@ -212,6 +212,16 @@ impl Sessions {
         self.session(worker_id).is_some()
     }
 
+    /// How many subagents and workflow agents of the worker's own session are running.
+    pub fn live_subagents(&self, worker_id: &str) -> usize {
+        self.session(worker_id).map_or(0, |session| session.live_subagents())
+    }
+
+    /// A feature holds the worker (it is being summarized): messages to it wait.
+    pub fn is_held(&self, worker_id: &str) -> bool {
+        self.0.deps.hooks.holds_worker(worker_id)
+    }
+
     /// How many workers have something remembered about their current turn.
     pub fn tracked_turns(&self) -> usize {
         self.0.turns.len()

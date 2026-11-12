@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_core::agent::{AgentRuntime, ScratchFolders};
 use eos_core::store::{EventOrder, EventQuery, Store};
-use eos_mod_agents::{AgentsModule, Spawning};
+use eos_mod_agents::{AgentsModule, Spawning, Watch};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::access::Caller;
@@ -17,7 +17,7 @@ use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
     FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings, FakeSleeper,
-    FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
+    FakeWatcher, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::{Value, json};
@@ -29,6 +29,7 @@ struct Bench {
     settings: Arc<FakeSettings>,
     scratch: Arc<FakeScratch>,
     worktrees: Arc<FakeWorktrees>,
+    watcher: Arc<FakeWatcher>,
 }
 
 impl Bench {
@@ -65,10 +66,17 @@ impl Bench {
         });
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock));
-        let module = Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning));
-        let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
-            .expect("composes");
-        Self { runtime, agents, temp, settings, scratch, worktrees }
+        let kernel = Kernel::new(KernelOptions::default());
+        let watcher = Arc::new(FakeWatcher::default());
+        let watch = Watch {
+            bus: kernel.bus.clone(),
+            jobs: kernel.jobs.clone(),
+            git_watcher: watcher.clone(),
+            models: Arc::new(FakeModelCatalog::default()),
+        };
+        let module = Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning).watching(watch));
+        let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
+        Self { runtime, agents, temp, settings, scratch, worktrees, watcher }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -307,7 +315,7 @@ async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_req
         unknown.1
     );
 
-    // A loop armed at spawn is on record before the first turn ends.
+    // A loop is armed by an orchestrator, on a worker of its own.
     let unparented = spawn(json!({"prompt": "go", "cwd": "/repo", "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}}})).await;
     assert_eq!(unparented.0, 400);
     let not_orchestrator = spawn(json!({
@@ -315,16 +323,14 @@ async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_req
     }))
     .await;
     assert_eq!(not_orchestrator.0, 403, "{}", not_orchestrator.1);
-    let before = bench.temp.announced.topics().len();
+    // Nothing checks a loop's goal yet, so a loop is refused rather than armed and never run.
     let looped = spawn(json!({
-        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH", "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass"}]}},
+        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH",
+        "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass"}]}},
     }))
     .await;
-    assert_eq!(looped.0, 201, "{}", looped.1);
-    let (store, id): (Arc<dyn Store>, String) = (bench.temp.port(), looped.1["id"].as_str().expect("an id").into());
-    let armed = store.read(move |tx| tx.loops().find_active_by_worker(&id)).await.expect("reads").expect("a loop");
-    assert_eq!((armed.parent_id.as_deref(), armed.max_attempts), (Some("o-ORCH"), Some(7)));
-    assert!(bench.temp.announced.topics()[before..].contains(&"loop:change"));
+    assert_eq!(looped.0, 400, "{}", looped.1);
+    assert!(looped.1["error"].as_str().is_some_and(|e| e.starts_with("a dynamic loop cannot run yet")), "{}", looped.1);
 
     let other_lane = spawn(json!({"prompt": "go", "cwd": "/repo", "backendKind": "codex-cli"})).await;
     assert_eq!(other_lane, (400, json!({"error": "backend \"codex-cli\" is not enabled"})));
@@ -407,4 +413,83 @@ async fn a_chat_is_archived_restored_purged_nudged_and_reported_to() {
     assert_eq!(bench.post("/workers/w-BARE/events", session).await, (200, json!({"ok": true})));
     assert_eq!(bench.row("w-BARE").await.session_id.as_deref(), Some("s-1"));
     assert_eq!(bench.kinds("w-BARE").await.last().map(String::as_str), Some("lifecycle"));
+    // Quitting parks every live chat: nothing goes on by itself afterwards.
+    bench.runtime.lifecycle.start().await.expect("starts");
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("IDLE"));
+    bench.runtime.shutdown(std::time::Duration::from_secs(20)).await;
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SUSPENDED"));
+    assert_eq!(bench.agents.live(), 0);
+}
+
+/// Waits, on the paused clock, until `done` holds: the bus hands events over on a
+/// thread of its own, so a little real time passes too.
+async fn eventually(done: impl Fn() -> bool) {
+    for _ in 0..2000 {
+        if done() {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+}
+
+// manager/services/__tests__/idle-suspend.test.ts, turn-end-notify.test.ts, ReportGapService.test.ts,
+// ContextThresholdService.test.ts, GitWatchReconciler.test.ts
+#[tokio::test(start_paused = true)]
+async fn what_happens_around_agents_without_anybody_asking() {
+    use std::time::Duration;
+
+    let bench = Bench::new(TempStore::seeded("/"));
+    bench.runtime.lifecycle.start().await.expect("starts");
+    // The bench's store announces to a list, so the test tells the bus what the store would.
+    let announce = |topic: &'static str, payload: Value| {
+        bench.runtime.kernel.bus.publish_raw(topic, None, payload.to_string().into());
+    };
+
+    // A top-level chat ends a turn: a banner with its last answer, and its folder is watched.
+    bench.agents.script(Turn::reply("All   done\nhere."));
+    assert_eq!(bench.post("/workers/w-CHAT/message", json!({"text": "finish it"})).await.0, 200);
+    bench.agents.settled().await;
+    let before = bench.temp.announced.list().len();
+    announce("worker:change", json!({"workerId": "w-CHAT", "from": "WORKING", "state": "IDLE"}));
+    let banners = || -> Vec<String> {
+        let all = bench.temp.announced.list();
+        all[before..].iter().filter(|(topic, _)| *topic == "notification:fire").map(|(_, p)| p.clone()).collect()
+    };
+    let watches_chat = || bench.watcher.watched().iter().any(|dir| dir.ends_with("alpha"));
+    eventually(|| !banners().is_empty() && watches_chat()).await;
+    let banners = banners();
+    assert_eq!(banners.len(), 1, "{banners:?}");
+    let banner: Value = serde_json::from_str(&banners[0]).expect("a banner");
+    assert_eq!((banner["title"].as_str(), banner["body"].as_str()), (Some("Fix the parser"), Some("All done here.")));
+    assert!(watches_chat(), "the folder of an active worker is watched: {:?}", bench.watcher.watched());
+
+    // Left idle long enough, its session is closed; the next message continues it.
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("IDLE"), "not before its time");
+    tokio::time::sleep(Duration::from_secs(16 * 60)).await;
+    eventually(|| bench.agents.live() == 0).await;
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SUSPENDED"));
+    announce("worker:change", json!({"workerId": "w-CHAT", "from": "IDLE", "state": "SUSPENDED"}));
+    eventually(|| !watches_chat()).await;
+    assert!(!watches_chat(), "no active worker there any more: {:?}", bench.watcher.watched());
+
+    // A worker that goes idle without reporting is reminded once.
+    bench.agents.script(Turn::reply("looked around"));
+    let spawned = bench.post("/workers", json!({"prompt": "look", "cwd": "/", "parentId": "o-ORCH"})).await;
+    let id = spawned.1["id"].as_str().expect("an id").to_owned();
+    bench.agents.settled().await;
+    bench.temp.exec(&format!("UPDATE workers SET agent_role = 'worker' WHERE id = '{id}'"));
+    bench.agents.script(Turn::reply("result: nothing found"));
+    bench.runtime.idle.run(&id).await;
+    bench.agents.settled().await;
+    let sent = bench.agents.sent(&id);
+    assert_eq!(sent.len(), 1, "{sent:?}");
+    bench.runtime.idle.run(&id).await;
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.sent(&id).len(), 1, "reminded once");
+
+    // A context that is full parks the worker; the mark keeps it to once per crossing.
+    bench.temp.exec(&format!("UPDATE workers SET last_context_tokens = 960000, model = 'opus' WHERE id = '{id}'"));
+    bench.runtime.idle.run(&id).await;
+    assert_eq!(bench.state(&id).await.as_deref(), Some("SUSPENDED"));
 }

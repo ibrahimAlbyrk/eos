@@ -431,6 +431,7 @@ impl App {
             worker_definitions,
             scratch,
             sweep_leftovers,
+            git_watcher: crate::files::git_watcher(&clock, &kernel.bus),
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
             remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {
                 config: config.clone(),

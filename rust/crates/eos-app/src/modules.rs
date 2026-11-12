@@ -71,6 +71,7 @@ pub(crate) struct Context {
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
+    pub(crate) git_watcher: Arc<dyn eos_core::git::GitWatcher>,
     /// The app works on the user's own data folder: it may delete on its own.
     pub(crate) sweep_leftovers: bool,
     pub(crate) terminals: Terminal,
@@ -106,7 +107,13 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
                 scratch: cx.scratch.clone(),
             },
         )
-        .sweeping_archives(cx.sweep_leftovers),
+        .sweeping_archives(cx.sweep_leftovers)
+        .watching(eos_mod_agents::Watch {
+            bus: cx.bus.clone(),
+            jobs: cx.kernel.jobs.clone(),
+            git_watcher: cx.git_watcher.clone(),
+            models: cx.models.clone(),
+        }),
     );
     let pages = Arc::new(eos_mod_pages::PagesModule::new(
         cx.notes.pages.clone(),
