@@ -24,8 +24,10 @@ pub mod migrate;
 pub mod panel;
 pub mod power;
 pub mod range;
+pub mod recovery;
 pub mod router;
 pub mod script;
+pub mod splash;
 #[cfg(test)]
 mod testdir;
 pub mod token;

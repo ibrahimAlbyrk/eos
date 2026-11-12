@@ -2,17 +2,18 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once, OnceLock};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use eos_bridge::artifacts::ArtifactViews;
 use eos_bridge::artifacts::stills::StillStore;
 use eos_bridge::artifacts::urls::Viewer;
 use eos_bridge::chromium::{self, Tuning};
-use eos_bridge::hosts::{HostParts, HostViews};
+use eos_bridge::hosts::{HostParts, HostViews, MachineItem, machine_items};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
 use eos_bridge::panel::Panel;
 use eos_bridge::power::WakeDetector;
+use eos_bridge::recovery::{AfterCrash, Recovery};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::{Bridge, EditCommand, Parts, Service, migrate};
 use serde_json::{Value, json};
@@ -24,9 +25,24 @@ use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::{appkit, notify};
+use crate::splash::Splash;
 use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
 use crate::{Hooks, Options, Ports, menu, scheme, window};
+
+/// Chromium's names for why a renderer ended, as the Electron shell reported them.
+fn reason_name(reason: &tauri::webview::WebContentProcessTerminationReason) -> &'static str {
+    use tauri::webview::WebContentProcessTerminationReason as Reason;
+    match reason {
+        Reason::Killed => "killed",
+        Reason::OutOfMemory => "oom",
+        Reason::LaunchFailed => "launch-failed",
+        Reason::IntegrityFailure => "integrity-failure",
+        Reason::Abnormal => "abnormal-exit",
+        Reason::Normal => "clean-exit",
+        _ => "crashed",
+    }
+}
 
 fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
@@ -84,6 +100,9 @@ struct Shell {
     bridge: OnceLock<Arc<Bridge>>,
     keeper: OnceLock<StateKeeper>,
     quitting: AtomicBool,
+    splash: Splash,
+    /// Which views were reloaded after their renderer died, lately.
+    recovery: std::sync::Mutex<Recovery>,
     shut_down: Once,
     /// A link that arrived before the bridge existed (the link that launched the app).
     early_link: std::sync::Mutex<Option<String>>,
@@ -161,12 +180,15 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         bridge: OnceLock::new(),
         keeper: OnceLock::new(),
         quitting: AtomicBool::new(false),
+        recovery: std::sync::Mutex::default(),
+        splash: Splash::default(),
         shut_down: Once::new(),
         early_link: std::sync::Mutex::new(None),
     });
 
     let for_setup = shell.clone();
     let for_menu = shell.clone();
+    let for_crash = shell.clone();
     let built = tauri::Builder::default()
         .runtime(cef)
         .on_menu_event(move |_app, event| {
@@ -177,6 +199,9 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         .setup(move |app| {
             for_setup.setup(app.handle())?;
             Ok(())
+        })
+        .on_web_content_process_terminate(move |webview, termination| {
+            for_crash.renderer_gone(webview, reason_name(&termination.reason));
         })
         .build(tauri::generate_context!());
     let app = match built {
@@ -208,7 +233,7 @@ impl Shell {
         }
         let theme = Bridge::persisted_theme(&options.data_dir);
         let (window, state) = window::create(app, &options.data_dir, theme, options.quiet)?;
-        let _ = app.set_menu(menu::build(app, &options.name, &options.version)?);
+        let _ = app.set_menu(menu::build(app, &options.name, &options.version, &[])?);
         let _ = self.app.set(app.clone());
         let _ = self.window.set(window.clone());
         let _ = self.keeper.set(StateKeeper::new(&options.data_dir, state.fullscreen));
@@ -231,6 +256,21 @@ impl Shell {
                 Arc::new(move || {
                     if let Some(shell) = shell.upgrade() {
                         shell.quit();
+                    }
+                })
+            },
+            splash: {
+                let shell = Arc::downgrade(self);
+                Arc::new(move |caption| {
+                    let Some(shell) = shell.upgrade() else { return };
+                    match caption {
+                        Some(caption) => {
+                            let (Some(app), dist) = (shell.app.get(), &shell.options.ui_dist) else { return };
+                            if let Err(e) = shell.splash.show(app, dist, &caption) {
+                                log("shell", &format!("the update splash could not open: {e}"));
+                            }
+                        }
+                        None => shell.splash.close(),
                     }
                 })
             },
@@ -333,7 +373,7 @@ impl Shell {
     /// The machine switcher and a view per paired computer. While one covers the dashboard
     /// the artifact views stay hidden.
     fn start_hosts(
-        &self,
+        self: &Arc<Self>,
         views: &Arc<Views>,
         bridge: &Arc<Bridge>,
         core: Arc<dyn eos_bridge::Core>,
@@ -353,10 +393,24 @@ impl Shell {
                     bridge.events().emit(name, payload);
                 }
             }),
-            covered: Arc::new(move |covered| {
-                let artifacts = artifacts.clone();
-                rt.spawn(async move { artifacts.set_covered(covered).await });
-            }),
+            changed: {
+                let shell = Arc::downgrade(self);
+                let shown: std::sync::Mutex<Vec<MachineItem>> = std::sync::Mutex::default();
+                Arc::new(move |snapshot| {
+                    let (artifacts, covered) = (artifacts.clone(), !snapshot["active"].is_null());
+                    rt.spawn(async move { artifacts.set_covered(covered).await });
+                    // Link-state ticks change nothing the menu shows: it is rebuilt only when
+                    // the computers or the active one change.
+                    let items = machine_items(snapshot);
+                    let mut was = shown.lock().unwrap_or_else(|p| p.into_inner());
+                    if *was != items
+                        && let Some(shell) = shell.upgrade()
+                    {
+                        shell.rebuild_menu(items.clone());
+                        *was = items;
+                    }
+                })
+            },
             rt: self.rt.handle().clone(),
         });
         bridge.set_hosts(hosts.clone());
@@ -479,6 +533,12 @@ impl Shell {
                 }
                 _ => {}
             },
+            // A window of its own showing a paired computer closed: its door goes.
+            RunEvent::WindowEvent { label, event: WindowEvent::Destroyed, .. } => {
+                if let Some(hosts) = self.bridge.get().and_then(|b| b.hosts()) {
+                    hosts.window_closed(&label);
+                }
+            }
             // A click on the Dock icon.
             RunEvent::Reopen { .. } => self.show_window(),
             RunEvent::Opened { urls } => {
@@ -489,6 +549,41 @@ impl Shell {
             RunEvent::ExitRequested { .. } => self.quitting.store(true, Ordering::SeqCst),
             RunEvent::Exit => self.shut_down(),
             _ => {}
+        }
+    }
+
+    /// The app menu again, with these computers in the Machines menu.
+    fn rebuild_menu(&self, machines: Vec<MachineItem>) {
+        let Some(app) = self.app.get().cloned() else { return };
+        let (name, version) = (self.options.name.clone(), self.options.version.clone());
+        self.on_main(move || match menu::build(&app, &name, &version, &machines) {
+            Ok(built) => drop(app.set_menu(built)),
+            Err(e) => log("shell", &format!("the menu was not rebuilt: {e}")),
+        });
+    }
+
+    /// A view's renderer died: the page is reloaded once, or told, as `eos_bridge::recovery`
+    /// decides.
+    fn renderer_gone(&self, webview: &tauri::Webview, reason: &str) {
+        if self.quitting.load(Ordering::SeqCst) || reason == "clean-exit" {
+            return;
+        }
+        let label = webview.label().to_owned();
+        let decision = self.recovery.lock().unwrap_or_else(|p| p.into_inner()).after_crash(&label, Instant::now());
+        match decision {
+            AfterCrash::Reload => {
+                log("shell", &format!("a renderer stopped ({reason}): {label} is reloaded"));
+                let _ = webview.reload();
+            }
+            AfterCrash::LeaveDead => {
+                log("shell", &format!("a renderer stopped again ({reason}): {label} is left as it is"));
+            }
+            AfterCrash::TellArtifacts => {
+                if let Some(artifacts) = self.artifacts.get() {
+                    artifacts.crashed(&label, reason);
+                }
+            }
+            AfterCrash::Nothing => {}
         }
     }
 
@@ -513,7 +608,15 @@ impl Shell {
             }
             Command::ConnectMachine => {
                 self.show_window();
+                if let Some(hosts) = bridge.hosts().cloned() {
+                    self.rt.spawn(async move { hosts.switch_to(None).await });
+                }
                 bridge.hosts_command("connect", None);
+            }
+            Command::Machine(id) => {
+                if let Some(hosts) = bridge.hosts().cloned() {
+                    self.rt.spawn(async move { hosts.switch_to(id).await });
+                }
             }
             Command::Edit(command) => self.edit(views, bridge, command),
         }
@@ -577,6 +680,7 @@ impl Shell {
             "views": self.views.get().map(|v| v.status()),
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),
+            "splash": self.splash.shown(),
         })
     }
 

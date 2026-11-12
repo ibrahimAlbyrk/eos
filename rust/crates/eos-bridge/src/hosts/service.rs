@@ -5,14 +5,16 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
+use base64::Engine;
 use serde_json::{Value, json};
 
 use super::Inner;
 use crate::ask::{MAX_ANSWER, collect};
 use crate::assets::{Assets, Response, inject_script};
+use crate::bridge::save_download;
 use crate::core::{Core, Plane};
 use crate::events::Events;
-use crate::host::ShellHost;
+use crate::host::{ShellHost, Theme};
 use crate::script;
 use crate::token::{self, TOKEN_HEADER};
 use crate::transport::{Req, Service, Sink, channel};
@@ -266,6 +268,33 @@ impl HostViewService {
             "window/toggleZoom" => {
                 let shell = self.shell.clone();
                 let _ = tokio::task::spawn_blocking(move || shell.toggle_window_zoom()).await;
+                Value::Null
+            }
+            // The window paints its background with the theme the page switched to; it is not
+            // kept (this computer's dashboard keeps its own).
+            "theme/changed" => {
+                let (shell, theme) =
+                    (self.shell.clone(), Theme::parse(body.get("theme").and_then(Value::as_str).unwrap_or("")));
+                let _ = tokio::task::spawn_blocking(move || shell.set_theme(theme)).await;
+                Value::Null
+            }
+            // No still of a host's view: the page switches its theme without the crossfade.
+            "theme/snapshot" => Value::Null,
+            // A download lands in this computer's Downloads: only from this computer's own
+            // dashboard, never from a host-served bundle.
+            "files/save" => {
+                if !self.trusted() {
+                    return Some(Err((
+                        "Saving needs the same Eos version on both Macs.".to_owned(),
+                        Some("needs-update".to_owned()),
+                    )));
+                }
+                let text = |key: &str| body.get(key).and_then(Value::as_str).unwrap_or("").to_owned();
+                let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(text("base64")) else {
+                    return Some(Err(("bad base64".to_owned(), None)));
+                };
+                let (shell, name) = (self.shell.clone(), text("filename"));
+                let _ = tokio::task::spawn_blocking(move || save_download(shell.as_ref(), &name, &bytes)).await;
                 Value::Null
             }
             transfer if transfer.starts_with("transfer/") => {

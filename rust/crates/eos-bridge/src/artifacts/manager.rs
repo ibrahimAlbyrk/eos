@@ -33,6 +33,9 @@ const STILL_SETTLE: Duration = Duration::from_millis(1500);
 const TRIM_EVERY: Duration = Duration::from_secs(60);
 /// Commands waiting for the task; a full queue makes the dashboard's calls wait.
 const QUEUE: usize = 256;
+/// How long the email of a signed-in profile is kept, and how long a failed lookup is.
+const EMAIL_KEPT: Duration = Duration::from_secs(10 * 60);
+const EMAIL_RETRY: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq)]
 struct TabPlace {
@@ -75,8 +78,12 @@ struct Entry {
     loaded_version: Option<String>,
     /// The load whose document reached its DOM.
     dom_seq: Option<u64>,
+    /// This load's still is not taken yet: a hidden page keeps running until it is.
+    capturing: bool,
     /// This load was a reload: its still is taken again.
     recapture: bool,
+    /// The surface was told to throttle the page.
+    throttled: bool,
     still_due: bool,
     /// A reload of a ready view loads off screen in `next`, which takes its place once ready.
     next: Option<ViewKey>,
@@ -121,6 +128,17 @@ pub struct ArtifactViews {
     tx: mpsc::Sender<Command>,
     surface: Arc<dyn ArtifactSurface>,
     stills: StillStore,
+    emails: Arc<std::sync::Mutex<Emails>>,
+}
+
+/// The email each profile is signed in as (`None`: the site did not say), and when it was
+/// read: one entry per sign-in.
+type Emails = HashMap<String, (Option<String>, Instant)>;
+
+/// The account's email in the site's account document (`email_address`, else `email`).
+fn email_of(account: &Value) -> Option<String> {
+    let email = account.get("email_address").or_else(|| account.get("email"))?.as_str()?;
+    email.contains('@').then(|| email.to_owned())
 }
 
 impl std::fmt::Debug for ArtifactViews {
@@ -153,7 +171,7 @@ impl ArtifactViews {
             covered: false,
         };
         rt.spawn(pool.run(rx));
-        Self { tx, surface, stills }
+        Self { tx, surface, stills, emails: Arc::default() }
     }
 
     async fn send(&self, command: Command) {
@@ -214,9 +232,34 @@ impl ArtifactViews {
             .flatten()
     }
 
-    /// Whether the sign-in's profile holds a claude.ai sign-in.
+    /// Whether the sign-in's profile holds a claude.ai sign-in, and as whom when the site
+    /// says: `{signedIn, email?}`.
     pub async fn account(&self, login_id: Option<String>) -> Value {
-        json!({ "signedIn": self.surface.signed_in(&profile_for(login_id.as_deref())).await })
+        let profile = profile_for(login_id.as_deref());
+        if !self.surface.signed_in(&profile).await {
+            return json!({ "signedIn": false });
+        }
+        match self.email(&profile).await {
+            Some(email) => json!({ "signedIn": true, "email": email }),
+            None => json!({ "signedIn": true }),
+        }
+    }
+
+    async fn email(&self, profile: &str) -> Option<String> {
+        let now = Instant::now();
+        let kept = self.emails.lock().unwrap_or_else(|p| p.into_inner()).get(profile).cloned();
+        if let Some((email, at)) = kept
+            && now.saturating_duration_since(at) < if email.is_some() { EMAIL_KEPT } else { EMAIL_RETRY }
+        {
+            return email;
+        }
+        let email = self.surface.account(profile).await.as_ref().and_then(email_of);
+        self.emails.lock().unwrap_or_else(|p| p.into_inner()).insert(profile.to_owned(), (email.clone(), now));
+        email
+    }
+
+    fn forget_email(&self, profile: &str) {
+        self.emails.lock().unwrap_or_else(|p| p.into_inner()).remove(profile);
     }
 
     /// Opens the site's sign-in for the sign-in's profile; views waiting for it load once
@@ -224,14 +267,16 @@ impl ArtifactViews {
     pub async fn sign_in(&self, login_id: Option<String>) -> Value {
         let profile = profile_for(login_id.as_deref());
         if self.surface.sign_in(&profile).await {
+            self.forget_email(&profile);
             self.send(Command::SignedIn(profile.clone())).await;
         }
-        json!({ "signedIn": self.surface.signed_in(&profile).await })
+        self.account(login_id).await
     }
 
     pub async fn sign_out(&self, login_id: Option<String>) {
         let profile = profile_for(login_id.as_deref());
         self.surface.sign_out(&profile).await;
+        self.forget_email(&profile);
         self.send(Command::SignedOut(profile)).await;
     }
 
@@ -507,7 +552,9 @@ impl Pool {
                 seq: 0,
                 loaded_version: None,
                 dom_seq: None,
+                capturing: false,
                 recapture: false,
+                throttled: false,
                 still_due: false,
                 next: None,
                 replaces: None,
@@ -698,6 +745,18 @@ impl Pool {
         if muted_was != Some(muted) {
             self.surface.set_muted(key, muted).await;
         }
+        self.sync_throttle(key).await;
+    }
+
+    /// A page nobody sees is throttled once its still is taken; until then it has to keep
+    /// painting.
+    async fn sync_throttle(&mut self, key: ViewKey) {
+        let Some(e) = self.entries.get_mut(&key) else { return };
+        let throttle = !e.on_screen() && !e.capturing;
+        if throttle != e.throttled {
+            e.throttled = throttle;
+            self.surface.set_throttled(key, throttle).await;
+        }
     }
 
     // ---- loading and state ----------------------------------------------------------
@@ -716,6 +775,7 @@ impl Pool {
     fn load(&mut self, key: ViewKey, recapture: bool) {
         let Some(e) = self.entries.get_mut(&key) else { return };
         e.seq += 1;
+        e.capturing = true;
         e.recapture |= recapture;
         e.still_due = false;
         e.loaded_version = e.artifact.version.clone();
@@ -737,6 +797,7 @@ impl Pool {
             return self.set_state(key, ViewState::Signin, None).await;
         }
         let url = self.viewer.viewer_url(&e.slug);
+        self.sync_throttle(key).await;
         self.set_state(key, ViewState::Loading, None).await;
         self.surface.navigate(key, &url).await;
         self.later(LOAD_TIMEOUT, Command::Timer { key, seq, timer: Timer::LoadTimeout });
@@ -773,6 +834,8 @@ impl Pool {
         e.error = error.clone();
         if state == ViewState::Ready {
             self.prepare_still(key);
+        } else if state != ViewState::Loading {
+            e.capturing = false;
         }
         let Some(e) = self.entries.get(&key) else { return };
         if e.replaces.is_some() {
@@ -863,8 +926,8 @@ impl Pool {
                     (self.emit)("artifacts:action", json!({ "slug": e.slug, "action": "open" }));
                 }
             }
-            SurfaceEvent::Crashed => {
-                self.set_state(key, ViewState::Error, Some("The page stopped".into())).await;
+            SurfaceEvent::Crashed { reason } => {
+                self.set_state(key, ViewState::Error, Some(format!("The page stopped ({reason})"))).await;
             }
         }
     }
@@ -927,10 +990,12 @@ impl Pool {
             }
         }
         self.finish_still(key);
+        self.sync_throttle(key).await;
     }
 
     fn finish_still(&mut self, key: ViewKey) {
         if let Some(e) = self.entries.get_mut(&key) {
+            e.capturing = false;
             e.recapture = false;
             e.still_due = false;
         }

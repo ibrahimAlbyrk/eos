@@ -5,7 +5,6 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -13,6 +12,7 @@ use eos_bridge::Service;
 use eos_bridge::hosts::HostSurface;
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_core::BoxFuture;
+use eos_core::shell::THROWAWAY_PROFILE;
 use tauri::Manager;
 use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
@@ -34,7 +34,6 @@ pub(crate) struct HostShell {
     views: Arc<Views>,
     quiet: bool,
     live: Mutex<HashMap<String, Arc<View>>>,
-    windows: AtomicU64,
 }
 
 /// The app's own origin, or a blank page: nothing else loads in a host's view.
@@ -44,13 +43,7 @@ fn own_page(url: &tauri::Url) -> bool {
 
 impl HostShell {
     pub(crate) fn new(views: Arc<Views>, quiet: bool) -> Arc<Self> {
-        Arc::new_cyclic(|me| HostShell {
-            me: me.clone(),
-            views,
-            quiet,
-            live: Mutex::default(),
-            windows: AtomicU64::new(0),
-        })
+        Arc::new_cyclic(|me| HostShell { me: me.clone(), views, quiet, live: Mutex::default() })
     }
 
     /// For the menu's edit commands: the views of other computers.
@@ -167,13 +160,11 @@ impl HostSurface for HostShell {
         })
     }
 
-    fn open_window(&self, id: &str, title: &str, service: Arc<dyn Service>) -> BoxFuture<'_, ()> {
-        let (id, title) = (id.to_owned(), title.to_owned());
+    fn open_window(&self, id: &str, label: &str, title: &str, service: Arc<dyn Service>) -> BoxFuture<'_, ()> {
+        let (id, label, title) = (id.to_owned(), label.to_owned(), title.to_owned());
         Box::pin(async move {
-            let n = self.windows.fetch_add(1, Ordering::SeqCst);
             let opened = self
                 .blocking(move |shell| {
-                    let label = format!("hostwin-{}-{n}", profile_dir(&id));
                     let window = tauri::window::WindowBuilder::new(&shell.views.app, &label)
                         .title(&title)
                         .inner_size(WINDOW_SIZE.0, WINDOW_SIZE.1)
@@ -181,16 +172,10 @@ impl HostSurface for HostShell {
                         .focused(!shell.quiet)
                         .build()
                         .map_err(|e| e.to_string())?;
-                    // A profile of its own: the window's page and the view in the main window
-                    // each have their own door.
-                    Self::page_blocking(
-                        &window,
-                        &format!("{label}-view"),
-                        &format!("host-{id}-window"),
-                        WINDOW_SIZE,
-                        service,
-                    )
-                    .map(drop)
+                    // A profile of its own, so the window's page has a door of its own; not
+                    // kept, so windows opened over time leave no storage behind.
+                    let profile = format!("{THROWAWAY_PROFILE}{label}-{id}");
+                    Self::page_blocking(&window, &format!("{label}-view"), &profile, WINDOW_SIZE, service).map(drop)
                 })
                 .await;
             if let Some(Err(e)) = opened {

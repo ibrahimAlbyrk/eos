@@ -71,6 +71,10 @@ impl ArtifactSurface for Fake {
         self.record(format!("mute {view} {muted}"));
         done(())
     }
+    fn set_throttled(&self, view: u64, throttled: bool) -> BoxFuture<'_, ()> {
+        self.record(format!("throttle {view} {throttled}"));
+        done(())
+    }
     fn go_back(&self, view: u64) -> BoxFuture<'_, bool> {
         self.record(format!("back {view}"));
         done(self.can_go_back.load(Ordering::SeqCst))
@@ -85,6 +89,10 @@ impl ArtifactSurface for Fake {
     }
     fn signed_in(&self, profile: &str) -> BoxFuture<'_, bool> {
         done(self.signed_in.lock().unwrap().contains(profile))
+    }
+    fn account(&self, profile: &str) -> BoxFuture<'_, Option<Value>> {
+        self.record(format!("account {profile}"));
+        done(Some(json!({ "uuid": "u-1", "email_address": format!("{profile}@example.test") })))
     }
     fn sign_in(&self, profile: &str) -> BoxFuture<'_, bool> {
         self.record(format!("sign-in {profile}"));
@@ -183,8 +191,15 @@ async fn a_warm_view_loads_off_screen_becomes_ready_and_leaves_a_still() {
     // The still is taken once the page settled, then announced again.
     tokio::time::sleep(std::time::Duration::from_millis(1600)).await;
     b.settle().await;
-    assert_eq!(b.surface.take(), ["capture 1"]);
+    // A view nobody sees is throttled once its still is in.
+    assert_eq!(b.surface.take(), ["capture 1", "throttle 1 true"]);
     assert_eq!(b.states(), ["0:ready"]);
+    b.views.attach("t".into(), art(A), at(0.0, 0.0, 300.0, 200.0)).await;
+    b.settle().await;
+    assert_eq!(b.surface.take(), ["show 1 0,0,300,200 r9", "mute 1 false", "throttle 1 false"]);
+    b.views.detach("t".into()).await;
+    b.settle().await;
+    assert_eq!(b.surface.take(), ["hide 1 1280x800", "mute 1 true", "throttle 1 true"]);
     assert!(b.stills.has(A, Some("v1")));
     assert_eq!(b.views.still(art(A)).await.as_deref(), Some("data:image/jpeg;base64,/9hzdGlsbA=="));
     assert_eq!(b.views.still(art(B)).await, None);
@@ -196,12 +211,19 @@ async fn a_profile_without_a_sign_in_asks_for_one_and_loads_once_signed_in() {
     let other = ArtifactRef { login_id: Some("lg-2".into()), ..art(A) };
     b.views.warm(other.clone()).await;
     b.settle().await;
-    assert_eq!(b.surface.take(), ["create 1 claude-lg-2", "mute 1 true"]);
+    // Asking for a sign-in it shows nothing, so it is throttled until it loads.
+    assert_eq!(b.surface.take(), ["create 1 claude-lg-2", "mute 1 true", "throttle 1 true"]);
     assert_eq!(b.states(), ["0:signin"]);
     assert_eq!(b.views.account(Some("lg-2".into())).await, json!({ "signedIn": false }));
-    assert_eq!(b.views.sign_in(Some("lg-2".into())).await, json!({ "signedIn": true }));
+    let signed_in = json!({ "signedIn": true, "email": "claude-lg-2@example.test" });
+    assert_eq!(b.views.sign_in(Some("lg-2".into())).await, signed_in);
     b.settle().await;
-    assert_eq!(b.surface.take(), ["sign-in claude-lg-2", format!("navigate 1 {VIEWER_A}").as_str()]);
+    let calls = b.surface.take();
+    assert_eq!(calls[..2], ["sign-in claude-lg-2", "account claude-lg-2"]);
+    assert!(calls.ends_with(&["throttle 1 false".to_owned(), format!("navigate 1 {VIEWER_A}")]), "{calls:?}");
+    // The email is kept: asked again, the site is not.
+    assert_eq!(b.views.account(Some("lg-2".into())).await, signed_in);
+    assert!(b.surface.take().is_empty());
     assert_eq!(b.states(), ["0:loading"]);
     b.ready(1).await;
     b.views.sign_out(Some("lg-2".into())).await;
@@ -391,4 +413,24 @@ async fn views_stay_hidden_while_another_computer_covers_the_dashboard() {
         b.views.status().await["views"][0],
         json!({ "state": "ready", "place": "tab", "shown": true, "replacing": false })
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_view_whose_renderer_died_says_why_and_reloads_on_retry() {
+    let b = bench();
+    b.views.attach("t".into(), art(A), at(0.0, 0.0, 600.0, 400.0)).await;
+    b.settle().await;
+    b.ready(1).await;
+    b.states();
+    b.surface.take();
+    b.views.surface_event(1, SurfaceEvent::Crashed { reason: "oom".into() });
+    b.settle().await;
+    let said = b.events.lock().unwrap().last().cloned().unwrap();
+    assert_eq!(said.1["error"], "The page stopped (oom)");
+    assert_eq!(b.states(), ["0:error"]);
+    assert_eq!(b.surface.take(), ["hide 1 600x400", "mute 1 true", "throttle 1 true"]);
+    // The dashboard's Retry is a reload: an errored view loads again in place.
+    b.views.reload(A.into()).await;
+    b.settle().await;
+    assert_eq!(b.surface.take(), ["throttle 1 false".to_owned(), format!("navigate 1 {VIEWER_A}")]);
 }

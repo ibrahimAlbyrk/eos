@@ -171,7 +171,9 @@ stream. Members of the Electron preload and of main's calls into the page:
 | `eosWindow` (5) | not applicable: Windows only | |
 
 66 members work; `eosWindow` is the Windows shell's. A host's view gets `__EOS_HOST`,
-`eosHosts`, `eosTransfer`, the window drag and the theme handlers, and none of the rest.
+`eosHosts`, `eosTransfer`, the window drag, the theme report (the window's background; no
+crossfade still) and, when it runs this computer's own dashboard, saving a file into
+Downloads; none of the rest.
 
 Not bridges, done in the shell: single instance (a later launch hands over; `Eos --status`,
 `Eos --quit`), close hides and the Dock reopens, quit runs the app's shutdown hook, the app
@@ -194,7 +196,10 @@ profile per Claude sign-in (`view-claude-<login>`), one live view moving between
 peek and a tab with no reload, a reload behind a ready view that swaps once ready, a pool
 of 4 (least recently used, idle 5 min), stills per `slug@version` under
 `artifact-stills/` (newest 300), only the viewer's paths stay in a view (anything else:
-the system browser, or "needs sign-in"). The peek's half zoom and its shield are a script
+the system browser, or "needs sign-in"). A view nobody sees is frozen (the page lifecycle's
+freeze) once its still is taken, and runs again when placed or reloaded. `account()` reads
+the site's account document with the profile's cookies from the browser process (Electron's
+`session.fetch`), kept 10 minutes (a failed read: one). The peek's half zoom and its shield are a script
 in an isolated world: a closed shadow root, a binding only that world can call, trusted
 clicks only. Sign-in is the site's own page in a window of its own in that profile; it
 ends when a `sessionKey` cookie is there and the page has left the sign-in pages. The
@@ -209,9 +214,19 @@ dashboard when the host speaks the same API, else the host's bundle from `/h/<id
 While one covers the dashboard the artifact views stay hidden.
 
 Not ported: the tray (decided), the boot splash and daemon supervision (no daemon), the dev
-"Rebuild & Relaunch" item. Later: reload-after-renderer-crash, whether a tab is making
-sound (the tab list says `audible: false`), throttling a hidden artifact view once its
-still is taken (they keep painting, at most four).
+"Rebuild & Relaunch" item. Whether a tab is making sound stays unknown (the tab list says
+`audible: false`): CEF tells an app about a page's sound only through `CefAudioHandler`,
+which is an audio *capture* (made for windowless apps that play the sound themselves: the
+captured stream is taken off the speakers), and declining the capture leaves only the moment
+sound starts, never when it stops. Chromium knows (`WebContents::IsCurrentlyAudible`) but
+CEF exposes no such call, and CEF ships prebuilt here, so the vendored runtime has nothing to
+patch.
+
+A view whose renderer dies (`eos_bridge::recovery`) is reloaded once: the dashboard, a
+browser tab, a paired computer's view; dying again within ten seconds of that reload it is
+left alone, so a page that crashes as it boots cannot spin. An artifact view says "The page
+stopped (<reason>)" and the dashboard offers Retry. A plugin preview, a sign-in page or the
+splash is not kept.
 
 ### Memory
 

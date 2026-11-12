@@ -13,7 +13,11 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use eos_bridge::launch::{data_folder, reaches_network};
+use eos_bridge::splash::update_caption;
 use eos_bridge::{Bridge, Classify, Core, RouterCore};
+use eos_contracts::update::UpdateApply;
+use eos_core::BoxFuture;
+use eos_core::net::updates::UpdateApplier;
 use eos_shell::{Hooks, Options, Ports};
 use eos_update::handover::{ApplierLauncher, Handover};
 
@@ -77,6 +81,28 @@ fn artifact_origin() -> Option<String> {
 /// A release build: no dev proxy, so every route is the Rust core's.
 const RELEASE: bool = cfg!(not(feature = "dev-proxy"));
 
+/// The update hand-over with its splash: shown before the applier starts, up until the app
+/// has quit; closed again when the restart failed (the dashboard says why).
+struct WithSplash {
+    launcher: ApplierLauncher,
+    splash: Arc<dyn Fn(Option<String>) + Send + Sync>,
+}
+
+impl UpdateApplier for WithSplash {
+    fn apply<'a>(&'a self, apply: &'a UpdateApply) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let (splash, caption) = (self.splash.clone(), update_caption(&apply.from.0, &apply.version.0));
+            let _ = tokio::task::spawn_blocking(move || splash(Some(caption))).await;
+            let applied = self.launcher.apply(apply).await;
+            if applied.is_err() {
+                let splash = self.splash.clone();
+                let _ = tokio::task::spawn_blocking(move || splash(None)).await;
+            }
+            applied
+        })
+    }
+}
+
 /// How long quitting waits for the modules to stop before it gives up on them.
 const SHUTDOWN: Duration = Duration::from_secs(5);
 /// How long after a wake the updater is told (as today).
@@ -123,10 +149,12 @@ impl Eos {
             dashboard: Some(self.dist.clone()).filter(|dist| dist.join("index.html").is_file()),
             ..eos_app::Options::new(home)
         };
-        // Restarting into an update: leave the applier what it needs, start it, quit.
+        // Restarting into an update: show the splash, leave the applier what it needs, start
+        // it, quit.
         if let Some(exe) = &options.exec_path {
             let handover = Handover::beside(exe, home);
-            options.update_applier = Some(Arc::new(ApplierLauncher::new(handover, ports.quit.clone())));
+            let launcher = ApplierLauncher::new(handover, ports.quit.clone());
+            options.update_applier = Some(Arc::new(WithSplash { launcher, splash: ports.splash.clone() }));
         }
         let app = match eos_app::App::build(options) {
             Ok(app) => Arc::new(app),

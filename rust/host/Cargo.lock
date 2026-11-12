@@ -1461,6 +1461,7 @@ dependencies = [
  "cef-dll-sys",
  "eos-app",
  "eos-bridge",
+ "eos-contracts",
  "eos-core",
  "eos-runtime",
  "eos-shell",

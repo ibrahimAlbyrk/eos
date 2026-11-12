@@ -151,8 +151,10 @@ pub enum SurfaceEvent {
     Shield {
         external: bool,
     },
-    /// The renderer is gone.
-    Crashed,
+    /// The renderer is gone; `reason` as Chromium classifies it (`crashed`, `oom`, …).
+    Crashed {
+        reason: String,
+    },
 }
 
 /// The window shell's side: child views in the main window, each created without a
@@ -169,6 +171,8 @@ pub trait ArtifactSurface: Send + Sync + 'static {
     /// The hover peek: the page at half zoom under a shield that takes its input.
     fn set_peek(&self, view: ViewKey, peek: bool) -> BoxFuture<'_, ()>;
     fn set_muted(&self, view: ViewKey, muted: bool) -> BoxFuture<'_, ()>;
+    /// Throttles a page nobody sees (its timers and its painting), or lets it run again.
+    fn set_throttled(&self, view: ViewKey, throttled: bool) -> BoxFuture<'_, ()>;
     /// Back one page in the view's history; false when there is none.
     fn go_back(&self, view: ViewKey) -> BoxFuture<'_, bool>;
     /// The page as it is, as a JPEG at most 1600 pixels wide.
@@ -177,6 +181,9 @@ pub trait ArtifactSurface: Send + Sync + 'static {
     /// Whether the profile holds a claude.ai sign-in: a `sessionKey` cookie. Nothing else
     /// of it is read.
     fn signed_in(&self, profile: &str) -> BoxFuture<'_, bool>;
+    /// The site's account document, read by the browser with the profile's cookies (no page
+    /// takes part); `None` when it does not answer.
+    fn account(&self, profile: &str) -> BoxFuture<'_, Option<Value>>;
     /// The site's sign-in page, in a window of its own in `profile`. Resolves once the
     /// profile holds a sign-in and has left the sign-in pages (true), or when the user
     /// closes the window (whether it holds one then). One window per profile.

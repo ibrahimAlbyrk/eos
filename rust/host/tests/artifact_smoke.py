@@ -24,6 +24,7 @@ import socketserver
 import subprocess
 import sys
 import threading
+import time
 import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -48,7 +49,8 @@ ARTIFACT = """<!doctype html><meta charset="utf-8"><title>Artifact {name}</title
   setInterval(() => {{
     const zoom = getComputedStyle(document.documentElement).zoom;
     const shield = !!document.querySelector("eos-artifact-shield");
-    fetch("/report?name={name}&zoom=" + zoom + "&shield=" + shield).catch(() => {{}});
+    const vis = document.visibilityState;
+    fetch("/report?name={name}&zoom=" + zoom + "&shield=" + shield + "&vis=" + vis).catch(() => {{}});
   }}, 150);
 </script>"""
 LOGIN = """<!doctype html><title>Sign in</title><p>Signing in…</p>
@@ -87,10 +89,12 @@ class Pages(http.server.BaseHTTPRequestHandler):
             with Pages.lock:
                 seen = Pages.reports.setdefault(q["name"][0], [])
                 if len(seen) < 5000:
-                    seen.append({"zoom": q["zoom"][0], "shield": q["shield"][0] == "true"})
+                    seen.append({"zoom": q["zoom"][0], "shield": q["shield"][0] == "true", "vis": q["vis"][0], "at": time.time()})
             return self.send("{}", "application/json")
         if url.path == "/login":
             return self.send(LOGIN)
+        if url.path == "/api/account":
+            return self.send('{"uuid": "u-smoke", "email_address": "smoke@example.test"}', "application/json")
         return self.send(NEW)
 
 
@@ -112,6 +116,13 @@ def call(verb, body=None):
 def reports(name):
     with Pages.lock:
         return list(Pages.reports.get(name) or [])
+
+
+def shell_log():
+    try:
+        return open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
+    except OSError:
+        return ""
 
 
 def main():
@@ -167,6 +178,22 @@ def checks(origin):
         call("frobnicate"),                                                      # 28
         {"hosts": {"verb": "list"}},                                             # 29
         {"hosts": {"verb": "switchTo", "id": "not-a-paired-computer"}},          # 30
+        # A renderer that dies is reloaded once; dying again at once, it is left alone.
+        {"create": {"as": "c", "profile": "tmp-crash", "url": origin + "/new"}},  # 31
+        {"wait": 1500},                                                          # 32
+        {"cdp": {"view": "c", "method": "Page.navigate", "params": {"url": "chrome://crash"}}},  # 33
+        {"wait": 3000},                                                          # 34
+        {"cdp": {"view": "c", "method": "Runtime.evaluate", "params": {"expression": "document.title", "returnByValue": True}}},  # 35
+        {"cdp": {"view": "c", "method": "Page.navigate", "params": {"url": "chrome://crash"}}},  # 36
+        {"wait": 2000},                                                          # 37
+        {"close": "c"},                                                          # 38
+        # A view nobody sees is throttled once its still is in, and runs again when placed.
+        {"wait": 2500},                                                          # 39 (frozen: no reports)
+        call("attach", {**tab, "ref": art(A), "rect": {"x": 120, "y": 90, "width": 640, "height": 420}}),  # 40
+        {"wait": 1500},                                                          # 41 (reports again)
+        call("detach", tab),                                                     # 42
+        {"splash": "Updating · 0.1.5 → 0.2.0"},                                  # 43
+        {"wait": 1200},                                                          # 44
     ]
     steps_file, steps_out = os.path.join(OUT, "steps.json"), os.path.join(OUT, "steps-out.json")
     with open(steps_file, "w") as f:
@@ -184,11 +211,11 @@ def checks(origin):
 
     check("no artifact view before the first warm", views(0) == [], value(0))
     check("a profile with no claude.ai sign-in asks for one", value(3) == "signin", value(3))
-    check("the sign-in window signed the profile in", value(4) == {"signedIn": True}, value(4) or r[4].get("error"))
+    check("the sign-in window signed the profile in", (value(4) or {}).get("signedIn") is True, value(4) or r[4].get("error"))
     check("the view waiting for it loaded", value(6) == "ready", value(6))
     check("attached to a tab it is on screen", views(9) == [{"state": "ready", "place": "tab", "shown": True, "replacing": False}], views(9))
     check("the peek takes the same view", [v["place"] for v in views(12)] == ["peek"] and views(12)[0]["shown"], views(12))
-    seen = reports("A")
+    seen = [{k: v for k, v in r.items() if k in ("zoom", "shield")} for r in reports("A")]
     peeked = [i for i, r in enumerate(seen) if r == {"zoom": "0.5", "shield": True}]
     check("in the peek the page is half size under the shield", peeked, f"{len(peeked)} of {len(seen)} reports")
     after = seen[peeked[-1] + 1:] if peeked else []
@@ -201,13 +228,26 @@ def checks(origin):
     check("another sign-in's profile is separate: still not signed in", value(24) == "signin", value(24))
     check("a page that leaves the viewer while it loads is refused", value(25) == "error", value(25))
     check("after detach no view is on screen", not any(v["shown"] for v in views(26)) and len(views(26)) == 3, views(26))
-    check("the account of a signed-in profile says so", value(27) == {"signedIn": True}, value(27))
+    check("the account of a signed-in profile says so, and as whom", value(27) == {"signedIn": True, "email": "smoke@example.test"}, value(27))
     check("an unknown verb is refused", r[28].get("ok") is False, r[28].get("error"))
     switcher = value(29) or {}
     check("the machine switcher names this computer", bool((switcher.get("local") or {}).get("name")) and switcher.get("active") is None)
     check("it switches to no computer it does not know", (value(30) or {}).get("active") is None and (value(30) or {}).get("hosts") == [])
 
+    title = ((value(35) or {}).get("result") or {}).get("value")
+    check("a test view whose renderer died was reloaded", title == "Signed in" and "is reloaded" in shell_log(), title or r[35].get("error"))
+    check("dying again at once, it was left alone", "is left as it is" in shell_log())
+
+    # While A sat detached (steps 20-39) its page was frozen: no reports for a while, then
+    # placed again it reports, visible.
+    times = [r["at"] for r in reports("A")]
+    gaps = [b - a for a, b in zip(times, times[1:])]
+    check("a hidden view whose still is in is throttled", gaps and max(gaps) > 2.0, f"longest pause {max(gaps or [0]):.1f} s")
+    placed = [r for r in reports("A") if r["at"] > times[-1] - 1.2]
+    check("placed again, it runs and is visible", len(placed) >= 3 and placed[-1]["vis"] == "visible", placed[-2:])
+
     st = smoke.ctl("--status")
+    check("the update splash is up", st.get("splash") is True and r[43].get("ok"), r[43].get("error"))
     check("the app is still up; the dashboard was not driven", st.get("running") and smoke.bridge_of(st).get("panel", {}).get("view") is None)
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("nothing failed in the shell's log", "failed" not in log and "could not" not in log and "panic" not in log)

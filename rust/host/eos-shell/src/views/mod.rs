@@ -4,6 +4,7 @@
 mod artifacts;
 mod cdp;
 pub(crate) mod create;
+mod fetch;
 mod hosts;
 mod preview;
 mod proxy;

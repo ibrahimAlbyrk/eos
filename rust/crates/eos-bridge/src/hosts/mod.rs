@@ -9,6 +9,7 @@
 //! dashboard, the transfer tab's calls. It runs this computer's dashboard when the host
 //! speaks the same API, else the host's own bundle.
 
+mod menu;
 mod service;
 mod transfers;
 
@@ -24,6 +25,7 @@ use crate::core::{Core, Plane};
 use crate::host::ShellHost;
 use crate::transport::Service;
 
+pub use menu::{MachineItem, machine_items};
 pub use service::{HostViewService, host_content_security_policy};
 
 /// Tells a page something: an event name and its payload.
@@ -38,8 +40,9 @@ pub trait HostSurface: Send + Sync + 'static {
     fn show(&self, id: &str) -> BoxFuture<'_, ()>;
     fn hide(&self, id: &str) -> BoxFuture<'_, ()>;
     fn close(&self, id: &str) -> BoxFuture<'_, ()>;
-    /// "Open in Window": a window of its own showing the host through `service`.
-    fn open_window(&self, id: &str, title: &str, service: Arc<dyn Service>) -> BoxFuture<'_, ()>;
+    /// "Open in Window": a window of its own, labelled `label` ([`window_label`]), showing
+    /// host `id` through `service`. When it closes the shell calls [`HostViews::window_closed`].
+    fn open_window(&self, id: &str, label: &str, title: &str, service: Arc<dyn Service>) -> BoxFuture<'_, ()>;
     /// The keyboard back to this computer's dashboard.
     fn focus_dashboard(&self);
     /// The system's open panel: folders only, or files and folders (several). `None`: cancelled.
@@ -58,8 +61,9 @@ pub struct HostParts {
     pub shell: Arc<dyn ShellHost>,
     /// The dashboard's own event stream.
     pub to_dashboard: Emit,
-    /// Another computer's view covers the dashboard (or no longer does).
-    pub covered: Arc<dyn Fn(bool) + Send + Sync>,
+    /// The list or the active computer changed: `{hosts, active, local}` (a view covering the
+    /// dashboard; the Machines menu).
+    pub changed: Arc<dyn Fn(&Value) + Send + Sync>,
     pub rt: tokio::runtime::Handle,
 }
 
@@ -79,8 +83,10 @@ struct State {
     /// The API this computer's dashboard speaks.
     local_stamp: Option<String>,
     views: HashMap<String, Arc<HostViewService>>,
-    /// Views opened in windows of their own, by host.
-    windows: Vec<(String, Arc<HostViewService>)>,
+    /// Pages opened in windows of their own: the window's number, its host, its door.
+    windows: Vec<(u64, String, Arc<HostViewService>)>,
+    /// The number of the next window of its own.
+    next_window: u64,
 }
 
 pub(crate) struct Inner {
@@ -99,6 +105,18 @@ impl std::fmt::Debug for HostViews {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HostViews").finish_non_exhaustive()
     }
+}
+
+const WINDOW_LABEL: &str = "hostwin-";
+
+/// The label of the `n`th window of its own showing a host.
+pub fn window_label(n: u64) -> String {
+    format!("{WINDOW_LABEL}{n}")
+}
+
+/// The window number of a label [`window_label`] made; `None` for any other window.
+pub fn window_number(label: &str) -> Option<u64> {
+    label.strip_prefix(WINDOW_LABEL)?.parse().ok()
 }
 
 fn text<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
@@ -150,6 +168,13 @@ impl HostViews {
         self.inner.forward_transfer(payload);
     }
 
+    /// A window of its own closed (`label`, as [`window_label`] made it): its door goes.
+    pub fn window_closed(&self, label: &str) {
+        if let Some(n) = window_number(label) {
+            self.inner.state().windows.retain(|(w, _, _)| *w != n);
+        }
+    }
+
     /// A banner raised on host `id` was clicked: its view comes forward and opens what the
     /// banner was about.
     pub async fn open_from_banner(&self, id: String, navigate: Value) {
@@ -187,18 +212,17 @@ impl Inner {
     fn pages(&self, id: Option<&str>) -> Vec<Arc<HostViewService>> {
         let st = self.state();
         let views = st.views.iter().filter(|(host, _)| id.is_none_or(|i| i == *host)).map(|(_, v)| v.clone());
-        let windows = st.windows.iter().filter(|(host, _)| id.is_none_or(|i| i == host)).map(|(_, v)| v.clone());
+        let windows = st.windows.iter().filter(|(_, host, _)| id.is_none_or(|i| i == host)).map(|(_, _, v)| v.clone());
         views.chain(windows).collect()
     }
 
     fn broadcast(&self) {
         let snapshot = self.snapshot();
-        let covered = snapshot.get("active").is_some_and(|a| !a.is_null());
         (self.parts.to_dashboard)("hosts:changed", snapshot.clone());
         for page in self.pages(None) {
             page.events().emit("hosts:changed", snapshot.clone());
         }
-        (self.parts.covered)(covered);
+        (self.parts.changed)(&snapshot);
     }
 
     async fn refresh(&self) {
@@ -221,7 +245,7 @@ impl Inner {
             st.hosts = hosts;
             let ids: Vec<String> = st.hosts.iter().filter_map(|h| text(h, "id").map(str::to_owned)).collect();
             let gone: Vec<String> = st.views.keys().filter(|id| !ids.contains(id)).cloned().collect();
-            st.windows.retain(|(id, _)| ids.contains(id));
+            st.windows.retain(|(_, id, _)| ids.contains(id));
             for id in &gone {
                 st.views.remove(id);
             }
@@ -313,8 +337,14 @@ impl Inner {
         let Some(host) = self.host(id) else { return };
         let title = format!("Eos — {}", text(&host, "alias").or_else(|| text(&host, "name")).unwrap_or("Remote Mac"));
         let view = self.service_for(id).await;
-        self.state().windows.push((id.to_owned(), view.clone()));
-        self.parts.surface.open_window(id, &title, view).await;
+        let label = {
+            let mut st = self.state();
+            let n = st.next_window;
+            st.next_window += 1;
+            st.windows.push((n, id.to_owned(), view.clone()));
+            window_label(n)
+        };
+        self.parts.surface.open_window(id, &label, &title, view).await;
     }
 
     async fn reconnect(&self, id: &str) {

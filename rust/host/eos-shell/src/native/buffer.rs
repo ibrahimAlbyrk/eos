@@ -52,3 +52,14 @@ pub(crate) struct SendCallback<T>(pub(crate) T);
 
 // SAFETY: see above; the wrapped object is only used to call its `cont`.
 unsafe impl<T> Send for SendCallback<T> {}
+
+/// A copy of the bytes CEF hands a `UrlrequestClient::on_download_data` call: `len` bytes
+/// at `data`, valid for the length of that call.
+pub(crate) fn received(data: *const u8, len: usize) -> Vec<u8> {
+    if data.is_null() || len == 0 {
+        return Vec::new();
+    }
+    // SAFETY: CEF passes `len` readable bytes at `data` and keeps them for the call; they
+    // are copied before it returns.
+    unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
+}

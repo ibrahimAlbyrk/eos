@@ -101,8 +101,8 @@ impl HostSurface for FakeSurface {
         self.record(format!("close {id}"));
         Box::pin(async {})
     }
-    fn open_window(&self, id: &str, title: &str, _service: Arc<dyn Service>) -> BoxFuture<'_, ()> {
-        self.record(format!("window {id} {title}"));
+    fn open_window(&self, _id: &str, label: &str, title: &str, _service: Arc<dyn Service>) -> BoxFuture<'_, ()> {
+        self.record(format!("window {label} {title}"));
         Box::pin(async {})
     }
     fn focus_dashboard(&self) {
@@ -117,7 +117,8 @@ impl HostSurface for FakeSurface {
     }
 }
 
-struct Window;
+/// The window, with its Downloads folder in the test's own folder.
+struct Window(PathBuf);
 
 impl ShellHost for Window {
     fn start_window_drag(&self) {}
@@ -143,7 +144,7 @@ impl ShellHost for Window {
     fn edit(&self, _command: EditCommand) {}
     fn open_path(&self, _path: &Path) {}
     fn downloads_dir(&self) -> PathBuf {
-        PathBuf::new()
+        self.0.clone()
     }
 }
 
@@ -153,6 +154,7 @@ struct Bench {
     surface: Arc<FakeSurface>,
     dashboard: Arc<Mutex<Vec<(String, Value)>>>,
     covered: Arc<Mutex<Vec<bool>>>,
+    snapshots: Arc<Mutex<Vec<Value>>>,
     _dir: Dir,
 }
 
@@ -165,17 +167,21 @@ fn bench(host_stamp: &'static str) -> Bench {
     let surface = Arc::new(FakeSurface::default());
     let dashboard: Arc<Mutex<Vec<(String, Value)>>> = Arc::default();
     let covered: Arc<Mutex<Vec<bool>>> = Arc::default();
-    let (to_dashboard, cover) = (dashboard.clone(), covered.clone());
+    let snapshots: Arc<Mutex<Vec<Value>>> = Arc::default();
+    let (to_dashboard, cover, seen) = (dashboard.clone(), covered.clone(), snapshots.clone());
     let hosts = HostViews::new(HostParts {
         core: core.clone(),
         surface: surface.clone(),
         dist: dir.path().join("dist"),
-        shell: Arc::new(Window),
+        shell: Arc::new(Window(dir.path().join("Downloads"))),
         to_dashboard: Arc::new(move |name, payload| to_dashboard.lock().unwrap().push((name.to_owned(), payload))),
-        covered: Arc::new(move |on| cover.lock().unwrap().push(on)),
+        changed: Arc::new(move |snapshot| {
+            cover.lock().unwrap().push(!snapshot["active"].is_null());
+            seen.lock().unwrap().push(snapshot.clone());
+        }),
         rt: tokio::runtime::Handle::current(),
     });
-    Bench { hosts, core, surface, dashboard, covered, _dir: dir }
+    Bench { hosts, core, surface, dashboard, covered, snapshots, _dir: dir }
 }
 
 fn req(initiator: Initiator, method: &str, url: &str, token: Option<&str>, body: Value) -> Req {
@@ -216,6 +222,7 @@ async fn the_list_names_this_computer_and_its_hosts_and_every_page_hears_of_chan
     assert_eq!(snap["hosts"][0]["id"], H);
     assert_eq!(b.dashboard.lock().unwrap().last().unwrap().0, "hosts:changed");
     assert_eq!(*b.covered.lock().unwrap(), [false]);
+    assert_eq!(b.snapshots.lock().unwrap().last(), Some(&snap));
 }
 
 #[tokio::test]
@@ -237,7 +244,27 @@ async fn switching_shows_one_live_view_per_host_and_back() {
         &("hosts:command".to_owned(), json!({ "type": "connect", "invite": null }))
     );
     b.hosts.open_in_window(H.into()).await;
-    assert_eq!(b.surface.take(), ["hide h1", "focus dashboard", "window h1 Eos — Studio"]);
+    assert_eq!(b.surface.take(), ["hide h1", "focus dashboard", "window hostwin-0 Eos — Studio"]);
+}
+
+#[tokio::test]
+async fn a_window_of_its_own_drops_its_door_when_it_closes() {
+    let b = bench("stamp-1");
+    b.hosts.refresh().await;
+    b.hosts.open_in_window(H.into()).await;
+    b.hosts.open_in_window(H.into()).await;
+    let doors = || b.hosts.inner.state().windows.iter().map(|(n, _, _)| *n).collect::<Vec<_>>();
+    assert_eq!(doors(), [0, 1]);
+    assert_eq!(b.hosts.inner.pages(Some(H)).len(), 2);
+    b.hosts.window_closed("hostwin-0");
+    b.hosts.window_closed("main");
+    b.hosts.window_closed("hostwin-x");
+    assert_eq!(doors(), [1], "only the closed window's door goes");
+    b.hosts.window_closed(&window_label(1));
+    assert!(doors().is_empty());
+    assert!(b.hosts.inner.pages(None).is_empty());
+    assert_eq!(window_number("hostwin-7"), Some(7));
+    assert_eq!(window_number("hostwin-"), None);
 }
 
 #[tokio::test]
@@ -376,6 +403,22 @@ async fn the_switcher_and_transfers_answer_the_views_own_document_only() {
         token_of.into_iter().all(|t| t.as_deref() == Some("ui")),
         "this computer's engine is asked as its dashboard"
     );
+}
+
+#[tokio::test]
+async fn only_a_view_running_our_dashboard_saves_into_downloads() {
+    for (stamp, saves) in [("stamp-1", true), ("stamp-2", false)] {
+        let b = bench(stamp);
+        let view = b.view().await;
+        through(&view, req(Initiator::TopLevel, "GET", "http://eos.localhost/index.html", None, Value::Null)).await;
+        std::fs::create_dir_all(b._dir.path().join("Downloads")).unwrap();
+        let save = json!({ "filename": "../notes.md", "base64": "aGk=" });
+        let asked = req(Initiator::Document, "POST", "http://eos.localhost/_shell/files/save", Some("view-h1"), save);
+        let answer: Value = serde_json::from_str(&through(&view, asked).await.2).unwrap();
+        let saved = b._dir.path().join("Downloads/notes.md");
+        assert_eq!(saved.is_file(), saves, "{stamp}: {answer}");
+        assert_eq!(answer.get("code").is_some(), !saves);
+    }
 }
 
 #[tokio::test]

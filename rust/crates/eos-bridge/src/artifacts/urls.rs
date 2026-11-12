@@ -61,6 +61,11 @@ impl Viewer {
         format!("{}/login", self.origin)
     }
 
+    /// The site's account document: who the profile is signed in as.
+    pub fn account_url(&self) -> String {
+        format!("{}/api/account", self.origin)
+    }
+
     /// Where the sign-in cookie lives.
     pub fn cookie_url(&self) -> String {
         format!("{}/", self.origin)
@@ -117,6 +122,7 @@ mod tests {
         assert!(!v.on_sign_in_page("https://claude.ai/new"));
         assert_eq!(v.login_url(), "https://claude.ai/login");
         assert_eq!(v.cookie_url(), "https://claude.ai/");
+        assert_eq!(v.account_url(), "https://claude.ai/api/account");
     }
 
     #[test]

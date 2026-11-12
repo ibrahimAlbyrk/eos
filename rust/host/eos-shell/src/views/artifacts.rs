@@ -24,7 +24,7 @@ use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
 use tokio::sync::watch;
 
-use super::{Cdp, PARKED_SIZE, View, Views, create, profile_dir};
+use super::{Cdp, PARKED_SIZE, View, Views, create, fetch, profile_dir};
 use crate::host::open_external;
 use crate::log::log;
 use crate::native::appkit;
@@ -37,6 +37,8 @@ const STILL_MAX_WIDTH: f64 = 1600.0;
 const STILL_QUALITY: u8 = 72;
 const SIGN_IN_SIZE: (f64, f64) = (460.0, 720.0);
 const SIGN_IN_POLL: Duration = Duration::from_secs(1);
+/// How long the site's account document may take.
+const ACCOUNT_TIMEOUT: Duration = Duration::from_secs(8);
 
 /// One artifact view and what the shell keeps for it.
 struct ArtView {
@@ -90,7 +92,6 @@ fn surface_event(art: &ArtView, method: &str, params: &Value) -> Option<SurfaceE
         }
         "Page.domContentEventFired" => Some(SurfaceEvent::DomReady),
         "Page.loadEventFired" => Some(SurfaceEvent::Loaded),
-        "Inspector.targetCrashed" => Some(SurfaceEvent::Crashed),
         "Runtime.bindingCalled" if params.get("name").and_then(Value::as_str) == Some(BINDING) => {
             let external = params.get("payload").and_then(Value::as_str) == Some("external");
             Some(SurfaceEvent::Shield { external })
@@ -219,15 +220,15 @@ impl ArtifactShell {
     }
 
     /// A view of `profile` to ask DevTools through, made for the call when none is open.
-    async fn probe<T>(&self, profile: &str, ask: impl AsyncFnOnce(&Cdp) -> T) -> Option<T> {
+    async fn probe<T>(&self, profile: &str, ask: impl AsyncFnOnce(&View) -> T) -> Option<T> {
         let open = lock(&self.live).values().find(|a| a.profile == profile).cloned();
         if let Some(art) = open {
-            return Some(ask(&art.view.cdp).await);
+            return Some(ask(&art.view).await);
         }
         let profile = profile.to_owned();
         let made = self.blocking(move |shell| shell.create_blocking(ViewKey::MAX, &profile)).await?;
         let art = made.inspect_err(|e| log("artifacts", &format!("no view to ask: {e}"))).ok()?;
-        let answer = ask(&art.view.cdp).await;
+        let answer = ask(&art.view).await;
         let webview = art.view.webview.clone();
         let _ = tokio::task::spawn_blocking(move || webview.close()).await;
         Some(answer)
@@ -303,6 +304,14 @@ impl ArtifactShell {
         finished
     }
 
+    /// The renderer of the view labelled `label` died: its page reports it.
+    pub(crate) fn crashed(&self, label: &str, reason: &str) {
+        let key = lock(&self.live).iter().find(|(_, art)| art.view.webview.label() == label).map(|(key, _)| *key);
+        if let Some(key) = key {
+            self.report(key, SurfaceEvent::Crashed { reason: reason.to_owned() });
+        }
+    }
+
     /// For the menu's edit commands: every artifact view's native view.
     pub(crate) fn natives(&self) -> Vec<Arc<View>> {
         lock(&self.live).values().map(|a| a.view.clone()).collect()
@@ -345,7 +354,6 @@ impl ArtifactSurface for ArtifactShell {
             for (method, params) in [
                 ("Page.enable", json!({})),
                 ("Runtime.enable", json!({})),
-                ("Inspector.enable", json!({})),
                 ("Runtime.addBinding", json!({ "name": BINDING, "executionContextName": WORLD })),
                 ("Page.addScriptToEvaluateOnNewDocument", json!({ "source": SHIELD_JS, "worldName": WORLD })),
             ] {
@@ -421,6 +429,20 @@ impl ArtifactSurface for ArtifactShell {
         })
     }
 
+    /// A frozen page runs no timers and paints nothing (the page lifecycle's freeze, as
+    /// Chromium does for a background tab); `active` lets it run again.
+    fn set_throttled(&self, view: ViewKey, throttled: bool) -> BoxFuture<'_, ()> {
+        let art = self.art(view);
+        Box::pin(async move {
+            let Some(art) = art else { return };
+            let state = if throttled { "frozen" } else { "active" };
+            let set = art.view.cdp.call("Page.setWebLifecycleState", json!({ "state": state })).await;
+            if let Err(e) = set {
+                log("artifacts", &format!("the page's lifecycle stays as it was ({state} refused): {e}"));
+            }
+        })
+    }
+
     fn go_back(&self, view: ViewKey) -> BoxFuture<'_, bool> {
         let art = self.art(view);
         Box::pin(async move {
@@ -457,7 +479,20 @@ impl ArtifactSurface for ArtifactShell {
         let profile = profile.to_owned();
         Box::pin(async move {
             let cookie_url = self.viewer.cookie_url();
-            self.probe(&profile, async |cdp: &Cdp| Self::has_session(cdp, &cookie_url).await).await.unwrap_or(false)
+            self.probe(&profile, async |view: &View| Self::has_session(&view.cdp, &cookie_url).await)
+                .await
+                .unwrap_or(false)
+        })
+    }
+
+    fn account(&self, profile: &str) -> BoxFuture<'_, Option<Value>> {
+        let profile = profile.to_owned();
+        Box::pin(async move {
+            let url = self.viewer.account_url();
+            let body = self
+                .probe(&profile, async |view: &View| fetch::get(&view.webview, &url, ACCOUNT_TIMEOUT).await)
+                .await??;
+            serde_json::from_slice(&body).ok()
         })
     }
 
@@ -470,7 +505,8 @@ impl ArtifactSurface for ArtifactShell {
         let profile = profile.to_owned();
         Box::pin(async move {
             let origin = self.viewer.cookie_url().trim_end_matches('/').to_owned();
-            self.probe(&profile, async |cdp: &Cdp| {
+            self.probe(&profile, async |view: &View| {
+                let cdp = &view.cdp;
                 let _ = cdp.call("Network.clearBrowserCookies", json!({})).await;
                 let _ =
                     cdp.call("Storage.clearDataForOrigin", json!({ "origin": origin, "storageTypes": "all" })).await;

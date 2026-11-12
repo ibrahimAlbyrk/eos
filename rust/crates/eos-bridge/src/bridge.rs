@@ -351,12 +351,9 @@ impl Bridge {
                 let bytes = base64::engine::general_purpose::STANDARD
                     .decode(text("base64"))
                     .map_err(|_| Refusal(400, "bad base64"))?;
-                let name = sanitize_filename(&text("filename"));
+                let name = text("filename");
                 self.blocking_value(move |host| {
-                    let dest = host.downloads_dir().join(name);
-                    if std::fs::write(&dest, bytes).is_ok() {
-                        host.open_path(&dest);
-                    }
+                    save_download(host, &name, &bytes);
                     Value::Null
                 })
                 .await
@@ -528,6 +525,14 @@ impl Service for Bridge {
             }
             Route::Unknown => send(&sink, Response::not_found()),
         }
+    }
+}
+
+/// Writes a file the page hands over into Downloads under its sanitized name, and opens it.
+pub(crate) fn save_download(host: &dyn ShellHost, filename: &str, bytes: &[u8]) {
+    let dest = host.downloads_dir().join(sanitize_filename(filename));
+    if std::fs::write(&dest, bytes).is_ok() {
+        host.open_path(&dest);
     }
 }
 

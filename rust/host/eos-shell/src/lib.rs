@@ -11,6 +11,7 @@ mod log;
 mod menu;
 mod native;
 mod scheme;
+mod splash;
 mod views;
 mod window;
 
@@ -69,6 +70,9 @@ pub struct Ports {
     pub rt: tokio::runtime::Handle,
     /// Quits the app as its menu does: the shutdown hook runs, then the process exits.
     pub quit: Arc<dyn Fn() + Send + Sync>,
+    /// The restart splash: `Some(caption)` shows it above every window until the app quits,
+    /// `None` closes it again (the restart failed). Blocking.
+    pub splash: Arc<dyn Fn(Option<String>) + Send + Sync>,
 }
 
 impl std::fmt::Debug for Ports {

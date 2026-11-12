@@ -79,18 +79,19 @@ shell keeps its own data under `~/Library/Application Support/com.ibrahimalbyrk.
 
 | When | Call |
 |---|---|
-| before `App::build` | `Options.update_applier` = `eos_update::handover::ApplierLauncher` over `Handover::beside(<executable>, <data folder>)` and the shell's `Ports.quit` |
+| before `App::build` | `Options.update_applier` = `eos_update::handover::ApplierLauncher` over `Handover::beside(<executable>, <data folder>)` and the shell's `Ports.quit`, behind the shell's `Ports.splash` (`eos/src/main.rs` `WithSplash`) |
 | `Hooks::started` (the dashboard is loading) | `app.mark_update_booted()`, then `app.update_signals().window_shown()` |
 | `Hooks::window_shown` (Dock click, a later launch, a link) | `app.update_signals().window_shown()` |
 | `Hooks::woke`, 10 s later | `app.update_signals().woke()` |
 
 `ApplierLauncher` writes `apply.json`, copies `eos-apply` out of the bundle (a plain byte copy: no
 quarantine flag travels with it) into `~/.eos/updates/`, starts it in its own process group and
-then quits the app through `Ports.quit` (the normal quit: the core's shutdown runs). There is no
-"Updating…" splash yet: the window closes and the new version opens.
+then quits the app through `Ports.quit` (the normal quit: the core's shutdown runs). From the
+hand-over until the app has quit, the "Updating · <from> → <to>" splash is up (a failed restart
+closes it again); the new version opens after the swap.
 
-The binary still needs `EOS_HOME` to start its core (there is no default while the port is under
-way). A release must run on `~/.eos`: only then is the old daemon stopped and its plist removed.
+A release build opens `~/.eos` when `EOS_HOME` is not set (`eos_bridge::launch`). A release must
+run on `~/.eos`: only then is the old daemon stopped and its plist removed.
 
 ## 5. Publishing
 

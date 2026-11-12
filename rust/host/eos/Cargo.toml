@@ -10,12 +10,13 @@ publish.workspace = true
 [features]
 default = []
 # Runs against an isolated Node daemon instead of the Rust core. Never part of a release.
-dev-proxy = ["eos-bridge/dev-proxy", "dep:eos-core"]
+dev-proxy = ["eos-bridge/dev-proxy"]
 
 [dependencies]
 eos-app.workspace = true
 eos-bridge.workspace = true
-eos-core = { workspace = true, optional = true }
+eos-contracts.workspace = true
+eos-core.workspace = true
 eos-runtime.workspace = true
 eos-shell.workspace = true
 eos-update.workspace = true

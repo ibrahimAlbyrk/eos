@@ -3,17 +3,23 @@
 //! keyboard, to the embedded view that has it otherwise.
 
 use eos_bridge::EditCommand;
-use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
+use eos_bridge::hosts::MachineItem;
+use tauri::menu::{AboutMetadata, CheckMenuItem, IsMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
 /// What a menu item asks for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Command {
     Edit(EditCommand),
     Reload,
     DevTools,
     ConnectMachine,
+    /// Show this computer (`None`) or a controlled one.
+    Machine(Option<String>),
     Quit,
 }
+
+const MACHINE: &str = "machine:";
+const THIS_MACHINE: &str = "machine:this";
 
 impl Command {
     pub(crate) fn from_id(id: &str) -> Option<Self> {
@@ -21,13 +27,21 @@ impl Command {
             "reload" => Command::Reload,
             "devtools" => Command::DevTools,
             "connect-machine" => Command::ConnectMachine,
+            THIS_MACHINE => Command::Machine(None),
             "quit" => Command::Quit,
+            other if other.starts_with(MACHINE) => Command::Machine(Some(other[MACHINE.len()..].to_owned())),
             other => Command::Edit(EditCommand::parse(other.strip_prefix("edit:")?)?),
         })
     }
 }
 
-pub(crate) fn build(app: &tauri::AppHandle, name: &str, version: &str) -> tauri::Result<Menu<tauri::DynRuntime>> {
+/// The app menu; `machines` are the Machines menu's computers.
+pub(crate) fn build(
+    app: &tauri::AppHandle,
+    name: &str,
+    version: &str,
+    machines: &[MachineItem],
+) -> tauri::Result<Menu<tauri::DynRuntime>> {
     let item = |id: &str, text: &str, accelerator: &str| MenuItem::with_id(app, id, text, true, Some(accelerator));
     let separator = || PredefinedMenuItem::separator(app);
 
@@ -75,12 +89,22 @@ pub(crate) fn build(app: &tauri::AppHandle, name: &str, version: &str) -> tauri:
             &PredefinedMenuItem::fullscreen(app, None)?,
         ],
     )?;
-    let machines = Submenu::with_items(
-        app,
-        "Machines",
-        true,
-        &[&MenuItem::with_id(app, "connect-machine", "Connect a Machine…", true, None::<&str>)?],
-    )?;
+    let computers = machines
+        .iter()
+        .map(|m| {
+            let id = m.id.as_ref().map_or_else(|| THIS_MACHINE.to_owned(), |id| format!("{MACHINE}{id}"));
+            CheckMenuItem::with_id(app, id, &m.label, true, m.checked, Some(m.accelerator.as_str()))
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let (separator_item, connect) =
+        (separator()?, MenuItem::with_id(app, "connect-machine", "Connect a Machine…", true, None::<&str>)?);
+    let mut items: Vec<&dyn IsMenuItem<tauri::DynRuntime>> =
+        computers.iter().map(|c| c as &dyn IsMenuItem<tauri::DynRuntime>).collect();
+    if !items.is_empty() {
+        items.push(&separator_item);
+    }
+    items.push(&connect);
+    let machines = Submenu::with_items(app, "Machines", true, &items)?;
     let window = Submenu::with_items(
         app,
         "Window",

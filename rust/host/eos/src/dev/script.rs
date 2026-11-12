@@ -19,7 +19,8 @@
 //! `{"artifacts": {"verb": "warm", "body": {…}}}`: an `eosArtifacts` call as the dashboard
 //! makes it (`verb: "status"` reads the views' states and places).
 //! `{"hosts": {"verb": "list"}}`, `{"hosts": {"verb": "switchTo", "id": "…"}}`: the machine
-//! switcher as the dashboard sees it.
+//! switcher as the dashboard sees it. `{"splash": "Updating · …"}` shows the update splash,
+//! `{"splash": null}` closes it.
 //! The output file gets one result per step, in order.
 
 use std::collections::HashMap;
@@ -160,6 +161,12 @@ impl Run {
                 }
                 let body = arg.get("body").cloned().unwrap_or(json!({}));
                 self.bridge.artifact_call(&verb, &body).await.ok_or_else(|| format!("no artifact verb {verb:?}"))
+            }
+            // The update splash, as a restart into an update shows it (`null` closes it).
+            "splash" => {
+                let (splash, caption) = (self.ports.splash.clone(), arg.as_str().map(str::to_owned));
+                tokio::task::spawn_blocking(move || splash(caption)).await.map_err(|e| e.to_string())?;
+                Ok(Value::Null)
             }
             // The machine switcher as the dashboard sees it: `list`, or `switchTo` an id.
             "hosts" => {
