@@ -103,6 +103,12 @@ impl PlanAccess for Plan {
     fn access_token<'a>(&'a self, _provider: &'a str, _login_id: &'a str) -> BoxFuture<'a, Option<String>> {
         Box::pin(std::future::ready(None))
     }
+    fn token_refused<'a>(&'a self, _provider: &'a str, _login_id: &'a str, _rejected: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(std::future::ready(false))
+    }
+    fn login_of_worker(&self, _provider: &str, _worker_id: &str) -> Option<String> {
+        None
+    }
     fn utilization<'a>(&'a self, _provider: &'a str) -> BoxFuture<'a, Option<f64>> {
         Box::pin(std::future::ready(self.used))
     }

@@ -79,7 +79,7 @@ fn app() -> App {
     let core = RouterCore::new(
         runtime.router.clone(),
         "token",
-        Arc::new(|_| Caller::DASHBOARD),
+        Arc::new(|_, _| Caller::DASHBOARD),
         tokio::runtime::Handle::current(),
     );
     App { core, runtime, dir, _store: store }

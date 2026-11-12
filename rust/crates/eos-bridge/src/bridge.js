@@ -4,6 +4,10 @@
 (() => {
   const CFG = __CFG__;
   const TOKEN = CFG.uiToken;
+  // A view of another computer this one controls: its descriptor. Such a view may run that
+  // computer's own dashboard, so the bridges that reach into this computer (the browser
+  // panel, banners, artifacts, pasted and dropped file paths) are not offered to it.
+  const HOST = CFG.host ?? null;
 
   // One-time carry-over of the Electron profile's localStorage (origin eos://app), before
   // any dashboard code reads it. The shell stops offering the keys once told.
@@ -23,6 +27,7 @@
   window.__EOS_DAEMON_URL = CFG.coreUrl;
   window.__EOS_RAW_URL = CFG.rawUrl;
   window.__EOS_UI_TOKEN = TOKEN;
+  if (HOST) window.__EOS_HOST = HOST;
 
   const post = (path, body) =>
     fetch("/_shell/" + path, {
@@ -63,24 +68,53 @@
     }
   };
 
-  // ---- the machine switcher. Views of other computers come in a later phase: the list is
-  // empty and switching does nothing; the menu's "Connect a Machine…" still reaches the UI.
+  // ---- the machine switcher, in every view: this computer's and each controlled one's.
   window.eosHosts = {
     list: () => post("hosts/list"),
-    switchTo: () => {},
-    openInWindow: () => {},
-    reconnect: () => {},
-    requestConnect: () => {},
+    switchTo: (id) => send("hosts/switchTo", { id: typeof id === "string" ? id : null }),
+    openInWindow: (id) => send("hosts/openInWindow", { id }),
+    reconnect: (id) => send("hosts/reconnect", { id }),
+    requestConnect: () => send("hosts/requestConnect"),
     onChange: (cb) => on("hosts:changed", cb),
     onVisibility: (cb) => on("hosts:visibility", cb),
     onCommand: (cb) => on("hosts:command", cb),
   };
 
+  // ---- the Transfer tab inside a controlled computer's view: this computer's transfer
+  // engine is out of that page's reach, so the shell carries a few calls. It checks every
+  // one: only this computer's own dashboard gets through, the other side is always the
+  // host this view shows, and this computer's paths come only from its open panel.
+  if (HOST) {
+    const call = (path, body) =>
+      fetch("/_shell/transfer/" + path, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-eos-ui-token": TOKEN },
+        body: JSON.stringify(body ?? null),
+      }).then((r) => r.json()).then((j) => {
+        if (j?.error) throw Object.assign(new Error(j.error), { code: j.code ?? null });
+        return j?.value ?? null;
+      });
+    window.eosTransfer = {
+      list: () => call("list"),
+      destination: (body) => call("destination", { paths: body?.paths }),
+      chooseFolder: () => call("chooseFolder"),
+      pull: (body) => call("pull", { paths: body?.paths, chosen: body?.chosen === true }),
+      push: (body) => call("push", { destDir: body?.destDir ?? null }),
+      act: (id, action, decisions) => call("act", { id, action, decisions }),
+      clear: () => call("clear"),
+      reveal: (id) => call("reveal", { id }),
+      onChange: (cb) => on("transfer:changed", cb),
+    };
+  } else {
+    // While a controlled computer's view covers this page.
+    on("hosts:changed", (snap) => document.documentElement?.classList.toggle("eos-covered", !!snap?.active));
+  }
+
   // ---- the browser panel: geometry and visibility only. Each report is its own request,
   // so each carries a sequence number and the shell drops one that arrives after a newer
   // one. Starting from the clock keeps the order across a reload of this page.
   let seq = Date.now();
-  window.eosBrowserView = {
+  if (!HOST) window.eosBrowserView = {
     setActiveView: (arg) => send("browserView/setActiveView", { seq: ++seq, sessionKey: arg?.sessionKey, tabId: arg?.tabId }),
     setBounds: (r) => send("browserView/setBounds", { seq: ++seq, x: r?.x, y: r?.y, width: r?.width, height: r?.height }),
     setVisible: (v) => send("browserView/setVisible", { seq: ++seq, value: !!v }),
@@ -91,8 +125,35 @@
     cancelPick: () => send("browserView/pickCancel"),
   };
 
+  // ---- claude.ai artifacts as live views (the hover peek, side-panel tabs). Places are
+  // told in order: each waits for the one before it to be taken, so an attach never lands
+  // after the detach that followed it.
+  let placing = Promise.resolve();
+  const place = (verb, body) => {
+    placing = placing.then(() => post("artifacts/" + verb, body), () => null);
+  };
+  // A DOMRect's fields are prototype getters, which JSON would not copy.
+  const box = (r) => ({ x: r?.x, y: r?.y, width: r?.width, height: r?.height });
+  if (!HOST) window.eosArtifacts = {
+    warm: (ref) => place("warm", { ref }),
+    peek: (ref, rect) => place("peek", { ref, rect: box(rect) }),
+    unpeek: () => place("unpeek"),
+    attach: (tabKey, ref, rect) => place("attach", { tabKey, ref, rect: box(rect) }),
+    setBounds: (tabKey, rect) => place("setBounds", { tabKey, rect: box(rect) }),
+    setVisible: (tabKey, visible) => place("setVisible", { tabKey, visible }),
+    detach: (tabKey) => place("detach", { tabKey }),
+    reload: (slug) => place("reload", { slug }),
+    still: (ref) => post("artifacts/still", { ref }),
+    state: (slug) => post("artifacts/state", { slug }).then((s) => s ?? "idle"),
+    onState: (cb) => on("artifacts:state", cb),
+    onAction: (cb) => on("artifacts:action", cb),
+    account: (loginId, expectedEmail) => post("artifacts/account", { loginId, expectedEmail }),
+    signIn: (loginId, expectedEmail) => post("artifacts/signIn", { loginId, expectedEmail }),
+    signOut: (loginId) => post("artifacts/signOut", { loginId }),
+  };
+
   // ---- native banner for the dashboard's own errors and warnings (lib/notify.js).
-  window.eosNotify = { show: (n) => send("notify", { title: n?.title, body: n?.body }) };
+  if (!HOST) window.eosNotify = { show: (n) => send("notify", { title: n?.title, body: n?.body }) };
 
   // A click on a banner leads to a worker's chat or a named view.
   on("navigate", (p) => {
@@ -111,7 +172,7 @@
         },
       },
       saveFile: { postMessage: (p) => send("files/save", { filename: p?.filename, base64: p?.base64 }) },
-      pasteboardPaths: { postMessage: () => post("clipboard/paths").then((v) => v ?? []) },
+      ...(HOST ? {} : { pasteboardPaths: { postMessage: () => post("clipboard/paths").then((v) => v ?? []) } }),
       titlebarDrag: { postMessage: () => {} },
       titlebarDblClick: { postMessage: () => {} },
     },
@@ -142,7 +203,8 @@
 
   // ---- files dropped from the Finder: the page only sees File objects, the shell reads
   // their real paths from the objects parked here.
-  const hasFiles = (e) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
+  // A controlled computer's view gets no paths of this one: they mean nothing there.
+  const hasFiles = (e) => !HOST && !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
   document.addEventListener("dragenter", (e) => { if (hasFiles(e)) e.preventDefault(); }, true);
   document.addEventListener("dragover", (e) => { if (hasFiles(e)) e.preventDefault(); }, true);
   document.addEventListener("drop", (e) => {
@@ -192,6 +254,7 @@
   // ---- "ready": the sidebar is in the DOM. A timer, not a frame callback: a window that is
   // covered or hidden draws no frames.
   const ready = setInterval(() => {
+    if (HOST) return clearInterval(ready);
     if (!document.querySelector(".side")) return;
     clearInterval(ready);
     send("ready", { ms: Math.round(performance.now()) });

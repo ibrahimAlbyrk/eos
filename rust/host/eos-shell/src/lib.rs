@@ -48,6 +48,9 @@ pub struct Options {
     pub network_in_process: bool,
     /// Keep painting while other windows cover the app's. For memory measurements.
     pub paint_when_covered: bool,
+    /// A local page standing in for claude.ai in the artifact views (a test run's server,
+    /// `http://127.0.0.1:<port>`). The binary sets it only in a build with the dev proxy.
+    pub artifact_origin: Option<String>,
 }
 
 /// What the shell offers the core.

@@ -89,6 +89,8 @@ scripts/sign.sh <Eos.app>         # local Developer ID signature, --timestamp=no
 python3 tests/smoke.py <Eos.app>  # launches quietly, 34 checks, quits (never types into a page)
 python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
                                   # temporary folder; a plugin preview; 28 checks
+python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page standing in for claude.ai:
+                                  # sign-in window, tab, peek (zoom, shield), reload swap, stills
 python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
 scripts/try.sh                    # for a person: see the header of the script
@@ -106,9 +108,12 @@ router in process (`eos_bridge::RouterCore`): each page request becomes a runtim
 tagged with its caller (`eos-app`'s `callers().classify` on the ui-token; the raw origin is
 never the dashboard), whole bodies are sent at once and streams chunk by chunk at the
 reader's pace, a route's own 206 passes through, a request the page drops cancels the handler
-or its stream, and a request is always answered, also when its task dies. There is no default
-for `EOS_HOME` yet: without it the Rust core does not start, so nothing opens the real
-`~/.eos` by accident.
+or its stream, and a request is always answered, also when its task dies. A release build
+opens `~/.eos` when `EOS_HOME` is not set; a development build has no default: without it
+the Rust core does not start, so nothing opens the real `~/.eos` by accident
+(`eos_bridge::launch`). Only a release build on the user's own `~/.eos` reaches other
+computers (the phone's relay, paired computers): never a development build, a test or a
+copy of a data folder.
 
 While routes are still being ported, a bundle is built with the `dev-proxy` feature: a request
 goes to the Rust router when it declares that route and to an **isolated** Node daemon
@@ -154,17 +159,19 @@ stream. Members of the Electron preload and of main's calls into the page:
 
 | Surface | Now | Later |
 |---|---|---|
-| `__EOS_DAEMON_URL`, `__EOS_RAW_URL`, `__EOS_UI_TOKEN`, `html.native` + `data-os`, `html.fullscreen`, window drag and double-click zoom | 6 | `__EOS_HOST`, `eos-covered` (host views) |
+| `__EOS_DAEMON_URL`, `__EOS_RAW_URL`, `__EOS_UI_TOKEN`, `html.native` + `data-os`, `html.fullscreen`, window drag and double-click zoom, `__EOS_HOST` and `eos-covered` (host views) | 8 | |
 | `eosBrowserView` | `setActiveView`, `setBounds`, `setVisible`, `overlayOpen`, `setOccluded`, `snapshot`, `pickElement`, `cancelPick` | |
 | `eosNotify` | `show` | |
 | `webkit.messageHandlers` | `themeChanged`, `themeSnapshot`, `saveFile`, `pasteboardPaths`, `titlebarDrag`, `titlebarDblClick` | |
 | Finder drop → `__eosNativeDrop` | real paths, read over DevTools from the dropped `File` objects | |
 | Shell → page | `__eosThemeSnapshot`, `__nativeNavigate`, `__nativeOpenRoute`, `__eosUndo`, `__eosRedo`, `__eosTerm` (4), `__eosPluginPreview` (called in a hidden view of its own) | |
-| `eosHosts` | `list` (empty), `onChange`, `onVisibility`, `onCommand` | `switchTo`, `openInWindow`, `reconnect`, `requestConnect` |
-| `eosArtifacts` (15), `eosTransfer` (9) | left undefined, as in a host view today | all |
+| `eosHosts` | `list`, `switchTo`, `openInWindow`, `reconnect`, `requestConnect`, `onChange`, `onVisibility`, `onCommand` | |
+| `eosArtifacts` | `warm`, `peek`, `unpeek`, `attach`, `setBounds`, `setVisible`, `detach`, `reload`, `still`, `state`, `onState`, `onAction`, `account`, `signIn`, `signOut` | |
+| `eosTransfer` (a host's view running this computer's dashboard) | `list`, `destination`, `chooseFolder`, `pull`, `push`, `act`, `clear`, `reveal`, `onChange` | |
 | `eosWindow` (5) | not applicable: Windows only | |
 
-36 members work, 30 come later (artifacts 15, transfers 9, hosts 6).
+66 members work; `eosWindow` is the Windows shell's. A host's view gets `__EOS_HOST`,
+`eosHosts`, `eosTransfer`, the window drag and the theme handlers, and none of the rest.
 
 Not bridges, done in the shell: single instance (a later launch hands over; `Eos --status`,
 `Eos --quit`), close hides and the Dock reopens, quit runs the app's shutdown hook, the app
@@ -177,12 +184,34 @@ hand-off to the app, the one-time `localStorage` carry-over, the browser's tabs 
 (`eos-mod-browser` over `BrowserViews`; a device-sized tab is centered in the panel), the
 plugin preview (a hidden view of the dashboard's bundle, captured over DevTools: a hidden
 view keeps painting, so no off-screen rendering mode is used), the system opener for the
-core's sign-in pages, the PDF viewer for the raw-content origin.
+core's sign-in pages, the PDF viewer for the raw-content origin, the core's banners
+(`notification:fire`; a click on one raised on a paired computer opens it in that
+computer's view), a wake probes the links to paired computers.
+
+**Artifact views** (`eos_bridge::artifacts`, the pool and its rules, tested without a
+window; `eos-shell/src/views/artifacts.rs`): the claude.ai viewer in a child view, a
+profile per Claude sign-in (`view-claude-<login>`), one live view moving between warm, the
+peek and a tab with no reload, a reload behind a ready view that swaps once ready, a pool
+of 4 (least recently used, idle 5 min), stills per `slug@version` under
+`artifact-stills/` (newest 300), only the viewer's paths stay in a view (anything else:
+the system browser, or "needs sign-in"). The peek's half zoom and its shield are a script
+in an isolated world: a closed shadow root, a binding only that world can call, trusted
+clicks only. Sign-in is the site's own page in a window of its own in that profile; it
+ends when a `sessionKey` cookie is there and the page has left the sign-in pages. The
+Electron partitions' sessions cannot be read by Chromium here: each sign-in signs in once.
+
+**Views of paired computers** (`eos_bridge::hosts`, `eos-shell/src/views/hosts.rs`): one
+view per host filling the window, a profile each (`view-host-<id>`), its own door on its
+request context (`HostViewService`): only `/h/<id>/…` on both origins, with the view's
+token on every request (the core classifies it as that host's view with
+`Callers::classify_for`), a content policy pinned to that prefix, this computer's
+dashboard when the host speaks the same API, else the host's bundle from `/h/<id>/ui/`.
+While one covers the dashboard the artifact views stay hidden.
 
 Not ported: the tray (decided), the boot splash and daemon supervision (no daemon), the dev
-"Rebuild & Relaunch" item. Later phases: artifact views, host views, transfers, location,
-reload-after-renderer-crash, whether a tab is making sound (the tab list says `audible:
-false`).
+"Rebuild & Relaunch" item. Later: reload-after-renderer-crash, whether a tab is making
+sound (the tab list says `audible: false`), throttling a hidden artifact view once its
+still is taken (they keep painting, at most four).
 
 ### Memory
 
@@ -237,17 +266,20 @@ service process (6 MB) can only go with a patch to CEF.
 | `EOS_SHELL_TRACE`, `EOS_SHELL_NETLOG` | log each request's path and status; write Chromium's net log |
 | `EOS_SHELL_NETWORK_IN_PROCESS` | run Chromium's network service inside the browser process: one process and about 9 MB less, without its crash isolation and its own sandbox (off by default; see "Memory") |
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
-| `EOS_HOME` | the core's data folder; no default yet (see above) |
+| `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a development build (see above) |
 | `EOS_LOG` | what is logged to stderr, as a `tracing` filter (default `warn`) |
 | `EOS_DEV_DAEMON_URL`, `EOS_DEV_DAEMON_RAW_URL`, `EOS_DEV_DAEMON_HOME` | `dev-proxy`: the isolated daemon |
 | `EOS_DEV_RUST_STREAM` | `dev-proxy`: let the Rust runtime serve the event stream |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-proxy`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-proxy`: steps on test views (`eos/src/dev/script.rs`) |
+| `EOS_DEV_ARTIFACT_ORIGIN` | `dev-proxy`: a page on `http://127.0.0.1:<port>` standing in for claude.ai in the artifact views (`tests/artifact_smoke.py`) |
 
 ### Open points
 
 - Only a person can confirm: a real window drag, ⌘C/⌘V/⌘Z in the composer and in an embedded
-  view, a banner's sound and click, claude.ai sign-in in a view (`scripts/try.sh`).
+  view, a banner's sound and click, claude.ai sign-in and a real artifact
+  (`scripts/try.sh artifacts <link>`), a view of a paired computer (a dev run refuses to
+  reach one).
 - The local-network guard (`crates/eos-bridge/src/lan_guard.rs`, a proxy script per profile)
   refuses a page's requests to the LAN before any connection, and opens a view's profile
   while the user has sent that view to a LAN address or a `.local` name (the core says so

@@ -1265,6 +1265,7 @@ dependencies = [
  "eos-mod-accounts",
  "eos-mod-agent-jobs",
  "eos-mod-agents",
+ "eos-mod-artifacts",
  "eos-mod-auto-name",
  "eos-mod-browser",
  "eos-mod-btw",
@@ -1620,6 +1621,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-artifacts"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde_json",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
 ]

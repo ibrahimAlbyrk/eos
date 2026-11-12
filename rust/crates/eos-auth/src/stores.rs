@@ -203,6 +203,20 @@ impl PlanStores for Stores {
         })
     }
 
+    fn refused<'a>(&'a self, provider: &'a str, store_dir: &'a str, rejected: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(async move {
+            let dir = Path::new(store_dir);
+            let rejected = Credential::Bearer(rejected.to_owned());
+            match provider {
+                "anthropic" if self.read(provider, store_dir).await.present => {
+                    self.claude_login(dir).refused(&rejected).await
+                }
+                "openai" if ChatGptLogin::exists(dir) => self.chatgpt_login(dir).refused(&rejected).await,
+                _ => false,
+            }
+        })
+    }
+
     fn sign_out<'a>(&'a self, provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         Box::pin(async move {
             let dir = Path::new(store_dir);

@@ -41,6 +41,21 @@ pub fn entry_script(ui_token: &str, seed: Option<&BTreeMap<String, String>>) -> 
     BRIDGE_JS.replace("__CFG__", &ascii_json(&cfg))
 }
 
+/// The script for the entry document of a view of another computer: its core is that
+/// host's prefix, its token the view's own, and `host` what the page reads as
+/// `window.__EOS_HOST`.
+pub fn host_entry_script(view_token: &str, core_url: &str, raw_url: &str, host: &Value) -> String {
+    let cfg = json!({
+        "coreUrl": core_url,
+        "rawUrl": raw_url,
+        "uiToken": view_token,
+        "seed": null,
+        "seedMarker": PAGE_MARKER_KEY,
+        "host": host,
+    });
+    BRIDGE_JS.replace("__CFG__", &ascii_json(&cfg))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

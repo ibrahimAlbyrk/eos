@@ -12,6 +12,13 @@
 #   try.sh banner     a test banner 6 seconds after launch: switch to another app, wait for it
 #                     (with the Eos sound), click it → the Memory view opens
 #   try.sh link       hand the running app an eos://pair/… link (opens the Connect sheet)
+#   try.sh artifacts <claude.ai artifact link>
+#                     the claude.ai sign-in window opens (profile of no Eos sign-in): sign in;
+#                     then the artifact's live peek appears over the dashboard: hover-free
+#                     check that it is a half-size miniature, click it (opens its side-panel
+#                     tab, no reload), ⌥-click opens claude.ai in your browser, Reload in the
+#                     tab swaps without a blank frame, ⌘C/⌘V inside the artifact, a link in
+#                     it opens in your browser
 #   try.sh status     the running app's state as JSON
 #   try.sh build      rebuild the release bundle (after a change)
 #   try.sh stop       quit the app and stop the isolated daemon
@@ -56,5 +63,13 @@ case "${1:-run}" in
     echo '[{"wait": 6000}, {"notify": {"title": "Eos", "body": "A test banner. Click it: the Memory view opens.", "route": "memory"}}]' > "$STEPS"
     EOS_DEV_SCRIPT="$STEPS" EOS_DEV_SCRIPT_OUT="$OUT/banner-out.json" "$HERE/launch.sh" "$APP"
     echo "switch to another app now; the banner comes in 6 seconds" ;;
-  *) sed -n '2,23p' "$0"; exit 2 ;;
+  artifacts)
+    LINK="${2:?usage: try.sh artifacts <claude.ai artifact link>}"
+    ready
+    STEPS="$OUT/artifacts-steps.json"
+    REF="{\"url\": \"$LINK\", \"loginId\": null}"
+    printf '[{"wait": 4000}, {"artifacts": {"verb": "signIn", "body": {"loginId": null}}}, {"artifacts": {"verb": "peek", "body": {"ref": %s, "rect": {"x": 360, "y": 120, "width": 420, "height": 300}}}}]' "$REF" > "$STEPS"
+    EOS_DEV_SCRIPT="$STEPS" EOS_DEV_SCRIPT_OUT="$OUT/artifacts-out.json" "$HERE/launch.sh" "$APP"
+    echo "sign in to claude.ai in the window that opens; the artifact's peek follows" ;;
+  *) sed -n '2,30p' "$0"; exit 2 ;;
 esac

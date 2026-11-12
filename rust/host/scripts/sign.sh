@@ -27,5 +27,7 @@ ESBUILD="$APP/Contents/Resources/esbuild"
 # The update applier is a program of its own beside the main executable: signed by itself
 # (it runs from a copy outside the bundle), with no entitlement.
 [ -f "$APP/Contents/MacOS/eos-apply" ] && sign --options runtime "$APP/Contents/MacOS/eos-apply"
+LOCATION="$APP/Contents/Resources/EosLocation.app"
+[ ! -d "$LOCATION" ] || sign --options runtime "$LOCATION"
 sign --options runtime --entitlements "$ENT" "$APP"
 codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"

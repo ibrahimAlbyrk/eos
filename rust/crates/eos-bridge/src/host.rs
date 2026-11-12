@@ -73,6 +73,8 @@ pub struct Banner {
     pub title: String,
     pub body: String,
     pub target: Option<BannerTarget>,
+    /// The paired computer it was raised on: a click opens it in that computer's view.
+    pub host: Option<String>,
 }
 
 pub trait ShellHost: Send + Sync + 'static {

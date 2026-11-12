@@ -47,6 +47,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-mod-accounts", Layer::Feature),
     ("eos-mod-agent-jobs", Layer::Feature),
     ("eos-mod-agents", Layer::Feature),
+    ("eos-mod-artifacts", Layer::Feature),
     ("eos-mod-auto-name", Layer::Feature),
     ("eos-mod-browser", Layer::Feature),
     ("eos-mod-btw", Layer::Feature),

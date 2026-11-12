@@ -50,8 +50,11 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
   assert.ok(p.classes.has("native"));
   assert.equal(p.element.dataset.os, "mac");
   assert.equal(p.events().url, "/_shell/events?t=tok");
-  assert.equal(p.window.eosArtifacts, undefined, "artifact views come later: the dashboard takes its own fallback");
-  assert.equal(p.window.eosTransfer, undefined);
+  assert.deepEqual(Object.keys(p.window.eosArtifacts).sort(), [
+    "account", "attach", "detach", "onAction", "onState", "peek", "reload", "setBounds", "setVisible", "signIn",
+    "signOut", "state", "still", "unpeek", "warm",
+  ]);
+  assert.equal(p.window.eosTransfer, undefined, "only a view of another computer has transfers");
   for (const name of ["themeChanged", "themeSnapshot", "saveFile", "pasteboardPaths", "titlebarDrag", "titlebarDblClick"]) {
     assert.equal(typeof p.window.webkit.messageHandlers[name].postMessage, "function", name);
   }
@@ -215,4 +218,28 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
   ]);
   assert.ok(p.sent.every((s) => s.token === "tok"), "every call carries the ui-token");
 }
-console.log("bridge script: 9 groups ok");
+
+// ---- artifact views: places go out one after another, reads and events as asked
+{
+  const p = page({ answers: { "artifacts/state": "ready", "artifacts/still": "data:image/jpeg;base64,AA==" } });
+  const a = p.window.eosArtifacts;
+  const ref = { slug: "0b0e8f2a-1c2d-4e5f-8a9b-0c1d2e3f4a5b", loginId: "lg-1", url: "https://claude.ai/artifact/x" };
+  const rect = { x: 1, y: 2, width: 3, height: 4, toJSON: undefined };
+  a.attach("artifact:x", ref, rect);
+  a.setBounds("artifact:x", { x: 5, y: 6, width: 7, height: 8 });
+  a.detach("artifact:x");
+  assert.equal(p.sent.length, 0, "a place waits for the one before it");
+  for (let i = 0; i < 6; i++) await p.settle();
+  assert.deepEqual(p.sent.map((s) => s.path), ["artifacts/attach", "artifacts/setBounds", "artifacts/detach"]);
+  assert.deepEqual(p.sent[0].body, { tabKey: "artifact:x", ref, rect: { x: 1, y: 2, width: 3, height: 4 } });
+  assert.equal(await a.state(ref.slug), "ready");
+  assert.equal(await a.still(ref), "data:image/jpeg;base64,AA==");
+  const seen = [];
+  a.onState((e) => seen.push(e.state));
+  a.onAction((e) => seen.push(e.action));
+  p.emit("artifacts:state", { slug: ref.slug, state: "loading" });
+  p.emit("artifacts:action", { slug: ref.slug, action: "open" });
+  assert.deepEqual(seen, ["loading", "open"]);
+}
+
+console.log("bridge script: 10 groups ok");

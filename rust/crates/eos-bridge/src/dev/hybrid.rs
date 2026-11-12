@@ -236,7 +236,7 @@ mod tests {
             .expect("valid routes");
         let rt = tokio::runtime::Handle::current();
         let classify: Classify =
-            Arc::new(|given| if given == Some(RUST_TOKEN) { Caller::DASHBOARD } else { Caller::UNTRUSTED });
+            Arc::new(|given, _| if given == Some(RUST_TOKEN) { Caller::DASHBOARD } else { Caller::UNTRUSTED });
         let rust = Arc::new(RouterCore::new(Arc::new(router), RUST_TOKEN, classify, rt.clone()));
         let base = daemon().await;
         let config = DevDaemonConfig { api_base: base.clone(), raw_base: base, ui_token: daemon_token.to_string() };

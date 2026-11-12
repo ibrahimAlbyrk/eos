@@ -58,6 +58,9 @@ pub trait PlanStores: Send + Sync + 'static {
     /// The store's access token, renewed first when it lapsed. `None`: not
     /// signed in, or the renewal failed.
     fn access_token<'a>(&'a self, provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Option<String>>;
+    /// A server refused `rejected`, the store's token: renews the sign-in
+    /// under the store's lock. True when the store now holds another token.
+    fn refused<'a>(&'a self, provider: &'a str, store_dir: &'a str, rejected: &'a str) -> BoxFuture<'a, bool>;
     /// Removes the store's sign-in; a store that holds none is not an error.
     fn sign_out<'a>(&'a self, provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Result<(), Error>>;
 }
@@ -287,6 +290,11 @@ pub trait PlanAccess: Send + Sync + 'static {
     fn logins(&self, provider: &str) -> Vec<eos_domain::accounts::PlanLoginRecord>;
     /// A sign-in's access token, renewed first when it lapsed.
     fn access_token<'a>(&'a self, provider: &'a str, login_id: &'a str) -> BoxFuture<'a, Option<String>>;
+    /// A server refused `rejected`, a token of this sign-in: renews it. True
+    /// when the sign-in now gives another token (worth one more request).
+    fn token_refused<'a>(&'a self, provider: &'a str, login_id: &'a str, rejected: &'a str) -> BoxFuture<'a, bool>;
+    /// The sign-in the worker's live session runs on, when it runs on one.
+    fn login_of_worker(&self, provider: &str, worker_id: &str) -> Option<String>;
     /// How much of its plan the sign-in a new session would use has spent:
     /// the larger of its five-hour and weekly windows, 0–1. `None`: unknown.
     fn utilization<'a>(&'a self, provider: &'a str) -> BoxFuture<'a, Option<f64>>;

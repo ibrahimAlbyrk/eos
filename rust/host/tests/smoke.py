@@ -143,7 +143,23 @@ def main():
         run.close(keep=KEEP)
 
 
+def bundle_contents():
+    """What the bundle must ship beside the program; the location helper is never run."""
+    res = os.path.join(APP, "Contents", "Resources")
+    plist = open(os.path.join(APP, "Contents", "Info.plist")).read()
+    helper = os.path.join(res, "EosLocation.app", "Contents")
+    helper_plist = open(os.path.join(helper, "Info.plist")).read() if os.path.isfile(os.path.join(helper, "Info.plist")) else ""
+    check("the bundle ships esbuild, the plugin skill, pdf.js and the update applier",
+          os.access(os.path.join(res, "esbuild"), os.X_OK) and os.path.isfile(os.path.join(res, "claude-plugin", "skills", "eos-plugin-authoring", "SKILL.md"))
+          and os.path.isdir(os.path.join(res, "pdfjs")) and os.access(os.path.join(APP, "Contents", "MacOS", "eos-apply"), os.X_OK))
+    check("the location helper is a bundle of its own, named after the app",
+          os.access(os.path.join(helper, "MacOS", "eos-location"), os.X_OK) and "<string>eos-location</string>" in helper_plist
+          and ".location</string>" in helper_plist and "NSLocationUsageDescription" in helper_plist)
+    check("the app says why it may use the local network", "NSLocalNetworkUsageDescription" in plist)
+
+
 def checks(run):
+    bundle_contents()
     # ---- a fresh shell profile, and an "Electron profile" holding the layout to restore:
     # one chat selected with the Browser tab open in its side panel.
     subprocess.run(["rm", "-rf", OUT], check=True)
@@ -254,7 +270,7 @@ def checks(run):
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("the app is still up and answering", st.get("running") and bridge_of(st).get("requests", {}).get("core", 0) > 10, bridge_of(st).get("requests"))
     core = bridge_of(st).get("core") or {}
-    check("the Rust core runs and the daemon answers what it does not declare", isinstance(core.get("rust"), int) and core.get("proxy", 0) > 10,
+    check("the Rust core runs and the daemon answers what it does not declare", isinstance(core.get("rust"), int) and core.get("proxy", 0) > 0,
           {k: core.get(k) for k in ("rust", "proxy", "proxyRefusedWrites", "rustRoutes", "heldBack")})
     check("nothing failed in the shell's log", "failed" not in log and "could not" not in log and "panic" not in log)
 

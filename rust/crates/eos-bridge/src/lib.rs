@@ -6,6 +6,8 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used))]
 
+pub mod artifacts;
+pub mod ask;
 pub mod assets;
 mod bridge;
 pub mod chromium;
@@ -14,8 +16,10 @@ pub mod core;
 pub mod dev;
 pub mod events;
 pub mod host;
+pub mod hosts;
 pub mod instance;
 pub mod lan_guard;
+pub mod launch;
 pub mod migrate;
 pub mod panel;
 pub mod power;

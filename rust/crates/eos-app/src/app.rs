@@ -8,7 +8,7 @@ use std::time::Duration;
 use eos_accounts::{Accounts, TokioSleeper};
 use eos_auth::{
     AccountDirs, ChatGptSignIn, ClaudeSignIn, ClaudeTokenProbe, ClaudeUsageApi, Endpoints, FilePlanLoginStore,
-    FileUsageSnapshots, HostCredentials, Stores,
+    FileUsageSnapshots, FrameApiArtifacts, HostCredentials, Stores,
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
@@ -459,6 +459,7 @@ impl App {
             questions,
             recents,
             accounts: accounts.clone(),
+            artifacts: Arc::new(FrameApiArtifacts::new(accounts.clone())),
             browser: browser.clone(),
             picker: shell.as_ref().map(|s| s.picker.clone()),
             plugins: plugins.clone(),

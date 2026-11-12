@@ -116,9 +116,28 @@ pub fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// `encodeURIComponent`: everything but `A–Z a–z 0–9 - _ . ! ~ * ' ( )` as `%XX` bytes.
+pub fn percent_encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for b in s.bytes() {
+        if b.is_ascii_alphanumeric() || b"-_.!~*'()".contains(&b) {
+            out.push(char::from(b));
+        } else {
+            out.push_str(&format!("%{b:02X}"));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn encoding_is_encode_uri_component() {
+        assert_eq!(percent_encode("tr-1/../x y?ğ"), "tr-1%2F..%2Fx%20y%3F%C4%9F");
+        assert_eq!(percent_decode(&percent_encode("a/b c")), "a/b c");
+    }
 
     #[test]
     fn core_requests_lose_the_prefix_and_keep_the_query() {

@@ -119,6 +119,11 @@ impl PlanStores for FakePlanStores {
         Box::pin(async move { present.then(|| format!("token-of:{store_dir}")) })
     }
 
+    /// A store's token never changes here: a renewal gives nothing new.
+    fn refused<'a>(&'a self, _provider: &'a str, _store_dir: &'a str, _rejected: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(async { false })
+    }
+
     fn sign_out<'a>(&'a self, _provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         locked(&self.stores).remove(store_dir);
         locked(&self.signed_out).push(store_dir.to_owned());

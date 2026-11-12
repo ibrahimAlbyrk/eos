@@ -464,7 +464,8 @@ async fn a_banner_shows_only_while_the_user_is_elsewhere() {
         Banner {
             title: "Input needed".into(),
             body: "Pick one".into(),
-            target: Some(BannerTarget::Worker("w-1".into()))
+            target: Some(BannerTarget::Worker("w-1".into())),
+            host: None,
         }
     );
     w.host.focused.store(true, Ordering::SeqCst);
@@ -486,8 +487,8 @@ async fn a_route_wins_over_a_worker_and_a_click_reaches_the_page() {
     assert_eq!(target, BannerTarget::Route("memory".into()));
     let (sink, body) = channel();
     w.bridge.events().subscribe(sink);
-    w.bridge.banner_clicked(&target);
-    w.bridge.banner_clicked(&BannerTarget::Worker("w-9".into()));
+    w.bridge.banner_clicked(Some(&target), None);
+    w.bridge.banner_clicked(Some(&BannerTarget::Worker("w-9".into())), None);
     let mut buf = [0u8; 1024];
     let Read::Data(n) = body.read(&mut buf, || {}) else { panic!("frames expected") };
     let text = String::from_utf8_lossy(&buf[..n]).into_owned();

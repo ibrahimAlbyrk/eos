@@ -52,6 +52,8 @@ pub(crate) struct Context {
     pub(crate) questions: eos_mod_questions::Questions,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
+    /// Each Claude sign-in's claude.ai Artifacts.
+    pub(crate) artifacts: Arc<dyn eos_core::net::ArtifactSource>,
     pub(crate) browser: Arc<eos_mod_browser::BrowserModule>,
     /// The shell's open panel, when there is a window.
     pub(crate) picker: Option<Arc<dyn eos_core::shell::FilePicker>>,
@@ -160,6 +162,14 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
         Arc::new(eos_mod_agent_jobs::AgentJobsModule::new(cx.kernel.jobs.clone(), Arc::new(cx.sessions.clone()))),
         agents,
+        Arc::new(eos_mod_artifacts::ArtifactsModule::new(eos_mod_artifacts::Parts {
+            source: cx.artifacts.clone(),
+            access: cx.accounts.clone(),
+            clock: cx.clock.clone(),
+            sleeper: Arc::new(eos_accounts::TokioSleeper),
+            lane: cx.kernel.ordered.clone(),
+            bus: cx.bus.clone(),
+        })),
         Arc::new(eos_mod_auto_name::AutoNameModule::new(
             eos_mod_auto_name::RunnerParts {
                 bus: cx.bus.clone(),

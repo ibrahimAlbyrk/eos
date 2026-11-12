@@ -67,3 +67,13 @@ pub struct ArtifactCatalog {
 impl Validate for ArtifactCatalog {}
 
 pub const ARTIFACTS_TOPIC: &str = "artifacts:change";
+
+/// The payload of [`ARTIFACTS_TOPIC`]: only whether a read is under way. The
+/// stream also reaches paired computers; the catalog itself (titles, account
+/// emails) stays on this computer's local-only route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ArtifactsChange {
+    pub refreshing: bool,
+}
+
+impl Validate for ArtifactsChange {}

@@ -16,6 +16,10 @@
 //! (`/api/plugins/<id>/preview`): nothing else of the core can be reached from a script. `tab` remembers the answer's `tabId` (or its first tab's);
 //! `{t}` in a later path stands for it. `retry_ms` asks again until the answer names a tab.
 //! The step's value is `{"status": …, "body": …}`.
+//! `{"artifacts": {"verb": "warm", "body": {…}}}`: an `eosArtifacts` call as the dashboard
+//! makes it (`verb: "status"` reads the views' states and places).
+//! `{"hosts": {"verb": "list"}}`, `{"hosts": {"verb": "switchTo", "id": "…"}}`: the machine
+//! switcher as the dashboard sees it.
 //! The output file gets one result per step, in order.
 
 use std::collections::HashMap;
@@ -148,6 +152,27 @@ impl Run {
             }
             "notify" => Ok(json!(format!("{:?}", self.bridge.notify(arg)))),
             "browser" => self.browser(arg).await,
+            // An `eosArtifacts` call as the dashboard makes it; `status` reads the pool.
+            "artifacts" => {
+                let verb = text("verb");
+                if verb == "status" {
+                    return Ok(self.bridge.artifact_status().await);
+                }
+                let body = arg.get("body").cloned().unwrap_or(json!({}));
+                self.bridge.artifact_call(&verb, &body).await.ok_or_else(|| format!("no artifact verb {verb:?}"))
+            }
+            // The machine switcher as the dashboard sees it: `list`, or `switchTo` an id.
+            "hosts" => {
+                let hosts = self.bridge.hosts().cloned().ok_or("no machine switcher")?;
+                match text("verb").as_str() {
+                    "list" => Ok(hosts.snapshot()),
+                    "switchTo" => {
+                        hosts.switch_to(arg.get("id").and_then(Value::as_str).map(str::to_owned)).await;
+                        Ok(hosts.snapshot())
+                    }
+                    verb => Err(format!("no hosts verb {verb:?}")),
+                }
+            }
             other => Err(format!("unknown step {other:?}")),
         }
     }

@@ -121,6 +121,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("DELETE", "/h/{id}"),
     ("DELETE", "/h/{id}/"),
     ("DELETE", "/h/{id}/{*rest}"),
+    // Reads every Claude sign-in's artifacts from Anthropic with its token, renewing a
+    // refused one: a refresh token is single-use, so renewing a copied sign-in would sign
+    // the real app out of it.
+    ("POST", "/api/artifacts/refresh"),
     // Sync: talks to the relay's vault.
     ("POST", "/api/sync/create"),
     ("POST", "/api/sync/join"),

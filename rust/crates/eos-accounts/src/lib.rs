@@ -369,6 +369,21 @@ impl PlanAccess for Accounts {
         })
     }
 
+    fn token_refused<'a>(&'a self, provider: &'a str, login_id: &'a str, rejected: &'a str) -> BoxFuture<'a, bool> {
+        Box::pin(async move {
+            let Some(login) = self.plan.logins.registry().find(provider, login_id).cloned() else { return false };
+            self.plan.stores.refused(provider, &login.store_dir, rejected).await
+        })
+    }
+
+    fn login_of_worker(&self, provider: &str, worker_id: &str) -> Option<String> {
+        let Some(SessionCredential::Store { provider: on, dir }) = self.plan.live.get(worker_id) else { return None };
+        if on != provider {
+            return None;
+        }
+        self.plan.logins.list(provider).into_iter().find(|l| std::path::Path::new(&l.store_dir) == dir).map(|l| l.id)
+    }
+
     fn utilization<'a>(&'a self, provider: &'a str) -> BoxFuture<'a, Option<f64>> {
         Box::pin(async move {
             let Some(SessionCredential::Store { dir, .. }) = self.plan.for_new_session(provider).await else {

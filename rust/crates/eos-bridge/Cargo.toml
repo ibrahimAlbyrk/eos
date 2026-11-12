@@ -13,6 +13,7 @@ publish.workspace = true
 dev-proxy = ["dep:reqwest"]
 
 [dependencies]
+eos-contracts.workspace = true
 eos-core.workspace = true
 eos-runtime.workspace = true
 
@@ -27,14 +28,13 @@ tracing.workspace = true
 [dev-dependencies]
 bytes.workspace = true
 eos-app.workspace = true
-eos-contracts.workspace = true
 eos-kit-proc.workspace = true
 eos-mod-terminals.workspace = true
 eos-platform.workspace = true
 eos-pty.workspace = true
 eos-testkit.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["macros", "net", "io-util", "rt-multi-thread", "sync", "time"] }
+tokio = { workspace = true, features = ["macros", "net", "io-util", "rt-multi-thread", "sync", "test-util", "time"] }
 
 [lints]
 workspace = true

@@ -4,7 +4,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use eos_bridge::artifacts::ArtifactViews;
+use eos_bridge::artifacts::stills::StillStore;
+use eos_bridge::artifacts::urls::Viewer;
 use eos_bridge::chromium::{self, Tuning};
+use eos_bridge::hosts::{HostParts, HostViews};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
 use eos_bridge::panel::Panel;
@@ -20,7 +24,7 @@ use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::{appkit, notify};
-use crate::views::{Cdp, Previewer, ViewPorts, Views, create};
+use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
 use crate::{Hooks, Options, Ports, menu, scheme, window};
 
@@ -75,6 +79,8 @@ struct Shell {
     app: OnceLock<tauri::AppHandle>,
     window: OnceLock<tauri::Window>,
     views: OnceLock<Arc<Views>>,
+    artifacts: OnceLock<Arc<ArtifactShell>>,
+    hosts: OnceLock<Arc<HostShell>>,
     bridge: OnceLock<Arc<Bridge>>,
     keeper: OnceLock<StateKeeper>,
     quitting: AtomicBool,
@@ -150,6 +156,8 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
         app: OnceLock::new(),
         window: OnceLock::new(),
         views: OnceLock::new(),
+        artifacts: OnceLock::new(),
+        hosts: OnceLock::new(),
         bridge: OnceLock::new(),
         keeper: OnceLock::new(),
         quitting: AtomicBool::new(false),
@@ -265,7 +273,7 @@ impl Shell {
         let bridge = Bridge::new(Parts {
             assets: options.ui_dist.clone(),
             data_dir: options.data_dir.clone(),
-            core,
+            core: core.clone(),
             host: host.clone(),
             panel,
             capture: ports.capture.clone(),
@@ -275,6 +283,8 @@ impl Shell {
         });
         let _ = host.bridge.set(Arc::downgrade(&bridge));
         let _ = self.bridge.set(bridge.clone());
+        let artifacts = self.start_artifacts(&views, &bridge);
+        self.start_hosts(&views, &bridge, core, host.clone(), artifacts);
         let early_link = self.early_link.lock().ok().and_then(|mut link| link.take());
         if let Some(url) = early_link {
             self.open_url(&url);
@@ -284,8 +294,9 @@ impl Shell {
         let for_click = self.clone();
         notify::on_click(move |identifier| {
             for_click.show_window();
-            if let (Some(target), Some(bridge)) = (target_of(&identifier), for_click.bridge.get()) {
-                bridge.banner_clicked(&target);
+            if let Some(bridge) = for_click.bridge.get() {
+                let (target, host) = target_of(&identifier);
+                bridge.banner_clicked(target.as_ref(), host.as_deref());
             }
         });
 
@@ -294,6 +305,63 @@ impl Shell {
         let me = self.clone();
         std::thread::spawn(move || me.load_dashboard(dashboard, bridge, ports));
         Ok(())
+    }
+
+    /// The claude.ai artifact views: their pool runs on the shell's runtime and tells the
+    /// dashboard through its event stream.
+    fn start_artifacts(&self, views: &Arc<Views>, bridge: &Arc<Bridge>) -> ArtifactViews {
+        let viewer = self.options.artifact_origin.as_deref().map_or_else(Viewer::default, Viewer::at);
+        let surface = ArtifactShell::new(views.clone(), viewer.clone(), self.options.quiet);
+        let to_page = Arc::downgrade(bridge);
+        let pool = ArtifactViews::start(
+            surface.clone(),
+            viewer,
+            StillStore::new(self.options.data_dir.join("artifact-stills")),
+            Arc::new(move |name, payload| {
+                if let Some(bridge) = to_page.upgrade() {
+                    bridge.events().emit(name, payload);
+                }
+            }),
+            self.rt.handle(),
+        );
+        surface.report_to(pool.clone());
+        bridge.set_artifacts(pool.clone());
+        let _ = self.artifacts.set(surface);
+        pool
+    }
+
+    /// The machine switcher and a view per paired computer. While one covers the dashboard
+    /// the artifact views stay hidden.
+    fn start_hosts(
+        &self,
+        views: &Arc<Views>,
+        bridge: &Arc<Bridge>,
+        core: Arc<dyn eos_bridge::Core>,
+        window: Arc<Host>,
+        artifacts: ArtifactViews,
+    ) {
+        let surface = HostShell::new(views.clone(), self.options.quiet);
+        let to_page = Arc::downgrade(bridge);
+        let rt = self.rt.handle().clone();
+        let hosts = HostViews::new(HostParts {
+            core,
+            surface: surface.clone(),
+            dist: self.options.ui_dist.clone(),
+            shell: window,
+            to_dashboard: Arc::new(move |name, payload| {
+                if let Some(bridge) = to_page.upgrade() {
+                    bridge.events().emit(name, payload);
+                }
+            }),
+            covered: Arc::new(move |covered| {
+                let artifacts = artifacts.clone();
+                rt.spawn(async move { artifacts.set_covered(covered).await });
+            }),
+            rt: self.rt.handle().clone(),
+        });
+        bridge.set_hosts(hosts.clone());
+        let _ = self.hosts.set(surface);
+        self.rt.spawn(async move { hosts.refresh().await });
     }
 
     fn load_dashboard(&self, dashboard: tauri::Webview, bridge: Arc<Bridge>, ports: Ports) {
@@ -458,7 +526,12 @@ impl Shell {
         if views.dashboard().is_some_and(|d| appkit::view_has_focus(d.ns_view())) {
             return bridge.edit(command);
         }
-        if let Some(view) = views.all().into_iter().find(|v| appkit::view_has_focus(v.ns_view())) {
+        let embedded = views
+            .all()
+            .into_iter()
+            .chain(self.artifacts.get().map(|a| a.natives()).unwrap_or_default())
+            .chain(self.hosts.get().map(|h| h.natives()).unwrap_or_default());
+        if let Some(view) = embedded.into_iter().find(|v| appkit::view_has_focus(v.ns_view())) {
             let _ = view.webview.with_cef_webview(move |w| frame_command(&w.browser(), command));
             return;
         }

@@ -1,8 +1,10 @@
 //! The shell's views: the dashboard and the child Chromium views the core asks for.
 //! Implements the core's view ports (`BrowserViews`, `Capture`, `FilePicker`).
 
+mod artifacts;
 mod cdp;
 pub(crate) mod create;
+mod hosts;
 mod preview;
 mod proxy;
 
@@ -23,7 +25,9 @@ use tauri::{LogicalPosition, LogicalSize, Manager};
 use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
 
+pub(crate) use self::artifacts::ArtifactShell;
 pub(crate) use self::cdp::Cdp;
+pub(crate) use self::hosts::HostShell;
 pub(crate) use self::preview::Previewer;
 use crate::native::appkit;
 

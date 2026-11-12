@@ -37,6 +37,7 @@ ENVS=(--env "EOS_SHELL_DATA=$SHELL_DATA"
 [ "${EOS_DEV_ALLOW_AGENTS:-}" = "1" ] && ENVS+=(--env "EOS_DEV_ALLOW_AGENTS=1")
 [ -n "${EOS_SHELL_NETLOG:-}" ] && ENVS+=(--env "EOS_SHELL_NETLOG=$EOS_SHELL_NETLOG")
 [ -n "${EOS_DEV_SCRIPT:-}" ] && ENVS+=(--env "EOS_DEV_SCRIPT=$EOS_DEV_SCRIPT" --env "EOS_DEV_SCRIPT_OUT=$EOS_DEV_SCRIPT_OUT")
+[ -n "${EOS_DEV_ARTIFACT_ORIGIN:-}" ] && ENVS+=(--env "EOS_DEV_ARTIFACT_ORIGIN=$EOS_DEV_ARTIFACT_ORIGIN")
 if [ "$QUIET" = "--quiet" ]; then
   ENVS+=(--env "EOS_SHELL_QUIET=1" --env "TAURI_CEF_NO_ACTIVATE=1")
   # -g: do not bring the app forward. -n: this bundle, even if another copy is registered.

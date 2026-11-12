@@ -65,6 +65,19 @@ cp "$ESBUILD" "$APP/Contents/Resources/esbuild"
 cp -R "$REPO/rust/assets/claude-plugin" "$APP/Contents/Resources/claude-plugin"
 # The PDF viewer of the raw-content origin (`Options.pdfjs_root`).
 cp -R "$REPO/manager/vendor/pdfjs" "$APP/Contents/Resources/pdfjs"
+# The CoreLocation helper the core runs for `GET /api/location`. A bundle, not a bare
+# binary: macOS shows the location prompt only for a bundle's executable, and keys the
+# permission by the helper's own identifier, which follows the app's (a local build never
+# shares the installed app's Location Services entry). Signed ad hoc here; sign.sh signs it
+# again with the app's identity. Never run by a test.
+LOCATION="$APP/Contents/Resources/EosLocation.app/Contents"
+mkdir -p "$LOCATION/MacOS"
+xcrun swiftc -O -target arm64-apple-macos14.0 -o "$LOCATION/MacOS/eos-location" "$REPO/app/location/main.swift" >&2
+sed -e "s/<string>com\.ibrahimalbyrk\.eos\.location<\/string>/<string>$ID.location<\/string>/" \
+  "$REPO/app/location/Info.plist" > "$LOCATION/Info.plist"
+grep -q "<string>$ID.location</string>" "$LOCATION/Info.plist" \
+  || { echo "the location helper's identifier was not set" >&2; exit 1; }
+codesign --force -s - "$APP/Contents/Resources/EosLocation.app" 2>/dev/null
 # -c: a clone copy where the volume supports it (APFS), so the 320 MB framework costs nothing.
 cp -Rc "$FRAMEWORK" "$APP/Contents/Frameworks/" 2>/dev/null || cp -R "$FRAMEWORK" "$APP/Contents/Frameworks/"
 

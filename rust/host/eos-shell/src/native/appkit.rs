@@ -52,6 +52,26 @@ pub(crate) fn bring_view_to_front(view: *mut c_void) {
     }
 }
 
+/// Rounds the corners of a child view (the artifact peek and tab), clipping its content.
+/// `view` is a CEF browser's `NSView`.
+pub(crate) fn set_corner_radius(view: *mut c_void, radius: f64) {
+    let view = view.cast::<AnyObject>();
+    if view.is_null() {
+        return;
+    }
+    // SAFETY: main thread; `view` is a live NSView owned by the window, and a layer-backed
+    // view's `layer` is a CALayer for as long as the view lives.
+    unsafe {
+        let _: () = msg_send![view, setWantsLayer: Bool::YES];
+        let layer: *mut AnyObject = msg_send![view, layer];
+        if layer.is_null() {
+            return;
+        }
+        let _: () = msg_send![layer, setCornerRadius: radius];
+        let _: () = msg_send![layer, setMasksToBounds: Bool::new(radius > 0.0)];
+    }
+}
+
 /// Whether the window's first responder is `view` or inside it: that view has the keyboard.
 pub(crate) fn view_has_focus(view: *mut c_void) -> bool {
     let view = view.cast::<AnyObject>();
@@ -167,12 +187,22 @@ pub(crate) fn clipboard_file_paths() -> Vec<String> {
 /// Runs the system's open panel modally and returns the chosen paths; `None` when the user
 /// cancelled. Blocks the main thread in the panel's own event loop.
 pub(crate) fn open_panel(directories: bool, multiple: bool) -> Option<Vec<String>> {
+    open_panel_for(directories, !directories, multiple)
+}
+
+/// The open panel offering files and folders alike, several at once (what to send to
+/// another computer).
+pub(crate) fn open_panel_any() -> Option<Vec<String>> {
+    open_panel_for(true, true, true)
+}
+
+fn open_panel_for(directories: bool, files: bool, multiple: bool) -> Option<Vec<String>> {
     // SAFETY: main thread; plain NSOpenPanel setters and getters.
     unsafe {
         let panel: Option<Retained<AnyObject>> = msg_send![class!(NSOpenPanel), openPanel];
         let panel = panel?;
         let _: () = msg_send![&*panel, setCanChooseDirectories: Bool::new(directories)];
-        let _: () = msg_send![&*panel, setCanChooseFiles: Bool::new(!directories)];
+        let _: () = msg_send![&*panel, setCanChooseFiles: Bool::new(files)];
         let _: () = msg_send![&*panel, setCanCreateDirectories: Bool::new(directories)];
         let _: () = msg_send![&*panel, setAllowsMultipleSelection: Bool::new(multiple)];
         // NSModalResponseOK = 1

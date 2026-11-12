@@ -58,6 +58,18 @@ at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
 [[known]]
+scenario = "16-services"
+step = "dream-exclude-invalid"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "18-http"
+step = "gzip-large"
+at = "/headers/content-encoding"
+reason = "Compression is an HTTP listener's. There is none: the shell hands a page its answer in process."
+
+[[known]]
 scenario = "17-browser"
 at = "/json/chromePath"
 reason = "The recording ran without the app's window, so the daemon named the Chrome it would have started. The app's own views are the browser now: there is no second lane. With a window the status names them as the app does today (`WebContentsView (embedded)`); without one, as in this replay, it is null."
@@ -209,6 +221,18 @@ reason = "Sign in with ChatGPT runs on the engine's own ChatGPT route, which eve
 
 [[known]]
 scenario = "15-accounts"
+at = "/json/accounts/2/subscription/supported"
+reason = "The Gemini lane is not ported, so there is no Google sign-in to offer. The daemon offered one because a Gemini CLI was installed on the recording machine."
+
+[[known]]
+scenario = "20-reads"
+step = "accounts"
+at = "/json/accounts/1/subscription/supported"
+reason = "Sign in with ChatGPT runs on the engine's own ChatGPT route, which every build has. The daemon offered it only where a Codex CLI was installed, and the recording machine had none."
+
+[[known]]
+scenario = "20-reads"
+step = "accounts"
 at = "/json/accounts/2/subscription/supported"
 reason = "The Gemini lane is not ported, so there is no Google sign-in to offer. The daemon offered one because a Gemini CLI was installed on the recording machine."
 

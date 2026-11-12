@@ -1,16 +1,18 @@
 //! The Eos application: starts the window shell and hands it the core.
 //!
-//! The core is `eos-app`, built from the data folder named by `EOS_HOME`; the shell reaches
-//! its router in process. While routes are still being ported, the `dev-proxy` feature sends
+//! The core is `eos-app`, built from the data folder (`data_folder`); the shell reaches its
+//! router in process. While routes are still being ported, the `dev-proxy` feature sends
 //! every route the router does not declare to an isolated Node daemon (see `dev.rs`).
 
 #[cfg(feature = "dev-proxy")]
 mod dev;
+mod follow;
 
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
+use eos_bridge::launch::{data_folder, reaches_network};
 use eos_bridge::{Bridge, Classify, Core, RouterCore};
 use eos_shell::{Hooks, Options, Ports};
 use eos_update::handover::{ApplierLauncher, Handover};
@@ -59,8 +61,21 @@ fn options() -> Options {
         mock_keychain: env("EOS_SHELL_MOCK_KEYCHAIN").is_some(),
         network_in_process: env("EOS_SHELL_NETWORK_IN_PROCESS").is_some(),
         paint_when_covered: env("EOS_SHELL_PAINT_WHEN_COVERED").is_some(),
+        artifact_origin: artifact_origin(),
     }
 }
+
+/// A page on this computer standing in for claude.ai in the artifact views, for a test run:
+/// read only by a build with the dev proxy, and only a loopback address.
+fn artifact_origin() -> Option<String> {
+    if !cfg!(feature = "dev-proxy") {
+        return None;
+    }
+    env("EOS_DEV_ARTIFACT_ORIGIN").filter(|origin| origin.starts_with("http://127.0.0.1:"))
+}
+
+/// A release build: no dev proxy, so every route is the Rust core's.
+const RELEASE: bool = cfg!(not(feature = "dev-proxy"));
 
 /// How long quitting waits for the modules to stop before it gives up on them.
 const SHUTDOWN: Duration = Duration::from_secs(5);
@@ -68,9 +83,10 @@ const SHUTDOWN: Duration = Duration::from_secs(5);
 const AFTER_WAKE: Duration = Duration::from_secs(10);
 
 struct Eos {
-    /// The core's data folder. There is no default while the port is under way: the app
-    /// must never open the real `~/.eos` by accident.
+    /// The core's data folder (`data_folder`).
     home: Option<PathBuf>,
+    /// The built dashboard, which a computer controlling this one loads too.
+    dist: PathBuf,
     app: OnceLock<(Arc<eos_app::App>, tokio::runtime::Handle)>,
     #[cfg(feature = "dev-proxy")]
     dev: dev::Dev,
@@ -80,13 +96,14 @@ impl Eos {
     /// Builds and starts the core; `None` when there is no data folder or it did not start.
     fn start_core(&self, ports: &Ports) -> Option<Arc<RouterCore>> {
         let Some(home) = &self.home else {
-            eprintln!("eos: EOS_HOME is not set: running without the Rust core");
+            eprintln!("eos: EOS_HOME is not set (a development build has no default): running without the Rust core");
             return None;
         };
         // Building the app spawns its own tasks.
         let _runtime = ports.rt.enter();
         let resources = bundled_resources();
         let real_data = *home == crate::home().join(".eos");
+        let network = reaches_network(home, &crate::home(), RELEASE);
         // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
         // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
         let mut options = eos_app::Options {
@@ -101,9 +118,9 @@ impl Eos {
                 opener: ports.opener.clone(),
             }),
             sweep_leftovers: real_data,
-            // The phone link dials its relay only from the real app: never from a development
-            // build, never on a copy of a data folder.
-            relay: (real_data && cfg!(not(feature = "dev-proxy"))).then(eos_app::relay),
+            relay: network.then(eos_app::relay),
+            peer_network: network,
+            dashboard: Some(self.dist.clone()).filter(|dist| dist.join("index.html").is_file()),
             ..eos_app::Options::new(home)
         };
         // Restarting into an update: leave the applier what it needs, start it, quit.
@@ -124,7 +141,7 @@ impl Eos {
         }
         let callers = app.callers().clone();
         let ui_token = callers.ui_token().to_owned();
-        let classify: Classify = Arc::new(move |token| callers.classify(token));
+        let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
         let core =
             Arc::new(RouterCore::new(app.router(), ui_token, classify, ports.rt.clone()).with_raw(app.raw_router()));
         let _ = self.app.set((app, ports.rt.clone()));
@@ -145,7 +162,8 @@ impl Hooks for Eos {
     }
 
     fn started(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
-        if let Some((app, _)) = self.app.get() {
+        if let Some((app, rt)) = self.app.get() {
+            follow::events(&app.runtime().kernel.bus, bridge, rt);
             // The panel's "pick an element" mode is the browser feature's.
             bridge.set_element_picker(app.element_picker());
             // After an update the applier waits for this, and puts the previous version
@@ -165,6 +183,8 @@ impl Hooks for Eos {
 
     fn woke(&self, _away: Duration) {
         if let Some((app, rt)) = self.app.get() {
+            // A link that died in the computer's sleep is probed at once.
+            app.peering().kick();
             let signals = app.update_signals();
             // The network needs a moment after a wake.
             rt.spawn(async move {
@@ -192,11 +212,13 @@ fn init_logs() {
 
 fn main() {
     init_logs();
+    let options = options();
     let hooks = Eos {
-        home: env("EOS_HOME").map(PathBuf::from),
+        home: data_folder(env("EOS_HOME").map(PathBuf::from), &home(), RELEASE),
+        dist: options.ui_dist.clone(),
         app: OnceLock::new(),
         #[cfg(feature = "dev-proxy")]
         dev: dev::Dev::from_env(),
     };
-    std::process::exit(eos_shell::run(options(), Arc::new(hooks)));
+    std::process::exit(eos_shell::run(options, Arc::new(hooks)));
 }

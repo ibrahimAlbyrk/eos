@@ -29,23 +29,34 @@ pub(crate) struct Host {
     pub(crate) quiet: bool,
 }
 
-fn tag_of(target: Option<&BannerTarget>) -> String {
-    match target {
+/// `worker:<id>` or `route:<name>`, then `@<host>` when a paired computer raised it (a host
+/// id is a fingerprint: it holds no `@`).
+fn tag_of(banner: &Banner) -> String {
+    let target = match &banner.target {
         Some(BannerTarget::Worker(id)) => format!("worker:{id}"),
         Some(BannerTarget::Route(route)) => format!("route:{route}"),
         None => String::new(),
+    };
+    match &banner.host {
+        Some(host) => format!("{target}@{host}"),
+        None => target,
     }
 }
 
 /// The inverse of `tag_of`, for the identifier a clicked banner comes back with
-/// (`<n>|<tag>`).
-pub(crate) fn target_of(identifier: &str) -> Option<BannerTarget> {
+/// (`<n>|<tag>`): what it was about, and the computer it came from.
+pub(crate) fn target_of(identifier: &str) -> (Option<BannerTarget>, Option<String>) {
     let tag = identifier.split_once('|').map_or(identifier, |(_, tag)| tag);
-    if let Some(id) = tag.strip_prefix("worker:") {
+    let (tag, host) = match tag.rsplit_once('@') {
+        Some((tag, host)) if !host.is_empty() => (tag, Some(host.to_string())),
+        _ => (tag, None),
+    };
+    let target = if let Some(id) = tag.strip_prefix("worker:") {
         Some(BannerTarget::Worker(id.to_string()))
     } else {
         tag.strip_prefix("route:").map(|route| BannerTarget::Route(route.to_string()))
-    }
+    };
+    (target, host)
 }
 
 /// Runs an editing command on the browser's focused frame.
@@ -120,7 +131,7 @@ impl ShellHost for Host {
     }
 
     fn show_banner(&self, banner: Banner) {
-        if !notify::show(&banner.title, &banner.body, &tag_of(banner.target.as_ref()), self.quiet) {
+        if !notify::show(&banner.title, &banner.body, &tag_of(&banner), self.quiet) {
             log("notify", "no banner: the app is not running from a bundle");
         }
     }

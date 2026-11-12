@@ -2,6 +2,7 @@
 //! endpoints, the Artifact catalog, media fetching, geocoding, the relay
 //! (`core/src/ports/SyncVault.ts`, `Updates.ts`, `TransferEndpoint.ts`, …).
 
+mod artifacts;
 mod geo;
 pub mod machines;
 mod media;
@@ -11,5 +12,6 @@ pub mod sync;
 pub mod transfer;
 pub mod updates;
 
+pub use artifacts::ArtifactSource;
 pub use geo::{GeoError, Geocoder, PlaceQuery, PlaceSearch};
 pub use media::{MapResponse, MapTiles, MediaBlob, MediaFetcher};

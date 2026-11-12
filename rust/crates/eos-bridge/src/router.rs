@@ -13,7 +13,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use eos_runtime::access::Caller;
+use eos_runtime::access::{Caller, LocalCaller};
 use eos_runtime::http::{Body, Method, Request, Response};
 use eos_runtime::router::Router;
 
@@ -21,9 +21,10 @@ use crate::core::{Core, Plane};
 use crate::token::TOKEN_HEADER;
 use crate::transport::{Head, Req, Sink};
 
-/// Who a local request comes from, told by the ui-token it carried (if any). `eos-app`'s
-/// `Callers::classify`.
-pub type Classify = Arc<dyn Fn(Option<&str>) -> Caller + Send + Sync>;
+/// Who a local request comes from, told by the ui-token it carried (if any) and its target:
+/// a host's view token counts only under that host's prefix. `eos-app`'s
+/// `Callers::classify_for`.
+pub type Classify = Arc<dyn Fn(Option<&str>, &str) -> Caller + Send + Sync>;
 
 pub struct RouterCore {
     router: Arc<Router>,
@@ -149,10 +150,13 @@ impl Core for RouterCore {
         };
         self.served.fetch_add(1, Ordering::Relaxed);
         // The raw-content origin is another origin on purpose: nothing there is the dashboard,
-        // whatever it sends.
+        // whatever it sends; a host's view is that host's user under its prefix there too.
         let caller = match plane {
-            Plane::Api => (self.classify)(req.header(TOKEN_HEADER)),
-            Plane::Raw => Caller::UNTRUSTED,
+            Plane::Api => (self.classify)(req.header(TOKEN_HEADER), &req.url),
+            Plane::Raw => match (self.classify)(req.header(TOKEN_HEADER), &req.url) {
+                host @ Caller::Local(LocalCaller::HostView { .. }) => host,
+                _ => Caller::UNTRUSTED,
+            },
         };
         let mut request = Request::new(method, &req.url, caller);
         // The runtime keeps the headers routes read and drops the rest (the token included).
@@ -261,7 +265,7 @@ mod tests {
     fn core() -> (RouterCore, Arc<AtomicBool>, Arc<AtomicBool>) {
         let (stream_dropped, handler_dropped) = (Arc::new(AtomicBool::new(false)), Arc::new(AtomicBool::new(false)));
         let classify: Classify =
-            Arc::new(|given| if given == Some(TOKEN) { Caller::DASHBOARD } else { Caller::UNTRUSTED });
+            Arc::new(|given, _| if given == Some(TOKEN) { Caller::DASHBOARD } else { Caller::UNTRUSTED });
         let core = RouterCore::new(
             router(stream_dropped.clone(), handler_dropped.clone()),
             TOKEN,

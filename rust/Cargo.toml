@@ -33,6 +33,7 @@ eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
 eos-mod-accounts = { path = "crates/eos-mod-accounts" }
 eos-mod-agent-jobs = { path = "crates/eos-mod-agent-jobs" }
 eos-mod-agents = { path = "crates/eos-mod-agents" }
+eos-mod-artifacts = { path = "crates/eos-mod-artifacts" }
 eos-mod-auto-name = { path = "crates/eos-mod-auto-name" }
 eos-mod-browser = { path = "crates/eos-mod-browser" }
 eos-mod-btw = { path = "crates/eos-mod-btw" }

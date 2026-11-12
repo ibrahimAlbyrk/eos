@@ -1823,6 +1823,7 @@ dependencies = [
  "eos-mod-accounts",
  "eos-mod-agent-jobs",
  "eos-mod-agents",
+ "eos-mod-artifacts",
  "eos-mod-auto-name",
  "eos-mod-browser",
  "eos-mod-btw",
@@ -1830,6 +1831,7 @@ dependencies = [
  "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
+ "eos-mod-loops",
  "eos-mod-pages",
  "eos-mod-peer",
  "eos-mod-plugins",
@@ -1839,6 +1841,7 @@ dependencies = [
  "eos-mod-prompts",
  "eos-mod-questions",
  "eos-mod-remote",
+ "eos-mod-settings",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -1906,6 +1909,7 @@ name = "eos-bridge"
 version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
+ "eos-contracts",
  "eos-core",
  "eos-runtime",
  "reqwest",
@@ -1991,6 +1995,7 @@ dependencies = [
  "eos-agent-core",
  "eos-agent-engine",
  "eos-agent-sdk",
+ "eos-agent-skills",
  "eos-agent-tools-session",
  "eos-agent-types",
  "eos-contracts",
@@ -2063,6 +2068,7 @@ dependencies = [
  "eos-domain",
  "eos-kit-fs",
  "eos-kit-proc",
+ "serde",
  "serde_json",
  "tokio",
 ]
@@ -2134,6 +2140,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-kit-fs",
  "eos-platform",
  "eos-prompts",
  "eos-runtime",
@@ -2141,6 +2148,19 @@ dependencies = [
  "eos-workers",
  "serde",
  "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-artifacts"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "thiserror 2.0.21",
  "tokio",
  "tracing",
 ]
@@ -2247,6 +2267,26 @@ dependencies = [
  "eos-runtime",
  "indexmap 2.14.2",
  "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "eos-mod-loops"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-kit-proc",
+ "eos-platform",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-sessions",
+ "futures-util",
+ "regress",
  "serde_json",
  "tokio",
  "tracing",
@@ -2382,6 +2422,18 @@ dependencies = [
  "sha2 0.11.1",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-settings"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

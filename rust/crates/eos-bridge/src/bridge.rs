@@ -11,10 +11,12 @@ use eos_core::browser::ElementPicker;
 use eos_core::shell::{Capture, CaptureTarget, ImageFormat, Rect, ViewId};
 use serde_json::{Value, json};
 
+use crate::artifacts::ArtifactViews;
 use crate::assets::{Assets, Response};
 use crate::core::{Core, Plane};
 use crate::events::Events;
 use crate::host::{Banner, BannerTarget, EditCommand, ShellHost, Theme};
+use crate::hosts::HostViews;
 use crate::migrate::{Marker, Seed};
 use crate::panel::{Flag, Panel};
 use crate::transport::{Req, Service, Sink};
@@ -77,6 +79,10 @@ pub struct Bridge {
     panel: Panel,
     /// The browser feature's element picker, once the core is up.
     element_picker: OnceLock<Arc<dyn ElementPicker>>,
+    /// The machine switcher and the views of other computers.
+    hosts: OnceLock<HostViews>,
+    /// The claude.ai artifact views, once the window can show them.
+    artifacts: OnceLock<ArtifactViews>,
     started: Instant,
     ready_ms: Mutex<Option<(u64, u64)>>,
     counters: Counters,
@@ -117,6 +123,8 @@ impl Bridge {
             events: Events::default(),
             panel: parts.panel,
             element_picker: OnceLock::new(),
+            hosts: OnceLock::new(),
+            artifacts: OnceLock::new(),
             started: Instant::now(),
             ready_ms: Mutex::new(None),
             counters: Counters::default(),
@@ -136,6 +144,33 @@ impl Bridge {
         let _ = self.element_picker.set(picker);
     }
 
+    /// Gives `window.eosHosts` its views of other computers. Without them the list is empty.
+    pub fn set_hosts(&self, hosts: HostViews) {
+        let _ = self.hosts.set(hosts);
+    }
+
+    pub fn hosts(&self) -> Option<&HostViews> {
+        self.hosts.get()
+    }
+
+    /// Gives `window.eosArtifacts` its views. Without them every call is a no-op.
+    pub fn set_artifacts(&self, views: ArtifactViews) {
+        let _ = self.artifacts.set(views);
+    }
+
+    /// One `eosArtifacts` call, as the dashboard makes it; `None` for an unknown verb.
+    pub async fn artifact_call(&self, verb: &str, body: &Value) -> Option<Value> {
+        artifacts::call(self.artifacts.get(), verb, body).await
+    }
+
+    /// The artifact views' states and places, for the smoke run (no slugs).
+    pub async fn artifact_status(&self) -> Value {
+        match self.artifacts.get() {
+            Some(views) => views.status().await,
+            None => Value::Null,
+        }
+    }
+
     // ---- shell → page ---------------------------------------------------------
 
     /// Shows a notification as a native banner, unless the user is looking at the app.
@@ -152,17 +187,24 @@ impl Bridge {
         let text = |key: &str| payload.get(key).and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string);
         // A named view wins over a worker, as in the Electron shell.
         let target = text("route").map(BannerTarget::Route).or_else(|| text("workerId").map(BannerTarget::Worker));
-        self.host.show_banner(Banner { title: title.to_string(), body: body.to_string(), target });
+        let host = payload.pointer("/host/id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned);
+        self.host.show_banner(Banner { title: title.to_string(), body: body.to_string(), target, host });
         Notified::Shown
     }
 
-    /// The user clicked a banner: the dashboard opens what it was about.
-    pub fn banner_clicked(&self, target: &BannerTarget) {
-        let payload = match target {
+    /// The user clicked a banner: the view it was raised for opens what it was about (this
+    /// computer's dashboard, or the view of the paired computer it came from).
+    pub fn banner_clicked(&self, target: Option<&BannerTarget>, host: Option<&str>) {
+        let payload = target.map(|target| match target {
             BannerTarget::Worker(id) => json!({ "workerId": id }),
             BannerTarget::Route(route) => json!({ "route": route }),
-        };
-        self.events.emit_or_wait("navigate", payload);
+        });
+        if let (Some(host), Some(hosts)) = (host, self.hosts.get()) {
+            let (hosts, host, payload) = (hosts.clone(), host.to_owned(), payload.unwrap_or(Value::Null));
+            self.rt.spawn(async move { hosts.open_from_banner(host, payload).await });
+        } else if let Some(payload) = payload {
+            self.events.emit_or_wait("navigate", payload);
+        }
     }
 
     /// An Edit-menu command while the dashboard has the focus: the page decides what it
@@ -380,11 +422,44 @@ impl Bridge {
                 Ok(Value::Null)
             }
 
-            // ---- the machine switcher: no other computers yet
-            "hosts/list" => Ok(json!({ "hosts": [], "active": null, "local": null })),
+            // ---- claude.ai artifacts
+            verb if verb.starts_with("artifacts/") => {
+                self.artifact_call(&verb["artifacts/".len()..], &body).await.ok_or(Refusal(404, "unknown bridge"))
+            }
+
+            // ---- the machine switcher
+            verb if verb.starts_with("hosts/") => self.hosts_call(&verb["hosts/".len()..], &body).await,
 
             _ => Err(Refusal(404, "unknown bridge")),
         }
+    }
+
+    async fn hosts_call(&self, verb: &str, body: &Value) -> Outcome {
+        let Some(hosts) = self.hosts.get() else {
+            return match verb {
+                "list" => Ok(json!({ "hosts": [], "active": null, "local": null })),
+                "switchTo" | "openInWindow" | "reconnect" | "requestConnect" => Ok(Value::Null),
+                _ => Err(Refusal(404, "unknown bridge")),
+            };
+        };
+        let id = || body.get("id").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_owned);
+        match verb {
+            "list" => return Ok(hosts.snapshot()),
+            "switchTo" => hosts.switch_to(id()).await,
+            "openInWindow" => {
+                if let Some(id) = id() {
+                    hosts.open_in_window(id).await;
+                }
+            }
+            "reconnect" => {
+                if let Some(id) = id() {
+                    hosts.reconnect(id).await;
+                }
+            }
+            "requestConnect" => hosts.request_connect().await,
+            _ => return Err(Refusal(404, "unknown bridge")),
+        }
+        Ok(Value::Null)
     }
 
     fn flag(&self, seq: u64, flag: Flag, value: bool) -> Value {
@@ -477,5 +552,6 @@ fn entries(paths: Vec<String>) -> Value {
     )
 }
 
+mod artifacts;
 #[cfg(test)]
 mod tests;
