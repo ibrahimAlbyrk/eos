@@ -30,7 +30,7 @@ mod tools;
 mod updates;
 
 pub use agent::AgentOptions;
-pub use app::{App, Options};
+pub use app::{App, Options, Shell};
 pub use callers::Callers;
 
 /// How the installed app reaches the phone link's relay: a WebSocket it

@@ -78,6 +78,9 @@ impl Core for DevDaemon {
     }
 
     fn call(&self, plane: Plane, req: Req, sink: Sink) {
+        // The path without its query: which side served what, for whoever watches the port.
+        let path = req.url.split_once('?').map_or(req.url.as_str(), |(path, _)| path);
+        tracing::debug!(target: "eos::bridge", side = "proxy", method = %req.method, %path);
         if !guard::allows(&req.method, &req.url) {
             self.refused.fetch_add(1, Ordering::Relaxed);
             return sink.respond(

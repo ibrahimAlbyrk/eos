@@ -10,18 +10,23 @@ publish.workspace = true
 [features]
 default = []
 # Runs against an isolated Node daemon instead of the Rust core. Never part of a release.
-dev-proxy = ["eos-bridge/dev-proxy", "dep:eos-core", "dep:serde_json"]
+dev-proxy = ["eos-bridge/dev-proxy", "dep:eos-core", "dep:eos-runtime", "dep:serde_json"]
 
 [dependencies]
 eos-app.workspace = true
 eos-bridge.workspace = true
 eos-core = { workspace = true, optional = true }
+eos-runtime = { workspace = true, optional = true }
 eos-shell.workspace = true
 eos-update.workspace = true
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["rt", "time"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+
+# Not used in code: its build metadata tells `build.rs` where the CEF framework is.
+[target.'cfg(target_os = "macos")'.dependencies]
+cef-dll-sys.workspace = true
 
 [lints]
 workspace = true

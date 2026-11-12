@@ -16,13 +16,16 @@ publish = false
 [workspace.dependencies]
 eos-app = { path = "../crates/eos-app" }
 eos-bridge = { path = "../crates/eos-bridge" }
+eos-contracts = { path = "../crates/eos-contracts" }
 eos-core = { path = "../crates/eos-core" }
+eos-runtime = { path = "../crates/eos-runtime" }
 eos-shell = { path = "eos-shell" }
 eos-update = { path = "../crates/eos-update" }
 
 base64 = "0.22"
 block2 = "0.6"
 cef = "=154.5.0"
+cef-dll-sys = "=154.5.0"
 objc2 = "0.6"
 objc2-foundation = "0.3"
 serde_json = "1"

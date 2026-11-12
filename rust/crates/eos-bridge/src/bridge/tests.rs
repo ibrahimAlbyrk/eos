@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use eos_core::BoxFuture;
-use eos_core::shell::{Image, ViewError, ViewListener, ViewSpec};
+use eos_core::shell::{BrowserViews, Image, ViewError, ViewListener, ViewSpec};
 
 use super::*;
 use crate::testdir::Dir;
@@ -155,7 +155,7 @@ fn world_with(seed: Option<Seed>) -> World {
         data_dir: data.clone(),
         core: core.clone(),
         host: host.clone(),
-        views: views.clone(),
+        panel: Panel::new(views.clone(), &tokio::runtime::Handle::current()),
         capture: Arc::new(FakeCapture),
         rt: tokio::runtime::Handle::current(),
         seed,
@@ -389,6 +389,43 @@ async fn an_event_stream_delivers_and_is_dropped_when_the_page_closes_it() {
 }
 
 // ---- bridges ---------------------------------------------------------------------
+
+#[tokio::test]
+async fn the_element_picker_answers_the_picked_element_or_nothing() {
+    struct Picks(AtomicBool);
+    impl ElementPicker for Picks {
+        fn pick<'a>(&'a self, tab_id: &'a str) -> BoxFuture<'a, Option<eos_contracts::BrowserElement>> {
+            let element = (tab_id == "tab-1").then(|| eos_contracts::BrowserElement {
+                r#ref: "@e3".into(),
+                tag: "button".into(),
+                role: "button".into(),
+                name: "Go".into(),
+                r#box: (10.into(), 20.into(), 100.into(), 40.into()),
+                focusable: true,
+                state: None,
+                value: None,
+                locator: "role=button[name=\"Go\"]".into(),
+            });
+            Box::pin(async move { element })
+        }
+        fn cancel(&self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+    let w = world();
+    // Before the core is up there is nothing to pick with.
+    assert_eq!(bridge_call(&w, "browserView/pick", json!({ "tabId": "tab-1" })).await.json()["value"], Value::Null);
+    let picks = Arc::new(Picks(AtomicBool::new(false)));
+    w.bridge.set_element_picker(picks.clone());
+    let picked = bridge_call(&w, "browserView/pick", json!({ "tabId": "tab-1" })).await.json();
+    assert_eq!(
+        picked["value"],
+        json!({ "ref": "@e3", "tag": "button", "role": "button", "name": "Go", "box": [10, 20, 100, 40], "focusable": true, "locator": "role=button[name=\"Go\"]" })
+    );
+    assert_eq!(bridge_call(&w, "browserView/pick", json!({ "tabId": "other" })).await.json()["value"], Value::Null);
+    bridge_call(&w, "browserView/pickCancel", Value::Null).await;
+    assert!(picks.0.load(Ordering::SeqCst));
+}
 
 #[tokio::test]
 async fn stale_geometry_is_dropped_and_the_view_lands_on_the_newest() {

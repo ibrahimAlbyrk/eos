@@ -24,7 +24,8 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/env.sh"
-DATA="${EOS_DEV_DATA:-/Users/ibrahimalbyrk/Projects/CC/eos-rs-data}"
+source "$HERE/dev-env.sh"
+OUT="$EOS_DEV_OUT"
 APP="$EOS_HOST_WORK/bundle/release/Eos.app"
 build() { "$HERE/bundle.sh" release >/dev/null; }
 signed() { codesign -dvv "$APP" 2>&1 | grep -q "^Authority=Developer ID"; }
@@ -39,21 +40,21 @@ case "${1:-run}" in
   link) "$HERE/ctl.sh" "$APP" "eos://pair/try-this-is-not-a-real-invite"; exit 0 ;;
   build) build; exit 0 ;;
   run) ready; "$HERE/launch.sh" "$APP" ;;
-  fresh) ready; rm -rf "$DATA/shell-out/data"; "$HERE/launch.sh" "$APP" ;;
+  fresh) ready; rm -rf "$OUT/data"; "$HERE/launch.sh" "$APP" ;;
   migrate)
     ready
     SRC="$HOME/Library/Application Support/Eos/Local Storage"
     [ -d "$SRC" ] || { echo "no Electron profile at $SRC" >&2; exit 1; }
-    COPY="$DATA/shell-out/electron-profile-copy"
-    rm -rf "$COPY" "$DATA/shell-out/data"; mkdir -p "$COPY"
+    COPY="$OUT/electron-profile-copy"
+    rm -rf "$COPY" "$OUT/data"; mkdir -p "$COPY"
     cp -R "$SRC" "$COPY/Local Storage"
     EOS_ELECTRON_PROFILE="$COPY" "$HERE/launch.sh" "$APP"
-    echo "carried over from the copy at $COPY; see $DATA/shell-out/data/migrated-from-electron.json" ;;
+    echo "carried over from the copy at $COPY; see $OUT/data/migrated-from-electron.json" ;;
   banner)
     ready
-    STEPS="$DATA/shell-out/banner-steps.json"
+    STEPS="$OUT/banner-steps.json"
     echo '[{"wait": 6000}, {"notify": {"title": "Eos", "body": "A test banner. Click it: the Memory view opens.", "route": "memory"}}]' > "$STEPS"
-    EOS_DEV_SCRIPT="$STEPS" EOS_DEV_SCRIPT_OUT="$DATA/shell-out/banner-out.json" "$HERE/launch.sh" "$APP"
+    EOS_DEV_SCRIPT="$STEPS" EOS_DEV_SCRIPT_OUT="$OUT/banner-out.json" "$HERE/launch.sh" "$APP"
     echo "switch to another app now; the banner comes in 6 seconds" ;;
   *) sed -n '2,23p' "$0"; exit 2 ;;
 esac

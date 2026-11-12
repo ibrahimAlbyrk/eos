@@ -19,7 +19,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eos_bridge::{Bridge, Core};
-use eos_core::shell::{BrowserViews, Capture, FilePicker};
+use eos_core::accounts::Browser;
+use eos_core::plugin::PluginPreviewer;
+use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
 
 /// How the shell is started.
 #[derive(Debug, Clone)]
@@ -41,14 +43,25 @@ pub struct Options {
     pub quiet: bool,
     /// Keep Chromium's cookie key out of the login keychain. For runs on test data.
     pub mock_keychain: bool,
+    /// Run Chromium's network service inside the browser process: one process and about
+    /// 14 MB less, at the price of its crash isolation and its own sandbox. Off by default.
+    pub network_in_process: bool,
+    /// Keep painting while other windows cover the app's. For memory measurements.
+    pub paint_when_covered: bool,
 }
 
 /// What the shell offers the core.
 #[derive(Clone)]
 pub struct Ports {
     pub views: Arc<dyn BrowserViews>,
+    /// The dashboard's browser panel: where a view comes on screen.
+    pub panel: Arc<dyn BrowserPanel>,
     pub capture: Arc<dyn Capture>,
     pub picker: Arc<dyn FilePicker>,
+    /// Draws a plugin's surface in a hidden view of the dashboard's bundle.
+    pub previewer: Arc<dyn PluginPreviewer>,
+    /// Opens a web page outside the app, the way the shell opens every external link.
+    pub opener: Arc<dyn Browser>,
     /// The runtime the shell's own tasks run on.
     pub rt: tokio::runtime::Handle,
     /// Quits the app as its menu does: the shutdown hook runs, then the process exits.

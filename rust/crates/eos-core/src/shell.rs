@@ -39,10 +39,14 @@ impl Rect {
     }
 }
 
+/// A profile whose name starts with this is not kept: the shell removes its storage at the
+/// next launch.
+pub const THROWAWAY_PROFILE: &str = "tmp-";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ViewSpec {
     /// Names the storage (cookies, cache, local storage) the view uses. Views with the same
-    /// profile share it; no view shares the dashboard's.
+    /// profile share it; no view shares the dashboard's. See [`THROWAWAY_PROFILE`].
     pub profile: String,
     /// First page; `None` leaves the view on a blank page.
     pub url: Option<String>,
@@ -107,6 +111,27 @@ pub trait BrowserViews: Send + Sync {
 
     /// Adds a listener for the events of every view, current and future.
     fn listen(&self, listener: std::sync::Arc<dyn ViewListener>);
+}
+
+/// Told when the dashboard shows another tab in its browser panel, so "the page the human
+/// sees" stays exact. Called on a shell thread: return quickly.
+pub trait PanelListener: Send + Sync {
+    fn active_view_changed(&self, session: &str, view: &ViewId);
+}
+
+/// The dashboard's browser panel: the one place a view comes on screen for the user. The
+/// dashboard reports the panel's rectangle and which tab it shows; the shell places that
+/// view there and parks the others.
+pub trait BrowserPanel: Send + Sync {
+    /// The view was closed: it is no longer the panel's.
+    fn forget(&self, view: &ViewId);
+
+    /// The view emulates a device of this size (CSS pixels): shown, it is centered in the
+    /// panel at that size, clamped to the panel. `None`: it fills the panel.
+    fn set_device_size(&self, view: &ViewId, size: Option<(f64, f64)>);
+
+    /// The one listener told which tab the panel shows.
+    fn listen(&self, listener: std::sync::Arc<dyn PanelListener>);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

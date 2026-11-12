@@ -63,8 +63,26 @@ cp -R "$DIST" "$APP/Contents/Resources/dist"
 # signs it again with the app's identity) and the skill that teaches agents to write plugins.
 cp "$ESBUILD" "$APP/Contents/Resources/esbuild"
 cp -R "$REPO/rust/assets/claude-plugin" "$APP/Contents/Resources/claude-plugin"
+# The PDF viewer of the raw-content origin (`Options.pdfjs_root`).
+cp -R "$REPO/manager/vendor/pdfjs" "$APP/Contents/Resources/pdfjs"
 # -c: a clone copy where the volume supports it (APFS), so the 320 MB framework costs nothing.
 cp -Rc "$FRAMEWORK" "$APP/Contents/Frameworks/" 2>/dev/null || cp -R "$FRAMEWORK" "$APP/Contents/Frameworks/"
+
+# The executables name the framework in a load command, so dyld maps it at launch and its
+# constant data stays clean in every process (about 70 MB for the app: README, "Memory").
+# The linker wrote the path as the main executable sees it; a helper sits three folders
+# deeper. Changing the path drops the linker's signature, so the helper is signed again ad
+# hoc (sign.sh replaces that with the real identity). An executable without the load command
+# would fall back to dlopen() without anyone noticing: that fails the build here.
+FW="Chromium Embedded Framework.framework/Chromium Embedded Framework"
+HELPER_BIN="$EOS_HOST_WORK/bundle/$PROFILE/helper"
+cp "$BIN/eos-cef-helper" "$HELPER_BIN"
+install_name_tool -change "@executable_path/../Frameworks/$FW" "@executable_path/../../../$FW" "$HELPER_BIN"
+codesign --force -s - "$HELPER_BIN" 2>/dev/null
+otool -L "$APP/Contents/MacOS/$NAME" | grep -qF "@executable_path/../Frameworks/$FW" \
+  || { echo "the app's executable does not map the CEF framework at launch" >&2; exit 1; }
+otool -L "$HELPER_BIN" | grep -qF "@executable_path/../../../$FW" \
+  || { echo "the helper executable does not map the CEF framework at launch" >&2; exit 1; }
 
 # CEF runs its renderer, GPU and utility processes from these, named after the main executable.
 for suffix in "" " (GPU)" " (Renderer)" " (Plugin)" " (Alerts)"; do
@@ -72,6 +90,7 @@ for suffix in "" " (GPU)" " (Renderer)" " (Plugin)" " (Alerts)"; do
   dir="$APP/Contents/Frameworks/$helper.app/Contents"
   mkdir -p "$dir/MacOS" "$dir/Resources"
   fill bundle/Helper-Info.plist.in "$helper" > "$dir/Info.plist"
-  cp "$BIN/eos-cef-helper" "$dir/MacOS/$helper"
+  cp "$HELPER_BIN" "$dir/MacOS/$helper"
 done
+rm -f "$HELPER_BIN"
 echo "$APP"

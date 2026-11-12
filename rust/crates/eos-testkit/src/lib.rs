@@ -35,6 +35,7 @@
 //! [`FakeFeatures`] is every port the agent tools call, answering from one script; [`FakeTimeZone`]
 //! is a fixed offset.
 //! [`vault`] is the relay's sync vault in memory ([`vault::FakeVault`]).
+//! [`FakeBrowserViews`] and [`FakeBrowserPanel`] stand in for the window shell's views.
 //!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
@@ -45,6 +46,7 @@
 
 mod accounts;
 pub mod agent;
+mod browser;
 mod clock;
 mod db;
 mod fakes;
@@ -72,6 +74,7 @@ pub use accounts::{
     FakeUsageSnapshots, StartedSignIn,
 };
 pub use agent::{RecordingSink, ScriptedRuntime, Turn};
+pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
 pub use fakes::{

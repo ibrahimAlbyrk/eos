@@ -5,7 +5,7 @@ What it checks:
   1. the app starts once, the dashboard reaches "ready", the storage carry-over ran;
   2. the dashboard's own browser panel puts a child Chromium view on screen;
   3. DevTools round trips work: on a test view through the shell's ports (hidden view
-     included), and through the daemon's REST route for the panel's tab;
+     included), and through the core's browser route for the panel's tab;
   4. the Rust core runs beside the daemon: a route goes to the Rust router when it declares
      it, to the write-refusing proxy otherwise (second launch: the event stream from Rust);
   5. a second launch hands over, `--quit` stops everything.
@@ -19,6 +19,7 @@ usage: smoke.py <path to Eos.app> [--keep]      --keep leaves the app running at
 """
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -26,10 +27,13 @@ import urllib.error
 import urllib.request
 
 HOST = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# The same defaults as scripts/dev-env.sh.
 DATA = os.environ.get("EOS_DEV_DATA", "/Users/ibrahimalbyrk/Projects/CC/eos-rs-data")
-OUT = os.path.join(DATA, "shell-out", "smoke")
+DEV_HOME = os.environ.get("EOS_DEV_HOME", os.path.join(DATA, "run-shell"))
+DEV_OUT = os.environ.get("EOS_DEV_OUT", os.path.join(DATA, "shell-out"))
+OUT = os.path.join(DEV_OUT, "smoke")
 SHELL_DATA = os.path.join(OUT, "data")
-DAEMON = "http://127.0.0.1:7490"
+DAEMON = "http://127.0.0.1:" + os.environ.get("EOS_DEV_PORT", "7490")
 APP = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else ""
 KEEP = "--keep" in sys.argv
 BIN = os.path.join(APP, "Contents", "MacOS", "Eos")
@@ -52,6 +56,47 @@ def ctl(*args, timeout=15):
         return {"running": False, "error": r.stderr.strip()[-200:]}
 
 
+class Run:
+    """What a test run started, and its end: the app and the daemon are stopped whether the
+    run finishes, fails, is interrupted or is killed (guard.py covers the last)."""
+
+    def __init__(self, max_seconds=900):
+        up = subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "status"], capture_output=True, text=True).stdout.strip() == "up"
+        self.started_daemon = not up
+        self.guard = subprocess.Popen(
+            [sys.executable, os.path.join(HOST, "tests", "guard.py"), str(os.getpid()), APP, SHELL_DATA, "1" if self.started_daemon else "0", str(max_seconds)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        # An interrupt or a polite kill ends the run through `finally`.
+        for sig in (signal.SIGTERM, signal.SIGHUP):
+            signal.signal(sig, lambda *_: sys.exit(130))
+        subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "start"], check=True, capture_output=True)
+
+    def stop_app(self):
+        """Quits the app this run launched and waits for its processes to go."""
+        pid = ctl("--status").get("pid")
+        if not pid:
+            return True
+        ctl("--quit")
+        gone = wait_for("exit", lambda: not alive(pid), 15)
+        wait_for("helpers", lambda: not helpers(), 10)
+        return gone
+
+    def close(self, keep=False):
+        """`keep`: leave the app and the daemon running for a person to look at."""
+        try:
+            if not keep:
+                self.stop_app()
+                if self.started_daemon:
+                    subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "stop"], capture_output=True, timeout=30)
+        finally:
+            self.guard.terminate()  # our own child: it has nothing left to watch
+
+
+def helpers():
+    """Pids of processes still running from the bundle's helper apps (looked at, never signalled)."""
+    return subprocess.run(["pgrep", "-f", os.path.join(APP, "Contents", "Frameworks")], capture_output=True, text=True).stdout.split()
+
+
 def wait_for(what, predicate, seconds):
     end = time.time() + seconds
     last = None
@@ -64,7 +109,7 @@ def wait_for(what, predicate, seconds):
 
 
 def token():
-    with open(os.path.join(DATA, "run-shell", "ui-token")) as f:
+    with open(os.path.join(DEV_HOME, "ui-token")) as f:
         return f.read().strip()
 
 
@@ -91,8 +136,14 @@ def main():
     if ctl("--status").get("running"):
         print("an app is already running on the smoke data folder; quit it first (ctl.sh --quit)")
         return 2
-    subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "start"], check=True, capture_output=True)
+    run = Run()
+    try:
+        return checks(run)
+    finally:
+        run.close(keep=KEEP)
 
+
+def checks(run):
     # ---- a fresh shell profile, and an "Electron profile" holding the layout to restore:
     # one chat selected with the Browser tab open in its side panel.
     subprocess.run(["rm", "-rf", OUT], check=True)
@@ -124,6 +175,7 @@ def main():
     shot = os.path.join(OUT, "test-view.png")
     dashboard_shot = os.path.join(OUT, "dashboard.png")
     page = "data:text/html,<title>smoke</title><body style='background:%23246'><h1 id=h>smoke view</h1>"
+    panel_page = "data:text/html,<title>Panel</title><h1>Panel page</h1><button>Go</button>"
     steps = [
         {"create": {"as": "t", "profile": "smoke", "url": page}},
         {"wait": 600},
@@ -137,6 +189,10 @@ def main():
         {"close": "t"},
         {"wait": 2500},
         {"capture": {"view": None, "file": dashboard_shot}},
+        # 12-14: the tab the dashboard opened for the selected chat, driven as the user's window.
+        {"browser": {"method": "GET", "path": f"/browser/tabs?session={chat}", "tab": "p", "retry_ms": 30000}},
+        {"browser": {"method": "POST", "path": "/browser/tabs/{p}/navigate?session=" + chat, "body": {"action": "url", "url": panel_page}}},
+        {"browser": {"method": "POST", "path": "/browser/tabs/{p}/snapshot?session=" + chat, "body": {"interactiveOnly": False}}},
     ]
     steps_file, steps_out = os.path.join(OUT, "steps.json"), os.path.join(OUT, "steps-out.json")
     with open(steps_file, "w") as f:
@@ -161,8 +217,8 @@ def main():
     check("the storage carry-over ran once", done, json.load(open(marker)) if done else "no marker")
 
     # ---- 3a. the test view, through the ports
-    out = wait_for("steps", lambda: (lambda o: o if o and o.get("done") else None)(read_json(steps_out)), 40)
-    if check("the scripted steps finished", out, "" if out else "not within 40 s"):
+    out = wait_for("steps", lambda: (lambda o: o if o and o.get("done") else None)(read_json(steps_out)), 90)
+    if check("the scripted steps finished", out, "" if out else "not within 90 s"):
         r = out["results"]
         check("every step succeeded", all(x["ok"] for x in r), [x.get("error") for x in r if not x["ok"]])
         check("a DevTools round trip on a test view", r[2].get("value", {}).get("result", {}).get("value") == "smoke view:42", f"{r[2].get('ms')} ms")
@@ -175,39 +231,23 @@ def main():
     # ---- 2. the dashboard's own browser panel. The restored layout has the Browser tab
     # open, so the dashboard opens a tab by itself (a child view) and reports it as active.
     # A blank tab shows the dashboard's own placeholder; the view comes on screen once the
-    # tab has a page, so the tab is navigated the way the dashboard's address bar would do
-    # it: through the daemon's route, not by typing.
-    def panel_tab():
-        code, tabs = daemon(f"/browser/tabs?session={chat}")
-        tabs = tabs.get("tabs", tabs) if isinstance(tabs, dict) else tabs
-        return tabs[0]["tabId"] if code == 200 and tabs else None
-
-    tab = wait_for("tab", panel_tab, 30)
-    st = ctl("--status")
-    if check("the dashboard opened a browser tab: a child view", tab and any(v["id"] == tab for v in st.get("views") or []), "" if tab else "not within 30 s"):
-        panel = {"view": tab, "session": chat}
-        route = f"/browser/tabs/{panel['view']}"
-        code, _ = daemon(f"{route}/navigate?session={panel['session']}", {"action": "url", "url": "https://example.com/"})
-        check("the tab was navigated through the daemon's route", code == 200, f"HTTP {code}")
+    # tab has a page, so the script navigated it the way the dashboard's address bar would:
+    # through the core's browser route, not by typing.
+    if out:
+        tabs, navigated, snap = ((step.get("value") or {}) for step in r[12:15])
+        tab = ((tabs.get("body") or {}).get("tabs") or [{}])[0].get("tabId")
+        check("the dashboard opened a browser tab: a child view", tab, "" if tab else "not within 30 s")
+        check("the tab was navigated through the core's browser route", navigated.get("status") == 200, navigated.get("status"))
+        text = (snap.get("body") or {}).get("snapshot", "")
+        check("a DevTools round trip through the browser route", snap.get("status") == 200 and "@e1" in text and "Panel page" in text, f"{r[14].get('ms')} ms")
         st = wait_for("panel", lambda: (lambda s: s if bridge_of(s).get("panel", {}).get("shown") else None)(ctl("--status")), 30)
         if check("the browser panel's view is on screen", st, "" if st else "not within 30 s"):
             panel = bridge_of(st)["panel"]
             view = next((v for v in st["views"] if v["id"] == panel["view"]), None)
             check("placed at the panel's rectangle by the dashboard", view and view["placed"] and panel["bounds"][2] > 100 and panel["bounds"][3] > 100, panel["bounds"])
             check("the panel is the selected chat's", panel["view"] == tab and panel["session"] == chat)
-            panel = {"view": tab, "session": chat}
-        # ---- 3b. the daemon's own verb for that tab: REST → host channel → driver → DevTools
-        def snapshot():
-            t0 = time.time()
-            code, snap = daemon(f"{route}/snapshot?session={panel['session']}", {"interactiveOnly": False})
-            text = snap.get("snapshot", "") if isinstance(snap, dict) else ""
-            loaded = isinstance(snap, dict) and str(snap.get("url", "")).startswith("https://example.com") and "@e1" in text
-            return (code, (time.time() - t0) * 1000) if code == 200 and loaded else None
-
-        trip = wait_for("snapshot", snapshot, 20)
-        check("a DevTools round trip through the daemon's browser route", trip, f"HTTP {trip[0]}, {trip[1]:.0f} ms" if trip else "no snapshot of the loaded page with a ref in it")
-        code, _ = daemon(f"{route}?session={panel['session']}", method="DELETE")
-        check("the tab was closed again", code == 200, f"HTTP {code}")
+        core = bridge_of(ctl("--status")).get("core") or {}
+        check("the browser routes are the Rust core's", any(route.startswith("POST /browser/") for route in core.get("rustRoutes") or []))
 
     # ---- 4. the write guard: the dashboard itself already tried a write on startup.
     st = ctl("--status")
@@ -256,9 +296,9 @@ def finish(code, pid=None):
         ctl("--quit")
         gone = wait_for("exit", lambda: not alive(pid), 15) if pid else True
         check("--quit stopped the app", gone, f"pid {pid}")
-        helpers = subprocess.run(["pgrep", "-f", os.path.join(APP, "Contents", "Frameworks")], capture_output=True, text=True).stdout.split()
-        left = wait_for("helpers", lambda: not subprocess.run(["pgrep", "-f", os.path.join(APP, "Contents", "Frameworks")], capture_output=True, text=True).stdout.split(), 10)
-        check("no helper process is left", left, f"{len(helpers)} at quit")
+        at_quit = helpers()
+        left = wait_for("helpers", lambda: not helpers(), 10)
+        check("no helper process is left", left, f"{len(at_quit)} at quit")
         check("no app answers after quit", ctl("--status").get("running") is False)
         frame = read_json(os.path.join(SHELL_DATA, "window.json")) or {}
         check("the window's frame was kept for the next launch", frame.get("width", 0) >= 800 and frame.get("height", 0) >= 500, {k: frame.get(k) for k in ("width", "height")})

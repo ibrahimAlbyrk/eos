@@ -3,11 +3,12 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use base64::Engine;
-use eos_core::shell::{BrowserViews, Capture, CaptureTarget, ImageFormat, Rect, ViewId};
+use eos_core::browser::ElementPicker;
+use eos_core::shell::{Capture, CaptureTarget, ImageFormat, Rect, ViewId};
 use serde_json::{Value, json};
 
 use crate::assets::{Assets, Response};
@@ -28,7 +29,8 @@ pub struct Parts {
     pub data_dir: PathBuf,
     pub core: Arc<dyn Core>,
     pub host: Arc<dyn ShellHost>,
-    pub views: Arc<dyn BrowserViews>,
+    /// The browser panel's geometry. Made before the core, which holds it too.
+    pub panel: Panel,
     pub capture: Arc<dyn Capture>,
     pub rt: tokio::runtime::Handle,
     /// The `localStorage` carry-over for this launch (see `migrate::plan`).
@@ -73,6 +75,8 @@ pub struct Bridge {
     now_ms: fn() -> u64,
     events: Events,
     panel: Panel,
+    /// The browser feature's element picker, once the core is up.
+    element_picker: OnceLock<Arc<dyn ElementPicker>>,
     started: Instant,
     ready_ms: Mutex<Option<(u64, u64)>>,
     counters: Counters,
@@ -100,7 +104,6 @@ type Outcome = Result<Value, Refusal>;
 
 impl Bridge {
     pub fn new(parts: Parts) -> Arc<Self> {
-        let panel = Panel::new(parts.views.clone(), &parts.rt);
         Arc::new_cyclic(|me| Bridge {
             me: me.clone(),
             assets: Assets::new(parts.assets),
@@ -112,7 +115,8 @@ impl Bridge {
             seed: Mutex::new(parts.seed),
             now_ms: parts.now_ms,
             events: Events::default(),
-            panel,
+            panel: parts.panel,
+            element_picker: OnceLock::new(),
             started: Instant::now(),
             ready_ms: Mutex::new(None),
             counters: Counters::default(),
@@ -125,6 +129,11 @@ impl Bridge {
 
     pub fn panel(&self) -> &Panel {
         &self.panel
+    }
+
+    /// Gives the panel its "pick an element" mode. Without one a pick answers nothing.
+    pub fn set_element_picker(&self, picker: Arc<dyn ElementPicker>) {
+        let _ = self.element_picker.set(picker);
     }
 
     // ---- shell → page ---------------------------------------------------------
@@ -357,8 +366,19 @@ impl Bridge {
                     None => Value::Null,
                 })
             }
-            // The human element picker comes with the browser feature.
-            "browserView/pick" | "browserView/pickCancel" => Ok(Value::Null),
+            // The user picks an element on the live view; the answer is the element, or
+            // null when the pick was cancelled.
+            "browserView/pick" => {
+                let Some(picker) = self.element_picker.get() else { return Ok(Value::Null) };
+                let picked = picker.pick(&text("tabId")).await;
+                Ok(picked.and_then(|element| serde_json::to_value(element).ok()).unwrap_or(Value::Null))
+            }
+            "browserView/pickCancel" => {
+                if let Some(picker) = self.element_picker.get() {
+                    picker.cancel();
+                }
+                Ok(Value::Null)
+            }
 
             // ---- the machine switcher: no other computers yet
             "hosts/list" => Ok(json!({ "hosts": [], "active": null, "local": null })),
@@ -404,7 +424,7 @@ impl Service for Bridge {
         match urlspace::route(&req.url) {
             Route::Core(target) => {
                 self.counters.core.fetch_add(1, Ordering::Relaxed);
-                if token::wants_media_token(&target, &req) {
+                if token::wants_media_token(&target, &req) || token::wants_dialog_token(&target, &req) {
                     req.set_header(token::TOKEN_HEADER, &self.core.ui_token());
                 }
                 req.url = target;

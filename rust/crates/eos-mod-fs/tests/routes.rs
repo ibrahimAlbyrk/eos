@@ -172,9 +172,17 @@ async fn a_change_is_checked_before_the_caller_is_asked_for() {
         let refused = app.post_as(Caller::UNTRUSTED, route, body).await;
         assert_eq!(refused, (403, json!({ "error": "ui token required" })), "{route}");
     }
+    // A dialog on the user's screen is theirs to raise: any other local caller is refused.
+    for route in ["/pick-directory", "/pick-file"] {
+        assert_eq!(app.get(route).await, (403, json!({ "error": "ui token required" })), "{route}");
+    }
     // Without a shell there is no open panel.
-    assert_eq!(app.get("/pick-directory").await, (501, json!({ "error": "no directory picker on this system" })));
-    assert_eq!(app.get("/pick-file").await, (501, json!({ "error": "no file picker on this system" })));
+    for (route, error) in
+        [("/pick-directory", "no directory picker on this system"), ("/pick-file", "no file picker on this system")]
+    {
+        let (status, res) = app.send(Request::new(Method::Get, route, Caller::DASHBOARD)).await;
+        assert_eq!((status, body_json(res).await), (501, json!({ "error": error })), "{route}");
+    }
     assert_eq!(fs::read_to_string(app.root.join("p/a.txt")).expect("untouched"), "x");
     assert!(!app.root.join("p/b.txt").exists());
 }

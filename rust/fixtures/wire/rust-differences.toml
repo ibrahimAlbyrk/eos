@@ -46,6 +46,15 @@ step = "focus-invalid"
 at = "/json/error"
 reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
 
+[[known]]
+scenario = "17-browser"
+at = "/json/chromePath"
+reason = "The recording ran without the app's window, so the daemon named the Chrome it would have started. The app's own views are the browser now: there is no second lane. With a window the status names them as the app does today (`WebContentsView (embedded)`); without one, as in this replay, it is null."
+
+[[known]]
+scenario = "17-browser"
+at = "/json/state"
+reason = "This replay runs the core without a window, and without a window there is no browser: `absent`. With the shell's views the same routes answer `launching`, as recorded (crates/eos-mod-browser/tests/replay.rs replays the scenario over fake views)."
 # Transfer requests that miss more than one field.
 
 [[known]]

@@ -57,6 +57,8 @@ fn options() -> Options {
         args: std::env::args().skip(1).collect(),
         quiet: env("EOS_SHELL_QUIET").is_some(),
         mock_keychain: env("EOS_SHELL_MOCK_KEYCHAIN").is_some(),
+        network_in_process: env("EOS_SHELL_NETWORK_IN_PROCESS").is_some(),
+        paint_when_covered: env("EOS_SHELL_PAINT_WHEN_COVERED").is_some(),
     }
 }
 
@@ -83,13 +85,25 @@ impl Eos {
         };
         // Building the app spawns its own tasks.
         let _runtime = ports.rt.enter();
+        let resources = bundled_resources();
+        let real_data = *home == crate::home().join(".eos");
         // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
         // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
         let mut options = eos_app::Options {
-            resources: bundled_resources(),
-            sweep_leftovers: *home == crate::home().join(".eos"),
-            // The phone link dials its relay only from the real app.
-            relay: Some(eos_app::relay()),
+            // The PDF viewer ships beside the program, for the raw-content origin.
+            pdfjs_root: resources.as_ref().map(|dir| dir.join("pdfjs")).filter(|dir| dir.is_dir()),
+            resources,
+            plugin_previewer: ports.previewer.clone(),
+            shell: Some(eos_app::Shell {
+                views: ports.views.clone(),
+                panel: ports.panel.clone(),
+                picker: ports.picker.clone(),
+                opener: ports.opener.clone(),
+            }),
+            sweep_leftovers: real_data,
+            // The phone link dials its relay only from the real app: never from a development
+            // build, never on a copy of a data folder.
+            relay: (real_data && cfg!(not(feature = "dev-proxy"))).then(eos_app::relay),
             ..eos_app::Options::new(home)
         };
         // Restarting into an update: leave the applier what it needs, start it, quit.
@@ -111,7 +125,8 @@ impl Eos {
         let callers = app.callers().clone();
         let ui_token = callers.ui_token().to_owned();
         let classify: Classify = Arc::new(move |token| callers.classify(token));
-        let core = Arc::new(RouterCore::new(app.router(), ui_token, classify, ports.rt.clone()));
+        let core =
+            Arc::new(RouterCore::new(app.router(), ui_token, classify, ports.rt.clone()).with_raw(app.raw_router()));
         let _ = self.app.set((app, ports.rt.clone()));
         Some(core)
     }
@@ -129,15 +144,17 @@ impl Hooks for Eos {
         }
     }
 
-    fn started(&self, _bridge: &Arc<Bridge>, _ports: &Ports) {
+    fn started(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
         if let Some((app, _)) = self.app.get() {
+            // The panel's "pick an element" mode is the browser feature's.
+            bridge.set_element_picker(app.element_picker());
             // After an update the applier waits for this, and puts the previous version
             // back without it.
             app.mark_update_booted();
             app.update_signals().window_shown();
         }
         #[cfg(feature = "dev-proxy")]
-        self.dev.started(_bridge, _ports);
+        self.dev.started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
     }
 
     fn window_shown(&self) {

@@ -10,24 +10,24 @@ publish.workspace = true
 [features]
 # Forwards `/_core/*` to an isolated Node daemon while the Rust core grows route by route.
 # Never part of a release.
-dev-proxy = ["dep:futures-util", "dep:reqwest", "dep:tokio-tungstenite"]
+dev-proxy = ["dep:reqwest"]
 
 [dependencies]
 eos-core.workspace = true
 eos-runtime.workspace = true
 
 base64.workspace = true
-futures-util = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true, features = ["stream"] }
 rusty-leveldb.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
-tokio-tungstenite = { workspace = true, optional = true }
 tracing.workspace = true
 
 [dev-dependencies]
 bytes.workspace = true
+eos-app.workspace = true
+eos-contracts.workspace = true
 eos-kit-proc.workspace = true
 eos-mod-terminals.workspace = true
 eos-platform.workspace = true

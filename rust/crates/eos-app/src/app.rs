@@ -12,12 +12,14 @@ use eos_auth::{
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
-use eos_core::accounts::{PlanAccess, SessionCredentials};
+use eos_core::accounts::{Browser, PlanAccess, SessionCredentials};
+use eos_core::browser::{BrowserTools, ElementPicker};
 use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
 use eos_core::os::KeepAwake;
 use eos_core::plugin::{PluginPreviewer, Plugins};
+use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
 use eos_domain::config::Env;
@@ -80,6 +82,10 @@ pub struct Options {
     /// The window shell, which draws plugin previews. Until it does, a
     /// preview answers that no window is open.
     pub plugin_previewer: Arc<dyn PluginPreviewer>,
+    /// What the window shell lends the core. Without it (tests, a run with no
+    /// window) the browser is absent, the open panels answer that there is
+    /// none, and pages open through the system's own opener.
+    pub shell: Option<Shell>,
     /// Delete without being asked: at start-up, the worktrees and scratch
     /// folders Eos made that no chat in the data folder uses any more; at
     /// start-up and every hour, archived chats past their retention. Only the
@@ -118,6 +124,26 @@ pub struct Options {
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
 }
 
+/// The window shell as the core uses it.
+#[derive(Clone)]
+pub struct Shell {
+    /// Embedded views: the browser's tabs.
+    pub views: Arc<dyn BrowserViews>,
+    /// The dashboard's browser panel, where a tab comes on screen.
+    pub panel: Arc<dyn BrowserPanel>,
+    /// The native open panel.
+    pub picker: Arc<dyn FilePicker>,
+    /// Opens a page outside the app (a sign-in page) the way the shell opens
+    /// every external link.
+    pub opener: Arc<dyn Browser>,
+}
+
+impl std::fmt::Debug for Shell {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Shell").finish_non_exhaustive()
+    }
+}
+
 impl Options {
     /// The system clock, random ids and this process's environment.
     pub fn new(home: impl Into<PathBuf>) -> Self {
@@ -130,6 +156,7 @@ impl Options {
             agents: AgentOptions::default(),
             resources: None,
             plugin_previewer: Arc::new(NoPreviewWindow),
+            shell: None,
             sweep_leftovers: false,
             exec_path: std::env::current_exe().ok(),
             update_applier: None,
@@ -176,6 +203,7 @@ pub struct App {
     nudges: std::sync::Mutex<Option<eos_runtime::bus::Subscription>>,
     plugins: Arc<PluginHost>,
     updates: Arc<Updates>,
+    browser: Arc<eos_mod_browser::BrowserModule>,
     remote: Arc<eos_mod_remote::RemoteModule>,
     /// The dashboard's row patches, from start to shutdown.
     patches: std::sync::Mutex<Option<StatePatcher>>,
@@ -203,6 +231,7 @@ impl App {
             agents,
             resources,
             plugin_previewer,
+            shell,
             exec_path,
             update_applier,
             launchd,
@@ -266,8 +295,7 @@ impl App {
             dirs: Arc::new(AccountDirs::new(&accounts_dir)),
             stores: stores.clone(),
             providers: vec![Arc::new(ClaudeSignIn::new(stores.clone())), Arc::new(ChatGptSignIn::new(stores))],
-            // The shell takes this over once it routes sign-in pages itself.
-            browser: Arc::new(SystemBrowser),
+            browser: shell.as_ref().map_or_else(|| Arc::new(SystemBrowser) as Arc<dyn Browser>, |s| s.opener.clone()),
             probe: Arc::new(ClaudeTokenProbe::default()),
             usage_api: Arc::new(ClaudeUsageApi::new(clock.clone())),
             usage_cache: Arc::new(FileUsageSnapshots::new(paths.join("usage-cache.json"))),
@@ -372,6 +400,18 @@ impl App {
             sleeper: Arc::new(TokioSleeper),
         });
 
+        // The browser's tabs are the shell's views; without a shell the feature is there
+        // and says the browser is absent.
+        let browser = Arc::new(eos_mod_browser::BrowserModule::new(eos_mod_browser::Ports {
+            shell: shell.as_ref().map(|s| (s.views.clone(), s.panel.clone())),
+            config: config.clone(),
+            store: store.clone(),
+            files: Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir())),
+            clock: clock.clone(),
+            sleeper: Arc::new(TokioSleeper),
+            bus: kernel.bus.clone(),
+        }));
+
         let projects: Arc<dyn eos_core::store::ProjectStore> =
             Arc::new(JsonProjects::open(paths.join("projects.json"), ids.clone()));
         let context = Context {
@@ -414,6 +454,8 @@ impl App {
             questions,
             recents,
             accounts: accounts.clone(),
+            browser: browser.clone(),
+            picker: shell.as_ref().map(|s| s.picker.clone()),
             plugins: plugins.clone(),
             kernel: kernel.clone(),
             paths: paths.clone(),
@@ -496,6 +538,7 @@ impl App {
             nudges,
             plugins,
             updates,
+            browser,
             remote,
             patches: std::sync::Mutex::new(None),
         })
@@ -601,6 +644,16 @@ impl App {
     }
 
     /// The plugin system, as the agent tools and session start ask it.
+    /// The browser, for the agent tools (`browser_*`).
+    pub fn browser_tools(&self) -> Arc<dyn BrowserTools> {
+        self.browser.tools()
+    }
+
+    /// The browser panel's element picker, for the shell's bridge.
+    pub fn element_picker(&self) -> Arc<dyn ElementPicker> {
+        self.browser.element_picker()
+    }
+
     pub fn plugins(&self) -> Arc<dyn Plugins> {
         self.plugins.clone()
     }

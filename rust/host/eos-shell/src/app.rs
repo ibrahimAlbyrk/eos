@@ -4,8 +4,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use eos_bridge::chromium::{self, Tuning};
 use eos_bridge::instance::{self, Acquired, Request};
 use eos_bridge::lan_guard::{self, SystemProxy};
+use eos_bridge::panel::Panel;
 use eos_bridge::power::WakeDetector;
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::{Bridge, EditCommand, Parts, Service, migrate};
@@ -14,11 +16,11 @@ use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_runtime_cef::cef::{ContentSettingTypes, ContentSettingValues, ImplBrowser, ImplBrowserHost};
 use tauri_runtime_cef::{Cef, ProxyConfig, SecretStorage, WebRtcIpHandling, WebviewCefExt};
 
-use crate::host::{Host, frame_command, open_external, target_of};
+use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
 use crate::native::{appkit, notify};
-use crate::views::{Cdp, ViewPorts, Views, create};
+use crate::views::{Cdp, Previewer, ViewPorts, Views, create};
 use crate::window::StateKeeper;
 use crate::{Hooks, Options, Ports, menu, scheme, window};
 
@@ -26,19 +28,29 @@ fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
-/// Chromium features that make it look for devices on the local network by itself. macOS
-/// answers any such traffic with a "find devices on local networks" prompt in the app's name.
-const NO_LOCAL_DISCOVERY: [&str; 4] =
-    ["WebRtcHideLocalIpsWithMdns", "MediaRouter", "DialMediaRouteProvider", "CastMediaRouteProvider"];
-
-fn chromium(options: &Options, system: &SystemProxy) -> Cef {
+/// Chromium as the app runs it. `None` when the launch list is malformed: a switch that
+/// would silently not apply is a bug to fix, not something to run with.
+fn engine(options: &Options, system: &SystemProxy) -> Option<Cef> {
+    let launch = chromium::launch(&Tuning {
+        mute_audio: options.quiet,
+        network_in_process: options.network_in_process,
+        paint_when_covered: options.paint_when_covered,
+        // Diagnostics: every request Chromium makes, with its URL, into a file.
+        net_log: std::env::var_os("EOS_SHELL_NETLOG").map(Into::into),
+    });
+    let problems = launch.problems();
+    if !problems.is_empty() {
+        eprintln!("eos: the Chromium launch list is malformed: {}", problems.join("; "));
+        return None;
+    }
     let mut cef = Cef::default()
         .root_cache_path(options.data_dir.join("profile"))
-        // WebRTC may only use a configured proxy: no host candidates, so no mDNS names and
-        // no probing of the LAN from a page.
+        // WebRTC may only use a configured proxy (the switch in the launch list is the
+        // same rule for the profiles this preference does not reach).
         .webrtc_ip_handling(WebRtcIpHandling::DisableNonProxiedUdp)
-        .command_line_arg("force-webrtc-ip-handling-policy", Some("disable_non_proxied_udp"))
-        .disable_features(NO_LOCAL_DISCOVERY)
+        .command_line_args(launch.switches)
+        .disable_features(launch.disable_features)
+        .enable_features(launch.enable_features)
         // Requests: every profile starts with the guarded proxy script, which decides per
         // request, before DNS and before connect, and carries the system's proxy settings.
         .proxy(ProxyConfig::PacScript { url: lan_guard::script_url(false, system) })
@@ -46,26 +58,12 @@ fn chromium(options: &Options, system: &SystemProxy) -> Cef {
         // dialog; it stays as the second line, answering "no" without a prompt.
         .default_content_setting(ContentSettingTypes::LOCAL_NETWORK_ACCESS, ContentSettingValues::BLOCK)
         .default_content_setting(ContentSettingTypes::LOCAL_NETWORK, ContentSettingValues::BLOCK)
-        // The app is not a browser: it asks Chromium for no update checks, reports or pings
-        // behind the user's back (Electron made none). This CEF build still makes a few
-        // (account list, component updates); `EOS_SHELL_NETLOG` shows them (README, "Open points").
-        .component_updates(false)
-        .command_line_arg("--disable-background-networking", None::<String>)
-        .command_line_arg("--disable-domain-reliability", None::<String>)
-        .command_line_arg("--no-pings", None::<String>)
         // Banners are the shell's own; no page shows one.
         .default_content_setting(ContentSettingTypes::NOTIFICATIONS, ContentSettingValues::BLOCK);
-    // Diagnostics: every request Chromium makes, with its URL, into a file.
-    if let Some(path) = std::env::var_os("EOS_SHELL_NETLOG") {
-        cef = cef.command_line_arg("log-net-log", Some(path.to_string_lossy().into_owned()));
-    }
     if options.mock_keychain {
         cef = cef.secret_storage(SecretStorage::Mock);
     }
-    if options.quiet {
-        cef = cef.command_line_arg("--mute-audio", None::<String>);
-    }
-    cef
+    Some(cef)
 }
 
 struct Shell {
@@ -142,7 +140,8 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
             "the system uses a proxy script or auto-discovery, which the app cannot follow: it connects directly",
         );
     }
-    let cef = chromium(&options, &system_proxy);
+    crate::views::remove_throwaway_profiles(&options.data_dir.join("profile"));
+    let Some(cef) = engine(&options, &system_proxy) else { return 1 };
     let shell = Arc::new(Shell {
         options,
         system_proxy,
@@ -208,10 +207,16 @@ impl Shell {
 
         let views = Views::new(app.clone(), window.clone(), self.rt.handle().clone(), self.system_proxy.clone());
         let _ = self.views.set(views.clone());
+        let view_ports: Arc<dyn eos_core::shell::BrowserViews> = Arc::new(ViewPorts(views.clone()));
+        // The panel exists before the core: the browser feature holds it too.
+        let panel = Panel::new(view_ports.clone(), self.rt.handle());
         let ports = Ports {
-            views: Arc::new(ViewPorts(views.clone())),
+            views: view_ports,
+            panel: Arc::new(panel.clone()),
             capture: Arc::new(ViewPorts(views.clone())),
             picker: Arc::new(ViewPorts(views.clone())),
+            previewer: Arc::new(Previewer::new(views.clone())),
+            opener: Arc::new(Opener),
             rt: self.rt.handle().clone(),
             quit: {
                 let shell = Arc::downgrade(self);
@@ -262,7 +267,7 @@ impl Shell {
             data_dir: options.data_dir.clone(),
             core,
             host: host.clone(),
-            views: ports.views.clone(),
+            panel,
             capture: ports.capture.clone(),
             rt: self.rt.handle().clone(),
             seed,

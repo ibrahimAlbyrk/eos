@@ -31,7 +31,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import smoke  # noqa: E402  (shared helpers; smoke.APP comes from the same argv)
 
-OUT = os.path.join(smoke.DATA, "shell-out", "lan-probe")
+OUT = os.path.join(smoke.DEV_OUT, "lan-probe")
 SHELL_DATA = os.path.join(OUT, "data")
 smoke.SHELL_DATA = SHELL_DATA
 
@@ -116,7 +116,14 @@ def main():
     if not os.path.isfile(smoke.BIN):
         print(__doc__)
         return 2
-    subprocess.run([os.path.join(smoke.HOST, "scripts", "daemon.sh"), "start"], check=True, capture_output=True)
+    run = smoke.Run()
+    try:
+        return probe_run()
+    finally:
+        run.close()
+
+
+def probe_run():
     subprocess.run(["rm", "-rf", OUT], check=True)
     os.makedirs(SHELL_DATA)
     probe = {"cdp": {"view": "p", "method": "Runtime.evaluate", "params": {"expression": PROBE, "returnByValue": True, "awaitPromise": True}}}

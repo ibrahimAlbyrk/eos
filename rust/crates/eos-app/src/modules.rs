@@ -50,6 +50,9 @@ pub(crate) struct Context {
     pub(crate) questions: eos_mod_questions::Questions,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
+    pub(crate) browser: Arc<eos_mod_browser::BrowserModule>,
+    /// The shell's open panel, when there is a window.
+    pub(crate) picker: Option<Arc<dyn eos_core::shell::FilePicker>>,
     pub(crate) plugins: Arc<PluginHost>,
     pub(crate) kernel: eos_runtime::Kernel,
     pub(crate) paths: eos_platform::DataPaths,
@@ -192,6 +195,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
             cx.kernel.jobs.clone(),
             Arc::new(eos_accounts::TokioSleeper),
         )),
+        cx.browser.clone(),
         crate::files::module(cx),
         genui,
         pages,

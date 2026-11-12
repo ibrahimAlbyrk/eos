@@ -7,9 +7,10 @@
 //! state, so a burst of reports (a splitter drag) costs few native calls and never lands out
 //! of order.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_core::shell::{BrowserViews, Rect, ViewId};
+use eos_core::shell::{BrowserPanel, BrowserViews, PanelListener, Rect, ViewId};
 use tokio::sync::Notify;
 
 /// The independent reports of the panel.
@@ -21,11 +22,6 @@ pub enum Flag {
     Overlay,
     /// Another DOM layer overlaps the panel.
     Occluded,
-}
-
-/// Told when the dashboard shows another tab, so "the page the human sees" stays exact.
-pub trait PanelListener: Send + Sync {
-    fn active_view_changed(&self, session: &str, view: &ViewId);
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -55,6 +51,8 @@ struct Geometry {
     visible: bool,
     overlay: bool,
     occluded: bool,
+    /// Views that emulate a device: the size each is shown at.
+    devices: HashMap<ViewId, (f64, f64)>,
     seqs: Seqs,
 }
 
@@ -67,8 +65,21 @@ impl Default for Geometry {
             visible: true,
             overlay: false,
             occluded: false,
+            devices: HashMap::new(),
             seqs: Seqs::default(),
         }
+    }
+}
+
+/// A view of `size` centered in `bounds`, never larger than it: a device taller or wider
+/// than the panel is cut to it instead of reaching over the dashboard.
+fn centered(bounds: Rect, size: (f64, f64)) -> Rect {
+    let (width, height) = (size.0.min(bounds.width), size.1.min(bounds.height));
+    Rect {
+        x: bounds.x + ((bounds.width - width) / 2.0).round(),
+        y: bounds.y + ((bounds.height - height) / 2.0).round(),
+        width,
+        height,
     }
 }
 
@@ -132,7 +143,10 @@ impl Geometry {
     fn wanted(&self) -> Wanted {
         match &self.current {
             None => Wanted::Nothing,
-            Some(view) if self.shown() => Wanted::Placed(view.clone(), self.bounds),
+            Some(view) if self.shown() => {
+                let rect = self.devices.get(view).map_or(self.bounds, |size| centered(self.bounds, *size));
+                Wanted::Placed(view.clone(), rect)
+            }
             Some(view) => Wanted::Parked(view.clone()),
         }
     }
@@ -156,7 +170,9 @@ struct Inner {
     counters: Mutex<(u64, u64)>,
     wake: Arc<Notify>,
     views: Arc<dyn BrowserViews>,
-    listener: Mutex<Option<Arc<dyn PanelListener>>>,
+    /// Whoever keeps "the page the human sees": the browser feature, and during the
+    /// transition the dev driver beside it. A handful at most.
+    listeners: Mutex<Vec<Arc<dyn PanelListener>>>,
 }
 
 impl Inner {
@@ -196,14 +212,10 @@ impl Panel {
             counters: Mutex::new((0, 0)),
             wake: Arc::new(Notify::new()),
             views,
-            listener: Mutex::new(None),
+            listeners: Mutex::default(),
         });
         rt.spawn(apply_loop(Arc::downgrade(&inner), inner.wake.clone()));
         Panel { inner }
-    }
-
-    pub fn set_listener(&self, listener: Arc<dyn PanelListener>) {
-        *self.inner.listener.lock().unwrap_or_else(|p| p.into_inner()) = Some(listener);
     }
 
     /// The dashboard shows `view` (a tab of `session`) in the panel.
@@ -211,8 +223,8 @@ impl Panel {
         let accepted = self.inner.geometry().set_active(seq, session, view.clone());
         self.inner.changed(accepted);
         if accepted {
-            let listener = self.inner.listener.lock().unwrap_or_else(|p| p.into_inner()).clone();
-            if let Some(listener) = listener {
+            let listeners = self.inner.listeners.lock().unwrap_or_else(|p| p.into_inner()).clone();
+            for listener in listeners {
                 listener.active_view_changed(session, &view);
             }
         }
@@ -226,14 +238,6 @@ impl Panel {
     pub fn set_flag(&self, seq: u64, flag: Flag, value: bool) {
         let accepted = self.inner.geometry().set_flag(seq, flag, value);
         self.inner.changed(accepted);
-    }
-
-    /// The view was closed: it is no longer the panel's.
-    pub fn forget(&self, view: &ViewId) {
-        let mut geometry = self.inner.geometry();
-        if geometry.current.as_ref() == Some(view) {
-            geometry.current = None;
-        }
     }
 
     /// The view on screen and its rectangle; `None` while nothing is shown.
@@ -255,6 +259,31 @@ impl Panel {
             dropped,
             applied,
         }
+    }
+}
+
+impl BrowserPanel for Panel {
+    fn forget(&self, view: &ViewId) {
+        let mut geometry = self.inner.geometry();
+        geometry.devices.remove(view);
+        if geometry.current.as_ref() == Some(view) {
+            geometry.current = None;
+        }
+    }
+
+    fn set_device_size(&self, view: &ViewId, size: Option<(f64, f64)>) {
+        {
+            let mut geometry = self.inner.geometry();
+            match size {
+                Some(size) => geometry.devices.insert(view.clone(), size),
+                None => geometry.devices.remove(view),
+            };
+        }
+        self.inner.wake.notify_one();
+    }
+
+    fn listen(&self, listener: Arc<dyn PanelListener>) {
+        self.inner.listeners.lock().unwrap_or_else(|p| p.into_inner()).push(listener);
     }
 }
 
@@ -446,11 +475,32 @@ mod tests {
         }
         let panel = Panel::new(Arc::new(FakeViews::default()), &tokio::runtime::Handle::current());
         let heard = Arc::new(Heard(Mutex::new(Vec::new())));
-        panel.set_listener(heard.clone());
+        panel.listen(heard.clone());
         panel.set_active(2, "chat-1", view("t1"));
         panel.set_active(1, "chat-1", view("t0"));
         assert_eq!(*heard.0.lock().unwrap(), vec!["chat-1/t1".to_string()]);
         panel.forget(&view("t1"));
         assert_eq!(panel.status().current, None);
+    }
+
+    #[tokio::test]
+    async fn a_view_that_emulates_a_device_is_centered_at_its_size() {
+        let views = Arc::new(FakeViews::default());
+        let panel = Panel::new(views.clone(), &tokio::runtime::Handle::current());
+        panel.set_active(1, "s", view("a"));
+        panel.set_bounds(2, rect(700.0, 60.0, 500.0, 600.0));
+        panel.set_device_size(&view("a"), Some((375.0, 812.0)));
+        settle().await;
+        // Narrower than the panel: centered. Taller: cut to the panel, never over the dashboard.
+        assert_eq!(views.calls.lock().unwrap().last().map(String::as_str), Some("place a 763,60 375x600"));
+        panel.set_device_size(&view("a"), None);
+        settle().await;
+        assert_eq!(views.calls.lock().unwrap().last().map(String::as_str), Some("place a 700,60 500x600"));
+        // Another view's device changes nothing on screen, and a closed view is forgotten.
+        panel.set_device_size(&view("b"), Some((768.0, 1024.0)));
+        panel.forget(&view("b"));
+        panel.set_active(3, "s", view("b"));
+        settle().await;
+        assert_eq!(views.calls.lock().unwrap().last().map(String::as_str), Some("place b 700,60 500x600"));
     }
 }

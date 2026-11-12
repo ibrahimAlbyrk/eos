@@ -207,6 +207,7 @@ whether the committed corpus is still what the sources produce.
 
 | Corpus | Written by | Held to it |
 |---|---|---|
+| `browser/` | `tools/browser-vectors/generate.mjs` | `eos-mod-browser` (292 accessibility trees rendered as snapshot text with their refs, roles and states of 200 nodes, 56 key chords, 434 navigations against the origin allowlist, header redaction, storage names) |
 | `policy/` | `tools/policy-vectors/generate.mjs` | `eos-policy` (47,040 permission decisions over policies × tools × inputs × modes × tool scopes), the `policy.yaml` reader |
 | `workers/` | `tools/workers-vectors/generate.mjs` | `eos-workers` (resolution, `extends`, defaults, the catalog), the definition-file reader, model tiers |
 | `prompts/` | `tools/prompt-vectors/generate.mjs` | `eos-prompts` and the shipped library (every prompt read and rendered, 641 assembled system prompts byte for byte) |

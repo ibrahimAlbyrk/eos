@@ -13,8 +13,7 @@ use eos_tools::{Services, Tools, Visual};
 use crate::host::HostTimeZone;
 use crate::modules::Context;
 
-/// The registry. The browser joins when its feature is in the app: until then
-/// no session has its tools.
+/// The registry: Eos's own tools over the features they call.
 pub(crate) fn build(
     cx: &Context,
     agents: &AgentsModule,
@@ -40,7 +39,7 @@ pub(crate) fn build(
         memory_search: profile.memory_search(),
         memory_suggestions: profile.memory_suggestions(),
         plugins: cx.plugins.clone(),
-        browser: None,
+        browser: Some(cx.browser.tools()),
         visual: Some(Visual {
             answers: genui.visual_answers(),
             places: genui.places(),

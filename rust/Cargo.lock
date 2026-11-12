@@ -1266,6 +1266,7 @@ dependencies = [
  "eos-mod-agent-jobs",
  "eos-mod-agents",
  "eos-mod-auto-name",
+ "eos-mod-browser",
  "eos-mod-btw",
  "eos-mod-compaction",
  "eos-mod-dreams",
@@ -1347,6 +1348,8 @@ version = "0.0.1"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "eos-app",
+ "eos-contracts",
  "eos-core",
  "eos-kit-proc",
  "eos-mod-terminals",
@@ -1354,14 +1357,12 @@ dependencies = [
  "eos-pty",
  "eos-runtime",
  "eos-testkit",
- "futures-util",
  "reqwest",
  "rusty-leveldb",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
- "tokio-tungstenite 0.26.2",
  "tracing",
 ]
 
@@ -1632,6 +1633,27 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-browser"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-fs",
+ "eos-platform",
+ "eos-runtime",
+ "eos-testkit",
+ "regress",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]

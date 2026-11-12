@@ -14,6 +14,10 @@ path = "src/main.rs"
 [dependencies]
 cef = { workspace = true, default-features = false }
 
+# Not used in code: its build metadata tells `build.rs` where the CEF framework is.
+[target.'cfg(target_os = "macos")'.dependencies]
+cef-dll-sys.workspace = true
+
 [features]
 default = ["sandbox"]
 # Mirrors `tauri-runtime-cef`: CEF sandbox support on macOS.

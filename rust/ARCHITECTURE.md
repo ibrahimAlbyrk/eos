@@ -194,5 +194,8 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   view leaves the local network. The script carries the system's proxy settings.
 - **Automated runs never type into a page and never drive the dashboard.** They restore a
   layout through the storage carry-over, observe the shell's status (`Eos --status`) and
-  send DevTools calls only to views they created. The dev proxy refuses every write that
-  could start an agent, without a switch (`eos-bridge/src/dev/guard.rs`).
+  send DevTools calls only to views they created. A dev run works on a copy of real data
+  and refuses whatever would act for the user from it (an agent, a model call, a command,
+  another computer, files outside the data folder), on the daemon's side and before the
+  Rust router (`eos-bridge/src/dev/guard.rs`); a test run that is killed leaves no process behind
+  (`host/tests/guard.py`).

@@ -175,3 +175,16 @@ pub(crate) fn open_external(url: &tauri::Url) {
         open_with_system(url.as_str());
     }
 }
+
+/// The system opener for the core: a page it wants the user to see in their own browser (a
+/// sign-in page). The same rule as for a link a page opens: web and mail links only.
+pub(crate) struct Opener;
+
+impl eos_core::accounts::Browser for Opener {
+    fn open(&self, url: &str) {
+        match tauri::Url::parse(url) {
+            Ok(url) => open_external(&url),
+            Err(_) => log("shell", "not a link: nothing was opened"),
+        }
+    }
+}

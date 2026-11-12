@@ -42,6 +42,18 @@ pub fn wants_media_token(core_target: &str, req: &Req) -> bool {
     MEDIA_PREFIXES.iter().any(|p| core_target.starts_with(p)) && req.is_read() && is_from_dashboard(req)
 }
 
+/// The open panels (`/pick-directory`, `/pick-file`) want the ui-token: a dialog on the
+/// user's screen is theirs to raise. The dashboard asks for them without a token, as it
+/// always has, so the shell adds it for exactly these two reads, and only when the
+/// dashboard's own document asked: a frame inside it, another view or the raw-content
+/// origin never gets it.
+const DIALOG_ROUTES: [&str; 2] = ["/pick-directory", "/pick-file"];
+
+pub fn wants_dialog_token(core_target: &str, req: &Req) -> bool {
+    let path = core_target.split_once('?').map_or(core_target, |(path, _)| path);
+    DIALOG_ROUTES.contains(&path) && req.method == "GET" && is_from_dashboard(req)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,5 +112,20 @@ mod tests {
         let mut post = from(Initiator::Document, &[]);
         post.method = "POST".into();
         assert!(!wants_media_token("/api/genui/media/img", &post));
+    }
+
+    #[test]
+    fn only_the_dashboards_own_document_may_raise_an_open_panel() {
+        assert!(wants_dialog_token("/pick-directory", &req(&[])));
+        assert!(wants_dialog_token("/pick-file?start=/tmp", &req(&[])));
+        // A sandboxed frame inside the dashboard, and the load of a page itself.
+        assert!(!wants_dialog_token("/pick-directory", &from(Initiator::Frame, &[])));
+        assert!(!wants_dialog_token("/pick-directory", &from(Initiator::TopLevel, &[])));
+        // Nothing but these two routes, and only as a read.
+        assert!(!wants_dialog_token("/pick-directory/x", &req(&[])));
+        assert!(!wants_dialog_token("/fs/open", &req(&[])));
+        let mut post = req(&[]);
+        post.method = "POST".into();
+        assert!(!wants_dialog_token("/pick-file", &post));
     }
 }

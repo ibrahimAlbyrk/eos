@@ -27,6 +27,7 @@ eos-mod-accounts.workspace = true
 eos-mod-agent-jobs.workspace = true
 eos-mod-agents.workspace = true
 eos-mod-auto-name.workspace = true
+eos-mod-browser.workspace = true
 eos-mod-btw.workspace = true
 eos-mod-compaction.workspace = true
 eos-mod-dreams.workspace = true

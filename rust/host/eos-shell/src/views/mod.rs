@@ -3,6 +3,7 @@
 
 mod cdp;
 pub(crate) mod create;
+mod preview;
 mod proxy;
 
 use std::collections::HashMap;
@@ -23,6 +24,7 @@ use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
 
 pub(crate) use self::cdp::Cdp;
+pub(crate) use self::preview::Previewer;
 use crate::native::appkit;
 
 /// The size a parked view keeps, so its page has a real layout viewport: a view no human is
@@ -76,6 +78,17 @@ pub(crate) struct Views {
 
 fn shell_error(e: impl std::fmt::Display) -> ViewError {
     ViewError::Shell(e.to_string())
+}
+
+/// Removes the storage of profiles that were not to be kept (`THROWAWAY_PROFILE`), left by
+/// an earlier run. Called before Chromium starts, so nothing is using them.
+pub(crate) fn remove_throwaway_profiles(root_cache: &std::path::Path) {
+    let prefix = format!("view-{}", eos_core::shell::THROWAWAY_PROFILE);
+    for entry in std::fs::read_dir(root_cache).into_iter().flatten().flatten() {
+        if entry.file_name().to_string_lossy().starts_with(&prefix) {
+            let _ = std::fs::remove_dir_all(entry.path());
+        }
+    }
 }
 
 fn profile_dir(name: &str) -> String {

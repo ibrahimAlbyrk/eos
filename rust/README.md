@@ -66,7 +66,8 @@ vendor/        tauri-runtime-cef 3.0.0-alpha.7 with our patches applied
 patches/       those patches as diffs (scripts/check-patches.sh proves vendor = upstream + patches)
 bundle/        Info.plist templates, entitlements
 scripts/       env, check, bundle, sign, dev, try, the isolated daemon
-tests/         smoke run, local-network probe, proxy-script test
+tests/         smoke run, browser run on a local page, memory measurement, local-network
+               probe, proxy-script test; guard.py stops what a killed run started
 .work/         build caches (not in git): cargo registry, CEF (~460 MB), target, bundles
 ```
 
@@ -86,7 +87,10 @@ scripts/dev.sh                    # debug bundle against the isolated Node daemo
 scripts/bundle.sh release         # Eos.app with the five helper apps → .work/bundle/release/
 scripts/sign.sh <Eos.app>         # local Developer ID signature, --timestamp=none, nothing sent anywhere
 python3 tests/smoke.py <Eos.app>  # launches quietly, 34 checks, quits (never types into a page)
+python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
+                                  # temporary folder; a plugin preview; 28 checks
 python3 tests/lan_probe.py <Eos.app>
+python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
 scripts/try.sh                    # for a person: see the header of the script
 ```
 
@@ -118,12 +122,29 @@ already, but the events the dashboard lives on still come from the daemon, so th
 those two routes until the features that produce the events are in Rust
 (`EOS_DEV_RUST_STREAM=1` sends them to Rust; the smoke run does that once).
 
-The daemon (`scripts/daemon.sh`) runs on a copy of the data folder, ports 7490/7491, no
-launchd, `CLAUDE_CONFIG_DIR` at an empty folder. The proxy forwards reads and refuses every
-write except the browser panel's own routes, the file and git watches and the stream's focus
-(`crates/eos-bridge/src/dev/guard.rs`); there is no switch to turn that off. The Rust core
-opens the same isolated folder, so both sides share one ui-token and one set of data. The
-daemon's browser verbs are served from the shell's views over the `BrowserViews` port, its
+The daemon (`scripts/daemon.sh`) runs on a copy of the data folder, ports 7490/7491
+(`scripts/dev-env.sh`: every run can name its own copy, output folder and ports), its own
+`HOME`, no launchd, `CLAUDE_CONFIG_DIR` at an empty folder that must stay empty. The Rust
+core opens the same isolated folder, so both sides share one ui-token and one set of data.
+
+**A dev run works on a copy of real data, so it may not act for the user**
+(`crates/eos-bridge/src/dev/guard.rs`), on either side:
+
+- the proxy forwards the daemon's reads and refuses every write except the file and git
+  watches and the stream's focus, and the one read that makes the daemon start a `claude`
+  process (`GET /commands`); there is no switch to turn that off;
+- the Rust core runs agents itself, so before its router sees a request the dev run refuses
+  (403, "refused in a dev run") whatever starts an agent, a model call or a command,
+  connects to another computer or the relay, or changes files outside the copied data
+  folder. Three lists say which route is which: `REFUSED_ROUTES` (spawn, message, resume,
+  rewind, a side question, "dream now", terminals and `!` commands, transfers, sync, …),
+  `FOLDER_ROUTES` (the Files and Changes panels: let through only when every path the
+  request names lies inside the data folder) and `HARMLESS_ROUTES`. A route that is not a
+  plain read and is on none of them is refused, and a test over the composed app fails
+  until it is classified. `EOS_DEV_ALLOW_AGENTS=1` lets a run that is meant to try these
+  through; the launcher gives the app the isolated `CLAUDE_CONFIG_DIR` either way.
+
+The browser panel's routes are the Rust core's; its tabs are the shell's views. The daemon's
 notifications become native banners.
 
 ### What the dashboard gets (bridge inventory)
@@ -134,17 +155,16 @@ stream. Members of the Electron preload and of main's calls into the page:
 | Surface | Now | Later |
 |---|---|---|
 | `__EOS_DAEMON_URL`, `__EOS_RAW_URL`, `__EOS_UI_TOKEN`, `html.native` + `data-os`, `html.fullscreen`, window drag and double-click zoom | 6 | `__EOS_HOST`, `eos-covered` (host views) |
-| `eosBrowserView` | `setActiveView`, `setBounds`, `setVisible`, `overlayOpen`, `setOccluded`, `snapshot` | `pickElement`, `cancelPick` |
+| `eosBrowserView` | `setActiveView`, `setBounds`, `setVisible`, `overlayOpen`, `setOccluded`, `snapshot`, `pickElement`, `cancelPick` | |
 | `eosNotify` | `show` | |
 | `webkit.messageHandlers` | `themeChanged`, `themeSnapshot`, `saveFile`, `pasteboardPaths`, `titlebarDrag`, `titlebarDblClick` | |
 | Finder drop → `__eosNativeDrop` | real paths, read over DevTools from the dropped `File` objects | |
-| Shell → page | `__eosThemeSnapshot`, `__nativeNavigate`, `__nativeOpenRoute`, `__eosUndo`, `__eosRedo`, `__eosTerm` (4) | `__eosPluginPreview` |
+| Shell → page | `__eosThemeSnapshot`, `__nativeNavigate`, `__nativeOpenRoute`, `__eosUndo`, `__eosRedo`, `__eosTerm` (4), `__eosPluginPreview` (called in a hidden view of its own) | |
 | `eosHosts` | `list` (empty), `onChange`, `onVisibility`, `onCommand` | `switchTo`, `openInWindow`, `reconnect`, `requestConnect` |
 | `eosArtifacts` (15), `eosTransfer` (9) | left undefined, as in a host view today | all |
 | `eosWindow` (5) | not applicable: Windows only | |
 
-33 members work, 33 come later (artifacts 15, transfers 9, hosts 6, element picker 2, plugin
-preview 1).
+36 members work, 30 come later (artifacts 15, transfers 9, hosts 6).
 
 Not bridges, done in the shell: single instance (a later launch hands over; `Eos --status`,
 `Eos --quit`), close hides and the Dock reopens, quit runs the app's shutdown hook, the app
@@ -152,11 +172,58 @@ menu with the Edit commands routed to whatever has the keyboard, full screen, wi
 restored, `eos://` links, navigation lockdown with external links in the system browser, the
 content security policy, the ui-token for media loads of the dashboard document, banners with
 the Eos sound (only while the window is not focused; a click opens the worker or view), native
-file pickers, wake hand-off to the app, the one-time `localStorage` carry-over.
+file pickers (`/pick-directory`, `/pick-file`: only for the dashboard's own document), wake
+hand-off to the app, the one-time `localStorage` carry-over, the browser's tabs as views
+(`eos-mod-browser` over `BrowserViews`; a device-sized tab is centered in the panel), the
+plugin preview (a hidden view of the dashboard's bundle, captured over DevTools: a hidden
+view keeps painting, so no off-screen rendering mode is used), the system opener for the
+core's sign-in pages, the PDF viewer for the raw-content origin.
 
 Not ported: the tray (decided), the boot splash and daemon supervision (no daemon), the dev
-"Rebuild & Relaunch" item. Later phases: artifact views, host views, plugin preview, updates,
-transfers, location, the element picker and device emulation, reload-after-renderer-crash.
+"Rebuild & Relaunch" item. Later phases: artifact views, host views, transfers, location,
+reload-after-renderer-crash, whether a tab is making sound (the tab list says `audible:
+false`).
+
+### Memory
+
+Measured on the release bundle (`tests/memory.py`, Apple M4, macOS 27.3): the dashboard with
+one long chat open in a 1280×820 window that keeps painting, `phys_footprint` of every
+process 40 s after the page is ready, a fresh shell profile per run, five runs each, other
+agents building on the Mac meanwhile (load 11–60). Median (range), MB:
+
+| | Total | Processes | Browser | GPU | Renderer | Network | Storage | Proxy script |
+|---|---|---|---|---|---|---|---|---|
+| The app as built (core in process) | **362 (359–366)** | 6 | 54 | 190 | 93 | 9 | 6 | 9 |
+| Same, network service in process (`EOS_SHELL_NETWORK_IN_PROCESS`) | **353 (352–361)** | 5 | 54 | 191 | 93 | — | 6 | 9 |
+| The shell alone (no Rust core, `EOS_HOME=`) | 357 (349–358) | 6 | 45 | 192 | 94 | 9 | 6 | 9 |
+| Electron 42, same page (the shell memory study) | 352 (345–358) | 4 | 56 | 199 | 85 | 9 | in browser | — |
+| The shell gate's defaults (the study) | 490 (487–495) | 6 | 107 | 207 | 105 | 25 | 19 | — |
+
+What brought it down from the gate's 490 MB, all in `eos-bridge/src/chromium.rs` and the two
+`build.rs` files:
+
+- **The CEF framework is mapped at launch.** The runtime `dlopen()`s the framework, and for
+  a library loaded that way macOS writes its 12 MB of relocated constant data in every
+  process. The app and the helper executables now name the framework in a (weak) load
+  command, so dyld maps it at launch and those pages stay clean: 0 MB of the framework's
+  `__DATA_CONST` is dirty in the renderer (`memory.py --vmmap`), and every process is
+  12–17 MB smaller. `scripts/bundle.sh` rewrites the path for the helpers and fails when
+  an executable lacks the load command. Outside a bundle the program still starts and falls
+  back to `dlopen`.
+- **No component updater** (`--disable-component-update`): 51 MB in the browser process,
+  135 MB on disk, and no traffic to Google's update servers. There is no Widevine and no
+  component refresh between app releases, as in Electron.
+- **No warm spare renderer** (`SpareRendererForSitePerProcess` off): 25 MB and one process;
+  a new view's first load starts its renderer cold (about 130 ms). Electron runs without it.
+- Every switch is spelled `--name`: the runtime hands a bare name to Chromium as a
+  positional argument, where it silently does nothing. `Launch::problems` refuses such a
+  list, the shell does not start on one, and a test walks every combination.
+
+What is left above Electron's 352 MB is two things Electron's shell does not have: the
+local-network guard's proxy script, which Chromium runs in a process of its own (9 MB), and
+the Rust core inside the browser process (9 MB, in place of a 150 MB Node daemon). The GPU
+process and the renderer are the page's own cost, the same in both shells. The storage
+service process (6 MB) can only go with a patch to CEF.
 
 ### Environment
 
@@ -168,10 +235,13 @@ transfers, location, the element picker and device emulation, reload-after-rende
 | `EOS_SHELL_QUIET` + `TAURI_CEF_NO_ACTIVATE` | an automated run: no focus, no Dock icon, no sound |
 | `EOS_SHELL_MOCK_KEYCHAIN` | keep Chromium's cookie key out of the login keychain (test data) |
 | `EOS_SHELL_TRACE`, `EOS_SHELL_NETLOG` | log each request's path and status; write Chromium's net log |
+| `EOS_SHELL_NETWORK_IN_PROCESS` | run Chromium's network service inside the browser process: one process and about 9 MB less, without its crash isolation and its own sandbox (off by default; see "Memory") |
+| `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
 | `EOS_HOME` | the core's data folder; no default yet (see above) |
 | `EOS_LOG` | what is logged to stderr, as a `tracing` filter (default `warn`) |
 | `EOS_DEV_DAEMON_URL`, `EOS_DEV_DAEMON_RAW_URL`, `EOS_DEV_DAEMON_HOME` | `dev-proxy`: the isolated daemon |
 | `EOS_DEV_RUST_STREAM` | `dev-proxy`: let the Rust runtime serve the event stream |
+| `EOS_DEV_ALLOW_AGENTS` | `dev-proxy`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-proxy`: steps on test views (`eos/src/dev/script.rs`) |
 
 ### Open points
@@ -181,9 +251,11 @@ transfers, location, the element picker and device emulation, reload-after-rende
 - The local-network guard (`crates/eos-bridge/src/lan_guard.rs`, a proxy script per profile)
   refuses a page's requests to the LAN before any connection, and opens a view's profile
   while the user has sent that view to a LAN address or a `.local` name (the core says so
-  through `BrowserViews::allow_local_network` before it navigates). In the dev driver every
-  address the daemon asks for counts as asked, an agent's too; the browser feature decides
-  that properly. The system's fixed proxies and exceptions are carried inside the script
+  through `BrowserViews::allow_local_network` before it navigates). What counts as asked
+  for is the browser feature's rule (`crates/eos-mod-browser`): an address the user typed
+  or an agent's tool named, and back, forward or reload chosen by either; never a page's
+  own redirect, link or popup. The opening is per profile, so while one tab of a session is
+  on the local network its other tabs can reach it too. The system's fixed proxies and exceptions are carried inside the script
   and re-read every 30 seconds; a system set to a proxy script or to auto-discovery is not
   followed (direct connections), since one proxy script cannot call another.
 - Chromium still makes a few requests of its own (Google account list, component updates) in

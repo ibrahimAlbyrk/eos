@@ -15,6 +15,7 @@ tauri-build.workspace = true
 
 [dependencies]
 eos-bridge.workspace = true
+eos-contracts.workspace = true
 eos-core.workspace = true
 
 base64.workspace = true

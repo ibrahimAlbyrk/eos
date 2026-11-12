@@ -8,6 +8,7 @@
 
 pub mod assets;
 mod bridge;
+pub mod chromium;
 pub mod core;
 #[cfg(feature = "dev-proxy")]
 pub mod dev;

@@ -27,6 +27,8 @@ pub type Classify = Arc<dyn Fn(Option<&str>) -> Caller + Send + Sync>;
 
 pub struct RouterCore {
     router: Arc<Router>,
+    /// The routes of the raw-content origin, when the core keeps them apart.
+    raw: Option<Arc<Router>>,
     ui_token: String,
     classify: Classify,
     rt: tokio::runtime::Handle,
@@ -70,7 +72,15 @@ impl RouterCore {
         classify: Classify,
         rt: tokio::runtime::Handle,
     ) -> Self {
-        RouterCore { router, ui_token: ui_token.into(), classify, rt, served: AtomicU64::new(0) }
+        RouterCore { router, raw: None, ui_token: ui_token.into(), classify, rt, served: AtomicU64::new(0) }
+    }
+
+    /// The router that answers the raw-content origin (`http://raw.eos.localhost`): files as
+    /// they are, the PDF viewer. Without one, that origin gets the main router.
+    #[must_use]
+    pub fn with_raw(mut self, raw: Arc<Router>) -> Self {
+        self.raw = Some(raw);
+        self
     }
 
     /// Whether the router has a route for this method and target (`/path?query`).
@@ -150,7 +160,10 @@ impl Core for RouterCore {
             request.headers.insert(name, value);
         }
         let request = request.body(req.body);
-        let router = self.router.clone();
+        let router = match (plane, &self.raw) {
+            (Plane::Raw, Some(raw)) => raw.clone(),
+            _ => self.router.clone(),
+        };
         self.rt.spawn(async move {
             let mut unanswered = Unanswered { sink: sink.clone(), armed: true };
             tokio::select! {
@@ -334,6 +347,24 @@ mod tests {
         let (head, body) = ask(&core, Plane::Api, req("GET", "/workers/w1", &[], b"")).await;
         assert_eq!(head.status, 200);
         assert_eq!(serde_json::from_slice::<Value>(&body).unwrap()["user"], false);
+    }
+
+    #[tokio::test]
+    async fn the_raw_origin_has_its_own_routes_when_the_core_keeps_them_apart() {
+        async fn viewer(_req: Request) -> Result<Response, ApiError> {
+            Ok(Response::json(200, &json!({ "viewer": true })))
+        }
+        let raw = Router::builder()
+            .route(RouteDef::get("/pdfjs/{*path}", viewer).access(Access::open()))
+            .build()
+            .expect("valid routes");
+        let (core, ..) = core();
+        let core = core.with_raw(Arc::new(raw));
+        let (head, body) = ask(&core, Plane::Raw, req("GET", "/pdfjs/web/viewer.html", &[], b"")).await;
+        assert_eq!((head.status, serde_json::from_slice::<Value>(&body).unwrap()), (200, json!({ "viewer": true })));
+        // Neither origin answers the other's routes.
+        assert_eq!(ask(&core, Plane::Api, req("GET", "/pdfjs/web/viewer.html", &[], b"")).await.0.status, 404);
+        assert_eq!(ask(&core, Plane::Raw, req("GET", "/workers/w1", &[], b"")).await.0.status, 404);
     }
 
     #[tokio::test]

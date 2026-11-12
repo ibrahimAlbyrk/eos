@@ -111,8 +111,12 @@ async fn pick_file(deps: Deps, _req: Request) -> Handled {
 
 pub(crate) fn routes(deps: &Deps) -> Vec<RouteDef> {
     vec![
-        RouteDef::get("/pick-directory", handler(deps, pick_directory)).access(Access::open().local_only()),
-        RouteDef::get("/pick-file", handler(deps, pick_file)).access(Access::open().local_only()),
+        // A dialog on the user's screen: only their own window may raise one. Today's
+        // routes took any local caller; the dashboard sends no token with these two, so
+        // the shell's bridge vouches for a request its own document made (`eos-bridge`,
+        // `token::wants_dialog_token`).
+        RouteDef::get("/pick-directory", handler(deps, pick_directory)).access(Access::ui_token().local_only()),
+        RouteDef::get("/pick-file", handler(deps, pick_file)).access(Access::ui_token().local_only()),
         RouteDef::post("/fs/open", handler(deps, open)).access(CHANGE),
         RouteDef::post("/fs/reveal", handler(deps, reveal)).access(CHANGE),
         RouteDef::post("/fs/open-in", handler(deps, open_in)).access(Access::open()),

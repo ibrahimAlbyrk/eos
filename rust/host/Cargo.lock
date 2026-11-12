@@ -1458,9 +1458,11 @@ dependencies = [
 name = "eos"
 version = "0.0.1"
 dependencies = [
+ "cef-dll-sys",
  "eos-app",
  "eos-bridge",
  "eos-core",
+ "eos-runtime",
  "eos-shell",
  "eos-update",
  "serde_json",
@@ -1822,12 +1824,14 @@ dependencies = [
  "eos-mod-agent-jobs",
  "eos-mod-agents",
  "eos-mod-auto-name",
+ "eos-mod-browser",
  "eos-mod-btw",
  "eos-mod-compaction",
  "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
  "eos-mod-pages",
+ "eos-mod-peer",
  "eos-mod-plugins",
  "eos-mod-policy",
  "eos-mod-profile",
@@ -1844,6 +1848,7 @@ dependencies = [
  "eos-mod-worker-definitions",
  "eos-mod-workers",
  "eos-mod-workflow-runs",
+ "eos-peer",
  "eos-platform",
  "eos-plugin-build",
  "eos-plugin-files",
@@ -1903,13 +1908,11 @@ dependencies = [
  "base64 0.22.1",
  "eos-core",
  "eos-runtime",
- "futures-util",
  "reqwest",
  "rusty-leveldb",
  "serde_json",
  "thiserror 2.0.21",
  "tokio",
- "tokio-tungstenite 0.26.2",
  "tracing",
 ]
 
@@ -1918,6 +1921,7 @@ name = "eos-cef-helper"
 version = "0.0.1"
 dependencies = [
  "cef",
+ "cef-dll-sys",
 ]
 
 [[package]]
@@ -2156,6 +2160,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-browser"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "regress",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "eos-mod-btw"
 version = "0.0.1"
 dependencies = [
@@ -2241,6 +2263,22 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-peer"
+version = "0.0.1"
+dependencies = [
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "tokio",
 ]
 
 [[package]]
@@ -2470,9 +2508,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-peer"
+version = "0.0.1"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.22.1",
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-kit-fs",
+ "eos-platform",
+ "flate2",
+ "getrandom 0.4.3",
+ "h2",
+ "hex",
+ "http",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-rustls",
+ "tracing",
+]
+
+[[package]]
 name = "eos-platform"
 version = "0.0.1"
 dependencies = [
+ "if-addrs",
  "rustix",
  "serde_json",
  "sha2 0.11.1",
@@ -2618,6 +2684,7 @@ dependencies = [
  "block2",
  "cef",
  "eos-bridge",
+ "eos-contracts",
  "eos-core",
  "objc2",
  "objc2-foundation",
@@ -3960,6 +4027,16 @@ checksum = "cb68373c0d6620ef8105e855e7745e18b0d00d3bdb07fb532e434244cdb9a714"
 dependencies = [
  "icu_normalizer",
  "icu_properties",
+]
+
+[[package]]
+name = "if-addrs"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0a05c691e1fae256cf7013d99dad472dc52d5543322761f83ec8d47eab40d2b"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

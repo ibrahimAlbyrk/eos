@@ -5,5 +5,5 @@
 #   usage: ctl.sh <path to Eos.app> [--status|--quit|eos://…]
 set -euo pipefail
 APP="$1"; shift
-DATA="${EOS_DEV_DATA:-/Users/ibrahimalbyrk/Projects/CC/eos-rs-data}"
-EOS_SHELL_DATA="${EOS_SHELL_DATA:-$DATA/shell-out/data}" exec "$APP/Contents/MacOS/Eos" "$@"
+source "$(dirname "$0")/dev-env.sh"
+EOS_SHELL_DATA="${EOS_SHELL_DATA:-$EOS_DEV_OUT/data}" exec "$APP/Contents/MacOS/Eos" "$@"

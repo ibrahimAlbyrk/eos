@@ -54,8 +54,7 @@ pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
         Ports {
             files: Arc::new(eos_fs::DiskFileSystem::new(host, cx.paths.trash_dir())),
             desktop: Arc::new(eos_fs::DesktopApps::new(host, cx.clock.clone(), cx.paths.join("icon-cache"))),
-            // The shell hands its open panel over when it composes the app.
-            picker: None,
+            picker: cx.picker.clone(),
             file_watcher: Arc::new(DirWatcher::new(cx.clock.clone(), fs_change_sink(bus.clone()))),
             git: git.clone(),
             git_diffs: git.clone(),

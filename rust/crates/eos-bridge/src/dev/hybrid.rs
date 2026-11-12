@@ -16,19 +16,27 @@ use crate::router::RouterCore;
 use crate::token::TOKEN_HEADER;
 use crate::transport::{Req, Sink};
 
-/// The event stream's routes. The Rust runtime declares them from its first day, but the
-/// events the dashboard lives on (workers, agents, the browser panel) still come from the
-/// daemon: sent to Rust, the dashboard would load and then never update. They stay with
-/// the daemon until the features that produce those events are in Rust.
+/// The event stream's routes. The Rust runtime declares them from its first day, but most
+/// of the events the dashboard lives on (workers, agents) still come from the daemon: sent
+/// to Rust, the dashboard would load and then never update. They stay with the daemon until
+/// the features that produce those events are in Rust; meanwhile the Rust core's own events
+/// are woven into the daemon's stream (`weave`).
 pub const STREAM_ROUTES: [&str; 2] = ["/stream", "/stream/focus"];
 
 pub struct Hybrid {
     rust: Arc<RouterCore>,
     daemon: Arc<DevDaemon>,
+    rt: tokio::runtime::Handle,
     /// Route patterns the daemon keeps although Rust declares them.
     held_back: Vec<String>,
+    /// The run was started with `EOS_DEV_ALLOW_AGENTS=1`: the Rust core may run agents.
+    allow_agents: bool,
+    /// The copied data folder: the only place the Files panel's writes may land.
+    data_folder: Option<std::path::PathBuf>,
     by_rust: AtomicU64,
     by_daemon: AtomicU64,
+    /// Requests the Rust core was not given because they could make an agent run.
+    refused: AtomicU64,
     /// The patterns Rust has served: bounded by the number of routes it declares.
     rust_routes: Mutex<BTreeSet<String>>,
 }
@@ -44,13 +52,18 @@ fn path_of(target: &str) -> &str {
 }
 
 impl Hybrid {
+    /// Must be called inside the runtime the app's tasks run on.
     pub fn new(rust: Arc<RouterCore>, daemon: Arc<DevDaemon>) -> Self {
         Hybrid {
             rust,
             daemon,
+            rt: tokio::runtime::Handle::current(),
             held_back: Vec::new(),
+            allow_agents: false,
+            data_folder: None,
             by_rust: AtomicU64::new(0),
             by_daemon: AtomicU64::new(0),
+            refused: AtomicU64::new(0),
             rust_routes: Mutex::default(),
         }
     }
@@ -60,6 +73,28 @@ impl Hybrid {
     pub fn hold_back<S: Into<String>>(mut self, patterns: impl IntoIterator<Item = S>) -> Self {
         self.held_back.extend(patterns.into_iter().map(Into::into));
         self
+    }
+
+    /// The data folder the Rust core runs on: a copy of real data. Writes of the Files
+    /// panel are let through only inside it.
+    #[must_use]
+    pub fn data_folder(mut self, folder: impl Into<std::path::PathBuf>) -> Self {
+        self.data_folder = Some(folder.into());
+        self
+    }
+
+    /// Lets the Rust core answer everything: what starts an agent, a model call or a command,
+    /// reaches another computer, or changes the user's own folders. Without it such requests
+    /// are refused before its router sees them (`guard::allows_rust`).
+    #[must_use]
+    pub fn allow_agents(mut self, allow: bool) -> Self {
+        self.allow_agents = allow;
+        self
+    }
+
+    /// Whether this is the event stream the daemon keeps although Rust declares it.
+    fn weaves(&self, req: &Req) -> bool {
+        path_of(&req.url) == "/stream" && self.held_back.iter().any(|pattern| pattern == "/stream")
     }
 
     /// The pattern of the Rust route that answers this request, if Rust is to answer it.
@@ -80,17 +115,41 @@ impl Core for Hybrid {
 
     fn call(&self, plane: Plane, mut req: Req, sink: Sink) {
         match self.rust_route(plane, &req) {
+            Some(pattern)
+                if !self.allow_agents
+                    && !super::guard::allows_rust(&req.method, &pattern, &req.body, self.data_folder.as_deref()) =>
+            {
+                self.refused.fetch_add(1, Ordering::Relaxed);
+                tracing::debug!(target: "eos::bridge", side = "refused", method = %req.method, route = %pattern);
+                sink.respond(
+                    403,
+                    vec![("content-type".into(), "application/json".into())],
+                    super::guard::REFUSAL.as_bytes(),
+                );
+            }
             Some(pattern) => {
                 self.by_rust.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!(target: "eos::bridge", side = "rust", method = %req.method, route = %pattern);
+                tracing::debug!(target: "eos::bridge", side = "rust", method = %req.method, route = %pattern, path = %path_of(&req.url));
                 if let Ok(mut routes) = self.rust_routes.lock() {
                     routes.insert(format!("{} {pattern}", req.method));
                 }
                 self.rust.call(plane, req, sink);
             }
+            // The daemon keeps the event stream, and the Rust core's own events join it.
+            None if plane == Plane::Api && req.method == "GET" && self.weaves(&req) => {
+                self.by_daemon.fetch_add(1, Ordering::Relaxed);
+                let (rust_sink, rust_body) = crate::transport::channel();
+                let (daemon_sink, daemon_body) = crate::transport::channel();
+                // Where the page left off is a place in the daemon's stream, not in Rust's.
+                let mut fresh = req.clone();
+                fresh.url = path_of(&req.url).to_owned();
+                fresh.headers.retain(|(name, _)| !name.eq_ignore_ascii_case("last-event-id"));
+                self.rust.call(plane, fresh, rust_sink);
+                self.daemon.call(plane, req, daemon_sink);
+                self.rt.spawn(super::weave::weave(daemon_body, rust_body, sink));
+            }
             None => {
                 self.by_daemon.fetch_add(1, Ordering::Relaxed);
-                tracing::debug!(target: "eos::bridge", side = "proxy", method = %req.method, path = %path_of(&req.url));
                 // The dashboard holds one token: Rust's. Should the daemon have another
                 // (separate data folders), a request that proved itself gets the daemon's.
                 let (ours, theirs) = (self.rust.ui_token(), self.daemon.ui_token());
@@ -109,6 +168,8 @@ impl Core for Hybrid {
             "proxy": self.by_daemon.load(Ordering::Relaxed),
             "proxyForwarded": forwarded,
             "proxyRefusedWrites": refused,
+            "rustRefused": self.refused.load(Ordering::Relaxed),
+            "agentsAllowed": self.allow_agents,
             "rustRoutes": self.rust_routes.lock().map(|routes| routes.iter().cloned().collect::<Vec<_>>()).unwrap_or_default(),
             "heldBack": self.held_back,
         })
@@ -169,6 +230,8 @@ mod tests {
             .route(RouteDef::get("/api/pages", from_rust).access(Access::open()))
             .route(RouteDef::put("/api/pages/{id}", from_rust).access(Access::ui_token()))
             .route(RouteDef::get("/stream", from_rust).access(Access::open()))
+            .route(RouteDef::post("/workers/{id}/message", from_rust).access(Access::open()))
+            .route(RouteDef::post("/workers/{id}/brand-new", from_rust).access(Access::open()))
             .build()
             .expect("valid routes");
         let rt = tokio::runtime::Handle::current();
@@ -222,6 +285,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn the_rust_core_never_sees_a_request_that_could_make_an_agent_run() {
+        let core = hybrid(RUST_TOKEN).await;
+        for target in ["/workers/w1/message", "/workers/w1/brand-new"] {
+            let (head, body) = ask(&core, Plane::Api, "POST", target, Some(RUST_TOKEN)).await;
+            assert_eq!(head.status, 403, "{target}");
+            assert!(body.contains("refused in a dev run"), "{body}");
+        }
+        let status = core.status();
+        assert_eq!((status["rust"].as_u64(), status["rustRefused"].as_u64()), (Some(0), Some(2)));
+        // A run started to try agents lets them through.
+        let allowed = hybrid(RUST_TOKEN).await.allow_agents(true);
+        let (head, body) = ask(&allowed, Plane::Api, "POST", "/workers/w1/message", Some(RUST_TOKEN)).await;
+        assert_eq!((head.status, body.as_str()), (200, r#"{"side":"rust","user":true}"#));
+    }
+
+    #[tokio::test]
     async fn the_event_stream_stays_with_the_daemon_while_held_back() {
         let core = hybrid(RUST_TOKEN).await;
         let (_, body) = ask(&core, Plane::Api, "GET", "/stream?topics=x", None).await;
@@ -235,7 +314,8 @@ mod tests {
     #[tokio::test]
     async fn a_write_to_an_agent_route_is_still_refused_on_the_way_to_the_daemon() {
         let core = hybrid(RUST_TOKEN).await;
-        let (head, _) = ask(&core, Plane::Api, "POST", "/workers/w1/message", Some(RUST_TOKEN)).await;
+        // A route the Rust core does not declare: the daemon's side refuses it.
+        let (head, _) = ask(&core, Plane::Api, "POST", "/workers/w1/resume", Some(RUST_TOKEN)).await;
         assert_eq!(head.status, 403);
         assert_eq!(core.status()["proxyRefusedWrites"], 1);
     }
