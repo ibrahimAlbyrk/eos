@@ -7,15 +7,22 @@
 //!   do. Branch on these, never on a backend's name.
 //! - [`PromptAssembler`], [`ToolSets`] / [`HostTool`], [`UserQuestions`]: what
 //!   the engine asks of the rest of Eos.
+//! - [`WorkerControl`], [`Peers`]: what agents ask of each other through
+//!   their tools.
 
+mod control;
 mod descriptor;
 mod host;
 mod session;
 
+pub use control::{
+    DirectiveSent, KilledWorker, OpenQuestions, PeerAnswered, PeerConsult, Peers, Refused, SessionFolder,
+    SpawnedWorker, WorkerControl,
+};
 pub use descriptor::{AgentCapabilities, BackendAuth, BackendDescriptor, ModelSource};
 pub use host::{
     HostTool, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolImage, ToolReply, ToolSets,
-    UserMessage, UserMessages, UserQuestions,
+    UserMessage, UserMessages, UserNotifier, UserQuestions,
 };
 pub use session::{
     AgentRuntime, AgentSession, BackgroundTaskKind, BackgroundTaskUpdate, LaunchSpec, Rewound, SessionError,

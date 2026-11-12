@@ -10,6 +10,6 @@ mod watch;
 
 pub use desktop::{AppInfo, DesktopFiles, Editor, OpenIn};
 pub use files::{FileRead, FileSystem, FsEntryMeta, FsStat, ListDirOptions, OpenFile};
-pub use process::{LocalTime, ProcessStats};
+pub use process::{LocalTime, ProcessStats, TimeZone};
 pub use symbols::SymbolIndex;
 pub use watch::{FileWatcher, FsChangeSink, WatchLease};

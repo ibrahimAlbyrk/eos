@@ -23,6 +23,7 @@ mod modules;
 mod notes;
 mod plugins;
 mod terminals;
+mod tools;
 mod updates;
 
 pub use agent::AgentOptions;

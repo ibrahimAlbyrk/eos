@@ -1,0 +1,171 @@
+[
+ {
+  "tool": "list_active_workers",
+  "name": "an orchestrator's workers",
+  "selfId": "o-ORCH",
+  "args": {},
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers?parentId=o-ORCH"
+   }
+  ],
+  "result": {
+   "text": "[\n  {\n    \"id\": \"w-KID2\",\n    \"name\": \"readme scout\",\n    \"state\": \"SUSPENDED\",\n    \"branch\": null,\n    \"worker_definition\": \"explorer\",\n    \"context_pct\": 0,\n    \"started_at\": 1790000220000,\n    \"ended_at\": null,\n    \"prompt\": \"Find where the README documents flags.\"\n  },\n  {\n    \"id\": \"w-KID1\",\n    \"name\": \"json flag impl\",\n    \"state\": \"DONE\",\n    \"branch\": null,\n    \"worker_definition\": \"general-purpose\",\n    \"context_pct\": 1,\n    \"started_at\": 1790000210000,\n    \"ended_at\": 1790000290000,\n    \"prompt\": \"Implement the --json flag in cli.js.\"\n  }\n]",
+   "isError": false
+  }
+ },
+ {
+  "tool": "get_worker",
+  "name": "its own worker",
+  "selfId": "o-ORCH",
+  "args": {
+   "id": "w-KID2"
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-KID2?actorId=o-ORCH"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"worker\": {\n    \"id\": \"w-KID2\",\n    \"name\": \"readme scout\",\n    \"state\": \"SUSPENDED\",\n    \"branch\": null,\n    \"prompt\": \"Find where the README documents flags.\",\n    \"started_at\": 1790000220000,\n    \"ended_at\": null,\n    \"exit_code\": null,\n    \"model\": \"sonnet\",\n    \"context\": {\n      \"used\": 3900,\n      \"limit\": 1000000,\n      \"pct\": 0\n    },\n    \"loop\": null,\n    \"worker_definition\": \"explorer\",\n    \"cost_usd\": 0.05,\n    \"parent_id\": \"o-ORCH\",\n    \"tasks\": null\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "get_worker",
+  "name": "someone else's worker",
+  "selfId": "w-KID2",
+  "args": {
+   "id": "w-BUSY"
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-BUSY?actorId=w-KID2"
+   }
+  ],
+  "result": {
+   "text": "daemon 403: {\"error\":\"worker w-BUSY is not managed by w-KID2\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "get_worker",
+  "name": "an archived worker",
+  "selfId": "w-ARCH",
+  "args": {
+   "id": "w-ARCH"
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-ARCH?actorId=w-ARCH"
+   }
+  ],
+  "result": {
+   "text": "daemon 404: {\"error\":\"not found\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "get_worker_messages",
+  "name": "the last five",
+  "selfId": "o-ORCH",
+  "args": {
+   "id": "w-CHAT"
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-CHAT/events?limit=40&order=desc"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"messages\": [\n    {\n      \"ts\": 1790000000200,\n      \"role\": \"user\",\n      \"text\": \"Fix the parser so empty input returns an empty list.\\n\\n<attachment path=\\\"/sandbox/alpha/src/parser.js\\\" kind=\\\"file\\\" />\"\n    },\n    {\n      \"ts\": 1790000001000,\n      \"role\": \"assistant\",\n      \"text\": \"I'll read the parser first.\"\n    },\n    {\n      \"ts\": 1790000006000,\n      \"role\": \"assistant\",\n      \"text\": \"Done: `parse(\\\"\\\")` now returns `[]`. See `src/parser.js:2`.\"\n    },\n    {\n      \"ts\": 1790000007000,\n      \"role\": \"user\",\n      \"text\": \"Thanks. Now handle null too.\"\n    }\n  ]\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "get_worker_messages",
+  "name": "the last two of a long chat",
+  "selfId": "o-ORCH",
+  "args": {
+   "id": "w-LONG",
+   "n": 2
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-LONG/events?limit=16&order=desc"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"messages\": [\n    {\n      \"ts\": 1790000719000,\n      \"role\": \"assistant\",\n      \"text\": \"Reply number 619\"\n    },\n    {\n      \"ts\": 1790000720000,\n      \"role\": \"assistant\",\n      \"text\": \"Reply number 620\"\n    }\n  ]\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "get_worker_messages",
+  "name": "nothing said",
+  "selfId": "o-ORCH",
+  "args": {
+   "id": "w-nope0000",
+   "n": 50
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-nope0000/events?limit=200&order=desc"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"messages\": []\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_pending_permissions",
+  "name": "one ask",
+  "selfId": "o-ORCH",
+  "args": {},
+  "pending": {
+   "id": "p-ask00001",
+   "worker_id": "w-KID2",
+   "tool_name": "Bash",
+   "input": "{\"command\":\"rm -rf build\"}",
+   "created_at": 1790000300000,
+   "expires_at": 1790000600000,
+   "resolved": 0,
+   "decision": null,
+   "reason": null
+  },
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/pending?parentId=o-ORCH"
+   }
+  ],
+  "result": {
+   "text": "[\n  {\n    \"id\": \"p-ask00001\",\n    \"worker_id\": \"w-KID2\",\n    \"tool_name\": \"Bash\",\n    \"input\": \"{\\\"command\\\":\\\"rm -rf build\\\"}\",\n    \"expires_at\": 1790000600000\n  }\n]",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_pending_permissions",
+  "name": "none",
+  "selfId": "w-KID2",
+  "args": {},
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/pending?parentId=w-KID2"
+   }
+  ],
+  "result": {
+   "text": "[]",
+   "isError": false
+  }
+ }
+]

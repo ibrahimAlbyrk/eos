@@ -1,0 +1,80 @@
+[
+ {
+  "epochMs": 1800000000000,
+  "name": "Europe/Istanbul",
+  "offsetMinutes": 180,
+  "result": {
+   "epochMs": 1800000000000,
+   "iso": "2027-01-15T11:00:00.000+03:00",
+   "utc": "2027-01-15T08:00:00.000Z",
+   "timeZone": "Europe/Istanbul",
+   "utcOffsetMinutes": 180,
+   "formatted": "2027-01-15 11:00:00 UTC+03:00 (Europe/Istanbul)"
+  }
+ },
+ {
+  "epochMs": 1800000000123,
+  "name": "UTC",
+  "offsetMinutes": 0,
+  "result": {
+   "epochMs": 1800000000123,
+   "iso": "2027-01-15T08:00:00.123+00:00",
+   "utc": "2027-01-15T08:00:00.123Z",
+   "timeZone": "UTC",
+   "utcOffsetMinutes": 0,
+   "formatted": "2027-01-15 08:00:00 UTC+00:00 (UTC)"
+  }
+ },
+ {
+  "epochMs": 1767225599999,
+  "name": "America/St_Johns",
+  "offsetMinutes": -150,
+  "result": {
+   "epochMs": 1767225599999,
+   "iso": "2025-12-31T21:29:59.999-02:30",
+   "utc": "2025-12-31T23:59:59.999Z",
+   "timeZone": "America/St_Johns",
+   "utcOffsetMinutes": -150,
+   "formatted": "2025-12-31 21:29:59 UTC-02:30 (America/St_Johns)"
+  }
+ },
+ {
+  "epochMs": 951782400000,
+  "name": "Asia/Kolkata",
+  "offsetMinutes": 330,
+  "result": {
+   "epochMs": 951782400000,
+   "iso": "2000-02-29T05:30:00.000+05:30",
+   "utc": "2000-02-29T00:00:00.000Z",
+   "timeZone": "Asia/Kolkata",
+   "utcOffsetMinutes": 330,
+   "formatted": "2000-02-29 05:30:00 UTC+05:30 (Asia/Kolkata)"
+  }
+ },
+ {
+  "epochMs": 0,
+  "name": "Pacific/Kiritimati",
+  "offsetMinutes": 840,
+  "result": {
+   "epochMs": 0,
+   "iso": "1970-01-01T14:00:00.000+14:00",
+   "utc": "1970-01-01T00:00:00.000Z",
+   "timeZone": "Pacific/Kiritimati",
+   "utcOffsetMinutes": 840,
+   "formatted": "1970-01-01 14:00:00 UTC+14:00 (Pacific/Kiritimati)"
+  }
+ },
+ {
+  "epochMs": 1709251199000,
+  "name": "America/Los_Angeles",
+  "offsetMinutes": -480,
+  "result": {
+   "epochMs": 1709251199000,
+   "iso": "2024-02-29T15:59:59.000-08:00",
+   "utc": "2024-02-29T23:59:59.000Z",
+   "timeZone": "America/Los_Angeles",
+   "utcOffsetMinutes": -480,
+   "formatted": "2024-02-29 15:59:59 UTC-08:00 (America/Los_Angeles)"
+  }
+ }
+]

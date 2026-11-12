@@ -39,6 +39,7 @@ pub(crate) struct Context {
     pub(crate) backends: Arc<dyn BackendCatalog>,
     pub(crate) sessions: eos_sessions::Sessions,
     pub(crate) projects: Arc<dyn ProjectStore>,
+    pub(crate) questions: eos_mod_questions::Questions,
     pub(crate) recents: Arc<dyn RecentFolders>,
     pub(crate) accounts: Arc<Accounts>,
     pub(crate) plugins: Arc<PluginHost>,
@@ -57,6 +58,8 @@ pub(crate) struct Context {
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
     pub(crate) templates: Arc<dyn TemplateStore>,
+    /// Where the agent tools are attached once the features they call are built.
+    pub(crate) tools: Arc<crate::agent::LateTools>,
     pub(crate) updates: Arc<crate::updates::Updates>,
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
@@ -76,54 +79,62 @@ pub(crate) struct Terminal {
 
 /// The modules, in start order (stop order is the reverse). A feature crate
 /// adds its line here, in alphabetical order; nothing else in the app changes.
-pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
-    vec![
-        Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
-        Arc::new(eos_mod_agents::AgentsModule::new(
-            cx.sessions.clone(),
-            cx.store.clone(),
-            cx.ids.clone(),
-            cx.worker_definitions.clone(),
-            eos_mod_agents::Spawning {
-                config: cx.config.clone(),
-                settings: cx.settings.clone(),
-                prompts: cx.prompts.clone(),
-                scratch: cx.scratch.clone(),
-            },
-        )),
-        crate::files::module(cx),
-        Arc::new(eos_mod_genui::GenuiModule::new(eos_mod_genui::GenuiParts {
-            store: cx.store.clone(),
-            settings: cx.settings.clone(),
+pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, eos_runtime::Error> {
+    // The features the agent tools call are built first: the tools hold them.
+    let agents = Arc::new(eos_mod_agents::AgentsModule::new(
+        cx.sessions.clone(),
+        cx.store.clone(),
+        cx.ids.clone(),
+        cx.worker_definitions.clone(),
+        eos_mod_agents::Spawning {
             config: cx.config.clone(),
-            clock: cx.clock.clone(),
-            ids: cx.ids.clone(),
-            bus: cx.bus.clone(),
-            media: cx.media.media.clone(),
-            map: cx.media.map.clone(),
-            geocoder: cx.media.geocoder.clone(),
-            place_search: cx.media.places.clone(),
-            location: cx.location.clone(),
-        })),
-        Arc::new(eos_mod_pages::PagesModule::new(
-            cx.notes.pages.clone(),
-            cx.store.clone(),
-            cx.clock.clone(),
-            cx.ids.clone(),
-            cx.bus.clone(),
-        )),
-        Arc::new(eos_mod_profile::ProfileModule::new(
-            cx.notes.profile.clone(),
-            cx.notes.preview.clone(),
-            PendingCaps::default(),
-            cx.clock.clone(),
-            cx.ids.clone(),
-            cx.bus.clone(),
-        )),
+            settings: cx.settings.clone(),
+            prompts: cx.prompts.clone(),
+            scratch: cx.scratch.clone(),
+        },
+    ));
+    let pages = Arc::new(eos_mod_pages::PagesModule::new(
+        cx.notes.pages.clone(),
+        cx.store.clone(),
+        cx.clock.clone(),
+        cx.ids.clone(),
+        cx.bus.clone(),
+    ));
+    let profile = Arc::new(eos_mod_profile::ProfileModule::new(
+        cx.notes.profile.clone(),
+        cx.notes.preview.clone(),
+        PendingCaps::default(),
+        cx.clock.clone(),
+        cx.ids.clone(),
+        cx.bus.clone(),
+    ));
+    let genui = Arc::new(eos_mod_genui::GenuiModule::new(eos_mod_genui::GenuiParts {
+        store: cx.store.clone(),
+        settings: cx.settings.clone(),
+        config: cx.config.clone(),
+        clock: cx.clock.clone(),
+        ids: cx.ids.clone(),
+        bus: cx.bus.clone(),
+        media: cx.media.media.clone(),
+        map: cx.media.map.clone(),
+        geocoder: cx.media.geocoder.clone(),
+        place_search: cx.media.places.clone(),
+        location: cx.location.clone(),
+    }));
+    cx.tools.attach(crate::tools::build(cx, &agents, &genui, &pages, &profile)?);
+
+    Ok(vec![
+        Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
+        agents,
+        crate::files::module(cx),
+        genui,
+        pages,
+        profile,
         cx.plugins.module(),
         Arc::new(eos_mod_policy::PolicyModule::new(cx.policy.clone(), cx.store.clone(), cx.bus.clone())),
         Arc::new(eos_mod_projects::ProjectsModule::new(cx.projects.clone(), cx.recents.clone())),
         Arc::new(eos_mod_prompts::PromptsModule::new(cx.prompts.clone(), Some(cx.profile_prompt.clone()))),
+        Arc::new(eos_mod_questions::QuestionsModule::new(cx.questions.clone())),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),
             cx.features.clone(),
@@ -158,6 +169,9 @@ pub(crate) fn all(cx: &Context) -> Vec<Arc<dyn Module>> {
             cx.worker_definitions.clone(),
             cx.bus.clone(),
         )),
-        Arc::new(eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())),
-    ]
+        Arc::new(
+            eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone())
+                .with_open_questions(Arc::new(cx.questions.clone())),
+        ),
+    ])
 }

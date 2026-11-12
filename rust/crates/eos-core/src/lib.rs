@@ -20,13 +20,15 @@
 //! | [`terminal`] | shells in a PTY, their screen mirror, one-shot command lines |
 //!
 //! A capability one feature offers the others is a trait here too, in the
-//! module of the feature that implements it ([`genui`], [`pages`], [`profile`]).
+//! module of the feature that implements it ([`browser`], [`genui`], [`pages`],
+//! [`profile`], [`transfer`]).
 //!
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
 //! is the vocabulary a port fails with.
 
 pub mod accounts;
 pub mod agent;
+pub mod browser;
 pub mod clock;
 pub mod error;
 pub mod genui;
@@ -42,6 +44,7 @@ pub mod prompt;
 pub mod shell;
 pub mod store;
 pub mod terminal;
+pub mod transfer;
 
 use std::future::Future;
 use std::pin::Pin;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::UiConfigResponseFeatures;
 use eos_core::accounts::Browser;
-use eos_core::os::{LocalTime, ProcessStats};
+use eos_core::os::{LocalTime, ProcessStats, TimeZone};
 use eos_core::shell::{Location, PositionError, PositionFix};
 use eos_core::{BoxFuture, Clock};
 use eos_platform::{Argv, LocationFailure};
@@ -104,5 +104,18 @@ impl LocalTime for HostLocalTime {
     fn hour_minute(&self, epoch_ms: i64) -> String {
         eos_platform::local_hour_minute(epoch_ms)
             .unwrap_or_else(|| eos_domain::time::iso_from_ms(epoch_ms).get(11..16).unwrap_or_default().to_owned())
+    }
+}
+
+/// The time zone of the user's clock, from the system; UTC when it does not say.
+pub(crate) struct HostTimeZone;
+
+impl TimeZone for HostTimeZone {
+    fn name(&self) -> String {
+        eos_platform::local_zone_name().unwrap_or_else(|| "UTC".to_owned())
+    }
+
+    fn offset_minutes_at(&self, epoch_ms: i64) -> i32 {
+        eos_platform::local_utc_offset_minutes(epoch_ms).unwrap_or(0)
     }
 }

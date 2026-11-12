@@ -1,0 +1,6548 @@
+[
+ {
+  "tool": "list_pages",
+  "name": "this project",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "pages": [
+      {
+       "id": "pg-3f9a1c2b7d10",
+       "title": "Release notes",
+       "project": "/repo/app",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "user",
+        "agentId": null,
+        "name": null
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      },
+      {
+       "id": "pg-aaaaaaaaaaaa",
+       "title": "",
+       "project": "/repo/app",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "agent",
+        "agentId": "w-self0001",
+        "name": "me"
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      },
+      {
+       "id": "pg-bbbbbbbbbbbb",
+       "title": "Plan",
+       "project": "/repo/app",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "agent",
+        "agentId": "w-other001",
+        "name": "planner"
+       },
+       "excerpt": "",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      },
+      {
+       "id": "pg-cccccccccccc",
+       "title": "Release notes",
+       "project": "/repo/app",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "agent",
+        "agentId": "w-other002",
+        "name": null
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      },
+      {
+       "id": "pg-dddddddddddd",
+       "title": "Release notes",
+       "project": "/repo/app",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "agent",
+        "agentId": null,
+        "name": null
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"pages\": [\n    {\n      \"id\": \"pg-3f9a1c2b7d10\",\n      \"title\": \"Release notes\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"the user\"\n    },\n    {\n      \"id\": \"pg-aaaaaaaaaaaa\",\n      \"title\": \"Untitled\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"you\"\n    },\n    {\n      \"id\": \"pg-bbbbbbbbbbbb\",\n      \"title\": \"Plan\",\n      \"excerpt\": \"\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"agent planner\"\n    },\n    {\n      \"id\": \"pg-cccccccccccc\",\n      \"title\": \"Release notes\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"agent w-other002\"\n    },\n    {\n      \"id\": \"pg-dddddddddddd\",\n      \"title\": \"Release notes\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"agent unknown\"\n    }\n  ]\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_pages",
+  "name": "every project, filtered",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "plan & ship",
+   "all": true
+  },
+  "api": [
+   {
+    "body": {
+     "pages": [
+      {
+       "id": "pg-3f9a1c2b7d10",
+       "title": "Release notes",
+       "project": null,
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "user",
+        "agentId": null,
+        "name": null
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      },
+      {
+       "id": "pg-bbbbbbbbbbbb",
+       "title": "Release notes",
+       "project": "/repo/other",
+       "agentId": "w-self0001",
+       "rev": 4,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000123456,
+       "updatedBy": {
+        "kind": "user",
+        "agentId": null,
+        "name": null
+       },
+       "excerpt": "ship · test",
+       "tasks": {
+        "open": 1,
+        "done": 1
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages?q=plan+%26+ship&all=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"pages\": [\n    {\n      \"id\": \"pg-3f9a1c2b7d10\",\n      \"title\": \"Release notes\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"the user\",\n      \"project\": null\n    },\n    {\n      \"id\": \"pg-bbbbbbbbbbbb\",\n      \"title\": \"Release notes\",\n      \"excerpt\": \"ship · test\",\n      \"openTasks\": 1,\n      \"doneTasks\": 1,\n      \"updatedAt\": \"2027-01-15T08:02:03.456Z\",\n      \"updatedBy\": \"the user\",\n      \"project\": \"/repo/other\"\n    }\n  ]\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_pages",
+  "name": "none",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": ""
+  },
+  "api": [
+   {
+    "body": {
+     "pages": []
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"pages\": []\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "read_page",
+  "name": "edited by the user",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 4,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages/pg-3f9a1c2b7d10"
+   }
+  ],
+  "result": {
+   "text": "# Release notes\n(page pg-3f9a1c2b7d10 · rev 4 · last edited 2027-01-15T08:02:03.456Z by the user)\n\n- [ ] ship\n- [x] test\n",
+   "isError": false
+  }
+ },
+ {
+  "tool": "read_page",
+  "name": "untitled, edited by the reader",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "",
+      "body": "",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 4,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "agent",
+       "agentId": "w-self0001",
+       "name": "me"
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages/pg-3f9a1c2b7d10"
+   }
+  ],
+  "result": {
+   "text": "# Untitled\n(page pg-3f9a1c2b7d10 · rev 4 · last edited 2027-01-15T08:02:03.456Z by you)\n\n",
+   "isError": false
+  }
+ },
+ {
+  "tool": "read_page",
+  "name": "edited by a named agent",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 4,
+      "createdAt": 1800000000000,
+      "updatedAt": 1,
+      "updatedBy": {
+       "kind": "agent",
+       "agentId": "w-other001",
+       "name": "planner"
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages/pg-3f9a1c2b7d10"
+   }
+  ],
+  "result": {
+   "text": "# Release notes\n(page pg-3f9a1c2b7d10 · rev 4 · last edited 1970-01-01T00:00:00.001Z by agent planner)\n\n- [ ] ship\n- [x] test\n",
+   "isError": false
+  }
+ },
+ {
+  "tool": "read_page",
+  "name": "unknown",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-000000000000"
+  },
+  "api": [
+   {
+    "status": 404,
+    "body": {
+     "error": "page not found: pg-000000000000"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/pages/pg-000000000000"
+   }
+  ],
+  "result": {
+   "text": "daemon 404: {\"error\":\"page not found: pg-000000000000\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "create_page",
+  "name": "created",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Notes"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Notes",
+      "body": "",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 1,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages",
+    "body": {
+     "title": "Notes",
+     "body": ""
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"title\": \"Notes\",\n  \"rev\": 1\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "create_page",
+  "name": "refused",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Notes",
+   "body": "x"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "this chat has no project folder"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages",
+    "body": {
+     "title": "Notes",
+     "body": "x"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 400: {\"error\":\"this chat has no project folder\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "append_to_page",
+  "name": "at the end",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "text": "- [ ] more"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 5,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "append",
+     "text": "- [ ] more"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"rev\": 5\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "append_to_page",
+  "name": "under a heading",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "text": "line",
+   "under_heading": "Later"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 6,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "append",
+     "text": "line",
+     "heading": "Later"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"rev\": 6\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "edit_page",
+  "name": "replaced",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "old_text": "ship",
+   "new_text": ""
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 7,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "replace",
+     "oldText": "ship",
+     "newText": ""
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"rev\": 7\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "edit_page",
+  "name": "passage not unique",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "old_text": "t",
+   "new_text": "T"
+  },
+  "api": [
+   {
+    "status": 409,
+    "body": {
+     "error": "old_text occurs 3 times — include more of the surrounding text"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "replace",
+     "oldText": "t",
+     "newText": "T"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 409: {\"error\":\"old_text occurs 3 times — include more of the surrounding text\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "set_page_task",
+  "name": "ticked",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "task": "ship"
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 8,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "setTask",
+     "task": "ship",
+     "done": true
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"rev\": 8\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "set_page_task",
+  "name": "unticked",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "pg-3f9a1c2b7d10",
+   "task": "test",
+   "done": false
+  },
+  "api": [
+   {
+    "body": {
+     "page": {
+      "id": "pg-3f9a1c2b7d10",
+      "title": "Release notes",
+      "body": "- [ ] ship\n- [x] test\n",
+      "project": "/repo/app",
+      "agentId": "w-self0001",
+      "rev": 9,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000123456,
+      "updatedBy": {
+       "kind": "user",
+       "agentId": null,
+       "name": null
+      }
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/pages/pg-3f9a1c2b7d10/edit",
+    "body": {
+     "op": "setTask",
+     "task": "test",
+     "done": false
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"pg-3f9a1c2b7d10\",\n  \"rev\": 9\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "search_memory",
+  "name": "matches",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "pnpm"
+  },
+  "api": [
+   {
+    "body": {
+     "memories": [
+      {
+       "id": "um-0123456789ab",
+       "text": "Prefers pnpm over npm.",
+       "category": "stack",
+       "scope": {
+        "kind": "global"
+       },
+       "tier": "always",
+       "status": "active",
+       "source": {
+        "kind": "user"
+       },
+       "rev": 1,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000000000
+      },
+      {
+       "id": "um-bbbbbbbbbbbb",
+       "text": "Tests run with vitest.",
+       "category": "stack",
+       "scope": {
+        "kind": "project",
+        "path": "/repo/app"
+       },
+       "tier": "always",
+       "status": "active",
+       "source": {
+        "kind": "user"
+       },
+       "rev": 1,
+       "createdAt": 1800000000000,
+       "updatedAt": 1800000000000
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/user-memories/search?q=pnpm&limit=8"
+   }
+  ],
+  "result": {
+   "text": "- Prefers pnpm over npm.\n- (this project) Tests run with vitest.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "search_memory",
+  "name": "nothing",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "",
+   "limit": 3
+  },
+  "api": [
+   {
+    "body": {
+     "memories": []
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/user-memories/search?q=&limit=3"
+   }
+  ],
+  "result": {
+   "text": "No memories match.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "search_memory",
+  "name": "withheld",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "x"
+  },
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "the user doesn't share their profile with this provider"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/user-memories/search?q=x&limit=8"
+   }
+  ],
+  "result": {
+   "text": "daemon 403: {\"error\":\"the user doesn't share their profile with this provider\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "suggest_memory",
+  "name": "suggested",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "Prefers tabs.",
+   "category": "work-style",
+   "scope": "global",
+   "why": "said so"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "memory": {
+      "id": "um-0123456789ab",
+      "text": "Prefers pnpm over npm.",
+      "category": "stack",
+      "scope": {
+       "kind": "global"
+      },
+      "tier": "always",
+      "status": "suggested",
+      "source": {
+       "kind": "user"
+      },
+      "rev": 1,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000000000
+     },
+     "duplicate": false,
+     "declined": false
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/user-memories/suggest",
+    "body": {
+     "text": "Prefers tabs.",
+     "category": "work-style",
+     "scope": "global",
+     "why": "said so"
+    }
+   }
+  ],
+  "result": {
+   "text": "Suggested (um-0123456789ab). The user reviews it in Eos before it is remembered — no need to mention it.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "suggest_memory",
+  "name": "already known",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "Prefers pnpm over npm.",
+   "category": "stack",
+   "scope": "project"
+  },
+  "api": [
+   {
+    "body": {
+     "memory": {
+      "id": "um-0123456789ab",
+      "text": "Prefers pnpm over npm.",
+      "category": "stack",
+      "scope": {
+       "kind": "global"
+      },
+      "tier": "always",
+      "status": "active",
+      "source": {
+       "kind": "user"
+      },
+      "rev": 1,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000000000
+     },
+     "duplicate": true,
+     "declined": false
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/user-memories/suggest",
+    "body": {
+     "text": "Prefers pnpm over npm.",
+     "category": "stack",
+     "scope": "project"
+    }
+   }
+  ],
+  "result": {
+   "text": "Already known (um-0123456789ab): \"Prefers pnpm over npm.\". Nothing to do.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "suggest_memory",
+  "name": "declined before",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "Likes emoji.",
+   "category": "other",
+   "scope": "global"
+  },
+  "api": [
+   {
+    "body": {
+     "memory": {
+      "id": "um-0123456789ab",
+      "text": "Prefers pnpm over npm.",
+      "category": "stack",
+      "scope": {
+       "kind": "global"
+      },
+      "tier": "always",
+      "status": "dismissed",
+      "source": {
+       "kind": "user"
+      },
+      "rev": 1,
+      "createdAt": 1800000000000,
+      "updatedAt": 1800000000000
+     },
+     "duplicate": true,
+     "declined": true
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/user-memories/suggest",
+    "body": {
+     "text": "Likes emoji.",
+     "category": "other",
+     "scope": "global"
+    }
+   }
+  ],
+  "result": {
+   "text": "Declined before (um-0123456789ab): the user dismissed this idea. Don't suggest it again.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "suggest_memory",
+  "name": "too many waiting",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "x",
+   "category": "about",
+   "scope": "global"
+  },
+  "api": [
+   {
+    "status": 429,
+    "body": {
+     "error": "too many suggestions are waiting for review"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/user-memories/suggest",
+    "body": {
+     "text": "x",
+     "category": "about",
+     "scope": "global"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 429: {\"error\":\"too many suggestions are waiting for review\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "every plugin",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "plugins": [
+      {
+       "id": "clock",
+       "builtin": false,
+       "dir": "/home/u/.eos/plugins/clock",
+       "manifest": {
+        "id": "clock",
+        "name": "Clock"
+       },
+       "enabled": true,
+       "state": "active",
+       "error": null,
+       "rev": 3,
+       "hasUi": true,
+       "hasCss": false,
+       "settings": {
+        "seconds": true,
+        "zone": "utc",
+        "size": 2
+       }
+      },
+      {
+       "id": "broken",
+       "builtin": false,
+       "dir": "/home/u/.eos/plugins/clock",
+       "manifest": null,
+       "enabled": true,
+       "state": "error",
+       "error": "plugin.json: Unexpected token",
+       "rev": 3,
+       "hasUi": true,
+       "hasCss": false,
+       "settings": {
+        "seconds": true,
+        "zone": "utc",
+        "size": 2
+       }
+      }
+     ],
+     "dir": "/home/u/.eos/plugins"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"pluginsDir\": \"/home/u/.eos/plugins\",\n  \"plugins\": [\n    {\n      \"id\": \"clock\",\n      \"name\": \"Clock\",\n      \"state\": \"active\",\n      \"error\": null\n    },\n    {\n      \"id\": \"broken\",\n      \"name\": null,\n      \"state\": \"error\",\n      \"error\": \"plugin.json: Unexpected token\"\n    }\n  ]\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "loaded",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": {
+      "rev": 3,
+      "ok": true,
+      "at": 1800000000000
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"build 3 loaded\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "failed in the window",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": {
+      "rev": 3,
+      "ok": false,
+      "error": "ReferenceError: x is not defined",
+      "at": 1
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"build 3 failed in the window: ReferenceError: x is not defined\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "failed without a reason",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": {
+      "rev": 4,
+      "ok": false,
+      "at": 1
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"build 4 failed in the window: unknown error\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "an older build is loaded",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": {
+      "rev": 2,
+      "ok": true,
+      "at": 1
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"not loaded in any window yet (is the Eos app open?)\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "no window",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"not loaded in any window yet (is the Eos app open?)\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "turned off",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": false,
+      "state": "disabled",
+      "error": null,
+      "rev": 3,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"disabled\",\n  \"buildError\": null,\n  \"build\": 3,\n  \"window\": \"turned off in Settings › Plugins — nothing loads\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "no ui, never built",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "active",
+      "error": null,
+      "rev": 0,
+      "hasUi": false,
+      "hasCss": false,
+      "settings": {}
+     },
+     "report": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"active\",\n  \"buildError\": null,\n  \"build\": null,\n  \"window\": \"no UI entry to load\",\n  \"settings\": {}\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "build error",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "body": {
+     "plugin": {
+      "id": "clock",
+      "builtin": false,
+      "dir": "/home/u/.eos/plugins/clock",
+      "manifest": {
+       "id": "clock",
+       "name": "Clock"
+      },
+      "enabled": true,
+      "state": "error",
+      "error": "index.jsx:3:1: Unexpected \"}\"",
+      "rev": 0,
+      "hasUi": true,
+      "hasCss": false,
+      "settings": {
+       "seconds": true,
+       "zone": "utc",
+       "size": 2
+      }
+     },
+     "report": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/clock/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"clock\",\n  \"dir\": \"/home/u/.eos/plugins/clock\",\n  \"state\": \"error\",\n  \"buildError\": \"index.jsx:3:1: Unexpected \\\"}\\\"\",\n  \"build\": null,\n  \"window\": \"not loaded in any window yet (is the Eos app open?)\",\n  \"settings\": {\n    \"seconds\": true,\n    \"zone\": \"utc\",\n    \"size\": 2\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_status",
+  "name": "no such folder",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "nope"
+  },
+  "api": [
+   {
+    "status": 404,
+    "body": {
+     "error": "plugin not found: nope"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/plugins/nope/status?wait=1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"nope\",\n  \"state\": \"missing\",\n  \"window\": \"no plugin folder \\\"nope\\\" — create it (with plugin.json) in the plugins folder; call plugin_status with no id to see where that is\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_preview",
+  "name": "drawn",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock",
+   "surface": "header",
+   "width": 400
+  },
+  "api": [
+   {
+    "body": {
+     "path": "/tmp/eos-previews/clock-header-1.png",
+     "build": 3,
+     "surface": "header",
+     "view": null,
+     "width": 400,
+     "height": 56,
+     "errors": [],
+     "available": {
+      "main": [],
+      "panel": [
+       "clock"
+      ],
+      "header": [
+       "clock"
+      ]
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/plugins/clock/preview",
+    "body": {
+     "surface": "header",
+     "width": 400
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"path\": \"/tmp/eos-previews/clock-header-1.png\",\n  \"build\": 3,\n  \"surface\": \"header\",\n  \"view\": null,\n  \"width\": 400,\n  \"height\": 56,\n  \"errors\": [],\n  \"available\": {\n    \"main\": [],\n    \"panel\": [\n      \"clock\"\n    ],\n    \"header\": [\n      \"clock\"\n    ]\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "plugin_preview",
+  "name": "request out of range",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock",
+   "width": 10,
+   "waitMs": 9000,
+   "store": {
+    "bad key": 1
+   },
+   "view": "v"
+  },
+  "api": [],
+  "calls": [],
+  "result": {
+   "text": "[\n  {\n    \"code\": \"custom\",\n    \"message\": \"store keys: letters, digits, _ . -\",\n    \"path\": [\n      \"store\"\n    ]\n  },\n  {\n    \"code\": \"too_small\",\n    \"minimum\": 240,\n    \"type\": \"number\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"Number must be greater than or equal to 240\",\n    \"path\": [\n      \"width\"\n    ]\n  },\n  {\n    \"code\": \"too_big\",\n    \"maximum\": 5000,\n    \"type\": \"number\",\n    \"inclusive\": true,\n    \"exact\": false,\n    \"message\": \"Number must be less than or equal to 5000\",\n    \"path\": [\n      \"waitMs\"\n    ]\n  }\n]",
+   "isError": true
+  }
+ },
+ {
+  "tool": "plugin_preview",
+  "name": "not drawable",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "clock"
+  },
+  "api": [
+   {
+    "status": 409,
+    "body": {
+     "error": "can't preview \"clock\": it is turned off"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/plugins/clock/preview",
+    "body": {}
+   }
+  ],
+  "result": {
+   "text": "daemon 409: {\"error\":\"can't preview \\\"clock\\\": it is turned off\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "spawn_worker",
+  "name": "in a repository",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "prompt": "Fix the parser",
+   "name": "fix-parser",
+   "model": "sonnet",
+   "effort": "high",
+   "collaborate": true,
+   "from": "explorer",
+   "toolsAllow": [
+    "Read"
+   ],
+   "toolsDeny": [
+    "Bash"
+   ],
+   "editRegex": "(^|/)src/"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "w-new00001",
+     "port": 0,
+     "isolation": "worktree"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers",
+    "body": {
+     "prompt": "Fix the parser",
+     "name": "fix-parser",
+     "model": "sonnet",
+     "withGateway": true,
+     "parentId": "o-orch01",
+     "effort": "high",
+     "collaborate": true,
+     "from": "explorer",
+     "toolsAllow": [
+      "Read"
+     ],
+     "toolsDeny": [
+      "Bash"
+     ],
+     "editRegex": "(^|/)src/",
+     "worktreeFrom": "/repo/app"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"w-new00001\",\n  \"isolation\": \"worktree\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "spawn_worker",
+  "name": "outside a repository",
+  "selfId": "o-orch01",
+  "cwd": "/tmp/scratch",
+  "gitRepo": false,
+  "args": {
+   "prompt": "Look around",
+   "collaborate": false
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "w-new00002",
+     "port": 0,
+     "isolation": "cwd"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers",
+    "body": {
+     "prompt": "Look around",
+     "withGateway": true,
+     "parentId": "o-orch01",
+     "cwd": "/tmp/scratch"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"w-new00002\",\n  \"isolation\": \"cwd\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "spawn_worker",
+  "name": "in a worker's worktree",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "prompt": "Review it",
+   "workspaceOf": "w-new00001"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "w-new00003",
+     "port": 0,
+     "isolation": "worktree"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers",
+    "body": {
+     "prompt": "Review it",
+     "withGateway": true,
+     "parentId": "o-orch01",
+     "workspaceOf": "w-new00001"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"w-new00003\",\n  \"isolation\": \"worktree\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "spawn_worker",
+  "name": "unknown definition",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "prompt": "x",
+   "from": "nope"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "unknown worker definition: nope"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers",
+    "body": {
+     "prompt": "x",
+     "withGateway": true,
+     "parentId": "o-orch01",
+     "from": "nope",
+     "worktreeFrom": "/repo/app"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 400: {\"error\":\"unknown worker definition: nope\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "kill_worker",
+  "name": "removed",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "w-new00001"
+  },
+  "api": [
+   {
+    "body": {
+     "killed": [],
+     "removed": true,
+     "was_state": "IDLE",
+     "id": "w-new00001",
+     "name": "fix-parser"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "DELETE",
+    "path": "/workers/w-new00001?actorId=o-orch01"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"id\": \"w-new00001\",\n  \"name\": \"fix-parser\",\n  \"removed\": true,\n  \"was_state\": \"IDLE\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "kill_worker",
+  "name": "someone else's",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "w-other001"
+  },
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "worker w-other001 is not managed by o-orch01"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "DELETE",
+    "path": "/workers/w-other001?actorId=o-orch01"
+   }
+  ],
+  "result": {
+   "text": "daemon 403: {\"error\":\"worker w-other001 is not managed by o-orch01\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "message_worker",
+  "name": "delivered",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "w-new00001",
+   "text": "Also run the tests."
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "id": "w-new00001",
+     "name": "fix-parser"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-new00001/message",
+    "body": {
+     "text": "Also run the tests.",
+     "fromParent": "o-orch01"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true,\n  \"id\": \"w-new00001\",\n  \"name\": \"fix-parser\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "message_worker",
+  "name": "archived",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "id": "w-new00001",
+   "text": "hi"
+  },
+  "api": [
+   {
+    "status": 409,
+    "body": {
+     "error": "worker is archived — restore first"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-new00001/message",
+    "body": {
+     "text": "hi",
+     "fromParent": "o-orch01"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 409: {\"error\":\"worker is archived — restore first\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "integrate_workers",
+  "name": "merged",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "checkout": "/repo/app",
+     "branch": "eos-integration-o-orch01",
+     "workers": [
+      {
+       "workerId": "w-new00001",
+       "name": "fix-parser",
+       "branch": "eos-fix-parser",
+       "outcome": "merged",
+       "files": [
+        "src/a.ts"
+       ]
+      },
+      {
+       "workerId": "w-new00002",
+       "name": null,
+       "branch": null,
+       "outcome": "skipped",
+       "files": [],
+       "reason": "no branch"
+      }
+     ],
+     "mergedFiles": [
+      "src/a.ts"
+     ],
+     "conflictedFiles": [],
+     "message": "Merged 1 branch."
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/orchestrators/o-orch01/integrate",
+    "body": {}
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true,\n  \"branch\": \"eos-integration-o-orch01\",\n  \"workers\": [\n    {\n      \"workerId\": \"w-new00001\",\n      \"name\": \"fix-parser\",\n      \"branch\": \"eos-fix-parser\",\n      \"outcome\": \"merged\",\n      \"files\": [\n        \"src/a.ts\"\n      ]\n    },\n    {\n      \"workerId\": \"w-new00002\",\n      \"name\": null,\n      \"branch\": null,\n      \"outcome\": \"skipped\",\n      \"files\": [],\n      \"reason\": \"no branch\"\n    }\n  ],\n  \"message\": \"Merged 1 branch.\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "integrate_workers",
+  "name": "some",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "ids": [
+    "w-new00001"
+   ]
+  },
+  "api": [
+   {
+    "body": {
+     "ok": false,
+     "checkout": "/repo/app",
+     "branch": null,
+     "workers": [],
+     "mergedFiles": [],
+     "conflictedFiles": [],
+     "message": "Nothing to integrate."
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/orchestrators/o-orch01/integrate",
+    "body": {
+     "ids": [
+      "w-new00001"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": false,\n  \"branch\": null,\n  \"workers\": [],\n  \"message\": \"Nothing to integrate.\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_message_to_parent",
+  "name": "delivered",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "result: done"
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "delivered": true
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/report",
+    "body": {
+     "text": "result: done"
+    }
+   }
+  ],
+  "result": {
+   "text": "Message delivered to orchestrator.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_message_to_parent",
+  "name": "no parent",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "text": "result: done"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "worker has no parent"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/report",
+    "body": {
+     "text": "result: done"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 400: {\"error\":\"worker has no parent\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "notify_user",
+  "name": "sent",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Task complete",
+   "body": "Review ready."
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/o-orch01/notify",
+    "body": {
+     "title": "Task complete",
+     "body": "Review ready."
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_user",
+  "name": "answered",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "questions": [
+    {
+     "question": "Ship it?",
+     "header": "Release",
+     "options": [
+      {
+       "label": "Yes"
+      },
+      {
+       "label": "No",
+       "description": "Wait a day"
+      }
+     ]
+    }
+   ]
+  },
+  "api": [
+   {
+    "body": {
+     "questionId": "p-00000001",
+     "toolUseId": "p-00000002"
+    }
+   },
+   {
+    "body": {
+     "status": "pending"
+    }
+   },
+   {
+    "body": {
+     "status": "answered",
+     "answers": {
+      "Ship it?": "Yes"
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/o-orch01/question",
+    "body": {
+     "questions": [
+      {
+       "question": "Ship it?",
+       "header": "Release",
+       "options": [
+        {
+         "label": "Yes"
+        },
+        {
+         "label": "No",
+         "description": "Wait a day"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/o-orch01/question/p-00000001"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/o-orch01/question/p-00000001"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"answers\": {\n    \"Ship it?\": \"Yes\"\n  }\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_user",
+  "name": "dismissed",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "questions": [
+    {
+     "question": "Ship it?",
+     "header": "Release",
+     "options": [
+      {
+       "label": "Yes"
+      },
+      {
+       "label": "No",
+       "description": "Wait a day"
+      }
+     ]
+    }
+   ]
+  },
+  "api": [
+   {
+    "body": {
+     "questionId": "p-00000001",
+     "toolUseId": "p-00000002"
+    }
+   },
+   {
+    "body": {
+     "status": "dismissed"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/o-orch01/question",
+    "body": {
+     "questions": [
+      {
+       "question": "Ship it?",
+       "header": "Release",
+       "options": [
+        {
+         "label": "Yes"
+        },
+        {
+         "label": "No",
+         "description": "Wait a day"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/o-orch01/question/p-00000001"
+   }
+  ],
+  "result": {
+   "text": "The user dismissed the question without answering. Proceed on your best judgment; if you stay blocked, say so in chat and notify_user.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_peers",
+  "name": "some",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": [
+     {
+      "id": "w-peer0001",
+      "name": "auth-expert",
+      "state": "IDLE",
+      "summary": "Owns the auth module"
+     },
+     {
+      "id": "w-peer0002",
+      "name": null,
+      "state": "WORKING",
+      "summary": ""
+     }
+    ]
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peers"
+   }
+  ],
+  "result": {
+   "text": "[\n  {\n    \"id\": \"w-peer0001\",\n    \"name\": \"auth-expert\",\n    \"state\": \"IDLE\",\n    \"summary\": \"Owns the auth module\"\n  },\n  {\n    \"id\": \"w-peer0002\",\n    \"name\": null,\n    \"state\": \"WORKING\",\n    \"summary\": \"\"\n  }\n]",
+   "isError": false
+  }
+ },
+ {
+  "tool": "list_peers",
+  "name": "none yet",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": []
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peers"
+   }
+  ],
+  "result": {
+   "text": "No peers have registered yet — but you ARE in a collaboration group, so your provider peers may still be spawning (they can arrive after you). If you know a peer's name (the orchestrator names your specialists in your directive), call ask_peer with that peerName now — it will block until that peer joins and then answers. Otherwise re-check shortly.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "answered",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerId": "w-peer0001",
+   "question": "Where is the token refreshed?"
+  },
+  "api": [
+   {
+    "body": {
+     "requestId": "r-00000001"
+    }
+   },
+   {
+    "body": {
+     "status": "pending"
+    }
+   },
+   {
+    "body": {
+     "status": "answered",
+     "answer": "In auth/refresh.ts."
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "id": "w-peer0001"
+     },
+     "question": "Where is the token refreshed?"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peer-request/r-00000001"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peer-request/r-00000001"
+   }
+  ],
+  "result": {
+   "text": "In auth/refresh.ts.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "by name, declined",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerName": "auth-expert",
+   "question": "?"
+  },
+  "api": [
+   {
+    "body": {
+     "requestId": "r-00000001"
+    }
+   },
+   {
+    "body": {
+     "status": "declined",
+     "reason": "the peer is waiting on you"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "name": "auth-expert"
+     },
+     "question": "?"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peer-request/r-00000001"
+   }
+  ],
+  "result": {
+   "text": "The peer did not answer: the peer is waiting on you. Proceed on your best judgment, or — if you are truly blocked without it — finish with a 'needs input:'/'failed:' report explaining what you needed.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "declined without a reason",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerName": "auth-expert",
+   "question": "?"
+  },
+  "api": [
+   {
+    "body": {
+     "requestId": "r-00000001"
+    }
+   },
+   {
+    "body": {
+     "status": "declined"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "name": "auth-expert"
+     },
+     "question": "?"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peer-request/r-00000001"
+   }
+  ],
+  "result": {
+   "text": "The peer did not answer: no reason given. Proceed on your best judgment, or — if you are truly blocked without it — finish with a 'needs input:'/'failed:' report explaining what you needed.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "gone",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerId": "w-peer0001",
+   "question": "?"
+  },
+  "api": [
+   {
+    "body": {
+     "requestId": "r-00000001"
+    }
+   },
+   {
+    "body": {
+     "status": "gone"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "id": "w-peer0001"
+     },
+     "question": "?"
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/peer-request/r-00000001"
+   }
+  ],
+  "result": {
+   "text": "The peer you consulted is no longer available — it was stopped, crashed, or exited before answering, so no answer will come. Proceed without its input if you can, or finish with a 'needs input:'/'failed:' report saying you were blocked on it.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "not sent",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerId": "w-peer0009",
+   "question": "?"
+  },
+  "api": [
+   {
+    "body": {
+     "declined": true,
+     "reason": "w-peer0009 is not one of your peers."
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "id": "w-peer0009"
+     },
+     "question": "?"
+    }
+   }
+  ],
+  "result": {
+   "text": "w-peer0009 is not one of your peers.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "not sent, no reason",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "peerId": "w-peer0009",
+   "question": "?"
+  },
+  "api": [
+   {
+    "body": {
+     "declined": true
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-request",
+    "body": {
+     "target": {
+      "id": "w-peer0009"
+     },
+     "question": "?"
+    }
+   }
+  ],
+  "result": {
+   "text": "The peer could not be consulted. Proceed on your best judgment.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "ask_peer",
+  "name": "no target",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "question": "?"
+  },
+  "api": [],
+  "calls": [],
+  "result": {
+   "text": "Pass either peerId (from list_peers) or peerName (the name the orchestrator gave the peer). Nothing was sent.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "respond_to_peer",
+  "name": "delivered",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "answer": "In auth/refresh.ts."
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "outcome": "answered",
+     "toWorker": "w-asker001",
+     "toName": "impl"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-response",
+    "body": {
+     "answer": "In auth/refresh.ts."
+    }
+   }
+  ],
+  "result": {
+   "text": "{\"delivered\":true,\"toWorker\":\"w-asker001\",\"toName\":\"impl\"}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "respond_to_peer",
+  "name": "delivered to a nameless asker",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "answer": "x"
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "outcome": "answered",
+     "toWorker": "w-asker001",
+     "toName": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-response",
+    "body": {
+     "answer": "x"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\"delivered\":true,\"toWorker\":\"w-asker001\",\"toName\":null}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "respond_to_peer",
+  "name": "nobody waiting",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "answer": "x"
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "outcome": "none"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/peer-response",
+    "body": {
+     "answer": "x"
+    }
+   }
+  ],
+  "result": {
+   "text": "No peer request was waiting on you (it may have been withdrawn or already answered). Nothing was delivered.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_snapshot",
+  "name": "the active tab",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "tabId": "tab-1"
+    }
+   },
+   {
+    "body": {
+     "tabId": "tab-1",
+     "url": "https://example.com/",
+     "snapshot": "- button \"OK\" @e1"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/browser/active-tab"
+   },
+   {
+    "method": "POST",
+    "path": "/browser/tabs/tab-1/snapshot",
+    "body": {
+     "interactiveOnly": true
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"tabId\": \"tab-1\",\n  \"url\": \"https://example.com/\",\n  \"snapshot\": \"- button \\\"OK\\\" @e1\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_navigate",
+  "name": "a named tab",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "tabId": "tab-2",
+   "action": "url",
+   "url": "https://example.com"
+  },
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "tabId": "tab-2",
+     "url": "https://example.com/"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/browser/tabs/tab-2/navigate",
+    "body": {
+     "action": "url",
+     "url": "https://example.com"
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true,\n  \"tabId\": \"tab-2\",\n  \"url\": \"https://example.com/\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_act",
+  "name": "no active tab",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "ref": "@e1",
+   "verb": "click"
+  },
+  "api": [
+   {
+    "status": 409,
+    "body": {
+     "error": "no active tab"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/browser/active-tab"
+   }
+  ],
+  "result": {
+   "text": "no active tab — the browser panel is not viewing any tab; open one with browser_new_tab, focus a tab in the panel, or pass an explicit tabId",
+   "isError": true
+  }
+ },
+ {
+  "tool": "browser_get",
+  "name": "refused",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "tabId": "tab-9",
+   "what": "url"
+  },
+  "api": [
+   {
+    "status": 404,
+    "body": {
+     "error": "tab not found"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/browser/tabs/tab-9/get",
+    "body": {
+     "what": "url"
+    }
+   }
+  ],
+  "result": {
+   "text": "daemon 404: {\"error\":\"tab not found\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "browser_tabs",
+  "name": "listed",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "tabs": [],
+     "sessionId": "o-orch01"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/browser/tabs"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"tabs\": [],\n  \"sessionId\": \"o-orch01\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_close_tab",
+  "name": "the active tab",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "tabId": "tab-1"
+    }
+   },
+   {
+    "body": {
+     "ok": true
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/browser/active-tab"
+   },
+   {
+    "method": "DELETE",
+    "path": "/browser/tabs/tab-1"
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_screenshot",
+  "name": "a file",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "tabId": "tab-1",
+   "fullPage": true
+  },
+  "api": [
+   {
+    "body": {
+     "path": "/tmp/eos-shots/tab-1.jpg"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/browser/tabs/tab-1/capture",
+    "body": {
+     "fullPage": true
+    }
+   }
+  ],
+  "result": {
+   "text": "{\n  \"path\": \"/tmp/eos-shots/tab-1.jpg\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "browser_show",
+  "name": "shown",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "ok": true,
+     "tabId": "tab-1"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/browser/show",
+    "body": {}
+   }
+  ],
+  "result": {
+   "text": "{\n  \"ok\": true,\n  \"tabId\": \"tab-1\"\n}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present",
+  "name": "rendered",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Cafes",
+   "ui": "<List of=\"places\"/>",
+   "summary": "Six cafes"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "viewId": "v_AbCdEfGhIjKl",
+     "warnings": [],
+     "stats": {
+      "uiBytes": 300,
+      "dataBytes": 900,
+      "elements": 7,
+      "depth": 3,
+      "components": [
+       "List",
+       "Map"
+      ],
+      "collections": [
+       {
+        "name": "sources",
+        "count": 9,
+        "type": null
+       },
+       {
+        "name": "places",
+        "count": 6,
+        "type": "Place"
+       }
+      ],
+      "images": 0,
+      "sites": 0,
+      "maps": 1,
+      "primaryActions": 0
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "Cafes",
+      "ui": "<List of=\"places\"/>",
+      "summary": "Six cafes"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "view v_AbCdEfGhIjKl rendered · 6 places",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present",
+  "name": "rendered with warnings",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Cafes",
+   "ui": "<Text>hi</Text>",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "viewId": "v_AbCdEfGhIjKl",
+     "warnings": [
+      {
+       "path": "ui.Text[0]",
+       "message": "unknown attr \"colour\""
+      }
+     ],
+     "stats": {
+      "uiBytes": 300,
+      "dataBytes": 900,
+      "elements": 7,
+      "depth": 3,
+      "components": [
+       "List",
+       "Map"
+      ],
+      "collections": [],
+      "images": 0,
+      "sites": 0,
+      "maps": 1,
+      "primaryActions": 0
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "Cafes",
+      "ui": "<Text>hi</Text>",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "view v_AbCdEfGhIjKl rendered\nwarnings (fix next time, no need to re-present):\n· ui.Text[0]: unknown attr \"colour\"",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present",
+  "name": "rejected",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Cafes",
+   "ui": "<Nope/>",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "2 problems — nothing rendered",
+     "problems": [
+      {
+       "path": "ui.Nope[0]",
+       "message": "unknown component"
+      },
+      {
+       "path": "summary",
+       "message": "too long"
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "Cafes",
+      "ui": "<Nope/>",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "present: 2 problems — nothing rendered\n· ui.Nope[0]: unknown component\n· summary: too long\nfix and call present again",
+   "isError": true
+  }
+ },
+ {
+  "tool": "present",
+  "name": "one problem",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Cafes",
+   "ui": "<Nope/>",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "1 problem",
+     "problems": [
+      {
+       "path": "ui",
+       "message": "empty"
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "Cafes",
+      "ui": "<Nope/>",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "present: 1 problem — nothing rendered\n· ui: empty\nfix and call present again",
+   "isError": true
+  }
+ },
+ {
+  "tool": "present",
+  "name": "switched off",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "t",
+   "ui": "u",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "Visual answers are off — answer in text"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "t",
+      "ui": "u",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "Visual answers are off — answer in text",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present",
+  "name": "not a presenter",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "t",
+   "ui": "u",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "only an orchestrator or a focused session can present — report to your orchestrator instead"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/views",
+    "body": {
+     "input": {
+      "title": "t",
+      "ui": "u",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "only an orchestrator or a focused session can present — report to your orchestrator instead",
+   "isError": true
+  }
+ },
+ {
+  "tool": "present_app",
+  "name": "rendered",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Timer",
+   "html": "<!doctype html><p>x</p>",
+   "summary": "A timer"
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "viewId": "v_AbCdEfGhIjKl",
+     "warnings": []
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/apps",
+    "body": {
+     "input": {
+      "title": "Timer",
+      "html": "<!doctype html><p>x</p>",
+      "summary": "A timer"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "view v_AbCdEfGhIjKl rendered · app",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present_app",
+  "name": "rendered with warnings",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Timer",
+   "html": "<p>x</p>",
+   "summary": "A timer",
+   "height": 900
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "viewId": "v_AbCdEfGhIjKl",
+     "warnings": [
+      {
+       "path": "height",
+       "message": "clamped to 720"
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/apps",
+    "body": {
+     "input": {
+      "title": "Timer",
+      "html": "<p>x</p>",
+      "summary": "A timer",
+      "height": 900
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "view v_AbCdEfGhIjKl rendered · app\nwarnings (fix next time, no need to re-present):\n· height: clamped to 720",
+   "isError": false
+  }
+ },
+ {
+  "tool": "present_app",
+  "name": "rejected",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "title": "Timer",
+   "html": "",
+   "summary": "s"
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "1 problem",
+     "problems": [
+      {
+       "path": "html",
+       "message": "empty"
+      }
+     ]
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/apps",
+    "body": {
+     "input": {
+      "title": "Timer",
+      "html": "",
+      "summary": "s"
+     }
+    }
+   }
+  ],
+  "result": {
+   "text": "present_app: 1 problem — nothing rendered\n· html: empty\nfix and call present_app again",
+   "isError": true
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "near a named place",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "  ramen ",
+   "near": {
+    "text": " Kadıköy "
+   },
+   "radiusM": 2500.4,
+   "limit": 3
+  },
+  "api": [
+   {
+    "body": {
+     "places": [
+      {
+       "type": "Place",
+       "id": "menya",
+       "name": "Menya",
+       "geo": [
+        40.99,
+        29.02
+       ],
+       "address": "Moda Cd. 1"
+      },
+      {
+       "type": "Place",
+       "id": "ramen-ya",
+       "name": "Ramen Ya",
+       "geo": [
+        40.98,
+        29.03
+       ],
+       "address": "Moda Cd. 1"
+      }
+     ],
+     "attribution": "© OpenStreetMap contributors",
+     "center": {
+      "lat": 40.99,
+      "lon": 29.03,
+      "label": "Kadıköy, İstanbul"
+     },
+     "radiusM": 2500
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/places",
+    "body": {
+     "query": "ramen",
+     "near": {
+      "text": "Kadıköy"
+     },
+     "radiusM": 2500,
+     "limit": 3
+    }
+   }
+  ],
+  "result": {
+   "text": "2 places for \"ramen\" within 2.5 km of Kadıköy, İstanbul, nearest first — © OpenStreetMap contributors. No ratings or prices in OpenStreetMap.\n{\"places\":[{\"type\":\"Place\",\"id\":\"menya\",\"name\":\"Menya\",\"geo\":[40.99,29.02],\"address\":\"Moda Cd. 1\"},{\"type\":\"Place\",\"id\":\"ramen-ya\",\"name\":\"Ramen Ya\",\"geo\":[40.98,29.03],\"address\":\"Moda Cd. 1\"}],\"attribution\":\"© OpenStreetMap contributors\",\"source\":{\"title\":\"OpenStreetMap contributors\",\"site\":\"openstreetmap.org\",\"url\":\"https://www.openstreetmap.org/copyright\",\"note\":\"ODbL\"}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "near the user",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "category": "cafe"
+  },
+  "api": [
+   {
+    "body": {
+     "lat": 41,
+     "lon": 29,
+     "accuracy": 35.4,
+     "at": 1800000000000,
+     "area": {
+      "district": "Moda",
+      "city": "İstanbul",
+      "country": "Türkiye"
+     }
+    }
+   },
+   {
+    "body": {
+     "places": [
+      {
+       "type": "Place",
+       "id": "moda-kahve",
+       "name": "Moda Kahve",
+       "geo": [
+        41,
+        29
+       ],
+       "address": "Moda Cd. 1"
+      }
+     ],
+     "attribution": "© OpenStreetMap contributors",
+     "center": {
+      "lat": 41,
+      "lon": 29
+     },
+     "radiusM": 1500
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   },
+   {
+    "method": "POST",
+    "path": "/api/genui/places",
+    "body": {
+     "category": "cafe",
+     "near": {
+      "lat": 41,
+      "lon": 29
+     },
+     "radiusM": 1500,
+     "limit": 12
+    }
+   }
+  ],
+  "result": {
+   "text": "1 place for cafe within 1.5 km of the user (Moda, İstanbul, Türkiye), nearest first — © OpenStreetMap contributors. No ratings or prices in OpenStreetMap.\n{\"places\":[{\"type\":\"Place\",\"id\":\"moda-kahve\",\"name\":\"Moda Kahve\",\"geo\":[41,29],\"address\":\"Moda Cd. 1\"}],\"attribution\":\"© OpenStreetMap contributors\",\"source\":{\"title\":\"OpenStreetMap contributors\",\"site\":\"openstreetmap.org\",\"url\":\"https://www.openstreetmap.org/copyright\",\"note\":\"ODbL\"}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "near a point, nothing found",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "sauna",
+   "category": "spa",
+   "near": {
+    "lat": 41,
+    "lon": 29
+   },
+   "radiusM": 20
+  },
+  "api": [
+   {
+    "body": {
+     "places": [],
+     "attribution": "© OpenStreetMap contributors",
+     "center": {
+      "lat": 41,
+      "lon": 29
+     },
+     "radiusM": 50
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/places",
+    "body": {
+     "query": "sauna",
+     "category": "spa",
+     "near": {
+      "lat": 41,
+      "lon": 29
+     },
+     "radiusM": 50,
+     "limit": 12
+    }
+   }
+  ],
+  "result": {
+   "text": "No places for \"sauna\" (spa) within 50 m of the given point on OpenStreetMap — try a wider radiusM, a broader category, or another spelling.",
+   "isError": false
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "near a string",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "category": "bar",
+   "near": "Galata",
+   "radiusM": 1000
+  },
+  "api": [
+   {
+    "body": {
+     "places": [
+      {
+       "type": "Place",
+       "id": "bar",
+       "name": "Bar",
+       "geo": [
+        41.02,
+        28.97
+       ],
+       "address": "Moda Cd. 1"
+      }
+     ],
+     "attribution": "© OpenStreetMap contributors",
+     "center": {
+      "lat": 41.02,
+      "lon": 28.97
+     },
+     "radiusM": 1000
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/places",
+    "body": {
+     "category": "bar",
+     "near": {
+      "text": "Galata"
+     },
+     "radiusM": 1000,
+     "limit": 12
+    }
+   }
+  ],
+  "result": {
+   "text": "1 place for bar within 1 km of the given point, nearest first — © OpenStreetMap contributors. No ratings or prices in OpenStreetMap.\n{\"places\":[{\"type\":\"Place\",\"id\":\"bar\",\"name\":\"Bar\",\"geo\":[41.02,28.97],\"address\":\"Moda Cd. 1\"}],\"attribution\":\"© OpenStreetMap contributors\",\"source\":{\"title\":\"OpenStreetMap contributors\",\"site\":\"openstreetmap.org\",\"url\":\"https://www.openstreetmap.org/copyright\",\"note\":\"ODbL\"}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "location sharing off",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "category": "cafe"
+  },
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "Location sharing is off. The user can turn it on in Settings › Visual answers.",
+     "code": "off"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "No place given and the user's location isn't available: Location sharing is off. The user can turn it on in Settings › Visual answers. Ask the user where to search, then pass near: {text}.",
+   "isError": true
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "no query",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "query": "   "
+  },
+  "api": [],
+  "calls": [],
+  "result": {
+   "text": "find_places needs a query or a category — e.g. {category: \"cafe\"} or {query: \"ramen\"}",
+   "isError": true
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "bad point",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "category": "cafe",
+   "near": {
+    "lat": 141,
+    "lon": 29
+   }
+  },
+  "api": [],
+  "calls": [],
+  "result": {
+   "text": "find_places: near must be {text: \"a place or address\"} or {lat, lon} with a real latitude and longitude",
+   "isError": true
+  }
+ },
+ {
+  "tool": "find_places",
+  "name": "unknown place",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "args": {
+   "category": "cafe",
+   "near": {
+    "text": "Atlantis"
+   }
+  },
+  "api": [
+   {
+    "status": 404,
+    "body": {
+     "error": "No place named \"Atlantis\" was found — try another spelling or a nearby city."
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/api/genui/places",
+    "body": {
+     "category": "cafe",
+     "near": {
+      "text": "Atlantis"
+     },
+     "radiusM": 1500,
+     "limit": 12
+    }
+   }
+  ],
+  "result": {
+   "text": "No place named \"Atlantis\" was found — try another spelling or a nearby city.",
+   "isError": true
+  }
+ },
+ {
+  "tool": "current_location",
+  "name": "with an area",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000540000,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "lat": 41,
+     "lon": 29,
+     "accuracy": 35.4,
+     "at": 1800000000000,
+     "area": {
+      "district": "Moda",
+      "city": "İstanbul",
+      "country": "Türkiye"
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "Moda, İstanbul, Türkiye · ±35 m · 9 min ago\n{\"lat\":41,\"lon\":29,\"accuracy\":35,\"at\":1800000000000,\"area\":{\"district\":\"Moda\",\"city\":\"İstanbul\",\"country\":\"Türkiye\"}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "current_location",
+  "name": "just now, no area, coarse",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000020000,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "lat": 41.123456,
+     "lon": 29.5,
+     "accuracy": 2449.9,
+     "at": 1800000000000
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "Area unknown (no reverse-geocode answer) · ±2.4 km · just now\n{\"lat\":41.123456,\"lon\":29.5,\"accuracy\":2450,\"at\":1800000000000}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "current_location",
+  "name": "hours old, very coarse",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800009000000,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "lat": 41,
+     "lon": 29,
+     "accuracy": 12500,
+     "at": 1800000000000,
+     "area": {
+      "city": "İstanbul",
+      "country": "İstanbul"
+     }
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "İstanbul · ±13 km · 3 h ago\n{\"lat\":41,\"lon\":29,\"accuracy\":12500,\"at\":1800000000000,\"area\":{\"city\":\"İstanbul\",\"country\":\"İstanbul\"}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "current_location",
+  "name": "sub-metre",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800003660000,
+  "args": {},
+  "api": [
+   {
+    "body": {
+     "lat": 41,
+     "lon": 29,
+     "accuracy": 0.2,
+     "at": 1800000000000,
+     "area": {}
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "Area unknown (no reverse-geocode answer) · ±1 m · 1 h ago\n{\"lat\":41,\"lon\":29,\"accuracy\":0,\"at\":1800000000000,\"area\":{}}",
+   "isError": false
+  }
+ },
+ {
+  "tool": "current_location",
+  "name": "refused",
+  "selfId": "o-orch01",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {},
+  "api": [
+   {
+    "status": 403,
+    "body": {
+     "error": "Location sharing is off. The user can turn it on in Settings › Visual answers.",
+     "code": "off"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "GET",
+    "path": "/api/location"
+   }
+  ],
+  "result": {
+   "text": "Location sharing is off. The user can turn it on in Settings › Visual answers.",
+   "isError": true
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "done after a read",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "MacBook Air",
+   "paths": [
+    "dist",
+    "/repo/app/notes.md"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "queued",
+     "error": null,
+     "roots": [],
+     "fileCount": 12,
+     "totalBytes": 0,
+     "doneBytes": 0,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "done",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 5000900,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [
+      {
+       "name": "dist",
+       "path": "/Users/u/Downloads/Eos/dist"
+      },
+      {
+       "name": "notes.md",
+       "path": "/Users/u/Downloads/Eos/notes 2.md"
+      }
+     ],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "MacBook Air",
+     "paths": [
+      "dist",
+      "/repo/app/notes.md"
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   }
+  ],
+  "result": {
+   "text": "Sent dist, notes.md (4.8 MB) to MacBook Air: /Users/u/Downloads/Eos/dist, /Users/u/Downloads/Eos/notes 2.md (tr-0123456789ab)",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "small file, done at once",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "a.txt"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/a.txt"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "done",
+     "error": null,
+     "roots": [
+      {
+       "name": "a.txt",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 900,
+     "doneBytes": 900,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [
+      {
+       "name": "a.txt",
+       "path": "/Users/u/Downloads/Eos/a.txt"
+      }
+     ],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "a.txt"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "text": "Sent a.txt (900 B) to Mini: /Users/u/Downloads/Eos/a.txt (tr-0123456789ab)",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "still copying after a minute",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "dist"
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   }
+  ],
+  "result": {
+   "text": "Still copying dist, notes.md to Mini (24%). It finishes in the background — the user sees it in the Transfer tab and gets a notification. (tr-0123456789ab)",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "paused",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "paused",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "dist"
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   }
+  ],
+  "result": {
+   "text": "The copy to Mini stopped part-way (paused) — the user can resume it from the Transfer tab. (tr-0123456789ab)",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "cancelled before the scan",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "cancelled",
+     "error": null,
+     "roots": [],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "dist"
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   }
+  ],
+  "result": {
+   "text": "The user cancelled sending /repo/app/dist, /repo/app/notes.md. (tr-0123456789ab)",
+   "isError": false
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "failed after a blip",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "copying",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   },
+   {
+    "status": 502,
+    "body": {
+     "error": "blip"
+    }
+   },
+   {
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "failed",
+     "error": {
+      "code": "io",
+      "message": "the disk is full"
+     },
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "dist"
+     ]
+    }
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   },
+   {
+    "method": "GET",
+    "path": "/workers/w-self0001/transfers/tr-0123456789ab"
+   }
+  ],
+  "result": {
+   "text": "Sending dist, notes.md to Mini failed: the disk is full (tr-0123456789ab)",
+   "isError": true
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "failed without a reason",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Mini",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 201,
+    "body": {
+     "id": "tr-0123456789ab",
+     "from": "local",
+     "to": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+     "origin": {
+      "kind": "agent",
+      "agentId": "w-self0001",
+      "agentName": "chat"
+     },
+     "sources": [
+      "/repo/app/dist",
+      "/repo/app/notes.md"
+     ],
+     "destDir": "/Users/u/Downloads/Eos",
+     "destReason": "default",
+     "status": "failed",
+     "error": null,
+     "roots": [
+      {
+       "name": "dist",
+       "type": "dir",
+       "size": 5000000,
+       "mtimeMs": 1800000000000
+      },
+      {
+       "name": "notes.md",
+       "type": "file",
+       "size": 900,
+       "mtimeMs": 1800000000000
+      }
+     ],
+     "fileCount": 12,
+     "totalBytes": 5000900,
+     "doneBytes": 1250000,
+     "rate": 0,
+     "route": "direct",
+     "conflicts": [],
+     "decisions": {},
+     "placed": [],
+     "createdAt": 1800000000000,
+     "startedAt": 1800000000100,
+     "finishedAt": null
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Mini",
+     "paths": [
+      "dist"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "text": "Sending dist, notes.md to Mini failed: unknown error (tr-0123456789ab)",
+   "isError": true
+  }
+ },
+ {
+  "tool": "send_to_machine",
+  "name": "no such machine",
+  "selfId": "w-self0001",
+  "cwd": "/repo/app",
+  "gitRepo": true,
+  "now": 1800000000000,
+  "args": {
+   "machine": "Nope",
+   "paths": [
+    "dist"
+   ]
+  },
+  "api": [
+   {
+    "status": 400,
+    "body": {
+     "error": "invalid request: No paired Mac matches \"Nope\" — paired: MacBook Air, Mini"
+    }
+   }
+  ],
+  "calls": [
+   {
+    "method": "POST",
+    "path": "/workers/w-self0001/transfers",
+    "body": {
+     "machine": "Nope",
+     "paths": [
+      "dist"
+     ]
+    }
+   }
+  ],
+  "result": {
+   "text": "No paired Mac matches \"Nope\" — paired: MacBook Air, Mini",
+   "isError": true
+  }
+ }
+]

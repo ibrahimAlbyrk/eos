@@ -28,6 +28,8 @@
 //! [`plugins`] holds the fakes of the plugin ports. The update ports: [`FakeUpdateFeed`],
 //! [`FakeUpdateSignature`], [`FakeBundleIndexer`], [`FakeUpdateWorkspace`], [`FakeBundleCheck`],
 //! [`FakeTopLevelAgents`], [`FakeUpdateApplier`].
+//! [`FakeFeatures`] is every port the agent tools call, answering from one script; [`FakeTimeZone`]
+//! is a fixed offset.
 //!
 //! Tests may panic on a broken set-up, so this crate uses `expect` freely.
 
@@ -47,6 +49,7 @@ pub mod plugins;
 mod policy;
 mod profile;
 mod terminal;
+mod tools;
 pub mod update;
 mod update_fakes;
 mod watchers;
@@ -73,6 +76,7 @@ pub use profile::FakeProfileRenderer;
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };
+pub use tools::{FakeFeatures, FakeTimeZone};
 pub use update_fakes::{
     FAKE_DOWNLOAD_BYTES, FakeBundleCheck, FakeBundleIndexer, FakeTopLevelAgents, FakeUpdateApplier, FakeUpdateFeed,
     FakeUpdateSignature, FakeUpdateWorkspace,

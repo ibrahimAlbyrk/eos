@@ -1193,6 +1193,7 @@ dependencies = [
  "eos-mod-profile",
  "eos-mod-projects",
  "eos-mod-prompts",
+ "eos-mod-questions",
  "eos-mod-system",
  "eos-mod-templates",
  "eos-mod-terminals",
@@ -1212,6 +1213,7 @@ dependencies = [
  "eos-store-sqlite",
  "eos-symbols",
  "eos-testkit",
+ "eos-tools",
  "eos-update",
  "eos-watch",
  "eos-workers",
@@ -1486,6 +1488,8 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-git",
+ "eos-kit-proc",
  "eos-platform",
  "eos-prompts",
  "eos-runtime",
@@ -1495,6 +1499,7 @@ dependencies = [
  "eos-workers",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
 ]
 
@@ -1644,6 +1649,21 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+]
+
+[[package]]
+name = "eos-mod-questions"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-testkit",
+ "indexmap",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -1948,6 +1968,7 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-genui",
  "eos-kit-sqlite",
  "eos-platform",
  "eos-runtime",
@@ -1958,6 +1979,25 @@ dependencies = [
  "sha2",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "eos-tools"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-genui",
+ "eos-prompts",
+ "eos-runtime",
+ "eos-store-files",
+ "eos-testkit",
+ "eos-workers",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

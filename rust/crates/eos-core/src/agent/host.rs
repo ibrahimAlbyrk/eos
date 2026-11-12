@@ -152,3 +152,10 @@ pub trait ScratchFolders: Send + Sync + 'static {
     /// Every scratch folder on disk.
     fn list(&self) -> Vec<String>;
 }
+
+/// A banner on the user's computer, shown while the app's window is not in
+/// front (`notify_user`, "Input needed").
+pub trait UserNotifier: Send + Sync + 'static {
+    /// Clicking the banner opens `worker_id`.
+    fn notify(&self, worker_id: &str, title: &str, body: &str);
+}

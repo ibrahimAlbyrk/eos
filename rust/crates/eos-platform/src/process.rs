@@ -86,6 +86,43 @@ pub fn local_hour_minute(epoch_ms: i64) -> Option<String> {
     Some(out.stdout.trim().to_owned()).filter(|text| text.len() == 5)
 }
 
+/// Minutes east of UTC on the user's clock at `epoch_ms`, daylight saving
+/// included, from the system's `date`; `None` where it does not say.
+pub fn local_utc_offset_minutes(epoch_ms: i64) -> Option<i32> {
+    let seconds = epoch_ms.div_euclid(1_000).to_string();
+    let mut date = Command::new("/bin/date");
+    date.args(["-r", &seconds, "+%z"]);
+    let out = crate::tool::run_ok("date", &mut date, None, std::time::Duration::from_secs(5)).ok()?;
+    parse_utc_offset(out.stdout.trim())
+}
+
+/// `+0300` or `-0530` as minutes.
+fn parse_utc_offset(text: &str) -> Option<i32> {
+    let (sign, digits) = match text.split_at_checked(1)? {
+        ("+", digits) => (1, digits),
+        ("-", digits) => (-1, digits),
+        _ => return None,
+    };
+    if digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let (hours, minutes) = (digits[..2].parse::<i32>().ok()?, digits[2..].parse::<i32>().ok()?);
+    Some(sign * (hours * 60 + minutes))
+}
+
+/// The name of the user's time zone (`Europe/Istanbul`): the `TZ` variable
+/// when it names one, else where the system's zone file points.
+pub fn local_zone_name() -> Option<String> {
+    let named = std::env::var("TZ").ok().map(|tz| tz.trim_start_matches(':').to_owned());
+    if let Some(name) = named.filter(|name| !name.is_empty() && !name.starts_with('/')) {
+        return Some(name);
+    }
+    let target = std::fs::read_link("/etc/localtime").ok()?;
+    let target = target.to_string_lossy();
+    let (_, name) = target.split_once("zoneinfo/")?;
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
 #[cfg(all(test, unix))]
 mod tests {
     use std::io::{BufRead, BufReader};
@@ -103,6 +140,17 @@ mod tests {
             std::thread::sleep(Duration::from_millis(10));
         }
         false
+    }
+
+    #[test]
+    fn an_offset_reads_as_minutes_east_of_utc() {
+        assert_eq!(parse_utc_offset("+0300"), Some(180));
+        assert_eq!(parse_utc_offset("-0530"), Some(-330));
+        assert_eq!(parse_utc_offset("+0000"), Some(0));
+        assert_eq!(parse_utc_offset("0300"), None);
+        assert_eq!(parse_utc_offset("+03"), None);
+        // The system answers for any instant.
+        assert!(local_utc_offset_minutes(1_800_000_000_000).is_some_and(|m| m.abs() <= 14 * 60));
     }
 
     #[test]

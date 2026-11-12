@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::{WorkerContext, WorkerRow};
 use eos_core::Error;
-use eos_core::agent::ModelCatalog;
+use eos_core::agent::{ModelCatalog, OpenQuestions};
 use eos_core::store::{Store, Tx};
 use eos_domain::context::context_pct;
 use eos_domain::worker::{Ownership, ownership};
@@ -68,6 +68,19 @@ impl Rows {
         self
     }
 
+    /// Which workers wait on the user's answer, so the sidebar shows it
+    /// without the chat loaded.
+    fn with_questions(mut self, questions: Option<&dyn OpenQuestions>) -> Self {
+        if let Some(questions) = questions {
+            for row in &mut self.rows {
+                if questions.has_open(&row.id) {
+                    row.awaiting_question = Some(true);
+                }
+            }
+        }
+        self
+    }
+
     fn brief(mut self, brief: bool) -> Self {
         if brief {
             for row in &mut self.rows {
@@ -100,15 +113,23 @@ fn listed(tx: &dyn Tx, parent_id: Option<&str>) -> Result<(Vec<Worker>, Vec<Work
     Ok((workers, tx.loops().list_active()?))
 }
 
-pub(crate) fn routes(store: Arc<dyn Store>, models: Arc<dyn ModelCatalog>) -> Vec<RouteDef> {
+pub(crate) fn routes(
+    store: Arc<dyn Store>,
+    models: Arc<dyn ModelCatalog>,
+    questions: Option<Arc<dyn OpenQuestions>>,
+) -> Vec<RouteDef> {
     let list = {
         let (store, models) = (store.clone(), models.clone());
         move |req: Request| {
-            let (store, models) = (store.clone(), models.clone());
+            let (store, models, questions) = (store.clone(), models.clone(), questions.clone());
             async move {
                 let parent = req.query().get("parentId").filter(|p| !p.is_empty()).map(|p| p.into_owned());
                 let (workers, loops) = store.read(move |tx| listed(tx, parent.as_deref())).await?;
-                let rows = Rows::of(&workers).with_loops(&loops).with_context(models.as_ref()).brief(wants_brief(&req));
+                let rows = Rows::of(&workers)
+                    .with_loops(&loops)
+                    .with_context(models.as_ref())
+                    .with_questions(questions.as_deref())
+                    .brief(wants_brief(&req));
                 Ok(Response::json(200, &rows.rows))
             }
         }

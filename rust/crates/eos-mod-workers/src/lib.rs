@@ -12,7 +12,7 @@ mod rows;
 
 use std::sync::Arc;
 
-use eos_core::agent::ModelCatalog;
+use eos_core::agent::{ModelCatalog, OpenQuestions};
 use eos_core::store::Store;
 use eos_runtime::module::Module;
 use eos_runtime::router::RouteDef;
@@ -20,6 +20,7 @@ use eos_runtime::router::RouteDef;
 pub struct WorkersModule {
     store: Arc<dyn Store>,
     models: Arc<dyn ModelCatalog>,
+    questions: Option<Arc<dyn OpenQuestions>>,
 }
 
 impl std::fmt::Debug for WorkersModule {
@@ -30,7 +31,13 @@ impl std::fmt::Debug for WorkersModule {
 
 impl WorkersModule {
     pub fn new(store: Arc<dyn Store>, models: Arc<dyn ModelCatalog>) -> Self {
-        Self { store, models }
+        Self { store, models, questions: None }
+    }
+
+    /// Flags, in the list of workers, the ones waiting on the user's answer.
+    pub fn with_open_questions(mut self, questions: Arc<dyn OpenQuestions>) -> Self {
+        self.questions = Some(questions);
+        self
     }
 }
 
@@ -40,7 +47,7 @@ impl Module for WorkersModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        let mut routes = rows::routes(self.store.clone(), self.models.clone());
+        let mut routes = rows::routes(self.store.clone(), self.models.clone(), self.questions.clone());
         routes.extend(events::routes(self.store.clone()));
         routes
     }

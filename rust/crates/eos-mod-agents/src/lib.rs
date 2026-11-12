@@ -8,6 +8,9 @@
 
 mod routes;
 mod spawn;
+mod tool_control;
+
+pub use tool_control::ToolControl;
 
 use std::sync::Arc;
 

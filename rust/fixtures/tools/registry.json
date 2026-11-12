@@ -1,0 +1,2352 @@
+{
+ "tools": [
+  {
+   "name": "spawn_worker",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "prompt": {
+      "type": "string",
+      "description": "The worker's first user-turn (string). Follow the worker-prompt template in your system prompt (§Worker prompts: directive · Context · Acceptance · Out of scope · Report)."
+     },
+     "name": {
+      "type": "string",
+      "description": "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'."
+     },
+     "model": {
+      "type": "string",
+      "description": "Model power tier — one of the tiers the active provider defines (listed strongest-first in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A tier the provider does not define is rejected. A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier."
+     },
+     "effort": {
+      "type": "string",
+      "enum": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "description": "Reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Which level fits which work → §Model. Omit ⇒ default."
+     },
+     "workspaceOf": {
+      "type": "string",
+      "description": "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one, for direct file access (to review, continue, or fix that worker's work). Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy)."
+     },
+     "collaborate": {
+      "type": "boolean",
+      "description": "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Omit ⇒ off."
+     },
+     "from": {
+      "type": "string",
+      "description": "Available worker (definition) to spawn from. It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Omit ⇒ defaults to the general-purpose worker."
+     },
+     "toolsAllow": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*'). Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist."
+     },
+     "toolsDeny": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Subtract tools from THIS one-off worker (globs). Always subtracts, even from an allowlist. Wins over a `from` definition's denylist."
+     },
+     "editRegex": {
+      "type": "string",
+      "description": "Confine THIS one-off worker's file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches). Enforced at the gate. Wins over a `from` definition's editRegex."
+     }
+    },
+    "required": [
+     "prompt"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_active_workers",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "get_worker",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Worker id, e.g. 'w-abcd1234'"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "kill_worker",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Worker id, e.g. 'w-abcd1234'"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "message_worker",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Worker id, e.g. 'w-abcd1234'"
+     },
+     "text": {
+      "type": "string",
+      "description": "The follow-up directive — becomes a new user-turn for the worker. State the new ask clearly and in full."
+     }
+    },
+    "required": [
+     "id",
+     "text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_pending_permissions",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "notify_user",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "title": {
+      "type": "string",
+      "description": "Short headline, a few words. E.g. 'Task complete'"
+     },
+     "body": {
+      "type": "string",
+      "description": "One sentence with the concrete outcome. E.g. 'Auth refactor done across 3 workers — review ready.'"
+     }
+    },
+    "required": [
+     "title",
+     "body"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "ask_user",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "questions": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "question": {
+         "type": "string",
+         "description": "The complete question, ending with a question mark."
+        },
+        "header": {
+         "type": "string",
+         "description": "Short chip label, max ~12 chars. E.g. 'Approach'."
+        },
+        "multiSelect": {
+         "type": "boolean",
+         "description": "Allow picking several options."
+        },
+        "options": {
+         "type": "array",
+         "items": {
+          "type": "object",
+          "properties": {
+           "label": {
+            "type": "string",
+            "description": "Concise choice text (1-5 words)."
+           },
+           "description": {
+            "type": "string",
+            "description": "What this choice means / its trade-off."
+           }
+          },
+          "required": [
+           "label"
+          ],
+          "additionalProperties": false
+         },
+         "minItems": 2,
+         "maxItems": 4,
+         "description": "2-4 distinct choices. The dashboard adds a free-text 'Other' automatically."
+        }
+       },
+       "required": [
+        "question",
+        "options"
+       ],
+       "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 4,
+      "description": "1-4 questions, shown to the operator as one banner."
+     }
+    },
+    "required": [
+     "questions"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_available_workers",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "create_worker",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "Identity, kebab-case (e.g. 'perf-profiler')."
+     },
+     "description": {
+      "type": "string",
+      "description": "Human-facing label for this worker."
+     },
+     "whenToUse": {
+      "type": "string",
+      "description": "Routing signal: when should a task be dispatched to this worker."
+     },
+     "model": {
+      "type": "string",
+      "description": "Default model power tier — one of the tiers the active provider defines (listed in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."
+     },
+     "effort": {
+      "type": "string",
+      "enum": [
+       "low",
+       "medium",
+       "high",
+       "xhigh",
+       "max"
+      ],
+      "description": "Default reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Omit ⇒ inherit."
+     },
+     "permissionMode": {
+      "type": "string",
+      "enum": [
+       "acceptEdits",
+       "bypassPermissions"
+      ],
+      "description": "Default permission mode."
+     },
+     "persistent": {
+      "type": "boolean",
+      "description": "Stay alive after a turn (conversational session)."
+     },
+     "collaborate": {
+      "type": "boolean",
+      "description": "Default the peer-mesh opt-in."
+     },
+     "toolsAllow": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Tool allowlist (globs, e.g. 'Read', 'mcp__*'). Empty/omit ⇒ inherit all tools."
+     },
+     "toolsDeny": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Tool denylist (globs). Always subtracts, even from an allowlist."
+     },
+     "editRegex": {
+      "type": "string",
+      "description": "Restrict file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches)."
+     },
+     "extends": {
+      "type": "string",
+      "description": "Base worker name to inherit unset fields from."
+     },
+     "body": {
+      "type": "string",
+      "description": "This worker's role-instructions body (string). What to put in it / what NOT to (never restate the signal protocol / report / Handover) → create_worker's description and §Available workers."
+     }
+    },
+    "required": [
+     "name",
+     "body"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "integrate_workers",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      },
+      "description": "Limit to these worker ids. Omit to integrate ALL of your workers' branches."
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "current_datetime",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "get_worker_messages",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Worker id, e.g. 'w-abcd1234'"
+     },
+     "n": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 5,
+      "description": "How many of the worker's most recent messages to return (5 = last five, 1 = just the latest)."
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_pages",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "description": "Only pages whose title or text contains this (case-insensitive)."
+     },
+     "all": {
+      "type": "boolean",
+      "default": false,
+      "description": "true = pages from every project, not just the one this chat works in."
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "read_page",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "create_page",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short title the user will recognise in the page list."
+     },
+     "body": {
+      "type": "string",
+      "default": "",
+      "description": "Markdown content. Checklists use '- [ ] item'."
+     }
+    },
+    "required": [
+     "title"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "append_to_page",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+     },
+     "text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Markdown to add. Checklist items use '- [ ] item'."
+     },
+     "under_heading": {
+      "type": "string",
+      "description": "Add at the end of this heading's section (matched by text, any level); the heading is created at the end of the page when missing. Omit to add at the end of the page."
+     }
+    },
+    "required": [
+     "id",
+     "text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "edit_page",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+     },
+     "old_text": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Exact passage to replace, copied from read_page. Must occur exactly once."
+     },
+     "new_text": {
+      "type": "string",
+      "description": "Replacement markdown. Empty string deletes the passage."
+     }
+    },
+    "required": [
+     "id",
+     "old_text",
+     "new_text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "set_page_task",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "Page id, e.g. 'pg-3f9a1c2b7d10' (from list_pages or create_page)"
+     },
+     "task": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The checklist item's text (or a part of it that matches only that item)."
+     },
+     "done": {
+      "type": "boolean",
+      "default": true,
+      "description": "true ticks the item, false unticks it."
+     }
+    },
+    "required": [
+     "id",
+     "task"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.pages"
+  },
+  {
+   "name": "search_memory",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "maxLength": 200,
+      "description": "Words to look for, e.g. 'commit style' or 'testing'. Empty lists the newest memories."
+     },
+     "limit": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "Most results to return (default 8)."
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "suggest_memory",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "One self-contained sentence about the user, e.g. 'Prefers pnpm over npm.'"
+     },
+     "category": {
+      "type": "string",
+      "enum": [
+       "about",
+       "work-style",
+       "stack",
+       "other"
+      ],
+      "description": "about = who the user is; work-style = how they want work done; stack = tools and technologies."
+     },
+     "scope": {
+      "type": "string",
+      "enum": [
+       "global",
+       "project"
+      ],
+      "description": "project = only true in the current project (its conventions); global = true everywhere."
+     },
+     "why": {
+      "type": "string",
+      "maxLength": 300,
+      "description": "What the user said or did that shows it — shown to the user when they review."
+     }
+    },
+    "required": [
+     "text",
+     "category",
+     "scope"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "browser_navigate",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to drive; omit for the active tab"
+     },
+     "action": {
+      "type": "string",
+      "enum": [
+       "url",
+       "back",
+       "forward",
+       "reload"
+      ],
+      "description": "\"url\" loads `url`; back/forward walk history; reload refreshes"
+     },
+     "url": {
+      "type": "string",
+      "description": "Target URL — required when action is \"url\""
+     }
+    },
+    "required": [
+     "action"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_snapshot",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to read; omit for the active tab"
+     },
+     "interactiveOnly": {
+      "type": "boolean",
+      "default": true,
+      "description": "Only interactive elements (buttons, links, inputs) — keeps the tree small"
+     },
+     "selector": {
+      "type": "string",
+      "description": "Scope the tree to a CSS-selector subtree"
+     },
+     "depth": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "description": "Limit tree depth"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_find",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to search; omit for the active tab"
+     },
+     "query": {
+      "type": "string",
+      "description": "Visible text to match, or /regex/ between slashes"
+     }
+    },
+    "required": [
+     "query"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_act",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to act on; omit for the active tab"
+     },
+     "ref": {
+      "type": "string",
+      "description": "Element ref (@eN) from browser_snapshot or browser_find"
+     },
+     "verb": {
+      "type": "string",
+      "enum": [
+       "click",
+       "hover",
+       "focus",
+       "check",
+       "uncheck"
+      ],
+      "description": "What to do to the element"
+     },
+     "includeSnapshot": {
+      "type": "boolean",
+      "default": false,
+      "description": "Return a fresh snapshot with the result (token-expensive — request only when you need to see the outcome)"
+     }
+    },
+    "required": [
+     "ref",
+     "verb"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_type",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to act on; omit for the active tab"
+     },
+     "ref": {
+      "type": "string",
+      "description": "Element ref (@eN) of the input to type into"
+     },
+     "text": {
+      "type": "string",
+      "description": "Text to type"
+     },
+     "submit": {
+      "type": "boolean",
+      "default": false,
+      "description": "Press Enter after typing"
+     },
+     "includeSnapshot": {
+      "type": "boolean",
+      "default": false,
+      "description": "Return a fresh snapshot with the result (token-expensive)"
+     }
+    },
+    "required": [
+     "ref",
+     "text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_fill_form",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to act on; omit for the active tab"
+     },
+     "fields": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "properties": {
+        "ref": {
+         "type": "string",
+         "description": "Element ref (@eN) of the field"
+        },
+        "value": {
+         "type": "string",
+         "description": "Value to fill in"
+        }
+       },
+       "required": [
+        "ref",
+        "value"
+       ],
+       "additionalProperties": false
+      },
+      "description": "Fields to fill, in order"
+     }
+    },
+    "required": [
+     "fields"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_press",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to act on; omit for the active tab"
+     },
+     "key": {
+      "type": "string",
+      "description": "Key or chord: \"Enter\", \"Tab\", \"Escape\", \"Control+a\""
+     }
+    },
+    "required": [
+     "key"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_scroll",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to scroll; omit for the active tab"
+     },
+     "direction": {
+      "type": "string",
+      "enum": [
+       "up",
+       "down",
+       "top",
+       "bottom"
+      ],
+      "description": "up/down = one viewport; top/bottom = jump to the edge"
+     },
+     "ref": {
+      "type": "string",
+      "description": "Scroll this container instead of the page"
+     }
+    },
+    "required": [
+     "direction"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_wait",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to watch; omit for the active tab"
+     },
+     "forText": {
+      "type": "string",
+      "description": "Wait until this text appears on the page (substring)"
+     },
+     "forRef": {
+      "type": "string",
+      "description": "Wait until this element ref (@eN) is visible"
+     },
+     "forMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "description": "Wait a fixed number of milliseconds"
+     },
+     "timeoutMs": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "default": 15000,
+      "description": "Give up after this long"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_get",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to read; omit for the active tab"
+     },
+     "what": {
+      "type": "string",
+      "enum": [
+       "text",
+       "url",
+       "title",
+       "value"
+      ],
+      "description": "\"url\"/\"title\" are page-level; \"text\"/\"value\" read one element and need `ref`"
+     },
+     "ref": {
+      "type": "string",
+      "description": "Element ref (@eN) — required for \"text\" and \"value\""
+     }
+    },
+    "required": [
+     "what"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_screenshot",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to capture; omit for the active tab"
+     },
+     "fullPage": {
+      "type": "boolean",
+      "default": false,
+      "description": "Capture the whole page, not just the viewport"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_tabs",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_new_tab",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "url": {
+      "type": "string",
+      "description": "URL to open the tab at; omit for the default start page"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_close_tab",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to close; omit for the active tab — pass it explicitly when several are open"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_mute",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to mute; omit for the active tab"
+     },
+     "muted": {
+      "type": "boolean",
+      "description": "true silences the tab, false restores audio"
+     }
+    },
+    "required": [
+     "muted"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "browser_show",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "tabId": {
+      "type": "string",
+      "description": "Tab to present; omit for your session's active tab"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": "eos.browser"
+  },
+  {
+   "name": "present",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "title": {
+      "type": "string",
+      "description": "≤ 80 chars"
+     },
+     "tone": {
+      "type": "string",
+      "enum": [
+       "blue",
+       "green",
+       "amber",
+       "red",
+       "violet",
+       "teal"
+      ],
+      "description": "the view's one accent"
+     },
+     "icon": {
+      "type": "string",
+      "description": "an icon name from the catalog"
+     },
+     "replaces": {
+      "type": "string",
+      "description": "id of an earlier view (v_…) this one updates"
+     },
+     "data": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "collections (arrays of entities) and scalars, each written once"
+     },
+     "actions": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "{id: {label, kind, primary?, text?, href?, set?}}"
+     },
+     "ui": {
+      "type": "string",
+      "description": "markup that references data"
+     },
+     "summary": {
+      "type": "string",
+      "description": "the answer as plain text, ≤ 600 chars"
+     }
+    },
+    "required": [
+     "title",
+     "ui",
+     "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "present_app",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "title": {
+      "type": "string",
+      "description": "≤ 80 chars"
+     },
+     "html": {
+      "type": "string",
+      "description": "one self-contained HTML document, ≤ 256 KB"
+     },
+     "summary": {
+      "type": "string",
+      "description": "what the app is and does, as plain text, ≤ 600 chars"
+     },
+     "height": {
+      "type": "number",
+      "description": "initial height in px, 200–720"
+     }
+    },
+    "required": [
+     "title",
+     "html",
+     "summary"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": "sandboxed HTML app in the chat: calculator, timer, game, simulator, custom interactive visual",
+   "plugin": null
+  },
+  {
+   "name": "find_places",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "query": {
+      "type": "string",
+      "description": "what to look for — a name or a kind: \"ramen\", \"bike repair\""
+     },
+     "category": {
+      "type": "string",
+      "description": "a kind of place: restaurant, cafe, bar, bakery, pharmacy, hotel, museum, supermarket, atm, …"
+     },
+     "near": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "object",
+        "properties": {
+         "text": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "text"
+        ],
+        "additionalProperties": false
+       },
+       {
+        "type": "object",
+        "properties": {
+         "lat": {
+          "type": "number"
+         },
+         "lon": {
+          "type": "number"
+         }
+        },
+        "required": [
+         "lat",
+         "lon"
+        ],
+        "additionalProperties": false
+       }
+      ],
+      "description": "{text: a place name or address} or {lat, lon}; omitted = around the user's current location (needs location sharing)"
+     },
+     "radiusM": {
+      "type": "number",
+      "description": "search radius in meters, 50–20000 (default 1500)"
+     },
+     "limit": {
+      "type": "number",
+      "description": "how many places, 1–40 (default 12)"
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": "nearby places near me or an address: restaurants, cafes, shops, pharmacies — coordinates, hours, websites from OpenStreetMap",
+   "plugin": null
+  },
+  {
+   "name": "current_location",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": "where the user is now, near me, around here: latitude, longitude, district, city",
+   "plugin": null
+  },
+  {
+   "name": "plugin_status",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "The plugin's id (its folder name). Omit to list every plugin and the folder they live in."
+     }
+    },
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": "eos plugin status build error loaded ui widget sidebar header panel extend interface",
+   "plugin": null
+  },
+  {
+   "name": "plugin_preview",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "id": {
+      "type": "string",
+      "description": "The plugin's id (its folder name)."
+     },
+     "surface": {
+      "type": "string",
+      "enum": [
+       "main",
+       "panel",
+       "header"
+      ],
+      "description": "main = a mainView, panel = a sidePanelTab, header = the headerRight widgets. Default: the first the plugin registered, in that order."
+     },
+     "view": {
+      "type": "string",
+      "description": "Which mainView / sidePanelTab id to draw; default the first."
+     },
+     "store": {
+      "type": "object",
+      "additionalProperties": {},
+      "description": "Sample values for useStore keys, used only in the preview (the user's data is never touched). Keys left out read the real stored value."
+     },
+     "width": {
+      "type": "integer",
+      "description": "Width in px. Default: main 1000, panel 420, header 760."
+     },
+     "height": {
+      "type": "integer",
+      "description": "Height in px. Default: main 760, panel 760, header 56."
+     },
+     "waitMs": {
+      "type": "integer",
+      "description": "Let entrance animations play this long before the picture is taken. Default 700."
+     }
+    },
+    "required": [
+     "id"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": "eos plugin preview screenshot picture look design check render view",
+   "plugin": null
+  },
+  {
+   "name": "send_message_to_parent",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "text": {
+      "type": "string",
+      "description": "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...` (this line is parsed). See the send_message_to_parent guidance for the structure of the lines that follow."
+     }
+    },
+    "required": [
+     "text"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "list_peers",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "ask_peer",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "peerId": {
+      "type": "string",
+      "description": "The id of the peer to consult (from list_peers) — for a peer you can already see."
+     },
+     "peerName": {
+      "type": "string",
+      "description": "The name of the peer to consult (the slug the orchestrator gave it, e.g. 'auth-expert'). Use this when the peer may not have spawned yet — the consult waits until a peer with this name joins. Pass peerId OR peerName, not both."
+     },
+     "question": {
+      "type": "string",
+      "description": "One focused, self-contained question, with the context the peer needs to answer."
+     }
+    },
+    "required": [
+     "question"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "respond_to_peer",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "answer": {
+      "type": "string",
+      "description": "Your complete, self-contained answer to the peer request delivered this turn."
+     }
+    },
+    "required": [
+     "answer"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "send_to_machine",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "machine": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "The paired Mac to send to, by the name the user used — e.g. \"MacBook Air\"."
+     },
+     "paths": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "minLength": 1
+      },
+      "minItems": 1,
+      "maxItems": 100,
+      "description": "Files or folders on this Mac: absolute, or relative to your working folder."
+     }
+    },
+    "required": [
+     "machine",
+     "paths"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": false,
+   "searchHint": null,
+   "plugin": null
+  }
+ ],
+ "sets": [
+  {
+   "kind": "orchestrator",
+   "isOrchestrator": true,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [],
+   "names": [
+    "mcp__orchestrator__spawn_worker",
+    "mcp__orchestrator__list_active_workers",
+    "mcp__orchestrator__get_worker",
+    "mcp__orchestrator__kill_worker",
+    "mcp__orchestrator__message_worker",
+    "mcp__orchestrator__list_pending_permissions",
+    "mcp__orchestrator__notify_user",
+    "mcp__orchestrator__ask_user",
+    "mcp__orchestrator__list_available_workers",
+    "mcp__orchestrator__create_worker",
+    "mcp__orchestrator__integrate_workers",
+    "mcp__orchestrator__current_datetime",
+    "mcp__orchestrator__get_worker_messages",
+    "mcp__orchestrator__list_pages",
+    "mcp__orchestrator__read_page",
+    "mcp__orchestrator__create_page",
+    "mcp__orchestrator__append_to_page",
+    "mcp__orchestrator__edit_page",
+    "mcp__orchestrator__set_page_task",
+    "mcp__orchestrator__search_memory",
+    "mcp__orchestrator__suggest_memory",
+    "mcp__orchestrator__browser_navigate",
+    "mcp__orchestrator__browser_snapshot",
+    "mcp__orchestrator__browser_find",
+    "mcp__orchestrator__browser_act",
+    "mcp__orchestrator__browser_type",
+    "mcp__orchestrator__browser_fill_form",
+    "mcp__orchestrator__browser_press",
+    "mcp__orchestrator__browser_scroll",
+    "mcp__orchestrator__browser_wait",
+    "mcp__orchestrator__browser_get",
+    "mcp__orchestrator__browser_screenshot",
+    "mcp__orchestrator__browser_tabs",
+    "mcp__orchestrator__browser_new_tab",
+    "mcp__orchestrator__browser_close_tab",
+    "mcp__orchestrator__browser_mute",
+    "mcp__orchestrator__browser_show",
+    "mcp__orchestrator__present",
+    "mcp__orchestrator__present_app",
+    "mcp__orchestrator__find_places",
+    "mcp__orchestrator__current_location",
+    "mcp__orchestrator__plugin_status",
+    "mcp__orchestrator__plugin_preview"
+   ]
+  },
+  {
+   "kind": "orchestrator",
+   "isOrchestrator": true,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.browser"
+   ],
+   "names": [
+    "mcp__orchestrator__spawn_worker",
+    "mcp__orchestrator__list_active_workers",
+    "mcp__orchestrator__get_worker",
+    "mcp__orchestrator__kill_worker",
+    "mcp__orchestrator__message_worker",
+    "mcp__orchestrator__list_pending_permissions",
+    "mcp__orchestrator__notify_user",
+    "mcp__orchestrator__ask_user",
+    "mcp__orchestrator__list_available_workers",
+    "mcp__orchestrator__create_worker",
+    "mcp__orchestrator__integrate_workers",
+    "mcp__orchestrator__current_datetime",
+    "mcp__orchestrator__get_worker_messages",
+    "mcp__orchestrator__list_pages",
+    "mcp__orchestrator__read_page",
+    "mcp__orchestrator__create_page",
+    "mcp__orchestrator__append_to_page",
+    "mcp__orchestrator__edit_page",
+    "mcp__orchestrator__set_page_task",
+    "mcp__orchestrator__search_memory",
+    "mcp__orchestrator__suggest_memory",
+    "mcp__orchestrator__present",
+    "mcp__orchestrator__present_app",
+    "mcp__orchestrator__find_places",
+    "mcp__orchestrator__current_location",
+    "mcp__orchestrator__plugin_status",
+    "mcp__orchestrator__plugin_preview"
+   ]
+  },
+  {
+   "kind": "orchestrator",
+   "isOrchestrator": true,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages"
+   ],
+   "names": [
+    "mcp__orchestrator__spawn_worker",
+    "mcp__orchestrator__list_active_workers",
+    "mcp__orchestrator__get_worker",
+    "mcp__orchestrator__kill_worker",
+    "mcp__orchestrator__message_worker",
+    "mcp__orchestrator__list_pending_permissions",
+    "mcp__orchestrator__notify_user",
+    "mcp__orchestrator__ask_user",
+    "mcp__orchestrator__list_available_workers",
+    "mcp__orchestrator__create_worker",
+    "mcp__orchestrator__integrate_workers",
+    "mcp__orchestrator__current_datetime",
+    "mcp__orchestrator__get_worker_messages",
+    "mcp__orchestrator__search_memory",
+    "mcp__orchestrator__suggest_memory",
+    "mcp__orchestrator__browser_navigate",
+    "mcp__orchestrator__browser_snapshot",
+    "mcp__orchestrator__browser_find",
+    "mcp__orchestrator__browser_act",
+    "mcp__orchestrator__browser_type",
+    "mcp__orchestrator__browser_fill_form",
+    "mcp__orchestrator__browser_press",
+    "mcp__orchestrator__browser_scroll",
+    "mcp__orchestrator__browser_wait",
+    "mcp__orchestrator__browser_get",
+    "mcp__orchestrator__browser_screenshot",
+    "mcp__orchestrator__browser_tabs",
+    "mcp__orchestrator__browser_new_tab",
+    "mcp__orchestrator__browser_close_tab",
+    "mcp__orchestrator__browser_mute",
+    "mcp__orchestrator__browser_show",
+    "mcp__orchestrator__present",
+    "mcp__orchestrator__present_app",
+    "mcp__orchestrator__find_places",
+    "mcp__orchestrator__current_location",
+    "mcp__orchestrator__plugin_status",
+    "mcp__orchestrator__plugin_preview"
+   ]
+  },
+  {
+   "kind": "orchestrator",
+   "isOrchestrator": true,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "eos.btw",
+    "eos.artifacts",
+    "eos.browser",
+    "eos.auto-name",
+    "eos.terminal",
+    "eos.archive"
+   ],
+   "names": [
+    "mcp__orchestrator__spawn_worker",
+    "mcp__orchestrator__list_active_workers",
+    "mcp__orchestrator__get_worker",
+    "mcp__orchestrator__kill_worker",
+    "mcp__orchestrator__message_worker",
+    "mcp__orchestrator__list_pending_permissions",
+    "mcp__orchestrator__notify_user",
+    "mcp__orchestrator__ask_user",
+    "mcp__orchestrator__list_available_workers",
+    "mcp__orchestrator__create_worker",
+    "mcp__orchestrator__integrate_workers",
+    "mcp__orchestrator__current_datetime",
+    "mcp__orchestrator__get_worker_messages",
+    "mcp__orchestrator__search_memory",
+    "mcp__orchestrator__suggest_memory",
+    "mcp__orchestrator__present",
+    "mcp__orchestrator__present_app",
+    "mcp__orchestrator__find_places",
+    "mcp__orchestrator__current_location",
+    "mcp__orchestrator__plugin_status",
+    "mcp__orchestrator__plugin_preview"
+   ]
+  },
+  {
+   "kind": "orchestrator",
+   "isOrchestrator": true,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "user.thing"
+   ],
+   "names": [
+    "mcp__orchestrator__spawn_worker",
+    "mcp__orchestrator__list_active_workers",
+    "mcp__orchestrator__get_worker",
+    "mcp__orchestrator__kill_worker",
+    "mcp__orchestrator__message_worker",
+    "mcp__orchestrator__list_pending_permissions",
+    "mcp__orchestrator__notify_user",
+    "mcp__orchestrator__ask_user",
+    "mcp__orchestrator__list_available_workers",
+    "mcp__orchestrator__create_worker",
+    "mcp__orchestrator__integrate_workers",
+    "mcp__orchestrator__current_datetime",
+    "mcp__orchestrator__get_worker_messages",
+    "mcp__orchestrator__search_memory",
+    "mcp__orchestrator__suggest_memory",
+    "mcp__orchestrator__browser_navigate",
+    "mcp__orchestrator__browser_snapshot",
+    "mcp__orchestrator__browser_find",
+    "mcp__orchestrator__browser_act",
+    "mcp__orchestrator__browser_type",
+    "mcp__orchestrator__browser_fill_form",
+    "mcp__orchestrator__browser_press",
+    "mcp__orchestrator__browser_scroll",
+    "mcp__orchestrator__browser_wait",
+    "mcp__orchestrator__browser_get",
+    "mcp__orchestrator__browser_screenshot",
+    "mcp__orchestrator__browser_tabs",
+    "mcp__orchestrator__browser_new_tab",
+    "mcp__orchestrator__browser_close_tab",
+    "mcp__orchestrator__browser_mute",
+    "mcp__orchestrator__browser_show",
+    "mcp__orchestrator__present",
+    "mcp__orchestrator__present_app",
+    "mcp__orchestrator__find_places",
+    "mcp__orchestrator__current_location",
+    "mcp__orchestrator__plugin_status",
+    "mcp__orchestrator__plugin_preview"
+   ]
+  },
+  {
+   "kind": "worker",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview"
+   ]
+  },
+  {
+   "kind": "worker",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.browser"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview"
+   ]
+  },
+  {
+   "kind": "worker",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview"
+   ]
+  },
+  {
+   "kind": "worker",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "eos.btw",
+    "eos.artifacts",
+    "eos.browser",
+    "eos.auto-name",
+    "eos.terminal",
+    "eos.archive"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview"
+   ]
+  },
+  {
+   "kind": "worker",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "user.thing"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview"
+   ]
+  },
+  {
+   "kind": "peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": false,
+   "pluginsOff": [],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer"
+   ]
+  },
+  {
+   "kind": "peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": false,
+   "pluginsOff": [
+    "eos.browser"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer"
+   ]
+  },
+  {
+   "kind": "peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer"
+   ]
+  },
+  {
+   "kind": "peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "eos.btw",
+    "eos.artifacts",
+    "eos.browser",
+    "eos.auto-name",
+    "eos.terminal",
+    "eos.archive"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer"
+   ]
+  },
+  {
+   "kind": "peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": false,
+   "pluginsOff": [
+    "eos.pages",
+    "user.thing"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer"
+   ]
+  },
+  {
+   "kind": "focused",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [
+    "eos.browser"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages",
+    "eos.btw",
+    "eos.artifacts",
+    "eos.browser",
+    "eos.auto-name",
+    "eos.terminal",
+    "eos.archive"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused",
+   "isOrchestrator": false,
+   "collaborate": false,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages",
+    "user.thing"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused-peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": true,
+   "pluginsOff": [],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused-peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": true,
+   "pluginsOff": [
+    "eos.browser"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__list_pages",
+    "mcp__worker__read_page",
+    "mcp__worker__create_page",
+    "mcp__worker__append_to_page",
+    "mcp__worker__edit_page",
+    "mcp__worker__set_page_task",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused-peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused-peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages",
+    "eos.btw",
+    "eos.artifacts",
+    "eos.browser",
+    "eos.auto-name",
+    "eos.terminal",
+    "eos.archive"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  },
+  {
+   "kind": "focused-peer",
+   "isOrchestrator": false,
+   "collaborate": true,
+   "focused": true,
+   "pluginsOff": [
+    "eos.pages",
+    "user.thing"
+   ],
+   "names": [
+    "mcp__worker__send_message_to_parent",
+    "mcp__worker__current_datetime",
+    "mcp__worker__search_memory",
+    "mcp__worker__suggest_memory",
+    "mcp__worker__browser_navigate",
+    "mcp__worker__browser_snapshot",
+    "mcp__worker__browser_find",
+    "mcp__worker__browser_act",
+    "mcp__worker__browser_type",
+    "mcp__worker__browser_fill_form",
+    "mcp__worker__browser_press",
+    "mcp__worker__browser_scroll",
+    "mcp__worker__browser_wait",
+    "mcp__worker__browser_get",
+    "mcp__worker__browser_screenshot",
+    "mcp__worker__browser_tabs",
+    "mcp__worker__browser_new_tab",
+    "mcp__worker__browser_close_tab",
+    "mcp__worker__browser_mute",
+    "mcp__worker__browser_show",
+    "mcp__worker__plugin_status",
+    "mcp__worker__plugin_preview",
+    "mcp__worker__list_peers",
+    "mcp__worker__ask_peer",
+    "mcp__worker__respond_to_peer",
+    "mcp__worker__send_to_machine",
+    "mcp__worker__present",
+    "mcp__worker__present_app",
+    "mcp__worker__find_places",
+    "mcp__worker__current_location"
+   ]
+  }
+ ]
+}

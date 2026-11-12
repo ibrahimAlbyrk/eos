@@ -16,6 +16,10 @@ use eos_runtime::http::{Body, Method, Request};
 use eos_testkit::{FakeClock, SeqIds, TempHome};
 use serde_json::{Value, json};
 
+fn fs_read(path: &std::path::Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+}
+
 async fn call(app: &App, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
     let caller = app.callers().classify(Some(app.callers().ui_token()));
     let mut request = Request::new(method, target, caller);
@@ -31,9 +35,15 @@ async fn call(app: &App, method: Method, target: &str, body: Option<Value>) -> (
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "starts a real engine against a scripted model API"]
 async fn a_focused_chat_turn_runs_from_the_route_to_the_stream() {
-    let mock = MockApi::start([Reply::text("hello from the scripted model"), Reply::text("and again")])
-        .await
-        .expect("the scripted model API");
+    // The second turn calls one of Eos's own tools, then answers.
+    let page = r#"{"title":"Smoke notes","body":"- [ ] check the tools"}"#;
+    let mock = MockApi::start([
+        Reply::text("hello from the scripted model"),
+        Reply::tool_use("toolu_page", "mcp__worker__create_page", page),
+        Reply::text("the page is made"),
+    ])
+    .await
+    .expect("the scripted model API");
     let home = TempHome::new();
     let project = tempfile::tempdir().expect("a folder");
     let claude_home = tempfile::tempdir().expect("a folder");
@@ -120,16 +130,52 @@ async fn a_focused_chat_turn_runs_from_the_route_to_the_stream() {
     assert!(sent["messages"].to_string().contains("say hello"));
     assert!(sent["tools"].as_array().is_some_and(|tools| tools.iter().any(|t| t["name"] == "AskUserQuestion")));
 
-    // A second turn through the message route, then the chat is removed.
+    // Eos's own tools reach the model under the names the prompts use. A
+    // focused chat runs with tool search: they are named, and found by search,
+    // instead of being sent with every request.
+    let offered: Vec<&str> =
+        sent["tools"].as_array().expect("tools").iter().filter_map(|t| t["name"].as_str()).collect();
+    assert!(offered.contains(&"ToolSearch") && !offered.contains(&"mcp__worker__create_page"), "{offered:?}");
+    // The one tool whose description is its manual is sent in full.
+    assert!(offered.contains(&"mcp__worker__present"), "{offered:?}");
+    assert!(sent["messages"].to_string().contains("mcp__worker__create_page"), "the tool is named to the model");
+
+    // A second turn through the message route: the model calls a page tool.
     let (status, sent) =
-        call(&app, Method::Post, &format!("/workers/{id}/message"), Some(json!({"text": "once more"}))).await;
+        call(&app, Method::Post, &format!("/workers/{id}/message"), Some(json!({"text": "make a page"}))).await;
     assert_eq!((status, sent), (200, json!({"ok": true})));
     let deadline = tokio::time::Instant::now() + Duration::from_secs(60);
     let mut more = String::new();
-    while !more.contains("and again") {
+    while !more.contains("the page is made") {
         let chunk = tokio::time::timeout_at(deadline, stream.next()).await.expect("the second turn answers in time");
         more.push_str(&String::from_utf8_lossy(&chunk.expect("the stream stays open").expect("a frame")));
     }
+    assert!(more.contains("pages:change"), "the page's change reached the stream: {more}");
+
+    // The page is on disk, in the chat's project and linked to the chat.
+    let (_, listed) = call(&app, Method::Get, "/api/pages?all=1", None).await;
+    let made = &listed["pages"][0];
+    assert_eq!((made["title"].as_str(), made["agentId"].as_str()), (Some("Smoke notes"), Some(id.as_str())));
+    let page_id = made["id"].as_str().expect("a page id");
+    let file = fs_read(&home.path().join(format!("pages/{page_id}.md")));
+    assert!(file.contains("Smoke notes") && file.contains("- [ ] check the tools"), "{file}");
+
+    // The tool's result is the row the chat shows and the model read.
+    let (_, rows) = call(&app, Method::Get, &format!("/workers/{id}/events?order=asc&limit=200"), None).await;
+    let result = rows
+        .as_array()
+        .expect("rows")
+        .iter()
+        .filter_map(|r| serde_json::from_str::<Value>(r["payload"].as_str().unwrap_or("null")).ok())
+        .flat_map(|payload| payload["blocks"].as_array().cloned().unwrap_or_default())
+        .find(|block| block["type"] == "tool_result" && block["callId"] == "toolu_page")
+        .expect("the tool's result row");
+    let expected = format!("{{\n  \"id\": \"{page_id}\",\n  \"title\": \"Smoke notes\",\n  \"rev\": 1\n}}");
+    assert!(result.to_string().contains(&json!(expected).to_string()), "{result}");
+    assert_ne!(result["isError"], true);
+    let fed_back = mock.requests().last().expect("the request after the tool ran").json();
+    assert!(fed_back["messages"].to_string().contains("Smoke notes"), "the model read the result");
+
     let (status, removed) = call(&app, Method::Delete, &format!("/workers/{id}"), None).await;
     assert_eq!((status, removed["removed"].as_bool()), (200, Some(true)));
     assert!(

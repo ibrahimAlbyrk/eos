@@ -37,7 +37,8 @@ pub use host::{
 pub use location::{LOCATION_WAIT_SECONDS, LocationFailure, LocationReading, parse_location, read_location};
 pub use paths::{DataPaths, USER_DATA_ENTRIES, create_private_dir, eos_home, expand_path, home_dir};
 pub use process::{
-    isolate_command, kill_process_tree, local_hour_minute, open_fd_count, process_alive, soft_fd_limit, user_id,
+    isolate_command, kill_process_tree, local_hour_minute, local_utc_offset_minutes, local_zone_name, open_fd_count,
+    process_alive, soft_fd_limit, user_id,
 };
 pub use shell::{PosixShell, shell_invocation};
 

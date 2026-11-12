@@ -42,9 +42,7 @@ use eos_update::legacy::{Launchctl, Launchd};
 use eos_workers::WorkerDefinitions;
 
 use crate::Error;
-use crate::agent::{
-    self, AgentOptions, AppHooks, AppPrompts, FixedCredential, Leftovers, NoLiveSessions, NoTools, NoUser,
-};
+use crate::agent::{self, AgentOptions, AppHooks, AppPrompts, FixedCredential, LateTools, Leftovers, NoLiveSessions};
 use crate::announce::BusAnnouncer;
 use crate::boot;
 use crate::callers::Callers;
@@ -290,6 +288,9 @@ impl App {
             clock: clock.clone(),
         });
         let hooks = Arc::new(AppHooks::new(kernel.bus.clone(), leftovers.clone()));
+        let questions =
+            eos_mod_questions::Questions::new(store.clone(), kernel.bus.clone(), clock.clone(), ids.clone());
+        let tools = Arc::new(LateTools::default());
         // The accounts feature picks each session's credential, unless the run names its own.
         let credentials: Arc<dyn SessionCredentials> = match &agents.credential {
             Some(fixed) => Arc::new(FixedCredential(Some(fixed.clone()))),
@@ -300,9 +301,9 @@ impl App {
             &agents,
             EngineDeps {
                 policy: policy.clone(),
-                tools: Arc::new(NoTools),
+                tools: tools.clone(),
                 credentials: credentials.clone(),
-                questions: Arc::new(NoUser),
+                questions: Arc::new(questions.clone()),
                 clock: clock.clone(),
             },
         );
@@ -344,6 +345,7 @@ impl App {
             backends: engine,
             sessions: sessions.clone(),
             projects: Arc::new(JsonProjects::open(paths.join("projects.json"), ids)),
+            questions,
             recents,
             accounts: accounts.clone(),
             plugins: plugins.clone(),
@@ -358,12 +360,13 @@ impl App {
             profile_prompt,
             prompts,
             templates,
+            tools,
             updates: updates.clone(),
             worker_definitions,
             scratch,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
         };
-        let runtime = Arc::new(Runtime::build(kernel, modules::all(&context), plugins.switch())?);
+        let runtime = Arc::new(Runtime::build(kernel, modules::all(&context)?, plugins.switch())?);
         hooks.attach(&runtime);
         // The commands features run themselves (`/compact`, …), beside the session service's own.
         for declared in &runtime.slash_commands {

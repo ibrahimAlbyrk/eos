@@ -1,10 +1,10 @@
 //! Agents in the app: the engine, the session service, and what joins them
 //! to the rest (prompts, the bus, the modules).
 //!
-//! Stand-ins, each replaced when its owner lands: Eos's own tools
-//! ([`NoTools`], until `eos-tools`) and the user's answers to a focused
-//! session's questions ([`NoUser`]). Credentials are the accounts feature's;
-//! [`FixedCredential`] is for a run that names its own (tests).
+//! Eos's own tools reach the engine through [`LateTools`]; the user's answers
+//! to an agent's questions are the questions feature's. Credentials are the
+//! accounts feature's; [`FixedCredential`] is for a run that names its own
+//! (tests).
 
 use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
@@ -12,13 +12,11 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
 use eos_contracts::stream::topics::{AGENT_DELTA, PENDING_CREATED};
-use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole, UnknownRecord};
+use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole};
 use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
-use eos_core::agent::{
-    HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets, UserQuestions,
-};
+use eos_core::agent::{HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets};
 use eos_core::git::WorktreeManager;
 use eos_core::prompt::ProfileRenderer;
 use eos_core::store::Store;
@@ -67,12 +65,21 @@ pub(crate) fn engine(dir: &Path, options: &AgentOptions, deps: EngineDeps) -> Ar
     Arc::new(LazyEngine::new(engine, deps))
 }
 
-/// No tool of Eos's own yet.
-pub(crate) struct NoTools;
+/// Eos's own tools. The engine is built before the features its tools
+/// call, so the registry is attached once they exist; a session started
+/// before that (none is) would get no tool of Eos's.
+#[derive(Default)]
+pub(crate) struct LateTools(OnceLock<Arc<dyn ToolSets>>);
 
-impl ToolSets for NoTools {
-    fn for_session(&self, _spec: &LaunchSpec) -> Vec<Arc<dyn HostTool>> {
-        Vec::new()
+impl LateTools {
+    pub(crate) fn attach(&self, tools: Arc<dyn ToolSets>) {
+        let _ = self.0.set(tools);
+    }
+}
+
+impl ToolSets for LateTools {
+    fn for_session(&self, spec: &LaunchSpec) -> Vec<Arc<dyn HostTool>> {
+        self.0.get().map(|tools| tools.for_session(spec)).unwrap_or_default()
     }
 }
 
@@ -105,20 +112,6 @@ impl SessionCredentials for FixedCredential {
 
     fn failed<'a>(&'a self, _worker_id: &'a str, _failure: &'a PlanFailure) -> BoxFuture<'a, PlanVerdict> {
         Box::pin(std::future::ready(PlanVerdict::Keep))
-    }
-}
-
-/// Nobody answers yet: the question is turned away and the agent goes on.
-pub(crate) struct NoUser;
-
-impl UserQuestions for NoUser {
-    fn ask<'a>(
-        &'a self,
-        _worker_id: &'a str,
-        _call_id: Option<&'a str>,
-        _questions: Vec<UnknownRecord>,
-    ) -> BoxFuture<'a, Option<UnknownRecord>> {
-        Box::pin(std::future::ready(None))
     }
 }
 
