@@ -16,14 +16,18 @@ eos-domain.workspace = true
 eos-genui.workspace = true
 eos-kit-sqlite.workspace = true
 eos-platform.workspace = true
+eos-relay.workspace = true
 eos-runtime.workspace = true
+flate2.workspace = true
+futures-util.workspace = true
 eos-store-sqlite.workspace = true
 indexmap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["io-util", "net", "rt", "sync", "time"] }
+tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
+tokio-tungstenite.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }

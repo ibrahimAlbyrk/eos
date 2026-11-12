@@ -53,6 +53,8 @@ pub const USER_DATA_ENTRIES: &[&str] = &[
     "peer",
     // The sync key, its index and kept conflicts.
     "sync",
+    // The phone link: this computer's room and the secret a paired phone joins with.
+    "remote",
     // Provider API keys on Windows (macOS keeps them in the Keychain).
     "secrets",
     "plugins",

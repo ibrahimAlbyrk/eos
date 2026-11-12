@@ -1,0 +1,641 @@
+{
+ "about": "server: frame → its JSON, its envelope, whether the framer deflates it for a device with cap deflate. client: a data payload → the frame the gateway takes, or null.",
+ "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+ "clientId": "000102030405060708090a0b0c0d0e0f",
+ "server": [
+  {
+   "frame": {
+    "t": "ka",
+    "ts": 1731400000000
+   },
+   "jsonBytes": 29,
+   "jsonSha256": "0cc8498b72b60f72221b259f89ad9c724d2a250f68379b7dcedfd5b30843ef24",
+   "json": "{\"t\":\"ka\",\"ts\":1731400000000}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226b61222c227473223a313733313430303030303030307d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "event",
+    "seq": 3,
+    "reason": "worker:change",
+    "ts": 1731400000001,
+    "payload": {
+     "workerId": "w-1",
+     "state": "IDLE"
+    }
+   },
+   "jsonBytes": 109,
+   "jsonSha256": "1df24b0af70f908454b0c96727e3c231f38e6f8e47848e36f968a235002aa87a",
+   "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"worker:change\",\"ts\":1731400000001,\"payload\":{\"workerId\":\"w-1\",\"state\":\"IDLE\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226576656e74222c22736571223a332c22726561736f6e223a22776f726b65723a6368616e6765222c227473223a313733313430303030303030312c227061796c6f6164223a7b22776f726b65724964223a22772d31222c227374617465223a2249444c45227d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "event",
+    "seq": 3,
+    "reason": "agent:delta",
+    "ts": 1731400000002,
+    "payload": {
+     "workerId": "w-1",
+     "blockId": "b1",
+     "channel": "text",
+     "phase": "append",
+     "text": "héllo   😀"
+    }
+   },
+   "jsonBytes": 166,
+   "jsonSha256": "53ca18a13f47d855ef8ff0580aa7c41ebdeda3bfbca5a58f85c498bedc93c9a3",
+   "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"agent:delta\",\"ts\":1731400000002,\"payload\":{\"workerId\":\"w-1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\"héllo   😀\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226576656e74222c22736571223a332c22726561736f6e223a226167656e743a64656c7461222c227473223a313733313430303030303030322c227061796c6f6164223a7b22776f726b65724964223a22772d31222c22626c6f636b4964223a226231222c226368616e6e656c223a2274657874222c227068617365223a22617070656e64222c2274657874223a2268c3a96c6c6f20e280a820f09f9880227d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "patch",
+    "seq": 4,
+    "resource": "workers",
+    "op": "upsert",
+    "data": {
+     "id": "w-1",
+     "name": "A",
+     "cost": 0.25,
+     "n": 12
+    }
+   },
+   "jsonBytes": 106,
+   "jsonSha256": "b38d818860f3ac310e5c0ca0fbf435e689ea2defc7669f366fa044a6ad28db4b",
+   "json": "{\"t\":\"patch\",\"seq\":4,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w-1\",\"name\":\"A\",\"cost\":0.25,\"n\":12}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227061746368222c22736571223a342c227265736f75726365223a22776f726b657273222c226f70223a22757073657274222c2264617461223a7b226964223a22772d31222c226e616d65223a2241222c22636f7374223a302e32352c226e223a31327d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "patch",
+    "seq": 5,
+    "resource": "pending",
+    "op": "remove",
+    "data": {
+     "id": "p-1"
+    }
+   },
+   "jsonBytes": 76,
+   "jsonSha256": "693ed92e518288335d3707e44b3e16722a3c268068a8b3c17a06a6f0e4026cc1",
+   "json": "{\"t\":\"patch\",\"seq\":5,\"resource\":\"pending\",\"op\":\"remove\",\"data\":{\"id\":\"p-1\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227061746368222c22736571223a352c227265736f75726365223a2270656e64696e67222c226f70223a2272656d6f7665222c2264617461223a7b226964223a22702d31227d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "snapshot",
+    "seq": 5,
+    "epoch": "00aa11bb22cc33dd",
+    "workers": [],
+    "pending": [],
+    "live": [],
+    "caps": [
+     "focus",
+     "rows",
+     "deflate"
+    ]
+   },
+   "jsonBytes": 121,
+   "jsonSha256": "07a206fd960fb823261a4d7cfe03ec020205fc53caa5161c7345df003705bf16",
+   "json": "{\"t\":\"snapshot\",\"seq\":5,\"epoch\":\"00aa11bb22cc33dd\",\"workers\":[],\"pending\":[],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"]}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a22736e617073686f74222c22736571223a352c2265706f6368223a2230306161313162623232636333336464222c22776f726b657273223a5b5d2c2270656e64696e67223a5b5d2c226c697665223a5b5d2c2263617073223a5b22666f637573222c22726f7773222c226465666c617465225d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "snapshot",
+    "seq": 9,
+    "epoch": "00aa11bb22cc33dd",
+    "workers": [
+     {
+      "id": "w-1"
+     }
+    ],
+    "pending": [
+     {
+      "id": "p-1"
+     }
+    ],
+    "live": [
+     {
+      "workerId": "w-1",
+      "blockId": "b1",
+      "channel": "text",
+      "text": "so far"
+     },
+     {
+      "workerId": "w-1",
+      "blockId": "b0",
+      "channel": "reasoning",
+      "text": "",
+      "done": true
+     }
+    ],
+    "caps": [
+     "focus",
+     "rows",
+     "deflate"
+    ],
+    "ptys": [
+     {
+      "id": "pty-1"
+     }
+    ],
+    "uiConfig": {
+     "features": {
+      "remote": true
+     }
+    }
+   },
+   "jsonBytes": 353,
+   "jsonSha256": "39ee6743785776b37946f21bb7ace2aa846a86cf170ea0d8a01c00e2e9207be4",
+   "json": "{\"t\":\"snapshot\",\"seq\":9,\"epoch\":\"00aa11bb22cc33dd\",\"workers\":[{\"id\":\"w-1\"}],\"pending\":[{\"id\":\"p-1\"}],\"live\":[{\"workerId\":\"w-1\",\"blockId\":\"b1\",\"channel\":\"text\",\"text\":\"so far\"},{\"workerId\":\"w-1\",\"blockId\":\"b0\",\"channel\":\"reasoning\",\"text\":\"\",\"done\":true}],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"id\":\"pty-1\"}],\"uiConfig\":{\"features\":{\"remote\":true}}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a22736e617073686f74222c22736571223a392c2265706f6368223a2230306161313162623232636333336464222c22776f726b657273223a5b7b226964223a22772d31227d5d2c2270656e64696e67223a5b7b226964223a22702d31227d5d2c226c697665223a5b7b22776f726b65724964223a22772d31222c22626c6f636b4964223a226231222c226368616e6e656c223a2274657874222c2274657874223a22736f20666172227d2c7b22776f726b65724964223a22772d31222c22626c6f636b4964223a226230222c226368616e6e656c223a22726561736f6e696e67222c2274657874223a22222c22646f6e65223a747275657d5d2c2263617073223a5b22666f637573222c22726f7773222c226465666c617465225d2c2270747973223a5b7b226964223a227074792d31227d5d2c227569436f6e666967223a7b226665617475726573223a7b2272656d6f7465223a747275657d7d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "rows",
+    "seq": 9,
+    "workerId": "w-1",
+    "rows": [
+     {
+      "id": 12,
+      "type": "assistant",
+      "payload": "{\"text\":\"hi\"}"
+     }
+    ]
+   },
+   "jsonBytes": 105,
+   "jsonSha256": "e76aa736c220bb7721e273cfea3b76aed5fd2d35af7a683cedaf6e404b3aad22",
+   "json": "{\"t\":\"rows\",\"seq\":9,\"workerId\":\"w-1\",\"rows\":[{\"id\":12,\"type\":\"assistant\",\"payload\":\"{\\\"text\\\":\\\"hi\\\"}\"}]}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a22726f7773222c22736571223a392c22776f726b65724964223a22772d31222c22726f7773223a5b7b226964223a31322c2274797065223a22617373697374616e74222c227061796c6f6164223a227b5c22746578745c223a5c2268695c227d227d5d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "rows",
+    "seq": 9,
+    "workerId": "w-1",
+    "rows": [],
+    "live": [
+     {
+      "workerId": "w-1",
+      "blockId": "b1",
+      "channel": "text",
+      "text": "so far"
+     }
+    ]
+   },
+   "jsonBytes": 123,
+   "jsonSha256": "743b20cdfffe414a624a5aad8aec4150e8d579268341290f9597756638d49455",
+   "json": "{\"t\":\"rows\",\"seq\":9,\"workerId\":\"w-1\",\"rows\":[],\"live\":[{\"workerId\":\"w-1\",\"blockId\":\"b1\",\"channel\":\"text\",\"text\":\"so far\"}]}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a22726f7773222c22736571223a392c22776f726b65724964223a22772d31222c22726f7773223a5b5d2c226c697665223a5b7b22776f726b65724964223a22772d31222c22626c6f636b4964223a226231222c226368616e6e656c223a2274657874222c2274657874223a22736f20666172227d5d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "ok": true
+    }
+   },
+   "jsonBytes": 100,
+   "jsonSha256": "c80c4f2003ef38064bc6fcb097c2cd732fcf1a777f5bef6516951e5e40dfb870",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":{\"ok\":true}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a7b226f6b223a747275657d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 404,
+    "body": {
+     "error": "not found",
+     "path": "/nope"
+    }
+   },
+   "jsonBytes": 125,
+   "jsonSha256": "c08b15a7c6dd8acdd9f64e80ea6eae95077c1c59ba04beb495f66140a521e29f",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":404,\"body\":{\"error\":\"not found\",\"path\":\"/nope\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3430342c22626f6479223a7b226572726f72223a226e6f7420666f756e64222c2270617468223a222f6e6f7065227d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": "plain text"
+   },
+   "jsonBytes": 101,
+   "jsonSha256": "143aa8e30276726796a7fd3ad4c0a82b477db79538186546fc2bfb2c15954143",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":\"plain text\"}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a22706c61696e2074657874227d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": []
+   },
+   "jsonBytes": 91,
+   "jsonSha256": "71f7f631c2c676eded8bc4940c46a7c7b4ce970e3b59a3b4016a36390c24703c",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":[]}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a5b5d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "asset",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "mime": "image/png",
+    "bytesB64": "iVBORwD/"
+   },
+   "jsonBytes": 122,
+   "jsonSha256": "00f9172e5beb2763fd6911508220d470baddde26df535e51cd5e38f224a8eaaf",
+   "json": "{\"t\":\"asset\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"mime\":\"image/png\",\"bytesB64\":\"iVBORwD/\"}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226173736574222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c226d696d65223a22696d6167652f706e67222c226279746573423634223a226956424f5277442f227d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "error",
+    "code": "ROUTE_REFUSED",
+    "message": "route not exposed remotely",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41"
+   },
+   "jsonBytes": 130,
+   "jsonSha256": "ad928a91b9f21aa4730664a0dc417b70de1a68185b34454d75c9217cc46169d5",
+   "json": "{\"t\":\"error\",\"code\":\"ROUTE_REFUSED\",\"message\":\"route not exposed remotely\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\"}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226572726f72222c22636f6465223a22524f5554455f52454655534544222c226d657373616765223a22726f757465206e6f74206578706f7365642072656d6f74656c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431227d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "error",
+    "code": "FRAME_TOO_LARGE",
+    "message": "asset exceeds relay envelope limit",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41"
+   },
+   "jsonBytes": 140,
+   "jsonSha256": "e4dfde64afb3b300ccaac86955477f48cfccc5ddb055fe8a5d1205123c467942",
+   "json": "{\"t\":\"error\",\"code\":\"FRAME_TOO_LARGE\",\"message\":\"asset exceeds relay envelope limit\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\"}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a226572726f72222c22636f6465223a224652414d455f544f4f5f4c41524745222c226d657373616765223a22617373657420657863656564732072656c617920656e76656c6f7065206c696d6974222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431227d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$lorem:411"
+    }
+   },
+   "jsonBytes": 511,
+   "jsonSha256": "455719d13709c688fd3c26435f9f7f6ec85198a7129c19faf2c12540b7536bf7",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":{\"text\":\"lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem \"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a7b2274657874223a226c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20227d7d",
+   "compressed": false
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$lorem:412"
+    }
+   },
+   "jsonBytes": 512,
+   "jsonSha256": "00ddf83e399b073ac6d5c3eb9da2120274eac87b7c39def30de58ff571c86f3f",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":{\"text\":\"lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem i\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a7b2274657874223a226c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d2069227d7d",
+   "compressed": true,
+   "packed": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f01ed8c5b0ac3201045b722f31d41ad6d1377d065f81841d01a740209217baf5d457ffa79eee19e13080c345cf30113f8da1a664ba9be5f61ecb7a8dcec25f22568cb757c383e5be9b9c07b78c6c529abe5b875b2b475304a88095c0d07981308f76f3ad78685a5b56f85853a88f544cc1624f6573f56705d1f"
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$lorem:2000"
+    }
+   },
+   "jsonBytes": 2100,
+   "jsonSha256": "d9e487eae9a90b8e27dfc5a011d0dff7fb3ce74430a55bac3875f93de0225a06",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":{\"text\":\"lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolor sit amet lo\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a7b2274657874223a226c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f72656d20697073756d20646f6c6f722073697420616d6574206c6f227d7d",
+   "compressed": true,
+   "packed": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f01edcc510ac3201004d0abc87e4788366d93dca0c758750301ad4137d01072f7da6314f673e6317302c30c85b67840073e97421179cdef5768fd6db16ef486f41406d4c3f2707a44e3754ff7f05c266771306d561979af30dbbeefc0e570c07c02d3e7771d73a1a4d6adee4985dc92aa2b2b4cc44a484848484848e84f08aeeb0b"
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$noise:700"
+    }
+   },
+   "jsonBytes": 800,
+   "jsonSha256": "aba1e66f2027978260f4dd45e82cdd1579958731cfa2c8011ecb8b8618dfd0ed",
+   "json": "{\"t\":\"reply\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"status\":200,\"body\":{\"text\":\"mhkcnt1q7a4ouybupfef4j3p1rveujj1x8khmf1fncogg1y6zjy71attt891ebhdx47d1er21x45j90ugh7mbjr1mws3ctghkiu18bj40k5u2wrtvq643qwzh1w89ef310usm2n19ua50exrhn88t3teq1dvtmakdr0mrt1m1pyi2ma7nv21x6k0yp1xrbtro1bwtvvq10ko5ui1gjbw4r1sjspj51y9qg93k5pkl67xalj2nqmlq61e02wfi14w2hgf7krxjxsi5j778fdd7ty94vxw1j4ca5y1rqt7qd1tfgwfx1yk6mjqysjcgr1mpnhx017z6k7iq2v3lp5ooarhkbmyis1hqnllby5dnxk1umyiyftnpgbp5rjr55160m6d4tj08t0186nb8814vsqi61fqvn40fa3qkz1fks8gf125h90i1dj6wocljfdtc1f2y94b1dwz2ng1umd6t9112r7ijsvq7xz1uc666fblxtj41bcp7d31bdk4dnz2crxy1ds277l11trxtxl7z927vx2fwbqchi3k1dm5pxg1vjoyw4hlkb5yoq3h08fg4ljv1538d4c1683x8118s7f55hdvpy4slcwspw9qj9r28w9o8i010b1lei39o16g5tylqezlct5cv8waq76mxtb7oiwt1ft04zmabin4t1mdjk7g8hlece1yvy5r\"}}",
+   "plain": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f7b2274223a227265706c79222c22636f7272656c6174696f6e4964223a2233663262386331652d396434612d346636622d386131632d306535643766396232613431222c22737461747573223a3230302c22626f6479223a7b2274657874223a226d686b636e7431713761346f7579627570666566346a337031727665756a6a3178386b686d6631666e636f67673179367a6a79373161747474383931656268647834376431657232317834356a3930756768376d626a72316d777333637467686b69753138626a34306b357532777274767136343371777a6831773839656633313075736d326e313975613530657872686e38387433746571316476746d616b6472306d7274316d31707969326d61376e76323178366b3079703178726274726f3162777476767131306b6f35756931676a6277347231736a73706a35317939716739336b35706b6c363778616c6a326e716d6c71363165303277666931347732686766376b72786a787369356a3737386664643774793934767877316a3463613579317271743771643174666777667831796b366d6a7179736a636772316d706e68783031377a366b3769713276336c70356f6f6172686b626d7969733168716e6c6c627935646e786b31756d79697966746e7067627035726a7235353136306d366434746a303874303138366e62383831347673716936316671766e3430666133716b7a31666b733867663132356839306931646a36776f636c6a66647463316632793934623164777a326e6731756d643674393131327237696a73767137787a31756336363666626c78746a34316263703764333162646b34646e7a32637278793164733237376c313174727874786c377a39323776783266776271636869336b31646d3570786731766a6f797734686c6b6235796f71336830386667346c6a76313533386434633136383378383131387337663535686476707934736c637773707739716a3972323877396f386930313062316c656933396f3136673574796c71657a6c63743563763877617137366d787462376f69777431667430347a6d6162696e3474316d646a6b376738686c656365317976793572227d7d",
+   "compressed": true,
+   "packed": "010101000000000000000000305a6d3976596d4679596d4636635856345a6d3976596d4679596d4636635856345a6d3976596d4679596d463663585634000102030405060708090a0b0c0d0e0f011592598ea5301443f7c27797941b32513be865900948c290103250aabdf7eb5f4bf6b125ff0c79f81e92b9421ffe0cea4cc984396fe7f1577ff4d162291498af4993f98b5826bfc40cea0b19aab99d249e097c6c779ef3730fdf18a13f833c751fbe7f866cdaffe87df5eac810f94ccea7cbe7b2c612375e908a799c8326fcba5bb0873a97053a7b5de730e79cc50446aeba11aec1240c8d5037a16759f92e5d82bddea3cacbeab70784740479fae09a72898c8cb1be2b5431193b027aee1d1f303d3345a6a5f510228fd944d025efb3d709ed29c30e57dff03ef3a37c50cca37e414b32a71364cda54440fea4cf068b939524b8dd7d390a7d8acb347a7af9c0789b83c347dc43646010ae760352f1ba58ee5373eddea8e35c58ad79ee1329ad82236aa61d52cc3c6ac876a9b641f76c77b1df4e2d9f99d7b13604fc659e6f1197315cf43ce7b47ab9f7ed86351e21c84ef5d13c3c1fa9db7c5c8bbc687289526068679a6487444620d821850052eeb831b0b11c04d9798cfe05eb6fb158c0749dd006dab17aaae0acce0a2cfeb495a0eb8b8fe5c3d02c4f0038f1cddd25f2f6c2a318635686961d01a92eae4790da137dbc58a5d641df98f3009053cb2df077c2bc346cab8c6add460f7aa7575ba0b8b357b2062f693fe3b8226117125c013a0a4d1430313601206e6e295d75b93ab983aaf755a7e8a684459d4eb121401282d9c6e904b6d0dc43346f5099aa22ea1c39db5b96fcdc6a069b1179f7596e07f95c403bcf17b106a30cf4d2691a7e7fff01"
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$lorem:262044"
+    }
+   },
+   "jsonBytes": 262144,
+   "jsonSha256": "d4d12c991e3e2626824671e2adeccb11fb4bbf6d068a10ff71ed1181a817fe50",
+   "compressed": true
+  },
+  {
+   "frame": {
+    "t": "reply",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "status": 200,
+    "body": {
+     "text": "$lorem:262045"
+    }
+   },
+   "jsonBytes": 262145,
+   "jsonSha256": "3375a43a905874eee1c488dbccb761b9e2480c653a6e050c4650ecbbbd97e7f8",
+   "compressed": false
+  }
+ ],
+ "client": [
+  {
+   "payload": "{\"t\":\"ka\",\"ts\":0}",
+   "frame": {
+    "t": "ka",
+    "ts": 0
+   }
+  },
+  {
+   "payload": "{\"t\":\"ka\",\"ts\":1731400000000}",
+   "frame": {
+    "t": "ka",
+    "ts": 1731400000000
+   }
+  },
+  {
+   "payload": "{\"t\":\"ka\",\"ts\":1.5}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"ka\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"hello\"}",
+   "frame": {
+    "t": "hello"
+   }
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"lastContentId\":12,\"caps\":[\"focus\",\"rows\",\"deflate\"]}",
+   "frame": {
+    "t": "hello",
+    "lastContentId": 12,
+    "caps": [
+     "focus",
+     "rows",
+     "deflate"
+    ]
+   }
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"lastContentId\":null}",
+   "frame": {
+    "t": "hello",
+    "lastContentId": null
+   }
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"lastContentId\":-1}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"caps\":[\"a\",\"b\",\"c\",\"d\",\"e\",\"f\",\"g\",\"h\",\"i\",\"j\",\"k\",\"l\",\"m\",\"n\",\"o\",\"p\",\"q\"]}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"caps\":[1]}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"hello\",\"extra\":true}",
+   "frame": {
+    "t": "hello"
+   }
+  },
+  {
+   "payload": "{\"t\":\"sub\",\"pty\":[]}",
+   "frame": {
+    "t": "sub",
+    "pty": []
+   }
+  },
+  {
+   "payload": "{\"t\":\"sub\",\"pty\":[\"pty-1\",\"pty-2\"]}",
+   "frame": {
+    "t": "sub",
+    "pty": [
+     "pty-1",
+     "pty-2"
+    ]
+   }
+  },
+  {
+   "payload": "{\"t\":\"sub\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"sub\",\"pty\":[\"p0\",\"p1\",\"p2\",\"p3\",\"p4\",\"p5\",\"p6\",\"p7\",\"p8\",\"p9\",\"p10\",\"p11\",\"p12\",\"p13\",\"p14\",\"p15\",\"p16\",\"p17\",\"p18\",\"p19\",\"p20\",\"p21\",\"p22\",\"p23\",\"p24\",\"p25\",\"p26\",\"p27\",\"p28\",\"p29\",\"p30\",\"p31\",\"p32\"]}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":true}",
+   "frame": {
+    "t": "focus",
+    "active": true
+   }
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":true,\"worker\":\"w-1\",\"afterId\":40,\"pty\":null}",
+   "frame": {
+    "t": "focus",
+    "active": true,
+    "worker": "w-1",
+    "afterId": 40,
+    "pty": null
+   }
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":false,\"worker\":null}",
+   "frame": {
+    "t": "focus",
+    "active": false,
+    "worker": null
+   }
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":\"yes\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":true,\"afterId\":-2}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"focus\",\"active\":true,\"afterId\":1.5}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"method\":\"GET\",\"path\":\"/workers\"}",
+   "frame": {
+    "t": "control",
+    "correlationId": "3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41",
+    "method": "GET",
+    "path": "/workers"
+   }
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3F2B8C1E-9D4A-4F6B-8A1C-0E5D7F9B2A41\",\"method\":\"POST\",\"path\":\"/workers/w-1/message\",\"body\":\"{\\\"text\\\":\\\"hi\\\"}\"}",
+   "frame": {
+    "t": "control",
+    "correlationId": "3F2B8C1E-9D4A-4F6B-8A1C-0E5D7F9B2A41",
+    "method": "POST",
+    "path": "/workers/w-1/message",
+    "body": "{\"text\":\"hi\"}"
+   }
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"not-a-uuid\",\"method\":\"GET\",\"path\":\"/workers\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"method\":\"PATCH\",\"path\":\"/workers\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"method\":\"get\",\"path\":\"/workers\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"method\":\"GET\"}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"control\",\"correlationId\":\"3f2b8c1e-9d4a-4f6b-8a1c-0e5d7f9b2a41\",\"method\":\"GET\",\"path\":\"/workers\",\"body\":{}}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"snapshot\",\"seq\":1,\"workers\":[],\"pending\":[]}",
+   "frame": null
+  },
+  {
+   "payload": "{\"t\":\"nope\"}",
+   "frame": null
+  },
+  {
+   "payload": "{}",
+   "frame": null
+  },
+  {
+   "payload": "[]",
+   "frame": null
+  },
+  {
+   "payload": "null",
+   "frame": null
+  },
+  {
+   "payload": "\"hello\"",
+   "frame": null
+  },
+  {
+   "payload": "not json",
+   "frame": null
+  },
+  {
+   "payload": "",
+   "frame": null
+  }
+ ],
+ "pairing": [
+  {
+   "args": {
+    "now": 1731400000000,
+    "relayUrl": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "bearer": "YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM"
+   },
+   "qr": {
+    "v": 3,
+    "typ": "eos-pair",
+    "relay": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "bearer": "YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM",
+    "exp": 1731400120
+   },
+   "json": "{\"v\":3,\"typ\":\"eos-pair\",\"relay\":\"wss://relay.example.test/\",\"room\":\"Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4\",\"bearer\":\"YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM\",\"exp\":1731400120}"
+  },
+  {
+   "args": {
+    "now": 1731400000999,
+    "relayUrl": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "bearer": "YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM",
+    "ttlMs": 30500
+   },
+   "qr": {
+    "v": 3,
+    "typ": "eos-pair",
+    "relay": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "bearer": "YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM",
+    "exp": 1731400031
+   },
+   "json": "{\"v\":3,\"typ\":\"eos-pair\",\"relay\":\"wss://relay.example.test/\",\"room\":\"Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4\",\"bearer\":\"YmVhcmVyLXNlY3JldC1iZWFyZXItc2VjcmV0LWJlYXJlci1zZWM\",\"exp\":1731400031}"
+  },
+  {
+   "args": {
+    "now": 1731400000000,
+    "relayUrl": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "bearer": null
+   },
+   "qr": {
+    "v": 3,
+    "typ": "eos-pair",
+    "relay": "wss://relay.example.test/",
+    "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+    "exp": 1731400120
+   },
+   "json": "{\"v\":3,\"typ\":\"eos-pair\",\"relay\":\"wss://relay.example.test/\",\"room\":\"Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4\",\"exp\":1731400120}"
+  }
+ ]
+}

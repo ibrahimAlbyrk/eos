@@ -138,7 +138,8 @@ the why is not obvious; docs describe current behaviour. `scripts/check.sh` gree
 | `manager/tools` | `eos-tools` |
 | `manager/container.ts`, `manager/daemon.ts` | `eos-app` |
 | `manager/backends/sdk` | `eos-engine` |
-| `manager/peer`, `manager/remote` | `eos-peer`, `eos-relay` + their feature crates |
+| `manager/peer` | `eos-peer` + its feature crate |
+| `manager/remote` | `eos-relay` (the envelope, the connection to a relay room), `eos-mod-remote` (the phone gateway, Settings › Remote); the row patcher is `eos_runtime::patches` |
 | `app/src` (Electron main, preload) | `eos-shell` |
 
 Not ported: `gateway/`, `spawner/`, the stdio MCP servers, the launchd agent, the runtime CLI,

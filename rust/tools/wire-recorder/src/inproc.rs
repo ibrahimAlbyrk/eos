@@ -28,6 +28,7 @@ const STREAM_QUIET: Duration = Duration::from_millis(300);
 pub struct RustTarget {
     app: Arc<App>,
     runtime: Arc<tokio::runtime::Runtime>,
+    as_phone: bool,
 }
 
 impl std::fmt::Debug for RustTarget {
@@ -45,7 +46,16 @@ impl RustTarget {
         runtime.block_on(app.start()).context("starting the app")?;
         // What start-up left for later (plugin folders are read then) is done before the first step.
         runtime.block_on(app.runtime().lifecycle.deferred_done());
-        Ok(Self { app: Arc::new(app), runtime: Arc::new(runtime) })
+        Ok(Self { app: Arc::new(app), runtime: Arc::new(runtime), as_phone: false })
+    }
+
+    /// The dashboard's requests to routes the phone may call are made as the
+    /// phone instead — the caller the phone gateway gives them. The recorded
+    /// answers hold for it too: today the gateway dispatches into the same
+    /// handlers, adding the user's token where the route's rule says so.
+    pub fn as_phone(mut self, as_phone: bool) -> Self {
+        self.as_phone = as_phone;
+        self
     }
 
     /// Stops the app and saves what it still has to write.
@@ -62,6 +72,13 @@ impl RustTarget {
         let caller = match request.via {
             Via::Raw => eos_runtime::access::Caller::UNTRUSTED,
             _ => self.app.callers().classify(token.map(|(_, value)| value.as_str())),
+        };
+        let phone_rule = || self.app.router().access_of(method, &request.target).and_then(|access| access.phone);
+        let caller = match caller {
+            eos_runtime::access::Caller::DASHBOARD if self.as_phone && phone_rule().is_some() => {
+                eos_runtime::access::Caller::Phone { grant: eos_runtime::access::Tier::High, mutate: true }
+            }
+            other => other,
         };
         let mut core = CoreRequest::new(method, &request.target, caller);
         for (name, value) in &request.headers {

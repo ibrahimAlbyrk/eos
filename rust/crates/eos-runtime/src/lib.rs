@@ -13,6 +13,7 @@ pub mod lifecycle;
 pub mod live_text;
 pub mod module;
 pub mod ordered;
+pub mod patches;
 pub mod router;
 pub mod runtime;
 pub mod stream;

@@ -22,6 +22,7 @@ mod host;
 mod machines;
 mod modules;
 mod notes;
+mod patches;
 mod plugins;
 mod terminals;
 mod tools;
@@ -30,6 +31,13 @@ mod updates;
 pub use agent::AgentOptions;
 pub use app::{App, Options};
 pub use callers::Callers;
+
+/// How the installed app reaches the phone link's relay: a WebSocket it
+/// dials out, redialled when it drops and at once after the computer wakes.
+/// Hand it to [`Options::relay`]; an app built without it never dials.
+pub fn relay() -> std::sync::Arc<dyn eos_core::net::relay::Relay> {
+    std::sync::Arc::new(eos_relay::RelayClient::new(std::sync::Arc::new(eos_core::SystemClock)))
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

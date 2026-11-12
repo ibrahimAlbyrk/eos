@@ -67,6 +67,8 @@ The tool builds the composed app (`eos-app`) on the data folder and calls its ro
   alone with `--only` to judge it strictly;
 - generated ids are renumbered per side (`<worker:3>` → by first sight among the compared steps),
   because a side that skips steps meets the ids in another order;
+- `--as-phone` asks every route the phone may call as the phone (the caller the phone gateway
+  gives a control): the recordings must hold for it as they hold for the dashboard;
 - `--redact` (always on with `--private`) prints where two answers differ and what kind of value
   sits there, never the values.
 
@@ -198,7 +200,7 @@ it unchanged.
 
 ## Vectors from the TypeScript
 
-Besides the recorded wire, four corpora hold what today's TypeScript computes for inputs no
+Besides the recorded wire, these corpora hold what today's TypeScript computes for inputs no
 route shows. Each is written by a Node script that imports the TypeScript sources directly
 (Node ≥ 23.6; `npm ci` in `contracts/`, `core/`, `infra/`), and each has `--check` to say
 whether the committed corpus is still what the sources produce.
@@ -209,4 +211,5 @@ whether the committed corpus is still what the sources produce.
 | `workers/` | `tools/workers-vectors/generate.mjs` | `eos-workers` (resolution, `extends`, defaults, the catalog), the definition-file reader, model tiers |
 | `prompts/` | `tools/prompt-vectors/generate.mjs` | `eos-prompts` and the shipped library (every prompt read and rendered, 641 assembled system prompts byte for byte) |
 | `genui-media/` | `tools/genui-media-vectors/generate.mjs` | `eos-genui-media` (what a page names as its preview image and icons, image sniffing, cache keys and files, the map proxy's paths and rewritten documents, Nominatim requests and answers, Overpass queries, elements as `Place` entities, distances) |
+| `relay/` | `tools/relay-vectors/generate.mjs` (needs `npm ci` in `contracts/` only) | `eos-relay` (the relay envelope and the relay's own messages, byte for byte, from both TypeScript codecs), `eos-mod-remote` (the phone's inner frames as the framer writes them, which client payloads the gateway takes, the pairing code, and whole sessions against the TypeScript gateway, bridge, patcher and live text: every frame each phone received) |
 | `tools/` | `tools/tools-vectors/generate.mjs` (`npm install` in that folder only) | `eos-tools`: the tool list of each kind of session with built-in plugins on and off, every input schema, 913 inputs through the MCP server the tools were registered on (what the handler gets, or the refusal the model reads), 100 handler runs over scripted answers (the result text), the date and time |

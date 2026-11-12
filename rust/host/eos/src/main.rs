@@ -88,6 +88,8 @@ impl Eos {
         let mut options = eos_app::Options {
             resources: bundled_resources(),
             sweep_leftovers: *home == crate::home().join(".eos"),
+            // The phone link dials its relay only from the real app.
+            relay: Some(eos_app::relay()),
             ..eos_app::Options::new(home)
         };
         // Restarting into an update: leave the applier what it needs, start it, quit.

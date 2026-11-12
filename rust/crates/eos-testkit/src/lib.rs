@@ -21,6 +21,9 @@
 //! - [`FakeTerminals`], [`FakeShellCommands`], [`FakeTranscripts`], [`FakeClaudeProgram`], [`FakeClaudeEnv`]:
 //!   the terminal ports — terminals and commands the test speaks for.
 //!
+//! - [`relay`]: the phone link's other ends — a relay on a loopback port, a phone that speaks the
+//!   released app's protocol, a relay room held in memory.
+//!
 //! A port's fake lives in `fakes`, named `Fake<Port>` ([`FakeModelCatalog`],
 //! [`FakePolicy`], [`FakeCredentials`], [`FakeToolSets`], [`FakeUser`]); [`ScriptedOneShot`] answers
 //! one-shot model requests from a script;
@@ -50,6 +53,7 @@ mod ids;
 pub mod plugins;
 mod policy;
 mod profile;
+pub mod relay;
 mod terminal;
 mod tools;
 pub mod update;

@@ -10,7 +10,7 @@
 //! | [`accounts`] | sign-ins, API keys, plan usage, a session's credential |
 //! | [`agent`] | the agent engine: sessions, models, usage |
 //! | [`git`] | the `git` program: status, branches, worktrees |
-//! | [`net`] | other computers: sync vault, updates, artifacts, media |
+//! | [`net`] | other computers: sync vault, updates, artifacts, media, the relay |
 //! | [`os`] | files, watchers, processes, the system clock's time zone |
 //! | [`plugin`] | plugin folders, their builder, their data, where installs come from |
 //! | [`policy`] | permission decisions and tool scope |

@@ -119,3 +119,24 @@ impl TimeZone for HostTimeZone {
         eos_platform::local_utc_offset_minutes(epoch_ms).unwrap_or(0)
     }
 }
+
+/// Keeps this computer out of system sleep for as long as the hold lives,
+/// and never past this process's own life.
+#[derive(Debug)]
+pub(crate) struct HostKeepAwake;
+
+struct Hold(#[allow(dead_code)] eos_platform::KeepAwake);
+
+impl eos_core::os::AwakeHold for Hold {}
+
+impl eos_core::os::KeepAwake for HostKeepAwake {
+    fn hold(&self) -> Option<Box<dyn eos_core::os::AwakeHold>> {
+        match eos_platform::host().keep_awake(std::process::id()) {
+            Ok(hold) => Some(Box::new(Hold(hold))),
+            Err(error) => {
+                tracing::info!(%error, "this computer cannot be kept awake");
+                None
+            }
+        }
+    }
+}

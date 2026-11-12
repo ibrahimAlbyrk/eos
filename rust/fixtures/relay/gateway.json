@@ -1,0 +1,2202 @@
+{
+ "about": "Sessions against the TypeScript gateway. A step is join/leave (a device), phone (a frame it sends; raw = bytes that are not a frame), publish (a bus event), route (a new answer); hold = the next step follows in the same burst. frames: what each device received before the next step, as the frame's JSON text (the bridge's random epoch written <epoch>) and whether it travelled deflated. calls: every route read, in order, and whether it carried the user's token. audit: the audit log at the end.",
+ "now": 1731400000000,
+ "room": "Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4Zm9vYmFyYmF6cXV4",
+ "uiToken": "UITOK",
+ "devices": {
+  "A": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+  "B": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2"
+ },
+ "patchDebounceMs": 5,
+ "scenarios": [
+  {
+   "name": "join, hello and controls",
+   "about": "The snapshot on join, the first hello riding it, replies, an asset, refusals, a bad body, what the audit log keeps.",
+   "routes": {
+    "GET /workers": {
+     "status": 200,
+     "body": [
+      {
+       "id": "w1",
+       "name": "One",
+       "state": "IDLE"
+      },
+      {
+       "id": "w2",
+       "name": "Two",
+       "state": "WORKING"
+      }
+     ]
+    },
+    "GET /pending": {
+     "status": 200,
+     "body": [
+      {
+       "id": "p1",
+       "workerId": "w1",
+       "tool": "Bash"
+      }
+     ]
+    },
+    "GET /pty": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "sessionId": "pty1",
+        "title": "zsh"
+       }
+      ]
+     }
+    },
+    "GET /api/ui-config": {
+     "status": 200,
+     "body": {
+      "features": {
+       "remote": true,
+       "posixShell": true
+      },
+      "theme": "dark"
+     }
+    },
+    "GET /workers/w1": {
+     "status": 200,
+     "body": {
+      "id": "w1",
+      "name": "One",
+      "state": "IDLE"
+     }
+    },
+    "GET /workers/w1/events?limit=2&order=desc": {
+     "status": 200,
+     "body": [
+      {
+       "id": 9,
+       "type": "assistant",
+       "payload": "{\"text\":\"hi\"}"
+      },
+      {
+       "id": 8,
+       "type": "user",
+       "payload": "{\"text\":\"yo\"}"
+      }
+     ]
+    },
+    "POST /workers/w1/message": {
+     "status": 202,
+     "body": {
+      "queued": false,
+      "messageId": "m-1"
+     }
+    },
+    "POST /workers/gone/message": {
+     "status": 404,
+     "body": {
+      "error": "worker not found: gone"
+     }
+    },
+    "PUT /workers/w1/permission": {
+     "status": 403,
+     "body": {
+      "error": "not allowed"
+     }
+    },
+    "POST /workers/w1/interrupt": {
+     "status": 500,
+     "body": {
+      "error": "boom"
+     }
+    },
+    "GET /fs/image?path=%2Ftmp%2Fa.png": {
+     "status": 200,
+     "base64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+     "type": "image/png"
+    },
+    "GET /fs/read?path=%2Ftmp%2Fnotes.txt": {
+     "status": 200,
+     "body": {
+      "content": "line one\nline two\n",
+      "truncated": false
+     }
+    },
+    "GET /health": {
+     "status": 200,
+     "text": "",
+     "type": "application/json"
+    },
+    "POST /pty": {
+     "status": 201,
+     "body": {
+      "sessionId": "pty2"
+     }
+    }
+   },
+   "steps": [
+    {
+     "join": "A",
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "lastContentId": 0,
+      "caps": [
+       "focus",
+       "rows"
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000001",
+      "method": "GET",
+      "path": "/workers"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000001\",\"status\":200,\"body\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000002",
+      "method": "GET",
+      "path": "/workers/w1/events?limit=2&order=desc"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000002\",\"status\":200,\"body\":[{\"id\":9,\"type\":\"assistant\",\"payload\":\"{\\\"text\\\":\\\"hi\\\"}\"},{\"id\":8,\"type\":\"user\",\"payload\":\"{\\\"text\\\":\\\"yo\\\"}\"}]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000003",
+      "method": "POST",
+      "path": "/workers/w1/message",
+      "body": "{\"text\":\"hello there\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000003\",\"status\":202,\"body\":{\"queued\":false,\"messageId\":\"m-1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000004",
+      "method": "POST",
+      "path": "/workers/gone/message",
+      "body": "{\"text\":\"x\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000004\",\"status\":404,\"body\":{\"error\":\"worker not found: gone\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000005",
+      "method": "PUT",
+      "path": "/workers/w1/permission",
+      "body": "{\"mode\":\"plan\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000005\",\"status\":403,\"body\":{\"error\":\"not allowed\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000006",
+      "method": "POST",
+      "path": "/workers/w1/interrupt"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000006\",\"status\":500,\"body\":{\"error\":\"boom\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000007",
+      "method": "GET",
+      "path": "/fs/image?path=%2Ftmp%2Fa.png"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"asset\",\"correlationId\":\"00000000-0000-4000-8000-000000000007\",\"status\":200,\"mime\":\"image/png\",\"bytesB64\":\"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\"}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000008",
+      "method": "GET",
+      "path": "/fs/read?path=%2Ftmp%2Fnotes.txt"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000008\",\"status\":200,\"body\":{\"content\":\"line one\\nline two\\n\",\"truncated\":false}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000009",
+      "method": "POST",
+      "path": "/policy/decide",
+      "body": "{\"tool\":\"Bash\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"error\",\"code\":\"ROUTE_REFUSED\",\"message\":\"route not exposed remotely\",\"correlationId\":\"00000000-0000-4000-8000-000000000009\"}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000010",
+      "method": "GET",
+      "path": "/stream"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"error\",\"code\":\"ROUTE_REFUSED\",\"message\":\"route not exposed remotely\",\"correlationId\":\"00000000-0000-4000-8000-000000000010\"}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000011",
+      "method": "DELETE",
+      "path": "/api/remote/config"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"error\",\"code\":\"ROUTE_REFUSED\",\"message\":\"route not exposed remotely\",\"correlationId\":\"00000000-0000-4000-8000-000000000011\"}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000012",
+      "method": "POST",
+      "path": "/workers/w1/message",
+      "body": "{not json"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"error\",\"code\":\"INTERNAL\",\"message\":\"control body is not valid JSON\",\"correlationId\":\"00000000-0000-4000-8000-000000000012\"}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000013",
+      "method": "GET",
+      "path": "/health"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000013\",\"status\":200,\"body\":{}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000014",
+      "method": "POST",
+      "path": "/pty",
+      "body": "{\"cwd\":\"/tmp\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000014\",\"status\":201,\"body\":{\"sessionId\":\"pty2\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "ka",
+      "ts": 0
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "nope",
+      "method": "GET",
+      "path": "/workers"
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "raw": "not json at all",
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "lastContentId": 3,
+      "caps": [
+       "focus",
+       "rows"
+      ]
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "leave": "A",
+     "frames": {}
+    }
+   ],
+   "calls": [
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w1/events?limit=2&order=desc",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "POST /workers/w1/message",
+     "body": {
+      "text": "hello there"
+     },
+     "user": false
+    },
+    {
+     "call": "POST /workers/gone/message",
+     "body": {
+      "text": "x"
+     },
+     "user": false
+    },
+    {
+     "call": "PUT /workers/w1/permission",
+     "body": {
+      "mode": "plan"
+     },
+     "user": false
+    },
+    {
+     "call": "POST /workers/w1/interrupt",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /fs/image?path=%2Ftmp%2Fa.png",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /fs/read?path=%2Ftmp%2Fnotes.txt",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /health",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "POST /pty",
+     "body": {
+      "cwd": "/tmp"
+     },
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    }
+   ],
+   "audit": [
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /workers",
+     "target": "/workers",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /workers/w1/events?limit=2&order=desc",
+     "target": "/workers/w1/events?limit=2&order=desc",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /workers/w1/message",
+     "target": "/workers/w1/message",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /workers/gone/message",
+     "target": "/workers/gone/message",
+     "ts": 1731400000000,
+     "result": "error"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "PUT /workers/w1/permission",
+     "target": "/workers/w1/permission",
+     "ts": 1731400000000,
+     "result": "denied"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /workers/w1/interrupt",
+     "target": "/workers/w1/interrupt",
+     "ts": 1731400000000,
+     "result": "error"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /fs/image?path=%2Ftmp%2Fa.png",
+     "target": "/fs/image?path=%2Ftmp%2Fa.png",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /fs/read?path=%2Ftmp%2Fnotes.txt",
+     "target": "/fs/read?path=%2Ftmp%2Fnotes.txt",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /policy/decide",
+     "target": "/policy/decide",
+     "ts": 1731400000000,
+     "result": "denied"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /stream",
+     "target": "/stream",
+     "ts": 1731400000000,
+     "result": "denied"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "DELETE /api/remote/config",
+     "target": "/api/remote/config",
+     "ts": 1731400000000,
+     "result": "denied"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /workers/w1/message",
+     "target": "/workers/w1/message",
+     "ts": 1731400000000,
+     "result": "denied"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /health",
+     "target": "/health",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /pty",
+     "target": "/pty",
+     "ts": 1731400000000,
+     "result": "ok"
+    }
+   ]
+  },
+  {
+   "name": "events, focus and pushed rows",
+   "about": "Everything until the phone says what it shows; then the open worker's live events, its rows and live text; another Mac on screen gets patches only.",
+   "routes": {
+    "GET /workers": {
+     "status": 200,
+     "body": [
+      {
+       "id": "w1",
+       "name": "One",
+       "state": "IDLE"
+      },
+      {
+       "id": "w2",
+       "name": "Two",
+       "state": "WORKING"
+      }
+     ]
+    },
+    "GET /pending": {
+     "status": 200,
+     "body": [
+      {
+       "id": "p1",
+       "workerId": "w1",
+       "tool": "Bash"
+      }
+     ]
+    },
+    "GET /pty": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "sessionId": "pty1",
+        "title": "zsh"
+       }
+      ]
+     }
+    },
+    "GET /api/ui-config": {
+     "status": 200,
+     "body": {
+      "features": {
+       "remote": true,
+       "posixShell": true
+      },
+      "theme": "dark"
+     }
+    },
+    "GET /workers/w1/events?afterId=5&limit=500": {
+     "status": 200,
+     "body": [
+      {
+       "id": 6,
+       "type": "user"
+      },
+      {
+       "id": 7,
+       "type": "assistant"
+      }
+     ]
+    },
+    "GET /workers/w1/events?afterId=7&limit=500": {
+     "status": 200,
+     "body": [
+      {
+       "id": 8,
+       "type": "tool_use"
+      }
+     ]
+    },
+    "GET /workers/w1/events?afterId=8&limit=500": {
+     "status": 200,
+     "body": []
+    },
+    "GET /workers/w2/events?afterId=40&limit=500": {
+     "status": 200,
+     "body": [
+      {
+       "id": 41,
+       "type": "assistant"
+      }
+     ]
+    },
+    "GET /workers/w2/events?afterId=41&limit=500": {
+     "status": 200,
+     "body": []
+    }
+   },
+   "steps": [
+    {
+     "join": "A",
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "fs:change",
+     "payload": {
+      "dir": "/x"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":1,\"reason\":\"fs:change\",\"ts\":1731400000000,\"payload\":{\"dir\":\"/x\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w1",
+      "blockId": "b1",
+      "channel": "text",
+      "phase": "start",
+      "text": "so"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"start\",\"text\":\"so\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w1",
+      "blockId": "b1",
+      "channel": "text",
+      "phase": "append",
+      "text": " far"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\" far\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w2",
+      "blockId": "c1",
+      "channel": "reasoning",
+      "phase": "append",
+      "text": "hm"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":4,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w2\",\"blockId\":\"c1\",\"channel\":\"reasoning\",\"phase\":\"append\",\"text\":\"hm\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "caps": [
+       "focus",
+       "rows"
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": true,
+      "worker": "w1",
+      "afterId": 5
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"rows\",\"seq\":4,\"workerId\":\"w1\",\"rows\":[],\"live\":[{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"text\":\"so far\"}]}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"rows\",\"seq\":4,\"workerId\":\"w1\",\"rows\":[{\"id\":6,\"type\":\"user\"},{\"id\":7,\"type\":\"assistant\"}]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w1",
+      "blockId": "b1",
+      "channel": "text",
+      "phase": "append",
+      "text": "!"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":5,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\"!\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w2",
+      "blockId": "c1",
+      "channel": "reasoning",
+      "phase": "append",
+      "text": "?"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"rows\",\"seq\":5,\"workerId\":\"w1\",\"rows\":[{\"id\":8,\"type\":\"tool_use\"}]}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":6,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w2"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"patch\",\"seq\":7,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "git:change",
+     "payload": {
+      "dir": "/x"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "terminal:chunk",
+     "payload": {
+      "workerId": "w1",
+      "runId": "r1",
+      "data": "ls\n"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":8,\"reason\":\"terminal:chunk\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"runId\":\"r1\",\"data\":\"ls\\n\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "terminal:done",
+     "payload": {
+      "workerId": "w2",
+      "runId": "r2"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "loop:check",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":9,\"reason\":\"loop:check\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:session",
+     "payload": {
+      "sessionId": "pty1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":10,\"reason\":\"pty:session\",\"ts\":1731400000000,\"payload\":{\"sessionId\":\"pty1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:exit",
+     "payload": {
+      "sessionId": "pty1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":11,\"reason\":\"pty:exit\",\"ts\":1731400000000,\"payload\":{\"sessionId\":\"pty1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:conversation",
+     "payload": {
+      "sessionId": "pty1"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "state:patch",
+     "payload": {
+      "changes": []
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": true,
+      "worker": "w2",
+      "afterId": null,
+      "pty": "pty1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"rows\",\"seq\":11,\"workerId\":\"w2\",\"rows\":[],\"live\":[{\"workerId\":\"w2\",\"blockId\":\"c1\",\"channel\":\"reasoning\",\"text\":\"hm?\"}]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:conversation",
+     "payload": {
+      "sessionId": "pty1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":12,\"reason\":\"pty:conversation\",\"ts\":1731400000000,\"payload\":{\"sessionId\":\"pty1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:conversation",
+     "payload": {
+      "sessionId": "pty9"
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": true,
+      "worker": "w2",
+      "afterId": 40,
+      "pty": "pty1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"rows\",\"seq\":12,\"workerId\":\"w2\",\"rows\":[{\"id\":41,\"type\":\"assistant\"}]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w2",
+      "blockId": "c1",
+      "channel": "reasoning",
+      "phase": "stop"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":13,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w2\",\"blockId\":\"c1\",\"channel\":\"reasoning\",\"phase\":\"stop\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "lastContentId": 0,
+      "caps": [
+       "focus",
+       "rows"
+      ]
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":13,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"text\":\"so far!\"},{\"workerId\":\"w2\",\"blockId\":\"c1\",\"channel\":\"reasoning\",\"text\":\"hm?\",\"done\":true}],\"caps\":[\"focus\",\"rows\",\"deflate\"]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": false
+     },
+     "frames": {}
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w2",
+      "blockId": "c2",
+      "channel": "text",
+      "phase": "start",
+      "text": "x"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "pty:session",
+     "payload": {
+      "sessionId": "pty1"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "worker:exit",
+     "payload": {
+      "workerId": "w2"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"patch\",\"seq\":14,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": true,
+      "worker": "w2",
+      "afterId": 41
+     },
+     "frames": {}
+    },
+    {
+     "leave": "A",
+     "frames": {}
+    }
+   ],
+   "calls": [
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w1/events?afterId=5&limit=500",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w1/events?afterId=7&limit=500",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w2/events?afterId=40&limit=500",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w2/events?afterId=41&limit=500",
+     "body": {},
+     "user": false
+    }
+   ],
+   "audit": []
+  },
+  {
+   "name": "row patches",
+   "about": "Change topics become one patch per changed row, read from the list routes; nothing is read while no phone is connected.",
+   "routes": {
+    "GET /workers": {
+     "status": 200,
+     "body": [
+      {
+       "id": "w1",
+       "name": "One",
+       "state": "IDLE"
+      },
+      {
+       "id": "w2",
+       "name": "Two",
+       "state": "WORKING"
+      }
+     ]
+    },
+    "GET /pending": {
+     "status": 200,
+     "body": [
+      {
+       "id": "p1",
+       "workerId": "w1",
+       "tool": "Bash"
+      }
+     ]
+    },
+    "GET /pty": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "sessionId": "pty1",
+        "title": "zsh"
+       }
+      ]
+     }
+    },
+    "GET /api/ui-config": {
+     "status": 200,
+     "body": {
+      "features": {
+       "remote": true,
+       "posixShell": true
+      },
+      "theme": "dark"
+     }
+    }
+   },
+   "steps": [
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {}
+    },
+    {
+     "join": "A",
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":1,\"reason\":\"worker:change\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":2,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "route": "GET /workers",
+     "answer": {
+      "status": 200,
+      "body": [
+       {
+        "id": "w1",
+        "name": "One",
+        "state": "WORKING"
+       },
+       {
+        "id": "w3",
+        "name": "Three",
+        "state": "IDLE"
+       }
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "publish": "worker:spawn",
+     "payload": {
+      "workerId": "w3"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"worker:spawn\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w3\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "worker:removed",
+     "payload": {
+      "workerId": "w2"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":4,\"reason\":\"worker:removed\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w2\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "usage:recorded",
+     "payload": {
+      "workerId": "w1"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":5,\"reason\":\"usage:recorded\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "loop:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":6,\"reason\":\"loop:change\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "state": "IDLE"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":7,\"reason\":\"worker:change\",\"ts\":1731400000000,\"payload\":{\"state\":\"IDLE\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":8,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w3\",\"name\":\"Three\",\"state\":\"IDLE\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":9,\"resource\":\"workers\",\"op\":\"remove\",\"data\":{\"id\":\"w2\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":10,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w1\",\"name\":\"One\",\"state\":\"WORKING\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "route": "GET /pending",
+     "answer": {
+      "status": 200,
+      "body": [
+       {
+        "id": "p2",
+        "workerId": "w3",
+        "tool": "Edit"
+       }
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "publish": "pending:created",
+     "payload": {
+      "id": "p2",
+      "workerId": "w3"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":11,\"reason\":\"pending:created\",\"ts\":1731400000000,\"payload\":{\"id\":\"p2\",\"workerId\":\"w3\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pending:resolved",
+     "payload": {
+      "id": "p1",
+      "workerId": "w1"
+     },
+     "hold": true,
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":12,\"reason\":\"pending:resolved\",\"ts\":1731400000000,\"payload\":{\"id\":\"p1\",\"workerId\":\"w1\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pending:ttl_expired",
+     "payload": {
+      "id": "p0",
+      "workerId": "w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":13,\"reason\":\"pending:ttl_expired\",\"ts\":1731400000000,\"payload\":{\"id\":\"p0\",\"workerId\":\"w1\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":14,\"resource\":\"pending\",\"op\":\"upsert\",\"data\":{\"id\":\"p2\",\"workerId\":\"w3\",\"tool\":\"Edit\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":15,\"resource\":\"pending\",\"op\":\"remove\",\"data\":{\"id\":\"p1\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":16,\"resource\":\"pending\",\"op\":\"remove\",\"data\":{\"id\":\"p0\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "lastContentId": 0
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "lastContentId": 0
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":16,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"WORKING\"},{\"id\":\"w3\",\"name\":\"Three\",\"state\":\"IDLE\"}],\"pending\":[{\"id\":\"p2\",\"workerId\":\"w3\",\"tool\":\"Edit\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"]}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "leave": "A",
+     "frames": {}
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {}
+    }
+   ],
+   "calls": [
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    }
+   ],
+   "audit": []
+  },
+  {
+   "name": "two phones",
+   "about": "An event only some phones get does not take a new seq; terminal output goes to the phones showing that terminal; a deflate phone gets large frames packed.",
+   "routes": {
+    "GET /workers": {
+     "status": 200,
+     "body": [
+      {
+       "id": "w1",
+       "name": "One",
+       "state": "IDLE"
+      },
+      {
+       "id": "w2",
+       "name": "Two",
+       "state": "WORKING"
+      }
+     ]
+    },
+    "GET /pending": {
+     "status": 200,
+     "body": [
+      {
+       "id": "p1",
+       "workerId": "w1",
+       "tool": "Bash"
+      }
+     ]
+    },
+    "GET /pty": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "sessionId": "pty1",
+        "title": "zsh"
+       }
+      ]
+     }
+    },
+    "GET /api/ui-config": {
+     "status": 200,
+     "body": {
+      "features": {
+       "remote": true,
+       "posixShell": true
+      },
+      "theme": "dark"
+     }
+    },
+    "GET /workers/w1": {
+     "status": 200,
+     "body": {
+      "id": "w1",
+      "notes": "the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quic"
+     }
+    }
+   },
+   "steps": [
+    {
+     "join": "A",
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "join": "B",
+     "frames": {
+      "B": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "hello",
+      "caps": [
+       "focus",
+       "deflate"
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "phone": "B",
+     "frame": {
+      "t": "hello",
+      "caps": []
+     },
+     "frames": {}
+    },
+    {
+     "publish": "fs:change",
+     "payload": {
+      "dir": "/both"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":1,\"reason\":\"fs:change\",\"ts\":1731400000000,\"payload\":{\"dir\":\"/both\"}}",
+        "deflated": false
+       }
+      ],
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":1,\"reason\":\"fs:change\",\"ts\":1731400000000,\"payload\":{\"dir\":\"/both\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "focus",
+      "active": true,
+      "worker": "w1"
+     },
+     "frames": {}
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w2",
+      "blockId": "c1",
+      "channel": "text",
+      "phase": "append",
+      "text": "only B"
+     },
+     "frames": {
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":1,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w2\",\"blockId\":\"c1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\"only B\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "agent:delta",
+     "payload": {
+      "workerId": "w1",
+      "blockId": "b1",
+      "channel": "text",
+      "phase": "append",
+      "text": "both"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\"both\"}}",
+        "deflated": false
+       }
+      ],
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"agent:delta\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\",\"blockId\":\"b1\",\"channel\":\"text\",\"phase\":\"append\",\"text\":\"both\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "fs:change",
+     "payload": {
+      "dir": "/only-b"
+     },
+     "frames": {
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"fs:change\",\"ts\":1731400000000,\"payload\":{\"dir\":\"/only-b\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:data",
+     "payload": {
+      "sessionId": "pty1",
+      "seq": 1,
+      "data": "nobody"
+     },
+     "frames": {}
+    },
+    {
+     "phone": "B",
+     "frame": {
+      "t": "sub",
+      "pty": [
+       "pty1"
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "publish": "pty:data",
+     "payload": {
+      "sessionId": "pty1",
+      "seq": 2,
+      "data": "B sees this"
+     },
+     "frames": {
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"pty:data\",\"ts\":1731400000000,\"payload\":{\"sessionId\":\"pty1\",\"seq\":2,\"data\":\"B sees this\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "publish": "pty:data",
+     "payload": {
+      "sessionId": "pty2",
+      "seq": 1,
+      "data": "nobody"
+     },
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "sub",
+      "pty": [
+       "pty1",
+       "pty2"
+      ]
+     },
+     "frames": {}
+    },
+    {
+     "phone": "B",
+     "frame": {
+      "t": "sub",
+      "pty": []
+     },
+     "frames": {}
+    },
+    {
+     "publish": "pty:data",
+     "payload": {
+      "sessionId": "pty2",
+      "seq": 2,
+      "data": "the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox "
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":2,\"reason\":\"pty:data\",\"ts\":1731400000000,\"payload\":{\"sessionId\":\"pty2\",\"seq\":2,\"data\":\"the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox \"}}",
+        "deflated": true
+       }
+      ]
+     }
+    },
+    {
+     "publish": "worker:change",
+     "payload": {
+      "workerId": "w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"worker:change\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":4,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"}}",
+        "deflated": false
+       }
+      ],
+      "B": [
+       {
+        "json": "{\"t\":\"event\",\"seq\":3,\"reason\":\"worker:change\",\"ts\":1731400000000,\"payload\":{\"workerId\":\"w1\"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"patch\",\"seq\":4,\"resource\":\"workers\",\"op\":\"upsert\",\"data\":{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000001",
+      "method": "GET",
+      "path": "/workers/w1"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000001\",\"status\":200,\"body\":{\"id\":\"w1\",\"notes\":\"the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quic\"}}",
+        "deflated": true
+       }
+      ]
+     }
+    },
+    {
+     "phone": "B",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000002",
+      "method": "GET",
+      "path": "/workers/w1"
+     },
+     "frames": {
+      "B": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000002\",\"status\":200,\"body\":{\"id\":\"w1\",\"notes\":\"the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quick brown fox jumps over the lazy dog the quic\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "leave": "B",
+     "frames": {}
+    },
+    {
+     "publish": "fs:change",
+     "payload": {
+      "dir": "/after-b-left"
+     },
+     "frames": {}
+    },
+    {
+     "leave": "A",
+     "frames": {}
+    }
+   ],
+   "calls": [
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w1",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /workers/w1",
+     "body": {},
+     "user": false
+    }
+   ],
+   "audit": [
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /workers/w1",
+     "target": "/workers/w1",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2",
+     "action": "GET /workers/w1",
+     "target": "/workers/w1",
+     "ts": 1731400000000,
+     "result": "ok"
+    }
+   ]
+  },
+  {
+   "name": "terminal input keeps its order",
+   "about": "Keystrokes are written in arrival order although the first write is slow; other controls are not held behind them.",
+   "routes": {
+    "GET /workers": {
+     "status": 200,
+     "body": [
+      {
+       "id": "w1",
+       "name": "One",
+       "state": "IDLE"
+      },
+      {
+       "id": "w2",
+       "name": "Two",
+       "state": "WORKING"
+      }
+     ]
+    },
+    "GET /pending": {
+     "status": 200,
+     "body": [
+      {
+       "id": "p1",
+       "workerId": "w1",
+       "tool": "Bash"
+      }
+     ]
+    },
+    "GET /pty": {
+     "status": 200,
+     "body": {
+      "sessions": [
+       {
+        "sessionId": "pty1",
+        "title": "zsh"
+       }
+      ]
+     }
+    },
+    "GET /api/ui-config": {
+     "status": 200,
+     "body": {
+      "features": {
+       "remote": true,
+       "posixShell": true
+      },
+      "theme": "dark"
+     }
+    },
+    "POST /pty/pty1/input": {
+     "status": 200,
+     "body": {},
+     "slowFirstMs": 60
+    },
+    "POST /pty/pty1/input?x=1": {
+     "status": 200,
+     "body": {}
+    },
+    "GET /pty/pty1/buffer": {
+     "status": 200,
+     "body": {
+      "seq": 4,
+      "data": "$ "
+     }
+    }
+   },
+   "steps": [
+    {
+     "join": "A",
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"snapshot\",\"seq\":0,\"epoch\":\"<epoch>\",\"workers\":[{\"id\":\"w1\",\"name\":\"One\",\"state\":\"IDLE\"},{\"id\":\"w2\",\"name\":\"Two\",\"state\":\"WORKING\"}],\"pending\":[{\"id\":\"p1\",\"workerId\":\"w1\",\"tool\":\"Bash\"}],\"live\":[],\"caps\":[\"focus\",\"rows\",\"deflate\"],\"ptys\":[{\"sessionId\":\"pty1\",\"title\":\"zsh\"}],\"uiConfig\":{\"features\":{\"remote\":true,\"posixShell\":true},\"theme\":\"dark\"}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000001",
+      "method": "POST",
+      "path": "/pty/pty1/input",
+      "body": "{\"data\":\"a\"}"
+     },
+     "hold": true,
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000002",
+      "method": "POST",
+      "path": "/pty/pty1/input",
+      "body": "{\"data\":\"b\"}"
+     },
+     "hold": true,
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000003",
+      "method": "GET",
+      "path": "/pty/pty1/buffer"
+     },
+     "hold": true,
+     "frames": {}
+    },
+    {
+     "phone": "A",
+     "frame": {
+      "t": "control",
+      "correlationId": "00000000-0000-4000-8000-000000000004",
+      "method": "POST",
+      "path": "/pty/pty1/input?x=1",
+      "body": "{\"data\":\"c\"}"
+     },
+     "frames": {
+      "A": [
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000003\",\"status\":200,\"body\":{\"seq\":4,\"data\":\"$ \"}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000001\",\"status\":200,\"body\":{}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000002\",\"status\":200,\"body\":{}}",
+        "deflated": false
+       },
+       {
+        "json": "{\"t\":\"reply\",\"correlationId\":\"00000000-0000-4000-8000-000000000004\",\"status\":200,\"body\":{}}",
+        "deflated": false
+       }
+      ]
+     }
+    },
+    {
+     "leave": "A",
+     "frames": {}
+    }
+   ],
+   "calls": [
+    {
+     "call": "GET /pty",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /api/ui-config",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "GET /workers",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pending",
+     "body": {},
+     "user": false
+    },
+    {
+     "call": "GET /pty/pty1/buffer",
+     "body": {},
+     "user": true
+    },
+    {
+     "call": "POST /pty/pty1/input",
+     "body": {
+      "data": "a"
+     },
+     "user": true
+    },
+    {
+     "call": "POST /pty/pty1/input",
+     "body": {
+      "data": "b"
+     },
+     "user": true
+    },
+    {
+     "call": "POST /pty/pty1/input?x=1",
+     "body": {
+      "data": "c"
+     },
+     "user": true
+    }
+   ],
+   "audit": [
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "GET /pty/pty1/buffer",
+     "target": "/pty/pty1/buffer",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /pty/pty1/input",
+     "target": "/pty/pty1/input",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /pty/pty1/input",
+     "target": "/pty/pty1/input",
+     "ts": 1731400000000,
+     "result": "ok"
+    },
+    {
+     "device": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+     "action": "POST /pty/pty1/input?x=1",
+     "target": "/pty/pty1/input?x=1",
+     "ts": 1731400000000,
+     "result": "ok"
+    }
+   ]
+  }
+ ]
+}

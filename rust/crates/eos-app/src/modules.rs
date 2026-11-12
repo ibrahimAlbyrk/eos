@@ -70,6 +70,8 @@ pub(crate) struct Context {
     pub(crate) worker_definitions: Arc<WorkerDefinitions>,
     pub(crate) scratch: Arc<dyn ScratchFolders>,
     pub(crate) terminals: Terminal,
+    /// The phone link. Built ahead of the rest: the app hands it the router afterwards.
+    pub(crate) remote: Arc<eos_mod_remote::RemoteModule>,
 }
 
 /// What terminals run on: the PTY, the user's shell and their Claude Code.
@@ -185,6 +187,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         Arc::new(eos_mod_projects::ProjectsModule::new(cx.projects.clone(), cx.recents.clone())),
         Arc::new(eos_mod_prompts::PromptsModule::new(cx.prompts.clone(), Some(cx.profile_prompt.clone()))),
         Arc::new(eos_mod_questions::QuestionsModule::new(cx.questions.clone())),
+        cx.remote.clone(),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),
             cx.features.clone(),

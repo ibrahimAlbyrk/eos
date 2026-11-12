@@ -30,13 +30,15 @@ cargo build --quiet --manifest-path "$rust/Cargo.toml" -p wire-recorder
 tool="$rust/target/debug/wire-recorder"
 
 # The core runs inside the tool: give it the recording daemon's surroundings
-# (its own $HOME and Claude folder, UTC, a fixed locale), nothing of the caller's.
+# (its own $HOME and Claude folder, UTC, a fixed locale, the phone link and
+# hosting switched off as wire-daemon.sh switches them), nothing of the caller's.
 isolated() {
   local user="$1"
   shift
   mkdir -p "$user/.claude" "$user/tmp"
   env -i PATH="$PATH" HOME="$user" CLAUDE_CONFIG_DIR="$user/.claude" USER="${USER:-}" LOGNAME="${LOGNAME:-}" \
-    SHELL="${SHELL:-/bin/sh}" TMPDIR="$user/tmp" LANG="en_US.UTF-8" TZ=UTC "$@"
+    SHELL="${SHELL:-/bin/sh}" TMPDIR="$user/tmp" LANG="en_US.UTF-8" TZ=UTC \
+    EOS_REMOTE_ENABLED=0 EOS_PEER_ENABLED=0 "$@"
 }
 
 if [ "${1:-}" = "--private" ]; then

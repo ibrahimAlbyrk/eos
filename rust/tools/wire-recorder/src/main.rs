@@ -31,6 +31,8 @@ usage:
 
 TARGET:
   --rust-home DIR    the Rust core, built in process on this data folder (instead of --api / --socket)
+  --as-phone         with --rust-home: every route the phone may call is asked as the phone
+                     (through the relay it answers what the dashboard gets)
   --api URL          the API listener, http://host:port
   --raw URL          the raw-content listener
   --socket PATH      the control socket
@@ -76,7 +78,7 @@ struct Args {
 }
 
 impl Args {
-    const FLAGS: [&str; 5] = ["read-only", "lenient", "verbose", "real-data", "redact"];
+    const FLAGS: [&str; 6] = ["read-only", "lenient", "verbose", "real-data", "redact", "as-phone"];
 
     fn parse(args: &[String]) -> anyhow::Result<Self> {
         let mut values: BTreeMap<String, Vec<String>> = BTreeMap::new();
@@ -108,7 +110,7 @@ impl Args {
     /// The Rust core in process when `--rust-home` is given, else a daemon behind HTTP.
     fn target(&self) -> anyhow::Result<(Box<dyn Target + Send>, Option<RustTarget>)> {
         if let Some(home) = self.get("rust-home") {
-            let rust = RustTarget::start(Path::new(home))?;
+            let rust = RustTarget::start(Path::new(home))?.as_phone(self.flag("as-phone"));
             return Ok((Box::new(rust.clone()), Some(rust)));
         }
         let socket = self.get("socket").map(|path| Endpoint::Unix(PathBuf::from(path)));

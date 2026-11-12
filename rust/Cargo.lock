@@ -1278,6 +1278,7 @@ dependencies = [
  "eos-mod-projects",
  "eos-mod-prompts",
  "eos-mod-questions",
+ "eos-mod-remote",
  "eos-mod-sync",
  "eos-mod-system",
  "eos-mod-templates",
@@ -1294,6 +1295,7 @@ dependencies = [
  "eos-profile",
  "eos-prompts",
  "eos-pty",
+ "eos-relay",
  "eos-runtime",
  "eos-sessions",
  "eos-store-files",
@@ -1307,6 +1309,7 @@ dependencies = [
  "eos-watch",
  "eos-workers",
  "getrandom 0.4.3",
+ "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
@@ -1842,6 +1845,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-mod-remote"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "eos-contracts",
+ "eos-core",
+ "eos-runtime",
+ "eos-testkit",
+ "flate2",
+ "indexmap",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "eos-mod-sync"
 version = "0.0.1"
 dependencies = [
@@ -2107,6 +2129,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-relay"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "eos-core",
+ "eos-testkit",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite 0.26.2",
+ "tracing",
+]
+
+[[package]]
 name = "eos-runtime"
 version = "0.0.1"
 dependencies = [
@@ -2147,9 +2186,11 @@ dependencies = [
  "eos-domain",
  "eos-genui",
  "eos-kit-fs",
+ "eos-platform",
  "eos-prompts",
  "eos-testkit",
  "eos-workers",
+ "getrandom 0.4.3",
  "serde",
  "serde_json",
  "serde_norway",
@@ -2240,14 +2281,18 @@ dependencies = [
  "eos-genui",
  "eos-kit-sqlite",
  "eos-platform",
+ "eos-relay",
  "eos-runtime",
  "eos-store-sqlite",
+ "flate2",
+ "futures-util",
  "indexmap",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "tokio",
+ "tokio-tungstenite 0.26.2",
 ]
 
 [[package]]
@@ -5171,7 +5216,11 @@ checksum = "7a9daff607c6d2bf6c16fd681ccb7eecc83e4e2cdc1ca067ffaadfca5de7f084"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite 0.26.2",
 ]
 
@@ -5421,6 +5470,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.5",
+ "rustls",
+ "rustls-pki-types",
  "sha1 0.10.7",
  "thiserror 2.0.21",
  "utf-8",

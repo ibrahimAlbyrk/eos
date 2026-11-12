@@ -46,6 +46,7 @@ eos-mod-profile = { path = "crates/eos-mod-profile" }
 eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-questions = { path = "crates/eos-mod-questions" }
+eos-mod-remote = { path = "crates/eos-mod-remote" }
 eos-mod-sync = { path = "crates/eos-mod-sync" }
 eos-mod-system = { path = "crates/eos-mod-system" }
 eos-mod-templates = { path = "crates/eos-mod-templates" }
@@ -62,6 +63,7 @@ eos-policy = { path = "crates/eos-policy" }
 eos-profile = { path = "crates/eos-profile" }
 eos-prompts = { path = "crates/eos-prompts" }
 eos-pty = { path = "crates/eos-pty" }
+eos-relay = { path = "crates/eos-relay" }
 eos-runtime = { path = "crates/eos-runtime" }
 eos-sessions = { path = "crates/eos-sessions" }
 eos-store-files = { path = "crates/eos-store-files" }

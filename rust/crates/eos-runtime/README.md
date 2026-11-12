@@ -139,6 +139,9 @@ Every subscription and stream is removed when dropped (tests run thousands of cy
   thread after COMMIT (`Db::write_then_async`, wired in `eos-app`). A caller that publishes after
   `store.write(…)` returned is on its own thread, where commit order is not publish order: use the
   job's outbox instead.
+- `patches::StatePatcher`: a burst of worker / pending change events becomes one read of the list
+  route and one upsert or remove per changed row, handed to a `PatchSink` (the phone's `patch`
+  frames; the dashboard's `state:patch` is one more instance with its own sink and the brief rows).
 - For gateways: `Response::refusal` says why a caller was turned away (the phone gateway maps it
   to its own error frame); gzip for a peer link is the gateway's, not the router's.
 

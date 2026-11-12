@@ -11,8 +11,11 @@ use eos_auth::{
     FileUsageSnapshots, HostCredentials, Stores,
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
+use eos_contracts::stream::topics;
 use eos_core::accounts::{PlanAccess, SessionCredentials};
+use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
+use eos_core::os::KeepAwake;
 use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids, RandomIds, SystemClock};
@@ -27,6 +30,7 @@ use eos_policy::{GatewayOptions, PolicyGateway};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::lifecycle::ShutdownReport;
+use eos_runtime::patches::StatePatcher;
 use eos_runtime::router::Router;
 use eos_runtime::stream::StreamOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
@@ -34,6 +38,7 @@ use eos_sessions::Reconciled;
 use eos_sessions::{SessionDeps, Sessions, SlashCommand};
 use eos_store_files::policy::YamlPolicyFile;
 use eos_store_files::prompts::LibraryPromptSource;
+use eos_store_files::remote::RemoteFiles;
 use eos_store_files::templates::FsTemplateStore;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_store_files::{CachedModelCatalog, JsonProjects, JsonRecents};
@@ -89,6 +94,14 @@ pub struct Options {
     /// folder stops the TypeScript-era daemon through it before it opens the
     /// data; nothing else ever uses it.
     pub launchd: Option<Arc<dyn Launchd + Send + Sync>>,
+    /// How the phone link reaches its relay ([`crate::relay`] in the real
+    /// app). Without one the app never dials a relay, whatever the
+    /// configuration says: a test, a replay or a tool can open a data folder
+    /// whose phone link is switched on and still stay on this computer.
+    pub relay: Option<Arc<dyn Relay>>,
+    /// How the computer is kept out of sleep while the phone link is armed;
+    /// the system's own way when `None`.
+    pub keep_awake: Option<Arc<dyn KeepAwake>>,
 }
 
 impl Options {
@@ -107,6 +120,8 @@ impl Options {
             exec_path: std::env::current_exe().ok(),
             update_applier: None,
             launchd: Launchctl::for_this_user().map(|launchctl| Arc::new(launchctl) as Arc<dyn Launchd + Send + Sync>),
+            relay: None,
+            keep_awake: None,
         }
     }
 }
@@ -144,6 +159,9 @@ pub struct App {
     nudges: std::sync::Mutex<Option<eos_runtime::bus::Subscription>>,
     plugins: Arc<PluginHost>,
     updates: Arc<Updates>,
+    remote: Arc<eos_mod_remote::RemoteModule>,
+    /// The dashboard's row patches, from start to shutdown.
+    patches: std::sync::Mutex<Option<StatePatcher>>,
 }
 
 impl std::fmt::Debug for App {
@@ -172,6 +190,8 @@ impl App {
             update_applier,
             launchd,
             sweep_leftovers,
+            relay,
+            keep_awake,
         } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
@@ -196,6 +216,8 @@ impl App {
             stream: StreamOptions {
                 keepalive: Duration::from_millis(u64::try_from(current.daemon.sse_keepalive_ms).unwrap_or(25_000)),
                 display_filter: Some(Arc::new(StripSenderTags)),
+                // Row patches: a tab need not read the lists again on every change.
+                caps: vec![topics::STATE_PATCH.to_owned()],
                 ..StreamOptions::default()
             },
             ..KernelOptions::default()
@@ -379,9 +401,22 @@ impl App {
             worker_definitions,
             scratch,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
+            remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {
+                config: config.clone(),
+                store: Arc::new(RemoteFiles::new(paths.join("remote"))),
+                relay,
+                keep_awake: keep_awake.unwrap_or_else(|| Arc::new(host::HostKeepAwake)),
+                kernel: kernel.clone(),
+                clock: clock.clone(),
+                ids,
+                options: eos_mod_remote::GatewayOptions::default(),
+            })),
         };
+        let remote = context.remote.clone();
         let runtime = Arc::new(Runtime::build(kernel, modules::all(&context)?, plugins.switch())?);
         hooks.attach(&runtime);
+        // The phone's requests go to the same routes the dashboard calls.
+        remote.attach_router(runtime.router.clone());
         // The commands features run themselves (`/compact`, …), beside the session service's own.
         for declared in &runtime.slash_commands {
             match declared.command.downcast_ref::<Arc<dyn SlashCommand>>() {
@@ -424,6 +459,8 @@ impl App {
             nudges,
             plugins,
             updates,
+            remote,
+            patches: std::sync::Mutex::new(None),
         })
     }
 
@@ -436,9 +473,16 @@ impl App {
             tokio::runtime::Handle::current(),
         );
         *self.nudges.lock().unwrap_or_else(|p| p.into_inner()) = Some(nudges);
+        let patches = crate::patches::for_dashboard(&self.runtime);
+        *self.patches.lock().unwrap_or_else(|p| p.into_inner()) = Some(patches);
         self.runtime.lifecycle.start().await?;
         self.runtime.lifecycle.ready().await?;
         Ok(())
+    }
+
+    /// The phone link: whether it is armed, and how many phones are connected.
+    pub fn remote(&self) -> &eos_mod_remote::RemoteModule {
+        &self.remote
     }
 
     /// What the window shell tells the updater: its window showed, the
@@ -521,6 +565,7 @@ impl App {
     /// Stops the modules (last first) and the streams inside `deadline`, then
     /// waits for every write already queued and folds the WAL into the file.
     pub async fn shutdown(&self, deadline: Duration) -> ShutdownReport {
+        drop(self.patches.lock().unwrap_or_else(|p| p.into_inner()).take());
         let report = self.runtime.shutdown(deadline).await;
         let store = self.store.clone();
         match tokio::task::spawn_blocking(move || store.drain()).await {
