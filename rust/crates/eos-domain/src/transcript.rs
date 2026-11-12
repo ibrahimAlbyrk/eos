@@ -9,6 +9,8 @@ use serde_json::Value;
 
 use crate::event::EventRecord;
 
+mod facts;
+
 /// The prompts of a conversation and the markers that hide some of them
 /// (clear, rewind, recall): what the turn index is rebuilt from.
 pub const PROMPT_EVENT_TYPES: [WorkerEventType; 5] = [
@@ -24,7 +26,7 @@ const PROMPT_KINDS: [&str; 5] =
 
 /// One tool call a row is about. `parent` is the subagent call an inner tool
 /// runs under; `name` is set on the row that starts the call.
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct CallRef {
     id: Option<String>,
     parent: Option<String>,
@@ -118,49 +120,92 @@ fn is_subagent_lifecycle(kind: &str, p: &Value) -> bool {
         && ["subagent_started", "subagent_completed", "subagent_profile"].iter().any(|t| is(p, "type", t))
 }
 
-/// Every row needed to rebuild each subagent of the whole conversation — its
-/// launch, inner tools, result and lifecycle — and each Artifact call with its
-/// result, plus the prompt rows and the turn barriers. `rows` are a worker's
-/// rows oldest first; the selection keeps their order.
-pub fn select_subagent_rows(rows: Vec<EventRecord>) -> Vec<EventRecord> {
-    let parsed: Vec<Value> = rows
-        .iter()
-        .map(|r| r.payload.as_deref().and_then(|p| serde_json::from_str(p).ok()).unwrap_or(Value::Null))
-        .collect();
-    let refs: Vec<Vec<CallRef>> = rows.iter().zip(&parsed).map(|(r, p)| call_refs(&r.kind, p)).collect();
+/// The only kinds of row the subagent selection can keep or learn from: the
+/// prompts, the agent's own events, the turn barriers and the older tool rows.
+/// A log is read for it skipping the rest (permission decisions, spawns, …).
+pub const SUBAGENT_ROW_KINDS: [&str; 13] = [
+    "user_message",
+    "orchestrator_message",
+    "conversation_cleared",
+    "conversation_rewound",
+    "message_recalled",
+    "agent_event",
+    "exit",
+    "hook",
+    "state",
+    "lifecycle",
+    "jsonl",
+    "tool_running",
+    "tool_done",
+];
 
-    let mut agents: HashSet<&str> =
-        refs.iter().flatten().filter(|r| r.launches_subagent).filter_map(|r| r.id.as_deref()).collect();
-    // A run started by some other call (a message that resumed a stopped subagent).
-    for (row, p) in rows.iter().zip(&parsed) {
-        if row.kind == "agent_event" && is(p, "type", "subagent_started") {
-            agents.extend(p.get("callId").and_then(Value::as_str).filter(|id| !id.is_empty()));
+/// What the subagent selection needs of one row, read from its payload once:
+/// a whole log can then be judged a slice at a time, without holding it.
+#[derive(Debug)]
+pub struct SubagentRowMeta {
+    pub id: i64,
+    pub ts: i64,
+    refs: Vec<CallRef>,
+    /// A prompt row, a subagent's lifecycle or a turn barrier: always sent.
+    always: bool,
+    /// The call a `subagent_started` row names.
+    started: Option<String>,
+}
+
+impl SubagentRowMeta {
+    pub fn of(row: &EventRecord) -> Self {
+        let p = row.payload.as_deref().map_or(Value::Null, facts::facts);
+        let started = (row.kind == "agent_event" && is(&p, "type", "subagent_started"))
+            .then(|| p.get("callId").and_then(Value::as_str).filter(|id| !id.is_empty()).map(str::to_owned))
+            .flatten();
+        Self {
+            id: row.id,
+            ts: row.ts,
+            refs: call_refs(&row.kind, &p),
+            always: PROMPT_KINDS.contains(&row.kind.as_str())
+                || is_subagent_lifecycle(&row.kind, &p)
+                || is_barrier(&row.kind, &p),
+            started,
         }
     }
+}
+
+/// Every row needed to rebuild each subagent of the whole conversation — its
+/// launch, inner tools, result and lifecycle — and each Artifact call with its
+/// result, plus the prompt rows and the turn barriers: their ids, in the
+/// conversation's order (time, then id), whatever order `rows` came in.
+pub fn select_subagent_ids(rows: &[SubagentRowMeta]) -> Vec<i64> {
+    let mut agents: HashSet<&str> =
+        rows.iter().flat_map(|r| &r.refs).filter(|r| r.launches_subagent).filter_map(|r| r.id.as_deref()).collect();
+    // A run started by some other call (a message that resumed a stopped subagent).
+    agents.extend(rows.iter().filter_map(|r| r.started.as_deref()));
     let mut wanted = agents.clone();
-    for r in refs.iter().flatten() {
+    for r in rows.iter().flat_map(|r| &r.refs) {
         let under_agent = r.parent.as_deref().is_some_and(|parent| agents.contains(parent));
         if under_agent || r.name.as_deref() == Some("Artifact") {
             wanted.extend(r.id.as_deref());
         }
     }
-
-    let keep: Vec<bool> = rows
+    let mut kept: Vec<(i64, i64)> = rows
         .iter()
-        .zip(&parsed)
-        .zip(&refs)
-        .map(|((row, p), row_refs)| {
-            PROMPT_KINDS.contains(&row.kind.as_str())
-                || is_subagent_lifecycle(&row.kind, p)
-                || is_barrier(&row.kind, p)
-                || row_refs.iter().any(|r| {
+        .filter(|row| {
+            row.always
+                || row.refs.iter().any(|r| {
                     r.id.as_deref().is_some_and(|id| wanted.contains(id))
                         || r.parent.as_deref().is_some_and(|parent| wanted.contains(parent))
                 })
         })
+        .map(|row| (row.ts, row.id))
         .collect();
-    let mut keep = keep.into_iter();
-    rows.into_iter().filter(|_| keep.next().unwrap_or(false)).collect()
+    kept.sort_unstable();
+    kept.into_iter().map(|(_, id)| id).collect()
+}
+
+/// [`select_subagent_ids`] over rows in hand: the rows it keeps, in their order.
+pub fn select_subagent_rows(rows: Vec<EventRecord>) -> Vec<EventRecord> {
+    let metas: Vec<SubagentRowMeta> = rows.iter().map(SubagentRowMeta::of).collect();
+    let keep: HashSet<i64> = select_subagent_ids(&metas).into_iter().collect();
+    rows.into_iter().filter(|row| keep.contains(&row.id)).collect()
 }
 
 /// Every file attached anywhere in a conversation, from its `user_message`

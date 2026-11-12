@@ -17,7 +17,8 @@ use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
 use eos_core::agent::{
-    BackgroundTaskUpdate, HostTool, LaunchSpec, PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
+    AgentRuntime, BackgroundTaskUpdate, HostTool, LaunchSpec, OneShot, PromptAssembler, ScratchFolders, SpawnFacts,
+    ToolInputDelta, ToolSets,
 };
 use eos_core::git::{BranchIntegration, WorktreeManager};
 use eos_core::prompt::ProfileRenderer;
@@ -41,7 +42,7 @@ use tokio::runtime::Handle;
 
 /// How agents reach the model and Claude Code's files. The defaults are the
 /// real ones; tests point every field somewhere of their own.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct AgentOptions {
     /// Where the model API is; the provider's own when `None`.
     pub base_url: Option<String>,
@@ -54,6 +55,24 @@ pub struct AgentOptions {
     /// The credential every new session runs on instead of the accounts
     /// feature's pick (a scripted run); `None` leaves the choice to it.
     pub credential: Option<SessionCredential>,
+    /// Every session runs here instead of on the engine (a scripted run of
+    /// the whole app); moving a session to another sign-in goes to its session.
+    pub runtime: Option<Arc<dyn AgentRuntime>>,
+    /// One-shot model calls (summaries, chat names, dreams) go here instead
+    /// of the engine.
+    pub one_shot: Option<Arc<dyn OneShot>>,
+}
+
+impl std::fmt::Debug for AgentOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AgentOptions")
+            .field("base_url", &self.base_url)
+            .field("claude_home", &self.claude_home)
+            .field("no_mcp", &self.no_mcp)
+            .field("default_model", &self.default_model)
+            .field("scripted", &self.runtime.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 pub(crate) fn engine(dir: &Path, options: &AgentOptions, deps: EngineDeps) -> Arc<LazyEngine> {
@@ -97,6 +116,22 @@ impl SessionAccountSwitch for NoLiveSessions {
         _credential: SessionCredential,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async { Err("this agent can't change account right now".to_owned()) })
+    }
+}
+
+/// Moves a session of a runtime other than the engine (a scripted run).
+pub(crate) struct RuntimeAccountSwitch(pub(crate) Arc<dyn AgentRuntime>);
+
+impl SessionAccountSwitch for RuntimeAccountSwitch {
+    fn move_session<'a>(
+        &'a self,
+        worker_id: &'a str,
+        credential: SessionCredential,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        Box::pin(async move {
+            let session = self.0.session(worker_id).ok_or("this agent can't change account right now")?;
+            session.switch_account(credential).await.map_err(|e| e.to_string())
+        })
     }
 }
 

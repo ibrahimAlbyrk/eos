@@ -57,6 +57,7 @@ async fn a_focused_chat_turn_runs_from_the_route_to_the_stream() {
             no_mcp: true,
             default_model: Some("mock-model".into()),
             credential: Some(SessionCredential::ApiKey { provider: "anthropic".into(), key: "k-smoke".into() }),
+            ..AgentOptions::default()
         },
         ..Options::new(home.path())
     };

@@ -39,7 +39,8 @@ impl std::fmt::Debug for PathLocks {
 pub struct PathGuard<'a> {
     locks: &'a PathLocks,
     path: PathBuf,
-    entry: Arc<Entry>,
+    /// Given back inside `drop`, while the table is held (see there).
+    entry: Option<Arc<Entry>>,
 }
 
 impl std::fmt::Debug for PathGuard<'_> {
@@ -71,7 +72,7 @@ impl PathLocks {
         }
         *locked = true;
         drop(locked);
-        PathGuard { locks: self, path: path.to_owned(), entry }
+        PathGuard { locks: self, path: path.to_owned(), entry: Some(entry) }
     }
 
     /// Read-modify-write of one file under its lock. `change` gets the current
@@ -100,13 +101,18 @@ impl Drop for PathGuard<'_> {
     fn drop(&mut self) {
         // Table first, so no one can join the entry between the check and the removal.
         let mut table = lock(&self.locks.table);
-        *lock(&self.entry.locked) = false;
+        let Some(entry) = self.entry.take() else { return };
+        *lock(&entry.locked) = false;
         // Two owners left — the table and this guard — means no one is waiting.
-        if Arc::strong_count(&self.entry) == 2 {
+        if Arc::strong_count(&entry) == 2 {
             table.remove(&self.path);
         } else {
-            self.entry.freed.notify_one();
+            entry.freed.notify_one();
         }
+        // This guard's share goes before the table is let go: a waiter that
+        // takes over and lets go at once must not count it as a third owner,
+        // or the entry would stay in the table for good.
+        drop(entry);
     }
 }
 
@@ -166,6 +172,26 @@ mod tests {
         waiter.join().expect("waiter");
         assert_eq!(entered.load(Ordering::SeqCst), 1);
         assert_eq!(locks.held(), 1);
+    }
+
+    #[test]
+    fn no_entry_is_left_behind_when_a_waiter_takes_over_a_released_path() {
+        // The holder hands the path to a waiter and the waiter lets it go at
+        // once, over and over: the table must end empty every time.
+        let locks = Arc::new(PathLocks::new());
+        for round in 0..2_000 {
+            let held = locks.lock(Path::new("/x/a"));
+            let waiter = {
+                let locks = locks.clone();
+                thread::spawn(move || drop(locks.lock(Path::new("/x/a"))))
+            };
+            while lock(&locks.table).get(Path::new("/x/a")).is_some_and(|e| Arc::strong_count(e) < 3) {
+                thread::yield_now();
+            }
+            drop(held);
+            waiter.join().expect("waiter");
+            assert_eq!(locks.held(), 0, "round {round}: an entry outlived its users");
+        }
     }
 
     #[test]

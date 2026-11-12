@@ -57,7 +57,7 @@ pub enum Error {
     /// This computer's identity for its paired computers cannot be read.
     #[error("peering: {0}")]
     Peer(#[from] eos_peer::Error),
-    /// Two modules clash, a route has no access rule, or a module failed to start.
+    /// Two modules clash, or a route has no access rule.
     #[error(transparent)]
     Runtime(#[from] eos_runtime::Error),
 }

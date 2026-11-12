@@ -89,8 +89,10 @@ pub(crate) fn subtree(tx: &dyn Tx, root: &str) -> Result<Vec<String>, Error> {
     Ok(all)
 }
 
-/// Everything that hangs on a worker's row goes with it; its worktree is
-/// queued for removal (that survives a restart).
+/// Everything that hangs on a worker's row goes with it, in the same
+/// transaction: a quit or a crash right after it leaves nothing behind (its
+/// visual answers, the worker definitions it made). Its worktree is queued for
+/// removal (that survives a restart).
 fn cascade(tx: &dyn Tx, out: &mut Outbox, row: &Worker, now: i64) -> Result<(), Error> {
     if let (Some(repo_root), Some(branch)) = (&row.worktree_from, &row.branch) {
         tx.worktree_removals().enqueue(&WorktreeRemoval {
@@ -108,6 +110,8 @@ fn cascade(tx: &dyn Tx, out: &mut Outbox, row: &Worker, now: i64) -> Result<(), 
     tx.message_queue().delete_by_worker(&row.id)?;
     tx.loops().delete_by_worker(&row.id)?;
     tx.message_ids().delete_by_worker(&row.id)?;
+    tx.genui_views().remove_by_worker(&row.id)?;
+    tx.worker_definitions().delete_for_owner(&row.id)?;
     out.push(WORKER_REMOVED, &RemovedAnnounce { worker_id: &row.id });
     Ok(())
 }

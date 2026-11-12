@@ -4,7 +4,8 @@
 #
 #   wire.sh record                 synthetic data folder → fixtures/wire/recordings (+ routes.json, coverage.md)
 #   wire.sh replay                 a second fresh synthetic folder, diffed against those recordings
-#   wire.sh record-private <copy>  read-only scenarios on a copy of a real data folder → fixtures/private
+#   wire.sh record-private <copy>  read-only scenarios (and scenarios-private) on a copy of a real data
+#                                  folder made by private-copy.sh → fixtures/private
 #   wire.sh replay-private <copy>  the same copy again, diffed against fixtures/private
 #   wire.sh up | down              a seeded synthetic daemon that stays up, for writing scenarios;
 #                                  EOS_WIRE_REUSE=1 wire.sh record|replay then runs against it
@@ -100,13 +101,20 @@ case "$mode" in
     mkdir -p "$out" "$user"
     # The copy holds real chats: the recorder sends only reads to a folder so marked.
     touch "$home/REAL_DATA"
+    vars=(--real-data --var "home=$home" --var "user_home=$user" --var "repo=$repo")
+    # A copy made by private-copy.sh holds its project folders in <copy>-sb.
+    [ -d "$home-sb" ] && vars+=(--var "sandbox=$home-sb" --var "sandbox_slug=$(echo "$home-sb" | tr '/.' '--')" --var "home_slug=$(echo "$home" | tr '/.' '--')")
+    # The chats and records the private scenarios read, picked from the copy.
+    # Picked before the boot, as replay.sh picks them on its copy.
+    while read -r flag value; do vars+=("$flag" "$value"); done < <("$rust/scripts/private-vars.sh" "$home")
     trap '"$rust/scripts/wire-daemon.sh" stop "$home"' EXIT
     EOS_WIRE_USER_HOME="$user" "$rust/scripts/wire-daemon.sh" start "$home" >/dev/null
-    vars=(--real-data --var "home=$home" --var "user_home=$user" --var "repo=$repo")
     if [ "$mode" = record-private ]; then
-      # shellcheck disable=SC2046
-      recorder record --scenarios "$wire/scenarios" --out "$out" --routes "$wire/routes.json" \
-        --read-only --lenient $(target "$home") "${vars[@]}" "$@"
+      for scenarios in "$wire/scenarios" "$wire/scenarios-private"; do
+        # shellcheck disable=SC2046
+        recorder record --scenarios "$scenarios" --out "$out" --routes "$wire/routes.json" \
+          --read-only --lenient $(target "$home") "${vars[@]}" "$@"
+      done
     else
       # shellcheck disable=SC2046
       recorder replay --recordings "$out" $(target "$home") "${vars[@]}" "$@"

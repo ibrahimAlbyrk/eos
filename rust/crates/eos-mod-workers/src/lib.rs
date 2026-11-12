@@ -12,6 +12,7 @@ mod events;
 mod export;
 mod memory;
 mod rows;
+mod stream;
 
 use std::sync::Arc;
 

@@ -25,9 +25,8 @@ mod routes;
 mod settings;
 mod settings_routes;
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
-use eos_contracts::stream::topics;
 use eos_contracts::{GenuiChange, GenuiDelta};
 use eos_core::agent::ToolInputDelta;
 use eos_core::genui::{Places, UserLocation, VisualAnswers};
@@ -35,10 +34,10 @@ use eos_core::net::{Geocoder, MapTiles, MediaFetcher, PlaceSearch};
 use eos_core::shell::Location;
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{Clock, Ids};
-use eos_runtime::bus::{Bus, Scope, ScopeKind, Subscription, Topic, TopicDecl};
-use eos_runtime::module::{Module, ModuleError, PromptValue, ProtectedSettings};
-use eos_runtime::router::{BoxFuture, RouteDef};
-use serde::{Deserialize, Serialize};
+use eos_runtime::bus::{Bus, Scope, ScopeKind, Topic, TopicDecl};
+use eos_runtime::module::{Module, PromptValue, ProtectedSettings};
+use eos_runtime::router::RouteDef;
+use serde::Serialize;
 
 use location::LocationSource;
 use places::PlaceFinder;
@@ -91,7 +90,6 @@ pub struct GenuiModule {
     presenter: Presenter,
     places: PlaceFinder,
     location: LocationSource,
-    listening: Mutex<Vec<Subscription>>,
 }
 
 impl std::fmt::Debug for GenuiModule {
@@ -116,7 +114,7 @@ impl GenuiModule {
             shell: parts.location.clone(),
             geocoder: parts.geocoder.clone(),
         };
-        Self { parts, switches, presenter, places, location, listening: Mutex::new(Vec::new()) }
+        Self { parts, switches, presenter, places, location }
     }
 
     /// The write path of the `present` and `present_app` tools.
@@ -143,12 +141,6 @@ struct DeltaFrame<'a> {
     worker_id: &'a str,
     #[serde(flatten)]
     delta: &'a ToolInputDelta,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct WorkerGone {
-    worker_id: String,
 }
 
 impl Module for GenuiModule {
@@ -190,30 +182,5 @@ impl Module for GenuiModule {
             Ok(frame) => self.parts.bus.publish_raw(GENUI_DELTA.name(), Some(Scope::worker(worker_id)), frame.into()),
             Err(e) => tracing::error!(error = %e, "a genui:delta frame could not be serialized; dropped"),
         }
-    }
-
-    fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
-        Box::pin(async move {
-            // A removed chat's visual answers go with it.
-            let (store, runtime) = (self.parts.store.clone(), tokio::runtime::Handle::current());
-            let removed = self.parts.bus.on(topics::WORKER_REMOVED, move |event| {
-                let Ok(gone) = event.payload_as::<WorkerGone>() else { return };
-                let store = store.clone();
-                runtime.spawn(async move {
-                    let worker = gone.worker_id.clone();
-                    if let Err(e) = store.write(move |tx, _out| tx.genui_views().remove_by_worker(&worker)).await {
-                        tracing::warn!(worker = %gone.worker_id, error = %e, "removing a gone worker's views failed");
-                    }
-                });
-            });
-            self.listening.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).push(removed);
-            Ok(())
-        })
-    }
-
-    fn stop(&self) -> BoxFuture<'_, ()> {
-        Box::pin(async move {
-            self.listening.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).clear();
-        })
     }
 }

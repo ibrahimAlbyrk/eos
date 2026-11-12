@@ -132,6 +132,10 @@ Every subscription and stream is removed when dropped (tests run thousands of cy
   sync services.
 - For `eos-app`: `Kernel::new` → build modules from it → `Runtime::build` → `lifecycle.start()` →
   hand `runtime.router` to the bridge and gateways → `lifecycle.ready()` → `runtime.shutdown(deadline)`.
+  A module whose `start` or `after_ready` fails (or panics) does not keep the app from opening: it
+  is recorded in `modules.failed()`, its routes answer 503 `feature_failed` naming it, its hooks and
+  idle hooks are skipped, and `notification:fire` tells the user. What the app cannot run without
+  (the store, the runtime, sessions) is built before any module and still fails `App::build`.
   The app classifies local callers (ui-token / a host's view token → `LocalCaller`), passes
   `local_only_under(…)` for today's local-only areas, supplies the `PluginSwitch`, runs
   `runtime.idle` when a worker settles, and repeats the `router.undeclared()` test over the real table.

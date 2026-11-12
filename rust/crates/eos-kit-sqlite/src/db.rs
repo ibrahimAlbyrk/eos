@@ -58,12 +58,16 @@ impl Default for Options {
     }
 }
 
-/// Counters of the writer since the open.
+/// Counters of the writer since the open, and what waits now.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct Stats {
     pub commits: u64,
     pub writes: u64,
     pub largest_batch: u64,
+    /// Writes queued for the writer thread at this moment.
+    pub writes_queued: usize,
+    /// Reads queued for the reader threads at this moment.
+    pub reads_queued: usize,
 }
 
 #[derive(Default)]
@@ -199,6 +203,8 @@ impl Db {
             commits: self.counters.commits.load(Ordering::Relaxed),
             writes: self.counters.writes.load(Ordering::Relaxed),
             largest_batch: self.counters.largest_batch.load(Ordering::Relaxed),
+            writes_queued: self.write_tx.as_ref().map_or(0, Sender::len),
+            reads_queued: self.read_tx.as_ref().map_or(0, Sender::len),
         }
     }
 

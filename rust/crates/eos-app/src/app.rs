@@ -122,6 +122,8 @@ pub struct Options {
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
+    /// Modules a run adds after the app's own (a test of the composed app).
+    pub extra_modules: Vec<Arc<dyn eos_runtime::module::Module>>,
 }
 
 /// The window shell as the core uses it.
@@ -165,6 +167,7 @@ impl Options {
             dashboard: None,
             relay: None,
             keep_awake: None,
+            extra_modules: Vec::new(),
         }
     }
 }
@@ -240,6 +243,7 @@ impl App {
             dashboard,
             relay,
             keep_awake,
+            extra_modules,
         } = options;
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
@@ -384,10 +388,20 @@ impl App {
             },
         );
         // "Resume at" and "Use API key" reach the live session through the engine.
-        accounts.attach_sessions(engine.clone());
+        let runtime: Arc<dyn eos_core::agent::AgentRuntime> = match &agents.runtime {
+            Some(runtime) => {
+                accounts.attach_sessions(Arc::new(agent::RuntimeAccountSwitch(runtime.clone())));
+                runtime.clone()
+            }
+            None => {
+                accounts.attach_sessions(engine.clone());
+                engine.clone()
+            }
+        };
+        let one_shot: Arc<dyn eos_core::agent::OneShot> = agents.one_shot.clone().unwrap_or_else(|| engine.clone());
         let sessions = Sessions::new(SessionDeps {
             store: store.clone(),
-            runtime: engine.clone(),
+            runtime,
             clock: clock.clone(),
             ids: ids.clone(),
             config: config.clone(),
@@ -435,7 +449,7 @@ impl App {
             models,
             backends: engine.clone(),
             commands: engine.clone(),
-            one_shot: engine,
+            one_shot,
             workflow_files,
             sessions: sessions.clone(),
             peer: crate::peer::build(crate::peer::Parts {
@@ -498,7 +512,9 @@ impl App {
             })),
         };
         let remote = context.remote.clone();
-        let runtime = Arc::new(Runtime::build(kernel, modules::all(&context)?, plugins.switch())?);
+        let mut all = modules::all(&context)?;
+        all.extend(extra_modules);
+        let runtime = Arc::new(Runtime::build(kernel, all, plugins.switch())?);
         hooks.attach(&runtime);
         // The phone's requests go to the same routes the dashboard calls.
         remote.attach_router(runtime.router.clone());
@@ -620,6 +636,11 @@ impl App {
 
     pub fn store(&self) -> Arc<dyn Store> {
         self.store.clone()
+    }
+
+    /// The database writer's counters and what waits for it now.
+    pub fn db_stats(&self) -> eos_kit_sqlite::Stats {
+        self.store.db().stats()
     }
 
     pub fn paths(&self) -> &DataPaths {

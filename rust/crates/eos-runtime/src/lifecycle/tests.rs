@@ -10,6 +10,7 @@ struct Step {
     id: &'static str,
     log: Log,
     fail_start: bool,
+    panic_start: bool,
     fail_ready: bool,
     stop_takes: Duration,
     panic_on_stop: bool,
@@ -20,6 +21,7 @@ fn step(id: &'static str, log: &Log) -> Step {
         id,
         log: log.clone(),
         fail_start: false,
+        panic_start: false,
         fail_ready: false,
         stop_takes: Duration::ZERO,
         panic_on_stop: false,
@@ -39,6 +41,9 @@ impl Module for Step {
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {
         Box::pin(async move {
             self.note("start");
+            if self.panic_start {
+                panic!("start bug");
+            }
             if self.fail_start { Err("no disk".into()) } else { Ok(()) }
         })
     }
@@ -124,25 +129,36 @@ async fn refuses_steps_out_of_order() {
 }
 
 #[tokio::test]
-async fn a_module_that_fails_to_start_ends_start_up_and_only_what_started_is_stopped() {
+async fn a_module_that_fails_to_start_is_set_aside_and_the_rest_start() {
     let log = Log::default();
     let life = lifecycle(vec![step("a", &log), Step { fail_start: true, ..step("b", &log) }, step("c", &log)]);
-    let failed = life.start().await.expect_err("b fails");
-    assert_eq!(failed.to_string(), "module b failed to start: no disk");
+    life.start().await.expect("the app starts without b");
+    assert_eq!(life.modules.failed().reason("b").as_deref(), Some("no disk"));
+    life.ready().await.expect("ready");
     let report = life.shutdown(Duration::from_secs(1)).await;
-    assert_eq!(report.stopped, ["b", "a"], "c never started, so it is not stopped");
-    assert_eq!(taken(&log), ["start:a", "start:b", "stop:b", "stop:a"]);
+    assert_eq!(report.stopped, ["c", "b", "a"]);
+    assert_eq!(taken(&log), ["start:a", "start:b", "start:c", "ready:a", "ready:c", "stop:c", "stop:b", "stop:a"]);
 }
 
 #[tokio::test]
-async fn every_module_gets_after_ready_even_when_one_fails() {
+async fn a_module_whose_start_panics_is_set_aside_like_a_failure_and_unwinds_nothing() {
+    let log = Log::default();
+    let life = lifecycle(vec![step("a", &log), Step { panic_start: true, ..step("b", &log) }, step("c", &log)]);
+    life.start().await.expect("the app starts without b");
+    assert_eq!(life.modules.failed().reason("b").as_deref(), Some("panicked: start bug"));
+    let report = life.shutdown(Duration::from_secs(1)).await;
+    assert_eq!(report.stopped, ["c", "b", "a"]);
+}
+
+#[tokio::test]
+async fn every_module_gets_after_ready_and_one_that_fails_is_set_aside() {
     let log = Log::default();
     let life = lifecycle(vec![Step { fail_ready: true, ..step("sync", &log) }, step("b", &log)]);
     life.start().await.expect("started");
-    let failed = life.ready().await.expect_err("sync fails");
-    assert_eq!(failed.to_string(), "module sync failed to get ready: relay unreachable");
+    life.ready().await.expect("the app is ready without sync");
     assert_eq!(life.phase(), Phase::Ready);
     assert_eq!(taken(&log)[2..], ["ready:sync", "ready:b"]);
+    assert_eq!(life.modules.failed().list(), ["sync"]);
 }
 
 #[tokio::test]

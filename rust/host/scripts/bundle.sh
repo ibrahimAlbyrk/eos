@@ -50,6 +50,12 @@ fill() { sed -e "s/@NAME@/$NAME/g" -e "s/@ID@/$ID/g" -e "s/@VERSION@/$VERSION/g"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 fill bundle/Info.plist.in > "$APP/Contents/Info.plist"
+# The system allocator keeps every large block it gets back (up to a limit of its own),
+# and Activity Monitor counts it: the core's long lists and the app's own large buffers
+# would hold hundreds of MB after use. The soak (crates/eos-app/examples/soak.rs) measures
+# the app with it off and holds the footprint to a ceiling.
+grep -q "<key>MallocLargeCache</key>" "$APP/Contents/Info.plist" \
+  || { echo "Info.plist lost MallocLargeCache" >&2; exit 1; }
 cp "$BIN/eos" "$APP/Contents/MacOS/$NAME"
 cp "$BIN/eos-apply" "$APP/Contents/MacOS/eos-apply"
 if [ "${EOS_UPDATE_CHANNEL:-}" = "stable" ]; then

@@ -10,6 +10,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Arc, RwLock};
 
 use crate::error::panic_message;
+use crate::module::FailedModules;
 use crate::router::BoxFuture;
 
 type Decide = dyn Fn(&str) -> BoxFuture<'static, bool> + Send + Sync;
@@ -20,6 +21,8 @@ pub struct IdleHook {
     /// Lower runs first (today: compaction 10, goal loop 20, report gap 30,
     /// context threshold 40).
     pub order: i32,
+    /// The module that added it; its hook does not run once its start failed.
+    owner: &'static str,
     run: Arc<Decide>,
 }
 
@@ -29,7 +32,12 @@ impl IdleHook {
     where
         F: Future<Output = bool> + Send + 'static,
     {
-        Self { id, order, run: Arc::new(move |worker_id| Box::pin(run(worker_id))) }
+        Self { id, order, owner: "kernel", run: Arc::new(move |worker_id| Box::pin(run(worker_id))) }
+    }
+
+    pub(crate) fn owned_by(mut self, module: &'static str) -> Self {
+        self.owner = module;
+        self
     }
 }
 
@@ -42,6 +50,7 @@ impl std::fmt::Debug for IdleHook {
 #[derive(Debug, Default)]
 pub struct IdleHooks {
     hooks: RwLock<Arc<[IdleHook]>>,
+    failed: Arc<FailedModules>,
 }
 
 impl IdleHooks {
@@ -51,6 +60,12 @@ impl IdleHooks {
             all.add(hook);
         }
         all
+    }
+
+    /// The hooks of a module whose start failed are skipped.
+    pub(crate) fn skipping(mut self, failed: Arc<FailedModules>) -> Self {
+        self.failed = failed;
+        self
     }
 
     /// Adds a hook; one with the same id is replaced. Hooks of equal order
@@ -72,7 +87,7 @@ impl IdleHooks {
     /// logged and counts as "did not take the worker".
     pub async fn run(&self, worker_id: &str) {
         let hooks = self.hooks.read().unwrap_or_else(|p| p.into_inner()).clone();
-        for hook in hooks.iter() {
+        for hook in hooks.iter().filter(|hook| !self.failed.is_failed(hook.owner)) {
             let failed = |panic: &str| tracing::error!(hook = hook.id, worker_id, panic, "an idle hook panicked");
             let deciding = match catch_unwind(AssertUnwindSafe(|| (hook.run)(worker_id))) {
                 Ok(deciding) => deciding,

@@ -136,24 +136,6 @@ async fn a_views_state_is_the_users_to_write() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_removed_workers_views_go_with_it() {
-    let h = Harness::start(Fakes::default()).await;
-    let id = present(&h, "o-ORCH", board()).await.json()["viewId"].as_str().expect("id").to_owned();
-    let kept = present(&h, "w-CHAT", board()).await.json()["viewId"].as_str().expect("id").to_owned();
-    h.runtime.kernel.bus.publish_raw("worker:removed", None, br#"{"workerId":"o-ORCH"}"#.to_vec().into());
-    h.runtime.kernel.bus.flush().await;
-    // The removal runs on a task the event started: wait for the row to go.
-    for _ in 0..200 {
-        if h.anyone(Method::Get, &format!("/api/genui/views/{id}"), None).await.status == 404 {
-            break;
-        }
-        tokio::task::yield_now().await;
-    }
-    assert_eq!(h.anyone(Method::Get, &format!("/api/genui/views/{id}"), None).await.status, 404);
-    assert_eq!(h.anyone(Method::Get, &format!("/api/genui/views/{kept}"), None).await.status, 200);
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn settings_are_written_where_they_live_and_only_by_the_user() {
     let h = Harness::start(Fakes::default()).await;
     let defaults = h.anyone(Method::Get, "/api/settings/genui", None).await.json();

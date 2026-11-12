@@ -3,9 +3,7 @@
 //! (`scripts/replay.sh`).
 
 use std::sync::Arc;
-use std::time::Duration;
 
-use eos_contracts::stream::topics;
 use eos_core::SystemClock;
 use eos_core::store::{Announcement, Announcer};
 use eos_kit_sqlite::Db;
@@ -43,7 +41,7 @@ fn app(home: &TempHome, sandbox: &str) -> Runtime {
         .expect("the seed rows");
     let files = Arc::new(FsWorkerDefinitionFiles::new(home.join("workers")));
     let definitions = Arc::new(WorkerDefinitions::new(files, store, Arc::new(SystemClock)));
-    let module = Arc::new(WorkerDefinitionsModule::new(definitions, kernel.bus.clone()));
+    let module = Arc::new(WorkerDefinitionsModule::new(definitions));
     Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes")
 }
 
@@ -86,13 +84,4 @@ async fn an_owners_definitions_go_with_its_worker_row() {
     assert_eq!(names("o-ORCH").await, own, "its own definition replaces the user's in place");
     let others = "explorer:builtin general-purpose:builtin git:builtin researcher:builtin reviewer:user";
     assert_eq!(names("w-LONG").await, others, "another session never sees them");
-
-    app.kernel.bus.publish_raw(topics::WORKER_REMOVED, None, r#"{"workerId":"o-ORCH"}"#.into());
-    tokio::time::timeout(Duration::from_secs(5), async {
-        while names("o-ORCH").await != others {
-            tokio::task::yield_now().await;
-        }
-    })
-    .await
-    .expect("the owner's definitions are dropped");
 }

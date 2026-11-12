@@ -5,8 +5,9 @@
 #   replay.sh [--only 11-chats,12-transcript] [--verbose]
 #       a fresh synthetic data folder (the recordings' seed), against fixtures/wire/recordings
 #   replay.sh --private <copy> [--only …]
-#       a copy of a real data folder, against fixtures/private (made by `wire.sh record-private`
-#       on the same copy). Differences are printed without their values.
+#       a copy of a real data folder (scripts/private-copy.sh), against fixtures/private (made by
+#       `wire.sh record-private` on another copy of the same folder, whose path has the same
+#       length). Differences are printed without their values.
 #
 # Steps whose route the Rust core does not serve yet are counted apart ("not
 # served yet"), and so are differences listed with their reason in
@@ -46,9 +47,11 @@ if [ "${1:-}" = "--private" ]; then
   shift 2
   user="$root/private-user"
   touch "$home/REAL_DATA"
+  vars=(--var "home=$home" --var "user_home=$user" --var "repo=$repo")
+  [ -d "$home-sb" ] && vars+=(--var "sandbox=$home-sb" --var "sandbox_slug=$(echo "$home-sb" | tr '/.' '--')" --var "home_slug=$(echo "$home" | tr '/.' '--')")
+  while read -r flag value; do vars+=("$flag" "$value"); done < <("$rust/scripts/private-vars.sh" "$home")
   isolated "$user" "$tool" replay --recordings "$rust/fixtures/private" --rules "$wire/normalize.toml" \
-    --known "$wire/rust-differences.toml" --rust-home "$home" --real-data --redact \
-    --var "home=$home" --var "user_home=$user" --var "repo=$repo" "$@"
+    --known "$wire/rust-differences.toml" --rust-home "$home" --real-data --redact "${vars[@]}" "$@"
   exit
 fi
 

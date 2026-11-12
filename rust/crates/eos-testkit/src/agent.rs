@@ -10,11 +10,14 @@
 //! assert_eq!(agents.sent("w-1"), ["hello"]);
 //! ```
 //!
-//! A message with no scripted turn left gets `Turn::reply("ok")`.
+//! A message with no scripted turn left gets what [`ScriptedRuntime::otherwise`]
+//! makes for it, else `Turn::reply("ok")`. A long run builds the runtime with
+//! [`ScriptedRuntime::unlogged`], which keeps no record of the calls.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
+use std::time::Duration;
 
 use eos_contracts::{
     AgentEvent, AgentMessageEvent, AgentMessageEventRole, CanonicalUsage, CommandItem, ContentBlock, RewindMode,
@@ -96,6 +99,16 @@ pub struct Turn {
     body: Vec<AgentEvent>,
     end: AgentEvent,
     hold: Option<Arc<Notify>>,
+    /// What the session tells its sink besides events, after the body.
+    effects: Vec<Effect>,
+    /// How long the turn runs after its body before it ends.
+    takes: Option<Duration>,
+}
+
+#[derive(Debug, Clone)]
+enum Effect {
+    Background(BackgroundTaskUpdate),
+    Workflow(WorkflowRunProgress),
 }
 
 impl Turn {
@@ -116,7 +129,26 @@ impl Turn {
     /// These events, then usage and `turn ended`.
     pub fn of(mut body: Vec<AgentEvent>) -> Self {
         body.push(events::usage(10, 5));
-        Self { body, end: events::turn(TurnEventPhase::Ended, None), hold: None }
+        Self { body, end: events::turn(TurnEventPhase::Ended, None), hold: None, effects: Vec::new(), takes: None }
+    }
+
+    /// A background command or monitor of the session moves on during the turn.
+    pub fn with_background(mut self, update: BackgroundTaskUpdate) -> Self {
+        self.effects.push(Effect::Background(update));
+        self
+    }
+
+    /// A workflow run of the session reports progress during the turn.
+    pub fn with_workflow(mut self, progress: WorkflowRunProgress) -> Self {
+        self.effects.push(Effect::Workflow(progress));
+        self
+    }
+
+    /// The turn runs this long after its body before it ends (an interrupt
+    /// cuts it short).
+    pub fn taking(mut self, duration: Duration) -> Self {
+        self.takes = Some(duration);
+        self
     }
 
     /// The turn ends in an error instead.
@@ -153,8 +185,14 @@ pub enum Call {
     SwitchAccount { worker_id: String, credential: SessionCredential },
 }
 
+/// Makes the turn for a message no scripted turn is left for: (worker, text).
+type Fallback = Arc<dyn Fn(&str, &str) -> Turn + Send + Sync>;
+
 struct Shared {
     descriptor: BackendDescriptor,
+    /// Whether calls and forgotten workers are kept for the test to read.
+    log: bool,
+    fallback: Mutex<Option<Fallback>>,
     sessions: Mutex<HashMap<String, Arc<ScriptedSession>>>,
     turns: Mutex<VecDeque<Turn>>,
     calls: Mutex<Vec<Call>>,
@@ -166,7 +204,9 @@ struct Shared {
 
 impl Shared {
     fn record(&self, call: Call) {
-        self.calls.lock().expect("calls").push(call);
+        if self.log {
+            self.calls.lock().expect("calls").push(call);
+        }
     }
 }
 
@@ -204,7 +244,17 @@ impl ScriptedRuntime {
         Self::with_capabilities(claude_capabilities())
     }
 
+    /// Keeps no record of calls or forgotten workers: for a run long enough
+    /// that the record would be what grows.
+    pub fn unlogged() -> Self {
+        Self::build(claude_capabilities(), false)
+    }
+
     pub fn with_capabilities(capabilities: AgentCapabilities) -> Self {
+        Self::build(capabilities, true)
+    }
+
+    fn build(capabilities: AgentCapabilities, log: bool) -> Self {
         let descriptor = BackendDescriptor {
             kind: "claude".into(),
             label: "Claude".into(),
@@ -219,6 +269,8 @@ impl ScriptedRuntime {
         };
         Self(Arc::new(Shared {
             descriptor,
+            log,
+            fallback: Mutex::default(),
             sessions: Mutex::default(),
             turns: Mutex::default(),
             calls: Mutex::default(),
@@ -245,6 +297,11 @@ impl ScriptedRuntime {
         turn.hold = Some(gate.clone());
         self.script(turn);
         Release(gate)
+    }
+
+    /// Makes the turn of every message no scripted turn is left for.
+    pub fn otherwise(&self, make: impl Fn(&str, &str) -> Turn + Send + Sync + 'static) {
+        *self.0.fallback.lock().expect("fallback") = Some(Arc::new(make));
     }
 
     /// The next `start` fails with `error`.
@@ -350,7 +407,11 @@ impl ScriptedSession {
 
     fn begin(&self, text: String) {
         let Some(session) = self.me.upgrade() else { return };
-        let turn = self.shared.turns.lock().expect("turns").pop_front().unwrap_or_else(|| Turn::reply("ok"));
+        let scripted = self.shared.turns.lock().expect("turns").pop_front();
+        let turn = scripted.unwrap_or_else(|| {
+            let fallback = self.shared.fallback.lock().expect("fallback").clone();
+            fallback.map_or_else(|| Turn::reply("ok"), |make| make(&self.worker_id, &text))
+        });
         let running = Running::start(&self.shared);
         tokio::spawn(async move {
             let _running = running;
@@ -368,10 +429,21 @@ impl ScriptedSession {
         let id = self.worker_id.as_str();
         let mut batch = vec![events::turn(TurnEventPhase::Started, None)];
         batch.extend(turn.body);
-        if let Some(gate) = turn.hold {
+        if turn.hold.is_some() || turn.takes.is_some() || !turn.effects.is_empty() {
             self.sink.events(id, std::mem::take(&mut batch)).await;
+        }
+        for effect in turn.effects {
+            match effect {
+                Effect::Background(update) => self.sink.background_task(id, update),
+                Effect::Workflow(progress) => self.sink.workflow_progress(progress),
+            }
+        }
+        if turn.hold.is_some() || turn.takes.is_some() {
+            let gate = turn.hold.unwrap_or_default();
+            let takes = turn.takes.unwrap_or(Duration::MAX);
             tokio::select! {
                 () = gate.notified() => {}
+                () = tokio::time::sleep(takes) => {}
                 _ = interrupted.changed() => {
                     if self.alive.load(Ordering::SeqCst) {
                         let aborted = events::turn(TurnEventPhase::Aborted, Some("interrupted"));
@@ -603,7 +675,9 @@ impl AgentRuntime for ScriptedRuntime {
     }
 
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
-        self.0.forgotten.lock().expect("forgotten").push(worker_id.to_owned());
+        if self.0.log {
+            self.0.forgotten.lock().expect("forgotten").push(worker_id.to_owned());
+        }
         Box::pin(std::future::ready(()))
     }
 }

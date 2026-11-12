@@ -116,15 +116,20 @@ impl Lifecycle {
         Ok(())
     }
 
-    /// Starts every module, in order. The first failure stops the sequence
-    /// and is returned; `shutdown` then stops the modules that did start.
+    /// Starts every module, in order. A module that fails to start (a panic
+    /// counts) does not keep the app from opening: it is recorded as failed —
+    /// its routes answer 503, its hooks do not run, the user is told — and the
+    /// next one starts. `shutdown` stops every module that was started.
     pub async fn start(&self) -> Result<(), Error> {
         self.expect("start", Phase::Built)?;
         let began = Instant::now();
         for module in self.modules.iter() {
             let step = Instant::now();
             self.state().started += 1;
-            let outcome = module.start().await;
+            let outcome = match Guarded(module.start()).await {
+                Ok(outcome) => outcome,
+                Err(panic) => Err(format!("panicked: {panic}").into()),
+            };
             tracing::info!(
                 module = module.id(),
                 micros = step.elapsed().as_micros() as u64,
@@ -132,7 +137,7 @@ impl Lifecycle {
                 "module started"
             );
             if let Err(e) = outcome {
-                return Err(Error::Module { module: module.id().to_owned(), step: "start", message: e.to_string() });
+                self.modules.failed().fail(module.id(), &e.to_string());
             }
         }
         self.state().phase = Phase::Started;
@@ -144,15 +149,17 @@ impl Lifecycle {
         Ok(())
     }
 
-    /// The app is ready: runs every module's `after_ready` (all of them, even
-    /// if one fails — the first failure is returned), then sets the deferred
-    /// tasks off in the background.
+    /// The app is ready: runs `after_ready` of every module that started (one
+    /// that fails is recorded as failed, like a failed start), then sets the
+    /// deferred tasks off in the background.
     pub async fn ready(&self) -> Result<(), Error> {
         self.expect("ready", Phase::Started)?;
-        let mut first_failure = None;
-        for module in self.modules.iter() {
+        for module in self.modules.iter().filter(|m| !self.modules.failed().is_failed(m.id())) {
             let step = Instant::now();
-            let outcome = module.after_ready().await;
+            let outcome = match Guarded(module.after_ready()).await {
+                Ok(outcome) => outcome,
+                Err(panic) => Err(format!("panicked: {panic}").into()),
+            };
             tracing::info!(
                 module = module.id(),
                 micros = step.elapsed().as_micros() as u64,
@@ -160,12 +167,7 @@ impl Lifecycle {
                 "module ready"
             );
             if let Err(e) = outcome {
-                tracing::error!(module = module.id(), error = %e, "after_ready failed");
-                first_failure.get_or_insert(Error::Module {
-                    module: module.id().to_owned(),
-                    step: "get ready",
-                    message: e.to_string(),
-                });
+                self.modules.failed().fail(module.id(), &e.to_string());
             }
         }
         let mut state = self.state();
@@ -175,7 +177,7 @@ impl Lifecycle {
             state.deferred_run = Some(tokio::spawn(run_deferred(tasks)));
         }
         drop(state);
-        first_failure.map_or(Ok(()), Err)
+        Ok(())
     }
 
     /// Waits for the deferred tasks to finish (tests, and tools that want a
@@ -219,7 +221,7 @@ impl Lifecycle {
                 continue;
             };
             let step = Instant::now();
-            let outcome = tokio::time::timeout(left, StopGuard(module.stop())).await;
+            let outcome = tokio::time::timeout(left, Guarded(module.stop())).await;
             match outcome {
                 Ok(Ok(())) => report.stopped.push(module.id()),
                 Ok(Err(panic)) => {
@@ -238,11 +240,12 @@ impl Lifecycle {
     }
 }
 
-/// Polls a module's `stop`, turning a panic into an error.
-struct StopGuard<'a>(BoxFuture<'a, ()>);
+/// Polls a module's `start`, `after_ready` or `stop`, turning a panic into
+/// an error: it never unwinds into whoever starts or stops the app.
+struct Guarded<'a, T>(BoxFuture<'a, T>);
 
-impl Future for StopGuard<'_> {
-    type Output = Result<(), String>;
+impl<T> Future for Guarded<'_, T> {
+    type Output = Result<T, String>;
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.0.as_mut().poll(cx))) {

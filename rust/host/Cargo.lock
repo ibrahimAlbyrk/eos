@@ -2546,6 +2546,7 @@ dependencies = [
  "eos-runtime",
  "serde",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]

@@ -12,6 +12,7 @@ wire/routes.json          every route the daemon registers (written by the recor
 wire/coverage.md          every route → recorded / errors only / not recorded (generated)
 wire/not-recordable.toml  why a route has no recorded success
 wire/seed/                the invented data folder the recordings are made on
+wire/scenarios-private/   read-only scenarios that only run on a copy of a real data folder
 private/                  recordings made on a copy of a real data folder — git-ignored
 ```
 
@@ -82,10 +83,21 @@ its schema and the invented rows, as the recording run's first boot did.
 ## Real data stays private
 
 ```bash
-cp -R <sanitized copy of a data folder> <copy>
-scripts/wire.sh record-private <copy>    # → fixtures/private (never commit, print or upload)
-scripts/wire.sh replay-private <copy>
+scripts/private-copy.sh <sanitized data folder> <copy-n>   # the copy the daemon reads
+scripts/wire.sh record-private <copy-n>                    # → fixtures/private (never commit, print or upload)
+scripts/private-copy.sh <sanitized data folder> <copy-r>   # a fresh copy, path of the same length
+scripts/replay.sh --private <copy-r>                       # the Rust core on it, values hidden
 ```
+
+`private-copy.sh` moves every path of the user's home in the copy (rows and files) into a
+throwaway folder beside it (`<copy>-sb`, each project folder a small git repository with a fixed
+history), so a route that runs git in a chat's folder or sweeps a scratch folder never meets the
+user's own; it turns archive retention and dreaming off, clears worktree origins, and picks the
+chats the private scenarios read (`private-vars.sh`: newest, oldest, largest, archived, with
+subagents, workflow runs, compaction, questions, …) into `<copy>.vars` before anything boots on
+the copy. Besides the `read_only` scenarios of `wire/scenarios`, a private run records
+`wire/scenarios-private` (every transcript read per picked chat, every feature's lists, the
+stream's resume after a boot), which only ever run on such a copy.
 
 A real data folder holds real session ids and paths. Three things keep a recording run from
 touching anything real:
@@ -97,8 +109,6 @@ touching anything real:
 - the daemon runs with `$HOME` and `CLAUDE_CONFIG_DIR` pointing into the run folder, so a `claude`
   process could only write there.
 
-Before the first run on a copy, set `archive.retention` to `"off"` in its `config.json` and
-`dreaming.enabled` to `false` in `profile/profile.json`.
 
 ## A scenario
 

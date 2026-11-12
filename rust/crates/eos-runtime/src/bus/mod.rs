@@ -152,6 +152,11 @@ impl Bus {
 
     /// Publishes JSON that is already serialized (a plugin's own events, a
     /// payload forwarded from elsewhere). An empty payload means "none".
+    /// The time events are stamped with now.
+    pub fn now_ms(&self) -> i64 {
+        self.inner.clock.now_ms()
+    }
+
     pub fn publish_raw(&self, topic: impl Into<TopicName>, scope: Option<Scope>, payload: Bytes) {
         let ev = Event { topic: topic.into(), payload, scope, ts: self.inner.clock.now_ms() };
         if self.inner.lane.is_current() {

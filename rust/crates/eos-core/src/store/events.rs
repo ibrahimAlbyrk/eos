@@ -36,6 +36,17 @@ pub trait EventRepo {
     /// Replaces a row's payload (JSON text).
     fn patch_payload(&self, row_id: i64, payload: &str) -> Result<(), Error>;
     fn list(&self, query: &EventQuery) -> Result<Vec<EventRecord>, Error>;
+    /// The ids and times of the rows `query` picks, in the order
+    /// [`list`](EventRepo::list) returns them: a large page is then read in
+    /// slices as it is sent.
+    fn list_ids(&self, query: &EventQuery) -> Result<Vec<(i64, i64)>, Error>;
+    /// These rows of the worker, oldest first (time, then id); a row gone since
+    /// is left out.
+    fn find_many(&self, worker_id: &str, ids: &[i64]) -> Result<Vec<EventRecord>, Error>;
+    /// The worker's rows of these kinds after `after_id`, in insertion order, at
+    /// most `limit`: a whole log read a slice at a time, skipping what does not
+    /// matter to the reader.
+    fn scan(&self, worker_id: &str, kinds: &[&str], after_id: i64, limit: i64) -> Result<Vec<EventRecord>, Error>;
     /// Every row of one kind, in insertion order; `limit` caps it.
     fn list_by_type(
         &self,

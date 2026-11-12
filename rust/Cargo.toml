@@ -119,6 +119,7 @@ icu_collator = "2"
 if-addrs = "0.15"
 indexmap = { version = "2", features = ["serde"] }
 # FSEvents on macOS: one stream per watched tree, no descriptor per file.
+mimalloc = { version = "0.1", default-features = false }
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 portable-pty = "0.9"
 regress = { version = "0.12", features = ["utf16"] }

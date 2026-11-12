@@ -196,6 +196,7 @@ pub trait Module: Send + Sync + 'static {
 pub struct Modules {
     list: Arc<[Arc<dyn Module>]>,
     plugins: Arc<dyn PluginSwitch>,
+    failed: Arc<FailedModules>,
 }
 
 impl std::fmt::Debug for Modules {
@@ -274,7 +275,7 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
     let mut domains = Claims::new("sync domain");
 
     let mut out = Composed {
-        modules: Modules { list: modules.into(), plugins },
+        modules: Modules { list: modules.into(), plugins, failed: Arc::default() },
         routes: Vec::new(),
         topics: Vec::new(),
         job_kinds: KERNEL_JOB_KINDS.to_vec(),
@@ -312,7 +313,7 @@ pub fn compose(modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) ->
         }
         for hook in module.idle_hooks() {
             hooks.claim(hook.id, id, &mut conflicts);
-            out.idle_hooks.push(hook);
+            out.idle_hooks.push(hook.owned_by(id));
         }
         for command in module.slash_commands() {
             commands.claim(command.name, id, &mut conflicts);
@@ -351,6 +352,16 @@ impl Modules {
         self.list.is_empty()
     }
 
+    /// The modules whose start failed: the app runs on without them.
+    pub fn failed(&self) -> &Arc<FailedModules> {
+        &self.failed
+    }
+
+    /// The modules that run: every one whose start did not fail.
+    fn running(&self) -> impl Iterator<Item = &Arc<dyn Module>> {
+        self.list.iter().filter(|m| !self.failed.is_failed(m.id()))
+    }
+
     fn guarded(module: &dyn Module, hook: &'static str, call: impl FnOnce()) {
         if let Err(payload) = catch_unwind(AssertUnwindSafe(call)) {
             tracing::error!(module = module.id(), hook, panic = %panic_message(payload.as_ref()), "a module hook panicked");
@@ -360,7 +371,7 @@ impl Modules {
     /// Hands an agent event to every module whose plugin is on. A module that
     /// panics is logged; the rest still hear the event.
     pub fn on_agent_event(&self, worker_id: &str, event: &AgentEvent) {
-        for module in self.list.iter() {
+        for module in self.running() {
             if module.plugin().is_none_or(|plugin| self.plugins.is_on(plugin)) {
                 Self::guarded(module.as_ref(), "on_agent_event", || module.on_agent_event(worker_id, event));
             }
@@ -369,18 +380,18 @@ impl Modules {
 
     /// Whether any module follows `tool` while the model writes its input.
     pub fn follows_tool_input(&self, tool: &str) -> bool {
-        self.list.iter().any(|m| m.follows_tool_input(tool))
+        self.running().any(|m| m.follows_tool_input(tool))
     }
 
     /// Hands a piece of `tool`'s input to the modules that follow it.
     pub fn on_tool_input_delta(&self, worker_id: &str, tool: &str, delta: &ToolInputDelta) {
-        for module in self.list.iter().filter(|m| m.follows_tool_input(tool)) {
+        for module in self.running().filter(|m| m.follows_tool_input(tool)) {
             Self::guarded(module.as_ref(), "on_tool_input_delta", || module.on_tool_input_delta(worker_id, delta));
         }
     }
 
     pub fn on_workflow_progress(&self, progress: &WorkflowRunProgress) {
-        for module in self.list.iter() {
+        for module in self.running() {
             if module.plugin().is_none_or(|plugin| self.plugins.is_on(plugin)) {
                 Self::guarded(module.as_ref(), "on_workflow_progress", || module.on_workflow_progress(progress));
             }
@@ -388,27 +399,27 @@ impl Modules {
     }
 
     pub fn on_background_task(&self, worker_id: &str, update: &BackgroundTaskUpdate) {
-        for module in self.list.iter() {
+        for module in self.running() {
             Self::guarded(module.as_ref(), "on_background_task", || module.on_background_task(worker_id, update));
         }
     }
 
     pub fn on_session_ended(&self, session_key: &str) {
-        for module in self.list.iter() {
+        for module in self.running() {
             Self::guarded(module.as_ref(), "on_session_ended", || module.on_session_ended(session_key));
         }
     }
 
     /// Whether any module holds the worker (its messages queue meanwhile).
     pub fn holds_worker(&self, worker_id: &str) -> bool {
-        self.list.iter().any(|m| m.holds_worker(worker_id))
+        self.running().any(|m| m.holds_worker(worker_id))
     }
 
     /// Every module's prompt variables, read now. A later module's value wins
     /// over an earlier one's of the same name, as today.
     pub fn prompt_variables(&self) -> Vec<(&'static str, PromptValue)> {
         let mut merged: Vec<(&'static str, PromptValue)> = Vec::new();
-        for (name, value) in self.list.iter().flat_map(|m| m.prompt_variables()) {
+        for (name, value) in self.running().flat_map(|m| m.prompt_variables()) {
             match merged.iter_mut().find(|(n, _)| *n == name) {
                 Some(slot) => slot.1 = value,
                 None => merged.push((name, value)),
@@ -418,5 +429,8 @@ impl Modules {
     }
 }
 
+mod failed;
 #[cfg(test)]
 mod tests;
+
+pub use failed::FailedModules;

@@ -265,6 +265,8 @@ async fn changes_during_a_build_rebuild_once_more_after_it() {
     t.changed("clock").await;
     t.changed("clock").await;
     assert_eq!(t.builder.builds().len(), 2, "one build in flight, one more for everything that came meanwhile");
+    // The run ends just after it announces its last change.
+    t.svc.settled("clock").await;
     assert!(!t.svc.is_busy("clock"));
 }
 

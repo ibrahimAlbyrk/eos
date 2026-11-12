@@ -5,10 +5,14 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use eos_contracts::{WorkerAttachmentsResponse, WorkerEventRow, WorkerEventType};
+
+use crate::stream;
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::EventRecord;
 use eos_domain::display::sanitize_event;
-use eos_domain::transcript::{PROMPT_EVENT_TYPES, attachments_of, select_subagent_rows};
+use eos_domain::transcript::{
+    PROMPT_EVENT_TYPES, SUBAGENT_ROW_KINDS, SubagentRowMeta, attachments_of, select_subagent_ids,
+};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -102,6 +106,15 @@ fn wire(rows: Vec<EventRecord>) -> Vec<WorkerEventRow> {
     rows.into_iter().map(|row| sanitize_event(row).into_row()).collect()
 }
 
+/// One row as [`wire`] writes it, inside a list.
+fn wire_into(row: EventRecord, buf: &mut Vec<u8>) {
+    // A row is plain data: serializing it into memory cannot fail.
+    let _ = serde_json::to_writer(buf, &sanitize_event(row).into_row());
+}
+
+/// Rows read a slice at a time when a whole log is scanned.
+const SCAN: i64 = 1_000;
+
 fn worker_id(req: &Request) -> String {
     req.param("id").unwrap_or_default().to_owned()
 }
@@ -114,6 +127,15 @@ pub(crate) fn routes(store: Arc<dyn Store>) -> Vec<RouteDef> {
             let store = store.clone();
             async move {
                 let query = page_query(&worker_id(&req), &req)?;
+                // A page of thousands of rows leaves in slices.
+                if query.limit > stream::STREAM_ROWS as i64 {
+                    let picked = query.clone();
+                    let ids = store.read(move |tx| tx.events().list_ids(&picked)).await?;
+                    if ids.len() > stream::STREAM_ROWS {
+                        let ids = ids.into_iter().map(|(id, _)| id).collect();
+                        return Ok(stream::rows(store, query.worker_id, ids, wire_into));
+                    }
+                }
                 let rows = store.read(move |tx| tx.events().list(&query)).await?;
                 Ok(Response::json(200, &wire(rows)))
             }
@@ -148,17 +170,34 @@ pub(crate) fn routes(store: Arc<dyn Store>) -> Vec<RouteDef> {
         move |req: Request| {
             let store = store.clone();
             async move {
-                let all = EventQuery {
-                    worker_id: worker_id(&req),
-                    since: 0,
-                    // Every row the log still holds.
-                    limit: -1,
-                    order: EventOrder::Asc,
-                    before_id: None,
-                    after_id: None,
-                };
-                let rows = store.read(move |tx| tx.events().list(&all)).await?;
-                Ok(Response::json(200, &wire(select_subagent_rows(rows))))
+                let id = worker_id(&req);
+                // The whole log is judged a slice at a time; only the facts the
+                // selection needs are kept of each row.
+                let mut facts: Vec<SubagentRowMeta> = Vec::new();
+                let mut after = 0;
+                loop {
+                    let worker = id.clone();
+                    let read = store
+                        .read(move |tx| {
+                            let rows = tx.events().scan(&worker, &SUBAGENT_ROW_KINDS, after, SCAN)?;
+                            Ok(rows.iter().map(SubagentRowMeta::of).collect::<Vec<_>>())
+                        })
+                        .await?;
+                    let done = (read.len() as i64) < SCAN;
+                    after = read.last().map_or(after, |row| row.id);
+                    // Rows from time 0 on, as the whole log was read before.
+                    facts.extend(read.into_iter().filter(|row| row.ts > 0));
+                    if done {
+                        break;
+                    }
+                }
+                let ids = select_subagent_ids(&facts);
+                drop(facts);
+                if ids.len() > stream::STREAM_ROWS {
+                    return Ok(stream::rows(store, id, ids, wire_into));
+                }
+                let rows = store.read(move |tx| tx.events().find_many(&id, &ids)).await?;
+                Ok(Response::json(200, &wire(rows)))
             }
         }
     };

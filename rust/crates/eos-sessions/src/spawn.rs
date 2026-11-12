@@ -377,7 +377,8 @@ impl Sessions {
     }
 
     /// Continues the conversation of a worker whose session is over. The
-    /// worker comes back idle, with no new turn.
+    /// worker comes back idle, with no new turn of its own: like any idle
+    /// edge, it then takes the messages queued for it, oldest first.
     pub async fn resume(&self, worker_id: &str) -> Result<(), Error> {
         let deps = &self.0.deps;
         let id = worker_id.to_owned();
@@ -419,6 +420,9 @@ impl Sessions {
                 transition_state(tx, out, now, &id, WorkerState::Idle, "resume_ready")?;
                 Ok(())
             })
-            .await
+            .await?;
+        // What was queued before the session ended (a quit, a crash) goes out now.
+        self.settled(worker_id).await;
+        Ok(())
     }
 }

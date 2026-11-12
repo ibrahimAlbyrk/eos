@@ -104,6 +104,15 @@ impl TempStore {
         let ran = self.store.db().maintain(move |conn: &Connection| conn.execute_batch(&sql).map_err(Error::from));
         ran.expect("the SQL runs");
     }
+
+    /// The number a `SELECT count(*) …` (or any one-integer query) answers.
+    pub fn count(&self, sql: &str) -> i64 {
+        let sql = sql.to_owned();
+        let read = self.store.db().maintain(move |conn: &Connection| {
+            conn.query_row(&sql, [], |row| row.get::<_, i64>(0)).map_err(Error::from)
+        });
+        read.expect("the query runs")
+    }
 }
 
 impl TempHome {

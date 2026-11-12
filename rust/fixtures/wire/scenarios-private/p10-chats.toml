@@ -1,0 +1,3231 @@
+about = "Real data, chat by chat: every read a transcript pane and the chat's side panels make, for chats picked by scripts/private-vars.sh (newest, oldest, largest, archived, with subagents, workflow runs, compaction, questions, …). Generated; private recordings only."
+read_only = true
+
+[[step]]
+name = "largest-row"
+request = "GET /workers/{c_largest}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-events-default"
+request = "GET /workers/{c_largest}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-events-newest-50"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "largest-events-before-middle"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_largest_mid}" }
+optional = true
+
+
+[[step]]
+name = "largest-events-after-middle"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "200", afterId = "{c_largest_mid}" }
+optional = true
+
+
+[[step]]
+name = "largest-events-oldest-50"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "largest-events-since-middle"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_largest_ts}" }
+optional = true
+
+
+[[step]]
+name = "largest-events-5000"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "5000" }
+optional = true
+
+
+[[step]]
+name = "largest-events-5000-asc"
+request = "GET /workers/{c_largest}/events"
+status = 200
+query = { limit = "5000", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "largest-prompt-events"
+request = "GET /workers/{c_largest}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-subagent-events"
+request = "GET /workers/{c_largest}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-attachments"
+request = "GET /workers/{c_largest}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-queue"
+request = "GET /workers/{c_largest}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-rewind-targets"
+request = "GET /workers/{c_largest}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "largest-workflow-runs"
+request = "GET /workers/{c_largest}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-memory"
+request = "GET /workers/{c_largest}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-changes"
+request = "GET /workers/{c_largest}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-diff"
+request = "GET /workers/{c_largest}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-push-state"
+request = "GET /workers/{c_largest}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-try-state"
+request = "GET /workers/{c_largest}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-conflicts"
+request = "GET /workers/{c_largest}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-peers"
+request = "GET /workers/{c_largest}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-export"
+request = "GET /workers/{c_largest}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "largest-export-tree"
+request = "GET /workers/{c_largest}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "largest-row-as-itself"
+request = "GET /workers/{c_largest}"
+status = 200
+query = { actorId = "{c_largest}" }
+optional = true
+
+
+[[step]]
+name = "newest-row"
+request = "GET /workers/{c_newest}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-events-default"
+request = "GET /workers/{c_newest}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-events-newest-50"
+request = "GET /workers/{c_newest}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "newest-events-before-middle"
+request = "GET /workers/{c_newest}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_newest_mid}" }
+optional = true
+
+
+[[step]]
+name = "newest-events-after-middle"
+request = "GET /workers/{c_newest}/events"
+status = 200
+query = { limit = "200", afterId = "{c_newest_mid}" }
+optional = true
+
+
+[[step]]
+name = "newest-events-oldest-50"
+request = "GET /workers/{c_newest}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "newest-events-since-middle"
+request = "GET /workers/{c_newest}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_newest_ts}" }
+optional = true
+
+
+[[step]]
+name = "newest-prompt-events"
+request = "GET /workers/{c_newest}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-subagent-events"
+request = "GET /workers/{c_newest}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-attachments"
+request = "GET /workers/{c_newest}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-queue"
+request = "GET /workers/{c_newest}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-rewind-targets"
+request = "GET /workers/{c_newest}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "newest-workflow-runs"
+request = "GET /workers/{c_newest}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-memory"
+request = "GET /workers/{c_newest}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-changes"
+request = "GET /workers/{c_newest}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-diff"
+request = "GET /workers/{c_newest}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-push-state"
+request = "GET /workers/{c_newest}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-try-state"
+request = "GET /workers/{c_newest}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-conflicts"
+request = "GET /workers/{c_newest}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-peers"
+request = "GET /workers/{c_newest}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-export"
+request = "GET /workers/{c_newest}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "newest-export-tree"
+request = "GET /workers/{c_newest}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "newest-row-as-itself"
+request = "GET /workers/{c_newest}"
+status = 200
+query = { actorId = "{c_newest}" }
+optional = true
+
+
+[[step]]
+name = "oldest-row"
+request = "GET /workers/{c_oldest}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-events-default"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-events-newest-50"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "oldest-events-before-middle"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_oldest_mid}" }
+optional = true
+
+
+[[step]]
+name = "oldest-events-after-middle"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+query = { limit = "200", afterId = "{c_oldest_mid}" }
+optional = true
+
+
+[[step]]
+name = "oldest-events-oldest-50"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "oldest-events-since-middle"
+request = "GET /workers/{c_oldest}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_oldest_ts}" }
+optional = true
+
+
+[[step]]
+name = "oldest-prompt-events"
+request = "GET /workers/{c_oldest}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-subagent-events"
+request = "GET /workers/{c_oldest}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-attachments"
+request = "GET /workers/{c_oldest}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-queue"
+request = "GET /workers/{c_oldest}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-rewind-targets"
+request = "GET /workers/{c_oldest}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "oldest-workflow-runs"
+request = "GET /workers/{c_oldest}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-memory"
+request = "GET /workers/{c_oldest}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-changes"
+request = "GET /workers/{c_oldest}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-diff"
+request = "GET /workers/{c_oldest}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-push-state"
+request = "GET /workers/{c_oldest}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-try-state"
+request = "GET /workers/{c_oldest}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-conflicts"
+request = "GET /workers/{c_oldest}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-peers"
+request = "GET /workers/{c_oldest}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-export"
+request = "GET /workers/{c_oldest}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "oldest-export-tree"
+request = "GET /workers/{c_oldest}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "oldest-row-as-itself"
+request = "GET /workers/{c_oldest}"
+status = 200
+query = { actorId = "{c_oldest}" }
+optional = true
+
+
+[[step]]
+name = "archived-row"
+request = "GET /workers/{c_archived}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-events-default"
+request = "GET /workers/{c_archived}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-events-newest-50"
+request = "GET /workers/{c_archived}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "archived-events-before-middle"
+request = "GET /workers/{c_archived}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_archived_mid}" }
+optional = true
+
+
+[[step]]
+name = "archived-events-after-middle"
+request = "GET /workers/{c_archived}/events"
+status = 200
+query = { limit = "200", afterId = "{c_archived_mid}" }
+optional = true
+
+
+[[step]]
+name = "archived-events-oldest-50"
+request = "GET /workers/{c_archived}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "archived-events-since-middle"
+request = "GET /workers/{c_archived}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_archived_ts}" }
+optional = true
+
+
+[[step]]
+name = "archived-prompt-events"
+request = "GET /workers/{c_archived}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-subagent-events"
+request = "GET /workers/{c_archived}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-attachments"
+request = "GET /workers/{c_archived}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-queue"
+request = "GET /workers/{c_archived}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-rewind-targets"
+request = "GET /workers/{c_archived}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "archived-workflow-runs"
+request = "GET /workers/{c_archived}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-memory"
+request = "GET /workers/{c_archived}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-changes"
+request = "GET /workers/{c_archived}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-diff"
+request = "GET /workers/{c_archived}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-push-state"
+request = "GET /workers/{c_archived}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-try-state"
+request = "GET /workers/{c_archived}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-conflicts"
+request = "GET /workers/{c_archived}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-peers"
+request = "GET /workers/{c_archived}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-export"
+request = "GET /workers/{c_archived}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "archived-export-tree"
+request = "GET /workers/{c_archived}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "archived-row-as-itself"
+request = "GET /workers/{c_archived}"
+status = 200
+query = { actorId = "{c_archived}" }
+optional = true
+
+
+[[step]]
+name = "orch-row"
+request = "GET /workers/{c_orch}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-events-default"
+request = "GET /workers/{c_orch}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-events-newest-50"
+request = "GET /workers/{c_orch}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "orch-events-before-middle"
+request = "GET /workers/{c_orch}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_orch_mid}" }
+optional = true
+
+
+[[step]]
+name = "orch-events-after-middle"
+request = "GET /workers/{c_orch}/events"
+status = 200
+query = { limit = "200", afterId = "{c_orch_mid}" }
+optional = true
+
+
+[[step]]
+name = "orch-events-oldest-50"
+request = "GET /workers/{c_orch}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "orch-events-since-middle"
+request = "GET /workers/{c_orch}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_orch_ts}" }
+optional = true
+
+
+[[step]]
+name = "orch-prompt-events"
+request = "GET /workers/{c_orch}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-subagent-events"
+request = "GET /workers/{c_orch}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-attachments"
+request = "GET /workers/{c_orch}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-queue"
+request = "GET /workers/{c_orch}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-rewind-targets"
+request = "GET /workers/{c_orch}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "orch-workflow-runs"
+request = "GET /workers/{c_orch}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-memory"
+request = "GET /workers/{c_orch}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-changes"
+request = "GET /workers/{c_orch}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-diff"
+request = "GET /workers/{c_orch}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-push-state"
+request = "GET /workers/{c_orch}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-try-state"
+request = "GET /workers/{c_orch}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-conflicts"
+request = "GET /workers/{c_orch}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-peers"
+request = "GET /workers/{c_orch}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-export"
+request = "GET /workers/{c_orch}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "orch-export-tree"
+request = "GET /workers/{c_orch}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "orch-row-as-itself"
+request = "GET /workers/{c_orch}"
+status = 200
+query = { actorId = "{c_orch}" }
+optional = true
+
+
+[[step]]
+name = "kid-row"
+request = "GET /workers/{c_kid}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-events-default"
+request = "GET /workers/{c_kid}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-events-newest-50"
+request = "GET /workers/{c_kid}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "kid-events-before-middle"
+request = "GET /workers/{c_kid}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_kid_mid}" }
+optional = true
+
+
+[[step]]
+name = "kid-events-after-middle"
+request = "GET /workers/{c_kid}/events"
+status = 200
+query = { limit = "200", afterId = "{c_kid_mid}" }
+optional = true
+
+
+[[step]]
+name = "kid-events-oldest-50"
+request = "GET /workers/{c_kid}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "kid-events-since-middle"
+request = "GET /workers/{c_kid}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_kid_ts}" }
+optional = true
+
+
+[[step]]
+name = "kid-prompt-events"
+request = "GET /workers/{c_kid}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-subagent-events"
+request = "GET /workers/{c_kid}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-attachments"
+request = "GET /workers/{c_kid}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-queue"
+request = "GET /workers/{c_kid}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-rewind-targets"
+request = "GET /workers/{c_kid}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "kid-workflow-runs"
+request = "GET /workers/{c_kid}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-memory"
+request = "GET /workers/{c_kid}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-changes"
+request = "GET /workers/{c_kid}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-diff"
+request = "GET /workers/{c_kid}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-push-state"
+request = "GET /workers/{c_kid}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-try-state"
+request = "GET /workers/{c_kid}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-conflicts"
+request = "GET /workers/{c_kid}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-peers"
+request = "GET /workers/{c_kid}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-export"
+request = "GET /workers/{c_kid}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "kid-export-tree"
+request = "GET /workers/{c_kid}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "kid-row-as-itself"
+request = "GET /workers/{c_kid}"
+status = 200
+query = { actorId = "{c_kid}" }
+optional = true
+
+
+[[step]]
+name = "subagents-row"
+request = "GET /workers/{c_subagents}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-events-default"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-events-newest-50"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "subagents-events-before-middle"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_subagents_mid}" }
+optional = true
+
+
+[[step]]
+name = "subagents-events-after-middle"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+query = { limit = "200", afterId = "{c_subagents_mid}" }
+optional = true
+
+
+[[step]]
+name = "subagents-events-oldest-50"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "subagents-events-since-middle"
+request = "GET /workers/{c_subagents}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_subagents_ts}" }
+optional = true
+
+
+[[step]]
+name = "subagents-prompt-events"
+request = "GET /workers/{c_subagents}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-subagent-events"
+request = "GET /workers/{c_subagents}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-attachments"
+request = "GET /workers/{c_subagents}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-queue"
+request = "GET /workers/{c_subagents}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-rewind-targets"
+request = "GET /workers/{c_subagents}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "subagents-workflow-runs"
+request = "GET /workers/{c_subagents}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-memory"
+request = "GET /workers/{c_subagents}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-changes"
+request = "GET /workers/{c_subagents}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-diff"
+request = "GET /workers/{c_subagents}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-push-state"
+request = "GET /workers/{c_subagents}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-try-state"
+request = "GET /workers/{c_subagents}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-conflicts"
+request = "GET /workers/{c_subagents}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-peers"
+request = "GET /workers/{c_subagents}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-export"
+request = "GET /workers/{c_subagents}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "subagents-export-tree"
+request = "GET /workers/{c_subagents}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "subagents-row-as-itself"
+request = "GET /workers/{c_subagents}"
+status = 200
+query = { actorId = "{c_subagents}" }
+optional = true
+
+
+[[step]]
+name = "workflow-row"
+request = "GET /workers/{c_workflow}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-events-default"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-events-newest-50"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "workflow-events-before-middle"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_workflow_mid}" }
+optional = true
+
+
+[[step]]
+name = "workflow-events-after-middle"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+query = { limit = "200", afterId = "{c_workflow_mid}" }
+optional = true
+
+
+[[step]]
+name = "workflow-events-oldest-50"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "workflow-events-since-middle"
+request = "GET /workers/{c_workflow}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_workflow_ts}" }
+optional = true
+
+
+[[step]]
+name = "workflow-prompt-events"
+request = "GET /workers/{c_workflow}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-subagent-events"
+request = "GET /workers/{c_workflow}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-attachments"
+request = "GET /workers/{c_workflow}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-queue"
+request = "GET /workers/{c_workflow}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-rewind-targets"
+request = "GET /workers/{c_workflow}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "workflow-workflow-runs"
+request = "GET /workers/{c_workflow}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-memory"
+request = "GET /workers/{c_workflow}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-changes"
+request = "GET /workers/{c_workflow}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-diff"
+request = "GET /workers/{c_workflow}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-push-state"
+request = "GET /workers/{c_workflow}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-try-state"
+request = "GET /workers/{c_workflow}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-conflicts"
+request = "GET /workers/{c_workflow}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-peers"
+request = "GET /workers/{c_workflow}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-export"
+request = "GET /workers/{c_workflow}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-export-tree"
+request = "GET /workers/{c_workflow}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "workflow-row-as-itself"
+request = "GET /workers/{c_workflow}"
+status = 200
+query = { actorId = "{c_workflow}" }
+optional = true
+
+
+[[step]]
+name = "compaction-row"
+request = "GET /workers/{c_compaction}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-events-default"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-events-newest-50"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "compaction-events-before-middle"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_compaction_mid}" }
+optional = true
+
+
+[[step]]
+name = "compaction-events-after-middle"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+query = { limit = "200", afterId = "{c_compaction_mid}" }
+optional = true
+
+
+[[step]]
+name = "compaction-events-oldest-50"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "compaction-events-since-middle"
+request = "GET /workers/{c_compaction}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_compaction_ts}" }
+optional = true
+
+
+[[step]]
+name = "compaction-prompt-events"
+request = "GET /workers/{c_compaction}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-subagent-events"
+request = "GET /workers/{c_compaction}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-attachments"
+request = "GET /workers/{c_compaction}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-queue"
+request = "GET /workers/{c_compaction}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-rewind-targets"
+request = "GET /workers/{c_compaction}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "compaction-workflow-runs"
+request = "GET /workers/{c_compaction}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-memory"
+request = "GET /workers/{c_compaction}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-changes"
+request = "GET /workers/{c_compaction}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-diff"
+request = "GET /workers/{c_compaction}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-push-state"
+request = "GET /workers/{c_compaction}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-try-state"
+request = "GET /workers/{c_compaction}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-conflicts"
+request = "GET /workers/{c_compaction}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-peers"
+request = "GET /workers/{c_compaction}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-export"
+request = "GET /workers/{c_compaction}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "compaction-export-tree"
+request = "GET /workers/{c_compaction}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "compaction-row-as-itself"
+request = "GET /workers/{c_compaction}"
+status = 200
+query = { actorId = "{c_compaction}" }
+optional = true
+
+
+[[step]]
+name = "question-row"
+request = "GET /workers/{c_question}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-events-default"
+request = "GET /workers/{c_question}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-events-newest-50"
+request = "GET /workers/{c_question}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "question-events-before-middle"
+request = "GET /workers/{c_question}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_question_mid}" }
+optional = true
+
+
+[[step]]
+name = "question-events-after-middle"
+request = "GET /workers/{c_question}/events"
+status = 200
+query = { limit = "200", afterId = "{c_question_mid}" }
+optional = true
+
+
+[[step]]
+name = "question-events-oldest-50"
+request = "GET /workers/{c_question}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "question-events-since-middle"
+request = "GET /workers/{c_question}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_question_ts}" }
+optional = true
+
+
+[[step]]
+name = "question-prompt-events"
+request = "GET /workers/{c_question}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-subagent-events"
+request = "GET /workers/{c_question}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-attachments"
+request = "GET /workers/{c_question}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-queue"
+request = "GET /workers/{c_question}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-rewind-targets"
+request = "GET /workers/{c_question}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "question-workflow-runs"
+request = "GET /workers/{c_question}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-memory"
+request = "GET /workers/{c_question}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-changes"
+request = "GET /workers/{c_question}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-diff"
+request = "GET /workers/{c_question}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-push-state"
+request = "GET /workers/{c_question}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-try-state"
+request = "GET /workers/{c_question}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-conflicts"
+request = "GET /workers/{c_question}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-peers"
+request = "GET /workers/{c_question}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-export"
+request = "GET /workers/{c_question}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "question-export-tree"
+request = "GET /workers/{c_question}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "question-row-as-itself"
+request = "GET /workers/{c_question}"
+status = 200
+query = { actorId = "{c_question}" }
+optional = true
+
+
+[[step]]
+name = "rewound-row"
+request = "GET /workers/{c_rewound}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-events-default"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-events-newest-50"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "rewound-events-before-middle"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_rewound_mid}" }
+optional = true
+
+
+[[step]]
+name = "rewound-events-after-middle"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+query = { limit = "200", afterId = "{c_rewound_mid}" }
+optional = true
+
+
+[[step]]
+name = "rewound-events-oldest-50"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "rewound-events-since-middle"
+request = "GET /workers/{c_rewound}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_rewound_ts}" }
+optional = true
+
+
+[[step]]
+name = "rewound-prompt-events"
+request = "GET /workers/{c_rewound}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-subagent-events"
+request = "GET /workers/{c_rewound}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-attachments"
+request = "GET /workers/{c_rewound}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-queue"
+request = "GET /workers/{c_rewound}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-rewind-targets"
+request = "GET /workers/{c_rewound}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "rewound-workflow-runs"
+request = "GET /workers/{c_rewound}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-memory"
+request = "GET /workers/{c_rewound}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-changes"
+request = "GET /workers/{c_rewound}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-diff"
+request = "GET /workers/{c_rewound}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-push-state"
+request = "GET /workers/{c_rewound}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-try-state"
+request = "GET /workers/{c_rewound}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-conflicts"
+request = "GET /workers/{c_rewound}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-peers"
+request = "GET /workers/{c_rewound}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-export"
+request = "GET /workers/{c_rewound}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "rewound-export-tree"
+request = "GET /workers/{c_rewound}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "rewound-row-as-itself"
+request = "GET /workers/{c_rewound}"
+status = 200
+query = { actorId = "{c_rewound}" }
+optional = true
+
+
+[[step]]
+name = "switched-row"
+request = "GET /workers/{c_switched}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-events-default"
+request = "GET /workers/{c_switched}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-events-newest-50"
+request = "GET /workers/{c_switched}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "switched-events-before-middle"
+request = "GET /workers/{c_switched}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_switched_mid}" }
+optional = true
+
+
+[[step]]
+name = "switched-events-after-middle"
+request = "GET /workers/{c_switched}/events"
+status = 200
+query = { limit = "200", afterId = "{c_switched_mid}" }
+optional = true
+
+
+[[step]]
+name = "switched-events-oldest-50"
+request = "GET /workers/{c_switched}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "switched-events-since-middle"
+request = "GET /workers/{c_switched}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_switched_ts}" }
+optional = true
+
+
+[[step]]
+name = "switched-prompt-events"
+request = "GET /workers/{c_switched}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-subagent-events"
+request = "GET /workers/{c_switched}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-attachments"
+request = "GET /workers/{c_switched}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-queue"
+request = "GET /workers/{c_switched}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-rewind-targets"
+request = "GET /workers/{c_switched}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "switched-workflow-runs"
+request = "GET /workers/{c_switched}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-memory"
+request = "GET /workers/{c_switched}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-changes"
+request = "GET /workers/{c_switched}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-diff"
+request = "GET /workers/{c_switched}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-push-state"
+request = "GET /workers/{c_switched}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-try-state"
+request = "GET /workers/{c_switched}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-conflicts"
+request = "GET /workers/{c_switched}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-peers"
+request = "GET /workers/{c_switched}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-export"
+request = "GET /workers/{c_switched}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "switched-export-tree"
+request = "GET /workers/{c_switched}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "switched-row-as-itself"
+request = "GET /workers/{c_switched}"
+status = 200
+query = { actorId = "{c_switched}" }
+optional = true
+
+
+[[step]]
+name = "exhausted-row"
+request = "GET /workers/{c_exhausted}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-events-default"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-events-newest-50"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "exhausted-events-before-middle"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_exhausted_mid}" }
+optional = true
+
+
+[[step]]
+name = "exhausted-events-after-middle"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+query = { limit = "200", afterId = "{c_exhausted_mid}" }
+optional = true
+
+
+[[step]]
+name = "exhausted-events-oldest-50"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "exhausted-events-since-middle"
+request = "GET /workers/{c_exhausted}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_exhausted_ts}" }
+optional = true
+
+
+[[step]]
+name = "exhausted-prompt-events"
+request = "GET /workers/{c_exhausted}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-subagent-events"
+request = "GET /workers/{c_exhausted}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-attachments"
+request = "GET /workers/{c_exhausted}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-queue"
+request = "GET /workers/{c_exhausted}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-rewind-targets"
+request = "GET /workers/{c_exhausted}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "exhausted-workflow-runs"
+request = "GET /workers/{c_exhausted}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-memory"
+request = "GET /workers/{c_exhausted}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-changes"
+request = "GET /workers/{c_exhausted}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-diff"
+request = "GET /workers/{c_exhausted}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-push-state"
+request = "GET /workers/{c_exhausted}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-try-state"
+request = "GET /workers/{c_exhausted}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-conflicts"
+request = "GET /workers/{c_exhausted}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-peers"
+request = "GET /workers/{c_exhausted}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-export"
+request = "GET /workers/{c_exhausted}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "exhausted-export-tree"
+request = "GET /workers/{c_exhausted}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "exhausted-row-as-itself"
+request = "GET /workers/{c_exhausted}"
+status = 200
+query = { actorId = "{c_exhausted}" }
+optional = true
+
+
+[[step]]
+name = "permission-row"
+request = "GET /workers/{c_permission}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-events-default"
+request = "GET /workers/{c_permission}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-events-newest-50"
+request = "GET /workers/{c_permission}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "permission-events-before-middle"
+request = "GET /workers/{c_permission}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_permission_mid}" }
+optional = true
+
+
+[[step]]
+name = "permission-events-after-middle"
+request = "GET /workers/{c_permission}/events"
+status = 200
+query = { limit = "200", afterId = "{c_permission_mid}" }
+optional = true
+
+
+[[step]]
+name = "permission-events-oldest-50"
+request = "GET /workers/{c_permission}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "permission-events-since-middle"
+request = "GET /workers/{c_permission}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_permission_ts}" }
+optional = true
+
+
+[[step]]
+name = "permission-prompt-events"
+request = "GET /workers/{c_permission}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-subagent-events"
+request = "GET /workers/{c_permission}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-attachments"
+request = "GET /workers/{c_permission}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-queue"
+request = "GET /workers/{c_permission}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-rewind-targets"
+request = "GET /workers/{c_permission}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "permission-workflow-runs"
+request = "GET /workers/{c_permission}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-memory"
+request = "GET /workers/{c_permission}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-changes"
+request = "GET /workers/{c_permission}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-diff"
+request = "GET /workers/{c_permission}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-push-state"
+request = "GET /workers/{c_permission}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-try-state"
+request = "GET /workers/{c_permission}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-conflicts"
+request = "GET /workers/{c_permission}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-peers"
+request = "GET /workers/{c_permission}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-export"
+request = "GET /workers/{c_permission}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "permission-export-tree"
+request = "GET /workers/{c_permission}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "permission-row-as-itself"
+request = "GET /workers/{c_permission}"
+status = 200
+query = { actorId = "{c_permission}" }
+optional = true
+
+
+[[step]]
+name = "browser-row"
+request = "GET /workers/{c_browser}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-events-default"
+request = "GET /workers/{c_browser}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-events-newest-50"
+request = "GET /workers/{c_browser}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "browser-events-before-middle"
+request = "GET /workers/{c_browser}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_browser_mid}" }
+optional = true
+
+
+[[step]]
+name = "browser-events-after-middle"
+request = "GET /workers/{c_browser}/events"
+status = 200
+query = { limit = "200", afterId = "{c_browser_mid}" }
+optional = true
+
+
+[[step]]
+name = "browser-events-oldest-50"
+request = "GET /workers/{c_browser}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "browser-events-since-middle"
+request = "GET /workers/{c_browser}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_browser_ts}" }
+optional = true
+
+
+[[step]]
+name = "browser-prompt-events"
+request = "GET /workers/{c_browser}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-subagent-events"
+request = "GET /workers/{c_browser}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-attachments"
+request = "GET /workers/{c_browser}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-queue"
+request = "GET /workers/{c_browser}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-rewind-targets"
+request = "GET /workers/{c_browser}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "browser-workflow-runs"
+request = "GET /workers/{c_browser}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-memory"
+request = "GET /workers/{c_browser}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-changes"
+request = "GET /workers/{c_browser}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-diff"
+request = "GET /workers/{c_browser}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-push-state"
+request = "GET /workers/{c_browser}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-try-state"
+request = "GET /workers/{c_browser}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-conflicts"
+request = "GET /workers/{c_browser}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-peers"
+request = "GET /workers/{c_browser}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-export"
+request = "GET /workers/{c_browser}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "browser-export-tree"
+request = "GET /workers/{c_browser}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "browser-row-as-itself"
+request = "GET /workers/{c_browser}"
+status = 200
+query = { actorId = "{c_browser}" }
+optional = true
+
+
+[[step]]
+name = "recalled-row"
+request = "GET /workers/{c_recalled}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-events-default"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-events-newest-50"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "recalled-events-before-middle"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_recalled_mid}" }
+optional = true
+
+
+[[step]]
+name = "recalled-events-after-middle"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+query = { limit = "200", afterId = "{c_recalled_mid}" }
+optional = true
+
+
+[[step]]
+name = "recalled-events-oldest-50"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "recalled-events-since-middle"
+request = "GET /workers/{c_recalled}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_recalled_ts}" }
+optional = true
+
+
+[[step]]
+name = "recalled-prompt-events"
+request = "GET /workers/{c_recalled}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-subagent-events"
+request = "GET /workers/{c_recalled}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-attachments"
+request = "GET /workers/{c_recalled}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-queue"
+request = "GET /workers/{c_recalled}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-rewind-targets"
+request = "GET /workers/{c_recalled}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "recalled-workflow-runs"
+request = "GET /workers/{c_recalled}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-memory"
+request = "GET /workers/{c_recalled}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-changes"
+request = "GET /workers/{c_recalled}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-diff"
+request = "GET /workers/{c_recalled}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-push-state"
+request = "GET /workers/{c_recalled}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-try-state"
+request = "GET /workers/{c_recalled}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-conflicts"
+request = "GET /workers/{c_recalled}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-peers"
+request = "GET /workers/{c_recalled}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-export"
+request = "GET /workers/{c_recalled}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "recalled-export-tree"
+request = "GET /workers/{c_recalled}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "recalled-row-as-itself"
+request = "GET /workers/{c_recalled}"
+status = 200
+query = { actorId = "{c_recalled}" }
+optional = true
+
+
+[[step]]
+name = "working-row"
+request = "GET /workers/{c_working}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-events-default"
+request = "GET /workers/{c_working}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-events-newest-50"
+request = "GET /workers/{c_working}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "working-events-before-middle"
+request = "GET /workers/{c_working}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_working_mid}" }
+optional = true
+
+
+[[step]]
+name = "working-events-after-middle"
+request = "GET /workers/{c_working}/events"
+status = 200
+query = { limit = "200", afterId = "{c_working_mid}" }
+optional = true
+
+
+[[step]]
+name = "working-events-oldest-50"
+request = "GET /workers/{c_working}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "working-events-since-middle"
+request = "GET /workers/{c_working}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_working_ts}" }
+optional = true
+
+
+[[step]]
+name = "working-prompt-events"
+request = "GET /workers/{c_working}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-subagent-events"
+request = "GET /workers/{c_working}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-attachments"
+request = "GET /workers/{c_working}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-queue"
+request = "GET /workers/{c_working}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-rewind-targets"
+request = "GET /workers/{c_working}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "working-workflow-runs"
+request = "GET /workers/{c_working}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-memory"
+request = "GET /workers/{c_working}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-changes"
+request = "GET /workers/{c_working}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-diff"
+request = "GET /workers/{c_working}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-push-state"
+request = "GET /workers/{c_working}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-try-state"
+request = "GET /workers/{c_working}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-conflicts"
+request = "GET /workers/{c_working}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-peers"
+request = "GET /workers/{c_working}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-export"
+request = "GET /workers/{c_working}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "working-export-tree"
+request = "GET /workers/{c_working}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "working-row-as-itself"
+request = "GET /workers/{c_working}"
+status = 200
+query = { actorId = "{c_working}" }
+optional = true
+
+
+[[step]]
+name = "scratch-row"
+request = "GET /workers/{c_scratch}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-events-default"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-events-newest-50"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "scratch-events-before-middle"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_scratch_mid}" }
+optional = true
+
+
+[[step]]
+name = "scratch-events-after-middle"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+query = { limit = "200", afterId = "{c_scratch_mid}" }
+optional = true
+
+
+[[step]]
+name = "scratch-events-oldest-50"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "scratch-events-since-middle"
+request = "GET /workers/{c_scratch}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_scratch_ts}" }
+optional = true
+
+
+[[step]]
+name = "scratch-prompt-events"
+request = "GET /workers/{c_scratch}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-subagent-events"
+request = "GET /workers/{c_scratch}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-attachments"
+request = "GET /workers/{c_scratch}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-queue"
+request = "GET /workers/{c_scratch}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-rewind-targets"
+request = "GET /workers/{c_scratch}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "scratch-workflow-runs"
+request = "GET /workers/{c_scratch}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-memory"
+request = "GET /workers/{c_scratch}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-changes"
+request = "GET /workers/{c_scratch}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-diff"
+request = "GET /workers/{c_scratch}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-push-state"
+request = "GET /workers/{c_scratch}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-try-state"
+request = "GET /workers/{c_scratch}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-conflicts"
+request = "GET /workers/{c_scratch}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-peers"
+request = "GET /workers/{c_scratch}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-export"
+request = "GET /workers/{c_scratch}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "scratch-export-tree"
+request = "GET /workers/{c_scratch}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "scratch-row-as-itself"
+request = "GET /workers/{c_scratch}"
+status = 200
+query = { actorId = "{c_scratch}" }
+optional = true
+
+
+[[step]]
+name = "done-row"
+request = "GET /workers/{c_done}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-events-default"
+request = "GET /workers/{c_done}/events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-events-newest-50"
+request = "GET /workers/{c_done}/events"
+status = 200
+query = { limit = "50" }
+optional = true
+
+
+[[step]]
+name = "done-events-before-middle"
+request = "GET /workers/{c_done}/events"
+status = 200
+query = { limit = "200", beforeId = "{c_done_mid}" }
+optional = true
+
+
+[[step]]
+name = "done-events-after-middle"
+request = "GET /workers/{c_done}/events"
+status = 200
+query = { limit = "200", afterId = "{c_done_mid}" }
+optional = true
+
+
+[[step]]
+name = "done-events-oldest-50"
+request = "GET /workers/{c_done}/events"
+status = 200
+query = { limit = "50", order = "asc" }
+optional = true
+
+
+[[step]]
+name = "done-events-since-middle"
+request = "GET /workers/{c_done}/events"
+status = 200
+query = { limit = "100", order = "asc", since = "{c_done_ts}" }
+optional = true
+
+
+[[step]]
+name = "done-prompt-events"
+request = "GET /workers/{c_done}/prompt-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-subagent-events"
+request = "GET /workers/{c_done}/subagent-events"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-attachments"
+request = "GET /workers/{c_done}/attachments"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-queue"
+request = "GET /workers/{c_done}/queue"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-rewind-targets"
+request = "GET /workers/{c_done}/rewind-targets"
+status = 409
+optional = true
+
+
+[[step]]
+name = "done-workflow-runs"
+request = "GET /workers/{c_done}/workflow-runs"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-memory"
+request = "GET /workers/{c_done}/memory"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-changes"
+request = "GET /workers/{c_done}/changes"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-diff"
+request = "GET /workers/{c_done}/diff"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-push-state"
+request = "GET /workers/{c_done}/push-state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-try-state"
+request = "GET /workers/{c_done}/try/state"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-conflicts"
+request = "GET /workers/{c_done}/conflicts"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-peers"
+request = "GET /workers/{c_done}/peers"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-export"
+request = "GET /workers/{c_done}/export"
+status = 200
+optional = true
+
+
+[[step]]
+name = "done-export-tree"
+request = "GET /workers/{c_done}/export"
+status = 200
+query = { tree = "true" }
+optional = true
+
+
+[[step]]
+name = "done-row-as-itself"
+request = "GET /workers/{c_done}"
+status = 200
+query = { actorId = "{c_done}" }
+optional = true
+
+
+[[step]]
+name = "workflow-run"
+request = "GET /workers/{wf_chat}/workflow-runs/{wf_call}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "workflow-run-agent"
+request = "GET /workers/{wf_chat}/workflow-runs/{wf_call}/agents/{wf_agent}"
+status = 200
+optional = true
+
+
+[[step]]
+name = "transfer-of-chat"
+request = "GET /workers/{c_largest}/transfers/{transfer}"
+status = 200
+optional = true
+

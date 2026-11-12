@@ -18,7 +18,7 @@ static TOKEN: LazyLock<Regex> = LazyLock::new(|| match Regex::new(r"<([a-z-]+):\
 });
 
 /// One side's numbering, kept across the steps of a scenario.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Renumber {
     seen: HashMap<String, String>,
     counters: HashMap<String, usize>,

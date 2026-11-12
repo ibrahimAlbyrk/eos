@@ -14,6 +14,7 @@ eos-domain.workspace = true
 eos-runtime.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
 
 [dev-dependencies]
 eos-testkit.workspace = true

@@ -1,0 +1,365 @@
+about = "Real data, feature by feature: every list and detail the dashboard and the phone read outside a transcript — chat lists, projects, pages, profile and memories, settings, plugins, jobs, templates, worker definitions, policy and pending, accounts and usage, sync, transfers, peers, remote, updates, dreams, visual answers — and files and git on a project folder (a throwaway repository on a private copy). Private recordings only."
+read_only = true
+
+[[step]]
+name = "workers"
+request = "GET /workers"
+status = 200
+capture = { cwd = "/json/[agent_role=focused]/cwd" }
+
+[[step]]
+name = "workers-brief"
+request = "GET /workers"
+status = 200
+query = { brief = "1" }
+
+[[step]]
+name = "workers-of-orchestrator"
+request = "GET /workers"
+status = 200
+query = { parentId = "{c_orch}" }
+optional = true
+
+[[step]]
+name = "archived"
+request = "GET /workers/archived"
+status = 200
+
+[[step]]
+name = "archived-brief"
+request = "GET /workers/archived"
+status = 200
+query = { brief = "1" }
+
+[[step]]
+name = "orchestrators"
+request = "GET /orchestrators"
+status = 200
+
+[[step]]
+name = "projects"
+request = "GET /projects"
+status = 200
+
+[[step]]
+name = "recents"
+request = "GET /fs/recents"
+status = 200
+
+[[step]]
+name = "pages"
+request = "GET /api/pages"
+status = 200
+capture = { page = "/json/pages/0/id", page_last = "/json/pages/[last]/id", page_project = "/json/pages/0/project" }
+
+[[step]]
+name = "pages-of-project"
+request = "GET /api/pages"
+status = 200
+query = { project = "{page_project}" }
+optional = true
+
+[[step]]
+name = "pages-of-chat"
+request = "GET /api/pages"
+status = 200
+query = { workerId = "{c_largest}" }
+optional = true
+
+[[step]]
+name = "page-first"
+request = "GET /api/pages/{page}"
+status = 200
+optional = true
+
+[[step]]
+name = "page-last"
+request = "GET /api/pages/{page_last}"
+status = 200
+optional = true
+
+[[step]]
+name = "profile"
+request = "GET /api/profile"
+status = 200
+
+[[step]]
+name = "profile-preview"
+request = "GET /api/profile/preview"
+status = 200
+
+[[step]]
+name = "profile-avatar"
+request = "GET /api/profile/avatar"
+status = 200
+
+[[step]]
+name = "memories"
+request = "GET /api/user-memories"
+status = 200
+
+[[step]]
+name = "memories-search"
+request = "GET /api/user-memories/search"
+status = 200
+query = { q = "test" }
+
+[[step]]
+name = "memories-search-unicode"
+request = "GET /api/user-memories/search"
+status = 200
+query = { q = "çalış" }
+
+[[step]]
+name = "settings"
+request = "GET /api/settings"
+status = 200
+
+[[step]]
+name = "settings-archive"
+request = "GET /api/settings/archive"
+status = 200
+
+[[step]]
+name = "settings-compaction"
+request = "GET /api/settings/compaction"
+status = 200
+
+[[step]]
+name = "settings-genui"
+request = "GET /api/settings/genui"
+status = 200
+
+[[step]]
+name = "anthropic-config"
+request = "GET /api/anthropic/config"
+status = 200
+
+[[step]]
+name = "ui-config"
+request = "GET /api/ui-config"
+status = 200
+
+[[step]]
+name = "backend-presets"
+request = "GET /api/backends/presets"
+status = 200
+
+[[step]]
+name = "plugins"
+request = "GET /api/plugins"
+status = 200
+capture = { plugin = "/json/plugins/0/id" }
+
+[[step]]
+name = "plugin"
+request = "GET /api/plugins/{plugin}"
+status = 200
+optional = true
+
+[[step]]
+name = "plugin-status"
+request = "GET /api/plugins/{plugin}/status"
+status = 200
+optional = true
+
+[[step]]
+name = "jobs"
+request = "GET /api/jobs"
+status = 200
+
+[[step]]
+name = "templates"
+request = "GET /api/templates"
+status = 200
+
+[[step]]
+name = "worker-definitions"
+request = "GET /worker-definitions"
+status = 200
+
+[[step]]
+name = "prompts"
+request = "GET /api/prompts"
+status = 200
+
+[[step]]
+name = "pending"
+request = "GET /pending"
+status = 200
+
+[[step]]
+name = "pending-of-orchestrator"
+request = "GET /pending"
+status = 200
+query = { parentId = "{c_orch}" }
+optional = true
+
+[[step]]
+name = "accounts"
+request = "GET /api/accounts"
+status = 200
+
+[[step]]
+name = "usage"
+request = "GET /api/usage"
+status = 200
+
+[[step]]
+name = "sync"
+request = "GET /api/sync"
+status = 200
+
+[[step]]
+name = "sync-key"
+request = "GET /api/sync/key"
+status = 200
+
+[[step]]
+name = "transfers"
+request = "GET /api/transfers"
+status = 200
+
+[[step]]
+name = "peer"
+request = "GET /api/peer"
+status = 200
+
+[[step]]
+name = "hosts"
+request = "GET /api/hosts"
+status = 200
+
+[[step]]
+name = "remote"
+request = "GET /api/remote/status"
+status = 200
+
+[[step]]
+name = "update"
+request = "GET /api/update"
+status = 200
+
+[[step]]
+name = "dreams"
+request = "GET /api/dreams"
+status = 200
+capture = { dream = "/json/runs/0/id", dream_last = "/json/runs/[last]/id" }
+
+[[step]]
+name = "dreams-status"
+request = "GET /api/dreams/status"
+status = 200
+
+[[step]]
+name = "dream-first"
+request = "GET /api/dreams/{dream}"
+status = 200
+optional = true
+
+[[step]]
+name = "dream-last"
+request = "GET /api/dreams/{dream_last}"
+status = 200
+optional = true
+
+[[step]]
+name = "view"
+request = "GET /api/genui/views/{view}"
+status = 200
+optional = true
+
+[[step]]
+name = "view-with-state"
+request = "GET /api/genui/views/{view_state}"
+status = 200
+optional = true
+
+[[step]]
+name = "view-state"
+request = "GET /api/genui/views/{view_state}/state"
+status = 200
+optional = true
+
+[[step]]
+name = "artifacts"
+request = "GET /api/artifacts"
+status = 200
+
+[[step]]
+name = "browser-status"
+request = "GET /browser/status"
+status = 200
+
+[[step]]
+name = "terminals"
+request = "GET /pty"
+status = 200
+
+[[step]]
+name = "health"
+request = "GET /health"
+status = 200
+
+[[step]]
+name = "folder-stat"
+request = "GET /fs/stat"
+status = 200
+query = { path = "{cwd}" }
+optional = true
+
+[[step]]
+name = "folder-list"
+request = "GET /fs/list"
+status = 200
+query = { cwd = "{cwd}" }
+optional = true
+
+[[step]]
+name = "folder-read"
+request = "GET /fs/read"
+status = 200
+query = { path = "{cwd}/README.md" }
+optional = true
+
+[[step]]
+name = "folder-branches"
+request = "GET /fs/branches"
+status = 200
+query = { cwd = "{cwd}" }
+optional = true
+
+[[step]]
+name = "folder-log"
+request = "GET /fs/log"
+status = 200
+query = { cwd = "{cwd}", limit = "10" }
+optional = true
+
+[[step]]
+name = "folder-changes"
+request = "GET /fs/changes"
+status = 200
+query = { cwd = "{cwd}" }
+optional = true
+
+[[step]]
+name = "folder-changes-branch"
+request = "GET /fs/changes"
+status = 200
+query = { cwd = "{cwd}", base = "auto" }
+optional = true
+
+[[step]]
+name = "folder-stashes"
+request = "GET /fs/stashes"
+status = 200
+query = { cwd = "{cwd}" }
+optional = true
+
+[[step]]
+name = "folder-unpushed"
+request = "GET /fs/unpushed"
+status = 200
+query = { cwd = "{cwd}" }
+optional = true

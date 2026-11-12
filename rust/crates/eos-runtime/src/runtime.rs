@@ -136,8 +136,21 @@ impl Runtime {
     /// an access rule), and collects their idle hooks. Nothing runs yet.
     pub fn build(kernel: Kernel, modules: Vec<Arc<dyn Module>>, plugins: Arc<dyn PluginSwitch>) -> Result<Self, Error> {
         let composed = compose(modules, plugins.clone())?;
+        let failed = composed.modules.failed().clone();
+        // The user hears of a feature that could not start, as of any other trouble.
+        let bus = kernel.bus.clone();
+        failed.announce_with(move |module, reason| {
+            let banner = serde_json::json!({
+                "title": format!("The {module} feature could not start"),
+                "body": reason,
+                "workerId": "",
+                "ts": bus.now_ms(),
+            });
+            bus.publish_raw(topics::NOTIFICATION_FIRE, None, banner.to_string().into());
+        });
         let router = Router::builder()
             .plugins(plugins)
+            .failed(failed.clone())
             .ids(kernel.ids.0.clone())
             .routes(stream_routes::routes(kernel.stream.clone(), kernel.live_text.clone()))
             .routes(crate::jobs::routes::routes(kernel.jobs.clone()))
@@ -145,7 +158,7 @@ impl Runtime {
             .build()?;
         Ok(Self {
             router: Arc::new(router),
-            idle: IdleHooks::new(composed.idle_hooks),
+            idle: IdleHooks::new(composed.idle_hooks).skipping(failed),
             lifecycle: Lifecycle::new(composed.modules.clone()),
             modules: composed.modules,
             topics: composed.topics,

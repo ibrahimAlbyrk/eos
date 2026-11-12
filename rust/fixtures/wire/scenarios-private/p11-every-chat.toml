@@ -1,0 +1,9502 @@
+about = "Real data, every chat (w_1 … w_250, oldest first, picked by scripts/private-vars.sh): its row, both ends of its transcript, and the conversation-wide lists — rows written by every version of the app. Generated; private recordings only."
+read_only = true
+
+[[step]]
+name = "w1-row"
+request = "GET /workers/{w_1}"
+status = 200
+optional = true
+
+[[step]]
+name = "w1-newest"
+request = "GET /workers/{w_1}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w1-oldest"
+request = "GET /workers/{w_1}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w1-subagents"
+request = "GET /workers/{w_1}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w1-prompts"
+request = "GET /workers/{w_1}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w1-attachments"
+request = "GET /workers/{w_1}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w2-row"
+request = "GET /workers/{w_2}"
+status = 200
+optional = true
+
+[[step]]
+name = "w2-newest"
+request = "GET /workers/{w_2}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w2-oldest"
+request = "GET /workers/{w_2}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w2-subagents"
+request = "GET /workers/{w_2}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w2-prompts"
+request = "GET /workers/{w_2}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w2-attachments"
+request = "GET /workers/{w_2}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w3-row"
+request = "GET /workers/{w_3}"
+status = 200
+optional = true
+
+[[step]]
+name = "w3-newest"
+request = "GET /workers/{w_3}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w3-oldest"
+request = "GET /workers/{w_3}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w3-subagents"
+request = "GET /workers/{w_3}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w3-prompts"
+request = "GET /workers/{w_3}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w3-attachments"
+request = "GET /workers/{w_3}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w4-row"
+request = "GET /workers/{w_4}"
+status = 200
+optional = true
+
+[[step]]
+name = "w4-newest"
+request = "GET /workers/{w_4}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w4-oldest"
+request = "GET /workers/{w_4}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w4-subagents"
+request = "GET /workers/{w_4}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w4-prompts"
+request = "GET /workers/{w_4}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w4-attachments"
+request = "GET /workers/{w_4}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w5-row"
+request = "GET /workers/{w_5}"
+status = 200
+optional = true
+
+[[step]]
+name = "w5-newest"
+request = "GET /workers/{w_5}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w5-oldest"
+request = "GET /workers/{w_5}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w5-subagents"
+request = "GET /workers/{w_5}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w5-prompts"
+request = "GET /workers/{w_5}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w5-attachments"
+request = "GET /workers/{w_5}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w6-row"
+request = "GET /workers/{w_6}"
+status = 200
+optional = true
+
+[[step]]
+name = "w6-newest"
+request = "GET /workers/{w_6}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w6-oldest"
+request = "GET /workers/{w_6}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w6-subagents"
+request = "GET /workers/{w_6}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w6-prompts"
+request = "GET /workers/{w_6}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w6-attachments"
+request = "GET /workers/{w_6}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w7-row"
+request = "GET /workers/{w_7}"
+status = 200
+optional = true
+
+[[step]]
+name = "w7-newest"
+request = "GET /workers/{w_7}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w7-oldest"
+request = "GET /workers/{w_7}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w7-subagents"
+request = "GET /workers/{w_7}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w7-prompts"
+request = "GET /workers/{w_7}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w7-attachments"
+request = "GET /workers/{w_7}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w8-row"
+request = "GET /workers/{w_8}"
+status = 200
+optional = true
+
+[[step]]
+name = "w8-newest"
+request = "GET /workers/{w_8}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w8-oldest"
+request = "GET /workers/{w_8}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w8-subagents"
+request = "GET /workers/{w_8}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w8-prompts"
+request = "GET /workers/{w_8}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w8-attachments"
+request = "GET /workers/{w_8}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w9-row"
+request = "GET /workers/{w_9}"
+status = 200
+optional = true
+
+[[step]]
+name = "w9-newest"
+request = "GET /workers/{w_9}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w9-oldest"
+request = "GET /workers/{w_9}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w9-subagents"
+request = "GET /workers/{w_9}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w9-prompts"
+request = "GET /workers/{w_9}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w9-attachments"
+request = "GET /workers/{w_9}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w10-row"
+request = "GET /workers/{w_10}"
+status = 200
+optional = true
+
+[[step]]
+name = "w10-newest"
+request = "GET /workers/{w_10}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w10-oldest"
+request = "GET /workers/{w_10}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w10-subagents"
+request = "GET /workers/{w_10}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w10-prompts"
+request = "GET /workers/{w_10}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w10-attachments"
+request = "GET /workers/{w_10}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w11-row"
+request = "GET /workers/{w_11}"
+status = 200
+optional = true
+
+[[step]]
+name = "w11-newest"
+request = "GET /workers/{w_11}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w11-oldest"
+request = "GET /workers/{w_11}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w11-subagents"
+request = "GET /workers/{w_11}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w11-prompts"
+request = "GET /workers/{w_11}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w11-attachments"
+request = "GET /workers/{w_11}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w12-row"
+request = "GET /workers/{w_12}"
+status = 200
+optional = true
+
+[[step]]
+name = "w12-newest"
+request = "GET /workers/{w_12}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w12-oldest"
+request = "GET /workers/{w_12}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w12-subagents"
+request = "GET /workers/{w_12}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w12-prompts"
+request = "GET /workers/{w_12}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w12-attachments"
+request = "GET /workers/{w_12}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w13-row"
+request = "GET /workers/{w_13}"
+status = 200
+optional = true
+
+[[step]]
+name = "w13-newest"
+request = "GET /workers/{w_13}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w13-oldest"
+request = "GET /workers/{w_13}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w13-subagents"
+request = "GET /workers/{w_13}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w13-prompts"
+request = "GET /workers/{w_13}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w13-attachments"
+request = "GET /workers/{w_13}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w14-row"
+request = "GET /workers/{w_14}"
+status = 200
+optional = true
+
+[[step]]
+name = "w14-newest"
+request = "GET /workers/{w_14}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w14-oldest"
+request = "GET /workers/{w_14}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w14-subagents"
+request = "GET /workers/{w_14}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w14-prompts"
+request = "GET /workers/{w_14}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w14-attachments"
+request = "GET /workers/{w_14}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w15-row"
+request = "GET /workers/{w_15}"
+status = 200
+optional = true
+
+[[step]]
+name = "w15-newest"
+request = "GET /workers/{w_15}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w15-oldest"
+request = "GET /workers/{w_15}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w15-subagents"
+request = "GET /workers/{w_15}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w15-prompts"
+request = "GET /workers/{w_15}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w15-attachments"
+request = "GET /workers/{w_15}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w16-row"
+request = "GET /workers/{w_16}"
+status = 200
+optional = true
+
+[[step]]
+name = "w16-newest"
+request = "GET /workers/{w_16}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w16-oldest"
+request = "GET /workers/{w_16}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w16-subagents"
+request = "GET /workers/{w_16}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w16-prompts"
+request = "GET /workers/{w_16}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w16-attachments"
+request = "GET /workers/{w_16}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w17-row"
+request = "GET /workers/{w_17}"
+status = 200
+optional = true
+
+[[step]]
+name = "w17-newest"
+request = "GET /workers/{w_17}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w17-oldest"
+request = "GET /workers/{w_17}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w17-subagents"
+request = "GET /workers/{w_17}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w17-prompts"
+request = "GET /workers/{w_17}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w17-attachments"
+request = "GET /workers/{w_17}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w18-row"
+request = "GET /workers/{w_18}"
+status = 200
+optional = true
+
+[[step]]
+name = "w18-newest"
+request = "GET /workers/{w_18}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w18-oldest"
+request = "GET /workers/{w_18}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w18-subagents"
+request = "GET /workers/{w_18}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w18-prompts"
+request = "GET /workers/{w_18}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w18-attachments"
+request = "GET /workers/{w_18}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w19-row"
+request = "GET /workers/{w_19}"
+status = 200
+optional = true
+
+[[step]]
+name = "w19-newest"
+request = "GET /workers/{w_19}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w19-oldest"
+request = "GET /workers/{w_19}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w19-subagents"
+request = "GET /workers/{w_19}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w19-prompts"
+request = "GET /workers/{w_19}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w19-attachments"
+request = "GET /workers/{w_19}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w20-row"
+request = "GET /workers/{w_20}"
+status = 200
+optional = true
+
+[[step]]
+name = "w20-newest"
+request = "GET /workers/{w_20}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w20-oldest"
+request = "GET /workers/{w_20}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w20-subagents"
+request = "GET /workers/{w_20}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w20-prompts"
+request = "GET /workers/{w_20}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w20-attachments"
+request = "GET /workers/{w_20}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w21-row"
+request = "GET /workers/{w_21}"
+status = 200
+optional = true
+
+[[step]]
+name = "w21-newest"
+request = "GET /workers/{w_21}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w21-oldest"
+request = "GET /workers/{w_21}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w21-subagents"
+request = "GET /workers/{w_21}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w21-prompts"
+request = "GET /workers/{w_21}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w21-attachments"
+request = "GET /workers/{w_21}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w22-row"
+request = "GET /workers/{w_22}"
+status = 200
+optional = true
+
+[[step]]
+name = "w22-newest"
+request = "GET /workers/{w_22}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w22-oldest"
+request = "GET /workers/{w_22}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w22-subagents"
+request = "GET /workers/{w_22}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w22-prompts"
+request = "GET /workers/{w_22}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w22-attachments"
+request = "GET /workers/{w_22}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w23-row"
+request = "GET /workers/{w_23}"
+status = 200
+optional = true
+
+[[step]]
+name = "w23-newest"
+request = "GET /workers/{w_23}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w23-oldest"
+request = "GET /workers/{w_23}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w23-subagents"
+request = "GET /workers/{w_23}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w23-prompts"
+request = "GET /workers/{w_23}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w23-attachments"
+request = "GET /workers/{w_23}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w24-row"
+request = "GET /workers/{w_24}"
+status = 200
+optional = true
+
+[[step]]
+name = "w24-newest"
+request = "GET /workers/{w_24}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w24-oldest"
+request = "GET /workers/{w_24}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w24-subagents"
+request = "GET /workers/{w_24}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w24-prompts"
+request = "GET /workers/{w_24}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w24-attachments"
+request = "GET /workers/{w_24}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w25-row"
+request = "GET /workers/{w_25}"
+status = 200
+optional = true
+
+[[step]]
+name = "w25-newest"
+request = "GET /workers/{w_25}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w25-oldest"
+request = "GET /workers/{w_25}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w25-subagents"
+request = "GET /workers/{w_25}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w25-prompts"
+request = "GET /workers/{w_25}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w25-attachments"
+request = "GET /workers/{w_25}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w26-row"
+request = "GET /workers/{w_26}"
+status = 200
+optional = true
+
+[[step]]
+name = "w26-newest"
+request = "GET /workers/{w_26}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w26-oldest"
+request = "GET /workers/{w_26}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w26-subagents"
+request = "GET /workers/{w_26}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w26-prompts"
+request = "GET /workers/{w_26}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w26-attachments"
+request = "GET /workers/{w_26}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w27-row"
+request = "GET /workers/{w_27}"
+status = 200
+optional = true
+
+[[step]]
+name = "w27-newest"
+request = "GET /workers/{w_27}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w27-oldest"
+request = "GET /workers/{w_27}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w27-subagents"
+request = "GET /workers/{w_27}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w27-prompts"
+request = "GET /workers/{w_27}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w27-attachments"
+request = "GET /workers/{w_27}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w28-row"
+request = "GET /workers/{w_28}"
+status = 200
+optional = true
+
+[[step]]
+name = "w28-newest"
+request = "GET /workers/{w_28}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w28-oldest"
+request = "GET /workers/{w_28}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w28-subagents"
+request = "GET /workers/{w_28}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w28-prompts"
+request = "GET /workers/{w_28}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w28-attachments"
+request = "GET /workers/{w_28}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w29-row"
+request = "GET /workers/{w_29}"
+status = 200
+optional = true
+
+[[step]]
+name = "w29-newest"
+request = "GET /workers/{w_29}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w29-oldest"
+request = "GET /workers/{w_29}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w29-subagents"
+request = "GET /workers/{w_29}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w29-prompts"
+request = "GET /workers/{w_29}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w29-attachments"
+request = "GET /workers/{w_29}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w30-row"
+request = "GET /workers/{w_30}"
+status = 200
+optional = true
+
+[[step]]
+name = "w30-newest"
+request = "GET /workers/{w_30}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w30-oldest"
+request = "GET /workers/{w_30}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w30-subagents"
+request = "GET /workers/{w_30}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w30-prompts"
+request = "GET /workers/{w_30}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w30-attachments"
+request = "GET /workers/{w_30}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w31-row"
+request = "GET /workers/{w_31}"
+status = 200
+optional = true
+
+[[step]]
+name = "w31-newest"
+request = "GET /workers/{w_31}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w31-oldest"
+request = "GET /workers/{w_31}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w31-subagents"
+request = "GET /workers/{w_31}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w31-prompts"
+request = "GET /workers/{w_31}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w31-attachments"
+request = "GET /workers/{w_31}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w32-row"
+request = "GET /workers/{w_32}"
+status = 200
+optional = true
+
+[[step]]
+name = "w32-newest"
+request = "GET /workers/{w_32}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w32-oldest"
+request = "GET /workers/{w_32}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w32-subagents"
+request = "GET /workers/{w_32}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w32-prompts"
+request = "GET /workers/{w_32}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w32-attachments"
+request = "GET /workers/{w_32}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w33-row"
+request = "GET /workers/{w_33}"
+status = 200
+optional = true
+
+[[step]]
+name = "w33-newest"
+request = "GET /workers/{w_33}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w33-oldest"
+request = "GET /workers/{w_33}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w33-subagents"
+request = "GET /workers/{w_33}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w33-prompts"
+request = "GET /workers/{w_33}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w33-attachments"
+request = "GET /workers/{w_33}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w34-row"
+request = "GET /workers/{w_34}"
+status = 200
+optional = true
+
+[[step]]
+name = "w34-newest"
+request = "GET /workers/{w_34}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w34-oldest"
+request = "GET /workers/{w_34}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w34-subagents"
+request = "GET /workers/{w_34}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w34-prompts"
+request = "GET /workers/{w_34}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w34-attachments"
+request = "GET /workers/{w_34}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w35-row"
+request = "GET /workers/{w_35}"
+status = 200
+optional = true
+
+[[step]]
+name = "w35-newest"
+request = "GET /workers/{w_35}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w35-oldest"
+request = "GET /workers/{w_35}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w35-subagents"
+request = "GET /workers/{w_35}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w35-prompts"
+request = "GET /workers/{w_35}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w35-attachments"
+request = "GET /workers/{w_35}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w36-row"
+request = "GET /workers/{w_36}"
+status = 200
+optional = true
+
+[[step]]
+name = "w36-newest"
+request = "GET /workers/{w_36}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w36-oldest"
+request = "GET /workers/{w_36}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w36-subagents"
+request = "GET /workers/{w_36}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w36-prompts"
+request = "GET /workers/{w_36}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w36-attachments"
+request = "GET /workers/{w_36}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w37-row"
+request = "GET /workers/{w_37}"
+status = 200
+optional = true
+
+[[step]]
+name = "w37-newest"
+request = "GET /workers/{w_37}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w37-oldest"
+request = "GET /workers/{w_37}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w37-subagents"
+request = "GET /workers/{w_37}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w37-prompts"
+request = "GET /workers/{w_37}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w37-attachments"
+request = "GET /workers/{w_37}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w38-row"
+request = "GET /workers/{w_38}"
+status = 200
+optional = true
+
+[[step]]
+name = "w38-newest"
+request = "GET /workers/{w_38}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w38-oldest"
+request = "GET /workers/{w_38}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w38-subagents"
+request = "GET /workers/{w_38}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w38-prompts"
+request = "GET /workers/{w_38}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w38-attachments"
+request = "GET /workers/{w_38}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w39-row"
+request = "GET /workers/{w_39}"
+status = 200
+optional = true
+
+[[step]]
+name = "w39-newest"
+request = "GET /workers/{w_39}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w39-oldest"
+request = "GET /workers/{w_39}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w39-subagents"
+request = "GET /workers/{w_39}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w39-prompts"
+request = "GET /workers/{w_39}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w39-attachments"
+request = "GET /workers/{w_39}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w40-row"
+request = "GET /workers/{w_40}"
+status = 200
+optional = true
+
+[[step]]
+name = "w40-newest"
+request = "GET /workers/{w_40}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w40-oldest"
+request = "GET /workers/{w_40}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w40-subagents"
+request = "GET /workers/{w_40}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w40-prompts"
+request = "GET /workers/{w_40}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w40-attachments"
+request = "GET /workers/{w_40}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w41-row"
+request = "GET /workers/{w_41}"
+status = 200
+optional = true
+
+[[step]]
+name = "w41-newest"
+request = "GET /workers/{w_41}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w41-oldest"
+request = "GET /workers/{w_41}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w41-subagents"
+request = "GET /workers/{w_41}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w41-prompts"
+request = "GET /workers/{w_41}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w41-attachments"
+request = "GET /workers/{w_41}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w42-row"
+request = "GET /workers/{w_42}"
+status = 200
+optional = true
+
+[[step]]
+name = "w42-newest"
+request = "GET /workers/{w_42}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w42-oldest"
+request = "GET /workers/{w_42}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w42-subagents"
+request = "GET /workers/{w_42}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w42-prompts"
+request = "GET /workers/{w_42}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w42-attachments"
+request = "GET /workers/{w_42}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w43-row"
+request = "GET /workers/{w_43}"
+status = 200
+optional = true
+
+[[step]]
+name = "w43-newest"
+request = "GET /workers/{w_43}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w43-oldest"
+request = "GET /workers/{w_43}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w43-subagents"
+request = "GET /workers/{w_43}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w43-prompts"
+request = "GET /workers/{w_43}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w43-attachments"
+request = "GET /workers/{w_43}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w44-row"
+request = "GET /workers/{w_44}"
+status = 200
+optional = true
+
+[[step]]
+name = "w44-newest"
+request = "GET /workers/{w_44}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w44-oldest"
+request = "GET /workers/{w_44}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w44-subagents"
+request = "GET /workers/{w_44}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w44-prompts"
+request = "GET /workers/{w_44}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w44-attachments"
+request = "GET /workers/{w_44}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w45-row"
+request = "GET /workers/{w_45}"
+status = 200
+optional = true
+
+[[step]]
+name = "w45-newest"
+request = "GET /workers/{w_45}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w45-oldest"
+request = "GET /workers/{w_45}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w45-subagents"
+request = "GET /workers/{w_45}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w45-prompts"
+request = "GET /workers/{w_45}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w45-attachments"
+request = "GET /workers/{w_45}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w46-row"
+request = "GET /workers/{w_46}"
+status = 200
+optional = true
+
+[[step]]
+name = "w46-newest"
+request = "GET /workers/{w_46}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w46-oldest"
+request = "GET /workers/{w_46}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w46-subagents"
+request = "GET /workers/{w_46}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w46-prompts"
+request = "GET /workers/{w_46}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w46-attachments"
+request = "GET /workers/{w_46}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w47-row"
+request = "GET /workers/{w_47}"
+status = 200
+optional = true
+
+[[step]]
+name = "w47-newest"
+request = "GET /workers/{w_47}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w47-oldest"
+request = "GET /workers/{w_47}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w47-subagents"
+request = "GET /workers/{w_47}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w47-prompts"
+request = "GET /workers/{w_47}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w47-attachments"
+request = "GET /workers/{w_47}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w48-row"
+request = "GET /workers/{w_48}"
+status = 200
+optional = true
+
+[[step]]
+name = "w48-newest"
+request = "GET /workers/{w_48}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w48-oldest"
+request = "GET /workers/{w_48}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w48-subagents"
+request = "GET /workers/{w_48}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w48-prompts"
+request = "GET /workers/{w_48}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w48-attachments"
+request = "GET /workers/{w_48}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w49-row"
+request = "GET /workers/{w_49}"
+status = 200
+optional = true
+
+[[step]]
+name = "w49-newest"
+request = "GET /workers/{w_49}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w49-oldest"
+request = "GET /workers/{w_49}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w49-subagents"
+request = "GET /workers/{w_49}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w49-prompts"
+request = "GET /workers/{w_49}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w49-attachments"
+request = "GET /workers/{w_49}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w50-row"
+request = "GET /workers/{w_50}"
+status = 200
+optional = true
+
+[[step]]
+name = "w50-newest"
+request = "GET /workers/{w_50}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w50-oldest"
+request = "GET /workers/{w_50}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w50-subagents"
+request = "GET /workers/{w_50}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w50-prompts"
+request = "GET /workers/{w_50}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w50-attachments"
+request = "GET /workers/{w_50}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w51-row"
+request = "GET /workers/{w_51}"
+status = 200
+optional = true
+
+[[step]]
+name = "w51-newest"
+request = "GET /workers/{w_51}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w51-oldest"
+request = "GET /workers/{w_51}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w51-subagents"
+request = "GET /workers/{w_51}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w51-prompts"
+request = "GET /workers/{w_51}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w51-attachments"
+request = "GET /workers/{w_51}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w52-row"
+request = "GET /workers/{w_52}"
+status = 200
+optional = true
+
+[[step]]
+name = "w52-newest"
+request = "GET /workers/{w_52}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w52-oldest"
+request = "GET /workers/{w_52}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w52-subagents"
+request = "GET /workers/{w_52}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w52-prompts"
+request = "GET /workers/{w_52}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w52-attachments"
+request = "GET /workers/{w_52}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w53-row"
+request = "GET /workers/{w_53}"
+status = 200
+optional = true
+
+[[step]]
+name = "w53-newest"
+request = "GET /workers/{w_53}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w53-oldest"
+request = "GET /workers/{w_53}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w53-subagents"
+request = "GET /workers/{w_53}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w53-prompts"
+request = "GET /workers/{w_53}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w53-attachments"
+request = "GET /workers/{w_53}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w54-row"
+request = "GET /workers/{w_54}"
+status = 200
+optional = true
+
+[[step]]
+name = "w54-newest"
+request = "GET /workers/{w_54}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w54-oldest"
+request = "GET /workers/{w_54}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w54-subagents"
+request = "GET /workers/{w_54}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w54-prompts"
+request = "GET /workers/{w_54}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w54-attachments"
+request = "GET /workers/{w_54}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w55-row"
+request = "GET /workers/{w_55}"
+status = 200
+optional = true
+
+[[step]]
+name = "w55-newest"
+request = "GET /workers/{w_55}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w55-oldest"
+request = "GET /workers/{w_55}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w55-subagents"
+request = "GET /workers/{w_55}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w55-prompts"
+request = "GET /workers/{w_55}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w55-attachments"
+request = "GET /workers/{w_55}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w56-row"
+request = "GET /workers/{w_56}"
+status = 200
+optional = true
+
+[[step]]
+name = "w56-newest"
+request = "GET /workers/{w_56}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w56-oldest"
+request = "GET /workers/{w_56}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w56-subagents"
+request = "GET /workers/{w_56}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w56-prompts"
+request = "GET /workers/{w_56}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w56-attachments"
+request = "GET /workers/{w_56}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w57-row"
+request = "GET /workers/{w_57}"
+status = 200
+optional = true
+
+[[step]]
+name = "w57-newest"
+request = "GET /workers/{w_57}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w57-oldest"
+request = "GET /workers/{w_57}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w57-subagents"
+request = "GET /workers/{w_57}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w57-prompts"
+request = "GET /workers/{w_57}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w57-attachments"
+request = "GET /workers/{w_57}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w58-row"
+request = "GET /workers/{w_58}"
+status = 200
+optional = true
+
+[[step]]
+name = "w58-newest"
+request = "GET /workers/{w_58}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w58-oldest"
+request = "GET /workers/{w_58}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w58-subagents"
+request = "GET /workers/{w_58}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w58-prompts"
+request = "GET /workers/{w_58}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w58-attachments"
+request = "GET /workers/{w_58}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w59-row"
+request = "GET /workers/{w_59}"
+status = 200
+optional = true
+
+[[step]]
+name = "w59-newest"
+request = "GET /workers/{w_59}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w59-oldest"
+request = "GET /workers/{w_59}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w59-subagents"
+request = "GET /workers/{w_59}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w59-prompts"
+request = "GET /workers/{w_59}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w59-attachments"
+request = "GET /workers/{w_59}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w60-row"
+request = "GET /workers/{w_60}"
+status = 200
+optional = true
+
+[[step]]
+name = "w60-newest"
+request = "GET /workers/{w_60}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w60-oldest"
+request = "GET /workers/{w_60}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w60-subagents"
+request = "GET /workers/{w_60}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w60-prompts"
+request = "GET /workers/{w_60}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w60-attachments"
+request = "GET /workers/{w_60}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w61-row"
+request = "GET /workers/{w_61}"
+status = 200
+optional = true
+
+[[step]]
+name = "w61-newest"
+request = "GET /workers/{w_61}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w61-oldest"
+request = "GET /workers/{w_61}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w61-subagents"
+request = "GET /workers/{w_61}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w61-prompts"
+request = "GET /workers/{w_61}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w61-attachments"
+request = "GET /workers/{w_61}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w62-row"
+request = "GET /workers/{w_62}"
+status = 200
+optional = true
+
+[[step]]
+name = "w62-newest"
+request = "GET /workers/{w_62}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w62-oldest"
+request = "GET /workers/{w_62}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w62-subagents"
+request = "GET /workers/{w_62}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w62-prompts"
+request = "GET /workers/{w_62}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w62-attachments"
+request = "GET /workers/{w_62}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w63-row"
+request = "GET /workers/{w_63}"
+status = 200
+optional = true
+
+[[step]]
+name = "w63-newest"
+request = "GET /workers/{w_63}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w63-oldest"
+request = "GET /workers/{w_63}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w63-subagents"
+request = "GET /workers/{w_63}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w63-prompts"
+request = "GET /workers/{w_63}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w63-attachments"
+request = "GET /workers/{w_63}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w64-row"
+request = "GET /workers/{w_64}"
+status = 200
+optional = true
+
+[[step]]
+name = "w64-newest"
+request = "GET /workers/{w_64}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w64-oldest"
+request = "GET /workers/{w_64}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w64-subagents"
+request = "GET /workers/{w_64}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w64-prompts"
+request = "GET /workers/{w_64}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w64-attachments"
+request = "GET /workers/{w_64}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w65-row"
+request = "GET /workers/{w_65}"
+status = 200
+optional = true
+
+[[step]]
+name = "w65-newest"
+request = "GET /workers/{w_65}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w65-oldest"
+request = "GET /workers/{w_65}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w65-subagents"
+request = "GET /workers/{w_65}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w65-prompts"
+request = "GET /workers/{w_65}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w65-attachments"
+request = "GET /workers/{w_65}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w66-row"
+request = "GET /workers/{w_66}"
+status = 200
+optional = true
+
+[[step]]
+name = "w66-newest"
+request = "GET /workers/{w_66}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w66-oldest"
+request = "GET /workers/{w_66}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w66-subagents"
+request = "GET /workers/{w_66}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w66-prompts"
+request = "GET /workers/{w_66}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w66-attachments"
+request = "GET /workers/{w_66}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w67-row"
+request = "GET /workers/{w_67}"
+status = 200
+optional = true
+
+[[step]]
+name = "w67-newest"
+request = "GET /workers/{w_67}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w67-oldest"
+request = "GET /workers/{w_67}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w67-subagents"
+request = "GET /workers/{w_67}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w67-prompts"
+request = "GET /workers/{w_67}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w67-attachments"
+request = "GET /workers/{w_67}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w68-row"
+request = "GET /workers/{w_68}"
+status = 200
+optional = true
+
+[[step]]
+name = "w68-newest"
+request = "GET /workers/{w_68}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w68-oldest"
+request = "GET /workers/{w_68}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w68-subagents"
+request = "GET /workers/{w_68}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w68-prompts"
+request = "GET /workers/{w_68}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w68-attachments"
+request = "GET /workers/{w_68}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w69-row"
+request = "GET /workers/{w_69}"
+status = 200
+optional = true
+
+[[step]]
+name = "w69-newest"
+request = "GET /workers/{w_69}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w69-oldest"
+request = "GET /workers/{w_69}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w69-subagents"
+request = "GET /workers/{w_69}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w69-prompts"
+request = "GET /workers/{w_69}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w69-attachments"
+request = "GET /workers/{w_69}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w70-row"
+request = "GET /workers/{w_70}"
+status = 200
+optional = true
+
+[[step]]
+name = "w70-newest"
+request = "GET /workers/{w_70}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w70-oldest"
+request = "GET /workers/{w_70}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w70-subagents"
+request = "GET /workers/{w_70}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w70-prompts"
+request = "GET /workers/{w_70}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w70-attachments"
+request = "GET /workers/{w_70}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w71-row"
+request = "GET /workers/{w_71}"
+status = 200
+optional = true
+
+[[step]]
+name = "w71-newest"
+request = "GET /workers/{w_71}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w71-oldest"
+request = "GET /workers/{w_71}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w71-subagents"
+request = "GET /workers/{w_71}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w71-prompts"
+request = "GET /workers/{w_71}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w71-attachments"
+request = "GET /workers/{w_71}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w72-row"
+request = "GET /workers/{w_72}"
+status = 200
+optional = true
+
+[[step]]
+name = "w72-newest"
+request = "GET /workers/{w_72}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w72-oldest"
+request = "GET /workers/{w_72}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w72-subagents"
+request = "GET /workers/{w_72}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w72-prompts"
+request = "GET /workers/{w_72}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w72-attachments"
+request = "GET /workers/{w_72}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w73-row"
+request = "GET /workers/{w_73}"
+status = 200
+optional = true
+
+[[step]]
+name = "w73-newest"
+request = "GET /workers/{w_73}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w73-oldest"
+request = "GET /workers/{w_73}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w73-subagents"
+request = "GET /workers/{w_73}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w73-prompts"
+request = "GET /workers/{w_73}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w73-attachments"
+request = "GET /workers/{w_73}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w74-row"
+request = "GET /workers/{w_74}"
+status = 200
+optional = true
+
+[[step]]
+name = "w74-newest"
+request = "GET /workers/{w_74}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w74-oldest"
+request = "GET /workers/{w_74}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w74-subagents"
+request = "GET /workers/{w_74}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w74-prompts"
+request = "GET /workers/{w_74}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w74-attachments"
+request = "GET /workers/{w_74}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w75-row"
+request = "GET /workers/{w_75}"
+status = 200
+optional = true
+
+[[step]]
+name = "w75-newest"
+request = "GET /workers/{w_75}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w75-oldest"
+request = "GET /workers/{w_75}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w75-subagents"
+request = "GET /workers/{w_75}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w75-prompts"
+request = "GET /workers/{w_75}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w75-attachments"
+request = "GET /workers/{w_75}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w76-row"
+request = "GET /workers/{w_76}"
+status = 200
+optional = true
+
+[[step]]
+name = "w76-newest"
+request = "GET /workers/{w_76}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w76-oldest"
+request = "GET /workers/{w_76}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w76-subagents"
+request = "GET /workers/{w_76}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w76-prompts"
+request = "GET /workers/{w_76}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w76-attachments"
+request = "GET /workers/{w_76}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w77-row"
+request = "GET /workers/{w_77}"
+status = 200
+optional = true
+
+[[step]]
+name = "w77-newest"
+request = "GET /workers/{w_77}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w77-oldest"
+request = "GET /workers/{w_77}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w77-subagents"
+request = "GET /workers/{w_77}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w77-prompts"
+request = "GET /workers/{w_77}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w77-attachments"
+request = "GET /workers/{w_77}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w78-row"
+request = "GET /workers/{w_78}"
+status = 200
+optional = true
+
+[[step]]
+name = "w78-newest"
+request = "GET /workers/{w_78}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w78-oldest"
+request = "GET /workers/{w_78}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w78-subagents"
+request = "GET /workers/{w_78}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w78-prompts"
+request = "GET /workers/{w_78}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w78-attachments"
+request = "GET /workers/{w_78}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w79-row"
+request = "GET /workers/{w_79}"
+status = 200
+optional = true
+
+[[step]]
+name = "w79-newest"
+request = "GET /workers/{w_79}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w79-oldest"
+request = "GET /workers/{w_79}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w79-subagents"
+request = "GET /workers/{w_79}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w79-prompts"
+request = "GET /workers/{w_79}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w79-attachments"
+request = "GET /workers/{w_79}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w80-row"
+request = "GET /workers/{w_80}"
+status = 200
+optional = true
+
+[[step]]
+name = "w80-newest"
+request = "GET /workers/{w_80}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w80-oldest"
+request = "GET /workers/{w_80}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w80-subagents"
+request = "GET /workers/{w_80}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w80-prompts"
+request = "GET /workers/{w_80}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w80-attachments"
+request = "GET /workers/{w_80}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w81-row"
+request = "GET /workers/{w_81}"
+status = 200
+optional = true
+
+[[step]]
+name = "w81-newest"
+request = "GET /workers/{w_81}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w81-oldest"
+request = "GET /workers/{w_81}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w81-subagents"
+request = "GET /workers/{w_81}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w81-prompts"
+request = "GET /workers/{w_81}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w81-attachments"
+request = "GET /workers/{w_81}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w82-row"
+request = "GET /workers/{w_82}"
+status = 200
+optional = true
+
+[[step]]
+name = "w82-newest"
+request = "GET /workers/{w_82}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w82-oldest"
+request = "GET /workers/{w_82}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w82-subagents"
+request = "GET /workers/{w_82}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w82-prompts"
+request = "GET /workers/{w_82}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w82-attachments"
+request = "GET /workers/{w_82}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w83-row"
+request = "GET /workers/{w_83}"
+status = 200
+optional = true
+
+[[step]]
+name = "w83-newest"
+request = "GET /workers/{w_83}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w83-oldest"
+request = "GET /workers/{w_83}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w83-subagents"
+request = "GET /workers/{w_83}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w83-prompts"
+request = "GET /workers/{w_83}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w83-attachments"
+request = "GET /workers/{w_83}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w84-row"
+request = "GET /workers/{w_84}"
+status = 200
+optional = true
+
+[[step]]
+name = "w84-newest"
+request = "GET /workers/{w_84}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w84-oldest"
+request = "GET /workers/{w_84}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w84-subagents"
+request = "GET /workers/{w_84}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w84-prompts"
+request = "GET /workers/{w_84}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w84-attachments"
+request = "GET /workers/{w_84}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w85-row"
+request = "GET /workers/{w_85}"
+status = 200
+optional = true
+
+[[step]]
+name = "w85-newest"
+request = "GET /workers/{w_85}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w85-oldest"
+request = "GET /workers/{w_85}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w85-subagents"
+request = "GET /workers/{w_85}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w85-prompts"
+request = "GET /workers/{w_85}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w85-attachments"
+request = "GET /workers/{w_85}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w86-row"
+request = "GET /workers/{w_86}"
+status = 200
+optional = true
+
+[[step]]
+name = "w86-newest"
+request = "GET /workers/{w_86}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w86-oldest"
+request = "GET /workers/{w_86}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w86-subagents"
+request = "GET /workers/{w_86}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w86-prompts"
+request = "GET /workers/{w_86}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w86-attachments"
+request = "GET /workers/{w_86}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w87-row"
+request = "GET /workers/{w_87}"
+status = 200
+optional = true
+
+[[step]]
+name = "w87-newest"
+request = "GET /workers/{w_87}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w87-oldest"
+request = "GET /workers/{w_87}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w87-subagents"
+request = "GET /workers/{w_87}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w87-prompts"
+request = "GET /workers/{w_87}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w87-attachments"
+request = "GET /workers/{w_87}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w88-row"
+request = "GET /workers/{w_88}"
+status = 200
+optional = true
+
+[[step]]
+name = "w88-newest"
+request = "GET /workers/{w_88}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w88-oldest"
+request = "GET /workers/{w_88}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w88-subagents"
+request = "GET /workers/{w_88}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w88-prompts"
+request = "GET /workers/{w_88}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w88-attachments"
+request = "GET /workers/{w_88}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w89-row"
+request = "GET /workers/{w_89}"
+status = 200
+optional = true
+
+[[step]]
+name = "w89-newest"
+request = "GET /workers/{w_89}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w89-oldest"
+request = "GET /workers/{w_89}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w89-subagents"
+request = "GET /workers/{w_89}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w89-prompts"
+request = "GET /workers/{w_89}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w89-attachments"
+request = "GET /workers/{w_89}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w90-row"
+request = "GET /workers/{w_90}"
+status = 200
+optional = true
+
+[[step]]
+name = "w90-newest"
+request = "GET /workers/{w_90}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w90-oldest"
+request = "GET /workers/{w_90}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w90-subagents"
+request = "GET /workers/{w_90}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w90-prompts"
+request = "GET /workers/{w_90}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w90-attachments"
+request = "GET /workers/{w_90}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w91-row"
+request = "GET /workers/{w_91}"
+status = 200
+optional = true
+
+[[step]]
+name = "w91-newest"
+request = "GET /workers/{w_91}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w91-oldest"
+request = "GET /workers/{w_91}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w91-subagents"
+request = "GET /workers/{w_91}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w91-prompts"
+request = "GET /workers/{w_91}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w91-attachments"
+request = "GET /workers/{w_91}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w92-row"
+request = "GET /workers/{w_92}"
+status = 200
+optional = true
+
+[[step]]
+name = "w92-newest"
+request = "GET /workers/{w_92}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w92-oldest"
+request = "GET /workers/{w_92}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w92-subagents"
+request = "GET /workers/{w_92}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w92-prompts"
+request = "GET /workers/{w_92}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w92-attachments"
+request = "GET /workers/{w_92}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w93-row"
+request = "GET /workers/{w_93}"
+status = 200
+optional = true
+
+[[step]]
+name = "w93-newest"
+request = "GET /workers/{w_93}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w93-oldest"
+request = "GET /workers/{w_93}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w93-subagents"
+request = "GET /workers/{w_93}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w93-prompts"
+request = "GET /workers/{w_93}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w93-attachments"
+request = "GET /workers/{w_93}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w94-row"
+request = "GET /workers/{w_94}"
+status = 200
+optional = true
+
+[[step]]
+name = "w94-newest"
+request = "GET /workers/{w_94}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w94-oldest"
+request = "GET /workers/{w_94}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w94-subagents"
+request = "GET /workers/{w_94}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w94-prompts"
+request = "GET /workers/{w_94}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w94-attachments"
+request = "GET /workers/{w_94}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w95-row"
+request = "GET /workers/{w_95}"
+status = 200
+optional = true
+
+[[step]]
+name = "w95-newest"
+request = "GET /workers/{w_95}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w95-oldest"
+request = "GET /workers/{w_95}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w95-subagents"
+request = "GET /workers/{w_95}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w95-prompts"
+request = "GET /workers/{w_95}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w95-attachments"
+request = "GET /workers/{w_95}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w96-row"
+request = "GET /workers/{w_96}"
+status = 200
+optional = true
+
+[[step]]
+name = "w96-newest"
+request = "GET /workers/{w_96}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w96-oldest"
+request = "GET /workers/{w_96}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w96-subagents"
+request = "GET /workers/{w_96}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w96-prompts"
+request = "GET /workers/{w_96}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w96-attachments"
+request = "GET /workers/{w_96}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w97-row"
+request = "GET /workers/{w_97}"
+status = 200
+optional = true
+
+[[step]]
+name = "w97-newest"
+request = "GET /workers/{w_97}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w97-oldest"
+request = "GET /workers/{w_97}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w97-subagents"
+request = "GET /workers/{w_97}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w97-prompts"
+request = "GET /workers/{w_97}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w97-attachments"
+request = "GET /workers/{w_97}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w98-row"
+request = "GET /workers/{w_98}"
+status = 200
+optional = true
+
+[[step]]
+name = "w98-newest"
+request = "GET /workers/{w_98}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w98-oldest"
+request = "GET /workers/{w_98}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w98-subagents"
+request = "GET /workers/{w_98}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w98-prompts"
+request = "GET /workers/{w_98}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w98-attachments"
+request = "GET /workers/{w_98}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w99-row"
+request = "GET /workers/{w_99}"
+status = 200
+optional = true
+
+[[step]]
+name = "w99-newest"
+request = "GET /workers/{w_99}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w99-oldest"
+request = "GET /workers/{w_99}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w99-subagents"
+request = "GET /workers/{w_99}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w99-prompts"
+request = "GET /workers/{w_99}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w99-attachments"
+request = "GET /workers/{w_99}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w100-row"
+request = "GET /workers/{w_100}"
+status = 200
+optional = true
+
+[[step]]
+name = "w100-newest"
+request = "GET /workers/{w_100}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w100-oldest"
+request = "GET /workers/{w_100}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w100-subagents"
+request = "GET /workers/{w_100}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w100-prompts"
+request = "GET /workers/{w_100}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w100-attachments"
+request = "GET /workers/{w_100}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w101-row"
+request = "GET /workers/{w_101}"
+status = 200
+optional = true
+
+[[step]]
+name = "w101-newest"
+request = "GET /workers/{w_101}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w101-oldest"
+request = "GET /workers/{w_101}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w101-subagents"
+request = "GET /workers/{w_101}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w101-prompts"
+request = "GET /workers/{w_101}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w101-attachments"
+request = "GET /workers/{w_101}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w102-row"
+request = "GET /workers/{w_102}"
+status = 200
+optional = true
+
+[[step]]
+name = "w102-newest"
+request = "GET /workers/{w_102}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w102-oldest"
+request = "GET /workers/{w_102}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w102-subagents"
+request = "GET /workers/{w_102}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w102-prompts"
+request = "GET /workers/{w_102}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w102-attachments"
+request = "GET /workers/{w_102}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w103-row"
+request = "GET /workers/{w_103}"
+status = 200
+optional = true
+
+[[step]]
+name = "w103-newest"
+request = "GET /workers/{w_103}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w103-oldest"
+request = "GET /workers/{w_103}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w103-subagents"
+request = "GET /workers/{w_103}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w103-prompts"
+request = "GET /workers/{w_103}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w103-attachments"
+request = "GET /workers/{w_103}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w104-row"
+request = "GET /workers/{w_104}"
+status = 200
+optional = true
+
+[[step]]
+name = "w104-newest"
+request = "GET /workers/{w_104}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w104-oldest"
+request = "GET /workers/{w_104}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w104-subagents"
+request = "GET /workers/{w_104}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w104-prompts"
+request = "GET /workers/{w_104}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w104-attachments"
+request = "GET /workers/{w_104}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w105-row"
+request = "GET /workers/{w_105}"
+status = 200
+optional = true
+
+[[step]]
+name = "w105-newest"
+request = "GET /workers/{w_105}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w105-oldest"
+request = "GET /workers/{w_105}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w105-subagents"
+request = "GET /workers/{w_105}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w105-prompts"
+request = "GET /workers/{w_105}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w105-attachments"
+request = "GET /workers/{w_105}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w106-row"
+request = "GET /workers/{w_106}"
+status = 200
+optional = true
+
+[[step]]
+name = "w106-newest"
+request = "GET /workers/{w_106}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w106-oldest"
+request = "GET /workers/{w_106}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w106-subagents"
+request = "GET /workers/{w_106}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w106-prompts"
+request = "GET /workers/{w_106}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w106-attachments"
+request = "GET /workers/{w_106}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w107-row"
+request = "GET /workers/{w_107}"
+status = 200
+optional = true
+
+[[step]]
+name = "w107-newest"
+request = "GET /workers/{w_107}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w107-oldest"
+request = "GET /workers/{w_107}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w107-subagents"
+request = "GET /workers/{w_107}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w107-prompts"
+request = "GET /workers/{w_107}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w107-attachments"
+request = "GET /workers/{w_107}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w108-row"
+request = "GET /workers/{w_108}"
+status = 200
+optional = true
+
+[[step]]
+name = "w108-newest"
+request = "GET /workers/{w_108}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w108-oldest"
+request = "GET /workers/{w_108}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w108-subagents"
+request = "GET /workers/{w_108}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w108-prompts"
+request = "GET /workers/{w_108}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w108-attachments"
+request = "GET /workers/{w_108}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w109-row"
+request = "GET /workers/{w_109}"
+status = 200
+optional = true
+
+[[step]]
+name = "w109-newest"
+request = "GET /workers/{w_109}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w109-oldest"
+request = "GET /workers/{w_109}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w109-subagents"
+request = "GET /workers/{w_109}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w109-prompts"
+request = "GET /workers/{w_109}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w109-attachments"
+request = "GET /workers/{w_109}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w110-row"
+request = "GET /workers/{w_110}"
+status = 200
+optional = true
+
+[[step]]
+name = "w110-newest"
+request = "GET /workers/{w_110}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w110-oldest"
+request = "GET /workers/{w_110}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w110-subagents"
+request = "GET /workers/{w_110}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w110-prompts"
+request = "GET /workers/{w_110}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w110-attachments"
+request = "GET /workers/{w_110}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w111-row"
+request = "GET /workers/{w_111}"
+status = 200
+optional = true
+
+[[step]]
+name = "w111-newest"
+request = "GET /workers/{w_111}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w111-oldest"
+request = "GET /workers/{w_111}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w111-subagents"
+request = "GET /workers/{w_111}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w111-prompts"
+request = "GET /workers/{w_111}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w111-attachments"
+request = "GET /workers/{w_111}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w112-row"
+request = "GET /workers/{w_112}"
+status = 200
+optional = true
+
+[[step]]
+name = "w112-newest"
+request = "GET /workers/{w_112}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w112-oldest"
+request = "GET /workers/{w_112}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w112-subagents"
+request = "GET /workers/{w_112}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w112-prompts"
+request = "GET /workers/{w_112}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w112-attachments"
+request = "GET /workers/{w_112}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w113-row"
+request = "GET /workers/{w_113}"
+status = 200
+optional = true
+
+[[step]]
+name = "w113-newest"
+request = "GET /workers/{w_113}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w113-oldest"
+request = "GET /workers/{w_113}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w113-subagents"
+request = "GET /workers/{w_113}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w113-prompts"
+request = "GET /workers/{w_113}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w113-attachments"
+request = "GET /workers/{w_113}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w114-row"
+request = "GET /workers/{w_114}"
+status = 200
+optional = true
+
+[[step]]
+name = "w114-newest"
+request = "GET /workers/{w_114}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w114-oldest"
+request = "GET /workers/{w_114}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w114-subagents"
+request = "GET /workers/{w_114}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w114-prompts"
+request = "GET /workers/{w_114}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w114-attachments"
+request = "GET /workers/{w_114}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w115-row"
+request = "GET /workers/{w_115}"
+status = 200
+optional = true
+
+[[step]]
+name = "w115-newest"
+request = "GET /workers/{w_115}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w115-oldest"
+request = "GET /workers/{w_115}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w115-subagents"
+request = "GET /workers/{w_115}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w115-prompts"
+request = "GET /workers/{w_115}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w115-attachments"
+request = "GET /workers/{w_115}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w116-row"
+request = "GET /workers/{w_116}"
+status = 200
+optional = true
+
+[[step]]
+name = "w116-newest"
+request = "GET /workers/{w_116}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w116-oldest"
+request = "GET /workers/{w_116}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w116-subagents"
+request = "GET /workers/{w_116}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w116-prompts"
+request = "GET /workers/{w_116}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w116-attachments"
+request = "GET /workers/{w_116}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w117-row"
+request = "GET /workers/{w_117}"
+status = 200
+optional = true
+
+[[step]]
+name = "w117-newest"
+request = "GET /workers/{w_117}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w117-oldest"
+request = "GET /workers/{w_117}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w117-subagents"
+request = "GET /workers/{w_117}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w117-prompts"
+request = "GET /workers/{w_117}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w117-attachments"
+request = "GET /workers/{w_117}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w118-row"
+request = "GET /workers/{w_118}"
+status = 200
+optional = true
+
+[[step]]
+name = "w118-newest"
+request = "GET /workers/{w_118}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w118-oldest"
+request = "GET /workers/{w_118}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w118-subagents"
+request = "GET /workers/{w_118}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w118-prompts"
+request = "GET /workers/{w_118}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w118-attachments"
+request = "GET /workers/{w_118}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w119-row"
+request = "GET /workers/{w_119}"
+status = 200
+optional = true
+
+[[step]]
+name = "w119-newest"
+request = "GET /workers/{w_119}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w119-oldest"
+request = "GET /workers/{w_119}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w119-subagents"
+request = "GET /workers/{w_119}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w119-prompts"
+request = "GET /workers/{w_119}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w119-attachments"
+request = "GET /workers/{w_119}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w120-row"
+request = "GET /workers/{w_120}"
+status = 200
+optional = true
+
+[[step]]
+name = "w120-newest"
+request = "GET /workers/{w_120}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w120-oldest"
+request = "GET /workers/{w_120}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w120-subagents"
+request = "GET /workers/{w_120}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w120-prompts"
+request = "GET /workers/{w_120}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w120-attachments"
+request = "GET /workers/{w_120}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w121-row"
+request = "GET /workers/{w_121}"
+status = 200
+optional = true
+
+[[step]]
+name = "w121-newest"
+request = "GET /workers/{w_121}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w121-oldest"
+request = "GET /workers/{w_121}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w121-subagents"
+request = "GET /workers/{w_121}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w121-prompts"
+request = "GET /workers/{w_121}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w121-attachments"
+request = "GET /workers/{w_121}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w122-row"
+request = "GET /workers/{w_122}"
+status = 200
+optional = true
+
+[[step]]
+name = "w122-newest"
+request = "GET /workers/{w_122}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w122-oldest"
+request = "GET /workers/{w_122}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w122-subagents"
+request = "GET /workers/{w_122}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w122-prompts"
+request = "GET /workers/{w_122}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w122-attachments"
+request = "GET /workers/{w_122}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w123-row"
+request = "GET /workers/{w_123}"
+status = 200
+optional = true
+
+[[step]]
+name = "w123-newest"
+request = "GET /workers/{w_123}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w123-oldest"
+request = "GET /workers/{w_123}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w123-subagents"
+request = "GET /workers/{w_123}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w123-prompts"
+request = "GET /workers/{w_123}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w123-attachments"
+request = "GET /workers/{w_123}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w124-row"
+request = "GET /workers/{w_124}"
+status = 200
+optional = true
+
+[[step]]
+name = "w124-newest"
+request = "GET /workers/{w_124}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w124-oldest"
+request = "GET /workers/{w_124}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w124-subagents"
+request = "GET /workers/{w_124}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w124-prompts"
+request = "GET /workers/{w_124}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w124-attachments"
+request = "GET /workers/{w_124}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w125-row"
+request = "GET /workers/{w_125}"
+status = 200
+optional = true
+
+[[step]]
+name = "w125-newest"
+request = "GET /workers/{w_125}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w125-oldest"
+request = "GET /workers/{w_125}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w125-subagents"
+request = "GET /workers/{w_125}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w125-prompts"
+request = "GET /workers/{w_125}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w125-attachments"
+request = "GET /workers/{w_125}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w126-row"
+request = "GET /workers/{w_126}"
+status = 200
+optional = true
+
+[[step]]
+name = "w126-newest"
+request = "GET /workers/{w_126}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w126-oldest"
+request = "GET /workers/{w_126}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w126-subagents"
+request = "GET /workers/{w_126}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w126-prompts"
+request = "GET /workers/{w_126}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w126-attachments"
+request = "GET /workers/{w_126}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w127-row"
+request = "GET /workers/{w_127}"
+status = 200
+optional = true
+
+[[step]]
+name = "w127-newest"
+request = "GET /workers/{w_127}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w127-oldest"
+request = "GET /workers/{w_127}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w127-subagents"
+request = "GET /workers/{w_127}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w127-prompts"
+request = "GET /workers/{w_127}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w127-attachments"
+request = "GET /workers/{w_127}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w128-row"
+request = "GET /workers/{w_128}"
+status = 200
+optional = true
+
+[[step]]
+name = "w128-newest"
+request = "GET /workers/{w_128}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w128-oldest"
+request = "GET /workers/{w_128}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w128-subagents"
+request = "GET /workers/{w_128}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w128-prompts"
+request = "GET /workers/{w_128}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w128-attachments"
+request = "GET /workers/{w_128}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w129-row"
+request = "GET /workers/{w_129}"
+status = 200
+optional = true
+
+[[step]]
+name = "w129-newest"
+request = "GET /workers/{w_129}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w129-oldest"
+request = "GET /workers/{w_129}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w129-subagents"
+request = "GET /workers/{w_129}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w129-prompts"
+request = "GET /workers/{w_129}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w129-attachments"
+request = "GET /workers/{w_129}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w130-row"
+request = "GET /workers/{w_130}"
+status = 200
+optional = true
+
+[[step]]
+name = "w130-newest"
+request = "GET /workers/{w_130}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w130-oldest"
+request = "GET /workers/{w_130}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w130-subagents"
+request = "GET /workers/{w_130}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w130-prompts"
+request = "GET /workers/{w_130}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w130-attachments"
+request = "GET /workers/{w_130}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w131-row"
+request = "GET /workers/{w_131}"
+status = 200
+optional = true
+
+[[step]]
+name = "w131-newest"
+request = "GET /workers/{w_131}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w131-oldest"
+request = "GET /workers/{w_131}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w131-subagents"
+request = "GET /workers/{w_131}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w131-prompts"
+request = "GET /workers/{w_131}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w131-attachments"
+request = "GET /workers/{w_131}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w132-row"
+request = "GET /workers/{w_132}"
+status = 200
+optional = true
+
+[[step]]
+name = "w132-newest"
+request = "GET /workers/{w_132}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w132-oldest"
+request = "GET /workers/{w_132}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w132-subagents"
+request = "GET /workers/{w_132}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w132-prompts"
+request = "GET /workers/{w_132}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w132-attachments"
+request = "GET /workers/{w_132}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w133-row"
+request = "GET /workers/{w_133}"
+status = 200
+optional = true
+
+[[step]]
+name = "w133-newest"
+request = "GET /workers/{w_133}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w133-oldest"
+request = "GET /workers/{w_133}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w133-subagents"
+request = "GET /workers/{w_133}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w133-prompts"
+request = "GET /workers/{w_133}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w133-attachments"
+request = "GET /workers/{w_133}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w134-row"
+request = "GET /workers/{w_134}"
+status = 200
+optional = true
+
+[[step]]
+name = "w134-newest"
+request = "GET /workers/{w_134}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w134-oldest"
+request = "GET /workers/{w_134}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w134-subagents"
+request = "GET /workers/{w_134}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w134-prompts"
+request = "GET /workers/{w_134}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w134-attachments"
+request = "GET /workers/{w_134}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w135-row"
+request = "GET /workers/{w_135}"
+status = 200
+optional = true
+
+[[step]]
+name = "w135-newest"
+request = "GET /workers/{w_135}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w135-oldest"
+request = "GET /workers/{w_135}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w135-subagents"
+request = "GET /workers/{w_135}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w135-prompts"
+request = "GET /workers/{w_135}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w135-attachments"
+request = "GET /workers/{w_135}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w136-row"
+request = "GET /workers/{w_136}"
+status = 200
+optional = true
+
+[[step]]
+name = "w136-newest"
+request = "GET /workers/{w_136}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w136-oldest"
+request = "GET /workers/{w_136}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w136-subagents"
+request = "GET /workers/{w_136}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w136-prompts"
+request = "GET /workers/{w_136}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w136-attachments"
+request = "GET /workers/{w_136}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w137-row"
+request = "GET /workers/{w_137}"
+status = 200
+optional = true
+
+[[step]]
+name = "w137-newest"
+request = "GET /workers/{w_137}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w137-oldest"
+request = "GET /workers/{w_137}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w137-subagents"
+request = "GET /workers/{w_137}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w137-prompts"
+request = "GET /workers/{w_137}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w137-attachments"
+request = "GET /workers/{w_137}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w138-row"
+request = "GET /workers/{w_138}"
+status = 200
+optional = true
+
+[[step]]
+name = "w138-newest"
+request = "GET /workers/{w_138}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w138-oldest"
+request = "GET /workers/{w_138}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w138-subagents"
+request = "GET /workers/{w_138}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w138-prompts"
+request = "GET /workers/{w_138}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w138-attachments"
+request = "GET /workers/{w_138}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w139-row"
+request = "GET /workers/{w_139}"
+status = 200
+optional = true
+
+[[step]]
+name = "w139-newest"
+request = "GET /workers/{w_139}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w139-oldest"
+request = "GET /workers/{w_139}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w139-subagents"
+request = "GET /workers/{w_139}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w139-prompts"
+request = "GET /workers/{w_139}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w139-attachments"
+request = "GET /workers/{w_139}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w140-row"
+request = "GET /workers/{w_140}"
+status = 200
+optional = true
+
+[[step]]
+name = "w140-newest"
+request = "GET /workers/{w_140}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w140-oldest"
+request = "GET /workers/{w_140}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w140-subagents"
+request = "GET /workers/{w_140}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w140-prompts"
+request = "GET /workers/{w_140}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w140-attachments"
+request = "GET /workers/{w_140}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w141-row"
+request = "GET /workers/{w_141}"
+status = 200
+optional = true
+
+[[step]]
+name = "w141-newest"
+request = "GET /workers/{w_141}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w141-oldest"
+request = "GET /workers/{w_141}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w141-subagents"
+request = "GET /workers/{w_141}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w141-prompts"
+request = "GET /workers/{w_141}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w141-attachments"
+request = "GET /workers/{w_141}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w142-row"
+request = "GET /workers/{w_142}"
+status = 200
+optional = true
+
+[[step]]
+name = "w142-newest"
+request = "GET /workers/{w_142}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w142-oldest"
+request = "GET /workers/{w_142}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w142-subagents"
+request = "GET /workers/{w_142}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w142-prompts"
+request = "GET /workers/{w_142}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w142-attachments"
+request = "GET /workers/{w_142}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w143-row"
+request = "GET /workers/{w_143}"
+status = 200
+optional = true
+
+[[step]]
+name = "w143-newest"
+request = "GET /workers/{w_143}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w143-oldest"
+request = "GET /workers/{w_143}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w143-subagents"
+request = "GET /workers/{w_143}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w143-prompts"
+request = "GET /workers/{w_143}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w143-attachments"
+request = "GET /workers/{w_143}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w144-row"
+request = "GET /workers/{w_144}"
+status = 200
+optional = true
+
+[[step]]
+name = "w144-newest"
+request = "GET /workers/{w_144}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w144-oldest"
+request = "GET /workers/{w_144}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w144-subagents"
+request = "GET /workers/{w_144}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w144-prompts"
+request = "GET /workers/{w_144}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w144-attachments"
+request = "GET /workers/{w_144}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w145-row"
+request = "GET /workers/{w_145}"
+status = 200
+optional = true
+
+[[step]]
+name = "w145-newest"
+request = "GET /workers/{w_145}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w145-oldest"
+request = "GET /workers/{w_145}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w145-subagents"
+request = "GET /workers/{w_145}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w145-prompts"
+request = "GET /workers/{w_145}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w145-attachments"
+request = "GET /workers/{w_145}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w146-row"
+request = "GET /workers/{w_146}"
+status = 200
+optional = true
+
+[[step]]
+name = "w146-newest"
+request = "GET /workers/{w_146}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w146-oldest"
+request = "GET /workers/{w_146}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w146-subagents"
+request = "GET /workers/{w_146}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w146-prompts"
+request = "GET /workers/{w_146}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w146-attachments"
+request = "GET /workers/{w_146}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w147-row"
+request = "GET /workers/{w_147}"
+status = 200
+optional = true
+
+[[step]]
+name = "w147-newest"
+request = "GET /workers/{w_147}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w147-oldest"
+request = "GET /workers/{w_147}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w147-subagents"
+request = "GET /workers/{w_147}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w147-prompts"
+request = "GET /workers/{w_147}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w147-attachments"
+request = "GET /workers/{w_147}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w148-row"
+request = "GET /workers/{w_148}"
+status = 200
+optional = true
+
+[[step]]
+name = "w148-newest"
+request = "GET /workers/{w_148}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w148-oldest"
+request = "GET /workers/{w_148}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w148-subagents"
+request = "GET /workers/{w_148}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w148-prompts"
+request = "GET /workers/{w_148}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w148-attachments"
+request = "GET /workers/{w_148}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w149-row"
+request = "GET /workers/{w_149}"
+status = 200
+optional = true
+
+[[step]]
+name = "w149-newest"
+request = "GET /workers/{w_149}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w149-oldest"
+request = "GET /workers/{w_149}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w149-subagents"
+request = "GET /workers/{w_149}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w149-prompts"
+request = "GET /workers/{w_149}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w149-attachments"
+request = "GET /workers/{w_149}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w150-row"
+request = "GET /workers/{w_150}"
+status = 200
+optional = true
+
+[[step]]
+name = "w150-newest"
+request = "GET /workers/{w_150}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w150-oldest"
+request = "GET /workers/{w_150}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w150-subagents"
+request = "GET /workers/{w_150}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w150-prompts"
+request = "GET /workers/{w_150}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w150-attachments"
+request = "GET /workers/{w_150}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w151-row"
+request = "GET /workers/{w_151}"
+status = 200
+optional = true
+
+[[step]]
+name = "w151-newest"
+request = "GET /workers/{w_151}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w151-oldest"
+request = "GET /workers/{w_151}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w151-subagents"
+request = "GET /workers/{w_151}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w151-prompts"
+request = "GET /workers/{w_151}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w151-attachments"
+request = "GET /workers/{w_151}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w152-row"
+request = "GET /workers/{w_152}"
+status = 200
+optional = true
+
+[[step]]
+name = "w152-newest"
+request = "GET /workers/{w_152}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w152-oldest"
+request = "GET /workers/{w_152}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w152-subagents"
+request = "GET /workers/{w_152}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w152-prompts"
+request = "GET /workers/{w_152}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w152-attachments"
+request = "GET /workers/{w_152}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w153-row"
+request = "GET /workers/{w_153}"
+status = 200
+optional = true
+
+[[step]]
+name = "w153-newest"
+request = "GET /workers/{w_153}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w153-oldest"
+request = "GET /workers/{w_153}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w153-subagents"
+request = "GET /workers/{w_153}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w153-prompts"
+request = "GET /workers/{w_153}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w153-attachments"
+request = "GET /workers/{w_153}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w154-row"
+request = "GET /workers/{w_154}"
+status = 200
+optional = true
+
+[[step]]
+name = "w154-newest"
+request = "GET /workers/{w_154}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w154-oldest"
+request = "GET /workers/{w_154}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w154-subagents"
+request = "GET /workers/{w_154}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w154-prompts"
+request = "GET /workers/{w_154}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w154-attachments"
+request = "GET /workers/{w_154}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w155-row"
+request = "GET /workers/{w_155}"
+status = 200
+optional = true
+
+[[step]]
+name = "w155-newest"
+request = "GET /workers/{w_155}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w155-oldest"
+request = "GET /workers/{w_155}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w155-subagents"
+request = "GET /workers/{w_155}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w155-prompts"
+request = "GET /workers/{w_155}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w155-attachments"
+request = "GET /workers/{w_155}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w156-row"
+request = "GET /workers/{w_156}"
+status = 200
+optional = true
+
+[[step]]
+name = "w156-newest"
+request = "GET /workers/{w_156}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w156-oldest"
+request = "GET /workers/{w_156}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w156-subagents"
+request = "GET /workers/{w_156}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w156-prompts"
+request = "GET /workers/{w_156}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w156-attachments"
+request = "GET /workers/{w_156}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w157-row"
+request = "GET /workers/{w_157}"
+status = 200
+optional = true
+
+[[step]]
+name = "w157-newest"
+request = "GET /workers/{w_157}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w157-oldest"
+request = "GET /workers/{w_157}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w157-subagents"
+request = "GET /workers/{w_157}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w157-prompts"
+request = "GET /workers/{w_157}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w157-attachments"
+request = "GET /workers/{w_157}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w158-row"
+request = "GET /workers/{w_158}"
+status = 200
+optional = true
+
+[[step]]
+name = "w158-newest"
+request = "GET /workers/{w_158}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w158-oldest"
+request = "GET /workers/{w_158}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w158-subagents"
+request = "GET /workers/{w_158}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w158-prompts"
+request = "GET /workers/{w_158}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w158-attachments"
+request = "GET /workers/{w_158}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w159-row"
+request = "GET /workers/{w_159}"
+status = 200
+optional = true
+
+[[step]]
+name = "w159-newest"
+request = "GET /workers/{w_159}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w159-oldest"
+request = "GET /workers/{w_159}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w159-subagents"
+request = "GET /workers/{w_159}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w159-prompts"
+request = "GET /workers/{w_159}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w159-attachments"
+request = "GET /workers/{w_159}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w160-row"
+request = "GET /workers/{w_160}"
+status = 200
+optional = true
+
+[[step]]
+name = "w160-newest"
+request = "GET /workers/{w_160}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w160-oldest"
+request = "GET /workers/{w_160}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w160-subagents"
+request = "GET /workers/{w_160}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w160-prompts"
+request = "GET /workers/{w_160}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w160-attachments"
+request = "GET /workers/{w_160}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w161-row"
+request = "GET /workers/{w_161}"
+status = 200
+optional = true
+
+[[step]]
+name = "w161-newest"
+request = "GET /workers/{w_161}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w161-oldest"
+request = "GET /workers/{w_161}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w161-subagents"
+request = "GET /workers/{w_161}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w161-prompts"
+request = "GET /workers/{w_161}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w161-attachments"
+request = "GET /workers/{w_161}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w162-row"
+request = "GET /workers/{w_162}"
+status = 200
+optional = true
+
+[[step]]
+name = "w162-newest"
+request = "GET /workers/{w_162}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w162-oldest"
+request = "GET /workers/{w_162}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w162-subagents"
+request = "GET /workers/{w_162}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w162-prompts"
+request = "GET /workers/{w_162}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w162-attachments"
+request = "GET /workers/{w_162}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w163-row"
+request = "GET /workers/{w_163}"
+status = 200
+optional = true
+
+[[step]]
+name = "w163-newest"
+request = "GET /workers/{w_163}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w163-oldest"
+request = "GET /workers/{w_163}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w163-subagents"
+request = "GET /workers/{w_163}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w163-prompts"
+request = "GET /workers/{w_163}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w163-attachments"
+request = "GET /workers/{w_163}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w164-row"
+request = "GET /workers/{w_164}"
+status = 200
+optional = true
+
+[[step]]
+name = "w164-newest"
+request = "GET /workers/{w_164}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w164-oldest"
+request = "GET /workers/{w_164}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w164-subagents"
+request = "GET /workers/{w_164}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w164-prompts"
+request = "GET /workers/{w_164}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w164-attachments"
+request = "GET /workers/{w_164}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w165-row"
+request = "GET /workers/{w_165}"
+status = 200
+optional = true
+
+[[step]]
+name = "w165-newest"
+request = "GET /workers/{w_165}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w165-oldest"
+request = "GET /workers/{w_165}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w165-subagents"
+request = "GET /workers/{w_165}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w165-prompts"
+request = "GET /workers/{w_165}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w165-attachments"
+request = "GET /workers/{w_165}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w166-row"
+request = "GET /workers/{w_166}"
+status = 200
+optional = true
+
+[[step]]
+name = "w166-newest"
+request = "GET /workers/{w_166}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w166-oldest"
+request = "GET /workers/{w_166}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w166-subagents"
+request = "GET /workers/{w_166}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w166-prompts"
+request = "GET /workers/{w_166}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w166-attachments"
+request = "GET /workers/{w_166}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w167-row"
+request = "GET /workers/{w_167}"
+status = 200
+optional = true
+
+[[step]]
+name = "w167-newest"
+request = "GET /workers/{w_167}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w167-oldest"
+request = "GET /workers/{w_167}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w167-subagents"
+request = "GET /workers/{w_167}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w167-prompts"
+request = "GET /workers/{w_167}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w167-attachments"
+request = "GET /workers/{w_167}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w168-row"
+request = "GET /workers/{w_168}"
+status = 200
+optional = true
+
+[[step]]
+name = "w168-newest"
+request = "GET /workers/{w_168}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w168-oldest"
+request = "GET /workers/{w_168}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w168-subagents"
+request = "GET /workers/{w_168}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w168-prompts"
+request = "GET /workers/{w_168}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w168-attachments"
+request = "GET /workers/{w_168}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w169-row"
+request = "GET /workers/{w_169}"
+status = 200
+optional = true
+
+[[step]]
+name = "w169-newest"
+request = "GET /workers/{w_169}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w169-oldest"
+request = "GET /workers/{w_169}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w169-subagents"
+request = "GET /workers/{w_169}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w169-prompts"
+request = "GET /workers/{w_169}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w169-attachments"
+request = "GET /workers/{w_169}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w170-row"
+request = "GET /workers/{w_170}"
+status = 200
+optional = true
+
+[[step]]
+name = "w170-newest"
+request = "GET /workers/{w_170}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w170-oldest"
+request = "GET /workers/{w_170}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w170-subagents"
+request = "GET /workers/{w_170}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w170-prompts"
+request = "GET /workers/{w_170}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w170-attachments"
+request = "GET /workers/{w_170}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w171-row"
+request = "GET /workers/{w_171}"
+status = 200
+optional = true
+
+[[step]]
+name = "w171-newest"
+request = "GET /workers/{w_171}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w171-oldest"
+request = "GET /workers/{w_171}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w171-subagents"
+request = "GET /workers/{w_171}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w171-prompts"
+request = "GET /workers/{w_171}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w171-attachments"
+request = "GET /workers/{w_171}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w172-row"
+request = "GET /workers/{w_172}"
+status = 200
+optional = true
+
+[[step]]
+name = "w172-newest"
+request = "GET /workers/{w_172}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w172-oldest"
+request = "GET /workers/{w_172}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w172-subagents"
+request = "GET /workers/{w_172}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w172-prompts"
+request = "GET /workers/{w_172}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w172-attachments"
+request = "GET /workers/{w_172}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w173-row"
+request = "GET /workers/{w_173}"
+status = 200
+optional = true
+
+[[step]]
+name = "w173-newest"
+request = "GET /workers/{w_173}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w173-oldest"
+request = "GET /workers/{w_173}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w173-subagents"
+request = "GET /workers/{w_173}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w173-prompts"
+request = "GET /workers/{w_173}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w173-attachments"
+request = "GET /workers/{w_173}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w174-row"
+request = "GET /workers/{w_174}"
+status = 200
+optional = true
+
+[[step]]
+name = "w174-newest"
+request = "GET /workers/{w_174}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w174-oldest"
+request = "GET /workers/{w_174}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w174-subagents"
+request = "GET /workers/{w_174}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w174-prompts"
+request = "GET /workers/{w_174}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w174-attachments"
+request = "GET /workers/{w_174}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w175-row"
+request = "GET /workers/{w_175}"
+status = 200
+optional = true
+
+[[step]]
+name = "w175-newest"
+request = "GET /workers/{w_175}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w175-oldest"
+request = "GET /workers/{w_175}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w175-subagents"
+request = "GET /workers/{w_175}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w175-prompts"
+request = "GET /workers/{w_175}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w175-attachments"
+request = "GET /workers/{w_175}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w176-row"
+request = "GET /workers/{w_176}"
+status = 200
+optional = true
+
+[[step]]
+name = "w176-newest"
+request = "GET /workers/{w_176}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w176-oldest"
+request = "GET /workers/{w_176}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w176-subagents"
+request = "GET /workers/{w_176}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w176-prompts"
+request = "GET /workers/{w_176}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w176-attachments"
+request = "GET /workers/{w_176}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w177-row"
+request = "GET /workers/{w_177}"
+status = 200
+optional = true
+
+[[step]]
+name = "w177-newest"
+request = "GET /workers/{w_177}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w177-oldest"
+request = "GET /workers/{w_177}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w177-subagents"
+request = "GET /workers/{w_177}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w177-prompts"
+request = "GET /workers/{w_177}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w177-attachments"
+request = "GET /workers/{w_177}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w178-row"
+request = "GET /workers/{w_178}"
+status = 200
+optional = true
+
+[[step]]
+name = "w178-newest"
+request = "GET /workers/{w_178}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w178-oldest"
+request = "GET /workers/{w_178}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w178-subagents"
+request = "GET /workers/{w_178}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w178-prompts"
+request = "GET /workers/{w_178}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w178-attachments"
+request = "GET /workers/{w_178}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w179-row"
+request = "GET /workers/{w_179}"
+status = 200
+optional = true
+
+[[step]]
+name = "w179-newest"
+request = "GET /workers/{w_179}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w179-oldest"
+request = "GET /workers/{w_179}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w179-subagents"
+request = "GET /workers/{w_179}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w179-prompts"
+request = "GET /workers/{w_179}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w179-attachments"
+request = "GET /workers/{w_179}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w180-row"
+request = "GET /workers/{w_180}"
+status = 200
+optional = true
+
+[[step]]
+name = "w180-newest"
+request = "GET /workers/{w_180}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w180-oldest"
+request = "GET /workers/{w_180}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w180-subagents"
+request = "GET /workers/{w_180}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w180-prompts"
+request = "GET /workers/{w_180}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w180-attachments"
+request = "GET /workers/{w_180}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w181-row"
+request = "GET /workers/{w_181}"
+status = 200
+optional = true
+
+[[step]]
+name = "w181-newest"
+request = "GET /workers/{w_181}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w181-oldest"
+request = "GET /workers/{w_181}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w181-subagents"
+request = "GET /workers/{w_181}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w181-prompts"
+request = "GET /workers/{w_181}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w181-attachments"
+request = "GET /workers/{w_181}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w182-row"
+request = "GET /workers/{w_182}"
+status = 200
+optional = true
+
+[[step]]
+name = "w182-newest"
+request = "GET /workers/{w_182}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w182-oldest"
+request = "GET /workers/{w_182}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w182-subagents"
+request = "GET /workers/{w_182}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w182-prompts"
+request = "GET /workers/{w_182}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w182-attachments"
+request = "GET /workers/{w_182}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w183-row"
+request = "GET /workers/{w_183}"
+status = 200
+optional = true
+
+[[step]]
+name = "w183-newest"
+request = "GET /workers/{w_183}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w183-oldest"
+request = "GET /workers/{w_183}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w183-subagents"
+request = "GET /workers/{w_183}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w183-prompts"
+request = "GET /workers/{w_183}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w183-attachments"
+request = "GET /workers/{w_183}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w184-row"
+request = "GET /workers/{w_184}"
+status = 200
+optional = true
+
+[[step]]
+name = "w184-newest"
+request = "GET /workers/{w_184}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w184-oldest"
+request = "GET /workers/{w_184}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w184-subagents"
+request = "GET /workers/{w_184}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w184-prompts"
+request = "GET /workers/{w_184}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w184-attachments"
+request = "GET /workers/{w_184}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w185-row"
+request = "GET /workers/{w_185}"
+status = 200
+optional = true
+
+[[step]]
+name = "w185-newest"
+request = "GET /workers/{w_185}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w185-oldest"
+request = "GET /workers/{w_185}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w185-subagents"
+request = "GET /workers/{w_185}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w185-prompts"
+request = "GET /workers/{w_185}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w185-attachments"
+request = "GET /workers/{w_185}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w186-row"
+request = "GET /workers/{w_186}"
+status = 200
+optional = true
+
+[[step]]
+name = "w186-newest"
+request = "GET /workers/{w_186}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w186-oldest"
+request = "GET /workers/{w_186}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w186-subagents"
+request = "GET /workers/{w_186}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w186-prompts"
+request = "GET /workers/{w_186}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w186-attachments"
+request = "GET /workers/{w_186}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w187-row"
+request = "GET /workers/{w_187}"
+status = 200
+optional = true
+
+[[step]]
+name = "w187-newest"
+request = "GET /workers/{w_187}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w187-oldest"
+request = "GET /workers/{w_187}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w187-subagents"
+request = "GET /workers/{w_187}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w187-prompts"
+request = "GET /workers/{w_187}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w187-attachments"
+request = "GET /workers/{w_187}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w188-row"
+request = "GET /workers/{w_188}"
+status = 200
+optional = true
+
+[[step]]
+name = "w188-newest"
+request = "GET /workers/{w_188}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w188-oldest"
+request = "GET /workers/{w_188}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w188-subagents"
+request = "GET /workers/{w_188}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w188-prompts"
+request = "GET /workers/{w_188}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w188-attachments"
+request = "GET /workers/{w_188}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w189-row"
+request = "GET /workers/{w_189}"
+status = 200
+optional = true
+
+[[step]]
+name = "w189-newest"
+request = "GET /workers/{w_189}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w189-oldest"
+request = "GET /workers/{w_189}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w189-subagents"
+request = "GET /workers/{w_189}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w189-prompts"
+request = "GET /workers/{w_189}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w189-attachments"
+request = "GET /workers/{w_189}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w190-row"
+request = "GET /workers/{w_190}"
+status = 200
+optional = true
+
+[[step]]
+name = "w190-newest"
+request = "GET /workers/{w_190}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w190-oldest"
+request = "GET /workers/{w_190}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w190-subagents"
+request = "GET /workers/{w_190}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w190-prompts"
+request = "GET /workers/{w_190}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w190-attachments"
+request = "GET /workers/{w_190}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w191-row"
+request = "GET /workers/{w_191}"
+status = 200
+optional = true
+
+[[step]]
+name = "w191-newest"
+request = "GET /workers/{w_191}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w191-oldest"
+request = "GET /workers/{w_191}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w191-subagents"
+request = "GET /workers/{w_191}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w191-prompts"
+request = "GET /workers/{w_191}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w191-attachments"
+request = "GET /workers/{w_191}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w192-row"
+request = "GET /workers/{w_192}"
+status = 200
+optional = true
+
+[[step]]
+name = "w192-newest"
+request = "GET /workers/{w_192}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w192-oldest"
+request = "GET /workers/{w_192}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w192-subagents"
+request = "GET /workers/{w_192}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w192-prompts"
+request = "GET /workers/{w_192}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w192-attachments"
+request = "GET /workers/{w_192}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w193-row"
+request = "GET /workers/{w_193}"
+status = 200
+optional = true
+
+[[step]]
+name = "w193-newest"
+request = "GET /workers/{w_193}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w193-oldest"
+request = "GET /workers/{w_193}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w193-subagents"
+request = "GET /workers/{w_193}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w193-prompts"
+request = "GET /workers/{w_193}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w193-attachments"
+request = "GET /workers/{w_193}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w194-row"
+request = "GET /workers/{w_194}"
+status = 200
+optional = true
+
+[[step]]
+name = "w194-newest"
+request = "GET /workers/{w_194}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w194-oldest"
+request = "GET /workers/{w_194}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w194-subagents"
+request = "GET /workers/{w_194}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w194-prompts"
+request = "GET /workers/{w_194}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w194-attachments"
+request = "GET /workers/{w_194}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w195-row"
+request = "GET /workers/{w_195}"
+status = 200
+optional = true
+
+[[step]]
+name = "w195-newest"
+request = "GET /workers/{w_195}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w195-oldest"
+request = "GET /workers/{w_195}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w195-subagents"
+request = "GET /workers/{w_195}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w195-prompts"
+request = "GET /workers/{w_195}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w195-attachments"
+request = "GET /workers/{w_195}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w196-row"
+request = "GET /workers/{w_196}"
+status = 200
+optional = true
+
+[[step]]
+name = "w196-newest"
+request = "GET /workers/{w_196}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w196-oldest"
+request = "GET /workers/{w_196}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w196-subagents"
+request = "GET /workers/{w_196}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w196-prompts"
+request = "GET /workers/{w_196}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w196-attachments"
+request = "GET /workers/{w_196}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w197-row"
+request = "GET /workers/{w_197}"
+status = 200
+optional = true
+
+[[step]]
+name = "w197-newest"
+request = "GET /workers/{w_197}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w197-oldest"
+request = "GET /workers/{w_197}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w197-subagents"
+request = "GET /workers/{w_197}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w197-prompts"
+request = "GET /workers/{w_197}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w197-attachments"
+request = "GET /workers/{w_197}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w198-row"
+request = "GET /workers/{w_198}"
+status = 200
+optional = true
+
+[[step]]
+name = "w198-newest"
+request = "GET /workers/{w_198}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w198-oldest"
+request = "GET /workers/{w_198}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w198-subagents"
+request = "GET /workers/{w_198}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w198-prompts"
+request = "GET /workers/{w_198}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w198-attachments"
+request = "GET /workers/{w_198}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w199-row"
+request = "GET /workers/{w_199}"
+status = 200
+optional = true
+
+[[step]]
+name = "w199-newest"
+request = "GET /workers/{w_199}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w199-oldest"
+request = "GET /workers/{w_199}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w199-subagents"
+request = "GET /workers/{w_199}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w199-prompts"
+request = "GET /workers/{w_199}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w199-attachments"
+request = "GET /workers/{w_199}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w200-row"
+request = "GET /workers/{w_200}"
+status = 200
+optional = true
+
+[[step]]
+name = "w200-newest"
+request = "GET /workers/{w_200}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w200-oldest"
+request = "GET /workers/{w_200}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w200-subagents"
+request = "GET /workers/{w_200}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w200-prompts"
+request = "GET /workers/{w_200}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w200-attachments"
+request = "GET /workers/{w_200}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w201-row"
+request = "GET /workers/{w_201}"
+status = 200
+optional = true
+
+[[step]]
+name = "w201-newest"
+request = "GET /workers/{w_201}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w201-oldest"
+request = "GET /workers/{w_201}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w201-subagents"
+request = "GET /workers/{w_201}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w201-prompts"
+request = "GET /workers/{w_201}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w201-attachments"
+request = "GET /workers/{w_201}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w202-row"
+request = "GET /workers/{w_202}"
+status = 200
+optional = true
+
+[[step]]
+name = "w202-newest"
+request = "GET /workers/{w_202}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w202-oldest"
+request = "GET /workers/{w_202}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w202-subagents"
+request = "GET /workers/{w_202}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w202-prompts"
+request = "GET /workers/{w_202}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w202-attachments"
+request = "GET /workers/{w_202}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w203-row"
+request = "GET /workers/{w_203}"
+status = 200
+optional = true
+
+[[step]]
+name = "w203-newest"
+request = "GET /workers/{w_203}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w203-oldest"
+request = "GET /workers/{w_203}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w203-subagents"
+request = "GET /workers/{w_203}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w203-prompts"
+request = "GET /workers/{w_203}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w203-attachments"
+request = "GET /workers/{w_203}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w204-row"
+request = "GET /workers/{w_204}"
+status = 200
+optional = true
+
+[[step]]
+name = "w204-newest"
+request = "GET /workers/{w_204}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w204-oldest"
+request = "GET /workers/{w_204}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w204-subagents"
+request = "GET /workers/{w_204}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w204-prompts"
+request = "GET /workers/{w_204}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w204-attachments"
+request = "GET /workers/{w_204}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w205-row"
+request = "GET /workers/{w_205}"
+status = 200
+optional = true
+
+[[step]]
+name = "w205-newest"
+request = "GET /workers/{w_205}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w205-oldest"
+request = "GET /workers/{w_205}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w205-subagents"
+request = "GET /workers/{w_205}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w205-prompts"
+request = "GET /workers/{w_205}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w205-attachments"
+request = "GET /workers/{w_205}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w206-row"
+request = "GET /workers/{w_206}"
+status = 200
+optional = true
+
+[[step]]
+name = "w206-newest"
+request = "GET /workers/{w_206}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w206-oldest"
+request = "GET /workers/{w_206}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w206-subagents"
+request = "GET /workers/{w_206}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w206-prompts"
+request = "GET /workers/{w_206}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w206-attachments"
+request = "GET /workers/{w_206}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w207-row"
+request = "GET /workers/{w_207}"
+status = 200
+optional = true
+
+[[step]]
+name = "w207-newest"
+request = "GET /workers/{w_207}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w207-oldest"
+request = "GET /workers/{w_207}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w207-subagents"
+request = "GET /workers/{w_207}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w207-prompts"
+request = "GET /workers/{w_207}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w207-attachments"
+request = "GET /workers/{w_207}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w208-row"
+request = "GET /workers/{w_208}"
+status = 200
+optional = true
+
+[[step]]
+name = "w208-newest"
+request = "GET /workers/{w_208}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w208-oldest"
+request = "GET /workers/{w_208}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w208-subagents"
+request = "GET /workers/{w_208}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w208-prompts"
+request = "GET /workers/{w_208}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w208-attachments"
+request = "GET /workers/{w_208}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w209-row"
+request = "GET /workers/{w_209}"
+status = 200
+optional = true
+
+[[step]]
+name = "w209-newest"
+request = "GET /workers/{w_209}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w209-oldest"
+request = "GET /workers/{w_209}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w209-subagents"
+request = "GET /workers/{w_209}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w209-prompts"
+request = "GET /workers/{w_209}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w209-attachments"
+request = "GET /workers/{w_209}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w210-row"
+request = "GET /workers/{w_210}"
+status = 200
+optional = true
+
+[[step]]
+name = "w210-newest"
+request = "GET /workers/{w_210}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w210-oldest"
+request = "GET /workers/{w_210}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w210-subagents"
+request = "GET /workers/{w_210}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w210-prompts"
+request = "GET /workers/{w_210}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w210-attachments"
+request = "GET /workers/{w_210}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w211-row"
+request = "GET /workers/{w_211}"
+status = 200
+optional = true
+
+[[step]]
+name = "w211-newest"
+request = "GET /workers/{w_211}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w211-oldest"
+request = "GET /workers/{w_211}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w211-subagents"
+request = "GET /workers/{w_211}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w211-prompts"
+request = "GET /workers/{w_211}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w211-attachments"
+request = "GET /workers/{w_211}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w212-row"
+request = "GET /workers/{w_212}"
+status = 200
+optional = true
+
+[[step]]
+name = "w212-newest"
+request = "GET /workers/{w_212}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w212-oldest"
+request = "GET /workers/{w_212}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w212-subagents"
+request = "GET /workers/{w_212}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w212-prompts"
+request = "GET /workers/{w_212}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w212-attachments"
+request = "GET /workers/{w_212}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w213-row"
+request = "GET /workers/{w_213}"
+status = 200
+optional = true
+
+[[step]]
+name = "w213-newest"
+request = "GET /workers/{w_213}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w213-oldest"
+request = "GET /workers/{w_213}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w213-subagents"
+request = "GET /workers/{w_213}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w213-prompts"
+request = "GET /workers/{w_213}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w213-attachments"
+request = "GET /workers/{w_213}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w214-row"
+request = "GET /workers/{w_214}"
+status = 200
+optional = true
+
+[[step]]
+name = "w214-newest"
+request = "GET /workers/{w_214}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w214-oldest"
+request = "GET /workers/{w_214}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w214-subagents"
+request = "GET /workers/{w_214}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w214-prompts"
+request = "GET /workers/{w_214}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w214-attachments"
+request = "GET /workers/{w_214}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w215-row"
+request = "GET /workers/{w_215}"
+status = 200
+optional = true
+
+[[step]]
+name = "w215-newest"
+request = "GET /workers/{w_215}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w215-oldest"
+request = "GET /workers/{w_215}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w215-subagents"
+request = "GET /workers/{w_215}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w215-prompts"
+request = "GET /workers/{w_215}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w215-attachments"
+request = "GET /workers/{w_215}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w216-row"
+request = "GET /workers/{w_216}"
+status = 200
+optional = true
+
+[[step]]
+name = "w216-newest"
+request = "GET /workers/{w_216}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w216-oldest"
+request = "GET /workers/{w_216}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w216-subagents"
+request = "GET /workers/{w_216}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w216-prompts"
+request = "GET /workers/{w_216}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w216-attachments"
+request = "GET /workers/{w_216}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w217-row"
+request = "GET /workers/{w_217}"
+status = 200
+optional = true
+
+[[step]]
+name = "w217-newest"
+request = "GET /workers/{w_217}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w217-oldest"
+request = "GET /workers/{w_217}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w217-subagents"
+request = "GET /workers/{w_217}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w217-prompts"
+request = "GET /workers/{w_217}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w217-attachments"
+request = "GET /workers/{w_217}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w218-row"
+request = "GET /workers/{w_218}"
+status = 200
+optional = true
+
+[[step]]
+name = "w218-newest"
+request = "GET /workers/{w_218}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w218-oldest"
+request = "GET /workers/{w_218}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w218-subagents"
+request = "GET /workers/{w_218}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w218-prompts"
+request = "GET /workers/{w_218}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w218-attachments"
+request = "GET /workers/{w_218}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w219-row"
+request = "GET /workers/{w_219}"
+status = 200
+optional = true
+
+[[step]]
+name = "w219-newest"
+request = "GET /workers/{w_219}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w219-oldest"
+request = "GET /workers/{w_219}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w219-subagents"
+request = "GET /workers/{w_219}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w219-prompts"
+request = "GET /workers/{w_219}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w219-attachments"
+request = "GET /workers/{w_219}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w220-row"
+request = "GET /workers/{w_220}"
+status = 200
+optional = true
+
+[[step]]
+name = "w220-newest"
+request = "GET /workers/{w_220}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w220-oldest"
+request = "GET /workers/{w_220}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w220-subagents"
+request = "GET /workers/{w_220}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w220-prompts"
+request = "GET /workers/{w_220}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w220-attachments"
+request = "GET /workers/{w_220}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w221-row"
+request = "GET /workers/{w_221}"
+status = 200
+optional = true
+
+[[step]]
+name = "w221-newest"
+request = "GET /workers/{w_221}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w221-oldest"
+request = "GET /workers/{w_221}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w221-subagents"
+request = "GET /workers/{w_221}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w221-prompts"
+request = "GET /workers/{w_221}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w221-attachments"
+request = "GET /workers/{w_221}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w222-row"
+request = "GET /workers/{w_222}"
+status = 200
+optional = true
+
+[[step]]
+name = "w222-newest"
+request = "GET /workers/{w_222}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w222-oldest"
+request = "GET /workers/{w_222}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w222-subagents"
+request = "GET /workers/{w_222}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w222-prompts"
+request = "GET /workers/{w_222}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w222-attachments"
+request = "GET /workers/{w_222}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w223-row"
+request = "GET /workers/{w_223}"
+status = 200
+optional = true
+
+[[step]]
+name = "w223-newest"
+request = "GET /workers/{w_223}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w223-oldest"
+request = "GET /workers/{w_223}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w223-subagents"
+request = "GET /workers/{w_223}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w223-prompts"
+request = "GET /workers/{w_223}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w223-attachments"
+request = "GET /workers/{w_223}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w224-row"
+request = "GET /workers/{w_224}"
+status = 200
+optional = true
+
+[[step]]
+name = "w224-newest"
+request = "GET /workers/{w_224}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w224-oldest"
+request = "GET /workers/{w_224}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w224-subagents"
+request = "GET /workers/{w_224}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w224-prompts"
+request = "GET /workers/{w_224}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w224-attachments"
+request = "GET /workers/{w_224}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w225-row"
+request = "GET /workers/{w_225}"
+status = 200
+optional = true
+
+[[step]]
+name = "w225-newest"
+request = "GET /workers/{w_225}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w225-oldest"
+request = "GET /workers/{w_225}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w225-subagents"
+request = "GET /workers/{w_225}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w225-prompts"
+request = "GET /workers/{w_225}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w225-attachments"
+request = "GET /workers/{w_225}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w226-row"
+request = "GET /workers/{w_226}"
+status = 200
+optional = true
+
+[[step]]
+name = "w226-newest"
+request = "GET /workers/{w_226}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w226-oldest"
+request = "GET /workers/{w_226}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w226-subagents"
+request = "GET /workers/{w_226}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w226-prompts"
+request = "GET /workers/{w_226}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w226-attachments"
+request = "GET /workers/{w_226}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w227-row"
+request = "GET /workers/{w_227}"
+status = 200
+optional = true
+
+[[step]]
+name = "w227-newest"
+request = "GET /workers/{w_227}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w227-oldest"
+request = "GET /workers/{w_227}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w227-subagents"
+request = "GET /workers/{w_227}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w227-prompts"
+request = "GET /workers/{w_227}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w227-attachments"
+request = "GET /workers/{w_227}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w228-row"
+request = "GET /workers/{w_228}"
+status = 200
+optional = true
+
+[[step]]
+name = "w228-newest"
+request = "GET /workers/{w_228}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w228-oldest"
+request = "GET /workers/{w_228}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w228-subagents"
+request = "GET /workers/{w_228}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w228-prompts"
+request = "GET /workers/{w_228}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w228-attachments"
+request = "GET /workers/{w_228}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w229-row"
+request = "GET /workers/{w_229}"
+status = 200
+optional = true
+
+[[step]]
+name = "w229-newest"
+request = "GET /workers/{w_229}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w229-oldest"
+request = "GET /workers/{w_229}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w229-subagents"
+request = "GET /workers/{w_229}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w229-prompts"
+request = "GET /workers/{w_229}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w229-attachments"
+request = "GET /workers/{w_229}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w230-row"
+request = "GET /workers/{w_230}"
+status = 200
+optional = true
+
+[[step]]
+name = "w230-newest"
+request = "GET /workers/{w_230}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w230-oldest"
+request = "GET /workers/{w_230}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w230-subagents"
+request = "GET /workers/{w_230}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w230-prompts"
+request = "GET /workers/{w_230}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w230-attachments"
+request = "GET /workers/{w_230}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w231-row"
+request = "GET /workers/{w_231}"
+status = 200
+optional = true
+
+[[step]]
+name = "w231-newest"
+request = "GET /workers/{w_231}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w231-oldest"
+request = "GET /workers/{w_231}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w231-subagents"
+request = "GET /workers/{w_231}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w231-prompts"
+request = "GET /workers/{w_231}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w231-attachments"
+request = "GET /workers/{w_231}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w232-row"
+request = "GET /workers/{w_232}"
+status = 200
+optional = true
+
+[[step]]
+name = "w232-newest"
+request = "GET /workers/{w_232}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w232-oldest"
+request = "GET /workers/{w_232}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w232-subagents"
+request = "GET /workers/{w_232}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w232-prompts"
+request = "GET /workers/{w_232}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w232-attachments"
+request = "GET /workers/{w_232}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w233-row"
+request = "GET /workers/{w_233}"
+status = 200
+optional = true
+
+[[step]]
+name = "w233-newest"
+request = "GET /workers/{w_233}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w233-oldest"
+request = "GET /workers/{w_233}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w233-subagents"
+request = "GET /workers/{w_233}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w233-prompts"
+request = "GET /workers/{w_233}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w233-attachments"
+request = "GET /workers/{w_233}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w234-row"
+request = "GET /workers/{w_234}"
+status = 200
+optional = true
+
+[[step]]
+name = "w234-newest"
+request = "GET /workers/{w_234}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w234-oldest"
+request = "GET /workers/{w_234}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w234-subagents"
+request = "GET /workers/{w_234}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w234-prompts"
+request = "GET /workers/{w_234}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w234-attachments"
+request = "GET /workers/{w_234}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w235-row"
+request = "GET /workers/{w_235}"
+status = 200
+optional = true
+
+[[step]]
+name = "w235-newest"
+request = "GET /workers/{w_235}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w235-oldest"
+request = "GET /workers/{w_235}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w235-subagents"
+request = "GET /workers/{w_235}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w235-prompts"
+request = "GET /workers/{w_235}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w235-attachments"
+request = "GET /workers/{w_235}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w236-row"
+request = "GET /workers/{w_236}"
+status = 200
+optional = true
+
+[[step]]
+name = "w236-newest"
+request = "GET /workers/{w_236}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w236-oldest"
+request = "GET /workers/{w_236}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w236-subagents"
+request = "GET /workers/{w_236}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w236-prompts"
+request = "GET /workers/{w_236}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w236-attachments"
+request = "GET /workers/{w_236}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w237-row"
+request = "GET /workers/{w_237}"
+status = 200
+optional = true
+
+[[step]]
+name = "w237-newest"
+request = "GET /workers/{w_237}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w237-oldest"
+request = "GET /workers/{w_237}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w237-subagents"
+request = "GET /workers/{w_237}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w237-prompts"
+request = "GET /workers/{w_237}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w237-attachments"
+request = "GET /workers/{w_237}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w238-row"
+request = "GET /workers/{w_238}"
+status = 200
+optional = true
+
+[[step]]
+name = "w238-newest"
+request = "GET /workers/{w_238}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w238-oldest"
+request = "GET /workers/{w_238}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w238-subagents"
+request = "GET /workers/{w_238}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w238-prompts"
+request = "GET /workers/{w_238}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w238-attachments"
+request = "GET /workers/{w_238}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w239-row"
+request = "GET /workers/{w_239}"
+status = 200
+optional = true
+
+[[step]]
+name = "w239-newest"
+request = "GET /workers/{w_239}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w239-oldest"
+request = "GET /workers/{w_239}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w239-subagents"
+request = "GET /workers/{w_239}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w239-prompts"
+request = "GET /workers/{w_239}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w239-attachments"
+request = "GET /workers/{w_239}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w240-row"
+request = "GET /workers/{w_240}"
+status = 200
+optional = true
+
+[[step]]
+name = "w240-newest"
+request = "GET /workers/{w_240}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w240-oldest"
+request = "GET /workers/{w_240}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w240-subagents"
+request = "GET /workers/{w_240}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w240-prompts"
+request = "GET /workers/{w_240}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w240-attachments"
+request = "GET /workers/{w_240}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w241-row"
+request = "GET /workers/{w_241}"
+status = 200
+optional = true
+
+[[step]]
+name = "w241-newest"
+request = "GET /workers/{w_241}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w241-oldest"
+request = "GET /workers/{w_241}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w241-subagents"
+request = "GET /workers/{w_241}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w241-prompts"
+request = "GET /workers/{w_241}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w241-attachments"
+request = "GET /workers/{w_241}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w242-row"
+request = "GET /workers/{w_242}"
+status = 200
+optional = true
+
+[[step]]
+name = "w242-newest"
+request = "GET /workers/{w_242}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w242-oldest"
+request = "GET /workers/{w_242}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w242-subagents"
+request = "GET /workers/{w_242}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w242-prompts"
+request = "GET /workers/{w_242}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w242-attachments"
+request = "GET /workers/{w_242}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w243-row"
+request = "GET /workers/{w_243}"
+status = 200
+optional = true
+
+[[step]]
+name = "w243-newest"
+request = "GET /workers/{w_243}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w243-oldest"
+request = "GET /workers/{w_243}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w243-subagents"
+request = "GET /workers/{w_243}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w243-prompts"
+request = "GET /workers/{w_243}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w243-attachments"
+request = "GET /workers/{w_243}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w244-row"
+request = "GET /workers/{w_244}"
+status = 200
+optional = true
+
+[[step]]
+name = "w244-newest"
+request = "GET /workers/{w_244}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w244-oldest"
+request = "GET /workers/{w_244}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w244-subagents"
+request = "GET /workers/{w_244}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w244-prompts"
+request = "GET /workers/{w_244}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w244-attachments"
+request = "GET /workers/{w_244}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w245-row"
+request = "GET /workers/{w_245}"
+status = 200
+optional = true
+
+[[step]]
+name = "w245-newest"
+request = "GET /workers/{w_245}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w245-oldest"
+request = "GET /workers/{w_245}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w245-subagents"
+request = "GET /workers/{w_245}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w245-prompts"
+request = "GET /workers/{w_245}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w245-attachments"
+request = "GET /workers/{w_245}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w246-row"
+request = "GET /workers/{w_246}"
+status = 200
+optional = true
+
+[[step]]
+name = "w246-newest"
+request = "GET /workers/{w_246}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w246-oldest"
+request = "GET /workers/{w_246}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w246-subagents"
+request = "GET /workers/{w_246}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w246-prompts"
+request = "GET /workers/{w_246}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w246-attachments"
+request = "GET /workers/{w_246}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w247-row"
+request = "GET /workers/{w_247}"
+status = 200
+optional = true
+
+[[step]]
+name = "w247-newest"
+request = "GET /workers/{w_247}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w247-oldest"
+request = "GET /workers/{w_247}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w247-subagents"
+request = "GET /workers/{w_247}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w247-prompts"
+request = "GET /workers/{w_247}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w247-attachments"
+request = "GET /workers/{w_247}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w248-row"
+request = "GET /workers/{w_248}"
+status = 200
+optional = true
+
+[[step]]
+name = "w248-newest"
+request = "GET /workers/{w_248}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w248-oldest"
+request = "GET /workers/{w_248}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w248-subagents"
+request = "GET /workers/{w_248}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w248-prompts"
+request = "GET /workers/{w_248}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w248-attachments"
+request = "GET /workers/{w_248}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w249-row"
+request = "GET /workers/{w_249}"
+status = 200
+optional = true
+
+[[step]]
+name = "w249-newest"
+request = "GET /workers/{w_249}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w249-oldest"
+request = "GET /workers/{w_249}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w249-subagents"
+request = "GET /workers/{w_249}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w249-prompts"
+request = "GET /workers/{w_249}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w249-attachments"
+request = "GET /workers/{w_249}/attachments"
+status = 200
+optional = true
+
+[[step]]
+name = "w250-row"
+request = "GET /workers/{w_250}"
+status = 200
+optional = true
+
+[[step]]
+name = "w250-newest"
+request = "GET /workers/{w_250}/events"
+status = 200
+query = { limit = "100" }
+optional = true
+
+[[step]]
+name = "w250-oldest"
+request = "GET /workers/{w_250}/events"
+status = 200
+query = { limit = "100", order = "asc" }
+optional = true
+
+[[step]]
+name = "w250-subagents"
+request = "GET /workers/{w_250}/subagent-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w250-prompts"
+request = "GET /workers/{w_250}/prompt-events"
+status = 200
+optional = true
+
+[[step]]
+name = "w250-attachments"
+request = "GET /workers/{w_250}/attachments"
+status = 200
+optional = true

@@ -70,6 +70,7 @@ struct Counters {
 pub struct RouterBuilder {
     routes: Vec<RouteDef>,
     plugins: Arc<dyn PluginSwitch>,
+    failed: Arc<crate::module::FailedModules>,
     ids: Arc<dyn Ids>,
     tolerate_undeclared: bool,
     local_only_under: Vec<String>,
@@ -86,6 +87,7 @@ impl Default for RouterBuilder {
         Self {
             routes: Vec::new(),
             plugins: Arc::new(AllPluginsOn),
+            failed: Arc::default(),
             ids: Arc::new(RandomIds),
             tolerate_undeclared: false,
             local_only_under: Vec::new(),
@@ -106,6 +108,12 @@ impl RouterBuilder {
 
     pub fn plugins(mut self, switch: Arc<dyn PluginSwitch>) -> Self {
         self.plugins = switch;
+        self
+    }
+
+    /// The routes of a module whose start failed answer 503.
+    pub fn failed(mut self, failed: Arc<crate::module::FailedModules>) -> Self {
+        self.failed = failed;
         self
     }
 
@@ -192,7 +200,14 @@ impl RouterBuilder {
         if !conflicts.is_empty() {
             return Err(Error::Conflicts(conflicts));
         }
-        let router = Router { trees, routes, plugins: self.plugins, ids: self.ids, counters: Counters::default() };
+        let router = Router {
+            trees,
+            routes,
+            plugins: self.plugins,
+            failed: self.failed,
+            ids: self.ids,
+            counters: Counters::default(),
+        };
         let undeclared = router.undeclared();
         if !undeclared.is_empty() && !self.tolerate_undeclared {
             return Err(Error::UndeclaredAccess(undeclared));
@@ -205,6 +220,7 @@ pub struct Router {
     trees: [Tree; Method::COUNT],
     routes: Vec<Route>,
     plugins: Arc<dyn PluginSwitch>,
+    failed: Arc<crate::module::FailedModules>,
     ids: Arc<dyn Ids>,
     counters: Counters,
 }
@@ -266,6 +282,10 @@ impl Router {
         {
             let message = format!("{} is turned off (Settings › Plugins)", self.plugins.name(plugin));
             return done(ApiError::coded(404, message, "plugin_off").into_response());
+        }
+        if let Some(reason) = self.failed.reason(&meta.owner) {
+            let message = format!("the {} feature could not start: {reason}", meta.owner);
+            return done(ApiError::coded(503, message, "feature_failed").into_response());
         }
         if let Err(refusal) = check_user(rule, &req.caller) {
             return done(refusal_response(refusal, req.path()));

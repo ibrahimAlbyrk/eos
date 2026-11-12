@@ -72,6 +72,48 @@ impl SqliteTx<'_> {
     }
 }
 
+impl SqliteTx<'_> {
+    /// A page of one worker's log with these columns, as [`EventRepo::list`] picks it.
+    fn select<T>(
+        &self,
+        q: &EventQuery,
+        columns: &str,
+        map: impl Fn(&eos_kit_sqlite::rusqlite::Row<'_>) -> Result<T, Error>,
+    ) -> Result<Vec<T>, Error> {
+        // Ties on `ts` keep insertion order (`id`): clients close open tools on
+        // the row that follows, so same-millisecond rows must not swap.
+        if let Some(after) = q.after_id {
+            let sql = format!("SELECT {columns} FROM events WHERE worker_id = ?1 AND id > ?2 ORDER BY id ASC LIMIT ?3");
+            return self.rows(&sql, params![q.worker_id, after, q.limit], map);
+        }
+        match (q.order, q.before_id) {
+            (EventOrder::Desc, Some(before)) => self.rows(
+                &format!(
+                    "SELECT * FROM (SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 AND id < ?3 \
+                     ORDER BY ts DESC, id DESC LIMIT ?4) ORDER BY ts ASC, id ASC"
+                ),
+                params![q.worker_id, q.since, before, q.limit],
+                map,
+            ),
+            (EventOrder::Desc, None) => self.rows(
+                &format!(
+                    "SELECT * FROM (SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 \
+                     ORDER BY ts DESC, id DESC LIMIT ?3) ORDER BY ts ASC, id ASC"
+                ),
+                params![q.worker_id, q.since, q.limit],
+                map,
+            ),
+            (EventOrder::Asc, _) => self.rows(
+                &format!(
+                    "SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 ORDER BY ts ASC, id ASC LIMIT ?3"
+                ),
+                params![q.worker_id, q.since, q.limit],
+                map,
+            ),
+        }
+    }
+}
+
 impl EventRepo for SqliteTx<'_> {
     fn append(&self, worker_id: &str, ts: i64, kind: WorkerEventType, payload: Option<&str>) -> Result<i64, Error> {
         self.exec(
@@ -88,38 +130,31 @@ impl EventRepo for SqliteTx<'_> {
     }
 
     fn list(&self, q: &EventQuery) -> Result<Vec<EventRecord>, Error> {
-        const COLUMNS: &str = "id, worker_id, ts, type, payload";
-        // Ties on `ts` keep insertion order (`id`): clients close open tools on
-        // the row that follows, so same-millisecond rows must not swap.
-        if let Some(after) = q.after_id {
-            let sql = format!("SELECT {COLUMNS} FROM events WHERE worker_id = ?1 AND id > ?2 ORDER BY id ASC LIMIT ?3");
-            return self.rows(&sql, params![q.worker_id, after, q.limit], record);
-        }
-        match (q.order, q.before_id) {
-            (EventOrder::Desc, Some(before)) => self.rows(
-                &format!(
-                    "SELECT * FROM (SELECT {COLUMNS} FROM events WHERE worker_id = ?1 AND ts > ?2 AND id < ?3 \
-                     ORDER BY ts DESC, id DESC LIMIT ?4) ORDER BY ts ASC, id ASC"
-                ),
-                params![q.worker_id, q.since, before, q.limit],
-                record,
-            ),
-            (EventOrder::Desc, None) => self.rows(
-                &format!(
-                    "SELECT * FROM (SELECT {COLUMNS} FROM events WHERE worker_id = ?1 AND ts > ?2 \
-                     ORDER BY ts DESC, id DESC LIMIT ?3) ORDER BY ts ASC, id ASC"
-                ),
-                params![q.worker_id, q.since, q.limit],
-                record,
-            ),
-            (EventOrder::Asc, _) => self.rows(
-                &format!(
-                    "SELECT {COLUMNS} FROM events WHERE worker_id = ?1 AND ts > ?2 ORDER BY ts ASC, id ASC LIMIT ?3"
-                ),
-                params![q.worker_id, q.since, q.limit],
-                record,
-            ),
-        }
+        self.select(q, "id, worker_id, ts, type, payload", record)
+    }
+
+    fn list_ids(&self, q: &EventQuery) -> Result<Vec<(i64, i64)>, Error> {
+        self.select(q, "id, ts", |r| Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?)))
+    }
+
+    fn find_many(&self, worker_id: &str, ids: &[i64]) -> Result<Vec<EventRecord>, Error> {
+        let ids = serde_json::to_string(ids).map_err(|e| Error::Storage(e.to_string()))?;
+        self.rows(
+            "SELECT id, worker_id, ts, type, payload FROM events \
+             WHERE worker_id = ?1 AND id IN (SELECT value FROM json_each(?2)) ORDER BY ts ASC, id ASC",
+            params![worker_id, ids],
+            record,
+        )
+    }
+
+    fn scan(&self, worker_id: &str, kinds: &[&str], after_id: i64, limit: i64) -> Result<Vec<EventRecord>, Error> {
+        let kinds = serde_json::to_string(kinds).map_err(|e| Error::Storage(e.to_string()))?;
+        self.rows(
+            "SELECT id, worker_id, ts, type, payload FROM events \
+             WHERE worker_id = ?1 AND id > ?2 AND type IN (SELECT value FROM json_each(?3)) ORDER BY id ASC LIMIT ?4",
+            params![worker_id, after_id, kinds, limit],
+            record,
+        )
     }
 
     fn list_by_type(

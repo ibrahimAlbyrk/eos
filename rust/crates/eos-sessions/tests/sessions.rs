@@ -436,6 +436,29 @@ async fn a_session_that_dies_parks_its_worker_and_resume_brings_it_back() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_message_queued_before_the_session_ended_goes_out_once_the_worker_is_resumed() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let _gate = bench.agents.script_held(Turn::reply("never"));
+    bench.sessions.dispatch(bench.message(&id, "a long job")).await.expect("sends");
+    bench.agents.running(1).await;
+    let queued =
+        MessageInput { queue_when_busy: true, client_msg_id: Some("c-then".into()), ..bench.message(&id, "then this") };
+    assert!(matches!(bench.sessions.dispatch(queued).await, Ok(Dispatched::Queued { .. })));
+    // The app quits (or the session dies) with the message still queued.
+    bench.agents.crash(&id).await;
+    assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Suspended);
+
+    bench.sessions.resume(&id).await.expect("resumes");
+    bench.agents.settled().await;
+    let sent = bench.agents.sent(&id);
+    assert_eq!(sent.iter().filter(|s| s.ends_with("then this")).count(), 1, "the resume is an idle edge: {sent:?}");
+    let (store, worker) = (bench.store(), id.clone());
+    let pending = store.read(move |tx| tx.message_queue().list_pending(&worker)).await.expect("reads");
+    assert!(pending.is_empty(), "nothing is left in the queue");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_worker_gets_its_worktree_its_parents_tag_and_goes_with_its_parent() {
     let bench = Bench::new();
     let orchestrator = SpawnRequest {
@@ -561,6 +584,28 @@ async fn a_thousand_workers_come_and_go_and_nothing_is_left() {
     assert!(bench.store().read(|tx| tx.workers().list_all()).await.expect("reads").is_empty());
     let left = bench.store().read(|tx| tx.events().prune_all(0)).await;
     assert!(left.is_err() || left == Ok(0), "no rows of removed workers stay behind");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_removed_chats_views_and_definitions_go_in_the_same_write() {
+    let bench = Bench::new();
+    let id = bench.chat("hi").await;
+    bench.agents.settled().await;
+    bench.temp.exec(&format!(
+        "INSERT INTO genui_views (id, worker_id, kind, title, data, created_at) \
+         VALUES ('v_kept', '{id}', 'view', 't', '{{}}', 1); \
+         INSERT INTO worker_definitions (owner, name, json, created_at, updated_at) \
+         VALUES ('{id}', 'helper', '{{}}', 1, 1);"
+    ));
+    let rows = |id: &str| {
+        let views = bench.temp.count(&format!("SELECT count(*) FROM genui_views WHERE worker_id = '{id}'"));
+        let definitions = bench.temp.count(&format!("SELECT count(*) FROM worker_definitions WHERE owner = '{id}'"));
+        (views, definitions)
+    };
+    assert_eq!(rows(&id), (1, 1), "the rows are there before");
+    bench.sessions.kill(&id).await.expect("removes");
+    // Counted at once: nothing waits on an event for these rows to go.
+    assert_eq!(rows(&id), (0, 0), "the chat's views and the definitions it made went with it");
 }
 
 /// A command a feature owns: it takes any arguments and says what it got.

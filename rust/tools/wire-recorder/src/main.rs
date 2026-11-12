@@ -341,7 +341,14 @@ fn replay(args: &Args) -> anyhow::Result<ExitCode> {
                 }
             };
             let mut reasons: Vec<String> = Vec::new();
+            let numbered = (recorded_ids.clone(), answered_ids.clone());
             let mut differences = diff(&recorded_ids.apply(&exchange.response), &answered_ids.apply(&actual));
+            // Ids met only in an answer that differs (an error on one side, a
+            // whole page on the other) would shift the numbers of every later
+            // step: such a step numbers nothing for the steps after it.
+            if !differences.is_empty() {
+                (recorded_ids, answered_ids) = numbered;
+            }
             differences.retain(|d| match listed_differences.reason(&name, &step.name, &d.path) {
                 Some(reason) => {
                     if !reasons.iter().any(|r| r == reason) {

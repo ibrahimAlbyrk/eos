@@ -260,10 +260,7 @@ pub(crate) fn all(cx: &Context) -> Result<Vec<Arc<dyn Module>>, crate::Error> {
         )),
         transfer,
         cx.updates.module(cx.config.clone(), &cx.kernel),
-        Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(
-            cx.worker_definitions.clone(),
-            cx.bus.clone(),
-        )),
+        Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(cx.worker_definitions.clone())),
         Arc::new(
             eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
                 .with_open_questions(Arc::new(cx.questions.clone()))

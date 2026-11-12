@@ -99,6 +99,18 @@ async fn main() {
         None => println!("no chat has 500 events"),
     }
 
+    // The conversation-wide subagent list of every chat once; then the slowest again.
+    let mut slowest = (Duration::ZERO, String::new(), 0);
+    for id in workers.iter().filter_map(|w| w["id"].as_str()) {
+        let target = format!("/workers/{id}/subagent-events");
+        let (_, body, took) = get(&app, &target).await;
+        if took > slowest.0 {
+            slowest = (took, target, body.len());
+        }
+    }
+    println!("subagent lists: the slowest took {:.3?} ({} KB)", slowest.0, slowest.2 / 1024);
+    timed(&app, "GET /workers/{id}/subagent-events (slowest)", &slowest.1, rounds.min(30)).await;
+
     tokio::time::sleep(Duration::from_secs(2)).await;
     println!("idle, after the requests:          {} KB resident", resident_kb().unwrap_or(0));
     app.shutdown(Duration::from_secs(5)).await;
