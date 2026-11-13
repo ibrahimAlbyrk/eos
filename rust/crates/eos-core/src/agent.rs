@@ -44,6 +44,18 @@ pub trait ModelCatalog: Send + Sync + 'static {
     /// The model's context window in tokens. Never blocks: the cached list,
     /// else the built-in baseline (`eos_domain::model`).
     fn context_window_for(&self, model: Option<&str>) -> i64;
+    /// Fetches the list again unless it was fetched under a minute ago (the
+    /// app opening, the model menu opening), then answers the cached list: a
+    /// fetch that fails keeps the last one.
+    fn refresh_now(&self) -> crate::BoxFuture<'_, Vec<CatalogModel>> {
+        Box::pin(std::future::ready(self.models()))
+    }
+}
+
+/// The provider's own list of its models (`GET /v1/models`).
+pub trait ModelsApi: Send + Sync + 'static {
+    /// `Err`: why there is none (no sign-in, offline, an answer it cannot read).
+    fn list(&self) -> crate::BoxFuture<'_, Result<Vec<CatalogModel>, String>>;
 }
 
 /// The skills and slash commands a user can type in a chat, as the composer's

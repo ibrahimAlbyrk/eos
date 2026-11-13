@@ -8,6 +8,7 @@ import { ROUTES } from "./routes.js";
 import { isRemoteView } from "../lib/host.js";
 import { requestRemotePick } from "../state/remotePickerStore.js";
 import { takeBootPart } from "./boot.js";
+import { notify } from "../lib/notify.js";
 
 // The native app loads the UI from the eos://app/ origin, so the daemon URL
 // can't be derived from location.origin; the app shell injects
@@ -1356,9 +1357,11 @@ export const api = {
         reader.onload = () => resolve(reader.result.split(",")[1]);
         reader.readAsDataURL(blob);
       });
-      // WKWebView (eos:// scheme) doesn't support <a download> — use native save dialog
+      // WKWebView (eos:// scheme) doesn't support <a download> — use native save dialog.
+      // A shell that can tell resolves `false` when the file could not be written.
       if (window.webkit?.messageHandlers?.saveFile) {
-        window.webkit.messageHandlers.saveFile.postMessage({ filename, base64, mimeType: blob.type || "text/html" });
+        const saved = await window.webkit.messageHandlers.saveFile.postMessage({ filename, base64, mimeType: blob.type || "text/html" });
+        if (saved === false) throw new Error(`${filename} could not be saved in Downloads`);
         return;
       }
       const a = document.createElement("a");
@@ -1368,7 +1371,7 @@ export const api = {
       a.click();
       document.body.removeChild(a);
     } catch (e) {
-      console.error("export failed", e);
+      notify.error(e instanceof Error ? e.message : String(e), { title: "Export failed" });
     }
   },
 

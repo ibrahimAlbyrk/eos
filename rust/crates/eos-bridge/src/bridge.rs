@@ -352,11 +352,8 @@ impl Bridge {
                     .decode(text("base64"))
                     .map_err(|_| Refusal(400, "bad base64"))?;
                 let name = text("filename");
-                self.blocking_value(move |host| {
-                    save_download(host, &name, &bytes);
-                    Value::Null
-                })
-                .await
+                let saved = self.blocking_value(move |host| Value::Bool(save_download(host, &name, &bytes))).await?;
+                if saved == Value::Bool(true) { Ok(saved) } else { Err(Refusal(500, SAVE_FAILED)) }
             }
             "files/dropped" => self.blocking_value(|host| entries(host.dropped_file_paths())).await,
             "clipboard/paths" => self.blocking_value(|host| entries(host.clipboard_file_paths())).await,
@@ -528,11 +525,22 @@ impl Service for Bridge {
     }
 }
 
-/// Writes a file the page hands over into Downloads under its sanitized name, and opens it.
-pub(crate) fn save_download(host: &dyn ShellHost, filename: &str, bytes: &[u8]) {
+/// What the page hears when a file could not be written.
+pub(crate) const SAVE_FAILED: &str = "The file could not be saved in Downloads.";
+
+/// Writes a file the page hands over into Downloads under its sanitized name, and opens
+/// it; `false` when it could not be written.
+pub(crate) fn save_download(host: &dyn ShellHost, filename: &str, bytes: &[u8]) -> bool {
     let dest = host.downloads_dir().join(sanitize_filename(filename));
-    if std::fs::write(&dest, bytes).is_ok() {
-        host.open_path(&dest);
+    match std::fs::write(&dest, bytes) {
+        Ok(()) => {
+            host.open_path(&dest);
+            true
+        }
+        Err(e) => {
+            tracing::warn!(file = %dest.display(), error = %e, "a download could not be saved");
+            false
+        }
     }
 }
 

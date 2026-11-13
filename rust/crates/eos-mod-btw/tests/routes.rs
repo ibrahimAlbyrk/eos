@@ -12,8 +12,8 @@ use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_sessions::{NoHooks, SessionDeps, Sessions};
 use eos_testkit::agent::{Call, claude_capabilities};
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeWorktrees, ScriptedRuntime, SeqIds,
-    TempStore,
+    FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeSleeper, FakeWorktrees, ScriptedRuntime,
+    SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -21,6 +21,8 @@ struct Bench {
     runtime: Runtime,
     agents: ScriptedRuntime,
     temp: TempStore,
+    sessions: Sessions,
+    sleeper: Arc<FakeSleeper>,
 }
 
 impl Bench {
@@ -29,6 +31,7 @@ impl Bench {
     fn new(capabilities: AgentCapabilities) -> Self {
         let temp = TempStore::seeded("/sandbox");
         let agents = ScriptedRuntime::with_capabilities(capabilities);
+        let sleeper = Arc::new(FakeSleeper::default());
         let sessions = Sessions::new(SessionDeps {
             store: temp.port(),
             runtime: agents.port(),
@@ -40,13 +43,13 @@ impl Bench {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
-            sleeper: Arc::new(eos_testkit::FakeSleeper::default()),
+            sleeper: sleeper.clone(),
         });
-        let module = Arc::new(BtwModule::new(temp.port(), Arc::new(sessions)));
+        let module = Arc::new(BtwModule::new(temp.port(), Arc::new(sessions.clone())));
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
-        Self { runtime, agents, temp }
+        Self { runtime, agents, temp, sessions, sleeper }
     }
 
     async fn ask(&self, caller: Caller, worker: &str, body: Value) -> (u16, Value) {
@@ -99,6 +102,28 @@ async fn a_chat_at_rest_is_revived_and_answers_the_trimmed_question_leaving_no_t
     assert_eq!(status, 200);
     assert_eq!(bench.agents.started().len(), 1);
     assert_eq!((bench.rows("w-CHAT"), bench.temp.announced.list().len()), (rows, announced));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chat_coming_back_answers_once_it_is_up() {
+    let bench = Bench::new(claude_capabilities());
+    let start = bench.agents.hold_next_start();
+    // The composer woke it when the user started typing.
+    bench.sessions.wake("w-CHAT").await.expect("wakes");
+    let asked = bench.ask(Caller::DASHBOARD, "w-CHAT", json!({"question": "where were we?"}));
+    let up = async {
+        for _ in 0..5_000 {
+            if bench.sleeper.pending().len() == 1 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        assert_eq!(bench.sleeper.pending().len(), 1, "the question waits for the session");
+        start.release();
+    };
+    let (answer, ()) = tokio::join!(asked, up);
+    assert_eq!(answer, (200, json!({"answer": "side answer to: where were we?"})));
+    assert_eq!(bench.agents.started().len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread")]

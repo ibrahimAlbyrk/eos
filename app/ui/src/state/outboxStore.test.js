@@ -50,12 +50,22 @@ describe("send lifecycle", () => {
     expect(bubbles()[0].ts).toBe(1000);
   });
 
-  it("deduped and rejected sends drop the item", () => {
+  it("a deduped send drops the item", () => {
     const a = outbox.beginSend(W, { text: "a", clientMsgId: "c1", busy: true });
     outbox.settleSend(W, a, { ok: true, status: 200, body: { ok: true, deduped: true } });
-    const b = outbox.beginSend(W, { text: "b", clientMsgId: "c2", busy: false });
-    outbox.settleSend(W, b, { ok: false, status: 409, body: { error: "x" } });
     expect(outbox.itemsFor(W)).toHaveLength(0);
+  });
+
+  it("a rejected or unreachable send stays, marked failed, until a durable row settles it", () => {
+    const b = outbox.beginSend(W, { text: "b", clientMsgId: "c2", busy: false });
+    outbox.settleSend(W, b, { ok: false, status: 502, body: { error: "unreachable: worker" } });
+    const c = outbox.beginSend(W, { text: "c", clientMsgId: "c3", busy: true });
+    outbox.settleSend(W, c, { ok: false });
+    expect(outbox.itemsFor(W).map((i) => [i.text, i.state])).toEqual([["b", "failed"], ["c", "failed"]]);
+    outbox.reconcileEvents(W, [
+      { type: "user_message", ts: Date.now(), payload: JSON.stringify({ text: "b", clientMsgIds: ["c2"] }) },
+    ]);
+    expect(outbox.itemsFor(W).map((i) => i.text)).toEqual(["c"]);
   });
 
   it("dismiss during the in-flight POST deletes the row once the 202 names it", () => {

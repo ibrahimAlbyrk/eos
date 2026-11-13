@@ -14,12 +14,14 @@
 //! - [`ClaudeUsageApi`], [`FileUsageSnapshots`], [`ClaudeTokenProbe`]: plan
 //!   usage and the check of an old setup-token.
 //! - [`FrameApiArtifacts`]: each Claude sign-in's claude.ai Artifacts.
+//! - [`ClaudeModels`]: the models Claude lists for the user's sign-in.
 //! - [`PlatformSecrets`]: provider API keys in the system's secret store.
 //!
 //! This crate uses the engine's provider sign-in crates
 //! (`eos-agent-anthropic`, `eos-agent-openai`) and nothing else of it.
 
 mod artifacts;
+mod models;
 mod registry;
 mod secrets;
 mod sign_in;
@@ -27,6 +29,7 @@ mod stores;
 mod usage;
 
 pub use artifacts::{FrameApiArtifacts, NO_TOKEN_MESSAGE, REJECTED_MESSAGE, artifact_summary};
+pub use models::ClaudeModels;
 pub use registry::{AccountDirs, FilePlanLoginStore};
 pub use secrets::{HostCredentials, PlatformSecrets};
 pub use sign_in::{ChatGptSignIn, ClaudeSignIn};

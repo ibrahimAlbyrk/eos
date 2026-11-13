@@ -403,9 +403,14 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     const base = baseBlocks.slice();
     // Queued items render as pills above the input bar, not here; the bubble
     // states (sending/dispatching) join the sort so a drained message lands
-    // exactly where its durable event will (see outboxStore.js).
+    // exactly where its durable event will (see outboxStore.js). A failed send
+    // reads as the transcript's own "not delivered" line.
     for (const m of outbox.itemsFor(selectedId)) {
       if (m.state === "queued") continue;
+      if (m.state === "failed") {
+        base.push({ kind: "deliveryFailed", text: m.text, ts: m.ts });
+        continue;
+      }
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true, ...(m.replyTo ? { replyTo: m.replyTo } : {}) });
     }
     // Overlay live terminal runs whose durable `terminal` event hasn't landed.

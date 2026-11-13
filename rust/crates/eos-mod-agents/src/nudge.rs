@@ -33,7 +33,8 @@ fn action_spec(action: WorkerAction) -> (&'static str, &'static str, Option<(&'s
 }
 
 /// Opening a chat starts its session ahead of the first message. Answers at
-/// once; the session comes up in the background.
+/// once; the session comes up in the background, and a message sent
+/// meanwhile waits for it.
 fn warm(m: AgentsModule) -> RouteDef {
     RouteDef::post("/workers/{id}/warm", move |req: Request| {
         let m = m.clone();
@@ -44,11 +45,9 @@ fn warm(m: AgentsModule) -> RouteDef {
             if row.is_archived() {
                 return Err(ApiError::Conflict("worker is archived — restore first".into()));
             }
-            tokio::spawn(async move {
-                if let Err(e) = m.revive(&row).await {
-                    tracing::warn!(worker_id = %row.id, error = %e, "warming a chat up failed");
-                }
-            });
+            if let Err(e) = m.sessions.wake(&row.id).await {
+                tracing::warn!(worker_id = %row.id, error = %e, "warming a chat up failed");
+            }
             Ok(Response::json(202, &json!({"ok": true})))
         }
     })
@@ -64,8 +63,10 @@ fn action(m: AgentsModule) -> RouteDef {
             let values: VariableScope = value.into_iter().map(|(name, v)| (name.to_owned(), v.into())).collect();
             let text = m.spawning.prompts.render(prompt, &values, &no_values())?.trim().to_owned();
             let id = id_of(&req);
-            let Some(target) = m.worker(&id).await? else { return Err(ApiError::NotFound("worker not found".into())) };
-            m.revive(&target).await?;
+            if m.worker(&id).await?.is_none() {
+                return Err(ApiError::NotFound("worker not found".into()));
+            }
+            m.sessions.wake(&id).await?;
             let message = MessageInput {
                 worker_id: id,
                 text,

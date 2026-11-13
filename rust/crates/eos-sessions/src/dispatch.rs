@@ -32,6 +32,8 @@ const DUPLICATE_TEXT_WINDOW_MS: i64 = 10_000;
 /// How much of a suspected duplicate's text is noted (more for an orchestrator).
 const EXCERPT_CHARS: usize = 200;
 const ORCHESTRATOR_EXCERPT_CHARS: usize = 500;
+/// How much of a message that never arrived the chat's note quotes.
+const FAILED_CHARS: usize = 120;
 
 /// One message for a worker.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -291,10 +293,13 @@ impl Sessions {
 
     /// Delivers `input` to its worker, or queues it.
     ///
-    /// The chat row and the move to WORKING are saved before the session
-    /// gets the message, so the agent's first events never land ahead of the
-    /// prompt they answer. A session that turns out to be gone gives the
-    /// worker its idle state back and the caller an error.
+    /// A message for a worker whose session is coming up waits for it, behind
+    /// the messages that came before, and fails as the start failed. The chat
+    /// row and the move to WORKING are saved before the session gets the
+    /// message, so the agent's first events never land ahead of the prompt
+    /// they answer. A session that turns out to be gone gives the worker its
+    /// idle state back, notes on the chat that the message never arrived, and
+    /// gives the caller an error.
     pub async fn dispatch(&self, input: MessageInput) -> Result<Dispatched, Error> {
         let mut input = input;
         if let Some(click) = input.view_action.take().filter(|_| input.envelope.is_none()) {
@@ -304,6 +309,10 @@ impl Sessions {
             input.action = serde_json::to_value(turn.action).ok();
         }
         let id = input.worker_id.clone();
+        // A message taken from the queue is never put back in it, and is
+        // drained only from a live, idle worker: it never waits for a start.
+        let drained = input.origin.as_deref() == Some("queue-drain");
+        let place = if drained { None } else { self.wait_for_start(&id).await? };
         let worker = self.worker(&id).await?.ok_or_else(|| Error::not_found("worker", &id))?;
         if input.require_orchestrator && !worker.is_orchestrator {
             return Err(Error::not_found("orchestrator", &id));
@@ -318,6 +327,8 @@ impl Sessions {
             && let (Some(command), Some(session)) = (self.command(name), session.clone())
             && command.accepts(args, session.capabilities())
         {
+            // A command may take long (a summary): nobody waits behind it.
+            drop(place);
             self.0.turns.clear_settle(&id);
             let cx = SlashContext { worker_id: &id, args, session, sessions: self };
             let answer = command.execute(cx).await?;
@@ -330,13 +341,12 @@ impl Sessions {
                 .await?;
             return Ok(Dispatched::Command(answer));
         }
-        // A message taken from the queue is never put back in it.
-        let drained = input.origin.as_deref() == Some("queue-drain");
         let must_queue = !drained && (input.queue_when_busy || self.0.deps.hooks.holds_worker(&id));
         let (sessions, message) = (self.clone(), input.clone());
         let planned = self.store().write(move |tx, out| plan(tx, out, &sessions, &message, must_queue)).await?;
         let (outgoing, claim) = match planned {
             Plan::Done(done) => {
+                drop(place);
                 if matches!(done, Dispatched::Queued { .. }) {
                     // An idle worker with a backlog: the queue moves now.
                     self.settled(&id).await;
@@ -349,14 +359,19 @@ impl Sessions {
             Some(session) => session.send(outgoing).await.map_err(|e| e.to_string()),
             None => Err("no live session".to_owned()),
         };
+        drop(place);
         if let Err(why) = sent {
             tracing::warn!(worker_id = %id, error = %why, "a message could not be delivered");
             let (worker_id, now) = (id.clone(), self.now());
+            // The chat already shows the message: it says that it never arrived.
+            let shown: String = input.display_text.as_ref().unwrap_or(&input.text).chars().take(FAILED_CHARS).collect();
+            let note = json!({"phase": "delivery_failed", "text": shown});
             self.store()
                 .write(move |tx, out| {
                     if let Some(claim) = claim {
                         tx.message_queue().remove_by_id(claim)?;
                     }
+                    tx.events().append_json(&worker_id, now, WorkerEventType::Lifecycle, &note)?;
                     transition_state(tx, out, now, &worker_id, WorkerState::Idle, "delivery_failed")?;
                     Ok(())
                 })

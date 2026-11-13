@@ -376,23 +376,35 @@ impl Sessions {
         Ok(Spawned { id, boot_msg_id })
     }
 
-    /// Continues the conversation of a worker whose session is over. The
-    /// worker comes back idle, with no new turn of its own: like any idle
-    /// edge, it then takes the messages queued for it, oldest first.
-    pub async fn resume(&self, worker_id: &str) -> Result<(), Error> {
-        let deps = &self.0.deps;
+    /// The row of a worker whose conversation can be continued now. Anything
+    /// else is refused when `strict` (an explicit resume), else left as it is
+    /// (`None`: a chat that is live, or never had a session).
+    pub(crate) async fn resumable(&self, worker_id: &str, strict: bool) -> Result<Option<Worker>, Error> {
         let id = worker_id.to_owned();
         let row = self.store().read(move |tx| tx.workers().find(&id)).await?;
-        let row = row.ok_or_else(|| Error::not_found("worker", worker_id))?;
-        if !matches!(row.state, WorkerState::Suspended | WorkerState::Done) {
-            return Err(Error::Conflict(format!("worker is not resumable (state {})", state_name(row.state))));
-        }
-        let Some(session_id) = row.session_id.clone().filter(|s| !s.is_empty()) else {
-            return Err(Error::Conflict("worker has no recorded session to resume".into()));
+        let Some(row) = row else {
+            return if strict { Err(Error::not_found("worker", worker_id)) } else { Ok(None) };
         };
-        if self.is_live(worker_id) {
-            return Err(Error::Conflict("worker process is still alive".into()));
-        }
+        let refused = if !matches!(row.state, WorkerState::Suspended | WorkerState::Done) {
+            format!("worker is not resumable (state {})", state_name(row.state))
+        } else if row.session_id.as_deref().is_none_or(str::is_empty) {
+            "worker has no recorded session to resume".to_owned()
+        } else if self.is_live(worker_id) {
+            "worker process is still alive".to_owned()
+        } else {
+            return Ok(Some(row));
+        };
+        if strict { Err(Error::Conflict(refused)) } else { Ok(None) }
+    }
+
+    /// Continues the conversation of a worker whose session is over
+    /// (`ResumeWorker.ts`); `false` when there was nothing to continue and
+    /// `strict` is off. The worker comes back idle, with no new turn of its
+    /// own. Runs only in the worker's start lane (`revive.rs`).
+    pub(crate) async fn start_resumed(&self, worker_id: &str, strict: bool) -> Result<bool, Error> {
+        let deps = &self.0.deps;
+        let Some(row) = self.resumable(worker_id, strict).await? else { return Ok(false) };
+        let session_id = row.session_id.clone().unwrap_or_default();
         let Some(cwd) = row.work_dir().map(str::to_owned).filter(|dir| deps.hooks.folder_exists(dir)) else {
             return Err(Error::Conflict("workspace directory no longer exists".into()));
         };
@@ -421,8 +433,6 @@ impl Sessions {
                 Ok(())
             })
             .await?;
-        // What was queued before the session ended (a quit, a crash) goes out now.
-        self.settled(worker_id).await;
-        Ok(())
+        Ok(true)
     }
 }

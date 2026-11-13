@@ -37,6 +37,8 @@ struct Bench {
     desktop: Arc<FakeDesktop>,
     /// What was told that a worker's folder may have changed.
     repo_state: FakeRepoState,
+    /// Waits nobody ends: what is pending is what waits.
+    sleeper: Arc<FakeSleeper>,
 }
 
 impl Bench {
@@ -60,6 +62,7 @@ impl Bench {
         };
         let clock = Arc::new(FakeClock::new());
         let ids = Arc::new(SeqIds::new());
+        let sleeper = Arc::new(FakeSleeper::default());
         let sessions = Sessions::new(SessionDeps {
             store: temp.port(),
             runtime: agents.port(),
@@ -71,7 +74,7 @@ impl Bench {
             worktrees: worktrees.clone(),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
-            sleeper: Arc::new(FakeSleeper::default()),
+            sleeper: sleeper.clone(),
         });
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock));
@@ -101,7 +104,7 @@ impl Bench {
         let module =
             Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning, worker_git).watching(watch));
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
-        Self { runtime, agents, temp, settings, scratch, worktrees, watcher, tries, desktop, repo_state }
+        Self { runtime, agents, temp, settings, scratch, worktrees, watcher, tries, desktop, repo_state, sleeper }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -249,6 +252,44 @@ async fn a_chat_at_rest_is_continued_by_the_first_message_to_it() {
     assert_eq!(no_session, (409, json!({"error": "worker has no recorded session to resume"})));
     let not_orchestrator = bench.post("/orchestrators/w-BARE/message", json!({"text": "hi"})).await;
     assert_eq!(not_orchestrator, (404, json!({"error": "orchestrator not found: w-BARE"})));
+}
+
+// The end-to-end audit's first defect: the composer wakes a chat at rest when the
+// user starts typing, and a message sent while the session came back was answered
+// 502 and never delivered.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_message_sent_while_a_chat_comes_back_is_delivered_once_it_is_up() {
+    let bench = Bench::new(TempStore::seeded("/"));
+    let start = bench.agents.hold_next_start();
+    assert_eq!(bench.post("/workers/w-CHAT/warm", json!({})).await, (202, json!({"ok": true})));
+    for _ in 0..5_000 {
+        if bench.state("w-CHAT").await.as_deref() == Some("SPAWNING") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SPAWNING"));
+
+    let body = json!({"text": "are you there?", "clientMsgId": "c-1", "queueWhenBusy": true});
+    let message = bench.post("/workers/w-CHAT/message", body);
+    let up = async {
+        for _ in 0..5_000 {
+            if bench.sleeper.pending().len() == 1 {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        assert_eq!(bench.sleeper.pending(), [30_000], "the message waits for the session, for a while at most");
+        assert!(bench.agents.sent("w-CHAT").is_empty());
+        start.release();
+    };
+    let (sent, ()) = tokio::join!(message, up);
+    assert_eq!(sent, (200, json!({"ok": true})));
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.started().len(), 1, "one start for the warm-up and the message");
+    let delivered = bench.agents.sent("w-CHAT");
+    assert!(delivered.len() == 1 && delivered[0].ends_with("are you there?"), "{delivered:?}");
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("IDLE"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

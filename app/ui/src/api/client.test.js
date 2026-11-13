@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { api } from "./client.js";
 import { ROUTES } from "./routes.js";
 
@@ -274,5 +274,49 @@ describe("api.uploadPaste wire contract", () => {
     const [, opts] = fetchMock.mock.calls[0];
     expect(opts.headers["x-filename"]).toBe(encodeURIComponent("şema ğ PM.png"));
     expect([...opts.headers["x-filename"]].every((c) => c.charCodeAt(0) <= 0xff)).toBe(true);
+  });
+});
+
+describe("api.exportWorker in the desktop shell", () => {
+  class Reader {
+    readAsDataURL() {
+      this.result = "data:text/html;base64,PGh0bWw+";
+      this.onload();
+    }
+  }
+  beforeEach(() => {
+    vi.stubGlobal("FileReader", Reader);
+    vi.stubGlobal("window", globalThis);
+  });
+  const exported = () => vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    headers: { get: () => 'attachment; filename="chat.html"' },
+    blob: async () => new Blob(["<html></html>"], { type: "text/html" }),
+  });
+
+  it("tells the user when the shell could not write the file", async () => {
+    const show = vi.fn();
+    const postMessage = vi.fn().mockResolvedValue(false);
+    vi.stubGlobal("fetch", exported());
+    vi.stubGlobal("eosNotify", { show });
+    vi.stubGlobal("webkit", { messageHandlers: { saveFile: { postMessage } } });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await api.exportWorker("w1");
+
+    expect(postMessage.mock.calls[0][0].filename).toBe("chat.html");
+    expect(show).toHaveBeenCalledWith({ title: "Export failed", body: "chat.html could not be saved in Downloads" });
+  });
+
+  it("says nothing when the file was saved, or the shell does not answer (Electron)", async () => {
+    const show = vi.fn();
+    vi.stubGlobal("fetch", exported());
+    vi.stubGlobal("eosNotify", { show });
+    for (const answer of [true, undefined]) {
+      vi.stubGlobal("webkit", { messageHandlers: { saveFile: { postMessage: vi.fn().mockResolvedValue(answer) } } });
+      await api.exportWorker("w1");
+    }
+    expect(show).not.toHaveBeenCalled();
   });
 });

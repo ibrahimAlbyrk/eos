@@ -732,6 +732,13 @@ fn a_failed_turn_says_why_and_ends_in_an_error() {
     // A failure something else already told the user about: no notice.
     run.failed(None);
     assert_eq!(run.tags()[6..], ["turn:started", "usage", "turn:error"]);
+
+    // A turn that could not start answers why, and ends as an answered one.
+    let side = Side { sink: &run.sink, worker_id: WORKER, now_ms: run.now_ms };
+    let declined = run.mapper.turn_declined("Not signed in", &side);
+    run.out.extend(declined);
+    assert_eq!(run.tags()[9..], ["turn:started", "msg:assistant:text", "usage", "turn:ended"]);
+    assert_eq!(run.json()[12]["reason"], Value::Null);
 }
 
 #[test]

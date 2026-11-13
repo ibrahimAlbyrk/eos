@@ -80,7 +80,7 @@ export function statusCardOf(state) {
 }
 
 const OFF_REASONS = {
-  "dev-build": "This copy was built from source — it updates with eos build.",
+  "dev-build": "This copy was built from source, so it doesn't update itself — build it again for a newer version.",
   platform: "In-app updates aren't available on this system yet.",
   "read-only": "Eos can't replace itself in this folder. Move it to Applications to get updates.",
 };

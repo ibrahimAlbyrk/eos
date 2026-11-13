@@ -195,6 +195,22 @@ impl Mapper {
     /// The turn failed with no event of its own. `notice` is what the user
     /// reads about it; `None` when something else already told them.
     pub(crate) fn turn_failed(&mut self, notice: Option<&str>, side: &Side<'_>) -> Vec<AgentEvent> {
+        self.turn_without_events(notice, TurnEventPhase::Error, Some("error_during_execution"), side)
+    }
+
+    /// The turn could not start, and `notice` says why and what to do: it
+    /// is the turn's answer, and the turn ends as one that was answered.
+    pub(crate) fn turn_declined(&mut self, notice: &str, side: &Side<'_>) -> Vec<AgentEvent> {
+        self.turn_without_events(Some(notice), TurnEventPhase::Ended, None, side)
+    }
+
+    fn turn_without_events(
+        &mut self,
+        notice: Option<&str>,
+        phase: TurnEventPhase,
+        reason: Option<&str>,
+        side: &Side<'_>,
+    ) -> Vec<AgentEvent> {
         let mut out = Vec::new();
         self.start_turn(&mut out);
         out.extend(self.open.cut(side));
@@ -202,7 +218,7 @@ impl Mapper {
             self.requests += 1;
             out.push(convert::text(text.to_owned(), format!("{}:0", self.base())));
         }
-        self.end_turn(TurnEventPhase::Error, Some("error_during_execution"), side, &mut out);
+        self.end_turn(phase, reason, side, &mut out);
         out
     }
 

@@ -30,6 +30,7 @@ changes there without a decision.
 | The build stamp a paired Mac reads (`apiStamp`) | The TypeScript build's | The Rust build's own | A Mac of one kind then loads the other Mac's own dashboard instead of driving it with a mismatched one. |
 | `/metrics`, the `eos` runtime CLI, the stdio MCP servers, the launchd agent | Present | Not in the Rust app | They served or supervised a background daemon. There is none. |
 | `POST /workers/:id/events` | Served (the terminal-driven agent lane posted its rows there) | Not served | That lane is gone: every agent reports through its own session. |
+| The model list before it was ever fetched (no `models.json` yet) | `GET /api/ui-config` waited for the first fetch, up to 3 s | Answers at once with an empty list and fetches in the background; the dashboard's own refresh when it opens brings the list | Nothing waits on the network to draw the window. |
 | Closing the window | The daemon kept running in the background, with a tray icon | The app stays in the Dock; quitting stops everything, agents included | Owner's decision D8; no tray. So the phone link and the nightly dream work only while the app runs. |
 | Windows | Supported | Not yet; Windows stays on the last TypeScript release | Owner's decision D2. |
 
@@ -39,6 +40,7 @@ changes there without a decision.
 |---|---|---|---|
 | What runs an agent | The Claude Code program (`claude`), driven over its SDK | Eos's own engine (`eos-agent-sdk`) inside the app | Owner's decision D5. Most rows below follow from it. |
 | A turn that fails (network, overload, a plan limit) | Ended as a finished turn (`turn: ended`) after an "API Error …" message | Ends as a failed turn (`turn: error`, reason `error_during_execution`) after a message saying why | The engine knows the turn failed; Claude Code only had a text. The dashboard shows both; a failed turn is marked as such. |
+| A turn of an agent with no credential at all (not signed in, no key) | Claude Code's own "Not logged in · Please run /login" as the agent's answer; the turn ended | "Not signed in · Sign in to Claude under Settings › Accounts" as the agent's answer; the turn ended | The same form; it names where Eos signs in, since Eos has no `/login`. |
 | A plan limit when every sign-in is out | The `accounts_exhausted` row and a finished turn | The same row and banner; the turn ends as failed, with no text of its own | As above. The row already says what happened. |
 | The composer's `/` menu for a folder | The skills the `claude` program ships | The engine's own bundled skills; a name found twice is the one the engine's order picks | That is what a session there actually runs. |
 | Other model providers | Codex (ChatGPT), Gemini and pay-per-token presets each had a lane | Claude only. "Sign in with ChatGPT" is offered on every build (the engine has its own ChatGPT sign-in); there is no Google sign-in | Owner's decisions D3 and D4: Gemini and the presets later. |
@@ -49,7 +51,10 @@ changes there without a decision.
 | What | Today | Rust | Why |
 |---|---|---|---|
 | Exporting a chat whose name has a character beyond Latin-1 (Turkish ş, ğ, ı; Chinese; emoji) | Failed (500): Node refuses such a download header | Exports. The name travels as the web standard says: the real name UTF-8 encoded, plus a plain-ASCII stand-in. Until the dashboard reads the real name (`docs/ui-patches/export-filename.md`) the file is saved under the stand-in | The owner's own chat names hit it. |
+| An export whose file cannot be written in Downloads | Nothing was said (a line in Electron's log) | "Export failed" through the dashboard's error path (the console, and a banner while Eos is in the background) | A user who exported something must hear that it is not there. |
 | `GET /pending?parentId=…` (the questions waiting in a session's children) | 500 whenever anything was waiting | Answers the list | Today's filter read a field name the rows do not have. |
+| A message for a chat whose session is coming back (the composer wakes a chat at rest when the user starts typing) | Waited for the start, however long it took | Waits as today, in the order the messages came, for at most 30 s; then 502 `unreachable: worker` | A start that hangs must not hold a request, and every message behind it, forever. |
+| A message that cannot reach its agent | 502; the chat kept nothing of it and the composer dropped its bubble without a word | 502 as today; the chat keeps the message with the "message was not delivered" line under it, and the composer shows any refused send with that line | The message is saved before it is sent, so the agent's answer never lands above it; a message that vanished silently was a defect the end-to-end audit found. |
 
 ### The phone
 

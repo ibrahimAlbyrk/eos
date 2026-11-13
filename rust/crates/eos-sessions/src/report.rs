@@ -2,7 +2,6 @@
 //! (`POST /workers/:id/report`, `manager/routes/report-hold.ts`,
 //! `core/src/domain/report-signal.ts`).
 
-use eos_contracts::WorkerState;
 use eos_contracts::stream::topics::{LOOP_CHANGE, WORKER_REPORT};
 use eos_core::Error;
 use eos_domain::envelope::Envelope;
@@ -138,10 +137,7 @@ impl Sessions {
         text: &str,
         provenance: &str,
     ) -> Result<bool, Error> {
-        let at_rest = matches!(parent.state, WorkerState::Suspended | WorkerState::Done);
-        if at_rest && parent.session_id.as_deref().is_some_and(|s| !s.is_empty()) && !self.is_live(&parent.id) {
-            self.resume(&parent.id).await?;
-        }
+        self.revive(&parent.id).await?;
         let envelope = match worker {
             Some(worker) => Envelope::WorkerReport {
                 provenance: Some(provenance.to_owned()),

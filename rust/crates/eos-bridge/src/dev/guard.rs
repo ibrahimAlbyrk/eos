@@ -123,6 +123,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     // refused one: a refresh token is single-use, so renewing a copied sign-in would sign
     // the real app out of it.
     ("POST", "/api/artifacts/refresh"),
+    // Fetches the model list from Anthropic with the token of a sign-in, renewed the same way.
+    ("POST", "/api/model-catalog/refresh"),
     // Sync: talks to the relay's vault.
     ("POST", "/api/sync/create"),
     ("POST", "/api/sync/join"),

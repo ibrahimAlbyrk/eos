@@ -1,10 +1,8 @@
 //! Liveness and the configuration the dashboard reads when it opens
-//! (`manager/routes/health.ts`, `uiConfig.ts`), the models a backend profile
+//! (`manager/routes/health.ts`, `uiConfig.ts`, with the model list fetched
+//! again on `POST /api/model-catalog/refresh`), the models a backend profile
 //! offers (`backends.ts`: `GET /api/backends/{name}/models`), and the skills
 //! and slash commands of a folder (`commands.ts`: `GET /commands`).
-//!
-//! Read handlers only: `POST /api/model-catalog/refresh` needs a sign-in and
-//! the network, and arrives with the accounts work.
 
 use std::sync::Arc;
 
@@ -197,6 +195,11 @@ impl Module for SystemModule {
             let answer = backend_models(config.as_ref(), models.as_ref(), backends.as_ref(), &name);
             async move { Ok(Response::json(200, &answer?)) }
         };
+        let catalog = self.models.clone();
+        let refresh = move |_req: Request| {
+            let catalog = catalog.clone();
+            async move { Ok(Response::json(200, &json!({"modelCatalog": catalog.refresh_now().await}))) }
+        };
         let catalog = self.commands.clone();
         let commands = move |req: Request| {
             let catalog = catalog.clone();
@@ -211,6 +214,7 @@ impl Module for SystemModule {
             RouteDef::get("/api/backends/{name}/models", backend_models).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/health", health).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/api/ui-config", ui_config).access(Access::open().phone(Tier::Read)),
+            RouteDef::post("/api/model-catalog/refresh", refresh).access(Access::open()),
             RouteDef::get("/datetime", datetime).access(Access::open()),
         ]
     }

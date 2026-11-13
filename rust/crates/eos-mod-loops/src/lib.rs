@@ -24,8 +24,8 @@ pub use commands::{CommandResult, ShellCommands, VerifyCommands};
 
 use std::sync::{Arc, Mutex, PoisonError};
 
+use eos_contracts::LoopStatus;
 use eos_contracts::stream::topics::{LOOP_CHANGE, WORKER_EXIT};
-use eos_contracts::{LoopStatus, WorkerState};
 use eos_core::agent::OneShot;
 use eos_core::git::GitDiffs;
 use eos_core::store::{ConfigSource, Store};
@@ -205,14 +205,7 @@ impl Module for LoopsModule {
                 let id = found.worker_id.clone();
                 let worker = self.deps.store.read(move |tx| tx.workers().find(&id)).await.ok().flatten();
                 let Some(worker) = worker else { continue };
-                let sessions = &self.engine.sessions;
-                let at_rest = matches!(worker.state, WorkerState::Suspended | WorkerState::Done);
-                let resumable = worker.session_id.as_deref().is_some_and(|s| !s.is_empty());
-                if at_rest
-                    && resumable
-                    && !sessions.is_live(&worker.id)
-                    && let Err(e) = sessions.resume(&worker.id).await
-                {
+                if let Err(e) = self.engine.sessions.revive(&worker.id).await {
                     tracing::warn!(worker_id = worker.id, error = %e, "a loop's worker could not be continued");
                     continue;
                 }

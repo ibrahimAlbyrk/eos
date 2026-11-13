@@ -5,6 +5,9 @@
 //!
 //! - [`spawn`](Sessions::spawn) / [`resume`](Sessions::resume): the spawn
 //!   chokepoint — row, worktree, boot prompt, system prompt, session;
+//! - [`wake`](Sessions::wake) / [`revive`](Sessions::revive): a chat at rest
+//!   continued by whatever reaches it; whoever needs a session that is
+//!   coming up waits for it, in the order they came;
 //! - [`dispatch`](Sessions::dispatch): a message for a worker, delivered or
 //!   queued; a worker that goes idle gets its oldest queued message;
 //! - [`interrupt`](Sessions::interrupt), [`suspend`](Sessions::suspend),
@@ -40,9 +43,11 @@ mod features;
 pub mod loops;
 mod peers;
 mod report;
+mod revive;
 mod service;
 mod signal;
 mod spawn;
+mod starts;
 pub mod transition;
 mod turns;
 

@@ -19,6 +19,7 @@ use serde::Serialize;
 use crate::commands::{Clear, SlashCommand};
 use crate::peers::PeerRequests;
 use crate::signal::{self, SignalCx};
+use crate::starts::Starts;
 use crate::transition::transition_state;
 use crate::turns::Turns;
 
@@ -125,6 +126,8 @@ pub(crate) struct Inner {
     _clear: Arc<dyn SlashCommand>,
     /// What workers ask each other.
     pub(crate) peers: PeerRequests,
+    /// Workers whose session is being started, and who waits for it.
+    pub(crate) starts: Starts,
 }
 
 /// The lifecycle of agent sessions. Cheap to clone.
@@ -172,6 +175,7 @@ impl Sessions {
             commands,
             _clear: clear,
             peers,
+            starts: Starts::default(),
         };
         Self(Arc::new(inner))
     }

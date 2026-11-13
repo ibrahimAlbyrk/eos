@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use eos_accounts::{Accounts, TokioSleeper};
 use eos_auth::{
-    AccountDirs, ChatGptSignIn, ClaudeSignIn, ClaudeTokenProbe, ClaudeUsageApi, Endpoints, FilePlanLoginStore,
-    FileUsageSnapshots, FrameApiArtifacts, HostCredentials, Stores,
+    AccountDirs, ChatGptSignIn, ClaudeModels, ClaudeSignIn, ClaudeTokenProbe, ClaudeUsageApi, Endpoints,
+    FilePlanLoginStore, FileUsageSnapshots, FrameApiArtifacts, HostCredentials, Stores,
 };
 use eos_config::{ConfigFile, SettingsFile, env_from_process};
 use eos_contracts::stream::topics;
@@ -319,7 +319,7 @@ impl App {
             login_store: Arc::new(FilePlanLoginStore::new(accounts_dir.join("logins.json"))),
             dirs: Arc::new(AccountDirs::new(&accounts_dir)),
             stores: stores.clone(),
-            providers: vec![Arc::new(ClaudeSignIn::new(stores.clone())), Arc::new(ChatGptSignIn::new(stores))],
+            providers: vec![Arc::new(ClaudeSignIn::new(stores.clone())), Arc::new(ChatGptSignIn::new(stores.clone()))],
             browser: shell.as_ref().map_or_else(|| Arc::new(SystemBrowser) as Arc<dyn Browser>, |s| s.opener.clone()),
             probe: Arc::new(ClaudeTokenProbe::default()),
             usage_api: Arc::new(ClaudeUsageApi::new(clock.clone())),
@@ -359,7 +359,6 @@ impl App {
         let profile_prompt = Arc::new(ProfilePrompt::new(notes.preview.clone()));
         // Agents: the engine (built when the first session starts), and the
         // session service every feature that touches an agent goes through.
-        let models = Arc::new(CachedModelCatalog::open(&paths.join("models.json")));
         let recents = Arc::new(JsonRecents::open(paths.join("recents.json")));
         // One set of working-tree snapshots for the whole app; every git write tells them.
         let repos = crate::files::repos(&clock);
@@ -389,6 +388,9 @@ impl App {
             Some(fixed) => Arc::new(FixedCredential(Some(fixed.clone()))),
             None => accounts.clone(),
         };
+        // The model list, fetched with the sign-in a new session would use.
+        let model_list = Arc::new(ClaudeModels::new(credentials.clone(), stores.clone()));
+        let models = Arc::new(CachedModelCatalog::live(&paths.join("models.json"), model_list, clock.clone()));
         let engine = agent::engine(
             &paths.join("engine"),
             &agents,

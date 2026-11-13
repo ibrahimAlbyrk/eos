@@ -171,7 +171,10 @@
           void post("theme/snapshot").then((url) => window.__eosThemeSnapshot && window.__eosThemeSnapshot(url ?? null));
         },
       },
-      saveFile: { postMessage: (p) => send("files/save", { filename: p?.filename, base64: p?.base64 }) },
+      // Resolves `false` when the file could not be written (the export reports it).
+      saveFile: {
+        postMessage: (p) => post("files/save", { filename: p?.filename, base64: p?.base64 }).then((saved) => saved === true),
+      },
       ...(HOST ? {} : { pasteboardPaths: { postMessage: () => post("clipboard/paths").then((v) => v ?? []) } }),
       titlebarDrag: { postMessage: () => {} },
       titlebarDblClick: { postMessage: () => {} },

@@ -239,6 +239,21 @@ async fn a_failed_request_tells_the_user_and_ends_the_turn_in_an_error() {
     assert_eq!(bench.after_turns("w-1", 2).await.last().expect("the end")["phase"], "ended");
 }
 
+// Without a sign-in a turn read "Not signed in: not signed in." above a raw error box.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_without_any_credential_says_once_where_to_sign_in() {
+    let bench = Bench::new([Reply::text("never asked")]).await;
+    *bench.credentials.new_session.lock().expect("credential") = None;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("hello".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+    assert_eq!(tags(&events)[2..], ["turn:started", "msg:assistant:text", "usage", "turn:ended"]);
+    let texts: Vec<&str> =
+        events.iter().filter(|e| e["type"] == "message").filter_map(|e| e["blocks"][0]["text"].as_str()).collect();
+    assert_eq!(texts, ["Not signed in · Sign in to Claude under Settings › Accounts"]);
+    assert!(bench.mock.requests().is_empty(), "nothing went out");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stopped_session_exits_and_its_conversation_resumes() {
     let bench = Bench::new([Reply::text("the codename is BLUEFIN"), Reply::text("as I said")]).await;

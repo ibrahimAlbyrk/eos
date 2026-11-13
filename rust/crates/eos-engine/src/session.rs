@@ -26,7 +26,7 @@ use futures_util::FutureExt;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::accounts::{Accounts, limits};
+use crate::accounts::{Accounts, NOT_SIGNED_IN, limits};
 use crate::mapper::{Mapper, Side};
 use crate::registry::Registry;
 use crate::transcript;
@@ -59,9 +59,16 @@ enum TurnDone {
     /// It failed; `notice` is what the user reads, `plan` whether the
     /// session's credential was the reason.
     Failed { notice: String, plan: bool },
+    /// It could not start: `notice` says why and what to do, and is all the
+    /// turn shows (no credential: the form of Claude Code's own "Not logged in").
+    Declined { notice: &'static str },
     /// The agent is gone.
     Gone,
 }
+
+/// What an agent with no credential at all answers, in the form of Claude
+/// Code's "Not logged in · Please run /login", pointing where Eos signs in.
+const SIGN_IN_NOTICE: &str = "Not signed in · Sign in to Claude under Settings › Accounts";
 
 pub(crate) struct EngineSession {
     worker_id: String,
@@ -200,22 +207,25 @@ enum End {
     Lost,
 }
 
-fn turn_error(error: &TurnError) -> (String, bool) {
+fn turn_error(error: &TurnError) -> TurnDone {
+    let failed = |notice: String, plan| TurnDone::Failed { notice, plan };
     match error {
-        TurnError::Model(ModelError::LimitReached { .. }) => ("Usage limit reached.".to_owned(), true),
-        TurnError::Model(ModelError::Auth(why)) => (format!("Not signed in: {why}."), true),
-        TurnError::Model(error) => (format!("The request failed: {error}."), false),
-        other => (format!("The turn failed: {other}."), false),
+        TurnError::Model(ModelError::Auth(why)) if why == NOT_SIGNED_IN => {
+            TurnDone::Declined { notice: SIGN_IN_NOTICE }
+        }
+        TurnError::Model(ModelError::LimitReached { .. }) => failed("Usage limit reached.".to_owned(), true),
+        TurnError::Model(ModelError::Auth(why)) => {
+            failed(format!("Claude did not accept the credentials: {why}. Check them under Settings › Accounts."), true)
+        }
+        TurnError::Model(error) => failed(format!("The request failed: {error}."), false),
+        other => failed(format!("The turn failed: {other}."), false),
     }
 }
 
 async fn run_turn(agent: Arc<SdkAgent>, text: String) -> TurnDone {
     match agent.send_input(&text).await {
         Ok(Ok(_)) => TurnDone::Reported,
-        Ok(Err(error)) => {
-            let (notice, plan) = turn_error(&error);
-            TurnDone::Failed { notice, plan }
-        }
+        Ok(Err(error)) => turn_error(&error),
         Err(InputError::Gone(_)) => TurnDone::Gone,
         Err(InputError::Command(error)) => TurnDone::Failed { notice: error.to_string(), plan: false },
     }
@@ -224,10 +234,7 @@ async fn run_turn(agent: Arc<SdkAgent>, text: String) -> TurnDone {
 async fn rerun_turn(agent: Arc<SdkAgent>) -> TurnDone {
     match agent.resume().await {
         Ok(Ok(_)) => TurnDone::Reported,
-        Ok(Err(error)) => {
-            let (notice, plan) = turn_error(&error);
-            TurnDone::Failed { notice, plan }
-        }
+        Ok(Err(error)) => turn_error(&error),
         Err(_) => TurnDone::Gone,
     }
 }
@@ -329,6 +336,10 @@ impl Pump {
                             let side = side_of(&self.sink, &self.session);
                             let failed = self.mapper.turn_failed((!silenced).then_some(notice.as_str()), &side);
                             out.extend(failed);
+                        }
+                        TurnDone::Declined { notice } => {
+                            let side = side_of(&self.sink, &self.session);
+                            out.extend(self.mapper.turn_declined(notice, &side));
                         }
                         TurnDone::Gone => break End::Lost,
                     }

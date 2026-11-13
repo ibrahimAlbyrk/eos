@@ -11,7 +11,7 @@ use serde_json::{Value, json};
 use super::Inner;
 use crate::ask::{MAX_ANSWER, collect};
 use crate::assets::{Assets, Response, inject_script};
-use crate::bridge::save_download;
+use crate::bridge::{SAVE_FAILED, save_download};
 use crate::core::{Core, Plane};
 use crate::events::Events;
 use crate::host::{ShellHost, Theme};
@@ -294,8 +294,11 @@ impl HostViewService {
                     return Some(Err(("bad base64".to_owned(), None)));
                 };
                 let (shell, name) = (self.shell.clone(), text("filename"));
-                let _ = tokio::task::spawn_blocking(move || save_download(shell.as_ref(), &name, &bytes)).await;
-                Value::Null
+                let saved = tokio::task::spawn_blocking(move || save_download(shell.as_ref(), &name, &bytes)).await;
+                if saved.ok() != Some(true) {
+                    return Some(Err((SAVE_FAILED.to_owned(), None)));
+                }
+                Value::Bool(true)
             }
             transfer if transfer.starts_with("transfer/") => {
                 return Some(super::transfers::call(self, &views, &transfer["transfer/".len()..], body).await);

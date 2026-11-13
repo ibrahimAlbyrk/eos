@@ -354,10 +354,8 @@ impl Sessions {
         if PeerRequests::would_deadlock(&peers.entries(), from, &peer.id) {
             return Ok(PeerAsk::Declined { reason: circular(&peer) });
         }
-        // A peer at rest is woken: the request needs a live, idle session.
-        if peer.state == WorkerState::Suspended && !self.is_live(&peer.id) {
-            self.resume(&peer.id).await?;
-        }
+        // A peer at rest is woken (or one coming up waited for): the request needs a live, idle session.
+        self.revive(&peer.id).await?;
         let request_id = peers.add(from, Some(&peer.id), None, question, State::Queued);
         let note = json!({"requestId": request_id, "toWorker": peer.id, "toName": peer.name, "question": question});
         self.note_consult(from, note).await?;

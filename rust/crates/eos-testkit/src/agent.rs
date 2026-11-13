@@ -197,6 +197,8 @@ struct Shared {
     turns: Mutex<VecDeque<Turn>>,
     calls: Mutex<Vec<Call>>,
     start_error: Mutex<Option<Error>>,
+    /// The next start waits here before it does anything.
+    start_hold: Mutex<Option<Arc<Notify>>>,
     forgotten: Mutex<Vec<String>>,
     /// Turns started and not yet ended.
     running: watch::Sender<usize>,
@@ -275,6 +277,7 @@ impl ScriptedRuntime {
             turns: Mutex::default(),
             calls: Mutex::default(),
             start_error: Mutex::default(),
+            start_hold: Mutex::default(),
             forgotten: Mutex::default(),
             running: watch::Sender::new(0),
         }))
@@ -307,6 +310,14 @@ impl ScriptedRuntime {
     /// The next `start` fails with `error`.
     pub fn fail_next_start(&self, error: Error) {
         *self.0.start_error.lock().expect("start error") = Some(error);
+    }
+
+    /// The next `start` waits to be released before it begins, as a session
+    /// that takes a while to come up (its conversation read back) does.
+    pub fn hold_next_start(&self) -> Release {
+        let gate = Arc::new(Notify::new());
+        *self.0.start_hold.lock().expect("start hold") = Some(gate.clone());
+        Release(gate)
     }
 
     /// Resolves once no turn is running.
@@ -636,6 +647,10 @@ impl AgentRuntime for ScriptedRuntime {
         sink: Arc<dyn SessionSink>,
     ) -> BoxFuture<'_, Result<Arc<dyn AgentSession>, Error>> {
         Box::pin(async move {
+            let hold = self.0.start_hold.lock().expect("start hold").take();
+            if let Some(gate) = hold {
+                gate.notified().await;
+            }
             if let Some(error) = self.0.start_error.lock().expect("start error").take() {
                 return Err(error);
             }

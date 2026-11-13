@@ -14,12 +14,16 @@ use eos_platform::CredentialStore;
 use crate::registry::Registry;
 
 /// What an agent with no credential runs on: nothing. Its first request
-/// fails with a message the user can act on.
+/// fails with [`NOT_SIGNED_IN`], which the session turns into a message the
+/// user can act on.
 pub(crate) struct NotSignedIn;
+
+/// Why the request of an agent with no credential failed.
+pub(crate) const NOT_SIGNED_IN: &str = "not signed in";
 
 impl TokenSource for NotSignedIn {
     fn credential(&self) -> BoxFuture<'_, Result<Credential, ModelError>> {
-        Box::pin(std::future::ready(Err(ModelError::Auth("not signed in".into()))))
+        Box::pin(std::future::ready(Err(ModelError::Auth(NOT_SIGNED_IN.into()))))
     }
 }
 

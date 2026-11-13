@@ -28,7 +28,10 @@ describe("update beacon", () => {
 
 describe("settings status card", () => {
   it("explains why updates are off", () => {
-    expect(statusCardOf(state(status("off", { off: "dev-build" }), { current: null })).detail).toMatch(/built from source/);
+    const fromSource = statusCardOf(state(status("off", { off: "dev-build" }), { current: null })).detail;
+    expect(fromSource).toMatch(/built from source/);
+    // The same dashboard runs on the TypeScript and the Rust app: no tool only one of them has.
+    expect(fromSource).not.toMatch(/eos build/);
     expect(statusCardOf(state(status("off", { off: "read-only" }))).detail).toMatch(/Applications/);
   });
 

@@ -532,7 +532,15 @@ async fn a_saved_file_stays_in_downloads() {
     let saved = w.host.downloads_dir().join("evil_name.txt");
     assert_eq!(std::fs::read(saved).unwrap(), b"hello");
     assert_eq!(*w.host.calls.lock().unwrap(), vec!["open evil_name.txt".to_string()]);
+    assert_eq!(a.json()["value"], true);
     assert_eq!(bridge_call(&w, "files/save", json!({ "filename": "a", "base64": "***" })).await.status, 400);
+
+    // A Downloads folder that cannot take it: the page hears so, and nothing is opened.
+    *w.host.downloads.lock().unwrap() = w.host.downloads_dir().join("missing");
+    let failed = bridge_call(&w, "files/save", json!({ "filename": "b.txt", "base64": "aGVsbG8=" })).await;
+    assert_eq!(failed.status, 500);
+    assert_eq!(failed.json()["error"], "The file could not be saved in Downloads.");
+    assert_eq!(w.host.calls.lock().unwrap().len(), 1, "only the first file was opened");
     assert_eq!(sanitize_filename(""), "download");
     assert_eq!(sanitize_filename(".."), "download");
     assert_eq!(sanitize_filename("C:\\Users\\me\\report.pdf"), "report.pdf");

@@ -12,6 +12,9 @@
 //   dispatching — left the queue (drain) or dispatched directly → chat bubble
 //                 until the durable user_message confirms (or delivery_failed /
 //                 the TTL inside filterOptimistic drops it).
+//   failed      — the daemon refused it or could not be reached → the chat's
+//                 "message was not delivered" line, until a durable row (its
+//                 id echo, a delivery_failed) or the TTL settles it.
 //
 // Ownership split: pills are settled by the queue endpoint (authoritative
 // server mirror) plus clientMsgId echoes; bubbles by the event feed (id →
@@ -78,9 +81,9 @@ export function beginSend(workerId, { text, agentText, clientMsgId = null, busy 
 }
 
 // Maps the daemon's /message decision onto the item: queued → pill carrying
-// its row id; dispatched → bubble awaiting the durable event; deduped or
-// rejected → drop (the duplicate's original owns the bubble; rejections
-// surface via the caller's error handling and the delivery_failed line).
+// its row id; dispatched → bubble awaiting the durable event; deduped → drop
+// (the duplicate's original owns the bubble); rejected → failed, so the chat
+// says the message never arrived instead of it vanishing.
 export function settleSend(workerId, itemId, r) {
   const list = itemsFor(workerId);
   const idx = list.findIndex((i) => i.id === itemId);
@@ -105,8 +108,12 @@ export function settleSend(workerId, itemId, r) {
     const next = [...list];
     next[idx] = { ...item, state: "dispatching" };
     setItems(workerId, next);
-  } else {
+  } else if (r?.ok) {
     setItems(workerId, list.filter((i) => i.id !== itemId));
+  } else {
+    const next = [...list];
+    next[idx] = { ...item, state: "failed" };
+    setItems(workerId, next);
   }
 }
 

@@ -3,7 +3,7 @@
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_contracts::{
     MessageRequest, NameSource, RewindRequest, RewindTargetsResponse, SetModelRequest, SetModelResponse,
-    SetNameRequest, SetPermissionRequest, SetPermissionResponse, WorkerEventType, WorkerState,
+    SetNameRequest, SetPermissionRequest, SetPermissionResponse, WorkerEventType,
 };
 use eos_core::Error;
 use eos_core::agent::SessionError;
@@ -46,16 +46,6 @@ impl AgentsModule {
     pub(crate) async fn worker(&self, id: &str) -> Result<Option<Worker>, Error> {
         let id = id.to_owned();
         self.store.read(move |tx| tx.workers().find(&id)).await
-    }
-
-    /// A chat whose session is over is continued by the first message to it.
-    pub(crate) async fn revive(&self, worker: &Worker) -> Result<(), Error> {
-        let at_rest = matches!(worker.state, WorkerState::Suspended | WorkerState::Done);
-        let resumable = worker.session_id.as_deref().is_some_and(|s| !s.is_empty());
-        if at_rest && resumable && !self.sessions.is_live(&worker.id) {
-            self.sessions.resume(&worker.id).await?;
-        }
-        Ok(())
     }
 }
 
@@ -168,14 +158,16 @@ fn message(m: AgentsModule) -> RouteDef {
             {
                 return Err(ApiError::PermissionDenied(format!("worker {id} is not managed by {parent_id}")));
             }
-            m.revive(&target).await?;
-
             let Some(parent_id) = from_parent else {
+                // A chat at rest is continued by the message, whose delivery
+                // waits for the session behind the messages sent before it.
+                m.sessions.wake(&id).await?;
                 let outcome = m.sessions.dispatch(from_dashboard(id.clone(), body)).await?;
                 // A loop that waited for the user goes on.
                 m.sessions.resume_loop_on_input(&id).await?;
                 return Ok(delivered(&outcome));
             };
+            m.sessions.revive(&id).await?;
             let parent_name = m.worker(&parent_id).await?.and_then(|p| p.name).unwrap_or_else(|| parent_id.clone());
             let directive = MessageInput {
                 worker_id: id.clone(),
@@ -206,8 +198,8 @@ fn orchestrator_message(m: AgentsModule) -> RouteDef {
         async move {
             let body: MessageRequest = req.parse()?;
             let id = id_of(&req);
-            if let Some(target) = m.worker(&id).await? {
-                m.revive(&target).await?;
+            if m.worker(&id).await?.is_some() {
+                m.sessions.wake(&id).await?;
             }
             let input = MessageInput { require_orchestrator: true, ..from_dashboard(id, body) };
             Ok(delivered(&m.sessions.dispatch(input).await?))

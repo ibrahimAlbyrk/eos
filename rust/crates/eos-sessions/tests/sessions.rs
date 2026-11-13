@@ -173,6 +173,40 @@ impl Bench {
             ..MessageInput::default()
         }
     }
+
+    /// A dashboard send, as the composer makes it.
+    fn composed(&self, id: &str, text: &str, client: &str) -> MessageInput {
+        MessageInput { queue_when_busy: true, client_msg_id: Some(client.into()), ..self.message(id, text) }
+    }
+
+    /// A chat at rest whose session is being brought back, held until released.
+    async fn coming_back(&self, id: &str) -> eos_testkit::agent::Release {
+        self.agents.crash(id).await;
+        let start = self.agents.hold_next_start();
+        self.sessions.wake(id).await.expect("wakes");
+        until(|| async { self.worker(id).await.is_some_and(|w| w.state == WorkerState::Spawning) }).await;
+        start
+    }
+
+    /// Sends `input` from a task of its own, and returns once it waits for the session.
+    async fn send_waiting(&self, input: MessageInput) -> tokio::task::JoinHandle<Result<Dispatched, Error>> {
+        let waiting = self.sleeper.pending().len();
+        let sessions = self.sessions.clone();
+        let sent = tokio::spawn(async move { sessions.dispatch(input).await });
+        until(|| async { self.sleeper.pending().len() > waiting }).await;
+        sent
+    }
+}
+
+/// Resolves once `done` holds; a test that waits for longer has failed.
+async fn until<F: std::future::Future<Output = bool>>(done: impl Fn() -> F) {
+    for _ in 0..5_000 {
+        if done().await {
+            return;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    }
+    panic!("waited too long");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -405,6 +439,13 @@ async fn a_session_that_dies_parks_its_worker_and_resume_brings_it_back() {
     let unreachable = bench.sessions.dispatch(bench.message(&id, "anyone?")).await;
     assert_eq!(unreachable, Err(Error::Unreachable("worker".into())));
     assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Suspended);
+    let rows = bench.rows(&id).await;
+    let failed = rows.iter().rev().find(|(kind, _)| kind == "lifecycle").map(|(_, p)| p.clone());
+    assert_eq!(
+        failed,
+        Some(serde_json::json!({"phase": "delivery_failed", "text": "anyone?"})),
+        "the chat says the message it shows never arrived"
+    );
 
     bench.sessions.resume(&id).await.expect("resumes");
     assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Idle);
@@ -456,6 +497,75 @@ async fn a_message_queued_before_the_session_ended_goes_out_once_the_worker_is_r
     let (store, worker) = (bench.store(), id.clone());
     let pending = store.read(move |tx| tx.message_queue().list_pending(&worker)).await.expect("reads");
     assert!(pending.is_empty(), "nothing is left in the queue");
+}
+
+// One thread: a send counts as waiting once its task has taken its place in line.
+#[tokio::test]
+async fn messages_sent_while_a_chat_comes_back_wait_for_it_and_go_out_once_in_order() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let start = bench.coming_back(&id).await;
+
+    let first = bench.send_waiting(bench.composed(&id, "first", "c-1")).await;
+    let repeated = bench.send_waiting(bench.composed(&id, "first", "c-1")).await;
+    let second = bench.send_waiting(bench.composed(&id, "second", "c-2")).await;
+    assert!(bench.agents.sent(&id).is_empty(), "nothing reaches a session that is not up");
+    assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Spawning);
+
+    let turn = bench.agents.script_held(Turn::reply("on it"));
+    start.release();
+    assert_eq!(first.await.expect("joins"), Ok(Dispatched::Sent));
+    assert_eq!(repeated.await.expect("joins"), Ok(Dispatched::Deduped), "a repeated send is taken once");
+    let queued = second.await.expect("joins");
+    assert!(matches!(queued, Ok(Dispatched::Queued { .. })), "it waits for the first one's turn: {queued:?}");
+    turn.release();
+    bench.agents.settled().await;
+
+    let sent = bench.agents.sent(&id);
+    assert_eq!(sent.len(), 2, "{sent:?}");
+    assert!(sent[0].ends_with("first") && sent[1].ends_with("second"), "{sent:?}");
+    let rows = bench.rows(&id).await;
+    let said: Vec<&str> =
+        rows.iter().filter(|(kind, _)| kind == "user_message").filter_map(|(_, p)| p["text"].as_str()).collect();
+    assert_eq!(said, ["first", "second"]);
+    assert!(!bench.tags(&id).await.iter().any(|t| t.ends_with(":delivery_failed")));
+    assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Idle);
+}
+
+#[tokio::test]
+async fn a_start_that_fails_fails_the_messages_that_waited_for_it() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    bench.agents.fail_next_start(Error::Rule("no credential".into()));
+    let start = bench.coming_back(&id).await;
+    let waiting = bench.send_waiting(bench.composed(&id, "hello", "c-1")).await;
+    start.release();
+    assert_eq!(waiting.await.expect("joins"), Err(Error::Rule("no credential".into())));
+    assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Suspended, "parked again");
+    assert!(
+        bench.rows(&id).await.iter().all(|(kind, _)| kind != "user_message"),
+        "the chat shows nothing it did not send"
+    );
+
+    // The same message again, once the chat can come back: delivered.
+    bench.sessions.wake(&id).await.expect("wakes");
+    assert_eq!(bench.sessions.dispatch(bench.composed(&id, "hello", "c-1")).await, Ok(Dispatched::Sent));
+    bench.agents.settled().await;
+    assert_eq!(bench.agents.sent(&id).len(), 1);
+
+    // A side question waits for the chat the same way.
+    bench.agents.crash(&id).await;
+    let start = bench.agents.hold_next_start();
+    let sessions = bench.sessions.clone();
+    let revived = tokio::spawn({
+        let id = id.clone();
+        async move { sessions.revive(&id).await }
+    });
+    until(|| async { bench.sleeper.pending().len() == 1 }).await;
+    assert!(!bench.sessions.is_live(&id));
+    start.release();
+    assert_eq!(revived.await.expect("joins"), Ok(()));
+    assert!(bench.sessions.is_live(&id), "the session is up once revive returns");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
