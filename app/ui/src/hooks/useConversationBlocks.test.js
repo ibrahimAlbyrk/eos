@@ -1,5 +1,7 @@
-import { describe, it, expect } from "vitest";
-import { blocksAcrossConversation } from "./useConversationBlocks.js";
+import { describe, it, expect, beforeEach } from "vitest";
+import {
+  blocksAcrossConversation, cachedConversationRows, rememberConversationRows, coversWindow, _resetConversationRows,
+} from "./useConversationBlocks.js";
 import { collectSubagents } from "../lib/subagentRuns.js";
 import { collectArtifacts } from "../lib/artifactLink.js";
 
@@ -58,5 +60,50 @@ describe("blocksAcrossConversation", () => {
     const windowRow = launch("AG", "later");
     const artifacts = collectArtifacts(blocksAcrossConversation([older, olderDone], [windowRow], 0));
     expect(artifacts.map((a) => [a.url, a.title])).toEqual([["https://claude.ai/code/artifact/abc-123", "Old page"]]);
+  });
+});
+
+describe("conversation rows cache", () => {
+  beforeEach(() => _resetConversationRows());
+  const rows = (n) => Array.from({ length: n }, (_, i) => ({ id: i + 1 }));
+
+  it("keeps each chat's rows, so a switch-back finds them without a fetch", () => {
+    const a = rows(3);
+    rememberConversationRows("A", a, 3);
+    rememberConversationRows("B", rows(2), 2);
+    expect(cachedConversationRows("A")).toEqual({ rows: a, coveredTo: 3 });
+    expect(coversWindow(cachedConversationRows("A"), 2)).toBe(true);
+  });
+
+  it("is fetched again once the window starts after the snapshot", () => {
+    rememberConversationRows("A", rows(3), 10);
+    expect(coversWindow(cachedConversationRows("A"), 10)).toBe(true);
+    expect(coversWindow(cachedConversationRows("A"), 11)).toBe(false);
+    expect(coversWindow(cachedConversationRows("missing"), 1)).toBe(false);
+  });
+
+  it("drops the oldest chat past five", () => {
+    for (const id of ["A", "B", "C", "D", "E", "F"]) rememberConversationRows(id, rows(1), 1);
+    expect(cachedConversationRows("A")).toBeNull();
+    expect(cachedConversationRows("B")).not.toBeNull();
+    expect(cachedConversationRows("F")).not.toBeNull();
+  });
+
+  it("a refetch makes a chat the newest", () => {
+    for (const id of ["A", "B", "C", "D", "E"]) rememberConversationRows(id, rows(1), 1);
+    rememberConversationRows("A", rows(1), 2);
+    rememberConversationRows("F", rows(1), 1);
+    expect(cachedConversationRows("A")).not.toBeNull();
+    expect(cachedConversationRows("B")).toBeNull();
+  });
+
+  it("drops the oldest chats past the row budget, never the one just fetched", () => {
+    rememberConversationRows("A", rows(25_000), 1);
+    rememberConversationRows("B", rows(20_000), 1);
+    expect(cachedConversationRows("A")).toBeNull();
+    expect(cachedConversationRows("B")).not.toBeNull();
+    rememberConversationRows("C", rows(50_000), 1);
+    expect(cachedConversationRows("B")).toBeNull();
+    expect(cachedConversationRows("C")).not.toBeNull();
   });
 });

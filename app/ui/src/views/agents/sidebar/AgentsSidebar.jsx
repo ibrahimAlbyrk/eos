@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
 import { LayoutGroups } from "./LayoutGroups.jsx";
-import { buildAgentTree } from "../../../lib/tree.js";
+import { buildAgentTree, keepUnchangedNodes } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../../state/archiveStore.js";
@@ -42,10 +42,14 @@ export function AgentsSidebar({ live, variant = "full" }) {
   const showActive = status !== "archived";
   const showArchived = status !== "active";
 
-  const activeRoots = useMemo(
-    () => buildAgentTree(live.workers).map((r) => ({ ...r, __archived: false })),
-    [live.workers],
-  );
+  // A state:patch changes one worker's row: the rows of the others keep their
+  // node objects, so only that row re-renders.
+  const lastRoots = useRef([]);
+  const activeRoots = useMemo(() => {
+    const roots = keepUnchangedNodes(buildAgentTree(live.workers).map((r) => ({ ...r, __archived: false })), lastRoots.current);
+    lastRoots.current = roots;
+    return roots;
+  }, [live.workers]);
   const archivedRoots = useMemo(
     () => archivedTree(archivedRows).map((r) => ({ ...r, __archived: true })),
     [archivedRows],

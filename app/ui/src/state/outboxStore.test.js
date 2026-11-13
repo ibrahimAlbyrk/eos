@@ -256,3 +256,66 @@ describe("retract (recall)", () => {
     expect(outbox.itemsFor(W)).toHaveLength(1);
   });
 });
+
+describe("queue mirror while a composer shows the agent", () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  it("syncs once when a composer starts showing the agent", async () => {
+    const stop = outbox.watchQueue(W);
+    await flush();
+    expect(api.getWorkerQueue).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
+  it("skips the agent's own output rows and context size", async () => {
+    const stop = outbox.watchQueue(W);
+    await flush();
+    api.getWorkerQueue.mockClear();
+    outbox.noteWorkerChange("worker:change", { workerId: W, rowId: 7, type: "agent_event" });
+    outbox.noteWorkerChange("worker:change", { workerId: W, type: "context" });
+    outbox.noteWorkerChange("usage:recorded", { workerId: W, deltaCost: 0.1 });
+    await flush();
+    expect(api.getWorkerQueue).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it("syncs on the changes that can move the queue", async () => {
+    const stop = outbox.watchQueue(W);
+    await flush();
+    for (const payload of [
+      { workerId: W, queued: true },
+      { workerId: W, rowId: 8, from: "WORKING", state: "IDLE" },
+      { workerId: W, rowId: 9, type: "user_message" },
+      { workerId: W },
+    ]) {
+      api.getWorkerQueue.mockClear();
+      outbox.noteWorkerChange("worker:change", payload);
+      await flush();
+      expect(api.getWorkerQueue).toHaveBeenCalledTimes(1);
+    }
+    stop();
+  });
+
+  it("leaves agents no composer shows alone", async () => {
+    const stop = outbox.watchQueue(W);
+    await flush();
+    stop();
+    api.getWorkerQueue.mockClear();
+    outbox.noteWorkerChange("worker:change", { workerId: W, queued: true });
+    outbox.noteWorkerChange("worker:change", { workerId: "w2", queued: true });
+    await flush();
+    expect(api.getWorkerQueue).not.toHaveBeenCalled();
+  });
+
+  it("keeps mirroring while a second composer still shows the agent", async () => {
+    const stopA = outbox.watchQueue(W);
+    const stopB = outbox.watchQueue(W);
+    await flush();
+    stopA();
+    api.getWorkerQueue.mockClear();
+    outbox.noteWorkerChange("worker:change", { workerId: W, queued: true });
+    await flush();
+    expect(api.getWorkerQueue).toHaveBeenCalledTimes(1);
+    stopB();
+  });
+});

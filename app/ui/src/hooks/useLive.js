@@ -23,10 +23,12 @@ import { applyDelta, dropInterrupted as dropInterruptedThinking, finalizeWorker 
 import { isRunning } from "../lib/agentActivity.js";
 import { subtreeIds } from "../lib/tree.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
-import { cancelQueued, retract } from "../state/outboxStore.js";
+import { cancelQueued, noteWorkerChange as noteQueueChange, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange, resubscribeGitWatches } from "../state/gitChangeBus.js";
+import { noteWorkerActivity as noteGitActivity } from "../state/gitStatusStore.js";
+import { isWorkerStateChange } from "../lib/workerChange.js";
 import { emitFsChange } from "../state/fsChangeBus.js";
 import { notify } from "../lib/notify.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
@@ -78,7 +80,9 @@ export function useLive() {
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState([]);
   const [uiConfig, setUiConfig] = useState(null);
-  const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
+  // tick: every event naming a worker (workerId: the last one). changeTick: only
+  // the worker changes that are not an agent's own output (lib/workerChange.js).
+  const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null, changeTick: 0 });
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
   // The interrupted turn's turn_started_at rides along so the refetch clear can
@@ -222,7 +226,7 @@ export function useLive() {
         noteCaps(d);
         scheduleRefetch();
         refreshAttachedTranscripts();
-        setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null }));
+        setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null, changeTick: prev.changeTick + 1 }));
         emitPtyResync();
         resyncPages();
         resyncProfile();
@@ -334,10 +338,13 @@ export function useLive() {
           }
           if (!(patchesRef.current && PATCHED_TOPICS.has(data.reason))) scheduleRefetch();
           if (data.payload?.workerId) {
-            // Straight to the transcript store: the signal below is React state,
+            // Straight to the transcript and queue stores: the signal below is React state,
             // and two workers' events in one render batch keep only the last.
             notifyWorkerChanged(data.payload.workerId);
-            setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
+            noteQueueChange(data.reason, data.payload);
+            noteGitActivity(data.payload.workerId);
+            const change = isWorkerStateChange(data.reason, data.payload) ? 1 : 0;
+            setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId, changeTick: prev.changeTick + change }));
           }
         } catch {
           scheduleRefetch();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agentIdAtIndex, subtreeIds, groupRootsByProject } from "./tree.js";
+import { agentIdAtIndex, subtreeIds, groupRootsByProject, buildAgentTree, keepUnchangedNodes } from "./tree.js";
 
 const w = (id, parent_id = null, started_at = 0) => ({ id, parent_id, started_at });
 
@@ -128,5 +128,28 @@ describe("groupRootsByProject", () => {
     expect(groups.map((g) => g.name)).toEqual(["alpha", "Beta", "zeta"]);
     const after = groupRootsByProject([root("b", "/p/Beta"), root("c", "/p/alpha"), root("a", "/p/zeta")]);
     expect(after.map((g) => g.name)).toEqual(["alpha", "Beta", "zeta"]);
+  });
+});
+
+describe("keepUnchangedNodes", () => {
+  it("keeps every node object a change did not reach", () => {
+    const before = keepUnchangedNodes(buildAgentTree(workers), []);
+    const changed = workers.map((x) => (x.id === "workerB1" ? { ...x, state: "WORKING" } : { ...x }));
+    const after = keepUnchangedNodes(buildAgentTree(changed), before);
+    const byId = (roots) => new Map(roots.flatMap(function all(n) { return [[n.id, n], ...n.children.flatMap(all)]; }));
+    const [b, a] = [byId(before), byId(after)];
+    expect(a.get("orchA")).toBe(b.get("orchA"));
+    expect(a.get("workerA1")).toBe(b.get("workerA1"));
+    // The changed worker and its parent are new; the parent keeps its other children.
+    expect(a.get("workerB1")).not.toBe(b.get("workerB1"));
+    expect(a.get("workerB1").state).toBe("WORKING");
+    expect(a.get("orchB")).not.toBe(b.get("orchB"));
+  });
+
+  it("notices a child added or removed", () => {
+    const before = keepUnchangedNodes(buildAgentTree(workers), []);
+    const after = keepUnchangedNodes(buildAgentTree(workers.filter((x) => x.id !== "workerA2")), before);
+    expect(after.find((n) => n.id === "orchA").children.map((c) => c.id)).toEqual(["workerA1"]);
+    expect(after.find((n) => n.id === "orchB")).toBe(before.find((n) => n.id === "orchB"));
   });
 });

@@ -21,4 +21,21 @@ describe("mergeRowChanges", () => {
     ], "workers");
     expect(out).toEqual(rows);
   });
+
+  it("keeps the object of a row that arrives unchanged", () => {
+    const list = [{ id: "a", state: "IDLE", loop: { status: "on" } }, { id: "b", state: "IDLE" }];
+    const out = mergeRowChanges(list, [
+      { resource: "workers", op: "upsert", data: { id: "a", state: "IDLE", loop: { status: "on" } } },
+      { resource: "workers", op: "upsert", data: { id: "b", state: "WORKING" } },
+    ], "workers");
+    expect(out[0]).toBe(list[0]);
+    expect(out[1]).toEqual({ id: "b", state: "WORKING" });
+  });
+
+  it("returns the same list when nothing in it changed", () => {
+    const list = [{ id: "a", state: "IDLE" }];
+    const out = mergeRowChanges(list, [{ resource: "workers", op: "upsert", data: { id: "a", state: "IDLE" } }], "workers");
+    expect(out).toBe(list);
+    expect(mergeRowChanges(list, [{ resource: "pending", op: "upsert", data: { id: "p" } }], "workers")).toBe(list);
+  });
 });

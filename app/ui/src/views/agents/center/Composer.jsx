@@ -103,15 +103,11 @@ export function Composer({ live, worker, paneId, focused }) {
   }, [termMode]);
 
   // Pills render from the outbox (state/outboxStore.js — the single owner of
-  // the send lifecycle), which mirrors the daemon queue. Synced on selection
-  // change and on the agent's SSE signal; the store dedupes in-flight fetches.
+  // the send lifecycle), which mirrors the daemon queue while this composer
+  // shows the agent: on selection and on the changes that can move the queue.
   const [, setOutboxTick] = useState(0);
   useEffect(() => outbox.subscribe(() => setOutboxTick((t) => t + 1)), []);
-  useEffect(() => { if (selected?.id) outbox.syncQueue(selected.id); }, [selected?.id]);
-  useEffect(() => {
-    if (!selected?.id || live.eventSignal.workerId !== selected.id) return;
-    outbox.syncQueue(selected.id);
-  }, [live.eventSignal.tick]);
+  useEffect(() => (selected?.id ? outbox.watchQueue(selected.id) : undefined), [selected?.id]);
 
   // Escape exits git/terminal mode — but only the FOCUSED pane's composer owns
   // the selection provider's single Escape ref, so N mounted composers don't

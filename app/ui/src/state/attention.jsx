@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { needsAttention as policyNeedsAttention, sigOf } from "../lib/agentAttention.js";
+import { needsAttention as policyNeedsAttention, syncViewed } from "../lib/agentAttention.js";
 import { useSettings } from "./settings.jsx";
 
 // Attention state — tracks, per worker, the activity signature the user last
@@ -16,49 +16,33 @@ export function AttentionProvider({ children }) {
   // running so re-enabling doesn't surface a backlog of "unseen" output.
   const enabled = settings["notifications.sidebarAttention"] !== false;
 
-  const [viewedSigs, setViewedSigs] = useState(() => new Map());
-  // Source of truth for syncWorkers; the state mirrors it for rendering.
-  const viewedRef = useRef(viewedSigs);
+  // The viewed signatures; `version` gives the readers a new needsAttention
+  // only when an update can change what they show (see syncViewed).
+  const viewedRef = useRef(new Map());
+  const [version, setVersion] = useState(0);
 
-  // Seed unseen workers, keep the selected one in sync, and prune entries
-  // for workers that no longer exist — one pass per workers update.
+  // One pass per workers update (syncViewed).
   //
   // Dispatch only on a real change. A no-op functional update is "eagerly
   // bailed out" by React but still stays queued until this provider re-renders,
   // which it almost never does — so every workers poll pinned a full workers
   // array and the renderer ran out of memory after a few hours.
   const syncWorkers = useCallback((workers, selectedId) => {
-    const prev = viewedRef.current;
-    let next = null;
-    const ids = new Set();
-    for (const w of workers) {
-      if (!w || !w.id) continue;
-      ids.add(w.id);
-      const shouldSync = w.id === selectedId || !prev.has(w.id);
-      if (!shouldSync) continue;
-      const sig = sigOf(w);
-      if (prev.get(w.id) === sig) continue;
-      next ??= new Map(prev);
-      next.set(w.id, sig);
-    }
-    for (const id of prev.keys()) {
-      if (ids.has(id)) continue;
-      next ??= new Map(prev);
-      next.delete(id);
-    }
+    const { next, visible } = syncViewed(viewedRef.current, workers, selectedId);
     if (!next) return;
     viewedRef.current = next;
-    setViewedSigs(next);
+    if (visible) setVersion((v) => v + 1);
   }, []);
 
   // Un-gated by the sidebar-attention setting: the same "stopped with unseen
   // output" policy, for consumers with their own enable switch (split panes).
   // Bookkeeping (syncWorkers) runs regardless of any setting, so the viewed
   // signatures are always current here.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a new identity per visible change
   const needsAttentionRaw = useCallback((worker) => {
     if (!worker || !worker.id) return false;
-    return policyNeedsAttention(viewedSigs.get(worker.id), worker);
-  }, [viewedSigs]);
+    return policyNeedsAttention(viewedRef.current.get(worker.id), worker);
+  }, [version]);
 
   const needsAttention = useCallback((worker) => {
     if (!enabled) return false;

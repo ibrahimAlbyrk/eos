@@ -7,9 +7,11 @@
 // pulls the rows after the newest one held. The poll only stands in while the
 // stream is down.
 //
-// Read-ahead: after a page renders, the next older page is fetched during
-// idle and parked in `prefetched`. The scroll-up sentinel's loadOlder then
-// prepends synchronously — no network wait on the user-visible path.
+// Read-ahead: once the reader scrolls up from the tail (and after each older
+// page lands), the next older page is fetched during idle and parked in
+// `prefetched`. The scroll-up sentinel's loadOlder then prepends synchronously
+// — no network wait on the user-visible path. A chat only looked at from its
+// tail never fetches a page it does not show.
 //
 // Ownership invariant: every row lands in the entry keyed by the workerId it
 // was fetched for (plus the filterOwnRows defense), so one agent's transcript
@@ -164,7 +166,7 @@ async function fetchNewest(e, signal) {
     const own = filterOwnRows(e.workerId, rows);
     applyNewest(e, own);
     for (const cb of e.newestListeners) cb(e.workerId, own);
-    schedulePrefetch(e);
+    if (!e.following) schedulePrefetch(e);
   } catch {
     // Abort or network blip — keep the cached window (stale beats empty).
   }
@@ -362,13 +364,14 @@ function evictDetached() {
 // The view reports whether it is following the tail (pinned to bottom). While
 // following, the live window is trimmed to MAX_ATTACHED_EVENTS; when the user
 // scrolls up to read history we stop trimming (only HARD_MAX applies) so
-// loadOlder's prepends aren't immediately undone. Returning to the bottom
-// re-caps right away.
+// loadOlder's prepends aren't immediately undone, and read ahead the older
+// page. Returning to the bottom re-caps right away.
 export function setFollowing(workerId, following) {
   const e = entries.get(workerId);
   if (!e || e.following === following) return;
   e.following = following;
   if (following) { capWindow(e); publish(e); }
+  else schedulePrefetch(e);
 }
 
 // Lifecycle: polling and prefetch run only while at least one component is

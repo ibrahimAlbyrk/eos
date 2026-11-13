@@ -3,6 +3,7 @@
 // row). Children are sorted by started_at ASC inside each parent.
 
 import { basename } from "./path.js";
+import { sameJson } from "./sameJson.js";
 
 // Roots with no known project directory land in this bucket, rendered last.
 const OTHER_GROUP_KEY = "__other__";
@@ -55,6 +56,27 @@ export function buildAgentTree(workers) {
   for (const node of byId.values()) node.children.sort(sortByStart);
   roots.sort(sortByStart);
   return roots;
+}
+
+// `next` with every node that did not change swapped for its object in `prev`
+// (same fields, same children objects), so rows memoized on their node skip a
+// re-render unless their own worker or one below it changed.
+export function keepUnchangedNodes(next, prev) {
+  const before = new Map();
+  const index = (nodes) => { for (const n of nodes) { before.set(n.id, n); index(n.children); } };
+  index(prev);
+  const keep = (n) => {
+    n.children = n.children.map(keep);
+    const old = before.get(n.id);
+    return old && sameNode(old, n) ? old : n;
+  };
+  return next.map(keep);
+}
+
+function sameNode(a, b) {
+  if (a.children.length !== b.children.length || a.children.some((c, i) => c !== b.children[i])) return false;
+  const keys = Object.keys(b);
+  return keys.length === Object.keys(a).length && keys.every((k) => k === "children" || sameJson(a[k], b[k]));
 }
 
 export function flattenVisibleAgents(tree, collapsed) {

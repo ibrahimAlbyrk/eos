@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import { getSnapshot, subscribe, revalidate } from "../state/gitStatusStore.js";
+import { getSnapshot, subscribe, ensure, revalidate } from "../state/gitStatusStore.js";
 import { subscribeGitChange, STATUS_KINDS, GIT_FALLBACK_POLL_MS } from "../state/gitChangeBus.js";
 import { startPolling } from "../lib/pollInterval.js";
 
@@ -8,7 +8,8 @@ const nullSnapshot = () => null;
 
 // Git status (branch / ahead-behind / stash / conflicts / diff badge) for one
 // agent. The cached snapshot renders synchronously (instant on agent switch);
-// it revalidates on mount, when this agent's working dir actually changes on
+// it is asked for on mount only when something changed since (see
+// gitStatusStore), revalidates when this agent's working dir actually changes on
 // disk (pushed via git:change — a commit/edit/checkout from ANY source, not just
 // this agent's own turns), and on a slow backstop interval. gitDir is the repo
 // the chips describe; the dir-keyed git:change subscription is also why a
@@ -26,7 +27,7 @@ export function useGitStatus(workerId, { gitDir } = {}) {
 
   useEffect(() => {
     if (!workerId) return;
-    revalidate(workerId, gitDir);
+    ensure(workerId, gitDir);
     return startPolling(() => revalidate(workerId, gitDir), GIT_FALLBACK_POLL_MS);
   }, [workerId, gitDir]);
 

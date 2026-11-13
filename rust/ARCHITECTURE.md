@@ -2,8 +2,8 @@
 
 Eos is one Rust application: a window shell (Tauri 3 on CEF), the core, and the agent engine
 (`eos-agent-sdk`) in one process. There is no daemon and no local HTTP server. The React
-dashboard (`app/ui`) is unchanged; it reaches the core through same-origin requests the shell
-answers in-process.
+dashboard (`app/ui`) reaches the core through same-origin requests the shell answers
+in-process.
 
 This file is binding for every crate. Change it in the same commit as the code that needs the
 change, and say why in the commit message.
@@ -156,6 +156,12 @@ Two cargo workspaces. `rust/` holds every crate except the two that need Tauri a
 build cache and `scripts/check.sh`, and uses the main workspace's crates by path. The reason
 is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
 `cargo xtask layers` and `cargo xtask shell` read both workspaces without building either.
+
+- **The dashboard changes for speed, the wire does not.** `app/ui` may be changed to make
+  it faster (caching, asking less often, rendering less). Every existing route and stream
+  topic answers exactly as before — the iOS app and paired Macs read the same answers —
+  and what the dashboard needs beyond them is added beside them (a new route, query
+  parameter or topic), never by changing an existing one.
 
 - **`eos-bridge` is the shell without a window** and lives in the main workspace: the
   transport (`Req`, `Head`, `Sink`, `Body`, `Service`), the URL space, the token rule, the

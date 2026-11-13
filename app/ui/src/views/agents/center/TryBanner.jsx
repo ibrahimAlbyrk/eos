@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../api/client.js";
 import { AgentName } from "../../../lib/agentName.js";
 
@@ -9,27 +9,39 @@ import { AgentName } from "../../../lib/agentName.js";
 // restore from /try/state rather than trusting the event window.
 export function TryDeck({ live, selected }) {
   const selectedId = selected?.id ?? null;
+  const changeTick = live.eventSignal.changeTick;
   const [tries, setTries] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  const refresh = useCallback(async () => {
+  // try_applied / try_kept / try_discarded ride worker:change → changeTick —
+  // but a hub Apply stamps the CHILD's worker id while the orchestrator is
+  // selected, so any worker change voids every answer kept here, and the shown
+  // one is asked again (debounced). Until then showing an agent again reuses
+  // its answer.
+  const tickRef = useRef(changeTick);
+  tickRef.current = changeTick;
+  const answers = useRef({ tick: changeTick, byId: new Map() });
+
+  const refresh = useCallback(async ({ cached = false } = {}) => {
     if (!selectedId) { setTries([]); return; }
+    if (answers.current.tick !== tickRef.current) answers.current = { tick: tickRef.current, byId: new Map() };
+    const kept = answers.current.byId;
+    if (cached && kept.has(selectedId)) { setTries(kept.get(selectedId)); return; }
     const r = await api.getTryState(selectedId);
+    kept.set(selectedId, r.activeTries ?? []);
     setTries(r.activeTries ?? []);
   }, [selectedId]);
 
-  useEffect(() => { setError(null); refresh(); }, [refresh]);
+  useEffect(() => { setError(null); refresh({ cached: true }); }, [refresh]);
 
-  // try_applied / try_kept / try_discarded ride worker:change → eventSignal —
-  // but a hub Apply stamps the CHILD's worker id while the orchestrator is
-  // selected, so don't filter on the selected id; refresh (debounced) on any
-  // tick. /try/state is a trivial file read.
+  const seenTick = useRef(changeTick);
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || changeTick === seenTick.current) return;
+    seenTick.current = changeTick;
     const t = setTimeout(refresh, 300);
     return () => clearTimeout(t);
-  }, [live.eventSignal.tick, selectedId, refresh]);
+  }, [changeTick, selectedId, refresh]);
 
   if (!selected || tries.length === 0) return null;
 

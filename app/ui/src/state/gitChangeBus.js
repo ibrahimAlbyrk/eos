@@ -56,10 +56,24 @@ function release(dir) {
   }, LEASE_RELEASE_MS));
 }
 
+// What a cache of a dir's git answers compares to know nothing changed since it
+// fetched: a token renewed by every change of the dir (before its handlers run)
+// and by a reconnect, dropped with the dir's lease (changes would go unseen).
+const versions = new Map(); // dir -> token
+let lastVersion = 0;
+const renew = (dir) => versions.set(dir, ++lastVersion);
+
+export function gitVersion(dir) {
+  return (dir && versions.get(dir)) ?? null;
+}
+
 // Re-arm every leased watch (SSE reconnect — the daemon drops a client's leases
-// with its connection).
+// with its connection). Changes made meanwhile were not heard.
 export function resubscribeGitWatches() {
-  for (const dir of subs.keys()) api.watchGitDir(dir).catch(() => {});
+  for (const dir of subs.keys()) {
+    renew(dir);
+    api.watchGitDir(dir).catch(() => {});
+  }
 }
 
 // Subscribe to a dir's git changes, filtered to `wantedKinds`. `cb` is called
@@ -74,6 +88,7 @@ export function subscribeGitChange(dir, wantedKinds, cb) {
   if (!set) {
     set = new Set();
     subs.set(dir, set);
+    renew(dir);
     lease(dir);
   }
   set.add(handler);
@@ -83,6 +98,7 @@ export function subscribeGitChange(dir, wantedKinds, cb) {
     s.delete(handler);
     if (s.size === 0) {
       subs.delete(dir);
+      versions.delete(dir);
       release(dir);
     }
   };
@@ -91,5 +107,6 @@ export function subscribeGitChange(dir, wantedKinds, cb) {
 export function emitGitChange(dir, kinds) {
   const set = dir ? subs.get(dir) : null;
   if (!set) return;
+  renew(dir);
   for (const handler of [...set]) handler(kinds ?? []);
 }

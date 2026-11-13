@@ -1,4 +1,4 @@
-import { deriveToolLifecycle, parsePayload } from "./toolLifecycle.js";
+import { deriveToolLifecycle, parsePayload, rowPayload } from "./toolLifecycle.js";
 import { parseSkillBody } from "./skillBody.js";
 import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
 import { isGenuiTool } from "../genui/runtime/toolCall.js";
@@ -79,7 +79,7 @@ export function compactionStatus(events) {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.type !== "compaction_started" && e.type !== "compaction_completed" && e.type !== "compaction_failed") continue;
-    const last = { type: e.type, id: e.id, ts: e.ts, payload: parsePayload(e.payload) };
+    const last = { type: e.type, id: e.id, ts: e.ts, payload: rowPayload(e) };
     return { pending: e.type === "compaction_started" ? last : null, last };
   }
   return { pending: null, last: null };
@@ -96,13 +96,13 @@ export function applyRewinds(events, { bootPromptOffset = 0 } = {}) {
   let out = [];
   for (const ev of events) {
     if (ev.type !== "conversation_rewound") { out.push(ev); continue; }
-    const cut = findRewindCut(out, parsePayload(ev.payload), bootPromptOffset);
+    const cut = findRewindCut(out, rowPayload(ev), bootPromptOffset);
     if (cut >= 0) out = out.slice(0, cut).concat(out.slice(cut).filter(isSubagentEnd));
   }
   return out;
 }
 
-const isSubagentEnd = (ev) => ev.type === "agent_event" && parsePayload(ev.payload).type === "subagent_completed";
+const isSubagentEnd = (ev) => ev.type === "agent_event" && rowPayload(ev).type === "subagent_completed";
 
 // message_recalled (interrupt-before-response, SDK lane) hides the just-sent
 // user message the agent never answered: the matching user_message is dropped
@@ -114,7 +114,7 @@ export function applyRecalls(events) {
   const clientMsgIds = new Set();
   for (const ev of events) {
     if (ev.type !== "message_recalled") continue;
-    const p = parsePayload(ev.payload);
+    const p = rowPayload(ev);
     if (typeof p.recalledRowId === "number") rowIds.add(p.recalledRowId);
     if (p.clientMsgId) clientMsgIds.add(p.clientMsgId);
   }
@@ -123,7 +123,7 @@ export function applyRecalls(events) {
     if (ev.type === "message_recalled") return false; // the marker renders nothing
     if (ev.type !== "user_message") return true;
     if (rowIds.has(ev.id)) return false;
-    const ids = parsePayload(ev.payload).clientMsgIds ?? [];
+    const ids = rowPayload(ev).clientMsgIds ?? [];
     return !ids.some((c) => clientMsgIds.has(c));
   });
 }
@@ -137,7 +137,7 @@ function findRewindCut(events, payload, bootPromptOffset) {
   for (let i = events.length - 1; i >= 0; i--) {
     const e = events[i];
     if (e.type !== "user_message" && e.type !== "orchestrator_message") continue;
-    const t = normRewindText(parsePayload(e.payload).text);
+    const t = normRewindText(rowPayload(e).text);
     if (!t) continue;
     if (needles.some((n) => n === t || n.startsWith(t) || t.startsWith(n))) return i;
   }
@@ -184,7 +184,7 @@ function normalizeEvents(events) {
   const out = [];
   for (const ev of events) {
     if (ev.type !== "agent_event") { out.push(ev); continue; }
-    const e = parsePayload(ev.payload);
+    const e = rowPayload(ev);
     const ts = ev.ts;
     if (e?.type === "message" && e.role === "assistant") {
       for (const b of e.blocks ?? []) {
@@ -249,7 +249,7 @@ export function buildBlocks(rawEvents) {
   const workflowByCallId = new Map();
   for (const ev of events) {
     if (ev.type === "workflow_started" || ev.type === "workflow_completed") {
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       if (p.callId) {
         const which = ev.type === "workflow_started" ? "started" : "completed";
         workflowByCallId.set(p.callId, { ...workflowByCallId.get(p.callId), [which]: { ...p, ts: ev.ts } });
@@ -257,19 +257,19 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type === "subagent_profile") {
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       if (p.callId) profileByCallId.set(p.callId, p);
       continue;
     }
     if (ev.type === "tool_running") {
-      const tr = parsePayload(ev.payload);
+      const tr = rowPayload(ev);
       if (tr.toolUseId && isSubagentPulse(tr) && !agentSpans.has(tr.toolUseId)) {
         agentSpans.set(tr.toolUseId, { startTs: ev.ts, endTs: Infinity, background: false });
       }
       continue;
     }
     if (ev.type === "subagent_started") {
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       if (p.callId) {
         subagentStartCallIds.add(p.callId);
         const earlier = p.resumes ?? callIdByAgentId.get(p.agentId);
@@ -284,11 +284,11 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type === "subagent_completed") {
-      subagentCompletions.push({ p: parsePayload(ev.payload), ts: ev.ts });
+      subagentCompletions.push({ p: rowPayload(ev), ts: ev.ts });
       continue;
     }
     if (ev.type !== "jsonl") continue;
-    const p = parsePayload(ev.payload);
+    const p = rowPayload(ev);
     if (p.kind === "tool_use" && p.id) {
       toolUseIds.add(p.id);
       // An earlier tool_running pulse already opened this span — keep its start.
@@ -319,12 +319,12 @@ export function buildBlocks(rawEvents) {
   for (const ev of events) {
     if (ev.type === "tool_done") {
       // A pulse-only agent (no jsonl yet) ends with its tool_done.
-      const d = parsePayload(ev.payload);
+      const d = rowPayload(ev);
       if (agentSpans.get(d.toolUseId)?.background === false && !agentEndTs.has(d.toolUseId)) agentEndTs.set(d.toolUseId, ev.ts);
       continue;
     }
     if (ev.type !== "jsonl") continue;
-    const p = parsePayload(ev.payload);
+    const p = rowPayload(ev);
     if (p.kind === "tool_result" && p.toolUseId && agentSpans.has(p.toolUseId)) {
       const span = agentSpans.get(p.toolUseId);
       // A background span's tool_result is only the async-launch stub — its end
@@ -356,7 +356,7 @@ export function buildBlocks(rawEvents) {
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];
     if (ev.type !== "tool_running") continue;
-    const tr = parsePayload(ev.payload);
+    const tr = rowPayload(ev);
     // A subagent's own pulse is the agent itself, never one of its inner tools.
     if (!tr.toolUseId || toolUseIds.has(tr.toolUseId) || agentSpans.has(tr.toolUseId)) continue;
     if (tr.parentAgentToolUseId) {
@@ -482,7 +482,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "user_message") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       // anchorTs (the consuming transcript entry's creation time) is the true
       // conversation position; sentAt (dispatch time) covers emissions with no
       // sighting (unverified delivery, flush); event receipt ts is last resort.
@@ -497,7 +497,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "worker_report") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "report",
         text: payload.text ?? "",
@@ -511,7 +511,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "orchestrator_message") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "directive",
         text: payload.text ?? "",
@@ -525,7 +525,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "loop_continuation") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "loop",
         text: payload.text ?? "",
@@ -540,7 +540,7 @@ export function buildBlocks(rawEvents) {
       // these into an attempt history off the same blocks.
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "loopCheck",
         attempt: payload.attempt ?? null,
@@ -556,7 +556,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "peer_request") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       lastPeerReq = { id: payload.fromWorker ?? null, name: payload.fromName ?? null };
       out.push({
         kind: "peer-request",
@@ -573,7 +573,7 @@ export function buildBlocks(rawEvents) {
       // the ask_peer tool that triggered it (its tool_running precedes this), so
       // the header keeps the name after the peer is killed. Transparent to the
       // tool stream: no flush, no timeline item (the ask_peer tool renders it).
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       if (
         lastAskPeer &&
         !lastAskPeer.peerTo &&
@@ -585,7 +585,7 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type === "tool_running") {
-      const tr = parsePayload(ev.payload);
+      const tr = rowPayload(ev);
       if (tr.toolUseId && !toolUseIds.has(tr.toolUseId) && !attributedToolIds.has(tr.toolUseId)) {
         lastAsst = null;
         if (agentSpans.has(tr.toolUseId)) {
@@ -606,7 +606,7 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type === "lifecycle") {
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       // Delivery pipeline gave up — the message never reached the agent.
       if (payload.phase === "delivery_failed") {
         flushTools();
@@ -618,7 +618,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "turn_error") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({ kind: "turnError", reason: payload.reason ?? "", message: providerErrorMessage(payload.reason ?? ""), ts: ev.ts });
       continue;
     }
@@ -631,7 +631,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "account_switched") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "accountSwitched",
         from: payload.from ?? "",
@@ -645,7 +645,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "accounts_exhausted") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "accountsExhausted",
         rowId: ev.id,
@@ -663,7 +663,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "compaction_completed") {
       flushTools();
       lastAsst = null;
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       out.push({
         kind: "compacted", id: ev.id, ts: ev.ts,
         trigger: p.trigger ?? "auto", pct: p.pct ?? null, turns: p.turns ?? 0,
@@ -675,14 +675,14 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "compaction_failed") {
       flushTools();
       lastAsst = null;
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       out.push({ kind: "compactionFailed", ts: ev.ts, error: p.error ?? "", trigger: p.trigger ?? "auto" });
       continue;
     }
     if (ev.type === "terminal") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "terminal",
         runId: payload.runId ?? null,
@@ -699,7 +699,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "git_push") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "push",
         outcome: payload.outcome ?? "failed",
@@ -713,7 +713,7 @@ export function buildBlocks(rawEvents) {
     if (ev.type === "git_pull") {
       flushTools();
       lastAsst = null;
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       out.push({
         kind: "pull",
         outcome: payload.outcome ?? "failed",
@@ -725,7 +725,7 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type === "worktree") {
-      const payload = parsePayload(ev.payload);
+      const payload = rowPayload(ev);
       // Worker exited with uncommitted work — the worktree was preserved.
       if (payload.phase === "preserved") {
         flushTools();
@@ -741,7 +741,7 @@ export function buildBlocks(rawEvents) {
       continue;
     }
     if (ev.type !== "jsonl") continue;
-    const p = parsePayload(ev.payload);
+    const p = rowPayload(ev);
 
     if (p.kind === "assistant_text") {
       flushTools();
@@ -797,10 +797,10 @@ function movesMainThread(ev, attributedToolIds) {
   if (MAIN_THREAD_TYPES.has(ev.type)) return true;
   // A subagent's inner tools run beside the main conversation.
   if (ev.type === "tool_running" || ev.type === "tool_done") {
-    return !attributedToolIds.has(parsePayload(ev.payload).toolUseId);
+    return !attributedToolIds.has(rowPayload(ev).toolUseId);
   }
   if (ev.type === "jsonl") {
-    const p = parsePayload(ev.payload);
+    const p = rowPayload(ev);
     return !(p.kind === "tool_result" && attributedToolIds.has(p.toolUseId));
   }
   return false;
@@ -808,7 +808,7 @@ function movesMainThread(ev, attributedToolIds) {
 
 // Same clock domain as the block a row becomes (see the user/jsonl blocks above).
 function eventTs(ev) {
-  const p = parsePayload(ev.payload);
+  const p = rowPayload(ev);
   return p.tsTranscript ?? p.anchorTs ?? p.sentAt ?? ev.ts;
 }
 

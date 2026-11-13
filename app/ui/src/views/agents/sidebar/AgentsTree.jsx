@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { memo, useCallback, useMemo, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState, fmtTimeAgoShort } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
@@ -57,6 +57,9 @@ function ChatIcon() {
     </svg>
   );
 }
+
+// One element for every Recents row, so the memoized rows see the same prop.
+const CHAT_LEAD = <ChatIcon />;
 
 function RunSpinner() {
   return (
@@ -133,7 +136,7 @@ function AgentGroup({ group, capped, onRename, variant, archivedSelectedId, wait
   const collapseId = `group:${group.key}`;
   const collapsed = ui.collapsedNodes.has(collapseId);
   const selected = ui.selectedId == null && Boolean(group.path) && !ui.composer.noFolder && ui.composer.cwd === group.path;
-  const signals = { waiting, unread: ui.needsAttention };
+  const signals = useMemo(() => ({ waiting, unread: ui.needsAttention }), [waiting, ui.needsAttention]);
   const folded = collapsed
     ? group.roots.reduce((s, n) => (n.__archived ? s : strongest(s, subtreeSignal(n, signals))), null)
     : null;
@@ -196,7 +199,7 @@ function AgentGroup({ group, capped, onRename, variant, archivedSelectedId, wait
 // their own Recents section under the projects instead of a pseudo-project.
 function RecentsSection({ group, onRename, variant, archivedSelectedId, waiting }) {
   const ui = useUi();
-  const signals = { waiting, unread: ui.needsAttention };
+  const signals = useMemo(() => ({ waiting, unread: ui.needsAttention }), [waiting, ui.needsAttention]);
   const composing = ui.selectedId == null && Boolean(ui.composer.noFolder);
   const onAdd = (e) => {
     e.stopPropagation();
@@ -218,7 +221,7 @@ function RecentsSection({ group, onRename, variant, archivedSelectedId, waiting 
         variant={variant}
         archivedSelectedId={archivedSelectedId}
         signals={signals}
-        lead={<ChatIcon />}
+        lead={CHAT_LEAD}
       />
     </div>
   );
@@ -230,7 +233,7 @@ export function AgentsTree({ roots, loaded = true, onRename, variant = "full", a
   const { projects } = useProjects();
   // A pending permission or an open ask_user question (flagged on the row by
   // the daemon, so it shows without the transcript loaded) both block on the user.
-  const waiting = (w) => waitingIds.has(w.id) || w.awaiting_question === true;
+  const waiting = useCallback((w) => waitingIds.has(w.id) || w.awaiting_question === true, [waitingIds]);
   const groups = useMemo(() => {
     const raw = groupAgents(roots, prefs.groupBy, { now: Date.now(), groups: customGroups, assignments, projects });
     // Registered projects show even when empty — except in the archived-only list.
@@ -275,7 +278,9 @@ function subtreeHasId(node, id) {
   return false;
 }
 
-function TreeNode({ node, onRename, variant = "full", signals, lead = null }) {
+// Memoized: rows get their node objects kept across patches (keepUnchangedNodes),
+// so a patch re-renders only the row it changed.
+const TreeNode = memo(function TreeNode({ node, onRename, variant = "full", signals, lead = null }) {
   const ui = useUi();
   // A live goal-check on this worker flips the static "loop" badge to "checking".
   const loopCheck = useSyncExternalStore(subscribeLoopCheck, () => loopCheckFor(node.id), () => loopCheckFor(node.id));
@@ -401,4 +406,4 @@ function TreeNode({ node, onRename, variant = "full", signals, lead = null }) {
       )}
     </div>
   );
-}
+});

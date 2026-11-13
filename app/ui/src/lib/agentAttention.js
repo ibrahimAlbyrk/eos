@@ -22,3 +22,30 @@ export function needsAttention(lastViewedSig, worker) {
   if (lastViewedSig === undefined) return false;
   return lastViewedSig !== sigOf(worker);
 }
+
+// One bookkeeping pass over a workers update: seed workers never seen, keep the
+// selected one's signature current, drop workers that are gone. `next` is null
+// when nothing changed. `visible` is false when only running workers moved —
+// a running worker needs no attention whatever was viewed, so the readers need
+// not re-render for its signature changing on every patch of a turn.
+export function syncViewed(prev, workers, selectedId) {
+  let next = null;
+  let visible = false;
+  const ids = new Set();
+  for (const w of workers) {
+    if (!w || !w.id) continue;
+    ids.add(w.id);
+    if (w.id !== selectedId && prev.has(w.id)) continue;
+    const sig = sigOf(w);
+    if (prev.get(w.id) === sig) continue;
+    next ??= new Map(prev);
+    next.set(w.id, sig);
+    if (isStopped(w.state)) visible = true;
+  }
+  for (const id of prev.keys()) {
+    if (ids.has(id)) continue;
+    next ??= new Map(prev);
+    next.delete(id);
+  }
+  return { next, visible };
+}

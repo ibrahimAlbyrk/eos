@@ -22,6 +22,7 @@
 import { api } from "../api/client.js";
 import { parsePayload } from "../lib/toolLifecycle.js";
 import { filterOptimistic } from "../lib/optimisticReconcile.js";
+import { isWorkerStateChange } from "../lib/workerChange.js";
 
 const itemsByWorker = new Map(); // workerId -> [{id, clientMsgId, text, agentText, state, ts, queueId}]
 const subs = new Set();
@@ -196,6 +197,27 @@ export async function syncQueue(workerId) {
   }
 }
 
+// Workers a composer shows. Their queue is mirrored when one starts showing
+// it and on every worker change that can move it.
+const watched = new Map(); // workerId -> composers showing it
+
+export function watchQueue(workerId) {
+  watched.set(workerId, (watched.get(workerId) ?? 0) + 1);
+  void syncQueue(workerId);
+  return () => {
+    const n = (watched.get(workerId) ?? 1) - 1;
+    if (n > 0) watched.set(workerId, n);
+    else watched.delete(workerId);
+  };
+}
+
+// A message queued, drained, dismissed, or dropped by an interrupt or /clear
+// is a worker change; the agent's own output never moves the queue.
+export function noteWorkerChange(topic, payload) {
+  const workerId = payload?.workerId;
+  if (watched.has(workerId) && isWorkerStateChange(topic, payload)) void syncQueue(workerId);
+}
+
 function applySnapshot(workerId, rows) {
   const now = Date.now();
   const prev = itemsFor(workerId);
@@ -310,5 +332,6 @@ export function _reset() {
   syncState.clear();
   dismissedEarly.clear();
   subs.clear();
+  watched.clear();
   nextId = 0;
 }

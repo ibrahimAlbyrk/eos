@@ -134,11 +134,22 @@ describe("eventsStore", () => {
     detach();
   });
 
+  it("fetches no older page while the reader stays at the tail", async () => {
+    const id = freshId();
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3 * PAGE_SIZE)));
+    const detach = attach(id);
+    await tick();
+    await tick(2000);
+    expect(api.getWorkerEvents).toHaveBeenCalledTimes(1);
+    detach();
+  });
+
   it("read-ahead prefetch makes the next loadOlder a synchronous prepend", async () => {
     const id = freshId();
     api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3 * PAGE_SIZE)));
     const detach = attach(id);
     await tick();
+    setFollowing(id, false); // the reader scrolled up from the tail
     await tick(250); // idle gap → prefetch fetches the next older page
     const callsBefore = api.getWorkerEvents.mock.calls.length;
     loadOlder(id);

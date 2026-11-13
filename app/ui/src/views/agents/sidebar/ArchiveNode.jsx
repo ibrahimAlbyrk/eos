@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { fmtTimeAgoShort } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
@@ -22,7 +23,7 @@ function ArchiveTrayIcon() {
   );
 }
 
-export function ArchiveNode({ node, selectedId, isRoot = false }) {
+export const ArchiveNode = memo(function ArchiveNode({ node, selectedId, isRoot = false }) {
   const ui = useUi();
   const collapsed = !ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -65,4 +66,4 @@ export function ArchiveNode({ node, selectedId, isRoot = false }) {
       )}
     </div>
   );
-}
+});

@@ -52,14 +52,17 @@ export function fmtTimeAgo(ts, now = Date.now()) {
 }
 
 // Transcript date divider: { day: "Thu, Sep 24", time: "7:53 PM" }; the year
-// joins the day only when it isn't the current one.
+// joins the day only when it isn't the current one. The formatters are built
+// once: building one per call cost more than the rest of a transcript render.
+const DAY = { weekday: "short", month: "short", day: "numeric" };
+const dayFormat = new Intl.DateTimeFormat(undefined, DAY);
+const dayYearFormat = new Intl.DateTimeFormat(undefined, { ...DAY, year: "numeric" });
+const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+
 export function fmtDayStamp(ts, now = Date.now()) {
   const d = new Date(ts);
-  const year = d.getFullYear() !== new Date(now).getFullYear() ? "numeric" : undefined;
-  return {
-    day: d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year }),
-    time: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
-  };
+  const otherYear = d.getFullYear() !== new Date(now).getFullYear();
+  return { day: (otherYear ? dayYearFormat : dayFormat).format(d), time: timeFormat.format(d) };
 }
 
 export function fmtTokens(n) {

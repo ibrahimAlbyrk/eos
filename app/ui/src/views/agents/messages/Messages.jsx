@@ -5,7 +5,7 @@
 // This is the initial render layer; refinement (tool-group collapse, file
 // chips, table rendering) lives in dedicated sub-components.
 
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
@@ -801,10 +801,10 @@ function sameDay(a, b) {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
 
-function DayDivider({ ts }) {
+const DayDivider = memo(function DayDivider({ ts }) {
   const { day, time } = fmtDayStamp(ts);
   return <div className="msg-day-divider"><b>{day}</b> at <b>{time}</b></div>;
-}
+});
 
 // Block kinds rendered via MessageRow — they carry a right-click action bar
 // (copy/rewind/timestamp) absolutely positioned past the wrapper's edges.

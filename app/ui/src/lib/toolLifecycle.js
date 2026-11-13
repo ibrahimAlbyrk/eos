@@ -16,6 +16,20 @@ export function parsePayload(payload) {
   return payload;
 }
 
+// A fetched row never changes (the events store replaces a patched row with a
+// new object), so its payload is parsed once and every rebuild reuses it. The
+// result is shared by every reader: treat it as read-only.
+const parsedRows = new WeakMap();
+export function rowPayload(row) {
+  if (typeof row.payload !== "string") return parsePayload(row.payload);
+  let p = parsedRows.get(row);
+  if (p === undefined) {
+    p = parsePayload(row.payload);
+    parsedRows.set(row, p);
+  }
+  return p;
+}
+
 export function deriveToolLifecycle(events) {
   const jsonlResults = new Map();
   const doneResults = new Map();
@@ -26,14 +40,14 @@ export function deriveToolLifecycle(events) {
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];
     if (ev.type === "jsonl") {
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       if (p.kind === "tool_result" && p.toolUseId) {
         jsonlResults.set(p.toolUseId, { text: p.text ?? "", isError: p.isError === true, patch: p.patch ?? null });
       }
       continue;
     }
     if (ev.type === "tool_done") {
-      const p = parsePayload(ev.payload);
+      const p = rowPayload(ev);
       if (p.toolUseId) {
         done.add(p.toolUseId);
         if ((p.result ?? "") !== "") {
@@ -65,15 +79,15 @@ export function deriveToolLifecycle(events) {
 
 export function isTurnBarrier(ev) {
   if (ev.type === "hook") {
-    const e = parsePayload(ev.payload).event;
+    const e = rowPayload(ev).event;
     return e === "Stop" || e === "SessionEnd";
   }
   if (ev.type === "state") {
-    const s = parsePayload(ev.payload).state;
+    const s = rowPayload(ev).state;
     return s === "IDLE" || s === "ENDING" || s === "DONE";
   }
   if (ev.type === "lifecycle") {
-    const ph = parsePayload(ev.payload).phase;
+    const ph = rowPayload(ev).phase;
     return ph === "interrupted" || ph === "delivery_failed";
   }
   return false;
@@ -81,6 +95,6 @@ export function isTurnBarrier(ev) {
 
 export function isExitBarrier(ev) {
   if (ev.type === "exit") return true;
-  if (ev.type === "lifecycle") return parsePayload(ev.payload).phase === "pty_exit";
+  if (ev.type === "lifecycle") return rowPayload(ev).phase === "pty_exit";
   return false;
 }
