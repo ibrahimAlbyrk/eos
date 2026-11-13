@@ -1,9 +1,9 @@
 //! When to compact, and one run per worker at a time
 //! (`manager/modules/compaction/CompactionService.ts`).
 //!
-//! - automatic: at a worker's idle edge, ahead of the goal loop and the
-//!   nudges — a worker at or over the configured threshold is compacted
-//!   before anything hands it more work;
+//! - automatic: at a worker's idle edge, ahead of the nudges — a worker at
+//!   or over the configured threshold is compacted before anything hands it
+//!   more work;
 //! - by hand: the `/compact` command.
 //!
 //! An automatic run waits while the worker's background subagents and

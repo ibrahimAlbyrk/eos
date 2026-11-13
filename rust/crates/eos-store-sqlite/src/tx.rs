@@ -5,8 +5,8 @@ use std::sync::Mutex;
 
 use eos_core::Error;
 use eos_core::store::{
-    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo,
-    MessageQueueRepo, PendingRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
+    PendingRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 
@@ -43,10 +43,6 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn genui_views(&self) -> &dyn GenuiViewRepo {
-        self
-    }
-
-    fn loops(&self) -> &dyn LoopRepo {
         self
     }
 

@@ -302,6 +302,32 @@ step = "jobs-with-running"
 at = "/frames"
 reason = "Timing, not content: the job's throttled `jobs:change` (dropped by the normalizer) fell inside this step when it was recorded and left an empty frame list; in process the step is over before the throttle fires, so there is no list at all."
 
+# The Rust app has no goal loops.
+
+[[known]]
+scenario = "*"
+step = "*prompts"
+at = "/json/prompts/**"
+reason = "The prompt library holds no goal-loop prompts (`loop/*`, `tool/dynamic_loop`): the Rust app has no goal loops. The list is today's without those eight."
+
+[[known]]
+scenario = "11-chats"
+step = "export"
+at = "/text"
+reason = "An exported chat page has no goal-loop badge, and its data no `loop` per worker: the Rust app has no goal loops."
+
+[[known]]
+scenario = "12-transcript"
+step = "export-orchestrator"
+at = "/text"
+reason = "An exported chat page has no goal-loop badge, and its data no `loop` per worker: the Rust app has no goal loops."
+
+[[known]]
+scenario = "p10-chats"
+step = "*-export*"
+at = "/text"
+reason = "An exported chat page has no goal-loop badge, and its data no `loop` per worker: the Rust app has no goal loops."
+
 # The agent routes whose invalid bodies miss more than one field.
 
 [[known]]

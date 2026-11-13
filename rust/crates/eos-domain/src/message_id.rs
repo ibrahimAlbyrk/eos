@@ -112,7 +112,7 @@ pub fn reply_target_from_row(row_id: i64, kind: &str, payload: Option<&str>) -> 
     match kind {
         "user_message" => own(ReplyRefRole::User),
         "orchestrator_message" | "worker_report" | "peer_request" => own(ReplyRefRole::Agent),
-        "loop_continuation" | "report_reminder" | "permission_ask" => own(ReplyRefRole::System),
+        "report_reminder" | "permission_ask" => own(ReplyRefRole::System),
         "agent_event" => {
             if payload.get("type")?.as_str()? != "message" || payload.get("role")?.as_str()? != "assistant" {
                 return None;

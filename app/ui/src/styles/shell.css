@@ -581,33 +581,6 @@ html.native[data-os="windows"].fullscreen .window-controls { display: none; }
 .agents-row--more .ag-name { color: var(--fg-faint); font-size: var(--text-xs); }
 .agents-row--more:hover .ag-name { color: var(--fg-dim); }
 
-/* Compact "loop" badge after an agent name; status tints the pill. */
-.agents-row .ag-loop-badge {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1;
-  padding: 2px 5px;
-  border-radius: var(--r-kbd);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-.agents-row .ag-loop-badge.st-passed {
-  color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 14%, transparent);
-}
-.agents-row .ag-loop-badge.st-exhausted,
-.agents-row .ag-loop-badge.st-stopped {
-  color: var(--fg-faint);
-  background: color-mix(in srgb, var(--fg-faint) 14%, transparent);
-}
-.agents-row .ag-loop-badge.st-checking {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  animation: d-breathe 2.4s ease-in-out infinite;
-}
-@media (prefers-reduced-motion: reduce) { .agents-row .ag-loop-badge.st-checking { animation: none; } }
-
 /* New-output cue: a static 7px accent dot in place of the meta text. */
 .agents-row .ag-notify, .pane-head .ag-notify, .agents-group__meta .ag-notify {
   width: 7px; height: 7px;

@@ -42,7 +42,6 @@ eos-mod-compaction = { path = "crates/eos-mod-compaction" }
 eos-mod-dreams = { path = "crates/eos-mod-dreams" }
 eos-mod-fs = { path = "crates/eos-mod-fs" }
 eos-mod-genui = { path = "crates/eos-mod-genui" }
-eos-mod-loops = { path = "crates/eos-mod-loops" }
 eos-mod-pages = { path = "crates/eos-mod-pages" }
 eos-mod-peer = { path = "crates/eos-mod-peer" }
 eos-mod-plugins = { path = "crates/eos-mod-plugins" }

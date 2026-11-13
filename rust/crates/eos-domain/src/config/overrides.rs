@@ -51,16 +51,6 @@ partial!(McpOverride { orchestrator: AgentMcpOverride, worker: AgentMcpOverride 
 partial!(MemoryOverride { enabled: bool, sources: IndexMap<String, MemorySource> });
 partial!(BackendChoiceOverride { backend: String });
 partial!(RoleDefaultsOverride { orchestrator: BackendChoiceOverride, worker: BackendChoiceOverride });
-partial!(JudgeOverride { model: String, temperature: f64 });
-partial!(LoopOverride {
-    enabled: bool,
-    max_attempts: i64,
-    strategy: String,
-    no_progress_window: i64,
-    stop_on_no_progress: bool,
-    retry_on_failed: bool,
-    judge: JudgeOverride,
-});
 partial!(ContextOverride { warn_ratio: f64, full_ratio: f64 });
 partial!(CompactionOverride { enabled: bool, threshold: f64, timeout_ms: i64 });
 partial!(CollaborateOverride { await_timeout_ms: i64 });
@@ -148,7 +138,6 @@ partial!(
         memory: MemoryOverride,
         backends: IndexMap<String, BackendProfile>,
         defaults: RoleDefaultsOverride,
-        r#loop: LoopOverride,
         context: ContextOverride,
         compaction: CompactionOverride,
         collaborate: CollaborateOverride,
@@ -268,12 +257,6 @@ impl Validate for ConfigOverride {
         each(cx, "backends", &self.backends);
         if let Some(s) = &self.memory {
             cx.at("memory", |cx| each(cx, "sources", &s.sources));
-        }
-        if let Some(s) = &self.r#loop {
-            cx.at("loop", |cx| {
-                non_negative(cx, "maxAttempts", s.max_attempts);
-                positive(cx, "noProgressWindow", s.no_progress_window);
-            });
         }
         if let Some(s) = &self.context {
             cx.at("context", |cx| {

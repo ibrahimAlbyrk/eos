@@ -4,7 +4,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::events::WorkerState;
-use crate::loops::LoopStatus;
 use crate::primitives::{Num, de};
 use crate::validate::Validate;
 
@@ -78,8 +77,6 @@ pub struct WorkerRow {
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "de::nullable")]
     pub tasks: Option<Option<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub r#loop: Option<WorkerRowLoop>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub context: Option<WorkerContext>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub awaiting_question: Option<bool>,
@@ -124,21 +121,6 @@ pub struct WorkerRow {
 }
 
 impl Validate for WorkerRow {}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkerRowLoop {
-    pub status: LoopStatus,
-    pub attempt: Num,
-    #[serde(deserialize_with = "de::required")]
-    pub max_attempts: Option<Num>,
-    #[serde(deserialize_with = "de::required")]
-    pub last_reason: Option<String>,
-    #[serde(deserialize_with = "de::required")]
-    pub goal_summary: Option<String>,
-}
-
-impl Validate for WorkerRowLoop {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

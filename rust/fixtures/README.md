@@ -176,8 +176,9 @@ A recording keeps each step next to its answer, so `replay` needs only the recor
 `90-gates.toml` is generated: one request per registered route with no token, no body and a
 placeholder id. Regenerate it from `routes.json` when routes are added, leaving out the routes
 that open a dialog (`/pick-directory`, `/pick-file`), start an agent (`POST /workers`,
-`POST /orchestrators`), never end (`/stream`) or go to the network, and `POST /workers/:id/events`,
-which the Rust app does not have.
+`POST /orchestrators`), never end (`/stream`) or go to the network, and the routes the Rust app
+does not have (`POST /workers/:id/events`, the goal loop's `POST /orchestrators/:id/loop` and
+`…/loop/stop`).
 
 ## Normalizing
 

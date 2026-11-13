@@ -25,16 +25,9 @@ use crate::bus::{Bus, Event, Subscription};
 use crate::http::{Method, Request};
 use crate::router::{BoxFuture, Router};
 
-/// A row can change without a `worker:change`: its cost (`usage:recorded`),
-/// its loop (`loop:change`).
-pub const WORKER_TOPICS: &[&str] = &[
-    topics::WORKER_SPAWN,
-    topics::WORKER_CHANGE,
-    topics::WORKER_EXIT,
-    topics::WORKER_REMOVED,
-    topics::USAGE_RECORDED,
-    topics::LOOP_CHANGE,
-];
+/// A row can change without a `worker:change`: its cost (`usage:recorded`).
+pub const WORKER_TOPICS: &[&str] =
+    &[topics::WORKER_SPAWN, topics::WORKER_CHANGE, topics::WORKER_EXIT, topics::WORKER_REMOVED, topics::USAGE_RECORDED];
 pub const PENDING_TOPICS: &[&str] = &[topics::PENDING_CREATED, topics::PENDING_RESOLVED, "pending:ttl_expired"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

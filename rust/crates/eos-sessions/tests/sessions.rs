@@ -13,7 +13,9 @@ use eos_core::agent::AgentRuntime;
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
-use eos_sessions::{CommandAnswer, Dispatched, MessageInput, SessionDeps, SessionHooks, Sessions, SpawnRequest};
+use eos_sessions::{
+    CommandAnswer, Dispatched, MessageInput, Reported, SessionDeps, SessionHooks, Sessions, SpawnRequest,
+};
 use eos_testkit::agent::Call;
 use eos_testkit::{
     FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeSleeper, FakeWorktrees, ScriptedRuntime,
@@ -98,7 +100,7 @@ impl Bench {
             runtime: agents.port(),
             clock: clock.clone(),
             ids: Arc::new(SeqIds::new()),
-            config: Arc::new(FakeConfig::new(serde_json::json!({"loop": {"enabled": true}}))),
+            config: Arc::new(FakeConfig::new(serde_json::json!({}))),
             models: Arc::new(FakeModelCatalog::default()),
             prompts: prompts.clone(),
             worktrees: worktrees.clone(),
@@ -994,50 +996,27 @@ async fn an_archived_chat_is_hidden_and_stopped_and_only_a_purge_deletes_it() {
     assert_eq!(bench.sessions.purge_all_archived().await.expect("purges"), [chat]);
 }
 
-// manager/routes/__tests__/report*.test.ts, core/src/__tests__/report-signal.test.ts
+// manager/routes/__tests__/report*.test.ts
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn a_report_is_a_turn_of_the_parent_unless_the_workers_loop_holds_it() {
-    use eos_sessions::loops::{AttachLoop, attach_loop};
-
+async fn a_report_is_a_turn_of_the_parent() {
     let bench = Bench::new();
     let (boss, kids) = bench.team(&["a"]).await;
     let kid = &kids[0];
+    // A goal loop the TypeScript app left active on the worker holds nothing back, and stays as it was.
+    bench.temp.exec(&format!(
+        "INSERT INTO worker_loops (id, worker_id, parent_id, goal_json, strategy, status, started_at, updated_at) \
+         VALUES ('l-OLD', '{kid}', '{boss}', '{{\"summary\":\"s\"}}', 'hybrid', 'active', 1, 1)"
+    ));
     bench.agents.script(Turn::reply("noted"));
     let reported = bench.sessions.report(kid, "result: all green").await.expect("reports");
-    assert!(reported.delivered && !reported.held);
+    assert_eq!(reported, Reported { delivered: true, parent_found: true });
     bench.agents.settled().await;
     let heard = bench.agents.sent(&boss).pop().expect("the parent's turn");
     assert!(heard.starts_with("<agent_message ") && heard.contains("result: all green"), "{heard}");
     assert!(bench.temp.announced.topics().contains(&"worker:report"));
+    assert_eq!(bench.temp.count("SELECT COUNT(*) FROM worker_loops WHERE id = 'l-OLD' AND status = 'active'"), 1);
     assert_eq!(bench.sessions.report(&boss, "hi").await, Err(Error::Validation("worker has no parent".into())));
     assert_eq!(bench.sessions.report("w-nope", "hi").await, Err(Error::not_found("worker", "w-nope")));
-
-    // A looped worker's final report waits for its goal check; a question for the user goes through.
-    let goal = serde_json::from_value(serde_json::json!({"summary": "s", "criteria": [{"id": "c1", "text": "t"}]}));
-    let attach = AttachLoop {
-        caller_id: boss.clone(),
-        target: Some(kid.clone()),
-        goal: goal.expect("a goal"),
-        strategy: None,
-        limit: None,
-    };
-    let ids = SeqIds::new();
-    bench.store().write(move |tx, _| attach_loop(tx, &ids, 1, &attach).map(|_| ())).await.expect("arms");
-    let held = bench.sessions.report(kid, "Result: done").await.expect("reports");
-    assert!(held.held && !held.delivered);
-    let wanted = kid.clone();
-    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
-    assert_eq!(armed.as_ref().and_then(|l| l.held_report.as_deref()), Some("Result: done"));
-    bench.agents.script(Turn::reply("which one?"));
-    let question = bench.sessions.report(kid, "needs input: which db?").await.expect("reports");
-    assert!(question.delivered && !question.held);
-    let wanted = kid.clone();
-    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
-    assert!(armed.as_ref().is_some_and(|l| l.awaiting_input));
-    bench.sessions.resume_loop_on_input(kid).await.expect("resumes");
-    let wanted = kid.clone();
-    let armed = bench.store().read(move |tx| tx.loops().find_active_by_worker(&wanted)).await.expect("reads");
-    assert!(armed.is_some_and(|l| !l.awaiting_input), "the loop goes on once someone wrote to the worker");
 }
 
 // manager/services/__tests__/PendingPeerRequestService.test.ts, core/src/__tests__/Peers.test.ts,

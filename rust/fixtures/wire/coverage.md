@@ -4,11 +4,11 @@ Written by `wire-recorder coverage`. Do not edit by hand.
 
 - Registered routes: **314**
   - a success answer recorded: **208**
-  - only refusals and errors recorded: **102**
-  - not recorded: **4**
+  - only refusals and errors recorded: **100**
+  - not recorded: **6**
   - without a recorded success and without a reason: **0**
 - `ROUTES` keys: **270**, with a success recorded for at least one method: **183**
-- Recorded steps: **1094**
+- Recorded steps: **1089**
 
 ## Registered routes
 
@@ -313,8 +313,8 @@ In registration order (the router takes the first match).
 | `POST /orchestrators` | phone HIGH | 1 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
 | `POST /orchestrators/:id/message` | phone LOW | 3 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
 | `POST /orchestrators/:id/integrate` | phone HIGH | 3 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
-| `POST /orchestrators/:id/loop` | phone LOW | 3 | errors only | Starts, messages or resumes an agent: a success would run a model. Only refusals are recorded. |
-| `POST /orchestrators/:id/loop/stop` | phone LOW | 2 | errors only | Needs a live agent session (a running turn, an open question, a worktree branch or a queued message), which only a real agent run produces. |
+| `POST /orchestrators/:id/loop` | phone LOW | 0 | not recorded | Not in the Rust app: it has no goal loops (an orchestrator arming, amending or stopping one). Today's daemon still serves them; nothing records them. |
+| `POST /orchestrators/:id/loop/stop` | phone LOW | 0 | not recorded | Not in the Rust app: it has no goal loops (an orchestrator arming, amending or stopping one). Today's daemon still serves them; nothing records them. |
 | `POST /policy/decide` | local-only | 20 | recorded |  |
 | `POST /api/policy/rule` | phone HIGH | 5 | recorded |  |
 | `GET /pending` | phone READ | 7 | recorded |  |
@@ -437,8 +437,8 @@ In registration order (the router takes the first match).
 | `metrics` | `/metrics` | GET recorded |
 | `modelCatalogRefresh` | `/api/model-catalog/refresh` | POST not recorded |
 | `orchestratorIntegrate` | `/orchestrators/:p0/integrate` | POST errors only |
-| `orchestratorLoop` | `/orchestrators/:p0/loop` | POST errors only |
-| `orchestratorLoopStop` | `/orchestrators/:p0/loop/stop` | POST errors only |
+| `orchestratorLoop` | `/orchestrators/:p0/loop` | POST not recorded |
+| `orchestratorLoopStop` | `/orchestrators/:p0/loop/stop` | POST not recorded |
 | `orchestratorMessage` | `/orchestrators/:p0/message` | POST errors only |
 | `orchestrators` | `/orchestrators` | GET recorded, POST errors only |
 | `page` | `/api/pages/:p0` | GET recorded, PUT recorded, DELETE recorded |

@@ -29,8 +29,6 @@ import { FindBar } from "./FindBar.jsx";
 import { ScrollToBottom } from "./ScrollToBottom.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
-import { MessageLoop } from "./MessageLoop.jsx";
-import { LoopStatus } from "./LoopStatus.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
@@ -40,7 +38,6 @@ import { publishLoadedSubagents, publishSubagents } from "../../../state/subagen
 import { publishArtifacts } from "../../../state/artifactsStore.js";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
-import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { replyTargetOf } from "../../../lib/replyTarget.js";
@@ -62,7 +59,6 @@ import { NebulaOverlay } from "./compaction/NebulaOverlay.jsx";
 import { setCompacting } from "../../../state/compactionStore.js";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
-import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import { onReveal } from "../../../state/transcriptReveal.js";
 import * as outbox from "../../../state/outboxStore.js";
@@ -339,11 +335,6 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   useEffect(() => subscribeGenui((wid, structural) => {
     if (structural && wid === selectedId) setGenuiTick((t) => t + 1);
   }), [selectedId]);
-  // Live goal-check progress streams outside the event store too — re-render the
-  // "checking" indicator on each phase update.
-  const [loopCheckTick, setLoopCheckTick] = useState(0);
-  useEffect(() => subscribeLoopCheck(() => setLoopCheckTick((t) => t + 1)), []);
-
   // Outbox bubbles (sending/dispatching) overlay the durable blocks the same
   // way — they live in a module store, not React state.
   const [outboxTick, setOutboxTick] = useState(0);
@@ -600,13 +591,6 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents" || lastBlock.kind === "view" || lastBlock.kind === "workflow");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
-  // Live goal-check (transient store) — shown only while the worker is idle under
-  // an active check; once it goes busy (a continuation) the normal busy spark
-  // takes over. The durable per-attempt verdicts are the loopCheck blocks.
-  const liveCheck = useMemo(() => loopCheckFor(selectedId), [selectedId, loopCheckTick]);
-  const showCheck = liveCheck != null && !agentBusy;
-  const loopChecks = useMemo(() => blocks.filter((b) => b.kind === "loopCheck"), [blocks]);
-
   // Layout effect: the initial scroll must land before paint, otherwise the
   // content flashes at the top and visibly jumps to the restored position.
   // Subsequent appends need no handling here — the hook's ResizeObserver
@@ -761,12 +745,10 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
             />
           </div>
         )}
-        {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} history={loopChecks} />}
         {items.map((it) => (it.kind === "fold" ? renderFold(it) : renderRow(it.block, it.index)))}
-        {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
         {pathLinks.layer}
         {artifactLinks.layer}
-        {showAnchor && !showCheck && !compaction.pending && (
+        {showAnchor && !compaction.pending && (
           <ProcessingLine
             busy={agentBusy}
             elapsed={turnElapsedMs >= 1000 ? fmtElapsedShort(turnElapsedMs) : null}
@@ -814,7 +796,7 @@ const DayDivider = memo(function DayDivider({ ts }) {
 // Block kinds rendered via MessageRow — they carry a right-click action bar
 // (copy/rewind/timestamp) absolutely positioned past the wrapper's edges.
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
-const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
+const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "assistant"]);
 // Views are the heaviest blocks (tables, carousels, charts, maps), so they keep
 // content-visibility; .cv-view widens the paint box for their drop shadow (see
 // transcript.css). Their selects are native, so nothing else reaches past it.
@@ -830,8 +812,6 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
-    case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageLoop text={b.text} /></MessageRow>;
-    case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={b.startTs != null ? b.ts - b.startTs : undefined} />;
     case "toolGroup": {

@@ -399,68 +399,6 @@
     },
     {
       "step": {
-        "name": "loop-invalid",
-        "request": "POST /orchestrators/o-ORCH/loop",
-        "body": {
-          "op": "spin"
-        },
-        "status": 400
-      },
-      "route": "POST /orchestrators/:id/loop",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "error": "invalid request: op: Invalid enum value. Expected 'attach' | 'amend' | 'stop', received 'spin'"
-        },
-        "status": 400
-      }
-    },
-    {
-      "step": {
-        "name": "loop-attach-without-goal",
-        "request": "POST /orchestrators/o-ORCH/loop",
-        "body": {
-          "op": "attach",
-          "target": "w-KID2"
-        },
-        "status": 400
-      },
-      "route": "POST /orchestrators/:id/loop",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "error": "goal required to attach a loop"
-        },
-        "status": 400
-      }
-    },
-    {
-      "step": {
-        "name": "loop-stop-none",
-        "request": "POST /orchestrators/o-ORCH/loop/stop",
-        "body": {
-          "op": "stop",
-          "target": "w-KID2"
-        },
-        "status": 404
-      },
-      "route": "POST /orchestrators/:id/loop/stop",
-      "response": {
-        "headers": {
-          "content-type": "application/json"
-        },
-        "json": {
-          "error": "loop not found: w-KID2"
-        },
-        "status": 404
-      }
-    },
-    {
-      "step": {
         "name": "integrate-unknown",
         "request": "POST /orchestrators/o-nope00/integrate",
         "body": {},

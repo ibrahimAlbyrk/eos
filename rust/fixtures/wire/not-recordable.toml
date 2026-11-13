@@ -15,7 +15,6 @@ routes = [
   "POST /orchestrators",
   "POST /orchestrators/:id/message",
   "POST /orchestrators/:id/integrate",
-  "POST /orchestrators/:id/loop",
 ]
 
 [[note]]
@@ -40,7 +39,6 @@ routes = [
   "POST /workers/:id/try/discard",
   "GET /workers/:id/conflicts/file",
   "POST /workers/:id/conflicts/resolve",
-  "POST /orchestrators/:id/loop/stop",
 ]
 
 [[note]]
@@ -155,4 +153,11 @@ routes = [
 why = "Not in the Rust app: the terminal-driven agent lane posted its rows here, and every agent now reports through its session. Today's daemon still serves it; nothing records it."
 routes = [
   "POST /workers/:id/events",
+]
+
+[[note]]
+why = "Not in the Rust app: it has no goal loops (an orchestrator arming, amending or stopping one). Today's daemon still serves them; nothing records them."
+routes = [
+  "POST /orchestrators/:id/loop",
+  "POST /orchestrators/:id/loop/stop",
 ]

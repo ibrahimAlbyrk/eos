@@ -166,7 +166,7 @@ fn the_shipped_library_is_the_typescript_trees() {
 #[test]
 fn every_prompt_reads_and_renders_as_in_typescript() {
     let library: Library = fixture("library.json");
-    assert!(library.prompts.len() >= 150);
+    assert!(library.prompts.len() >= 140);
 
     let raw = LibraryPromptSource::embedded().list();
     assert_eq!(raw.len(), library.prompts.len());

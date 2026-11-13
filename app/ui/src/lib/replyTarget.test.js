@@ -6,7 +6,7 @@ describe("replyTargetOf", () => {
     expect(replyTargetOf({ kind: "user", rowId: 1, text: "a", ts: 5 })).toEqual({ rowId: 1, role: "user", text: "a", ts: 5 });
     expect(replyTargetOf({ kind: "assistant", rowId: 2, text: "b", ts: 6 })?.role).toBe("assistant");
     expect(replyTargetOf({ kind: "report", rowId: 3, text: "c" })?.role).toBe("agent");
-    expect(replyTargetOf({ kind: "loop", rowId: 4, text: "d" })?.role).toBe("system");
+    expect(replyTargetOf({ kind: "directive", rowId: 4, text: "d" })?.role).toBe("agent");
   });
 
   it("refuses blocks with no durable row to point at", () => {

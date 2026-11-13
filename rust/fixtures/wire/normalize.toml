@@ -34,11 +34,6 @@ find = '\bp-[0-9a-z]{8}\b'
 token = "ask"
 
 [[rule]]
-about = "loop ids"
-find = '\bl-[0-9a-z]{8}\b'
-token = "loop"
-
-[[rule]]
 about = "page ids"
 find = '\bpg-[0-9a-z]{8,32}\b'
 token = "page"

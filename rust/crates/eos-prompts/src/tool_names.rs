@@ -27,7 +27,6 @@ pub const TOOL_NAME_VARS: &[(&str, &str)] = &[
     ("LIST_AVAILABLE_WORKERS_TOOL", "list_available_workers"),
     ("CREATE_WORKER_TOOL", "create_worker"),
     ("INTEGRATE_WORKERS_TOOL", "integrate_workers"),
-    ("DYNAMIC_LOOP_TOOL", "dynamic_loop"),
     ("BROWSER_NAVIGATE_TOOL", "browser_navigate"),
     ("BROWSER_SNAPSHOT_TOOL", "browser_snapshot"),
     ("BROWSER_FIND_TOOL", "browser_find"),

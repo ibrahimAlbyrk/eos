@@ -1,8 +1,8 @@
 //! Context compaction (`manager/modules/compaction`): a tool-less summarizer
 //! on the agent's own model condenses the conversation, and the session
 //! continues from the summary. It runs at a worker's idle edge once the
-//! context is as full as the configured threshold (ahead of the goal loop and
-//! the nudges), or on `/compact [focus]`. While it runs the worker is held:
+//! context is as full as the configured threshold (ahead of the nudges), or
+//! on `/compact [focus]`. While it runs the worker is held:
 //! messages to it queue.
 //!
 //! [`rules`] are the pure decisions, [`CompactionService`] decides when and
@@ -30,9 +30,8 @@ pub use service::CompactionService;
 /// The kind of the job the Jobs tab shows while a context is compacted.
 pub const JOB_KIND: &str = "compaction";
 
-/// Ahead of the goal loop (20), the report nudge (30) and the context
-/// watcher (40): a worker at or over the threshold is compacted before
-/// anything hands it more work.
+/// Ahead of the report nudge (30) and the context watcher (40): a worker at
+/// or over the threshold is compacted before anything hands it more work.
 const IDLE_ORDER: i32 = 10;
 
 /// What compaction is built from.

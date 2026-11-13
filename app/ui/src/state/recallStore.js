@@ -1,6 +1,6 @@
 // recallStore — the ephemeral "interrupt-before-response" recall: the just-sent,
 // unanswered message's text, returned to the composer that OWNS it. A module
-// singleton (like outboxStore / loopCheckStore) so the owning pane's Composer
+// singleton (like outboxStore / thinkingStore) so the owning pane's Composer
 // reads it directly — no selectedId↔focusedLeafId detour, no re-derivation on
 // re-render. Bus-fed by useLive's "message:recalled" handler; consumed exactly
 // ONCE by the composer whose worker.id === recall.workerId.

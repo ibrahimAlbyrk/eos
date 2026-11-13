@@ -230,8 +230,8 @@ impl Worker {
         self.archived_at.is_some()
     }
 
-    /// The row as clients read it, without the parts a route adds (`loop`,
-    /// `context`, `awaiting_question`, `prompt_clipped`).
+    /// The row as clients read it, without the parts a route adds (`context`,
+    /// `awaiting_question`, `prompt_clipped`).
     pub fn to_row(&self) -> WorkerRow {
         let flag = |on: bool| Some(Some(Num::from(i64::from(on))));
         let int = |v: Option<i64>| Some(v.map(Num::from));
@@ -261,7 +261,6 @@ impl Worker {
             cost_usd: Some(Some(Num::from(self.usage.cost_usd))),
             last_context_tokens: int(self.last_context_tokens),
             tasks: text(&self.tasks),
-            r#loop: None,
             context: None,
             awaiting_question: None,
             is_orchestrator: flag(self.is_orchestrator),

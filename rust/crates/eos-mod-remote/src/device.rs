@@ -58,7 +58,7 @@ fn same(payload: &Option<Value>, focus: &Option<Option<String>>) -> bool {
 /// it as patches or not at all.
 fn on_screen(topic: &str, focus: &FocusFrame, keys: &PayloadKeys, rows: bool, pty_subs: &HashSet<String>) -> bool {
     match topic {
-        "agent:delta" | "terminal:chunk" | "terminal:done" | "loop:check" => same(&keys.worker_id, &focus.worker),
+        "agent:delta" | "terminal:chunk" | "terminal:done" => same(&keys.worker_id, &focus.worker),
         // Only a phone that does not take pushed rows fetches the transcript on this nudge.
         "worker:change" => !rows && same(&keys.worker_id, &focus.worker),
         "pty:session" | "pty:exit" => true,
@@ -142,7 +142,7 @@ mod tests {
     fn a_focused_phone_gets_the_open_workers_events_and_terminal_changes() {
         let on = focus(json!({ "active": true, "worker": "w1", "pty": "p1" }));
         let none = HashSet::new();
-        for topic in ["agent:delta", "terminal:chunk", "terminal:done", "loop:check"] {
+        for topic in ["agent:delta", "terminal:chunk", "terminal:done"] {
             assert!(on_screen(topic, &on, &keys(json!({ "workerId": "w1" })), true, &none), "{topic}");
             assert!(!on_screen(topic, &on, &keys(json!({ "workerId": "w2" })), true, &none), "{topic}");
         }

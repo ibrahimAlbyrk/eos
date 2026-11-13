@@ -43,13 +43,9 @@ struct Bench {
 
 impl Bench {
     fn new(temp: TempStore) -> Self {
-        Self::with_config(temp, json!({}))
-    }
-
-    fn with_config(temp: TempStore, config: Value) -> Self {
         let agents = ScriptedRuntime::new();
         let (tries, desktop) = (Arc::new(FakeTries::default()), Arc::new(FakeDesktop::default()));
-        let config = Arc::new(FakeConfig::new(config));
+        let config = Arc::new(FakeConfig::new(json!({})));
         let (settings, scratch) = (Arc::new(FakeSettings::default()), Arc::new(FakeScratch::default()));
         let worktrees = Arc::new(FakeWorktrees::default());
         let repo_state = FakeRepoState::new();
@@ -332,11 +328,10 @@ async fn a_worker_is_spawned_from_its_definition() {
     );
 }
 
-// manager/commands/__tests__/spawn-worker*.test.ts, core/src/__tests__/worktree-policy.test.ts,
-// manager/services/__tests__/arm-loop-at-spawn.test.ts
+// manager/commands/__tests__/spawn-worker*.test.ts, core/src/__tests__/worktree-policy.test.ts
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_request() {
-    let bench = Bench::with_config(TempStore::seeded("/"), json!({"loop": {"enabled": true, "maxAttempts": 7}}));
+async fn where_a_worker_works_its_mode_and_its_prompt_come_from_the_request() {
+    let bench = Bench::new(TempStore::seeded("/"));
     let spawn = async |body: Value| {
         bench.agents.script(Turn::reply("done"));
         let spawned = bench.post("/workers", body).await;
@@ -381,32 +376,16 @@ async fn where_a_worker_works_its_mode_its_prompt_and_its_loop_come_from_the_req
         unknown.1
     );
 
-    // A loop is armed by an orchestrator, on a worker of its own.
-    let unparented = spawn(json!({"prompt": "go", "cwd": "/repo", "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}}})).await;
-    assert_eq!(unparented.0, 400);
-    let not_orchestrator = spawn(json!({
-        "prompt": "go", "cwd": "/repo", "parentId": row.id, "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}},
-    }))
-    .await;
-    assert_eq!(not_orchestrator.0, 403, "{}", not_orchestrator.1);
-    // A goal that could never pass is refused before a worker exists.
-    let unpassable = spawn(json!({
-        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH",
-        "loop": {"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}, "strategy": "command"},
-    }))
-    .await;
-    assert_eq!(unpassable.0, 400, "{}", unpassable.1);
-    // The loop is armed on the new worker, with the configured cap when the request names none.
-    let looped = spawn(json!({
-        "prompt": "go", "cwd": "/repo", "parentId": "o-ORCH",
-        "loop": {"goal": {"summary": "tests pass", "criteria": [{"id": "c1", "text": "tests pass", "verify": "true"}]}},
-    }))
-    .await;
-    assert_eq!(looped.0, 201, "{}", looped.1);
-    let id = looped.1["id"].as_str().expect("an id").to_owned();
-    let store: Arc<dyn Store> = bench.temp.port();
-    let armed = store.read(move |tx| tx.loops().find_active_by_worker(&id)).await.expect("reads").expect("a loop");
-    assert_eq!((armed.parent_id.as_deref(), armed.max_attempts), (Some("o-ORCH"), Some(7)));
+    // A goal loop is refused, whatever its shape, before a worker exists; a `null` one is no loop.
+    let workers = bench.temp.count("SELECT COUNT(*) FROM workers");
+    for asked in [json!({"goal": {"summary": "s", "criteria": [{"id": "c1", "text": "tests pass"}]}}), json!(5)] {
+        let looped = spawn(json!({"prompt": "go", "cwd": "/repo", "parentId": "o-ORCH", "loop": asked})).await;
+        let refused = json!({"error": "goal loops are not available — spawn the worker without `loop`"});
+        assert_eq!(looped, (400, refused));
+    }
+    assert_eq!(bench.temp.count("SELECT COUNT(*) FROM workers"), workers, "nothing is left behind");
+    let plain = spawn(json!({"prompt": "go", "cwd": "/repo", "parentId": "o-ORCH", "loop": null})).await;
+    assert_eq!(plain.0, 201, "{}", plain.1);
 
     let other_lane = spawn(json!({"prompt": "go", "cwd": "/repo", "backendKind": "codex-cli"})).await;
     assert_eq!(other_lane, (400, json!({"error": "backend \"codex-cli\" is not enabled"})));

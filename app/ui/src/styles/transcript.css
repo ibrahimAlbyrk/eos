@@ -643,20 +643,6 @@
   transition: transform 150ms ease;
   flex-shrink: 0;
 }
-/* "loop" pill beside a spawn_worker's agent — armed-at-spawn cue */
-.tool-item-header .ti-loop-badge {
-  flex-shrink: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  line-height: 1;
-  padding: 4px 8px;
-  border-radius: var(--r-pill);
-  color: var(--fg-dim);
-  background: var(--lg-chip-bg);
-  box-shadow: var(--lg-chip-sh);
-}
-.ti-loop-detail { color: var(--accent); margin-bottom: 6px; }
-
 /* running: a light sweep across the text (Sheen.jsx), drawn without
    repainting it — the host's text in the base tone, a bright copy under a
    masked window, both moved by transform. The crest travels -55% → 155% of the
@@ -1137,7 +1123,7 @@
 .task-row-subject { flex: 1; min-width: 0; color: var(--fg); font-size: var(--text-sm); word-break: break-word; }
 .task-row-owner { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
 
-/* ── report / directive / loop message detail ─────────────────────────── */
+/* ── report / directive message detail ────────────────────────────────── */
 .report-detail { padding: 12px 16px; }
 .report-detail-text {
   font-size: var(--text-base);
@@ -1146,78 +1132,6 @@
   white-space: pre-wrap;
   word-break: break-word;
 }
-
-/* ── loop status card ─────────────────────────────────────────────────── */
-.loop-status {
-  padding: 12px 14px;
-  border-radius: var(--r-pop);
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.loop-status-header { display: flex; align-items: center; gap: 9px; }
-.loop-status-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--fg-faint);
-  flex-shrink: 0;
-}
-.loop-status.st-active .loop-status-dot { background: var(--warn); animation: d-breathe 2.4s ease-in-out infinite; }
-.loop-status.st-passed .loop-status-dot { background: var(--ok); }
-.loop-status.st-exhausted .loop-status-dot,
-.loop-status.st-stopped .loop-status-dot { background: var(--fg-faint); }
-.loop-status-label { font-size: var(--text-sm); font-weight: 500; color: var(--fg); }
-.loop-status-attempt {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-  color: var(--fg-faint);
-}
-.loop-status-goal {
-  font-size: var(--text-base);
-  line-height: 1.6;
-  color: var(--fg-mid);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.loop-status-reason {
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--fg-faint);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.loop-status-history {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding-top: 4px;
-  font-family: var(--font-mono);
-  font-size: 11.5px;
-}
-.loop-status-attempt-row { display: flex; gap: 10px; line-height: 1.45; }
-.loop-status-attempt-row .lsa-n { color: var(--fg-faint); flex-shrink: 0; }
-.loop-status-attempt-row .lsa-outcome { flex-shrink: 0; }
-.loop-status-attempt-row.met .lsa-outcome { color: var(--ok); }
-.loop-status-attempt-row.unmet .lsa-outcome { color: var(--err); }
-.loop-status-attempt-row.escalated .lsa-outcome { color: var(--warn); }
-.loop-status-attempt-row .lsa-reason { color: var(--fg-dim); word-break: break-word; }
-
-/* durable per-attempt goal-check verdict — thin marker line in scrollback */
-.loop-check-line {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--fg-dim);
-  padding: 2px 0;
-}
-.loop-check-line .lc-icon { flex-shrink: 0; color: var(--fg-faint); }
-.loop-check-line.ok .lc-icon { color: var(--ok); }
-.loop-check-line.escalated .lc-icon { color: var(--warn); }
-.loop-check-line .lc-reason { color: var(--fg-faint); word-break: break-word; }
 
 /* ── thinking line — live: faint streaming text; done: "Thought for Xs" row ─ */
 .thinking-line {
@@ -1337,15 +1251,12 @@
 }
 .activity-line .mono { font-family: var(--font-mono); }
 
-/* The star (ActivityStar.jsx) — the Eos mark. Busy / goal check: it turns and
-   its halo breathes. Idle: still, a touch smaller, grey. A state only sets the
+/* The star (ActivityStar.jsx) — the Eos mark. Busy: it turns and its halo
+   breathes. Idle: still, a touch smaller, grey. A state only sets the
    --al-* colors; idle falls back to the greys. */
 .activity-line.is-busy {
   --al-ray: var(--al-blue); --al-hi: var(--al-blue-hi); --al-core: #fff;
   --al-glow: var(--al-blue-glow);
-}
-.activity-line.is-check {
-  --al-ray: #b98d4f; --al-hi: #f3e2c0; --al-core: #fff8ec; --al-glow: 201, 161, 99;
 }
 .al-star { flex-shrink: 0; overflow: visible; }
 .al-star .al-rays, .al-star .al-core { transform-box: view-box; transform-origin: 0 0; }
@@ -1364,12 +1275,12 @@
    agent works. */
 .al-star .al-glow { display: none; }
 .al-star .al-glow rect { fill: var(--al-ray, var(--fg-mute)); }
-.activity-line:is(.is-busy, .is-check) .al-glow {
+.activity-line.is-busy .al-glow {
   display: inline;
   filter: drop-shadow(0 0 3.5px rgba(var(--al-glow), 0.85));
   animation: al-halo 2.4s ease-in-out infinite;
 }
-.activity-line:is(.is-busy, .is-check) :is(.al-rays, .al-core) { transform: none; }
+.activity-line.is-busy :is(.al-rays, .al-core) { transform: none; }
 /* The turn rotates the whole <svg> (an HTML-level box), not its inner <g>: a
    transform on an SVG child is re-applied by every main frame and dirties SVG
    layout (layout, paint, layerize); on the <svg> it stays on the compositor. The
@@ -1377,7 +1288,6 @@
    is-done keeps the same spin, paused, so the star stops where it is rather
    than snapping upright; going busy again resumes it from there. */
 .activity-line.is-busy .al-star { animation: al-spin 6s linear infinite; }
-.activity-line.is-check .al-star { animation: al-spin 9s linear infinite; }
 
 /* Busy → idle in place (ProcessingLine): a short drift carries the frozen spin
    to rest, easing out, while the blue drains — once, instead of snapping grey.

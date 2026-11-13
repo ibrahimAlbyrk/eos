@@ -62,11 +62,7 @@ fn report(m: AgentsModule) -> RouteDef {
             {
                 crate::git::auto_apply(&m, &worker);
             }
-            let mut answer = json!({"ok": true, "delivered": done.delivered});
-            if let (true, Some(fields)) = (done.held, answer.as_object_mut()) {
-                fields.insert("held".into(), true.into());
-            }
-            Ok(Response::json(200, &answer))
+            Ok(Response::json(200, &json!({"ok": true, "delivered": done.delivered})))
         }
     })
     .access(Access::open().local_only())

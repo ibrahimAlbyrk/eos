@@ -1,8 +1,7 @@
-import { memo, useCallback, useMemo, useSyncExternalStore } from "react";
+import { memo, useCallback, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState, fmtTimeAgoShort } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
-import { loopBadgeTitle } from "../../../lib/loopDisplay.js";
 import { groupAgents } from "../../../lib/agentGrouping.js";
 import { sortRoots } from "../../../lib/agentSorting.js";
 import { ownSignal, strongest, subtreeSignal } from "../../../lib/rowSignal.js";
@@ -10,7 +9,6 @@ import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { useCustomGroups } from "../../../state/customGroupsStore.js";
 import { setActiveGroup } from "../../../state/layoutGroupsStore.js";
 import { leaf } from "../../../lib/paneLayout.js";
-import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { ArchiveNode } from "./ArchiveNode.jsx";
 import { ProjectHoverCard } from "./ProjectHoverCard.jsx";
@@ -282,8 +280,6 @@ function subtreeHasId(node, id) {
 // so a patch re-renders only the row it changed.
 const TreeNode = memo(function TreeNode({ node, onRename, variant = "full", signals, lead = null }) {
   const ui = useUi();
-  // A live goal-check on this worker flips the static "loop" badge to "checking".
-  const loopCheck = useSyncExternalStore(subscribeLoopCheck, () => loopCheckFor(node.id), () => loopCheckFor(node.id));
   const collapsed = ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
   const status = statusFromState(node.state);
@@ -385,12 +381,6 @@ const TreeNode = memo(function TreeNode({ node, onRename, variant = "full", sign
                 api.renameIntent(node.id, true).catch(() => {});
               }}
             ><AgentName worker={node} short /></span>}
-        {!isRenaming && (node.loop || loopCheck) && (
-          <span
-            className={`ag-loop-badge st-${loopCheck ? "checking" : node.loop?.status}`}
-            title={loopBadgeTitle(node.loop)}
-          >{loopCheck ? "checking" : "loop"}</span>
-        )}
         {!isRenaming && (signal
           ? <SignalMark signal={signal} />
           : <span className="ag-status" title={status.label}>

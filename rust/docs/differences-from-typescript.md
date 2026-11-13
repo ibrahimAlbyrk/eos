@@ -45,6 +45,7 @@ changes there without a decision.
 | The composer's `/` menu for a folder | The skills the `claude` program ships | The engine's own bundled skills; a name found twice is the one the engine's order picks | That is what a session there actually runs. |
 | Other model providers | Codex (ChatGPT), Gemini and pay-per-token presets each had a lane | Claude only. "Sign in with ChatGPT" is offered on every build (the engine has its own ChatGPT sign-in); there is no Google sign-in | Owner's decisions D3 and D4: Gemini and the presets later. |
 | Rewinding a chat | Restored the conversation and Claude Code's file checkpoints | Restores the conversation only | The engine keeps no file checkpoints. |
+| Goal loops (an orchestrator gives a worker a goal; at each idle edge a check of its criteria sends the worker back to work until they pass) | Present, off unless `config.loop.enabled` | None. `POST /orchestrators/:id/loop` and `…/loop/stop` are not served (404). A spawn that asks for a `loop` is refused before anything starts (400, "goal loops are not available — spawn the worker without `loop`"). A worker row never carries `loop`; a worker's report goes to its parent at once; `get_worker` answers `loop: null`. The prompt list and an exported chat page have no loop parts. The loop rows and the `loop` section of `config.json` a TypeScript app left are kept as they are and never read: such a worker works as a plain one | Owner's decision: the feature is to be designed again from scratch. |
 
 ### Chats
 

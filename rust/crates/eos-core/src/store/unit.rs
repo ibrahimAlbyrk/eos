@@ -5,8 +5,8 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use super::{
-    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo,
-    MessageQueueRepo, PendingRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
+    PendingRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -17,7 +17,6 @@ pub trait Tx {
     fn dreams(&self) -> &dyn DreamRepo;
     fn events(&self) -> &dyn EventRepo;
     fn genui_views(&self) -> &dyn GenuiViewRepo;
-    fn loops(&self) -> &dyn LoopRepo;
     fn message_ids(&self) -> &dyn MessageIdRepo;
     fn message_queue(&self) -> &dyn MessageQueueRepo;
     fn pending(&self) -> &dyn PendingRepo;

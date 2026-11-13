@@ -52,8 +52,7 @@ async fn plan(store: &dyn Store, root: String, tree: bool) -> Result<Option<Plan
             for id in ids {
                 let Some(w) = tx.workers().find(&id)? else { continue };
                 let name = w.name.clone().unwrap_or_else(|| id.clone());
-                let looped = tx.loops().find_any_by_worker(&id)?.map(|l| json!({"status": l.status}));
-                workers.insert(id.clone(), json!({"name": name, "is_orchestrator": w.is_orchestrator, "loop": looped}));
+                workers.insert(id.clone(), json!({"name": name, "is_orchestrator": w.is_orchestrator}));
                 let query = EventQuery {
                     worker_id: id.clone(),
                     since: 0,

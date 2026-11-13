@@ -8,7 +8,6 @@ const ROLE_BY_KIND = {
   report: "agent",
   directive: "agent",
   "peer-request": "agent",
-  loop: "system",
 };
 
 export function replyTargetOf(block) {

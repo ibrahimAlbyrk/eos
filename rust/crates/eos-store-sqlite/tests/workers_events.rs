@@ -20,7 +20,7 @@ fn recorded_rows(scenario: &str, step: &str) -> Vec<Value> {
 }
 
 /// What a route adds to a row; the repository never returns it.
-const ADDED_BY_ROUTE: [&str; 2] = ["context", "loop"];
+const ADDED_BY_ROUTE: [&str; 1] = ["context"];
 
 /// Compares a row with its recording, key by key. Values the recording
 /// normalized (`<uuid:N>`) and the keys in `skip` are not compared.

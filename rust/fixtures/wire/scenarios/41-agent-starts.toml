@@ -131,24 +131,6 @@ body = {}
 status = 400
 
 [[step]]
-name = "loop-invalid"
-request = "POST /orchestrators/o-ORCH/loop"
-body = { op = "spin" }
-status = 400
-
-[[step]]
-name = "loop-attach-without-goal"
-request = "POST /orchestrators/o-ORCH/loop"
-body = { op = "attach", target = "w-KID2" }
-status = 400
-
-[[step]]
-name = "loop-stop-none"
-request = "POST /orchestrators/o-ORCH/loop/stop"
-body = { op = "stop", target = "w-KID2" }
-status = 404
-
-[[step]]
 name = "integrate-unknown"
 request = "POST /orchestrators/o-nope00/integrate"
 body = {}

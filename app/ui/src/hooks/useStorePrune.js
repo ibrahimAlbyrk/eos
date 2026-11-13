@@ -4,7 +4,6 @@ import { pruneExcept as pruneConflict } from "../state/conflictStore.js";
 import { pruneExcept as pruneGitStatus } from "../state/gitStatusStore.js";
 import { pruneExcept as pruneTerminal } from "../state/terminalStore.js";
 import { pruneExcept as pruneThinking } from "../state/thinkingStore.js";
-import { reconcile as reconcileLoopCheck } from "../state/loopCheckStore.js";
 import { pruneExcept as pruneGenuiStreams } from "../genui/streamStore.js";
 import { pruneExcept as pruneSideQuestions } from "../state/sideQuestionStore.js";
 
@@ -25,8 +24,5 @@ export function useStorePrune(workers) {
     pruneThinking(present);
     pruneGenuiStreams(present);
     pruneSideQuestions(present);
-    // State-aware: also clears a pending check whose worker has left its IDLE
-    // window (a missed "verdict" can't strand the "checking" badge).
-    reconcileLoopCheck(workers);
   }, [workers]);
 }

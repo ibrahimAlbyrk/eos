@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ProcessingLine } from "./ProcessingLine.jsx";
-import { GoalCheckLine } from "./LoopCheck.jsx";
 
 describe("activity line star", () => {
   it("busy: star with 8 rays, working label and elapsed", () => {
@@ -18,13 +17,5 @@ describe("activity line star", () => {
     expect(html).toContain('class="activity-line"');
     expect(html).toContain('class="al-star"');
     expect(html).not.toContain("working");
-  });
-
-  it("goal check uses the same star", () => {
-    const check = { startedAt: 0, attempt: 2, maxAttempts: 5, phase: "judging" };
-    const html = renderToStaticMarkup(<GoalCheckLine check={check} now={8000} />);
-    expect(html).toContain("activity-line is-check");
-    expect(html).toContain('class="al-star"');
-    expect(html).toContain("0:08");
   });
 });

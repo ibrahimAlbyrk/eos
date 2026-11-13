@@ -79,14 +79,6 @@ pub(super) fn merge(mut base: Value, accepted: &Value) -> Value {
                     }
                 }
             }
-            "loop" => {
-                let mut rest = incoming.clone();
-                let judge = rest.remove("judge");
-                assign(section, &rest);
-                if let Some(Value::Object(judge)) = judge {
-                    assign(&mut section["judge"], &judge);
-                }
-            }
             "microTasks" => {
                 if let Some(enabled @ Value::Bool(_)) = incoming.get("enabled") {
                     section["enabled"] = enabled.clone();

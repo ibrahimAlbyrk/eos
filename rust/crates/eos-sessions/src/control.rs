@@ -108,7 +108,6 @@ fn cascade(tx: &dyn Tx, out: &mut Outbox, row: &Worker, now: i64) -> Result<(), 
     tx.events().delete_by_worker(&row.id)?;
     tx.pending().delete_by_worker(&row.id)?;
     tx.message_queue().delete_by_worker(&row.id)?;
-    tx.loops().delete_by_worker(&row.id)?;
     tx.message_ids().delete_by_worker(&row.id)?;
     tx.genui_views().remove_by_worker(&row.id)?;
     tx.worker_definitions().delete_for_owner(&row.id)?;

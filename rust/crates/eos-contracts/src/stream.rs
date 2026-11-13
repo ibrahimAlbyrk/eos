@@ -13,8 +13,7 @@
 //! [`UserMemoryChangeEvent`](crate::UserMemoryChangeEvent), `jobs:change`
 //! [`BackgroundJobChange`](crate::BackgroundJobChange), `genui:change`
 //! [`GenuiChange`](crate::GenuiChange), `genui:delta` [`GenuiDelta`](crate::GenuiDelta),
-//! `pty:session` [`PtySession`](crate::PtySession), `loop:check`
-//! [`LoopCheckProgress`](crate::LoopCheckProgress), `workflow:progress`
+//! `pty:session` [`PtySession`](crate::PtySession), `workflow:progress`
 //! [`WorkflowRunProgress`](crate::WorkflowRunProgress), `transfer:change`
 //! [`TransferChangeEvent`](crate::TransferChangeEvent), `dream:change`
 //! [`DreamChangeEvent`](crate::DreamChangeEvent), `update:change`
@@ -71,8 +70,6 @@ pub mod topics {
     pub const PTY_CONVERSATION: &str = "pty:conversation";
     pub const AGENT_DELTA: &str = "agent:delta";
     pub const MESSAGE_RECALLED: &str = "message:recalled";
-    pub const LOOP_CHANGE: &str = "loop:change";
-    pub const LOOP_CHECK: &str = "loop:check";
     pub const FS_CHANGE: &str = "fs:change";
     pub const GIT_CHANGE: &str = "git:change";
     pub const PEER_PRESENCE: &str = "peer:presence";

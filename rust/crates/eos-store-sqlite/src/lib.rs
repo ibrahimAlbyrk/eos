@@ -12,7 +12,6 @@ mod conversation_lists;
 mod counters;
 mod documents;
 mod events;
-mod loops;
 mod message_queue;
 mod pending;
 mod store;

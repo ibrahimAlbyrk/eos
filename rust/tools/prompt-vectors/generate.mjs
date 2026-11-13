@@ -10,7 +10,8 @@
 // definitions under manager/ import `zod`; it is resolved from contracts/, so
 // manager/ needs no install.
 //
-// library.json   every prompt as FilePromptSource reads it, the catalog rows of
+// library.json   every prompt the Rust app ships as FilePromptSource reads it (the
+//                goal loop's are left out: that app has none), the catalog rows of
 //                GET /api/prompts, each prompt rendered alone with sample values,
 //                the tool descriptions, the tool-name variables, the tier and
 //                effort texts per provider, the visual-answer level texts.
@@ -51,7 +52,7 @@ const { selectInjectableMemory } = await load("core/src/services/select-injectab
 const { toFragment } = await load("core/src/domain/prompt.ts");
 const { DEFAULT_USER_PREFERENCES } = await load("core/src/services/render-user-profile.ts");
 const { defaultTierName } = await load("core/src/domain/model-tier.ts");
-const { TOOL_NAME_VARS } = await load("manager/prompt-tool-names.ts");
+const { TOOL_NAME_VARS: TS_TOOL_NAME_VARS } = await load("manager/prompt-tool-names.ts");
 const { renderModelTierTable, renderEffortSection, defaultEffortFor } = await load("manager/shared/tier-prompt-render.ts");
 const { resolveProviderIdentity } = await load("manager/shared/provider-identity.ts");
 const { PROVIDER_PRESETS } = await load("manager/shared/provider-presets.ts");
@@ -68,7 +69,11 @@ const attempt = (fn) => { try { return { ok: fn() }; } catch (e) { return { erro
 
 // ---- the library --------------------------------------------------------------
 
-const source = new FilePromptSource([promptsDir]);
+// What the Rust app does not ship: it has no goal loops (the loop gate's prompts, its tool).
+const notShipped = (id) => id.startsWith("loop/") || id === "tool/dynamic_loop";
+const TOOL_NAME_VARS = Object.fromEntries(Object.entries(TS_TOOL_NAME_VARS).filter(([name]) => name !== "DYNAMIC_LOOP_TOOL"));
+const library = new FilePromptSource([promptsDir]);
+const source = { list: () => library.list().filter((r) => !notShipped(r.id)) };
 const raw = source.list();
 const registry = new PromptRegistry(source, quiet);
 const globals = { ...TOOL_NAME_VARS, GENUI_CATALOG: catalogPrompt() };

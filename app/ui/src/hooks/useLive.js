@@ -25,7 +25,6 @@ import { updateAgentIndex, updateAgentNames } from "../lib/agentIndex.js";
 import { applyDelta, dropInterrupted as dropInterruptedThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
 import { subtreeIds } from "../lib/tree.js";
-import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, noteWorkerChange as noteQueueChange, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
@@ -69,7 +68,7 @@ const SSE_DEBOUNCE_MS = 80;
 // Topics whose list changes arrive as state:patch rows — no refetch for them.
 // policy:decision changes neither list (an ask arrives as pending:created).
 const PATCHED_TOPICS = new Set([
-  "worker:change", "worker:spawn", "worker:exit", "worker:removed", "usage:recorded", "loop:change",
+  "worker:change", "worker:spawn", "worker:exit", "worker:removed", "usage:recorded",
   "pending:created", "pending:resolved", "pending:ttl_expired", "policy:decision",
 ]);
 const HIDDEN_PAUSE_MS = 10_000;
@@ -334,10 +333,6 @@ export function useLive() {
           if (data.reason === "artifacts:change") { applyArtifactsChange(); return; }
           // The `!` command's start feeds only the jobs registry; its run arrives as terminal:chunk.
           if (data.reason === "terminal:start") return;
-          // Transient goal-check progress (loop tick) — drive the live "checking"
-          // indicator via the loop-check store; not a worker-state delta, so skip
-          // the refetch. The durable verdict rides loop_check (a worker:change).
-          if (data.reason === "loop:check") { applyLoopCheck(data.payload ?? {}); return; }
           // Recall (interrupt before the agent responded): drop the optimistic
           // bubble now + surface the text for the composer restore. The durable
           // message_recalled event (delivered as a worker:change below) hides the

@@ -1,5 +1,5 @@
 //! What runs when a worker settles at IDLE with nothing left in its queue —
-//! compaction, the goal loop, the report and context nudges, a feature's own —
+//! compaction, the report and context nudges, a feature's own —
 //! in `order`. A hook that answers `true` has taken the worker (it is working
 //! again), so the hooks after it wait for its next IDLE.
 //!
@@ -18,8 +18,8 @@ type Decide = dyn Fn(&str) -> BoxFuture<'static, bool> + Send + Sync;
 #[derive(Clone)]
 pub struct IdleHook {
     pub id: &'static str,
-    /// Lower runs first (today: compaction 10, goal loop 20, report gap 30,
-    /// context threshold 40).
+    /// Lower runs first (today: compaction 10, report gap 30, context
+    /// threshold 40).
     pub order: i32,
     /// The module that added it; its hook does not run once its start failed.
     owner: &'static str,

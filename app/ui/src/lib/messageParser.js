@@ -522,37 +522,6 @@ export function buildBlocks(rawEvents) {
       });
       continue;
     }
-    if (ev.type === "loop_continuation") {
-      flushTools();
-      lastAsst = null;
-      const payload = rowPayload(ev);
-      out.push({
-        kind: "loop",
-        text: payload.text ?? "",
-        ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
-        rowId: ev.id,
-      });
-      continue;
-    }
-    if (ev.type === "loop_check") {
-      // Durable per-attempt goal-check verdict (LoopCheckEventSchema). The
-      // chronological record renders inline; the LoopStatus card also aggregates
-      // these into an attempt history off the same blocks.
-      flushTools();
-      lastAsst = null;
-      const payload = rowPayload(ev);
-      out.push({
-        kind: "loopCheck",
-        attempt: payload.attempt ?? null,
-        maxAttempts: payload.maxAttempts ?? null,
-        strategy: payload.strategy ?? null,
-        met: payload.met ?? false,
-        outcome: payload.outcome ?? null,
-        reason: payload.reason ?? "",
-        ts: ev.ts,
-      });
-      continue;
-    }
     if (ev.type === "peer_request") {
       flushTools();
       lastAsst = null;
@@ -790,7 +759,7 @@ export function buildBlocks(rawEvents) {
 // usage, a background subagent or workflow finishing, …) can land while the
 // agent is still thinking, so it never counts.
 const MAIN_THREAD_TYPES = new Set([
-  "user_message", "worker_report", "orchestrator_message", "loop_continuation", "report_reminder",
+  "user_message", "worker_report", "orchestrator_message", "report_reminder",
   "permission_ask", "peer_request", "question_answered", "state", "hook", "account_switched",
 ]);
 function movesMainThread(ev, attributedToolIds) {

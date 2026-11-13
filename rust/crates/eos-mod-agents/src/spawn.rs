@@ -3,16 +3,13 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use eos_contracts::stream::topics::LOOP_CHANGE;
 use eos_contracts::{
-    DEFAULT_WORKER_DEFINITION, FOCUSED_ROLE, LoopStrategy, NameSource, PermissionMode, SettingValue,
-    SpawnOrchestratorRequest, SpawnOrchestratorRequestMode, SpawnWorkerRequest, SpawnWorkerResponseIsolation,
-    UserSettings, WorkerIsolation,
+    DEFAULT_WORKER_DEFINITION, FOCUSED_ROLE, NameSource, PermissionMode, SettingValue, SpawnOrchestratorRequest,
+    SpawnOrchestratorRequestMode, SpawnWorkerRequest, SpawnWorkerResponseIsolation, UserSettings, WorkerIsolation,
 };
 use eos_core::{Alphabet, Error};
 use eos_domain::ProviderIdentity;
 use eos_domain::config::{Config, current_backend_kind};
-use eos_domain::loops::lint::lint_goal_criteria;
 use eos_domain::worktree_policy::{Isolation, resolve_spawn_isolation};
 use eos_platform::expand_path;
 use eos_prompts::service::no_values;
@@ -21,7 +18,6 @@ use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
 use eos_sessions::SpawnRequest;
-use eos_sessions::loops::{AttachLoop, attach_loop};
 use eos_workers::resolve::{
     apply_defaults, is_restrictive, materialize_tool_scope, resolve_combined_model, resolve_definition_name, tool_scope,
 };
@@ -228,33 +224,10 @@ impl AgentsModule {
         let config = m.spawning.config.current();
         let settings = m.spawning.settings.read();
         let prompt = m.boot_prompt(&body)?;
-        // A loop that could not be armed must not leave a worker behind: checked before anything is made.
+        // A worker that runs without the goal gate its caller asked for would report unchecked work.
         if body.r#loop.is_some() {
-            if !config.r#loop.enabled {
-                return Err(Error::Validation("dynamic loop is disabled — set config.loop.enabled".into()));
-            }
-            let Some(parent_id) = &body.parent_id else {
-                return Err(Error::Validation(
-                    "a dynamic loop can only be armed on a worker spawned by an orchestrator".into(),
-                ));
-            };
-            let parent = m.worker(parent_id).await?.ok_or_else(|| Error::not_found("worker", parent_id))?;
-            if !parent.is_orchestrator {
-                return Err(Error::PermissionDenied(format!("worker {parent_id} is not an orchestrator")));
-            }
+            return Err(Error::Validation("goal loops are not available — spawn the worker without `loop`".into()));
         }
-        let armed = match &body.r#loop {
-            Some(spawn_loop) => {
-                let strategy = spawn_loop.strategy.or_else(|| loop_strategy(&config.r#loop.strategy));
-                // A goal that could never pass is refused before a worker exists.
-                lint_goal_criteria(strategy.unwrap_or(LoopStrategy::Hybrid), &spawn_loop.goal)
-                    .map_err(Error::Validation)?;
-                // An omitted limit takes the configured one; an explicit one (no cap included) wins.
-                let limit = spawn_loop.limit.unwrap_or(config.r#loop.max_attempts);
-                Some((spawn_loop.goal.clone(), strategy, limit))
-            }
-            None => None,
-        };
         if let Some(target) = &body.workspace_of
             && m.worker(target).await?.is_some_and(|w| w.is_archived())
         {
@@ -356,19 +329,6 @@ impl AgentsModule {
             SpawnWorkerResponseIsolation::Cwd
         };
         let spawned = m.sessions.spawn(request).await?;
-        // The loop is armed before the worker's first turn ends; its first idle edge checks it.
-        if let (Some((goal, strategy, limit)), Some(parent)) = (armed, body.parent_id.clone()) {
-            let attach = AttachLoop { caller_id: parent, target: Some(spawned.id.clone()), goal, strategy, limit };
-            let (ids, now, id) = (m.ids.clone(), m.sessions.clock().now_ms(), spawned.id.clone());
-            m.store
-                .write(move |tx, out| {
-                    attach_loop(tx, ids.as_ref(), now, &attach)?;
-                    out.push(LOOP_CHANGE, &json!({"workerId": id, "status": "active"}));
-                    Ok(())
-                })
-                .await?;
-        }
-
         Ok(SpawnedWorker { id: spawned.id, boot_msg_id: spawned.boot_msg_id, isolation })
     }
 }
@@ -390,11 +350,6 @@ fn worker(m: AgentsModule) -> RouteDef {
         }
     })
     .access(Access::open().phone(Tier::High))
-}
-
-/// The configured strategy (`config.loop.strategy`), when it names one.
-fn loop_strategy(name: &str) -> Option<LoopStrategy> {
-    serde_json::from_value(serde_json::Value::String(name.to_owned())).ok()
 }
 
 #[cfg(test)]

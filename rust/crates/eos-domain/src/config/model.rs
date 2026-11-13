@@ -21,7 +21,6 @@ pub struct Config {
     /// Named backend profiles: the built-in ones plus the user's.
     pub backends: IndexMap<String, BackendProfile>,
     pub defaults: RoleDefaults,
-    pub r#loop: Loop,
     pub context: ContextRatios,
     pub compaction: Compaction,
     pub collaborate: Collaborate,
@@ -111,25 +110,6 @@ pub struct BackendChoice {
 pub struct RoleDefaults {
     pub orchestrator: BackendChoice,
     pub worker: BackendChoice,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Judge {
-    pub model: String,
-    pub temperature: f64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Loop {
-    pub enabled: bool,
-    /// `None`: no cap.
-    pub max_attempts: Option<i64>,
-    pub strategy: String,
-    pub no_progress_window: i64,
-    pub stop_on_no_progress: bool,
-    pub retry_on_failed: bool,
-    pub judge: Judge,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

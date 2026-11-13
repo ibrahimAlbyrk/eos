@@ -1,7 +1,7 @@
 //! The smaller tables: what the TypeScript repositories did, on the seeded rows.
 
-use eos_contracts::{GoalSpec, LoopStatus, LoopStrategy, WorkerDefinition};
-use eos_core::store::{NewLoop, NewPending, NewQueuedMessage, WorktreeRemoval};
+use eos_contracts::WorkerDefinition;
+use eos_core::store::{NewPending, NewQueuedMessage, WorktreeRemoval};
 use eos_domain::message_queue::{MessagePlane, QueueMeta};
 use eos_testkit::{TempStore, fixtures};
 use serde_json::json;
@@ -137,58 +137,6 @@ fn queued_messages_wait_in_order_and_a_repeated_send_is_ignored() {
         })
         .expect("writes");
     assert_eq!((removed, missing, cleared), (false, false, 1), "a delivered message is no longer pending");
-}
-
-#[test]
-fn loops_are_read_whatever_shape_their_goal_has() {
-    let temp = seeded();
-    let goal: GoalSpec = serde_json::from_value(
-        json!({ "summary": "docs build", "criteria": [{ "id": "c1", "text": "make docs passes" }] }),
-    )
-    .expect("a goal");
-    let outcome = temp
-        .store
-        .write_blocking(move |tx, _| {
-            let loops = tx.loops();
-            // The seed's finished loop predates criteria: it is still readable.
-            let seeded = loops.find_any_by_worker("w-KID1")?;
-            assert_eq!(loops.list_active()?.len(), 0);
-            loops.insert(&NewLoop {
-                id: "l-1".into(),
-                worker_id: "w-KID2".into(),
-                parent_id: Some("o-ORCH".into()),
-                goal,
-                strategy: LoopStrategy::Hybrid,
-                max_attempts: None,
-                started_at: 50,
-            })?;
-            loops.set_awaiting_input("l-1", true, 60)?;
-            loops.set_held_report("l-1", Some("done"), 61)?;
-            loops.set_check_failures("l-1", 2, 62)?;
-            let active = loops.find_active_by_worker("w-KID2")?;
-            loops.set_status("l-1", LoopStatus::Stopped, 77)?;
-            Ok((seeded, active, loops.list_active()?.len(), loops.find("l-1")?))
-        })
-        .expect("writes");
-    let (seeded, active, still_active, stopped) = outcome;
-    let seeded = seeded.expect("the seeded loop");
-    assert_eq!(
-        (seeded.status, seeded.goal_summary(), seeded.goal_spec()),
-        (LoopStatus::Passed, Some("tests pass"), None)
-    );
-    assert_eq!((seeded.attempt, seeded.max_attempts, seeded.last_reason.as_deref()), (2, Some(5), Some("exit 0")));
-
-    let active = active.expect("the new loop");
-    assert!(active.awaiting_input);
-    assert_eq!((active.held_report.as_deref(), active.check_failures, active.updated_at), (Some("done"), 2, 62));
-    assert_eq!(active.goal_spec().map(|g| g.criteria.len()), Some(1));
-    let row = serde_json::to_value(active.to_row()).expect("serializes");
-    assert_eq!(
-        row,
-        json!({ "status": "active", "attempt": 0, "maxAttempts": null, "lastReason": null, "goalSummary": "docs build" })
-    );
-    assert_eq!(still_active, 0);
-    assert_eq!(stopped.map(|l| (l.status, l.updated_at)), Some((LoopStatus::Stopped, 77)));
 }
 
 #[test]

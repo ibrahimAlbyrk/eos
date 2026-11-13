@@ -142,8 +142,6 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/open"),
     // Forgetting a project memory removes a file of Claude Code's, outside the data folder.
     ("DELETE", "/workers/{id}/memory/{name}"),
-    // Arming a loop makes its worker's idle edges send it back to work.
-    ("POST", "/orchestrators/{id}/loop"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
@@ -197,8 +195,6 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/workers/{id}/try/state"),
     // A banner for the user.
     ("POST", "/workers/{id}/notify"),
-    // Stopping a loop only writes its row.
-    ("POST", "/orchestrators/{id}/loop/stop"),
     // Keeping a Try changes no file of the checkout, only its record in the data folder.
     ("POST", "/workers/{id}/try/keep"),
     ("GET", "/pty"),

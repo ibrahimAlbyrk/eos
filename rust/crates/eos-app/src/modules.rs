@@ -233,7 +233,6 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         cx.browser.clone(),
         crate::files::module(cx),
         genui,
-        Arc::new(crate::files::loops(cx)),
         pages,
         cx.peer.module(),
         profile,

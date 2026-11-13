@@ -147,18 +147,6 @@ pub(super) fn defaults(host: &Host) -> Value {
         }),
     );
     put("defaults", json!({ "orchestrator": { "backend": "claude-opus" }, "worker": { "backend": "claude-opus" } }));
-    put(
-        "loop",
-        json!({
-            "enabled": false,
-            "maxAttempts": null,
-            "strategy": "hybrid",
-            "noProgressWindow": 3,
-            "stopOnNoProgress": true,
-            "retryOnFailed": false,
-            "judge": { "model": "sonnet", "temperature": 0.1 },
-        }),
-    );
     put("context", json!({ "warnRatio": 0.9, "fullRatio": 0.95 }));
     put("compaction", json!({ "enabled": true, "threshold": 0.7, "timeoutMs": 300_000 }));
     put("collaborate", json!({ "awaitTimeoutMs": env.int("EOS_COLLABORATE_AWAIT_TIMEOUT_MS", 120_000) }));

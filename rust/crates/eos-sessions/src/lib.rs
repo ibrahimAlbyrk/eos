@@ -28,7 +28,7 @@
 //! small (the settle window, whether the turn produced output) and is
 //! dropped when the worker's session ends or the worker is removed.
 //!
-//! [`boot`], [`loops`] and [`transition`] are steps of a database write job: they take
+//! [`boot`] and [`transition`] are steps of a database write job: they take
 //! the job's [`Tx`](eos_core::store::Tx) and
 //! [`Outbox`](eos_core::store::Outbox), so the rows they change and the
 //! events they announce are saved, or dropped, together.
@@ -40,7 +40,6 @@ mod commands;
 mod control;
 mod dispatch;
 mod features;
-pub mod loops;
 mod peers;
 mod report;
 mod revive;
@@ -57,7 +56,7 @@ pub use commands::{CommandAnswer, SlashCommand, SlashContext};
 pub use control::{KILL_GRACE_MS, ModeSet, ModelSet, Recalled, Removed};
 pub use dispatch::{Dispatched, MessageInput};
 pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
-pub use report::{ReportSignal, Reported, classify_report, holds_report};
+pub use report::Reported;
 pub use service::{NoHooks, SessionDeps, SessionHooks, Sessions};
 pub use spawn::{SpawnRequest, Spawned};
 pub use transition::{Transition, transition_state};

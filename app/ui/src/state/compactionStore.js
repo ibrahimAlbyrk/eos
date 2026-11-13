@@ -1,5 +1,5 @@
 // Live context-compaction state, keyed by workerId. Module singleton like
-// loopCheckStore — the Messages view writes it, other surfaces read it:
+// thinkingStore — the Messages view writes it, other surfaces read it:
 //   compacting — a compaction is running (the composer holds sends until it ends)
 //   fx         — the live animation's stage, so the card it lands in knows to
 //                start blank and let the dust write it:

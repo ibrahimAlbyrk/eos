@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::attachments::ChatAttachment;
 use crate::genui::{UserMessageAction, ViewAction};
-use crate::loops::SpawnLoop;
 use crate::primitives::{BoolLit, Num, de};
 use crate::validate::{Issues, Validate};
 use crate::worker::{PermissionMode, WorkerRow};
@@ -54,8 +53,10 @@ pub struct SpawnWorkerRequest {
     pub collaborate: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backend_kind: Option<String>,
+    /// A goal loop for the new worker. The app has none: the route refuses a
+    /// request that asks for one, whatever its shape.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub r#loop: Option<SpawnLoop>,
+    pub r#loop: Option<serde_json::Value>,
 }
 
 impl Validate for SpawnWorkerRequest {
@@ -67,11 +68,6 @@ impl Validate for SpawnWorkerRequest {
         });
         cx.at("promptTemplate", |cx| {
             if let Some(v) = &self.prompt_template {
-                v.validate(cx);
-            }
-        });
-        cx.at("loop", |cx| {
-            if let Some(v) = &self.r#loop {
                 v.validate(cx);
             }
         });
@@ -245,7 +241,6 @@ pub enum MessageRecord {
     OrchestratorMessage(MessageRecordOrchestratorMessage),
     WorkerReport(MessageRecordWorkerReport),
     PeerRequest(MessageRecordPeerRequest),
-    LoopContinuation(MessageRecordLoopContinuation),
     ReportReminder(MessageRecordReportReminder),
     PermissionAsk(MessageRecordPermissionAsk),
 }
@@ -322,17 +317,6 @@ pub struct MessageRecordPeerRequest {
 }
 
 impl Validate for MessageRecordPeerRequest {}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct MessageRecordLoopContinuation {
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub display_text: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub sent_at: Option<Num>,
-}
-
-impl Validate for MessageRecordLoopContinuation {}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
@@ -562,8 +546,6 @@ pub struct ReportResponse {
     pub ok: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivered: Option<bool>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub held: Option<bool>,
 }
 
 impl Validate for ReportResponse {}

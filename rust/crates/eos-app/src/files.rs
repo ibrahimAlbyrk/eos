@@ -90,24 +90,6 @@ pub(crate) fn worker_git(cx: &Context) -> WorkerGit {
     }
 }
 
-/// The goal loop: its checks run the worker's verify commands and read its diff.
-pub(crate) fn loops(cx: &Context) -> eos_mod_loops::LoopsModule {
-    let trees = ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok());
-    let commands = eos_mod_loops::ShellCommands::new(Runner::new(trees), eos_platform::host().script_shell());
-    eos_mod_loops::LoopsModule::new(eos_mod_loops::Parts {
-        store: cx.store.clone(),
-        sessions: cx.sessions.clone(),
-        config: cx.config.clone(),
-        prompts: cx.prompts.clone(),
-        judge: cx.one_shot.clone(),
-        diffs: cx.repos.snapshots.clone(),
-        commands: Arc::new(commands),
-        ids: cx.ids.clone(),
-        bus: cx.bus.clone(),
-    })
-    .rearming(cx.sweep_leftovers)
-}
-
 pub(crate) fn module(cx: &Context) -> Arc<dyn Module> {
     let host = eos_platform::host();
     let (snapshots, git) = (cx.repos.snapshots.clone(), cx.repos.git.clone());

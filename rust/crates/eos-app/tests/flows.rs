@@ -519,7 +519,8 @@ async fn an_orchestrator_runs_workers_that_consult_ask_report_and_are_integrated
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_looped_worker_is_sent_back_until_its_goal_check_passes() {
+async fn a_goal_loop_is_refused_and_one_on_record_holds_nothing_back() {
+    // The TypeScript app's config.json may switch goal loops on: this app has none.
     let mut b = Bench::with_files(&[("config.json", r#"{"loop": {"enabled": true}}"#)]).await;
     let repo_dir = tempfile::tempdir().expect("a folder");
     let repo = repository(repo_dir.path());
@@ -529,42 +530,43 @@ async fn a_looped_worker_is_sent_back_until_its_goal_check_passes() {
     let orch = made["id"].as_str().expect("an id").to_owned();
     b.until_state(&orch, "IDLE").await;
 
-    // The goal is a file in the worker's worktree, checked by a command at each idle edge.
     let goal = json!({"summary": "write done.txt", "criteria": [{"id": "c1", "text": "done.txt exists", "verify": "test -f done.txt"}]});
-    let spawn = json!({"parentId": orch, "from": "general-purpose", "prompt": "[reply] start", "worktreeFrom": repo,
-        "name": "looper", "loop": {"goal": goal, "strategy": "command", "limit": 5}});
-    let (status, made) = b.call(Method::Post, "/workers", Some(spawn)).await;
-    assert!(status < 300, "{status} {made}");
-    let worker = made["id"].as_str().expect("an id").to_owned();
-    let (_, row) = b.row(&worker).await;
-    let dir = row["worktree_dir"].as_str().expect("a worktree").to_owned();
+    let mut spawn = json!({"parentId": orch, "from": "general-purpose", "prompt": "[reply] start", "worktreeFrom": repo,
+        "name": "worker", "loop": {"goal": goal, "strategy": "command", "limit": 5}});
+    let refused = b.call(Method::Post, "/workers", Some(spawn.clone())).await;
+    assert_eq!(refused, (400, json!({"error": "goal loops are not available — spawn the worker without `loop`"})));
+    let (status, _) =
+        b.call(Method::Post, &format!("/orchestrators/{orch}/loop"), Some(json!({"op": "attach", "goal": goal}))).await;
+    assert_eq!(status, 404, "the loop routes are not served");
 
-    // The first check fails: the worker is sent back to work.
+    if let Some(fields) = spawn.as_object_mut() {
+        fields.remove("loop");
+    }
+    let (status, made) = b.call(Method::Post, "/workers", Some(spawn)).await;
+    assert_eq!(status, 201, "{made}");
+    let worker = made["id"].as_str().expect("an id").to_owned();
+    b.until_state(&worker, "IDLE").await;
+    // An active goal loop on record for it, as the TypeScript app leaves one in the data folder.
+    let db = rusqlite::Connection::open(b.home.join("state.db")).expect("the database");
+    db.busy_timeout(WAIT).expect("a timeout");
+    db.execute(
+        "INSERT INTO worker_loops (id, worker_id, parent_id, goal_json, strategy, status, started_at, updated_at) \
+         VALUES ('l-OLD', ?1, ?2, ?3, 'command', 'active', 1, 1)",
+        rusqlite::params![worker, orch, goal.to_string()],
+    )
+    .expect("a loop on record");
+    let prompts = b.agents.sent(&worker).len();
+
+    // Its report reaches the orchestrator as a turn; nothing checks a goal or sends the worker back.
+    let reported =
+        b.call(Method::Post, &format!("/workers/{worker}/report"), Some(json!({"text": "result: done"}))).await;
+    assert_eq!(reported, (200, json!({"ok": true, "delivered": true})));
     let deadline = tokio::time::Instant::now() + WAIT;
-    while b.agents.sent(&worker).is_empty() && tokio::time::Instant::now() < deadline {
+    while !b.agents.sent(&orch).iter().any(|s| s.contains("result: done")) && tokio::time::Instant::now() < deadline {
         b.frames.next(Duration::from_millis(200)).await;
     }
-    assert!(!b.agents.sent(&worker).is_empty(), "a failed check starts another turn");
-    // It does the work; the next check passes and the loop ends.
-    std::fs::write(std::path::Path::new(&dir).join("done.txt"), "done\n").expect("a file");
-    let verdict = b
-        .frames
-        .until(WAIT, |f| {
-            f["reason"] == "loop:check" && f["payload"]["workerId"] == worker.as_str() && f["payload"]["met"] == true
-        })
-        .await
-        .expect("a check passes");
-    assert_eq!(verdict["payload"]["outcome"], "released", "{verdict}");
-    let passed = b
-        .frames
-        .until(WAIT, |f| {
-            f["reason"] == "loop:change"
-                && f["payload"]["workerId"] == worker.as_str()
-                && f["payload"]["status"] == "passed"
-        })
-        .await
-        .is_some();
-    assert!(passed, "the loop passed; the worker got {:?}", b.agents.sent(&worker));
-    let turns = b.agents.sent(&worker).len();
-    assert!(turns <= 5, "no more turns than the limit: {turns}");
+    assert!(b.agents.sent(&orch).iter().any(|s| s.contains("result: done")), "the orchestrator got the report");
+    let (_, row) = b.row(&worker).await;
+    assert!(row.get("loop").is_none(), "{row}");
+    assert_eq!(b.agents.sent(&worker).len(), prompts, "nothing sent it back: {:?}", b.agents.sent(&worker));
 }

@@ -62,11 +62,6 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("r-", Alphabet::Base36, 8)
     }
 
-    /// `l-` + 8.
-    fn loop_id(&self) -> String {
-        self.prefixed("l-", Alphabet::Base36, 8)
-    }
-
     /// `s-` + 8: a conversation the app stores itself.
     fn session_id(&self) -> String {
         self.prefixed("s-", Alphabet::Base36, 8)
@@ -195,7 +190,6 @@ mod tests {
         assert!(shaped(&ids.orchestrator_id(), "o-", Alphabet::Base36, 6));
         assert!(shaped(&ids.pending_id(), "p-", Alphabet::Base36, 8));
         assert!(shaped(&ids.request_id(), "r-", Alphabet::Base36, 8));
-        assert!(shaped(&ids.loop_id(), "l-", Alphabet::Base36, 8));
         assert!(shaped(&ids.session_id(), "s-", Alphabet::Base36, 8));
         for (id, prefix) in [
             (ids.page_id(), "pg-"),

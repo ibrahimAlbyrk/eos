@@ -39,6 +39,15 @@ fn recorded_profile(prompts: &PromptService) -> String {
     profile.expect("the recorded preview is ours around the profile block").to_owned()
 }
 
+/// A recorded answer as this app gives it: the catalog without the goal loop's
+/// prompts, which it does not ship (`fixtures/wire/rust-differences.toml`).
+fn shipped(mut recorded: Value) -> Value {
+    if let Some(list) = recorded.get_mut("prompts").and_then(Value::as_array_mut) {
+        list.retain(|p| p["id"].as_str().is_some_and(|id| !id.starts_with("loop/") && id != "tool/dynamic_loop"));
+    }
+    recorded
+}
+
 async fn ask(app: &Runtime, method: Method, path: &str, body: Option<&str>) -> (u16, Value) {
     let mut request = Request::new(method, path, Caller::DASHBOARD);
     if let Some(body) = body {
@@ -66,7 +75,7 @@ async fn the_catalog_and_the_preview_answer_as_recorded() {
         let recorded = fixtures::recorded_response("33-settings", step);
         let (status, json) = ask(&app, method, path, body).await;
         assert_eq!(Value::from(status), recorded["status"], "{step}");
-        assert_eq!(json, recorded["json"], "{step}");
+        assert_eq!(json, shipped(recorded["json"].clone()), "{step}");
     }
     // No body at all is the default worker (`90-gates`).
     let recorded = fixtures::recorded_response("90-gates", "post-api-prompts-preview");

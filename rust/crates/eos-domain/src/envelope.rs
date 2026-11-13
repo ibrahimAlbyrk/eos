@@ -35,10 +35,6 @@ pub enum Envelope {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         from_name: Option<String>,
     },
-    Loop {
-        #[serde(default, skip_serializing_if = "Option::is_none")]
-        attempt: Option<i64>,
-    },
     ReportReminder,
     PermissionAsk {
         pending_id: String,
@@ -68,7 +64,6 @@ impl Envelope {
             Self::OrchestratorMessage { .. } => "orchestrator_message",
             Self::WorkerReport { .. } => "worker_report",
             Self::PeerRequest { .. } => "peer_request",
-            Self::Loop { .. } => "loop",
             Self::ReportReminder => "report_reminder",
             Self::PermissionAsk { .. } => "permission_ask",
             Self::ContextThreshold { .. } => "context_threshold",
@@ -148,9 +143,6 @@ pub fn sender_tag(envelope: &Envelope) -> (SenderClass, Vec<(&'static str, Optio
                 (SenderClass::Agent, who.to_vec())
             }
         }
-        Envelope::Loop { attempt } => {
-            (SenderClass::System, vec![("kind", some("dynamic_loop")), ("attempt", attempt.map(|a| a.to_string()))])
-        }
         Envelope::ReportReminder => (SenderClass::System, vec![("kind", some("report_reminder"))]),
         Envelope::PermissionAsk { pending_id, from_worker, worker_name, tool_name, input_summary, expires_at } => (
             SenderClass::System,
@@ -208,11 +200,6 @@ mod tests {
         assert_eq!(
             apply_sender_tag("ended", class, &attrs),
             "<system_message kind=\"worker_report\" from=\"w-1\" worker-id=\"w-1\" branch=\"eos-x\" status=\"DONE\">\nended\n</system_message>"
-        );
-        let (class, attrs) = sender_tag(&Envelope::Loop { attempt: Some(3) });
-        assert_eq!(
-            apply_sender_tag("go on", class, &attrs),
-            "<system_message kind=\"dynamic_loop\" attempt=\"3\">\ngo on\n</system_message>"
         );
     }
 

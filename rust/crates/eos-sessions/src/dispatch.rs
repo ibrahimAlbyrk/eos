@@ -145,7 +145,6 @@ fn chat_row(
             WorkerEventType::PeerRequest,
             with(base, [("fromWorker", from_worker), ("fromName", from_name.as_deref().unwrap_or(from_worker))]),
         ),
-        Some(Envelope::Loop { .. }) => (WorkerEventType::LoopContinuation, Value::Object(base)),
         Some(Envelope::ReportReminder) => (WorkerEventType::ReportReminder, Value::Object(base)),
         Some(Envelope::PermissionAsk { .. }) => (WorkerEventType::PermissionAsk, Value::Object(base)),
         // The operator's own message (and what has no row kind of its own).

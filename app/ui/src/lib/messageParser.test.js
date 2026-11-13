@@ -1060,37 +1060,13 @@ describe("buildBlocks canonical agent_event decoder (claude / in-process lanes)"
   });
 });
 
-describe("buildBlocks dynamic-loop continuation", () => {
-  it("renders a loop_continuation event as a distinct 'loop' block, not a user bubble", () => {
+describe("buildBlocks rows it does not draw", () => {
+  it("leaves the goal-loop rows a TypeScript app wrote out of the chat", () => {
     const blocks = buildBlocks([
-      { type: "loop_continuation", ts: 100, payload: { text: "[DYNAMIC LOOP — AUTOMATED GOAL-CHECK] keep working" } },
+      { type: "loop_continuation", ts: 100, payload: { text: "keep working" } },
+      { type: "loop_check", ts: 110, payload: { attempt: 1, maxAttempts: null, met: false, outcome: "continued" } },
     ]);
-    const loop = blocks.find((b) => b.kind === "loop");
-    expect(loop).toBeTruthy();
-    expect(loop.text).toContain("keep working");
-    // crucially, it is NOT a right-aligned user bubble
-    expect(blocks.some((b) => b.kind === "user")).toBe(false);
-  });
-});
-
-describe("buildBlocks persisted goal-check verdict (loop_check)", () => {
-  it("parses a loop_check event into a 'loopCheck' block carrying the verdict", () => {
-    const blocks = buildBlocks([
-      { type: "loop_check", ts: 100, payload: { attempt: 2, maxAttempts: 5, strategy: "hybrid", met: false, outcome: "continued", reason: "unmet: c1" } },
-    ]);
-    const lc = blocks.find((b) => b.kind === "loopCheck");
-    expect(lc).toBeTruthy();
-    expect(lc).toMatchObject({ attempt: 2, maxAttempts: 5, strategy: "hybrid", met: false, outcome: "continued", reason: "unmet: c1", ts: 100 });
-    // not a chat bubble
-    expect(blocks.some((b) => b.kind === "user")).toBe(false);
-  });
-
-  it("tolerates a sparse payload (unbounded loop, no reason)", () => {
-    const blocks = buildBlocks([
-      { type: "loop_check", ts: 200, payload: { attempt: 1, maxAttempts: null, strategy: "command", met: true, outcome: "released" } },
-    ]);
-    const lc = blocks.find((b) => b.kind === "loopCheck");
-    expect(lc).toMatchObject({ attempt: 1, maxAttempts: null, met: true, outcome: "released", reason: "" });
+    expect(blocks).toEqual([]);
   });
 });
 

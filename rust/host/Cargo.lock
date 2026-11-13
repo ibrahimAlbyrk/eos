@@ -1891,7 +1891,6 @@ dependencies = [
  "eos-mod-dreams",
  "eos-mod-fs",
  "eos-mod-genui",
- "eos-mod-loops",
  "eos-mod-pages",
  "eos-mod-peer",
  "eos-mod-plugins",
@@ -2342,26 +2341,6 @@ dependencies = [
  "eos-runtime",
  "indexmap 2.14.2",
  "serde",
- "serde_json",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "eos-mod-loops"
-version = "0.0.1"
-dependencies = [
- "eos-contracts",
- "eos-core",
- "eos-domain",
- "eos-kit-fs",
- "eos-kit-proc",
- "eos-platform",
- "eos-prompts",
- "eos-runtime",
- "eos-sessions",
- "futures-util",
- "regress",
  "serde_json",
  "tokio",
  "tracing",

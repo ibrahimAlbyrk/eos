@@ -39,12 +39,28 @@ struct ZodIssue {
 const EXACT_CODES: &[&str] =
     &["too_small", "too_big", "invalid_string", "invalid_type", "invalid_enum_value", "custom"];
 
+/// What carries a goal loop is left out of the types (crates/eos-contracts/README.md).
+const NO_GOAL_LOOPS: &str = "the Rust app has no goal loops";
+
 /// Where the Rust type deliberately does not follow the Zod schema: `(schema, case, why)`.
-const KNOWN_DIFFERENCES: &[(&str, &str, &str)] = &[(
-    "ErrorResponseSchema",
-    "extra",
-    "error bodies on the wire carry more than `error` (path, limit, problems); the type keeps them",
-)];
+const KNOWN_DIFFERENCES: &[(&str, &str, &str)] = &[
+    (
+        "ErrorResponseSchema",
+        "extra",
+        "error bodies on the wire carry more than `error` (path, limit, problems); the type keeps them",
+    ),
+    ("WorkerRowSchema", "full", NO_GOAL_LOOPS),
+    ("WorkerRowSchema", "extra", NO_GOAL_LOOPS),
+    ("WorkerListResponseSchema", "full", NO_GOAL_LOOPS),
+    ("OrchestratorListResponseSchema", "full", NO_GOAL_LOOPS),
+    ("SpawnWorkerRequestSchema", "type:loop", NO_GOAL_LOOPS),
+    ("ReportResponseSchema", "full", NO_GOAL_LOOPS),
+    ("ReportResponseSchema", "extra", NO_GOAL_LOOPS),
+    ("ReportResponseSchema", "type:held", NO_GOAL_LOOPS),
+    ("MessageRecordSchema", "option-4", NO_GOAL_LOOPS),
+    ("WorkerEventTypeSchema", "enum", NO_GOAL_LOOPS),
+    ("WorkerEventPostBodySchema", "enum:type", NO_GOAL_LOOPS),
+];
 
 #[test]
 fn rust_types_agree_with_zod() {

@@ -23,7 +23,6 @@ fn the_defaults_are_todays() {
     assert_eq!(config.events.max_per_worker, 20_000);
     assert_eq!(config.permissions.default_ttl_ms, 0);
     assert_eq!(config.defaults.orchestrator.backend, "claude-opus");
-    assert_eq!((config.r#loop.max_attempts, config.r#loop.judge.temperature), (None, 0.1));
     assert_eq!(config.compaction.threshold, 0.7);
     assert_eq!(config.archive.retention, ArchiveRetention::Weekly);
     assert!(config.remote.enabled && config.peer.enabled, "on where the system can pair");
@@ -92,7 +91,6 @@ fn sections_merge_by_their_own_rules() {
         "memory": { "sources": { "claude": { "label": "Mine" }, "agents": { "projectFilenames": ["AGENTS.md"] } } },
         "backends": { "deepseek": { "kind": "openai", "model": "deepseek-chat", "baseUrl": "https://api.deepseek.com/v1" } },
         "defaults": { "worker": { "backend": "deepseek" }, "orchestrator": {} },
-        "loop": { "enabled": true, "judge": { "model": "haiku" } },
         "microTasks": { "tasks": { "auto-name": { "delayMs": 0 } } },
         "archive": { "retention": "off" },
         "workflow": { "enabled": true },
@@ -116,8 +114,6 @@ fn sections_merge_by_their_own_rules() {
         (config.defaults.worker.backend.as_str(), config.defaults.orchestrator.backend.as_str()),
         ("deepseek", "claude-opus")
     );
-    assert!(config.r#loop.enabled);
-    assert_eq!((config.r#loop.judge.model.as_str(), config.r#loop.judge.temperature), ("haiku", 0.1));
     assert_eq!(
         (config.micro_tasks.tasks["auto-name"].delay_ms, config.micro_tasks.tasks["auto-name"].char_limit),
         (0, 280)
@@ -129,7 +125,7 @@ fn sections_merge_by_their_own_rules() {
 #[test]
 fn a_file_that_breaks_a_rule_is_ignored_whole() {
     for bad in [
-        json!({ "archive": { "retention": "hourly" }, "loop": { "enabled": true } }),
+        json!({ "archive": { "retention": "hourly" }, "compaction": { "enabled": false } }),
         json!({ "compaction": { "threshold": 2 } }),
         json!({ "prices": { "opus": { "input": 1 } } }),
         json!({ "daemon": { "sseKeepaliveMs": 0 } }),
@@ -152,6 +148,8 @@ fn files_of_older_versions_are_read_in_todays_terms() {
             "claude-cli-sonnet": { "kind": "claude-cli", "model": "claude-sonnet-5-5" },
         },
         "defaults": { "orchestrator": { "backend": "claude-sdk-opus" }, "worker": { "backend": "claude-cli-sonnet" } },
+        // A section this app does not have is no rule to break, whatever it holds.
+        "loop": { "enabled": true, "maxAttempts": -1, "judge": { "model": "haiku" } },
     }));
     assert_eq!(rejected, None);
     assert!(config.remote.enabled);

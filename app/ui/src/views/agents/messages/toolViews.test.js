@@ -297,19 +297,11 @@ describe("getToolView", () => {
     expect(v.label({})).toEqual({ verb: "Read task output", file: "" });
   });
 
-  it("renders a loop badge on spawn_worker only when armed at spawn", () => {
+  it("shows spawn_worker with the worker body and no badge", () => {
     const spawn = getToolView("mcp__orchestrator__spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);
     expect(spawn.label({}).verb).toBe("Spawned");
-
-    const armed = spawn.headerBadge({ input: { loop: { goal: { summary: "tests green" }, strategy: "command", limit: 3 } } });
-    expect(armed).not.toBe(null);
-    expect(armed.props.className).toBe("ti-loop-badge");
-    expect(armed.props.title).toBe("Loop: tests green · command · limit 3");
-
-    // no loop arg → no badge; other worker tools never carry one
-    expect(spawn.headerBadge({ input: {} })).toBe(null);
-    expect(getToolView("mcp__orchestrator__kill_worker").headerBadge({ input: { loop: {} } })).toBe(null);
+    expect(spawn.headerBadge({ input: { name: "impl" } })).toBe(null);
   });
 
   it("hides bodies that only repeat the header", () => {

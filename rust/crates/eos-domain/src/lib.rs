@@ -19,7 +19,6 @@ pub mod envelope;
 pub mod event;
 pub mod fs_ignore;
 pub mod git;
-pub mod loops;
 pub mod memory_sources;
 pub mod message_id;
 pub mod message_queue;
@@ -45,7 +44,6 @@ pub mod workflow_run;
 pub mod worktree_policy;
 
 pub use event::EventRecord;
-pub use loops::WorkerLoop;
 pub use model_tier::{ProviderIdentity, TierSpec};
 pub use pending::PendingPermission;
 pub use worker::{BranchUnready, Usage, Worker, WorkerBranch, can_transition};

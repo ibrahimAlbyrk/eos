@@ -17,14 +17,18 @@ const HTTP_GROUPS = [
   [1963, "rewind"], [2091, "workers"], [2104, "system"], [2131, "prompts"], [2178, "worker_definitions"],
   [2201, "workers"], [2242, "system"],
 ];
-const RENAMED = { loop: "loops" };
+// Schemas of what the Rust app does not have: goal loops.
+const NOT_PORTED = new Set(["loop.ts"]);
 const OPAQUE = new Set(["PresentInputSchema", "PresentAppInputSchema"]);
 
 export async function load(repo) {
   const dir = resolve(repo, "contracts/src");
   // genui: only the wire records of spec.ts (route bodies, stored views). The
   // tool inputs and catalog entities inside them are eos-genui's: opaque JSON here.
-  const files = [...readdirSync(dir).filter((f) => f.endsWith(".ts") && f !== "index.ts"), "genui/spec.ts"].sort();
+  const files = [
+    ...readdirSync(dir).filter((f) => f.endsWith(".ts") && f !== "index.ts" && !NOT_PORTED.has(f)),
+    "genui/spec.ts",
+  ].sort();
   const exportsList = [];
   for (const file of files) {
     const text = readFileSync(join(dir, file), "utf8").split("\n");
@@ -38,7 +42,7 @@ export async function load(repo) {
     const base = genui ? "genui" : file.replace(/\.ts$/, "").replace(/-/g, "_");
     for (const [name, value] of Object.entries(ns)) {
       const line = lineOf.get(name) ?? 0;
-      let mod = RENAMED[base] ?? base;
+      let mod = base;
       if (file === "http.ts") {
         let sub = "workers";
         for (const [from, g] of HTTP_GROUPS) if (line >= from) sub = g;

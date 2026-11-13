@@ -165,9 +165,6 @@ impl AgentsModule {
         let busy = self
             .store
             .read(move |tx| {
-                if tx.loops().find_active_by_worker(&worker)?.is_some() {
-                    return Ok(Some("loop active"));
-                }
                 if !tx.message_queue().list_pending(&worker)?.is_empty() {
                     return Ok(Some("messages queued"));
                 }
@@ -247,7 +244,7 @@ impl AgentsModule {
             .read(move |tx| {
                 let Some(row) = tx.workers().find(&worker)? else { return Ok(false) };
                 let is_worker = row.agent_role.as_deref() == Some("worker") && row.parent_id.is_some();
-                Ok(is_worker && row.state == WorkerState::Idle && tx.loops().find_active_by_worker(&worker)?.is_none())
+                Ok(is_worker && row.state == WorkerState::Idle)
             })
             .await;
         if !matches!(due, Ok(true)) || !self.sessions.is_live(id) {
@@ -320,7 +317,7 @@ impl AgentsModule {
         self.sessions.dispatch(notice).await.map(|_| ())
     }
 
-    /// The idle-edge watchers, after compaction (10) and the goal loop (20).
+    /// The idle-edge watchers, after compaction (10).
     pub(crate) fn watch_hooks(&self) -> Vec<IdleHook> {
         if self.watch.is_none() {
             return Vec::new();

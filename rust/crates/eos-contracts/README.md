@@ -14,7 +14,7 @@ and catalog (`eos-genui`). Names follow the TypeScript ones without the `Schema`
 | `routes` | the route table (`ROUTES`, one `Route` constant per `ROUTES` key, with methods) |
 | `route_planes` | which routes stay on this Mac (`KERNEL_LOCAL_ONLY_ROUTES`, `PEER_OPEN_ROUTES`) |
 | `stream` | the event stream's frame payloads and the kernel's bus topic names |
-| `canonical`, `events`, `worker`, `task`, `loops` | agent events, transcript event rows and their payloads, worker rows — what the phone parses |
+| `canonical`, `events`, `worker`, `task` | agent events, transcript event rows and their payloads, worker rows — what the phone parses |
 | `http::*` | request / response bodies by route area: `workers`, `git`, `fs`, `terminal`, `pages`, `templates`, `settings`, `config`, `policy`, `questions`, `rewind`, `symbols`, `commands`, `prompts`, `project_memory`, `worker_definitions`, `system` |
 | `accounts`, `usage`, `artifacts`, `plugin`, `plugin_install`, `background_job`, `workflow_run`, `side_question`, `profile`, `dream`, `sync`, `transfer`, `update`, `peer`, `remote`, `browser`, `genui` | one feature's wire types each |
 | `backend`, `provider_capabilities`, `memory`, `prompt`, `policy`, `worker_definition`, `anthropic`, `shared` | shapes of files and config (`policy.yaml`, prompt frontmatter, worker definitions, backend profiles) |
@@ -64,3 +64,6 @@ and catalog (`eos-genui`). Names follow the TypeScript ones without the `Schema`
   of `UiBackendDescriptor` and the extra keys of `ErrorResponse` are on today's wire but not in
   the Zod schemas; the types carry them.
 - The JSON Schema bundle describes shapes only, not the `Validate` rules.
+- The app has no goal loops: `loop.ts` is not ported, and what carries a loop elsewhere is left
+  out (`loop` on a worker row, `held` on a report answer, the `loop_continuation` and `loop_check`
+  event kinds). A spawn request's `loop` is read as any JSON, so the route can refuse it.

@@ -1,15 +1,14 @@
 //! Worker rows: the lists and one row.
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use eos_contracts::{WorkerContext, WorkerRow};
 use eos_core::Error;
 use eos_core::agent::{ModelCatalog, OpenQuestions};
 use eos_core::store::{Store, Tx};
+use eos_domain::Worker;
 use eos_domain::context::context_pct;
 use eos_domain::worker::{Ownership, ownership};
-use eos_domain::{Worker, WorkerLoop};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -41,16 +40,6 @@ struct Rows {
 impl Rows {
     fn of(workers: &[Worker]) -> Self {
         Self { rows: workers.iter().map(Worker::to_row).collect() }
-    }
-
-    /// Each worker's active goal loop. A loop rests between checks, so it
-    /// shows whatever the worker's state.
-    fn with_loops(mut self, active: &[WorkerLoop]) -> Self {
-        let by_worker: HashMap<&str, &WorkerLoop> = active.iter().map(|l| (l.worker_id.as_str(), l)).collect();
-        for row in &mut self.rows {
-            row.r#loop = by_worker.get(row.id.as_str()).map(|l| l.to_row());
-        }
-        self
     }
 
     /// How full each context window is: `{ used, limit, pct }`.
@@ -105,12 +94,11 @@ fn not_found() -> ApiError {
 /// The rows of `GET /workers`: never archived ones (archived chats are
 /// invisible to agents, and both the dashboard's tree and the agents' list
 /// read this route).
-fn listed(tx: &dyn Tx, parent_id: Option<&str>) -> Result<(Vec<Worker>, Vec<WorkerLoop>), Error> {
-    let workers = match parent_id {
-        Some(parent) => tx.workers().list_by_parent(parent)?.into_iter().filter(|w| !w.is_archived()).collect(),
-        None => tx.workers().list_active()?,
-    };
-    Ok((workers, tx.loops().list_active()?))
+fn listed(tx: &dyn Tx, parent_id: Option<&str>) -> Result<Vec<Worker>, Error> {
+    match parent_id {
+        Some(parent) => Ok(tx.workers().list_by_parent(parent)?.into_iter().filter(|w| !w.is_archived()).collect()),
+        None => tx.workers().list_active(),
+    }
 }
 
 pub(crate) fn routes(
@@ -124,9 +112,8 @@ pub(crate) fn routes(
             let (store, models, questions) = (store.clone(), models.clone(), questions.clone());
             async move {
                 let parent = req.query().get("parentId").filter(|p| !p.is_empty()).map(|p| p.into_owned());
-                let (workers, loops) = store.read(move |tx| listed(tx, parent.as_deref())).await?;
+                let workers = store.read(move |tx| listed(tx, parent.as_deref())).await?;
                 let rows = Rows::of(&workers)
-                    .with_loops(&loops)
                     .with_context(models.as_ref())
                     .with_questions(questions.as_deref())
                     .brief(wants_brief(&req));
@@ -165,10 +152,10 @@ pub(crate) fn routes(
             // `actorId` marks an agent reading through its tools: it sees its
             // own row and its workers', and never an archived one.
             let actor = req.query().get("actorId").filter(|a| !a.is_empty()).map(|a| a.into_owned());
-            let (worker, active_loop) = store
+            let worker = store
                 .read({
                     let id = id.clone();
-                    move |tx| Ok((tx.workers().find(&id)?, tx.loops().find_active_by_worker(&id)?))
+                    move |tx| tx.workers().find(&id)
                 })
                 .await?;
             if let Some(actor) = &actor {
@@ -181,9 +168,7 @@ pub(crate) fn routes(
                 }
             }
             let worker = worker.filter(|w| actor.is_none() || !w.is_archived()).ok_or_else(not_found)?;
-            let rows = Rows::of(std::slice::from_ref(&worker))
-                .with_loops(active_loop.as_slice())
-                .with_context(models.as_ref());
+            let rows = Rows::of(std::slice::from_ref(&worker)).with_context(models.as_ref());
             Ok(Response::json(200, &rows.rows[0]))
         }
     };

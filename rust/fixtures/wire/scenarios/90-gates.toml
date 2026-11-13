@@ -1741,18 +1741,6 @@ auth = "none"
 status = 404
 
 [[step]]
-name = "post-orchestrators-id-loop"
-request = "POST /orchestrators/x/loop"
-auth = "none"
-status = 400
-
-[[step]]
-name = "post-orchestrators-id-loop-stop"
-request = "POST /orchestrators/x/loop/stop"
-auth = "none"
-status = 400
-
-[[step]]
 name = "post-policy-decide"
 request = "POST /policy/decide"
 auth = "none"

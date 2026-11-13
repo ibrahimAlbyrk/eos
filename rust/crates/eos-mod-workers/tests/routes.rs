@@ -57,18 +57,16 @@ async fn lists_leave_archived_chats_out_and_brief_rows_clip_the_prompt() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_active_loop_shows_on_its_workers_row() {
+async fn a_goal_loop_on_record_leaves_its_workers_row_plain() {
     let temp = TempStore::seeded("/sandbox");
     temp.exec("UPDATE worker_loops SET status = 'active' WHERE id = 'l-SEED1'");
     let runtime = runtime(&temp);
-    let want = serde_json::json!({ "status": "active", "attempt": 2, "maxAttempts": 5, "lastReason": "exit 0", "goalSummary": "tests pass" });
-
     let (_, list) = get(&runtime, "/workers", Caller::UNTRUSTED).await;
     let rows = list.as_array().expect("rows");
-    assert_eq!(rows.iter().find(|w| w["id"] == "w-KID1").map(|w| &w["loop"]), Some(&want));
-    assert_eq!(rows.iter().filter(|w| w.get("loop").is_some()).count(), 1);
+    assert!(rows.iter().any(|w| w["id"] == "w-KID1"));
+    assert!(rows.iter().all(|w| w.get("loop").is_none()), "{list}");
     let (_, one) = get(&runtime, "/workers/w-KID1", Caller::UNTRUSTED).await;
-    assert_eq!(one["loop"], want);
+    assert!(one.get("loop").is_none(), "{one}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

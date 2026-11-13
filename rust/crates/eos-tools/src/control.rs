@@ -10,10 +10,10 @@ use eos_contracts::{CreateWorkerResponse, SpawnWorkerRequest, WorkerContext, Wor
 use eos_core::agent::{ModelCatalog, WorkerControl};
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_core::{BoxFuture, Error};
+use eos_domain::Worker;
 use eos_domain::context::context_pct;
 use eos_domain::display::sanitize_event;
 use eos_domain::worker::{Ownership, ownership};
-use eos_domain::{Worker, WorkerLoop};
 use eos_workers::WorkerDefinitions;
 use eos_workers::catalog::entries;
 use serde::Deserialize;
@@ -39,11 +39,10 @@ fn worker_id() -> Schema {
     string().describe("Worker id, e.g. 'w-abcd1234'")
 }
 
-/// A row with the parts it does not store: its active goal loop and how full
-/// its context window is. What the worker routes hand an agent.
-fn enriched(worker: &Worker, active: &[WorkerLoop], models: &dyn ModelCatalog) -> WorkerRow {
+/// A row with the part it does not store: how full its context window is.
+/// What the worker routes hand an agent.
+fn enriched(worker: &Worker, models: &dyn ModelCatalog) -> WorkerRow {
     let mut row = worker.to_row();
-    row.r#loop = active.iter().find(|l| l.worker_id == row.id).map(WorkerLoop::to_row);
     let limit = models.context_window_for(row.model.as_ref().and_then(|m| m.as_deref()));
     #[allow(clippy::cast_possible_truncation)]
     let used = row.last_context_tokens.flatten().map_or(0, |n| n.0 as i64);
@@ -221,22 +220,21 @@ impl Handler for ListActiveWorkers {
     fn run<'a>(&'a self, call: Call<'a>, _input: Value) -> BoxFuture<'a, Outcome> {
         Box::pin(async move {
             let parent = call.self_id.to_owned();
-            let (workers, loops) = self
+            let workers = self
                 .0
                 .store
                 .read(move |tx| {
                     // Archived workers are invisible to agents.
                     let mut workers = tx.workers().list_by_parent(&parent)?;
                     workers.retain(|w| !w.is_archived());
-                    Ok((workers, tx.loops().list_active()?))
+                    Ok(workers)
                 })
                 .await?;
             let rows: Vec<Value> = workers
                 .iter()
                 .take(LISTED_WORKERS)
                 .map(|worker| {
-                    let row =
-                        serde_json::to_value(enriched(worker, &loops, self.0.models.as_ref())).unwrap_or_default();
+                    let row = serde_json::to_value(enriched(worker, self.0.models.as_ref())).unwrap_or_default();
                     let mut out = Map::new();
                     put(&mut out, "id", field(&row, "id"));
                     out.insert("name".into(), or_null(&row, "name"));
@@ -269,8 +267,7 @@ impl Handler for GetWorker {
         Box::pin(async move {
             let IdArgs { id } = args(input)?;
             let target = id.clone();
-            let (worker, loops) =
-                self.0.store.read(move |tx| Ok((tx.workers().find(&target)?, tx.loops().list_active()?))).await?;
+            let worker = self.0.store.read(move |tx| tx.workers().find(&target)).await?;
             match ownership(worker.as_ref(), &id, call.self_id, true) {
                 Ownership::Owned => {}
                 Ownership::Missing => return Err(Error::not_found("worker", id).into()),
@@ -282,7 +279,7 @@ impl Handler for GetWorker {
             let Some(worker) = worker.filter(|w| !w.is_archived()) else {
                 return Err(Failure::refused(404, "not found"));
             };
-            let row = serde_json::to_value(enriched(&worker, &loops, self.0.models.as_ref())).unwrap_or_default();
+            let row = serde_json::to_value(enriched(&worker, self.0.models.as_ref())).unwrap_or_default();
             let mut out = Map::new();
             put(&mut out, "id", field(&row, "id"));
             out.insert("name".into(), or_null(&row, "name"));
@@ -290,6 +287,7 @@ impl Handler for GetWorker {
             out.insert("branch".into(), or_null(&row, "branch"));
             put(&mut out, "prompt", field(&row, "prompt"));
             put(&mut out, "started_at", field(&row, "started_at"));
+            // `loop` always reads null: the description of the tool, the TypeScript app's word for word, names it.
             for key in [
                 "ended_at",
                 "exit_code",

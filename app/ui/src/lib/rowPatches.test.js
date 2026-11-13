@@ -23,9 +23,9 @@ describe("mergeRowChanges", () => {
   });
 
   it("keeps the object of a row that arrives unchanged", () => {
-    const list = [{ id: "a", state: "IDLE", loop: { status: "on" } }, { id: "b", state: "IDLE" }];
+    const list = [{ id: "a", state: "IDLE", context: { pct: 3 } }, { id: "b", state: "IDLE" }];
     const out = mergeRowChanges(list, [
-      { resource: "workers", op: "upsert", data: { id: "a", state: "IDLE", loop: { status: "on" } } },
+      { resource: "workers", op: "upsert", data: { id: "a", state: "IDLE", context: { pct: 3 } } },
       { resource: "workers", op: "upsert", data: { id: "b", state: "WORKING" } },
     ], "workers");
     expect(out[0]).toBe(list[0]);

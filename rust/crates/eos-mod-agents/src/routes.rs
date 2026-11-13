@@ -163,8 +163,6 @@ fn message(m: AgentsModule) -> RouteDef {
                 // waits for the session behind the messages sent before it.
                 m.sessions.wake(&id).await?;
                 let outcome = m.sessions.dispatch(from_dashboard(id.clone(), body)).await?;
-                // A loop that waited for the user goes on.
-                m.sessions.resume_loop_on_input(&id).await?;
                 return Ok(delivered(&outcome));
             };
             m.sessions.revive(&id).await?;
@@ -184,7 +182,6 @@ fn message(m: AgentsModule) -> RouteDef {
             if m.sessions.dispatch(directive).await.is_err() {
                 return Err(ApiError::Unreachable("worker unreachable".into()));
             }
-            m.sessions.resume_loop_on_input(&id).await?;
             let name = m.worker(&id).await?.and_then(|w| w.name);
             Ok(Response::json(200, &json!({"ok": true, "id": id, "name": name})))
         }

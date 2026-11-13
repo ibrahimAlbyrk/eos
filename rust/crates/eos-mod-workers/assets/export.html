@@ -146,11 +146,6 @@
     transition: background .15s ease;
   }
   .wtab.orch .wdot { background: var(--amber); }
-  .wloop {
-    font: 400 .82rem/1 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--t3);
-    flex-shrink: 0;
-  }
   .wcount {
     font: 400 .68rem/1 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -193,19 +188,6 @@
   .panel-badge.orch {
     color: var(--amber);
     border-color: color-mix(in oklch, var(--amber) 40%, var(--line));
-  }
-  /* a worker that ran under a goal-loop — the ↻ glyph reads at a glance */
-  .panel-badge.loop {
-    display: inline-flex;
-    align-items: center;
-    gap: .5em;
-    color: var(--t1);
-    border-color: var(--line);
-  }
-  .panel-badge.loop::before {
-    content: '\21BB';
-    font-size: 1.15em;
-    line-height: 0;
   }
 
   /* ── the timeline & its spine ────────────────────────────────────── */
@@ -551,7 +533,7 @@
   The JSON shape:
   {
     "exported_at": "ISO-8601 timestamp string",
-    "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false, "loop": { "status": "active|passed|exhausted|stopped" } | null }, ... },
+    "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false }, ... },
     "events": [ <event>, <event>, ... ]
   }
 
@@ -1024,7 +1006,6 @@
       ' data-target="' + panelId + '" title="' + escHtml((worker.name || workerId) + ' · ' + roleText) + '">' +
       '<span class="wdot"></span>' +
       '<span class="wname">' + escHtml(worker.name || workerId) + '</span>' +
-      (worker.loop ? '<span class="wloop" title="Ran under a goal-loop">↻</span>' : '') +
       '<span class="wcount">' + count + '</span>' +
       '</button>';
   }
@@ -1038,7 +1019,6 @@
       '<div class="panel-head">' +
         '<span class="panel-name">' + escHtml(worker.name || workerId) + '</span>' +
         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-        (worker.loop ? '<span class="panel-badge loop">Loop · ' + escHtml(worker.loop.status) + '</span>' : '') +
       '</div>' +
       '<div class="timeline">' + bodyHtml + '</div>' +
       '</section>';

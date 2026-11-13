@@ -117,10 +117,11 @@ store.write(move |tx, out| {                                            // one j
   Returning `Err` undoes the job's changes and drops its announcements.
 - A job is synchronous. It must not block on anything but the database, must not call the store
   again, and never runs on the ordered lane.
-- Every table today's code uses has its repository already (`tx.workers()`, `events()`, `loops()`,
+- Every table today's code uses has its repository already (`tx.workers()`, `events()`,
   `pending()`, `message_queue()`, `message_ids()`, `context_marks()`, `worktree_removals()`,
-  `worker_definitions()`, `dreams()`, `transfers()`, `genui_views()`). A method that is missing is
-  added to its trait in `eos-core/src/store/` and its SQL in `eos-store-sqlite/src/`.
+  `worker_definitions()`, `dreams()`, `transfers()`, `genui_views()`); `worker_loops` has none,
+  since the app has no goal loops. A method that is missing is added to its trait in
+  `eos-core/src/store/` and its SQL in `eos-store-sqlite/src/`.
 - A new table: `eos-kit-sqlite/migrations/NNN_name.sql` + its line in `migrate/embedded.rs` (new
   tables only, never a column on an existing table); the repository trait in
   `eos-core/src/store/<table>.rs` with an accessor on `Tx`; its SQL in
