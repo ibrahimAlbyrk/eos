@@ -119,8 +119,11 @@ A change to the shell, the bridge or the threads the core runs on is finished wh
 
 `scripts/bundle.sh` assembles the bundle itself (binary, dashboard, framework, helper apps);
 the Tauri CLI is not used, because it compiles its own copy of the helper and offers no way to
-build ours. Most routes are not ported yet, so a bundle is built with the `dev-proxy` feature
-by default (`EOS_BUNDLE_FEATURES=` for one without: a route Rust does not declare is a 404).
+build ours. The Rust core serves every route of the dashboard except the metered provider
+settings (`/api/backends*`) and `/metrics` (it had a listener to count; there is none). A bundle
+is still built with the `dev-proxy` feature by default, until the app has been walked through
+screen by screen without it (`EOS_BUNDLE_FEATURES=` for one without: a route Rust does not
+declare is a 404).
 
 ### The core, and the dev proxy during the transition
 
@@ -136,9 +139,8 @@ the Rust core does not start, so nothing opens the real `~/.eos` by accident
 computers (the phone's relay, paired computers): never a development build, a test or a
 copy of a data folder.
 
-While routes are still being ported, a bundle is built with the `dev-proxy` feature: a request
-goes to the Rust router when it declares that route and to an **isolated** Node daemon
-otherwise (`eos_bridge::dev::Hybrid`). Without the feature an undeclared route answers as the
+With the `dev-proxy` feature a request goes to the Rust router when it declares that route
+and to an **isolated** Node daemon otherwise (`eos_bridge::dev::Hybrid`). Without the feature an undeclared route answers as the
 router answers it (404). Which side served a request is logged at debug level under
 `eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and `Eos --status` counts
 both sides and lists the routes Rust has served.

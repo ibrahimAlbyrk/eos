@@ -4,9 +4,9 @@
 #
 #   usage: bundle.sh [release|debug]          prints the path of the .app
 #
-#   EOS_BUNDLE_FEATURES  cargo features of the binary. Default `dev-proxy`: most routes are
-#                        not ported yet, so the ones the Rust router does not declare go to
-#                        an isolated Node daemon. Set it empty for a build without the proxy.
+#   EOS_BUNDLE_FEATURES  cargo features of the binary. Default `dev-proxy`: the few routes the
+#                        Rust router does not declare go to an isolated Node daemon. Set it
+#                        empty for a build without the proxy.
 #   EOS_BUNDLE_ID        bundle identifier. Default `dev.eos.shell`, so a local build never
 #                        shares system state (notifications, local network, single instance)
 #                        with the installed Eos (`com.ibrahimalbyrk.eos`).
