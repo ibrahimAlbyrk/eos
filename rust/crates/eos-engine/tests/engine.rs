@@ -462,3 +462,35 @@ async fn a_question_reaches_the_user_with_the_call_that_asks_it() {
     assert_eq!(*bench.user.calls.lock().expect("calls"), [Some("toolu_ask".to_owned())]);
     assert!(bench.request_text(1).contains("Which one?"), "the answer went back to the model");
 }
+
+/// The audit's sequence: a turn, a compaction, the next message, a rewind to
+/// that message, the message after it. As under TypeScript (the summary was
+/// the new session's seed, pushed with `shouldQuery: false`), the summary
+/// comes before the next message, a rewind to that message keeps it, and it
+/// is no rewind target of its own.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rewind_to_the_first_message_after_a_compaction_keeps_the_summary() {
+    let bench = Bench::new([Reply::text("read it"), Reply::text("two"), Reply::text("three")]).await;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("read a.py".into()).await.expect("sends");
+    bench.after_turns("w-1", 1).await;
+    session.replace_context("SUMMARY: a.py was read".into()).await.expect("replaces");
+    session.send("NEXT-ONE".into()).await.expect("sends");
+    bench.after_turns("w-1", 2).await;
+    let sent = bench.request_text(1);
+    let at = |text: &str| sent.find(text).unwrap_or_else(|| panic!("{text} missing: {sent}"));
+    assert!(at("SUMMARY: a.py was read") < at("NEXT-ONE") && !sent.contains("read a.py"), "{sent}");
+
+    let targets = session.rewind_targets().await.expect("targets");
+    let prompts: Vec<&str> = targets.iter().map(|t| t.text.as_str()).collect();
+    assert_eq!(prompts, ["NEXT-ONE"], "the summary is not a prompt");
+    session.rewind(&targets[0].uuid, eos_contracts::RewindMode::Both).await.expect("rewinds");
+    session.send("NEXT-TWO".into()).await.expect("sends");
+    bench.after_turns("w-1", 3).await;
+
+    let sent = bench.request_text(2);
+    let at = |text: &str| sent.find(text).unwrap_or_else(|| panic!("{text} missing: {sent}"));
+    assert!(at("SUMMARY: a.py was read") < at("NEXT-TWO") && !sent.contains("NEXT-ONE"), "{sent}");
+    let transcript = session.read_transcript().await.expect("reads").expect("a conversation");
+    assert_eq!(transcript.entries[0], TranscriptEntry::User { text: "SUMMARY: a.py was read".into() });
+}

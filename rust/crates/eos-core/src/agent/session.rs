@@ -226,7 +226,8 @@ pub trait AgentSession: Send + Sync + 'static {
     fn read_transcript(&self) -> BoxFuture<'_, Result<Option<SessionTranscript>, SessionError>>;
 
     /// Replaces the conversation with `seed`, which runs no turn: the model
-    /// reads it with the next message.
+    /// reads it ahead of the next message, a rewind to that message keeps
+    /// it, and it is no rewind target.
     fn replace_context(&self, seed: String) -> BoxFuture<'_, Result<(), SessionError>>;
 
     /// The user's earlier prompts a rewind can go back to, oldest first.

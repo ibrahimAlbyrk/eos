@@ -97,9 +97,9 @@ pub(crate) fn entries(messages: &[StoredMessage]) -> Vec<TranscriptEntry> {
 }
 
 /// What the user typed in `message`, if it is one of their prompts: not a
-/// tool result, not a note of the harness.
+/// tool result, not a note of the harness, not a compaction's seed.
 fn prompt_text(message: &StoredMessage) -> Option<String> {
-    if message.role() != Role::User {
+    if message.role() != Role::User || message.is_meta() {
         return None;
     }
     let blocks = message.blocks().ok()?;

@@ -466,11 +466,11 @@ impl AgentSession for EngineSession {
     }
 
     fn replace_context(&self, seed: String) -> BoxFuture<'_, Result<(), SessionError>> {
+        // The seed opens the conversation ahead of the next message (a rewind
+        // to that message keeps it), as TypeScript's `shouldQuery: false` push.
         Box::pin(async move {
-            let agent = self.agent()?;
-            agent.rewind(0).await.map_err(failed)?;
-            // A note runs no turn: the model reads it with the next message.
-            agent.notify(seed, false).await.map_err(|_| SessionError::Gone)
+            let replaced = self.agent()?.replace_context(seed).await.map_err(|_| SessionError::Gone)?;
+            replaced.map_err(failed)
         })
     }
 
