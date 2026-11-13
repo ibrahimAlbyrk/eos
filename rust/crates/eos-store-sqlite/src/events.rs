@@ -43,11 +43,15 @@ impl SqliteTx<'_> {
         if keep_newest <= 0 {
             return Ok(0);
         }
-        self.exec(
+        let removed = self.exec(
             "DELETE FROM events WHERE worker_id = ?1 AND id < \
              (SELECT id FROM events WHERE worker_id = ?1 ORDER BY id DESC LIMIT 1 OFFSET ?2)",
             params![worker_id, keep_newest - 1],
-        )
+        )?;
+        if removed > 0 {
+            self.unindex_pruned(worker_id)?;
+        }
+        Ok(removed)
     }
 
     fn prune_if_due(&self, worker_id: &str) -> Result<(), Error> {
@@ -116,17 +120,20 @@ impl SqliteTx<'_> {
 
 impl EventRepo for SqliteTx<'_> {
     fn append(&self, worker_id: &str, ts: i64, kind: WorkerEventType, payload: Option<&str>) -> Result<i64, Error> {
+        let kind = kind_name(kind)?;
         self.exec(
             "INSERT INTO events (worker_id, ts, type, payload) VALUES (?1, ?2, ?3, ?4)",
-            params![worker_id, ts, kind_name(kind)?, payload],
+            params![worker_id, ts, kind, payload],
         )?;
         let id = self.conn.last_insert_rowid();
+        self.index_appended(worker_id, id, ts, &kind, payload)?;
         self.prune_if_due(worker_id)?;
         Ok(id)
     }
 
     fn patch_payload(&self, row_id: i64, payload: &str) -> Result<(), Error> {
-        self.exec("UPDATE events SET payload = ?1 WHERE id = ?2", params![payload, row_id]).map(drop)
+        self.exec("UPDATE events SET payload = ?1 WHERE id = ?2", params![payload, row_id])?;
+        self.index_patched(row_id, payload)
     }
 
     fn list(&self, q: &EventQuery) -> Result<Vec<EventRecord>, Error> {
@@ -182,6 +189,7 @@ impl EventRepo for SqliteTx<'_> {
 
     fn delete_by_worker(&self, worker_id: &str) -> Result<(), Error> {
         self.exec("DELETE FROM events WHERE worker_id = ?1", [worker_id])?;
+        self.unindex_worker(worker_id)?;
         self.shared.appends_since_prune.lock().unwrap_or_else(|p| p.into_inner()).remove(worker_id);
         Ok(())
     }

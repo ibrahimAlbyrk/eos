@@ -36,6 +36,7 @@
 //! and writes each change through; the one service that owns the data's write
 //! path orders the changes.
 
+mod conversation_lists;
 mod counters;
 mod definitions;
 mod documents;
@@ -53,6 +54,7 @@ mod templates;
 mod unit;
 mod workers;
 
+pub use conversation_lists::ConversationListRepo;
 pub use counters::{ContextMarkRepo, MessageIdRepo, WorktreeRemoval, WorktreeRemovalQueue};
 pub use definitions::{DefinitionFile, WorkerDefinitionFiles};
 pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, WorkerDefinitionRepo};

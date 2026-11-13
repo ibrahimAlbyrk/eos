@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { UiProvider } from "../../../state/ui.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 import { collectSubagents } from "../../../lib/subagentRuns.js";
+import { summarizeAll } from "../../../lib/conversationLists.js";
+import { publishLoadedSubagents } from "../../../state/subagentsStore.js";
 import { SubagentLine } from "./SubagentLine.jsx";
 import { SubagentBatch } from "./SubagentBatch.jsx";
 import { SubagentList } from "./SubagentList.jsx";
@@ -32,6 +34,9 @@ const runs = collectSubagents([
   { kind: "agentRun", toolUseId: "unity", description: "Unity sürümü", prompt: "sürümü bul", status: "completed", ts: 59_000, endTs: 93_000, tools: [read("r2", false)], result: "Editör `6000.0.23f1`.\n<usage>tokens: 9</usage>", usage: null, model: "claude-sonnet-4-5", effort: "high", subagentType: "Explore" },
 ]);
 const byId = (id) => runs.find((r) => r.toolUseId === id);
+// What the lists read: the same subagents as summaries.
+const summaries = summarizeAll(runs);
+const summaryOf = (id) => summaries.find((r) => r.toolUseId === id);
 
 const render = (node) => renderToStaticMarkup(
   <UiProvider><PaneScopeContext.Provider value="leaf-a">{node}</PaneScopeContext.Provider></UiProvider>,
@@ -78,7 +83,7 @@ describe("SubagentBatch", () => {
 
 describe("SubagentList", () => {
   it("shows what each active subagent is doing and how long it has worked", () => {
-    const html = render(<SubagentList runs={runs} now={NOW} onOpen={() => {}} />);
+    const html = render(<SubagentList runs={summaries} now={NOW} onOpen={() => {}} />);
     expect(html).toContain("Active · 1");
     expect(html).toContain("Reading Movement2D.cs");
     expect(html).toContain("41s");
@@ -88,7 +93,7 @@ describe("SubagentList", () => {
   });
 
   it("says so when nothing is running, and has an empty state", () => {
-    expect(render(<SubagentList runs={[byId("git")]} now={NOW} onOpen={() => {}} />)).toContain("No active subagents");
+    expect(render(<SubagentList runs={[summaryOf("git")]} now={NOW} onOpen={() => {}} />)).toContain("No active subagents");
     expect(render(<SubagentList runs={[]} now={NOW} onOpen={() => {}} />)).toContain("No subagents yet");
   });
 });
@@ -108,11 +113,25 @@ describe("subagentActivity", () => {
   it("prefers a still-running tool over a later finished one", () => {
     expect(subagentActivity(withTools(bash("b1", "npm test", true), read("r1", false)))).toBe("Running npm test");
   });
+
+  it("reads a summary's activity the same way", () => {
+    expect(subagentActivity(summaryOf("files"))).toBe("Reading Movement2D.cs");
+    expect(subagentActivity({ ...summaryOf("files"), activity: null })).toBe("Thinking…");
+    const [one] = summarizeAll(collectSubagents([{ ...byId("files").runs[0], tools: [bash("b1", "npm test", true), read("r1", false)] }]));
+    expect(subagentActivity(one)).toBe("Running npm test");
+  });
 });
 
 describe("SubagentDetail", () => {
+  // The transcript's window holds these subagents whole.
+  const detail = (whole) => {
+    publishLoadedSubagents("w1", whole);
+    const [summary] = summarizeAll(whole.slice(-1));
+    return render(<SubagentDetail workerId="w1" run={summary} now={NOW} workers={[]} onBack={() => {}} />);
+  };
+
   it("leads a finished subagent with its report, work folded away", () => {
-    const html = render(<SubagentDetail run={byId("unity")} now={NOW} workers={[]} onBack={() => {}} />);
+    const html = detail([byId("unity")]);
     expect(html).toContain("Unity sürümü");
     expect(html).toContain("Explore · Sonnet 4.5 · High");
     expect(html).toContain("Worked for 34s");
@@ -122,7 +141,7 @@ describe("SubagentDetail", () => {
   });
 
   it("opens a running subagent on its prompt and live tools", () => {
-    const html = render(<SubagentDetail run={byId("files")} now={NOW} workers={[]} onBack={() => {}} />);
+    const html = detail([byId("files")]);
     expect(html).toContain("Working for 41s");
     expect(html).toContain("dosyaları oku");
     expect(html).toContain("tool-item");
@@ -131,7 +150,7 @@ describe("SubagentDetail", () => {
 
   it("folds a run of tools into a transcript-style group", () => {
     const [grouped] = collectSubagents([{ ...byId("files").runs[0], tools: [read("r1", false), read("r2", false), read("r3", false)] }]);
-    const html = render(<SubagentDetail run={grouped} now={NOW} workers={[]} onBack={() => {}} />);
+    const html = detail([grouped]);
     expect(text(html)).toContain("Read 3 files");
     expect(html.match(/class="tool-group"/g)).toHaveLength(1);
     expect(html).not.toContain("tool-item standalone");
@@ -142,11 +161,19 @@ describe("SubagentDetail", () => {
       { kind: "agentRun", toolUseId: "git", description: "Git özeti", prompt: "git kontrolleri", status: "completed", ts: 10_000, endTs: 20_000, tools: [], result: "Dal: main", usage: null, model: null },
       { kind: "agentRun", toolUseId: "send", resumeOf: "git", description: "Recap", prompt: "şimdi etiketleri say", status: "running", ts: 90_000, endTs: null, tools: [read("r1", true)], result: null, usage: null, model: null },
     ]);
-    const html = text(render(<SubagentDetail run={resumed} now={NOW} workers={[]} onBack={() => {}} />));
+    const html = text(detail([resumed]));
     expect(html).toContain("Git özeti");
     expect(html.indexOf("Worked for 10s")).toBeLessThan(html.indexOf("Dal: main"));
     expect(html.indexOf("Dal: main")).toBeLessThan(html.indexOf("Working for 10s"));
     expect(html).toContain("şimdi etiketleri say");
     expect(html).not.toContain("git kontrolleri");
+  });
+
+  it("shows its head from the summary until its rows arrive", () => {
+    publishLoadedSubagents("w2", []);
+    const html = render(<SubagentDetail workerId="w2" run={summaryOf("unity")} now={NOW} workers={[]} onBack={() => {}} />);
+    expect(html).toContain("Unity sürümü");
+    expect(html).toContain("Explore · Sonnet 4.5 · High");
+    expect(html).not.toContain("6000.0.23f1");
   });
 });

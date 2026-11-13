@@ -13,6 +13,7 @@ import { MessageAssistant } from "../messages/MessageAssistant.jsx";
 import { usePathLinks } from "../messages/paths/usePathLinks.jsx";
 import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
 import { joinHandlers } from "../../../lib/joinHandlers.js";
+import { useSubagentDetail } from "../../../hooks/useSubagentDetail.js";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 
 // Inner tools as transcript blocks (lone tools and grouped runs), in ToolItem's
@@ -30,9 +31,12 @@ function toolBlocksOf(run) {
 
 // One subagent, opened from the list or the transcript: each time it worked —
 // what it was asked, the tools it ran (the "Worked for …" disclosure) and its
-// report. One continued later shows a section per run, the latest last.
-export function SubagentDetail({ run, now, cwd, workers, onBack }) {
+// report. One continued later shows a section per run, the latest last. `run`
+// is its summary; the whole of it comes from the transcript's window or, when
+// the window lacks it, from its own rows (useSubagentDetail).
+export function SubagentDetail({ workerId, run, now, cwd, workers, onBack }) {
   const running = isRunning(run);
+  const whole = useSubagentDetail(workerId, run);
   const stick = useStickToBottom({ threshold: 30 });
   // Once, on open: a live run follows its newest tool from the first frame.
   useLayoutEffect(() => {
@@ -57,7 +61,7 @@ export function SubagentDetail({ run, now, cwd, workers, onBack }) {
       <ScrollHoldContext.Provider value={stick.hold}>
         <div className="sa-detail__scroll" ref={stick.scrollerRef}>
           <div className="sa-detail__body" ref={stick.contentRef} {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
-            {run.runs.map((r, i) => (
+            {whole?.runs.map((r, i) => (
               <Fragment key={r.toolUseId}>
                 {i > 0 && <div className="sa-detail__sep" />}
                 <SubagentRunWork run={r} now={now} cwd={cwd} workers={workers} />

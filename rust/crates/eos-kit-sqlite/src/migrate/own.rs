@@ -7,4 +7,6 @@ use super::Migration;
 pub(super) const OWN: &[Migration] = &[
     // One type of one conversation (the prompt markers, the attachments) without reading the whole log.
     embed!("065_idx_events_worker_type_id"),
+    // The facts a chat's subagent and artifact lists are derived from, and how far each log was read in.
+    embed!("066_conversation_list_facts"),
 ];

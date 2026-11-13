@@ -5,14 +5,15 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use super::{
-    ContextMarkRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo, MessageQueueRepo, PendingRepo,
-    TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo,
+    MessageQueueRepo, PendingRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
 /// The repositories over one transaction (a write) or one snapshot (a read).
 pub trait Tx {
     fn context_marks(&self) -> &dyn ContextMarkRepo;
+    fn conversation_lists(&self) -> &dyn ConversationListRepo;
     fn dreams(&self) -> &dyn DreamRepo;
     fn events(&self) -> &dyn EventRepo;
     fn genui_views(&self) -> &dyn GenuiViewRepo;

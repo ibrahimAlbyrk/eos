@@ -5,7 +5,7 @@ import { collectSubagents, groupSubagentRuns } from "./subagentRuns.js";
 import { collectArtifacts } from "./artifactLink.js";
 import { stableGenuiIndex } from "../genui/runtime/conversation.js";
 import { deriveTurns } from "./turnIndex.js";
-import { blocksAcrossConversation } from "../hooks/useConversationBlocks.js";
+import { subagentFromRows } from "./conversationLists.js";
 
 // Rows as the server sends them: the payload is a JSON string.
 let nextId = 0;
@@ -105,7 +105,7 @@ describe("the parse pipeline treats parsed payloads as read-only", () => {
         turns: deriveTurns(blocks, (b, i) => i),
         compaction: compactionStatus(rows),
         split: splitAtCompaction(rows),
-        across: blocksAcrossConversation(rows.slice(0, 10), rows.slice(10), 0),
+        detail: subagentFromRows(rows, "AG"),
       };
     };
     const first = build();

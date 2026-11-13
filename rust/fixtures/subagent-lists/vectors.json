@@ -1,0 +1,1708 @@
+{
+ "generatedBy": "rust/tools/subagent-lists-vectors/generate.mjs",
+ "vectors": [
+  {
+   "name": "foreground subagents finish, run, or are cut by the turn's end",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"look around\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"read-1\",\"name\":\"Read\",\"input\":{\"file_path\":\"/w/a.md\"}}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"read-1\",\"content\":\"file text\"}]}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"ag-done\",\"name\":\"Agent\",\"input\":{\"description\":\"Map the repo\",\"prompt\":\"Map it all\",\"subagent_type\":\"Explore\",\"model\":\"haiku\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-1\",\"toolName\":\"Grep\",\"input\":{\"pattern\":\"TODO\",\"path\":\"/w\"},\"parentCallId\":\"ag-done\"}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"in-1\",\"toolName\":\"Grep\",\"result\":\"3 matches\",\"isError\":false,\"parentCallId\":\"ag-done\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-2\",\"toolName\":\"Read\",\"input\":{\"file_path\":\"/w/b.rs\"},\"parentCallId\":\"ag-done\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"in-2\",\"toolName\":\"Read\",\"result\":\"\",\"isError\":false,\"parentCallId\":\"ag-done\"}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"ag-done\",\"content\":\"All mapped.<usage>x</usage>\"}]}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"ag-cut\",\"name\":\"Agent\",\"input\":{\"prompt\":\"pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-3\",\"toolName\":\"Bash\",\"input\":{\"command\":\"sleep 100\",\"description\":\"wait\"},\"parentCallId\":\"ag-cut\"}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "agent_event",
+     "payload": "{\"type\":\"turn\",\"phase\":\"ended\"}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "state",
+     "payload": "{\"state\":\"IDLE\"}"
+    },
+    {
+     "id": 14,
+     "worker_id": "w-T",
+     "ts": 1790000000140,
+     "type": "user_message",
+     "payload": "{\"text\":\"again\"}"
+    },
+    {
+     "id": 15,
+     "worker_id": "w-T",
+     "ts": 1790000000150,
+     "type": "state",
+     "payload": "{\"state\":\"WORKING\"}"
+    },
+    {
+     "id": 16,
+     "worker_id": "w-T",
+     "ts": 1790000000160,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"ag-live\",\"name\":\"Agent\",\"input\":{\"summary\":\"Live one\",\"prompt\":\"Keep going\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 17,
+     "worker_id": "w-T",
+     "ts": 1790000000170,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-4\",\"toolName\":\"Bash\",\"input\":{\"command\":\"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\",\"description\":\"a long one\",\"timeout\":5,\"run_in_background\":false,\"nested\":{\"a\":1},\"list\":[1]},\"parentCallId\":\"ag-live\"}"
+    },
+    {
+     "id": 18,
+     "worker_id": "w-T",
+     "ts": 1790000000180,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"in-4\",\"toolName\":\"Bash\",\"result\":\"ok\",\"isError\":false,\"parentCallId\":\"ag-live\"}"
+    },
+    {
+     "id": 19,
+     "worker_id": "w-T",
+     "ts": 1790000000190,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-5\",\"toolName\":\"Write\",\"input\":{\"file_path\":\"/w/c.txt\",\"content\":\"😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀\"},\"parentCallId\":\"ag-live\"}"
+    },
+    {
+     "id": 20,
+     "worker_id": "w-T",
+     "ts": 1790000000200,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"in-6\",\"toolName\":\"Read\",\"input\":{\"file_path\":\"/w/d.txt\"},\"parentCallId\":\"ag-live\"}"
+    },
+    {
+     "id": 21,
+     "worker_id": "w-T",
+     "ts": 1790000000210,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"in-6\",\"toolName\":\"Read\",\"result\":\"d\",\"isError\":false,\"parentCallId\":\"ag-live\"}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "ag-done",
+      "description": "Map the repo",
+      "resumeOf": null,
+      "model": "haiku",
+      "effort": null,
+      "subagentType": "Explore",
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": 1790000000090,
+      "ts": 1790000000040,
+      "toolCount": 2,
+      "lastToolTs": 1790000000070,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "ag-done",
+        "description": "Map the repo",
+        "resumeOf": null,
+        "model": "haiku",
+        "effort": null,
+        "subagentType": "Explore",
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": 1790000000090,
+        "ts": 1790000000040,
+        "toolCount": 2,
+        "lastToolTs": 1790000000070,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "ag-cut",
+      "description": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000100,
+      "toolCount": 1,
+      "lastToolTs": 1790000000110,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "ag-cut",
+        "description": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000100,
+        "toolCount": 1,
+        "lastToolTs": 1790000000110,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "ag-live",
+      "description": "Live one",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "running",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000160,
+      "toolCount": 3,
+      "lastToolTs": 1790000000200,
+      "activity": {
+       "name": "Write",
+       "input": {
+        "file_path": "/w/c.txt",
+        "content": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+       }
+      },
+      "runs": [
+       {
+        "toolUseId": "ag-live",
+        "description": "Live one",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000160,
+        "toolCount": 3,
+        "lastToolTs": 1790000000200,
+        "activity": {
+         "name": "Write",
+         "input": {
+          "file_path": "/w/c.txt",
+          "content": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+         }
+        }
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "background subagents end with their completion, the session, or keep running past turns",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"do it in the background\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"bg-1\",\"name\":\"Agent\",\"input\":{\"description\":\"Background one\",\"prompt\":\"go\",\"run_in_background\":true},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"bg-1\",\"content\":\"launched\"}]}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"bg-1\",\"agentId\":\"a-1\",\"background\":true}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_profile\",\"callId\":\"bg-1\",\"model\":\"claude-sonnet-4-5\",\"effort\":\"high\"}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-1\",\"toolName\":\"Glob\",\"input\":{\"pattern\":\"**/*.rs\"},\"parentCallId\":\"bg-1\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"bg-2\",\"name\":\"Agent\",\"input\":{\"description\":\"Never ends\",\"prompt\":\"go\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"bg-2\",\"content\":\"launched\"}]}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"bg-2\",\"agentId\":\"a-2\",\"background\":true}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-2\",\"toolName\":\"Bash\",\"input\":{\"command\":\"make\"},\"parentCallId\":\"bg-2\"}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"turn\",\"phase\":\"ended\"}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "state",
+     "payload": "{\"state\":\"IDLE\"}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"bi-1\",\"toolName\":\"Glob\",\"result\":\"files\",\"isError\":false,\"parentCallId\":\"bg-1\"}"
+    },
+    {
+     "id": 14,
+     "worker_id": "w-T",
+     "ts": 1790000000140,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_completed\",\"agentId\":\"a-1\",\"status\":\"failed\",\"result\":\"broke\",\"usage\":{\"totalTokens\":10,\"toolUses\":1,\"durationMs\":4200}}"
+    },
+    {
+     "id": 15,
+     "worker_id": "w-T",
+     "ts": 1790000000150,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"bg-3\",\"name\":\"Agent\",\"input\":{\"description\":\"Stopped by exit\",\"prompt\":\"go\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 16,
+     "worker_id": "w-T",
+     "ts": 1790000000160,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"bg-3\",\"content\":\"launched\"}]}"
+    },
+    {
+     "id": 17,
+     "worker_id": "w-T",
+     "ts": 1790000000170,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"bg-3\",\"agentId\":\"a-3\",\"background\":true}"
+    },
+    {
+     "id": 18,
+     "worker_id": "w-T",
+     "ts": 1790000000180,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_profile\",\"callId\":\"bg-3\",\"model\":null,\"effort\":\"low\"}"
+    },
+    {
+     "id": 19,
+     "worker_id": "w-T",
+     "ts": 1790000000190,
+     "type": "agent_event",
+     "payload": "{\"type\":\"session\",\"phase\":\"ended\"}"
+    },
+    {
+     "id": 20,
+     "worker_id": "w-T",
+     "ts": 1790000000200,
+     "type": "exit",
+     "payload": "{\"code\":0}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "bg-1",
+      "description": "Background one",
+      "resumeOf": null,
+      "model": "claude-sonnet-4-5",
+      "effort": "high",
+      "subagentType": null,
+      "status": "failed",
+      "background": true,
+      "usage": {
+       "totalTokens": 10,
+       "toolUses": 1,
+       "durationMs": 4200
+      },
+      "endTs": 1790000000140,
+      "ts": 1790000000020,
+      "toolCount": 1,
+      "lastToolTs": 1790000000060,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "bg-1",
+        "description": "Background one",
+        "resumeOf": null,
+        "model": "claude-sonnet-4-5",
+        "effort": "high",
+        "subagentType": null,
+        "status": "failed",
+        "background": true,
+        "usage": {
+         "totalTokens": 10,
+         "toolUses": 1,
+         "durationMs": 4200
+        },
+        "endTs": 1790000000140,
+        "ts": 1790000000020,
+        "toolCount": 1,
+        "lastToolTs": 1790000000060,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "bg-2",
+      "description": "Never ends",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "stopped",
+      "background": true,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000070,
+      "toolCount": 1,
+      "lastToolTs": 1790000000100,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "bg-2",
+        "description": "Never ends",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "stopped",
+        "background": true,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000070,
+        "toolCount": 1,
+        "lastToolTs": 1790000000100,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "bg-3",
+      "description": "Stopped by exit",
+      "resumeOf": null,
+      "model": null,
+      "effort": "low",
+      "subagentType": null,
+      "status": "stopped",
+      "background": true,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000150,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "bg-3",
+        "description": "Stopped by exit",
+        "resumeOf": null,
+        "model": null,
+        "effort": "low",
+        "subagentType": null,
+        "status": "stopped",
+        "background": true,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000150,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "a stopped subagent continued by a message is one subagent with two runs",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"start\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"r-1\",\"name\":\"Agent\",\"input\":{\"description\":\"Researcher\",\"prompt\":\"research\",\"subagent_type\":\"general-purpose\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"r-1\",\"content\":\"launched\"}]}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"r-1\",\"agentId\":\"agent-r\",\"background\":true}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"ri-1\",\"toolName\":\"WebSearch\",\"input\":{\"query\":\"rust sqlite\"},\"parentCallId\":\"r-1\"}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"ri-1\",\"toolName\":\"WebSearch\",\"result\":\"results\",\"isError\":false,\"parentCallId\":\"r-1\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_completed\",\"callId\":\"r-1\",\"agentId\":\"agent-r\",\"status\":\"stopped\",\"result\":\"report\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "agent_event",
+     "payload": "{\"type\":\"turn\",\"phase\":\"ended\"}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "state",
+     "payload": "{\"state\":\"IDLE\"}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "user_message",
+     "payload": "{\"text\":\"continue it\"}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"send-1\",\"name\":\"SendMessage\",\"input\":{\"to\":\"agent-r\",\"message\":\"Please also check the docs\",\"summary\":\"\"}}]}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"send-1\",\"content\":\"sent\"}]}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"send-1\",\"agentId\":\"agent-r\",\"background\":true}"
+    },
+    {
+     "id": 14,
+     "worker_id": "w-T",
+     "ts": 1790000000140,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"ri-2\",\"toolName\":\"WebFetch\",\"input\":{\"url\":\"https://docs.rs\"},\"parentCallId\":\"send-1\"}"
+    },
+    {
+     "id": 15,
+     "worker_id": "w-T",
+     "ts": 1790000000150,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_completed\",\"callId\":\"send-1\",\"agentId\":\"agent-r\",\"status\":\"completed\",\"result\":\"report\",\"usage\":{\"durationMs\":1500}}"
+    },
+    {
+     "id": 16,
+     "worker_id": "w-T",
+     "ts": 1790000000160,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"send-2\",\"name\":\"SendMessage\",\"input\":{\"to\":\"x\",\"message\":\"third run\"}}]}"
+    },
+    {
+     "id": 17,
+     "worker_id": "w-T",
+     "ts": 1790000000170,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"send-2\",\"agentId\":\"agent-other\",\"background\":true,\"resumes\":\"send-1\"}"
+    },
+    {
+     "id": 18,
+     "worker_id": "w-T",
+     "ts": 1790000000180,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"send-3\",\"name\":\"SendMessage\",\"input\":{\"message\":\"orphan\"}}]}"
+    },
+    {
+     "id": 19,
+     "worker_id": "w-T",
+     "ts": 1790000000190,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"send-3\",\"agentId\":\"agent-new\",\"background\":true,\"resumes\":\"gone\"}"
+    },
+    {
+     "id": 20,
+     "worker_id": "w-T",
+     "ts": 1790000000200,
+     "type": "agent_event",
+     "payload": "{\"type\":\"turn\",\"phase\":\"ended\"}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "r-1",
+      "description": "Researcher",
+      "resumeOf": "send-1",
+      "model": null,
+      "effort": null,
+      "subagentType": "general-purpose",
+      "status": "running",
+      "background": true,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000160,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "r-1",
+        "description": "Researcher",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": "general-purpose",
+        "status": "stopped",
+        "background": true,
+        "usage": null,
+        "endTs": 1790000000070,
+        "ts": 1790000000020,
+        "toolCount": 1,
+        "lastToolTs": 1790000000050,
+        "activity": null
+       },
+       {
+        "toolUseId": "send-1",
+        "description": "Researcher",
+        "resumeOf": "r-1",
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": true,
+        "usage": {
+         "durationMs": 1500
+        },
+        "endTs": 1790000000150,
+        "ts": 1790000000110,
+        "toolCount": 1,
+        "lastToolTs": 1790000000140,
+        "activity": null
+       },
+       {
+        "toolUseId": "send-2",
+        "description": "Researcher",
+        "resumeOf": "send-1",
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": true,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000160,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "send-3",
+      "description": "orphan",
+      "resumeOf": "gone",
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "running",
+      "background": true,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000180,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "send-3",
+        "description": "orphan",
+        "resumeOf": "gone",
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": true,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000180,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "rows of the older lanes: transcript lines and hook pulses",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"legacy\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "tool_running",
+     "payload": "{\"toolName\":\"Agent\",\"toolUseId\":\"lg-1\",\"input\":{\"description\":\"Pulse first\",\"prompt\":\"x\"}}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "tool_running",
+     "payload": "{\"toolName\":\"Read\",\"toolUseId\":\"lgi-1\",\"input\":{\"file_path\":\"/w/x\"},\"parentAgentToolUseId\":\"lg-1\"}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "tool_done",
+     "payload": "{\"toolName\":\"Read\",\"toolUseId\":\"lgi-1\",\"result\":\"x\"}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "jsonl",
+     "payload": "{\"kind\":\"tool_use\",\"id\":\"lg-1\",\"name\":\"Agent\",\"input\":{\"description\":\"Pulse first\",\"prompt\":\"x\"},\"tsTranscript\":1790000000005,\"parentModel\":\"opus\"}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "tool_running",
+     "payload": "{\"toolName\":\"Grep\",\"toolUseId\":\"stray-1\",\"input\":{\"pattern\":\"y\"}}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "tool_done",
+     "payload": "{\"toolName\":\"Agent\",\"toolUseId\":\"lg-1\",\"result\":\"\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "jsonl",
+     "payload": "{\"kind\":\"tool_result\",\"toolUseId\":\"lg-1\",\"text\":\"done\",\"tsTranscript\":1790000000400}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "tool_running",
+     "payload": "{\"toolName\":\"Agent\",\"toolUseId\":\"lg-2\",\"input\":{\"prompt\":\"pulse only\"}}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "tool_running",
+     "payload": "{\"toolName\":\"Bash\",\"toolUseId\":\"lgi-2\",\"input\":{\"command\":\"ls\"},\"parentAgentToolUseId\":\"lg-2\"}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "hook",
+     "payload": "{\"event\":\"Stop\"}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "jsonl",
+     "payload": "{\"kind\":\"tool_use\",\"id\":\"lg-3\",\"name\":\"Task\",\"spawnsSubagent\":true,\"input\":{\"description\":\"Marked\"}}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "lifecycle",
+     "payload": "{\"phase\":\"interrupted\"}"
+    },
+    {
+     "id": 14,
+     "worker_id": "w-T",
+     "ts": 1790000000140,
+     "type": "lifecycle",
+     "payload": "{\"phase\":\"pty_exit\"}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "lg-1",
+      "description": "Pulse first",
+      "resumeOf": null,
+      "model": "opus",
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": 1790000000400,
+      "ts": 1790000000005,
+      "toolCount": 1,
+      "lastToolTs": 1790000000030,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "lg-1",
+        "description": "Pulse first",
+        "resumeOf": null,
+        "model": "opus",
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": 1790000000400,
+        "ts": 1790000000005,
+        "toolCount": 1,
+        "lastToolTs": 1790000000030,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "lg-2",
+      "description": "pulse only",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000090,
+      "toolCount": 1,
+      "lastToolTs": 1790000000100,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "lg-2",
+        "description": "pulse only",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000090,
+        "toolCount": 1,
+        "lastToolTs": 1790000000100,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "lg-3",
+      "description": "Marked",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000120,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "lg-3",
+        "description": "Marked",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000120,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "a rewind hides the abandoned branch but keeps the subagents that ended there",
+   "bootPromptOffset": 1,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "orchestrator_message",
+     "payload": "{\"text\":\"the task\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"rw-1\",\"name\":\"Agent\",\"input\":{\"description\":\"Before\",\"prompt\":\"a\",\"run_in_background\":true},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_started\",\"callId\":\"rw-1\",\"agentId\":\"a-rw1\",\"background\":true}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "user_message",
+     "payload": "{\"text\":\"<msg id=\\\"m-1\\\"/>\\nsecond   question\"}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"rw-2\",\"name\":\"Agent\",\"input\":{\"description\":\"Abandoned\",\"prompt\":\"b\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"subagent_completed\",\"callId\":\"rw-1\",\"agentId\":\"a-rw1\",\"status\":\"completed\",\"result\":\"report\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "conversation_rewound",
+     "payload": "{\"text\":\"second question extended\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "user_message",
+     "payload": "{\"text\":\"third\"}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"rw-3\",\"name\":\"Agent\",\"input\":{\"description\":\"After\",\"prompt\":\"c\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"rw-3\",\"content\":\"ok\"}]}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"rw-4\",\"name\":\"Agent\",\"input\":{\"description\":\"Dropped by index\",\"prompt\":\"d\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "conversation_rewound",
+     "payload": "{\"index\":2}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"rw-5\",\"name\":\"Agent\",\"input\":{\"description\":\"Kept\",\"prompt\":\"e\"},\"spawnsSubagent\":true}]}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "rw-1",
+      "description": "Before",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": true,
+      "usage": null,
+      "endTs": 1790000000060,
+      "ts": 1790000000020,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "rw-1",
+        "description": "Before",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": true,
+        "usage": null,
+        "endTs": 1790000000060,
+        "ts": 1790000000020,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "rw-5",
+      "description": "Kept",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "running",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000130,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "rw-5",
+        "description": "Kept",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000130,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "a clear wipes earlier subagents; a recalled message no longer anchors a rewind",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"cl-1\",\"name\":\"Agent\",\"input\":{\"description\":\"Wiped\",\"prompt\":\"a\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "conversation_cleared",
+     "payload": "{}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "user_message",
+     "payload": "{\"text\":\"first\",\"clientMsgIds\":[\"c-1\"]}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"cl-2\",\"name\":\"Agent\",\"input\":{\"description\":\"Survivor\",\"prompt\":\"b\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "user_message",
+     "payload": "{\"text\":\"recalled one\",\"clientMsgIds\":[\"c-2\"]}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "message_recalled",
+     "payload": "{\"clientMsgId\":\"c-2\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "user_message",
+     "payload": "{\"text\":\"recalled by row\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "message_recalled",
+     "payload": "{\"recalledRowId\":7}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"cl-3\",\"name\":\"Agent\",\"input\":{\"description\":\"Third\",\"prompt\":\"c\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "conversation_rewound",
+     "payload": "{\"text\":\"recalled\"}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "cl-2",
+      "description": "Survivor",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "running",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000040,
+      "toolCount": 0,
+      "lastToolTs": null,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "cl-2",
+        "description": "Survivor",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000040,
+        "toolCount": 0,
+        "lastToolTs": null,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  },
+  {
+   "name": "artifacts: published, updated, opened, failed, uploaded, and from a subagent",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"make pages\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-1\",\"name\":\"Artifact\",\"input\":{\"file_path\":\"/tmp/Release Notes.html\"}}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-1\",\"content\":\"Published https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666\"}]}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-2\",\"name\":\"Artifact\",\"input\":{\"url\":\"https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666\",\"file_path\":\"/tmp/data.json\",\"root\":\"/tmp/site\",\"title\":\"\"}}]}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-2\",\"content\":\"Updated https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666\"}]}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-3\",\"name\":\"Artifact\",\"input\":{\"action\":\"open\",\"url\":\"https://claude.ai/artifact/YBc8tWaKTvYp8FQwVJdRkM\"}}]}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-3\",\"content\":\"opened\"}]}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-4\",\"name\":\"Artifact\",\"input\":{\"file_path\":\"/tmp/broken.md\"}}]}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-4\",\"content\":\"Failed https://claude.ai/artifact/YBc8tWaKTvYp8FQwVJdRkM\",\"isError\":true}]}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-5\",\"name\":\"Artifact\",\"input\":{\"asset\":true,\"file_path\":\"/tmp/pic.png\",\"url\":\"https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666\"}}]}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-6\",\"name\":\"Artifact\",\"input\":{\"action\":\"quickstart\"}}]}"
+    },
+    {
+     "id": 12,
+     "worker_id": "w-T",
+     "ts": 1790000000120,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-6\",\"content\":\"see https://claude.ai/artifact/YBc8tWaKTvYp8FQwVJdRkM\"}]}"
+    },
+    {
+     "id": 13,
+     "worker_id": "w-T",
+     "ts": 1790000000130,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-7\",\"name\":\"Artifact\",\"input\":{\"root\":\"/tmp/typed\",\"file_path\":\"/tmp/typed/data.md\"}}]}"
+    },
+    {
+     "id": 14,
+     "worker_id": "w-T",
+     "ts": 1790000000140,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-7\",\"content\":\"Published https://claude.ai/code/artifact/not-a-uuid\"}]}"
+    },
+    {
+     "id": 15,
+     "worker_id": "w-T",
+     "ts": 1790000000150,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-ag\",\"name\":\"Agent\",\"input\":{\"description\":\"Publisher\",\"prompt\":\"publish\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 16,
+     "worker_id": "w-T",
+     "ts": 1790000000160,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"art-in\",\"toolName\":\"Artifact\",\"input\":{\"title\":\"From a subagent\"},\"parentCallId\":\"art-ag\"}"
+    },
+    {
+     "id": 17,
+     "worker_id": "w-T",
+     "ts": 1790000000170,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"art-in\",\"toolName\":\"Artifact\",\"result\":\"Published https://preview.claude.com/artifact/YBc8tWaKTvYp8FQwVJdRkN\",\"isError\":false,\"parentCallId\":\"art-ag\"}"
+    },
+    {
+     "id": 18,
+     "worker_id": "w-T",
+     "ts": 1790000000180,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"art-in2\",\"toolName\":\"Artifact\",\"input\":{\"file_path\":\"/x/later.HTM\"},\"parentCallId\":\"art-ag\"}"
+    },
+    {
+     "id": 19,
+     "worker_id": "w-T",
+     "ts": 1790000000190,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"art-in2\",\"toolName\":\"Artifact\",\"result\":\"Updated https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666\",\"isError\":false,\"parentCallId\":\"art-ag\"}"
+    },
+    {
+     "id": 20,
+     "worker_id": "w-T",
+     "ts": 1790000000200,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"art-ag\",\"content\":\"done\"}]}"
+    },
+    {
+     "id": 21,
+     "worker_id": "w-T",
+     "ts": 1790000000210,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"art-8\",\"name\":\"Artifact\",\"input\":{}}]}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "art-ag",
+      "description": "Publisher",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": 1790000000200,
+      "ts": 1790000000150,
+      "toolCount": 2,
+      "lastToolTs": 1790000000180,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "art-ag",
+        "description": "Publisher",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": 1790000000200,
+        "ts": 1790000000150,
+        "toolCount": 2,
+        "lastToolTs": 1790000000180,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": [
+     {
+      "url": "https://claude.ai/code/artifact/0b5e7a2c-1111-4222-8333-444455556666",
+      "slug": "0b5e7a2c-1111-4222-8333-444455556666",
+      "title": "Release Notes",
+      "ts": 1790000000180
+     },
+     {
+      "url": "https://preview.claude.com/artifact/YBc8tWaKTvYp8FQwVJdRkN",
+      "slug": "fc8663b5-9f94-f991-9a80-bb3bd4b4d963",
+      "title": "From a subagent",
+      "ts": 1790000000160
+     },
+     {
+      "url": "https://claude.ai/code/artifact/not-a-uuid",
+      "slug": null,
+      "title": null,
+      "ts": 1790000000130
+     },
+     {
+      "url": "https://claude.ai/artifact/YBc8tWaKTvYp8FQwVJdRkM",
+      "slug": "fc8663b5-9f94-f991-9a80-bb3bd4b4d962",
+      "title": null,
+      "ts": 1790000000060
+     }
+    ]
+   }
+  },
+  {
+   "name": "repeated rows and calls batched in one message",
+   "bootPromptOffset": 0,
+   "rows": [
+    {
+     "id": 1,
+     "worker_id": "w-T",
+     "ts": 1790000000010,
+     "type": "user_message",
+     "payload": "{\"text\":\"batch\"}"
+    },
+    {
+     "id": 2,
+     "worker_id": "w-T",
+     "ts": 1790000000020,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"b-1\",\"name\":\"Agent\",\"spawnsSubagent\":true,\"input\":{\"description\":\"One\"}},{\"type\":\"tool_call\",\"callId\":\"b-2\",\"name\":\"Task\",\"spawnsSubagent\":true,\"input\":{\"description\":\"Two\",\"model\":\"sonnet\"}},{\"type\":\"tool_call\",\"callId\":\"b-read\",\"name\":\"Read\",\"input\":{\"file_path\":\"/w\"}}]}"
+    },
+    {
+     "id": 3,
+     "worker_id": "w-T",
+     "ts": 1790000000030,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-1\",\"toolName\":\"Read\",\"input\":{\"file_path\":\"/w/1\"},\"parentCallId\":\"b-1\"}"
+    },
+    {
+     "id": 4,
+     "worker_id": "w-T",
+     "ts": 1790000000040,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-1\",\"toolName\":\"Read\",\"input\":{\"file_path\":\"/w/1\"},\"parentCallId\":\"b-1\"}"
+    },
+    {
+     "id": 5,
+     "worker_id": "w-T",
+     "ts": 1790000000050,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-2\",\"toolName\":\"Edit\",\"input\":{\"file_path\":\"/w/2\",\"old_string\":\"a\",\"new_string\":\"b\"},\"parentCallId\":\"b-2\"}"
+    },
+    {
+     "id": 6,
+     "worker_id": "w-T",
+     "ts": 1790000000060,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_finished\",\"callId\":\"bi-2\",\"toolName\":\"Edit\",\"result\":\"edited\",\"isError\":false,\"parentCallId\":\"b-2\"}"
+    },
+    {
+     "id": 7,
+     "worker_id": "w-T",
+     "ts": 1790000000070,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"tool_started\",\"callId\":\"bi-3\",\"toolName\":\"Bash\",\"input\":{\"command\":\"ls\"},\"parentCallId\":\"b-unknown\"}"
+    },
+    {
+     "id": 8,
+     "worker_id": "w-T",
+     "ts": 1790000000080,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"tool\",\"blocks\":[{\"type\":\"tool_result\",\"callId\":\"b-1\",\"content\":\"one done\"}]}"
+    },
+    {
+     "id": 9,
+     "worker_id": "w-T",
+     "ts": 1790000000090,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"b-1\",\"name\":\"Agent\",\"input\":{\"description\":\"One again\"},\"spawnsSubagent\":true}]}"
+    },
+    {
+     "id": 10,
+     "worker_id": "w-T",
+     "ts": 1790000000100,
+     "type": "agent_event",
+     "payload": "{\"type\":\"activity\",\"kind\":\"alive\"}"
+    },
+    {
+     "id": 11,
+     "worker_id": "w-T",
+     "ts": 1790000000110,
+     "type": "agent_event",
+     "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"blocks\":[{\"type\":\"text\",\"text\":\"all done\"}]}"
+    }
+   ],
+   "expected": {
+    "subagents": [
+     {
+      "toolUseId": "b-1",
+      "description": "One",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": 1790000000080,
+      "ts": 1790000000020,
+      "toolCount": 2,
+      "lastToolTs": 1790000000040,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "b-1",
+        "description": "One",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": 1790000000080,
+        "ts": 1790000000020,
+        "toolCount": 2,
+        "lastToolTs": 1790000000040,
+        "activity": null
+       }
+      ]
+     },
+     {
+      "toolUseId": "b-2",
+      "description": "Two",
+      "resumeOf": null,
+      "model": "sonnet",
+      "effort": null,
+      "subagentType": null,
+      "status": "running",
+      "background": false,
+      "usage": null,
+      "endTs": null,
+      "ts": 1790000000020,
+      "toolCount": 1,
+      "lastToolTs": 1790000000050,
+      "activity": {
+       "name": "Edit",
+       "input": {
+        "file_path": "/w/2",
+        "old_string": "a",
+        "new_string": "b"
+       }
+      },
+      "runs": [
+       {
+        "toolUseId": "b-2",
+        "description": "Two",
+        "resumeOf": null,
+        "model": "sonnet",
+        "effort": null,
+        "subagentType": null,
+        "status": "running",
+        "background": false,
+        "usage": null,
+        "endTs": null,
+        "ts": 1790000000020,
+        "toolCount": 1,
+        "lastToolTs": 1790000000050,
+        "activity": {
+         "name": "Edit",
+         "input": {
+          "file_path": "/w/2",
+          "old_string": "a",
+          "new_string": "b"
+         }
+        }
+       }
+      ]
+     },
+     {
+      "toolUseId": "b-1",
+      "description": "One again",
+      "resumeOf": null,
+      "model": null,
+      "effort": null,
+      "subagentType": null,
+      "status": "completed",
+      "background": false,
+      "usage": null,
+      "endTs": 1790000000080,
+      "ts": 1790000000090,
+      "toolCount": 2,
+      "lastToolTs": 1790000000040,
+      "activity": null,
+      "runs": [
+       {
+        "toolUseId": "b-1",
+        "description": "One again",
+        "resumeOf": null,
+        "model": null,
+        "effort": null,
+        "subagentType": null,
+        "status": "completed",
+        "background": false,
+        "usage": null,
+        "endTs": 1790000000080,
+        "ts": 1790000000090,
+        "toolCount": 2,
+        "lastToolTs": 1790000000040,
+        "activity": null
+       }
+      ]
+     }
+    ],
+    "artifacts": []
+   }
+  }
+ ]
+}

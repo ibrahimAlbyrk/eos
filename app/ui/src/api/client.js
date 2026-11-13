@@ -277,9 +277,21 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerPromptEvents → ${r.status}`);
     return r.body;
   },
-  async getWorkerSubagentEvents(id) {
-    const r = await getJson(ROUTES.workerSubagentEvents(id));
-    if (!r.ok) throw new Error(`getWorkerSubagentEvents → ${r.status}`);
+  // The whole conversation's subagents and artifacts as summaries
+  // (lib/subagentSummary.js), and the rows that rebuild one subagent.
+  async getWorkerSubagents(id) {
+    const r = await getJson(ROUTES.workerSubagents(id));
+    if (!r.ok || !Array.isArray(r.body?.subagents)) throw new Error(`getWorkerSubagents → ${r.status}`);
+    return r.body.subagents;
+  },
+  async getWorkerArtifacts(id) {
+    const r = await getJson(ROUTES.workerArtifacts(id));
+    if (!r.ok || !Array.isArray(r.body?.artifacts)) throw new Error(`getWorkerArtifacts → ${r.status}`);
+    return r.body.artifacts;
+  },
+  async getSubagentRows(id, callId) {
+    const r = await getJson(ROUTES.workerSubagentRows(id, callId));
+    if (!r.ok || !Array.isArray(r.body)) throw new Error(`getSubagentRows → ${r.status}`);
     return r.body;
   },
   // A Workflow run (WorkflowRunDetail), or null when the daemon knows none.

@@ -1,5 +1,6 @@
 //! The route table as data: every entry of `ROUTES` in `contracts/src/http.ts`
-//! with the methods its path answers.
+//! with the methods its path answers, and the routes only the Rust core has
+//! ([`Route::added`]).
 //!
 //! `cargo xtask contracts` exports it as JSON and writes the dashboard's
 //! `app/ui/src/api/routes.js` from it.
@@ -52,11 +53,19 @@ pub struct Route {
     pub encoded: &'static [&'static str],
     /// The key names a prefix: requests go to paths below it (`/fs/raw/…`).
     pub prefix: bool,
+    /// A route of the Rust core that today's daemon does not have: additive,
+    /// so a client that does not know it keeps working.
+    pub added: bool,
 }
 
 impl Route {
     pub const fn new(name: &'static str, path: &'static str, methods: &'static [Method]) -> Self {
-        Self { name, path, methods, encoded: &[], prefix: false }
+        Self { name, path, methods, encoded: &[], prefix: false, added: false }
+    }
+
+    pub const fn added(mut self) -> Self {
+        self.added = true;
+        self
     }
 
     pub const fn encoding(mut self, params: &'static [&'static str]) -> Self {

@@ -1,7 +1,8 @@
-// Pure helpers over the parser's agentRun blocks (one per Claude subagent): who
-// they are (identity), how a launch batch reads in the transcript, and how long
-// each one worked. Shared by the transcript line, the Subagents side-panel tab
-// and the Environment popover so all three tell the same story.
+// Pure helpers over the parser's agentRun blocks (one per Claude subagent) and
+// their summaries (subagentSummary.js): who they are (identity), how a launch
+// batch reads in the transcript, and how long each one worked. Shared by the
+// transcript line, the Subagents side-panel tab and the Environment popover so
+// all three tell the same story.
 
 import { assignIdentities } from "./subagentIdentity.js";
 import { fmtElapsedShort, fmtTimeAgo } from "./format.js";
@@ -32,8 +33,8 @@ export function collectSubagents(blocks) {
 }
 
 // Consecutive agentRun blocks are one launch batch → one "subagents" block that
-// renders as a single line. `subagents` (from collectSubagents) supplies the
-// identity-carrying version of each run.
+// renders as a single line. `subagents` (the conversation's, in summary shape)
+// supplies the identity-carrying version of each run.
 export function groupSubagentRuns(blocks, subagents) {
   const byId = new Map(subagents.flatMap((s) => s.runs.map((r) => [r.toolUseId, r])));
   const out = [];
@@ -74,10 +75,11 @@ export function launchVerb(runs) {
 
 // Working time: live while running; for a finished one the lane's own figure
 // when it reported one, else start → end (or → its last tool). null = unknown.
+// Reads a run block (its tools) or a summary (its lastToolTs).
 export function subagentElapsedMs(run, now) {
   if (isRunning(run)) return Math.max(0, now - run.ts);
   if (run.usage?.durationMs) return run.usage.durationMs;
-  const lastToolTs = run.tools?.length ? run.tools[run.tools.length - 1].ts : null;
+  const lastToolTs = run.tools ? (run.tools.at(-1)?.ts ?? null) : (run.lastToolTs ?? null);
   const end = run.endTs ?? lastToolTs;
   return end != null && end > run.ts ? end - run.ts : null;
 }

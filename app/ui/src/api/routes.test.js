@@ -14,6 +14,11 @@ function resolve(entry) {
   return typeof entry === "function" ? entry(":id") : entry;
 }
 
+// Routes only the Rust core has, beside the ones they relate to: additive, so
+// the contracts table (today's daemon) has no entry for them. The core's own
+// table marks them (`added` in rust/crates/eos-contracts/src/routes/table.rs).
+const CORE_ONLY = new Set(["workerSubagents", "workerSubagentRows", "workerArtifacts"]);
+
 describe("web ROUTES parity with contracts ROUTES", () => {
   it("contracts ROUTES actually loaded (import did not silently no-op)", () => {
     expect(contractRoutes).toBeTruthy();
@@ -22,9 +27,10 @@ describe("web ROUTES parity with contracts ROUTES", () => {
 
   it("every web ROUTES key exists in contracts ROUTES", () => {
     const missing = Object.keys(webRoutes).filter(
-      (key) => !(key in contractRoutes),
+      (key) => !(key in contractRoutes) && !CORE_ONLY.has(key),
     );
     expect(missing).toEqual([]);
+    expect([...CORE_ONLY].filter((key) => key in contractRoutes || !(key in webRoutes))).toEqual([]);
   });
 
   // The mirror is deliberately partial (web ⊂ contracts), so contracts-only

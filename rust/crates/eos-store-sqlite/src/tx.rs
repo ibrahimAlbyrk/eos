@@ -5,8 +5,8 @@ use std::sync::Mutex;
 
 use eos_core::Error;
 use eos_core::store::{
-    ContextMarkRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo, MessageQueueRepo, PendingRepo,
-    TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, LoopRepo, MessageIdRepo,
+    MessageQueueRepo, PendingRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 
@@ -27,6 +27,10 @@ pub(crate) struct SqliteTx<'c> {
 /// them inside the same transaction.
 impl Tx for SqliteTx<'_> {
     fn context_marks(&self) -> &dyn ContextMarkRepo {
+        self
+    }
+
+    fn conversation_lists(&self) -> &dyn ConversationListRepo {
         self
     }
 

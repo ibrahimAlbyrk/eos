@@ -2,14 +2,16 @@
 //! `orchestrators.ts`, `prompt-events.ts`, `subagent-events.ts`,
 //! `attachments.ts`).
 //!
-//! Lists and single rows, transcript pages, the three lists that cover a
-//! whole conversation, and the messages waiting for a busy worker; a
-//! conversation exported as a page; a worker's project memory. Every route here only reads, but forgetting a
-//! project memory; starting, messaging, renaming and removing workers are
+//! Lists and single rows, transcript pages, the lists that cover a whole
+//! conversation (as rows, and its subagents and artifacts as summaries), and
+//! the messages waiting for a busy worker; a conversation exported as a page;
+//! a worker's project memory. Every route here only reads (the summaries
+//! bring their facts up to the log first), but forgetting a project memory; starting, messaging, renaming and removing workers are
 //! `eos-mod-agents`.
 
 mod events;
 mod export;
+mod lists;
 mod memory;
 mod rows;
 mod stream;
@@ -63,6 +65,7 @@ impl Module for WorkersModule {
     fn routes(&self) -> Vec<RouteDef> {
         let mut routes = rows::routes(self.store.clone(), self.models.clone(), self.questions.clone());
         routes.extend(events::routes(self.store.clone()));
+        routes.extend(lists::routes(self.store.clone()));
         routes.push(export::route(self.store.clone(), self.clock.clone()));
         if let Some(memory) = &self.memory {
             routes.extend(memory::routes(self.store.clone(), memory.clone()));

@@ -5,11 +5,17 @@
 use std::collections::HashSet;
 
 use eos_contracts::{ChatAttachment, WorkerEventType, parse_attachment_message};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::event::EventRecord;
 
 mod facts;
+mod lists;
+mod row_facts;
+
+pub use lists::{ConversationLists, IndexedRow, activity_input, rows_of_subagent};
+pub use row_facts::RowFacts;
 
 /// The prompts of a conversation and the markers that hide some of them
 /// (clear, rewind, recall): what the turn index is rebuilt from.
@@ -26,11 +32,16 @@ const PROMPT_KINDS: [&str; 5] =
 
 /// One tool call a row is about. `parent` is the subagent call an inner tool
 /// runs under; `name` is set on the row that starts the call.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CallRef {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     parent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     name: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     launches_subagent: bool,
 }
 
@@ -170,35 +181,67 @@ impl SubagentRowMeta {
     }
 }
 
+/// What the subagent selection reads of a row.
+trait Selectable {
+    fn id(&self) -> i64;
+    fn ts(&self) -> i64;
+    fn refs(&self) -> &[CallRef];
+    fn always(&self) -> bool;
+    fn started(&self) -> Option<&str>;
+}
+
+impl Selectable for SubagentRowMeta {
+    fn id(&self) -> i64 {
+        self.id
+    }
+    fn ts(&self) -> i64 {
+        self.ts
+    }
+    fn refs(&self) -> &[CallRef] {
+        &self.refs
+    }
+    fn always(&self) -> bool {
+        self.always
+    }
+    fn started(&self) -> Option<&str> {
+        self.started.as_deref()
+    }
+}
+
 /// Every row needed to rebuild each subagent of the whole conversation — its
 /// launch, inner tools, result and lifecycle — and each Artifact call with its
-/// result, plus the prompt rows and the turn barriers: their ids, in the
-/// conversation's order (time, then id), whatever order `rows` came in.
-pub fn select_subagent_ids(rows: &[SubagentRowMeta]) -> Vec<i64> {
+/// result, plus the prompt rows and the turn barriers, in the conversation's
+/// order (time, then id), whatever order `rows` came in.
+fn kept_rows<'r, R: Selectable>(rows: impl IntoIterator<Item = &'r R>) -> Vec<&'r R> {
+    let rows: Vec<&R> = rows.into_iter().collect();
     let mut agents: HashSet<&str> =
-        rows.iter().flat_map(|r| &r.refs).filter(|r| r.launches_subagent).filter_map(|r| r.id.as_deref()).collect();
+        rows.iter().flat_map(|r| r.refs()).filter(|r| r.launches_subagent).filter_map(|r| r.id.as_deref()).collect();
     // A run started by some other call (a message that resumed a stopped subagent).
-    agents.extend(rows.iter().filter_map(|r| r.started.as_deref()));
+    agents.extend(rows.iter().filter_map(|r| r.started()));
     let mut wanted = agents.clone();
-    for r in rows.iter().flat_map(|r| &r.refs) {
+    for r in rows.iter().flat_map(|r| r.refs()) {
         let under_agent = r.parent.as_deref().is_some_and(|parent| agents.contains(parent));
         if under_agent || r.name.as_deref() == Some("Artifact") {
             wanted.extend(r.id.as_deref());
         }
     }
-    let mut kept: Vec<(i64, i64)> = rows
-        .iter()
+    let mut kept: Vec<&R> = rows
+        .into_iter()
         .filter(|row| {
-            row.always
-                || row.refs.iter().any(|r| {
+            row.always()
+                || row.refs().iter().any(|r| {
                     r.id.as_deref().is_some_and(|id| wanted.contains(id))
                         || r.parent.as_deref().is_some_and(|parent| wanted.contains(parent))
                 })
         })
-        .map(|row| (row.ts, row.id))
         .collect();
-    kept.sort_unstable();
-    kept.into_iter().map(|(_, id)| id).collect()
+    kept.sort_by_key(|row| (row.ts(), row.id()));
+    kept
+}
+
+/// The ids [`kept_rows`] keeps, in its order.
+pub fn select_subagent_ids(rows: &[SubagentRowMeta]) -> Vec<i64> {
+    kept_rows(rows).into_iter().map(Selectable::id).collect()
 }
 
 /// [`select_subagent_ids`] over rows in hand: the rows it keeps, in their order.

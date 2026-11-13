@@ -27,6 +27,7 @@ export function SubagentsPanel({ live }) {
       {run ? (
         <SubagentDetail
           key={run.toolUseId}
+          workerId={workerId}
           run={run}
           now={live.now}
           cwd={worker?.cwd}

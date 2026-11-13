@@ -35,9 +35,8 @@ import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
 import { SubagentBatch } from "../subagents/SubagentBatch.jsx";
-import { collectSubagents, groupSubagentRuns } from "../../../lib/subagentRuns.js";
-import { publishSubagents } from "../../../state/subagentsStore.js";
-import { collectArtifacts } from "../../../lib/artifactLink.js";
+import { groupSubagentRuns } from "../../../lib/subagentRuns.js";
+import { publishLoadedSubagents, publishSubagents } from "../../../state/subagentsStore.js";
 import { publishArtifacts } from "../../../state/artifactsStore.js";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
@@ -53,7 +52,7 @@ import { TurnFold } from "./TurnFold.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
 import { foldTurns, turnBounds } from "../../../lib/turnFold.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
-import { useConversationBlocks } from "../../../hooks/useConversationBlocks.js";
+import { useConversationLists } from "../../../hooks/useConversationLists.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject, projectPathFor } from "../../../lib/breadcrumb.js";
 import { useProjects } from "../../../state/projectsStore.js";
@@ -380,21 +379,22 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     [cleared, compactionSplit, folded, bootPromptOffset],
   );
 
-  // This agent's subagents, each with its glyph + color — published for the
-  // side panel's Subagents tab and the Environment popover. Only once the window
-  // is this agent's own: mid-switch it is empty and would blank their lists.
-  // All of the conversation's, not just the loaded window's or the unfolded part.
-  const conversationBlocks = useConversationBlocks(selectedId, events, baseBlocks, {
+  // This agent's subagents (summaries, each with its glyph + color) and the
+  // artifacts it published — published for the side panel's Subagents tab, the
+  // artifacts list and the Environment popover. Only once the window is this
+  // agent's own: mid-switch it is empty and would blank their lists. All of the
+  // conversation's, not just the loaded window's or the unfolded part: the core
+  // summarizes the rest (useConversationLists).
+  const windowEnd = useMemo(() => events.reduce((max, e) => Math.max(max, e.id), 0), [events]);
+  const { subagents, artifacts, windowSubagents } = useConversationLists(selectedId, baseBlocks, {
     partial: owned && (windowHasOlder || folded),
-    bootPromptOffset,
+    windowEnd,
   });
-  const subagents = useMemo(() => collectSubagents(conversationBlocks), [conversationBlocks]);
   useEffect(() => {
-    if (owned) publishSubagents(selectedId, subagents);
-  }, [owned, selectedId, subagents]);
-
-  // Same publish for the Environment popover's Artifacts section.
-  const artifacts = useMemo(() => collectArtifacts(conversationBlocks), [conversationBlocks]);
+    if (!owned) return;
+    publishSubagents(selectedId, subagents);
+    publishLoadedSubagents(selectedId, windowSubagents);
+  }, [owned, selectedId, subagents, windowSubagents]);
   useEffect(() => {
     if (owned) publishArtifacts(selectedId, artifacts);
   }, [owned, selectedId, artifacts]);
@@ -533,14 +533,14 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     }
   }, [blocks, selectedId]);
 
-  // Which views a later one replaced, and which failed calls were fixed below —
-  // over the whole conversation (a replacement is always newer than what it
-  // replaces, so it is in the window whenever the old view is).
+  // Which views a later one replaced, and which failed calls were fixed below.
+  // The window's blocks are enough for every view it renders: a replacement and
+  // a fix are always newer than what they act on.
   const genuiRef = useRef(null);
   const genui = useMemo(() => {
-    genuiRef.current = stableGenuiIndex(conversationBlocks, genuiRef.current);
+    genuiRef.current = stableGenuiIndex(baseBlocks, genuiRef.current);
     return genuiRef.current;
-  }, [conversationBlocks]);
+  }, [baseBlocks]);
   const sendToAgent = live.sendToAgent;
   // The chat's project folder ("Save as page" from an app files the page there).
   const genuiProject = selectedId ? projectPathFor(live.workers ?? [], selectedId) : null;

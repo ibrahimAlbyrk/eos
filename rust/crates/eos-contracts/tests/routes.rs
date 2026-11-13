@@ -21,8 +21,10 @@ struct TsRoute {
 fn names_paths_and_parameters_are_those_of_the_typescript_table() {
     let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/golden/routes.json");
     let ts: Vec<TsRoute> = serde_json::from_slice(&std::fs::read(file).unwrap()).unwrap();
-    assert_eq!(ts.len(), ROUTES.len());
-    for (ours, theirs) in ROUTES.iter().zip(&ts) {
+    // The Rust core's own routes have no TypeScript entry.
+    let ours: Vec<_> = ROUTES.iter().filter(|r| !r.added).collect();
+    assert_eq!(ts.len(), ours.len());
+    for (ours, theirs) in ours.into_iter().zip(&ts) {
         assert_eq!(ours.name, theirs.name);
         // The TypeScript side filled an encoded parameter with an escaped `:name`.
         assert_eq!(ours.path, theirs.path.replace("%3A", ":"), "{}", ours.name);

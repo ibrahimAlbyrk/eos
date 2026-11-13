@@ -8,6 +8,7 @@
 //! The schema is the kit's embedded migrations. Tables and migration ids this
 //! build does not know (older builds left some) are never touched.
 
+mod conversation_lists;
 mod counters;
 mod documents;
 mod events;

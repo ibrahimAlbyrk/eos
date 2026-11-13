@@ -1,5 +1,5 @@
-// Conversation-wide facts about visual answers, derived from the parsed blocks
-// (Messages passes useConversationBlocks' list, not just the loaded window):
+// Facts about visual answers across the parsed blocks (Messages passes the
+// loaded window's: a replacement or a fix is always newer than what it acts on):
 //   superseded  viewId → the later view that replaced it (present {replaces})
 //   fixedBelow  callIds of refused calls a later successful view followed
 

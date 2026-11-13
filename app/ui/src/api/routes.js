@@ -29,6 +29,11 @@ export const ROUTES = {
   // Every row that rebuilds the conversation's subagents — the Subagents panel
   // lists the ones the paged window hasn't loaded too.
   workerSubagentEvents: (id) => `/workers/${id}/subagent-events`,
+  // The same lists as summaries (the Rust core only): every subagent, the rows
+  // that rebuild one of them when its detail opens, and every artifact.
+  workerSubagents: (id) => `/workers/${id}/subagents`,
+  workerSubagentRows: (id, callId) => `/workers/${id}/subagents/${callId}/events`,
+  workerArtifacts: (id) => `/workers/${id}/artifacts`,
   // Claude Code Workflow runs (contracts/src/workflow-run.ts).
   workerWorkflowRuns: (id) => `/workers/${id}/workflow-runs`,
   workerWorkflowRun: (id, callId) => `/workers/${id}/workflow-runs/${callId}`,

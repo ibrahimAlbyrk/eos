@@ -102,12 +102,12 @@ fn page_query(worker_id: &str, req: &Request) -> Result<EventQuery, ApiError> {
 
 /// Rows as clients read them: wrappers the model saw are stripped from a
 /// copy, the payload stays JSON text.
-fn wire(rows: Vec<EventRecord>) -> Vec<WorkerEventRow> {
+pub(crate) fn wire(rows: Vec<EventRecord>) -> Vec<WorkerEventRow> {
     rows.into_iter().map(|row| sanitize_event(row).into_row()).collect()
 }
 
 /// One row as [`wire`] writes it, inside a list.
-fn wire_into(row: EventRecord, buf: &mut Vec<u8>) {
+pub(crate) fn wire_into(row: EventRecord, buf: &mut Vec<u8>) {
     // A row is plain data: serializing it into memory cannot fail.
     let _ = serde_json::to_writer(buf, &sanitize_event(row).into_row());
 }
