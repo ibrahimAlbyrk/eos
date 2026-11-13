@@ -7,6 +7,7 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 // local: this Mac as its daemon describes itself ({ name, platform, deviceId }).
 // connectOpen: the Connect a machine sheet (opened from the Machines menu, the
@@ -65,7 +66,7 @@ export function ensureHostsLoaded() {
   started = true;
   bridge()?.onChange(applySnapshot);
   bridge()?.onCommand?.((cmd) => { if (cmd?.type === "connect" && canManageMachines()) openConnectSheet(); });
-  void refreshHosts();
+  void afterFirstPaint(refreshHosts);
 }
 
 export function openConnectSheet() { set({ connectOpen: true }); }

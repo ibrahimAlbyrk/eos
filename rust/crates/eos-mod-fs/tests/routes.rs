@@ -204,6 +204,35 @@ async fn trashing_reports_each_path_and_keeps_what_it_removed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn a_batched_stat_answers_each_path_as_its_own_stat_does() {
+    let app = app();
+    app.write("p/a.txt", "abc");
+    app.write("p/q/b.md", "");
+    let paths = [app.path("p/a.txt"), app.path("p"), app.path("p/q/b.md"), app.path("p/missing"), "relative".into()];
+    let req = Request::new(Method::Post, "/fs/stat", Caller::UNTRUSTED).body(json!({ "paths": paths }).to_string());
+    let (status, res) = app.send(req).await;
+    assert_eq!(status, 200);
+    let batch: eos_contracts::FsStatBatchResponse = serde_json::from_slice(&bytes(res).await).expect("the batch shape");
+    assert_eq!(batch.results.len(), paths.len());
+    for (path, answer) in paths.iter().zip(&batch.results) {
+        let single = Request::new(Method::Get, &format!("/fs/stat?{}", query(&[("path", path)])), Caller::UNTRUSTED);
+        let (status, res) = app.send(single).await;
+        assert_eq!(answer.status, status, "{path}");
+        assert_eq!(answer.body.get().as_bytes(), bytes(res).await.as_slice(), "{path}: the same bytes");
+    }
+    assert_eq!(batch.results.iter().map(|r| r.status).collect::<Vec<_>>(), [200, 200, 200, 404, 400]);
+
+    // Bounded, and checked as a request.
+    let many = vec![app.path("p/a.txt"); eos_contracts::FS_STAT_BATCH_MAX + 1];
+    let (status, body) = app.post_as(Caller::UNTRUSTED, "/fs/stat", json!({ "paths": many })).await;
+    assert_eq!((status, body["error"].as_str().is_some_and(|e| e.starts_with("invalid request: paths"))), (400, true));
+    assert_eq!(
+        app.post_as(Caller::UNTRUSTED, "/fs/stat", json!({ "paths": [] })).await,
+        (200, json!({ "results": [] }))
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn moves_refuse_a_folder_into_itself_and_report_per_path() {
     let app = app();
     app.write("p/dir/inner/x.txt", "x");

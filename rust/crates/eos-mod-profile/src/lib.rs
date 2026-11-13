@@ -23,7 +23,7 @@ use eos_core::profile::{
     MemorySearch, MemorySuggestions, UserMemoryReader, UserMemorySuggestionSink, UserMemorySync, UserProfileReader,
     UserProfileSync,
 };
-use eos_core::store::{Store, UserAvatarStore, UserMemoryStore, UserProfileStore};
+use eos_core::store::{AvatarThumbnails, Store, UserAvatarStore, UserMemoryStore, UserProfileStore};
 use eos_core::{Clock, Ids};
 use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
 use eos_runtime::module::{Module, ModuleError, Opaque, SyncContribution};
@@ -75,6 +75,7 @@ pub struct ProfileModule {
     clock: Arc<dyn Clock>,
     bus: Bus,
     suggestions: Mutex<Option<Subscription>>,
+    thumbnails: Option<Arc<dyn AvatarThumbnails>>,
 }
 
 impl std::fmt::Debug for ProfileModule {
@@ -95,7 +96,22 @@ impl ProfileModule {
         let profile = Arc::new(UserProfileService::new(stores.profile, stores.avatars, clock.clone(), bus.clone()));
         let memories = Arc::new(UserMemoryService::new(stores.memories, clock.clone(), ids, bus.clone(), caps));
         let agents = Arc::new(AgentMemory::new(memories, profile.clone(), stores.workers));
-        Self { profile, agents, preview: Arc::new(preview), clock, bus, suggestions: Mutex::new(None) }
+        Self {
+            profile,
+            agents,
+            preview: Arc::new(preview),
+            clock,
+            bus,
+            suggestions: Mutex::new(None),
+            thumbnails: None,
+        }
+    }
+
+    /// Lets `GET /api/profile/avatar?size=` answer a small copy. Without it the route
+    /// answers the stored avatar at any size.
+    pub fn with_avatar_thumbnails(mut self, thumbnails: Arc<dyn AvatarThumbnails>) -> Self {
+        self.thumbnails = Some(thumbnails);
+        self
     }
 
     /// The profile, for whoever only reads it (a dream's settings).
@@ -137,7 +153,7 @@ impl Module for ProfileModule {
     }
 
     fn routes(&self) -> Vec<RouteDef> {
-        let mut routes = routes::profile::all(&self.profile, &self.preview);
+        let mut routes = routes::profile::all(&self.profile, &self.preview, self.thumbnails.clone());
         routes.extend(routes::memories::all(&self.agents));
         routes
     }

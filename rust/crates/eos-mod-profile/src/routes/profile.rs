@@ -11,6 +11,8 @@ use eos_contracts::{
 };
 use eos_core::profile::{ProfileBlockInput, UserProfileBlocks};
 use eos_core::prompt::{MemoryLevel, MemoryProvider, MemoryScope};
+use eos_core::store::AvatarThumbnails;
+use eos_domain::avatar_thumbnail::avatar_thumbnail_size;
 use eos_profile::received_memory_lines;
 use eos_runtime::access::Access;
 use eos_runtime::http::{ApiError, Request, Response};
@@ -99,7 +101,11 @@ impl PreviewContext {
     }
 }
 
-pub(crate) fn all(service: &Arc<UserProfileService>, context: &Arc<PreviewContext>) -> Vec<RouteDef> {
+pub(crate) fn all(
+    service: &Arc<UserProfileService>,
+    context: &Arc<PreviewContext>,
+    thumbnails: Option<Arc<dyn AvatarThumbnails>>,
+) -> Vec<RouteDef> {
     let read = {
         let service = service.clone();
         RouteDef::get("/api/profile", move |_req: Request| {
@@ -130,13 +136,24 @@ pub(crate) fn all(service: &Arc<UserProfileService>, context: &Arc<PreviewContex
             }
         })
     };
-    // The client busts the cache with `?v=<profile rev>`.
+    // The client busts the cache with `?v=<profile rev>`. `?size=<device pixels>` asks for
+    // a small copy, where this computer can make one.
     let avatar = {
         let service = service.clone();
-        RouteDef::get("/api/profile/avatar", move |_req: Request| {
-            let service = service.clone();
+        RouteDef::get("/api/profile/avatar", move |req: Request| {
+            let (service, thumbnails) = (service.clone(), thumbnails.clone());
+            let size = req.query().get("size").and_then(|s| s.parse::<u32>().ok()).filter(|s| *s > 0);
             async move {
-                let Some(avatar) = service.avatar()? else {
+                let avatar = match (size, thumbnails) {
+                    (Some(size), Some(thumbnails)) => {
+                        let size = avatar_thumbnail_size(size);
+                        tokio::task::spawn_blocking(move || thumbnails.thumbnail(size))
+                            .await
+                            .map_err(|e| ApiError::Internal(e.to_string()))??
+                    }
+                    _ => service.avatar()?,
+                };
+                let Some(avatar) = avatar else {
                     return Err(ApiError::NotFound("no avatar".into()));
                 };
                 Ok(Response::bytes(200, avatar_type(avatar.ext), avatar.bytes)

@@ -111,6 +111,8 @@ pub trait Desktop: Send + Sync + Debug {
     fn default_app(&self, file: &Path) -> Option<DefaultApp>;
     /// Writes the app's icon to `out` as a 64×64 PNG.
     fn render_app_icon(&self, bundle_path: &Path, out: &Path) -> Result<(), Error>;
+    /// Writes the image at `image` (PNG, JPEG or WebP) to `out` as a `width`×`height` PNG.
+    fn render_scaled_image(&self, image: &Path, width: u32, height: u32, out: &Path) -> Result<(), Error>;
 }
 
 /// How the installed app takes in a new release on this system.

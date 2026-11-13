@@ -92,6 +92,10 @@ impl Desktop for NoDesktop {
     fn render_app_icon(&self, _bundle_path: &Path, _out: &Path) -> Result<(), Error> {
         Err(Error::Unsupported("app icons"))
     }
+
+    fn render_scaled_image(&self, _image: &Path, _width: u32, _height: u32, _out: &Path) -> Result<(), Error> {
+        Err(Error::Unsupported("scaling images"))
+    }
 }
 
 impl HostPlatform for Generic {

@@ -6,12 +6,17 @@ import "@fontsource/ibm-plex-mono/500.css";
 import "./styles.css";
 import App from "./App.jsx";
 import { api } from "./api/client.js";
+import { receiveBoot } from "./api/boot.js";
+import { holdUntilFirstPaint, releaseAfterPaint } from "./lib/firstPaint.js";
 import { startPlugins } from "./plugins/runtime.js";
+import { primeFromBoot } from "./state/bootPrime.js";
 
 // The app shell loads this page while the daemon may still be starting, and the
 // boot fetches (ui config, settings, projects, templates) run once on mount — so
-// mount only after the daemon answers.
+// mount only after the daemon answers. The boot snapshot index.html asked for is
+// that answer when it came: the reads it holds need no request.
 async function whenDaemonUp() {
+  if (await receiveBoot()) return;
   for (;;) {
     try { await api.health(); return; } catch {}
     await new Promise((r) => setTimeout(r, 50));
@@ -42,9 +47,13 @@ withoutIterationListener(document.body);
 if (location.hash === "#plugin-preview") {
   void import("./plugins/preview.jsx").then((m) => m.startPluginPreview());
 } else {
-  whenDaemonUp().then(() => {
+  whenDaemonUp().then(async () => {
+    holdUntilFirstPaint();
     // Before the first render, so built-in panels are there for restored tabs.
     startPlugins();
+    // The first render draws what the boot snapshot holds (no request is made).
+    await primeFromBoot();
     createRoot(rootEl).render(<App />);
+    releaseAfterPaint();
   });
 }

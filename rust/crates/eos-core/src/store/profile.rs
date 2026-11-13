@@ -26,3 +26,13 @@ pub trait UserAvatarStore: Send + Sync + 'static {
     fn write(&self, avatar: &UserAvatar) -> Result<(), Error>;
     fn remove(&self) -> Result<(), Error>;
 }
+
+/// The avatar made small for drawing at a known size. Blocking: it reads and writes
+/// files and may run the system's image tool.
+pub trait AvatarThumbnails: Send + Sync + 'static {
+    /// A PNG of the avatar whose shorter side is `size` pixels, kept until the avatar
+    /// changes. The stored avatar itself when it is not larger, or when it cannot be
+    /// scaled here (no image tool on this system, a header this cannot read, an image
+    /// its metadata turns). `None` when there is no avatar.
+    fn thumbnail(&self, size: u32) -> Result<Option<UserAvatar>, Error>;
+}

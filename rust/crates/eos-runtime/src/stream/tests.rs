@@ -229,6 +229,25 @@ async fn a_client_that_is_up_to_date_resumes_with_nothing_to_replay() {
 }
 
 #[tokio::test]
+async fn hello_is_the_greeting_a_stream_opened_now_gets_and_resuming_from_it_misses_nothing() {
+    let h = harness(StreamOptions { caps: vec!["state:patch".into()], ..quiet() });
+    h.broadcast("worker:change", json!({ "n": 1 })).await;
+    let hello = h.hub.hello();
+    let mut fresh = h.attach(AttachOptions::default());
+    fresh.drain().await;
+    assert_eq!(fresh.frames[2], format!("id: 0123456789ab-1\nevent: hello\ndata: {hello}\n\n"));
+    assert_eq!(hello, r#"{"epoch":"0123456789ab","seq":1,"caps":["state:patch"]}"#);
+
+    // What a page read after `hello` is covered: a stream opened later from it replays the rest.
+    h.broadcast("worker:change", json!({ "n": 2 })).await;
+    let data: Value = serde_json::from_str(&hello).expect("json");
+    let since = format!("{}-{}", data["epoch"].as_str().expect("epoch"), data["seq"]);
+    let mut resumed = h.attach(AttachOptions { since: Some(since), ..AttachOptions::default() });
+    resumed.drain().await;
+    assert_eq!(resumed.payloads(), [json!({ "n": 2 })]);
+}
+
+#[tokio::test]
 async fn filters_by_topic_and_topic_family() {
     let h = harness(quiet());
     let mut r = h.attach(AttachOptions {

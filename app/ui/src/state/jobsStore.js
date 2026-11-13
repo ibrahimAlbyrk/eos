@@ -5,6 +5,7 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { sortJobs } from "../lib/jobs.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 let list = null;
 let started = false;
@@ -35,7 +36,7 @@ async function refreshJobs() {
 export function ensureJobsLoaded() {
   if (started) return;
   started = true;
-  void refreshJobs();
+  void afterFirstPaint(refreshJobs);
 }
 
 // SSE jobs:change (useLive).

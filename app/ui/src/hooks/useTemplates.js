@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 // Module-level shared cache so the composer slash menu, the picker popover
 // and the ⌘K palette all see the same list without each refetching. CRUD
@@ -31,7 +32,7 @@ export function useTemplates() {
 
   useEffect(() => {
     listeners.add(setTemplates);
-    if (cache === null) load();
+    if (cache === null) void afterFirstPaint(load);
     else setTemplates(cache);
     return () => listeners.delete(setTemplates);
   }, []);

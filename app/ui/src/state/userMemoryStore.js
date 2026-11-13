@@ -5,6 +5,7 @@
 
 import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 // memories: null until loaded.
 let state = { memories: null, error: null };
@@ -40,7 +41,7 @@ export async function refreshUserMemories() {
 
 export function ensureUserMemoriesLoaded() {
   if (state.memories || loading) return loading ?? Promise.resolve();
-  loading = refreshUserMemories().finally(() => { loading = null; });
+  loading = afterFirstPaint(refreshUserMemories).finally(() => { loading = null; });
   return loading;
 }
 

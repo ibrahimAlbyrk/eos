@@ -7,6 +7,7 @@
 import { ROUTES } from "./routes.js";
 import { isRemoteView } from "../lib/host.js";
 import { requestRemotePick } from "../state/remotePickerStore.js";
+import { takeBootPart } from "./boot.js";
 
 // The native app loads the UI from the eos://app/ origin, so the daemon URL
 // can't be derived from location.origin; the app shell injects
@@ -102,6 +103,9 @@ function deduplicatedFetchJson(url) {
 }
 
 async function getJson(path, { signal, headers } = {}) {
+  // At start-up the boot snapshot holds this answer already.
+  const seeded = takeBootPart(path);
+  if (seeded) return seeded;
   const url = `${DAEMON}${path}`;
   // headers (e.g. a UI token on a gated GET) vary per caller, so they can't ride
   // the shared-URL dedup cache — go straight to fetchJson like the signal path.
@@ -170,6 +174,8 @@ export const api = {
     return r.body;
   },
   async uiConfig() {
+    const seeded = takeBootPart(ROUTES.uiConfig);
+    if (seeded) return seeded.body;
     const r = await fetch(`${DAEMON}${ROUTES.uiConfig}`);
     return r.ok ? r.json() : null;
   },
@@ -220,7 +226,8 @@ export const api = {
   // stale body), so /workers always fetches fresh. Brief rows clip long boot
   // prompts (prompt_clipped) — getWorker has the full text.
   async listWorkers() {
-    const r = await fetchJson(`${DAEMON}${ROUTES.workers}?brief=1`);
+    const path = `${ROUTES.workers}?brief=1`;
+    const r = takeBootPart(path) ?? await fetchJson(`${DAEMON}${path}`);
     if (!r.ok) throw new Error(`listWorkers → ${r.status}`);
     return r.body;
   },
@@ -658,6 +665,14 @@ export const api = {
     if (!r.ok) throw new Error(`stat → ${r.status}`);
     return r.body;
   },
+  // Several paths in one request (POST /fs/stat, the Rust core's) → per path, in order,
+  // { status, body } as GET /fs/stat answers it; null when this daemon has no such route.
+  async statPaths(paths) {
+    const r = await postJson(ROUTES.fsStat, { paths });
+    if (r.status === 404 || r.status === 405) return null;
+    if (!r.ok || !Array.isArray(r.body?.results)) throw new Error(`stat → ${r.status}`);
+    return r.body.results;
+  },
   async createEntry(root, path, type, content) {
     return postJson(ROUTES.fsCreate, { root, path, type, content }, uiTokenHeader());
   },
@@ -834,8 +849,11 @@ export const api = {
     if (!r.ok) throw new Error(`getProfilePreview → ${r.status}`);
     return r.body;
   },
-  // The daemon caches avatars for a day — `rev` busts it after a change.
-  profileAvatarUrl(rev) { return `${DAEMON}${ROUTES.profileAvatar}?v=${rev}`; },
+  // The daemon caches avatars for a day — `rev` busts it after a change. `size` (device
+  // pixels) asks for a copy that small; a daemon that cannot make one sends the image.
+  profileAvatarUrl(rev, size) {
+    return `${DAEMON}${ROUTES.profileAvatar}?v=${rev}${size ? `&size=${size}` : ""}`;
+  },
   async uploadProfileAvatar(blob) {
     const r = await fetch(`${DAEMON}${ROUTES.profileAvatar}`, {
       method: "PUT",

@@ -1267,6 +1267,7 @@ dependencies = [
  "eos-mod-agents",
  "eos-mod-artifacts",
  "eos-mod-auto-name",
+ "eos-mod-boot",
  "eos-mod-browser",
  "eos-mod-btw",
  "eos-mod-compaction",
@@ -1658,6 +1659,17 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-boot"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-runtime",
+ "futures-util",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

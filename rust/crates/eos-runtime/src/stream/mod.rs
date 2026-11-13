@@ -168,6 +168,13 @@ impl StreamHub {
         format!("{}-{}", self.hub.epoch, self.hub.state().seq)
     }
 
+    /// The data of the `hello` a stream opened now would get: the newest
+    /// event's position and the stream's capabilities. State read after this
+    /// misses nothing that a stream opened with `since=<epoch>-<seq>` replays.
+    pub fn hello(&self) -> String {
+        self.hub.greeting_data(self.hub.state().seq)
+    }
+
     /// Connected streams.
     pub fn size(&self) -> usize {
         self.hub.state().clients.len()
@@ -268,12 +275,11 @@ impl Hub {
     }
 
     fn greeting(&self, event: &str, seq: u64) -> Bytes {
-        let epoch = &self.epoch;
-        format!(
-            "id: {epoch}-{seq}\nevent: {event}\ndata: {{\"epoch\":\"{epoch}\",\"seq\":{seq},\"caps\":{}}}\n\n",
-            self.caps_json
-        )
-        .into()
+        format!("id: {}-{seq}\nevent: {event}\ndata: {}\n\n", self.epoch, self.greeting_data(seq)).into()
+    }
+
+    fn greeting_data(&self, seq: u64) -> String {
+        format!("{{\"epoch\":\"{}\",\"seq\":{seq},\"caps\":{}}}", self.epoch, self.caps_json)
     }
 
     /// Lane only (a bus handler): frames the event once, remembers it, hands

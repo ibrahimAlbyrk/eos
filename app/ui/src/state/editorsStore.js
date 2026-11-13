@@ -5,6 +5,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { hasLocalScreen } from "../lib/host.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 const NONE = [];
 let editors = NONE;
@@ -20,7 +21,7 @@ const get = () => editors;
 function ensureLoaded() {
   if (started || !hasLocalScreen()) return;
   started = true;
-  api.listEditors().then(
+  afterFirstPaint(() => api.listEditors()).then(
     (list) => { editors = list; for (const cb of subs) cb(); },
     () => { started = false; },
   );

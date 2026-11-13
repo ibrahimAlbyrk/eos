@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 let state = { status: null, presence: [] };
 const subs = new Set();
@@ -41,7 +42,7 @@ export function ensurePeerLoaded() {
   // settings are this Mac's to manage.
   if (started || isRemoteView()) return;
   started = true;
-  void refreshPeer();
+  void afterFirstPaint(refreshPeer);
 }
 
 // SSE peer:presence (useLive) — the connected set changed.

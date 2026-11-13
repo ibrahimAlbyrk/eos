@@ -162,6 +162,21 @@ impl Desktop for MacDesktop {
         )
         .map(drop)
     }
+
+    fn render_scaled_image(&self, image: &Path, width: u32, height: u32, out: &Path) -> Result<(), Error> {
+        let (width, height) = (width.to_string(), height.to_string());
+        tool::run_ok(
+            "sips",
+            Command::new("/usr/bin/sips")
+                .args(["-s", "format", "png", "-z", &height, &width])
+                .arg(image)
+                .arg("--out")
+                .arg(out),
+            None,
+            TIMEOUT,
+        )
+        .map(drop)
+    }
 }
 
 #[cfg(test)]

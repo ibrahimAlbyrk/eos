@@ -6,6 +6,7 @@
 import { useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 let state = null;
 let started = false;
@@ -37,7 +38,7 @@ async function refresh() {
 export function ensureUpdateLoaded() {
   if (started) return;
   started = true;
-  void refresh();
+  void afterFirstPaint(refresh);
 }
 
 // SSE update:change (useLive).

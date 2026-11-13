@@ -5,6 +5,7 @@
 //! (`policy.yaml`, templates, worker definitions, prompt overrides) are read
 //! fresh, so an edit made outside the app applies at once.
 
+pub mod avatar_thumbnails;
 pub mod claude_md;
 mod json;
 pub mod memories;

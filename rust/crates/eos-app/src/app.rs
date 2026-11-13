@@ -534,6 +534,7 @@ impl App {
                 ids,
                 options: eos_mod_remote::GatewayOptions::default(),
             })),
+            boot: Arc::new(eos_mod_boot::BootModule::new(kernel.stream.clone())),
         };
         let remote = context.remote.clone();
         let features = modules::all(&context)?;
@@ -543,6 +544,8 @@ impl App {
         hooks.attach(&runtime);
         // The phone's requests go to the same routes the dashboard calls.
         remote.attach_router(&runtime.router);
+        // The boot snapshot's parts are the routes themselves.
+        context.boot.attach_router(&runtime.router);
         // The commands features run themselves (`/compact`, …), beside the session service's own.
         for declared in &runtime.slash_commands {
             match declared.command.downcast_ref::<Arc<dyn SlashCommand>>() {

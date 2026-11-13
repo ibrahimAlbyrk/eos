@@ -89,6 +89,8 @@ pub(crate) struct Context {
     pub(crate) terminals: Terminal,
     /// The phone link. Built ahead of the rest: the app hands it the router afterwards.
     pub(crate) remote: Arc<eos_mod_remote::RemoteModule>,
+    /// The boot snapshot. Built ahead of the rest: the app hands it the router afterwards.
+    pub(crate) boot: Arc<eos_mod_boot::BootModule>,
 }
 
 /// What terminals run on: the PTY, the user's shell and their Claude Code.
@@ -143,14 +145,17 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         cx.ids.clone(),
         cx.bus.clone(),
     ));
-    let profile = Arc::new(eos_mod_profile::ProfileModule::new(
-        cx.notes.profile.clone(),
-        cx.notes.preview.clone(),
-        PendingCaps::default(),
-        cx.clock.clone(),
-        cx.ids.clone(),
-        cx.bus.clone(),
-    ));
+    let profile = Arc::new(
+        eos_mod_profile::ProfileModule::new(
+            cx.notes.profile.clone(),
+            cx.notes.preview.clone(),
+            PendingCaps::default(),
+            cx.clock.clone(),
+            cx.ids.clone(),
+            cx.bus.clone(),
+        )
+        .with_avatar_thumbnails(cx.notes.avatar_thumbnails.clone()),
+    );
     let genui = Arc::new(eos_mod_genui::GenuiModule::new(eos_mod_genui::GenuiParts {
         store: cx.store.clone(),
         settings: cx.settings.clone(),
@@ -192,6 +197,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             },
             cx.store.clone(),
         )),
+        cx.boot.clone(),
         Arc::new(eos_mod_btw::BtwModule::new(cx.store.clone(), Arc::new(cx.sessions.clone()))),
         Arc::new(eos_mod_compaction::CompactionModule::new(eos_mod_compaction::Parts {
             store: cx.store.clone(),

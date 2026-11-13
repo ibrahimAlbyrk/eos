@@ -67,6 +67,11 @@ fn ext_name(ext: AvatarExt) -> &'static str {
     }
 }
 
+/// The stored avatar's file in the profile folder `dir`, and its type.
+pub(crate) fn avatar_file(dir: &Path) -> Option<(PathBuf, AvatarExt)> {
+    AVATAR_TYPES.into_iter().map(|ext| (dir.join(format!("avatar.{}", ext_name(ext))), ext)).find(|(p, _)| p.is_file())
+}
+
 /// The avatar image: at most one `avatar.<ext>` file.
 #[derive(Debug)]
 pub struct FileUserAvatarStore {

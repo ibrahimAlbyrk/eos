@@ -1,9 +1,16 @@
 import { useCallback, useState } from "react";
 import { api } from "../api/client.js";
+import { peekBootPart } from "../api/boot.js";
+import { ROUTES } from "../api/routes.js";
 import { notify } from "../lib/notify.js";
 
 export function usePendingPermissions(scheduleRefetch) {
-  const [pendingPermissions, setPendingPermissions] = useState([]);
+  // At start-up the open asks come from the boot snapshot (useLive's first load takes
+  // the same answer).
+  const [pendingPermissions, setPendingPermissions] = useState(() => {
+    const asks = peekBootPart(ROUTES.pending);
+    return Array.isArray(asks) ? asks : [];
+  });
 
   const approvePending = useCallback(async (id) => {
     await api.approvePending(id);

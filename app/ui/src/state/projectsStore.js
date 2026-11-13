@@ -16,8 +16,15 @@ function set(patch) {
 
 export function subscribe(cb) {
   subs.add(cb);
-  if (!fetched) { fetched = true; refreshProjects(); }
+  void ensureProjectsLoaded();
   return () => subs.delete(cb);
+}
+
+// The first read, once; later ones go through refreshProjects.
+export function ensureProjectsLoaded() {
+  if (fetched) return Promise.resolve();
+  fetched = true;
+  return refreshProjects();
 }
 
 export const getProjectsState = () => state;

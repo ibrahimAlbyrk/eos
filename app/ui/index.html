@@ -14,6 +14,22 @@
   // is dark (no theme flash). The Appearance setting was removed.
   document.documentElement.setAttribute("data-theme", "dark");
 </script>
+<script>
+  // The boot snapshot (src/api/boot.js): what the first paint reads, asked for in one
+  // request while the bundle loads. The chat on screen is the one the last session showed.
+  (function () {
+    var base = window.__EOS_DAEMON_URL;
+    if (!base || location.hash === "#plugin-preview") return;
+    try {
+      var view = localStorage.getItem("cm:activeView");
+      var chat = !view || view === "agents" ? localStorage.getItem("cm:selectedId") : null;
+      var headers = window.__EOS_UI_TOKEN ? { "x-eos-ui-token": window.__EOS_UI_TOKEN } : {};
+      window.__EOS_BOOT = fetch(base + "/api/boot" + (chat ? "?focus=" + encodeURIComponent(chat) : ""), { headers: headers })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .catch(function () { return null; });
+    } catch (e) { /* the stores ask their own routes */ }
+  })();
+</script>
 </head>
 <body>
 <div id="root"></div>

@@ -63,7 +63,7 @@ pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
 pub use pages::PageStore;
 pub use pending::{NewPending, PendingRepo};
-pub use profile::{UserAvatar, UserAvatarStore, UserProfileStore};
+pub use profile::{AvatarThumbnails, UserAvatar, UserAvatarStore, UserProfileStore};
 pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use templates::TemplateStore;

@@ -18,6 +18,7 @@
 // can never bleed into another's — the cross-agent thinking-leak class of bug.
 
 import { api } from "../api/client.js";
+import { bootActive } from "../api/boot.js";
 import { startPolling } from "../lib/pollInterval.js";
 import { isStreamLive } from "./streamStatus.js";
 
@@ -89,6 +90,8 @@ function entryOf(workerId) {
       // transcripts and must not resurrect an exhausted cursor.
       hasOlder: false,
       loaded: false,
+      // The newest page came from the boot snapshot (primeNewest), not yet attached.
+      primed: false,
       // following = the view is pinned to the tail; gates live-window trimming
       // (see capWindow). Defaults true so an unwired pane is still bounded.
       following: true,
@@ -301,8 +304,13 @@ export function refetchNewest(workerId) {
 function startPoll(e) {
   stopPoll(e);
   e.pollAbort = new AbortController();
-  if (e.loaded && e.events.length > 0) void fetchAfter(e, e.pollAbort.signal);
+  if (e.primed && bootActive()) {
+    // The window is the boot snapshot's and the stream resumes from where it was read.
+    for (const cb of e.newestListeners) cb(e.workerId, e.events);
+    if (!e.following) schedulePrefetch(e);
+  } else if (e.loaded && e.events.length > 0) void fetchAfter(e, e.pollAbort.signal);
   else void fetchNewest(e, e.pollAbort.signal);
+  e.primed = false;
   e.pollStop = startPolling(() => { if (!isStreamLive()) pollNewer(e); }, POLL_MS);
 }
 
@@ -372,6 +380,16 @@ export function setFollowing(workerId, following) {
   e.following = following;
   if (following) { capWindow(e); publish(e); }
   else schedulePrefetch(e);
+}
+
+// Start-up: the chat on screen takes its newest page from the boot snapshot before
+// the first render, so its transcript draws in the first pass. Attached while the
+// snapshot still stands, it then needs no request of its own.
+export async function primeNewest(workerId) {
+  const e = entryOf(workerId);
+  if (e.loaded) return;
+  await fetchNewest(e, undefined);
+  e.primed = e.loaded;
 }
 
 // Lifecycle: polling and prefetch run only while at least one component is

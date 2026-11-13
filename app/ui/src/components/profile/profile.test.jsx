@@ -22,7 +22,7 @@ const IBRAHIM = mergeProfilePatch(EMPTY, {
 describe("ProfileAvatar", () => {
   it("photo › orb with initials › placeholder", () => {
     expect(renderToStaticMarkup(<ProfileAvatar profile={mergeProfilePatch(IBRAHIM, { identity: { avatar: "png" } })} />))
-      .toMatch(/<img class="prof-avatar prof-avatar--photo" src="[^"]*\/api\/profile\/avatar\?v=7"/);
+      .toMatch(/<img class="prof-avatar prof-avatar--photo" src="[^"]*\/api\/profile\/avatar\?v=7&amp;size=48"/);
     expect(renderToStaticMarkup(<ProfileAvatar profile={IBRAHIM} />)).toContain(">IA</span>");
     expect(renderToStaticMarkup(<ProfileAvatar profile={EMPTY} className="sb-settings__avatar" />))
       .toContain('class="prof-avatar prof-avatar--empty sb-settings__avatar"');

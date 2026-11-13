@@ -318,6 +318,8 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("POST", "/browser/tabs/{tabId}/navigate"),
     ("POST", "/browser/tabs/{tabId}/snapshot"),
     ("POST", "/browser/tabs/{tabId}/wait"),
+    // Several paths' stat at once: a read, sent as a POST for its list.
+    ("POST", "/fs/stat"),
     // Watching a folder or a repository changes nothing in it; a paste lands in the
     // temporary folder.
     ("POST", "/fs/git/unwatch"),

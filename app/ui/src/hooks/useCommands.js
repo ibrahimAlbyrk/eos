@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 
 // Module-level cache keyed by cwd: the composer AND every user-message bubble
 // consume this list (slash pills validate against it), so per-mount fetches
@@ -12,7 +13,7 @@ const inflight = new Map(); // key → Promise<list>
 function fetchCommands(cwd, key) {
   let p = inflight.get(key);
   if (p) return p;
-  p = api.listCommands(cwd)
+  p = afterFirstPaint(() => api.listCommands(cwd))
     .then((r) => {
       const list = r.commands ?? [];
       cache.set(key, { list, at: Date.now() });

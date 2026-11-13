@@ -6,7 +6,8 @@
 //
 // Every reconnect resumes from the last event id seen: the daemon replays what
 // was missed, or sends `resync` when it can't (restarted, or the gap outgrew its
-// buffer) — then onResync tells the caller to refetch its state.
+// buffer) — then onResync tells the caller to refetch its state. `handlers.since`
+// is where the first connection resumes from (the boot snapshot's position).
 
 import { api } from "./client.js";
 
@@ -24,7 +25,7 @@ export function createReconnectingStream(handlers) {
   let closed = false;
   let paused = false;
   let backoffMs = INITIAL_BACKOFF_MS;
-  let lastEventId = null;
+  let lastEventId = handlers.since ?? null;
 
   const track = (e) => { if (e.lastEventId) lastEventId = e.lastEventId; };
 

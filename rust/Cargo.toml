@@ -35,6 +35,7 @@ eos-mod-agent-jobs = { path = "crates/eos-mod-agent-jobs" }
 eos-mod-agents = { path = "crates/eos-mod-agents" }
 eos-mod-artifacts = { path = "crates/eos-mod-artifacts" }
 eos-mod-auto-name = { path = "crates/eos-mod-auto-name" }
+eos-mod-boot = { path = "crates/eos-mod-boot" }
 eos-mod-browser = { path = "crates/eos-mod-browser" }
 eos-mod-btw = { path = "crates/eos-mod-btw" }
 eos-mod-compaction = { path = "crates/eos-mod-compaction" }

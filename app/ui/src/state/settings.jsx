@@ -7,6 +7,9 @@ import { useSelection } from "./selection.jsx";
 import { notify } from "../lib/notify.js";
 import { setGenuiSettings } from "../genui/runtime/genuiSettings.js";
 import { modifiers } from "../lib/platform.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
+import { peekBootPart } from "../api/boot.js";
+import { ROUTES } from "../api/routes.js";
 
 const SettingsContext = createContext(null);
 
@@ -27,6 +30,27 @@ const CONFIG_BLOCKS = {
     adopt: (s) => setGenuiSettings(s),
   },
 };
+// Nothing on the first screen reads these (⌘W's choice, the logo key of visual
+// answers): they load after the first paint. Compaction's threshold is drawn in the
+// composer's context meter, so it comes with the boot snapshot.
+const LOADED_AFTER_FIRST_PAINT = new Set(["archive", "genui"]);
+
+const blockEntries = (block, cfg) => Object.entries(cfg).map(([k, val]) => [`${block}.${k}`, val]);
+
+// `v` with `entries` set — or `v` itself when it holds them already, so an answer equal
+// to what is shown (the boot snapshot's, taken again by the first load) re-renders nothing.
+function withEntries(v, entries) {
+  return entries.every(([k, val]) => v[k] === val) ? v : { ...v, ...Object.fromEntries(entries) };
+}
+
+// What the boot snapshot holds of the map, for the first render; null without one.
+function bootSettings() {
+  const flat = peekBootPart(ROUTES.settings)?.settings;
+  if (!flat || typeof flat !== "object") return null;
+  const compaction = peekBootPart(ROUTES.settingsCompaction)?.compaction;
+  const entries = [...Object.entries(flat), ...(compaction && typeof compaction === "object" ? blockEntries("compaction", compaction) : [])];
+  return withEntries(SETTING_DEFAULTS, entries);
+}
 const configBlockOf = (key) => Object.keys(CONFIG_BLOCKS).find((b) => key.startsWith(`${b}.`));
 
 // Owns the settings modal's open state, the global ⌘, / Ctrl+, shortcut and
@@ -38,10 +62,10 @@ const configBlockOf = (key) => Object.keys(CONFIG_BLOCKS).find((b) => key.starts
 export function SettingsProvider({ children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState(SETTINGS_SECTIONS[0]?.id ?? null);
-  const [settings, setSettings] = useState(SETTING_DEFAULTS);
+  const [settings, setSettings] = useState(() => bootSettings() ?? SETTING_DEFAULTS);
   // The daemon-persisted values have arrived (or failed to — defaults stand), so
   // a one-shot decision on a stored flag (the first-run welcome) can't misfire.
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(() => peekBootPart(ROUTES.settings) !== undefined);
   const loaded = useRef(false);
 
   const openSettings = useCallback((sectionId) => {
@@ -52,23 +76,21 @@ export function SettingsProvider({ children }) {
 
   const applyBlock = useCallback((block, cfg) => {
     if (!cfg || typeof cfg !== "object") return;
-    setSettings((v) => ({
-      ...v,
-      ...Object.fromEntries(Object.entries(cfg).map(([k, val]) => [`${block}.${k}`, val])),
-    }));
+    setSettings((v) => withEntries(v, blockEntries(block, cfg)));
   }, []);
 
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
     api.getSettings()
-      .then((s) => setSettings((v) => ({ ...v, ...s })))
+      .then((s) => setSettings((v) => withEntries(v, Object.entries(s))))
       .catch(() => { loaded.current = false; })
       .finally(() => setSettingsLoaded(true));
     // config.json-backed blocks merge in flat-key form. A failed load keeps the
     // registry defaults.
     for (const [block, io] of Object.entries(CONFIG_BLOCKS)) {
-      io.load().then((cfg) => applyBlock(block, cfg)).catch(() => {});
+      const load = LOADED_AFTER_FIRST_PAINT.has(block) ? afterFirstPaint(io.load) : io.load();
+      load.then((cfg) => applyBlock(block, cfg)).catch(() => {});
     }
   }, [applyBlock]);
 

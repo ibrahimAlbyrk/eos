@@ -6,11 +6,12 @@ use std::sync::Arc;
 use eos_core::Clock;
 use eos_core::profile::ProfileBlockInput;
 use eos_core::prompt::{MemoryScope, MemorySnapshot, ProfileRenderer, ProfileText};
-use eos_core::store::{ConfigSource, PageStore, Store};
+use eos_core::store::{AvatarThumbnails, ConfigSource, PageStore, Store};
 use eos_domain::memory_sources::resolve_memory_sources;
 use eos_mod_profile::{PreviewContext, ProfileStores};
 use eos_platform::DataPaths;
 use eos_profile::{ProfileBlocks, received_memory_lines};
+use eos_store_files::avatar_thumbnails::FileAvatarThumbnails;
 use eos_store_files::claude_md::FileMemoryProvider;
 use eos_store_files::memories::FileUserMemoryStore;
 use eos_store_files::pages::FilePageStore;
@@ -23,6 +24,8 @@ pub(crate) struct Notes {
     pub(crate) pages: Arc<dyn PageStore>,
     pub(crate) profile: ProfileStores,
     pub(crate) preview: PreviewContext,
+    /// The avatar made small, kept beside the app icons.
+    pub(crate) avatar_thumbnails: Arc<dyn AvatarThumbnails>,
 }
 
 impl Notes {
@@ -50,6 +53,11 @@ impl Notes {
                 memory_injected: Arc::new(move || config.current().memory.enabled),
                 search_tool_name: SEARCH_MEMORY_TOOL.to_owned(),
             },
+            avatar_thumbnails: Arc::new(FileAvatarThumbnails::new(
+                &dir,
+                paths.join("icon-cache").join("avatar"),
+                eos_platform::host().desktop(),
+            )),
             profile: ProfileStores { profile, avatars: Arc::new(FileUserAvatarStore::new(&dir)), memories, workers },
         }
     }

@@ -8,6 +8,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { createReconnectingStream } from "../api/sse.js";
+import { endBoot, peekBootPart, takeBootHello } from "../api/boot.js";
+import { ROUTES } from "../api/routes.js";
+import { afterFirstPaint } from "../lib/firstPaint.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
@@ -71,15 +74,22 @@ const PATCHED_TOPICS = new Set([
 ]);
 const HIDDEN_PAUSE_MS = 10_000;
 
+// At start-up the first lists come from the boot snapshot, so the first render draws
+// them; the initial load below then takes the same answers and changes nothing.
+const bootWorkers = () => {
+  const list = peekBootPart(`${ROUTES.workers}?brief=1`);
+  return Array.isArray(list) ? list : null;
+};
+
 export function useLive() {
-  const [workers, setWorkers] = useState([]);
+  const [workers, setWorkers] = useState(() => bootWorkers() ?? []);
   // True once the first /workers fetch has resolved. Lets consumers tell an
   // empty list that means "no workers" from one that just means "still loading"
   // — the difference that decides whether deleting the last agent should reset.
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => bootWorkers() != null);
   const [health, setHealth] = useState(true);
-  const [recents, setRecents] = useState([]);
-  const [uiConfig, setUiConfig] = useState(null);
+  const [recents, setRecents] = useState(() => peekBootPart(ROUTES.fsRecents)?.paths ?? []);
+  const [uiConfig, setUiConfig] = useState(() => peekBootPart(ROUTES.uiConfig) ?? null);
   // tick: every event naming a worker (workerId: the last one). changeTick: only
   // the worker changes that are not an agent's own output (lib/workerChange.js).
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null, changeTick: 0 });
@@ -107,7 +117,7 @@ export function useLive() {
   const workersSeqRef = useRef(0);
   const appliedWorkersSeqRef = useRef(0);
   // The last applied list, synchronously — patches landing in one tick build on each other.
-  const latestWorkersRef = useRef([]);
+  const latestWorkersRef = useRef(workers);
   const applyWorkers = useCallback((seq, list) => {
     if (seq < appliedWorkersSeqRef.current) return false;
     appliedWorkersSeqRef.current = seq;
@@ -197,7 +207,7 @@ export function useLive() {
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
-        api.refreshModelCatalog().then(applyCatalog).catch(() => {});
+        afterFirstPaint(() => api.refreshModelCatalog()).then(applyCatalog).catch(() => {});
         applyDescriptors(cfg?.backends);
         applyProfiles(cfg?.backendProfiles);
         applyFeatures(cfg?.features);
@@ -216,9 +226,15 @@ export function useLive() {
 
   // SSE
   useEffect(() => {
+    // Started from the boot snapshot, the stream resumes where its parts were read:
+    // what changed since is replayed. Its hello stands in for the one a resumed stream
+    // does not send. Once the stream is open, what is left of the snapshot is stale.
+    const hello = takeBootHello();
+    if (hello) noteCaps(hello);
     const s = createReconnectingStream({
+      since: hello?.epoch != null && hello?.seq != null ? `${hello.epoch}-${hello.seq}` : null,
       query: focusQuery,
-      onOpen: () => { streamLiveRef.current = true; setStreamLive(true); setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); resubscribeGitWatches(); },
+      onOpen: () => { endBoot(); streamLiveRef.current = true; setStreamLive(true); setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); resubscribeGitWatches(); },
       onHello: noteCaps,
       // The daemon could not replay what this client missed (it restarted, or
       // the gap outgrew its buffer): refetch every live view from scratch.

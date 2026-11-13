@@ -3,8 +3,8 @@
 
 use bytes::Bytes;
 use eos_contracts::{
-    DefaultAppResponse, DefaultAppResponseApp, FsEntry, FsEntryType, FsListResponse, FsReadResponse, FsStatResponse,
-    FsStatResponseType, Num,
+    DefaultAppResponse, DefaultAppResponseApp, FsEntry, FsEntryType, FsListResponse, FsReadResponse,
+    FsStatBatchRequest, FsStatResponse, FsStatResponseType, Num,
 };
 use eos_core::os::{FileRead, FsEntryMeta, ListDirOptions, OpenFile};
 use eos_kit_fs::path::{is_inside, normalize};
@@ -58,8 +58,32 @@ pub(crate) async fn read_all(mut file: Box<dyn OpenFile>) -> Result<Vec<u8>, eos
 }
 
 async fn stat(deps: Deps, req: Request) -> Handled {
-    let asked = req.query().get("path");
-    let path = abs_path(asked.as_deref(), "absolute path required")?;
+    stat_path(&deps, req.query().get("path").as_deref()).await
+}
+
+/// `POST /fs/stat`: each path answered as `GET /fs/stat?path=` answers it, in the order
+/// named. One request for the path chips of a whole transcript instead of one per path.
+async fn stat_many(deps: Deps, req: Request) -> Handled {
+    let asked: FsStatBatchRequest = req.parse()?;
+    let mut out = Vec::with_capacity(16 + asked.paths.len() * 192);
+    out.extend_from_slice(b"{\"results\":[");
+    for (i, path) in asked.paths.iter().enumerate() {
+        if i > 0 {
+            out.push(b',');
+        }
+        let answer = stat_path(&deps, Some(path.as_str())).await.unwrap_or_else(ApiError::into_response);
+        let status = answer.status;
+        let body = answer.body.collect().await.map_err(|e| ApiError::Internal(e.to_string()))?;
+        out.extend_from_slice(format!("{{\"status\":{status},\"body\":").as_bytes());
+        out.extend_from_slice(&body);
+        out.push(b'}');
+    }
+    out.extend_from_slice(b"]}");
+    Ok(Response::json_bytes(200, out.into()))
+}
+
+async fn stat_path(deps: &Deps, asked: Option<&str>) -> Handled {
+    let path = abs_path(asked, "absolute path required")?;
     let stat = deps.files.stat(&path).await?;
     Ok(Response::json(
         200,
@@ -204,6 +228,7 @@ async fn editors(deps: Deps, _req: Request) -> Handled {
 pub(crate) fn routes(deps: &Deps) -> Vec<RouteDef> {
     vec![
         RouteDef::get("/fs/stat", handler(deps, stat)).access(READ),
+        RouteDef::post("/fs/stat", handler(deps, stat_many)).access(READ),
         RouteDef::get("/fs/list", handler(deps, list)).access(READ),
         RouteDef::get("/fs/read", handler(deps, read)).access(READ),
         RouteDef::get("/fs/image", handler(deps, image)).access(READ),
