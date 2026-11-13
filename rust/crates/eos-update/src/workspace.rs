@@ -21,6 +21,7 @@ use eos_core::net::updates::{StageRequest, SwapResult, UpdateWorkspace};
 use eos_domain::update::{
     CHUNK_MAX, FetchRange, FilePart, FileStep, StagedUpdate, UpdateError, chunks_within, entry_path,
 };
+use eos_platform::ThreadClass;
 use sha2::{Digest, Sha256};
 
 use crate::fsx;
@@ -352,6 +353,12 @@ async fn blocking<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) 
     tokio::task::spawn_blocking(work).await.map_err(|e| UpdateError::disk(e.to_string()))
 }
 
+/// [`blocking`] for unpacking, hashing and writing a release: long work nobody waits on,
+/// at the utility class so it never takes a CPU from the window or a request.
+async fn background<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static) -> Result<T, UpdateError> {
+    blocking(move || eos_platform::in_thread_class(ThreadClass::Utility, work)).await
+}
+
 impl UpdateWorkspace for FsUpdateWorkspace {
     fn has_range<'a>(&'a self, version: &'a str, range: FetchRange) -> BoxFuture<'a, bool> {
         let path = self.range_path(version, &range);
@@ -372,12 +379,12 @@ impl UpdateWorkspace for FsUpdateWorkspace {
         manifest: Arc<UpdateManifest>,
     ) -> BoxFuture<'a, Result<(), UpdateError>> {
         let (this, version) = (self.clone(), version.to_owned());
-        Box::pin(async move { blocking(move || this.put_range_blocking(&version, &range, &bytes, &manifest)).await? })
+        Box::pin(async move { background(move || this.put_range_blocking(&version, &range, &bytes, &manifest)).await? })
     }
 
     fn stage(&self, request: StageRequest) -> BoxFuture<'_, Result<String, UpdateError>> {
         let this = self.clone();
-        Box::pin(async move { blocking(move || this.stage_blocking(&request)).await? })
+        Box::pin(async move { background(move || this.stage_blocking(&request)).await? })
     }
 
     fn staged(&self) -> BoxFuture<'_, Option<StagedUpdate>> {

@@ -1,6 +1,6 @@
 //! The write path under concurrency: ordering, isolation of failures, bounds, shutdown.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, mpsc};
 use std::thread;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use eos_kit_sqlite::{Db, Error, Options};
 
 fn fresh(dir: &tempfile::TempDir, options: Options) -> Db {
     let (db, report) = Db::open(dir.path().join("state.db"), options, 1).expect("open");
-    assert_eq!(report.applied.len(), 64);
+    assert_eq!(report.applied.len(), eos_kit_sqlite::EMBEDDED.len());
     db
 }
 
@@ -357,4 +357,24 @@ fn after_commit_hooks_run_in_commit_order_and_only_for_saved_writes() {
     assert!(!announced.is_empty());
     assert!(announced.windows(2).all(|w| w[0] < w[1]), "announced in the order the rows were saved");
     assert_eq!(count(&db), announced.len() as i64 + 1);
+}
+
+#[test]
+fn every_thread_of_the_database_runs_the_start_hook_first() {
+    static STARTED: AtomicUsize = AtomicUsize::new(0);
+    let dir = tempfile::tempdir().expect("dir");
+    let db = fresh(
+        &dir,
+        Options {
+            readers: 4,
+            on_thread_start: || {
+                STARTED.fetch_add(1, Ordering::SeqCst);
+            },
+            ..Options::default()
+        },
+    );
+    db.write(|c| append(c, "w", "x")).expect("write");
+    assert_eq!(count(&db), 1);
+    db.close();
+    assert_eq!(STARTED.load(Ordering::SeqCst), 5, "the writer and four readers");
 }

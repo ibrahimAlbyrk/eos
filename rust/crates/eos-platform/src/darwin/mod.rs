@@ -1,9 +1,10 @@
 //! macOS, through the system's own command-line tools: nothing here links a
-//! system framework, so `unsafe` stays out of the workspace.
+//! system framework. The one exception is [`qos`], two pthread calls of libSystem.
 
 mod bundle_check;
 mod desktop;
 mod keychain;
+pub(crate) mod qos;
 
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};

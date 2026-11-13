@@ -2,11 +2,11 @@
 
 use std::borrow::Cow;
 
+use aws_lc_rs::digest::{SHA1_FOR_LEGACY_USE_ONLY, digest};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
 use serde::Serialize;
-use sha1::{Digest, Sha1};
 
 use super::body::Body;
 use super::request::Method;
@@ -41,6 +41,12 @@ pub(crate) struct ErrorBody<'a> {
 /// A GET answer worth tagging: an unchanged one (the same list read again)
 /// then costs a 304 instead of the body — over a peer link every KB is relay time.
 const ETAG_MIN_BYTES: usize = 512;
+
+/// The weak tag today's daemon writes: `W/"<base64url of the body's SHA-1>"`. aws-lc
+/// hashes with the CPU's SHA instructions, about 3x a software digest on a transcript page.
+fn etag_of(body: &[u8]) -> String {
+    format!("W/\"{}\"", URL_SAFE_NO_PAD.encode(digest(&SHA1_FOR_LEGACY_USE_ONLY, body)))
+}
 
 impl Response {
     pub fn new(status: u16) -> Self {
@@ -101,7 +107,7 @@ impl Response {
         if !(self.json && self.status == 200 && method == Method::Get && json.len() >= ETAG_MIN_BYTES) {
             return self;
         }
-        let etag = format!("W/\"{}\"", URL_SAFE_NO_PAD.encode(Sha1::digest(json)));
+        let etag = etag_of(json);
         let own_cache_control = self.header_value("cache-control").is_none();
         if if_none_match == Some(etag.as_str()) {
             self.headers.retain(|(n, _)| n != "content-type");
@@ -157,6 +163,37 @@ mod tests {
 
         let changed = Response::json(200, &json!({ "rows": "y".repeat(600) })).revalidated(Method::Get, Some(&etag));
         assert_eq!(changed.status, 200);
+    }
+
+    #[test]
+    fn the_tag_is_the_one_node_writes() {
+        // `W/"${createHash("sha1").update(body).digest("base64url")}"`, as
+        // manager/middleware/errorHandler.ts writes it, run by Node on these bodies.
+        let big: Vec<u8> = (0..1_340_000usize).map(|i| ((i * 31 + i / 7) % 256) as u8).collect();
+        let rows = serde_json::to_vec(&json!({ "rows": "x".repeat(600) })).expect("json");
+        let cases: [(&[u8], &str); 8] = [
+            (b"", "W/\"2jmj7l5rSw0yVb_vlWAYkK_YBwk\""),
+            (&rows, "W/\"ZyP1piGLZ9IVgYgLNL7ZzVxu1-o\""),
+            ("{\"s\":\"é ü 漢字 🙂\",\"n\":[1,2,3]}".as_bytes(), "W/\"UvuBvpHf3HPHWsGhZfIjN3cK2Og\""),
+            (&[b'a'; 55], "W/\"wci73CJ5bijA4VFj0giZtlYh1lo\""),
+            (&[b'a'; 56], "W/\"wtszD2CDhUyZ1LW_tujynyAb5pk\""),
+            (&[b'a'; 64], "W/\"AJi6gktcFkJ716ESKlpEKiXsZE0\""),
+            (&[b'a'; 65], "W/\"EWVTJscI1wMZviYQ6KV9mluVnTs\""),
+            (&big, "W/\"wZWB0uxbpZlMOko4JcbzZugtfY0\""),
+        ];
+        for (body, tag) in cases {
+            assert_eq!(etag_of(body), tag, "{} bytes", body.len());
+        }
+    }
+
+    #[test]
+    fn the_tag_equals_the_software_digest_it_replaced() {
+        use sha1::{Digest, Sha1};
+        let software = |body: &[u8]| format!("W/\"{}\"", URL_SAFE_NO_PAD.encode(Sha1::digest(body)));
+        let bytes: Vec<u8> = (0..300_000usize).map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8).collect();
+        for len in (0..=300).chain([511, 512, 4096, 65_535, 65_536, 65_537, 300_000]) {
+            assert_eq!(etag_of(&bytes[..len]), software(&bytes[..len]), "{len} bytes");
+        }
     }
 
     #[test]

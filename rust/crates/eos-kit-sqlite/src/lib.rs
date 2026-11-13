@@ -19,6 +19,6 @@ mod open;
 pub use db::{Db, Options, Receipt, Stats};
 pub use error::Error;
 pub use maintenance::{VACUUM_INTERVAL_MS, VACUUM_SLICE_PAGES, VacuumOutcome};
-pub use migrate::{EMBEDDED, Migration, MigrationReport, VACUUM_MARKER, run as run_migrations};
+pub use migrate::{EMBEDDED, Migration, MigrationReport, TYPESCRIPT_MIGRATIONS, VACUUM_MARKER, run as run_migrations};
 pub use open::{Preflight, Synchronous, database_files, open_read_only, open_read_write, preflight};
 pub use rusqlite;

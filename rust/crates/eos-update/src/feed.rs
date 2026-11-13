@@ -13,6 +13,7 @@ use eos_core::BoxFuture;
 use eos_core::net::updates::UpdateFeed;
 use eos_domain::update::{UpdateError, parse_manifest, parse_signed_pointer, platform_name};
 use eos_kit_net::{ClientOptions, http_client};
+use eos_platform::ThreadClass;
 use reqwest::header::{CONTENT_LENGTH, RANGE};
 use reqwest::{Client, Response, StatusCode};
 
@@ -155,11 +156,13 @@ impl UpdateFeed for HttpUpdateFeed {
             let Some(res) = self.get(&reference.path, false, None).await? else { return no_answer() };
             let max = usize::try_from(reference.size).unwrap_or(0);
             let packed = read_capped(res, &reference.path, max).await?;
-            // Unpacking and hashing a few megabytes: off the async threads.
+            // Unpacking and hashing a few megabytes: off the async threads, at the utility class.
             let reference = reference.clone();
-            tokio::task::spawn_blocking(move || open_manifest(&packed, &reference))
-                .await
-                .map_err(|e| UpdateError::disk(e.to_string()))?
+            tokio::task::spawn_blocking(move || {
+                eos_platform::in_thread_class(ThreadClass::Utility, || open_manifest(&packed, &reference))
+            })
+            .await
+            .map_err(|e| UpdateError::disk(e.to_string()))?
         })
     }
 

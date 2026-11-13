@@ -8,19 +8,21 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+aws-lc-rs.workspace = true
 base64.workspace = true
 bytes.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-platform.workspace = true
 futures-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-sha1.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 tracing.workspace = true
 
 [dev-dependencies]
+sha1.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
 
 # `cargo bench` runs only benches/runtime.rs, not the unit tests in bench mode.

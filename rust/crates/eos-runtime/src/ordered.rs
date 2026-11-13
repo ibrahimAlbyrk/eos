@@ -116,6 +116,8 @@ impl Ordered {
         });
         let lane = core.clone();
         let spawned = thread::Builder::new().name("eos-ordered".into()).spawn(move || {
+            // Every bus delivery waits for this thread: it runs beside the core's other threads.
+            eos_platform::set_thread_class(eos_platform::ThreadClass::UserInitiated);
             let _ = lane.thread.set(thread::current().id());
             run_lane(&lane, &rx);
         });

@@ -36,7 +36,7 @@ use crate::open::{Synchronous, open_read_only, open_read_write};
 
 #[derive(Debug, Clone)]
 pub struct Options {
-    /// Read-only connections (at least one).
+    /// Read-only connections (at least one), each on its own thread.
     pub readers: usize,
     /// Bound of the write queue and of the read queue.
     pub queue: usize,
@@ -44,6 +44,9 @@ pub struct Options {
     pub max_batch: usize,
     pub synchronous: Synchronous,
     pub busy_timeout: Duration,
+    /// Runs first on the writer's and on every reader's thread (the app sets their
+    /// scheduling class there).
+    pub on_thread_start: fn(),
 }
 
 impl Default for Options {
@@ -54,6 +57,7 @@ impl Default for Options {
             max_batch: 256,
             synchronous: Synchronous::Full,
             busy_timeout: Duration::from_secs(5),
+            on_thread_start: || {},
         }
     }
 }
@@ -164,11 +168,15 @@ impl Db {
         let max_batch = options.max_batch.max(1);
         let counters = Arc::new(Counters::default());
         let (write_tx, write_rx) = bounded::<WriteJob>(queue);
+        let thread_start = options.on_thread_start;
         let writer = {
             let counters = counters.clone();
             thread::Builder::new()
                 .name("db-writer".into())
-                .spawn(move || writer_loop(conn, write_rx, max_batch, &counters))
+                .spawn(move || {
+                    thread_start();
+                    writer_loop(conn, write_rx, max_batch, &counters);
+                })
                 .map_err(Error::Spawn)?
         };
 
@@ -187,7 +195,10 @@ impl Db {
             let rx = read_rx.clone();
             let handle = thread::Builder::new()
                 .name(format!("db-reader-{i}"))
-                .spawn(move || reader_loop(conn, rx))
+                .spawn(move || {
+                    thread_start();
+                    reader_loop(conn, rx);
+                })
                 .map_err(Error::Spawn)?;
             db.readers.push(handle);
         }

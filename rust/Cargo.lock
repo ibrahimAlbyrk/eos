@@ -2165,6 +2165,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "if-addrs",
+ "libc",
  "rustix",
  "serde_json",
  "sha2",
@@ -2290,10 +2291,12 @@ dependencies = [
 name = "eos-runtime"
 version = "0.0.1"
 dependencies = [
+ "aws-lc-rs",
  "base64 0.22.1",
  "bytes",
  "eos-contracts",
  "eos-core",
+ "eos-platform",
  "futures-core",
  "serde",
  "serde_json",

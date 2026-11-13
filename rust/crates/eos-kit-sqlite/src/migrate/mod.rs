@@ -28,10 +28,27 @@ macro_rules! embed {
 }
 
 mod embedded;
+mod own;
 
-/// Every migration today's app knows, verbatim, in run order. New ones are
-/// appended and only add tables, so the previous app version can still open the file.
-pub const EMBEDDED: &[Migration] = embedded::EMBEDDED;
+/// Every migration this app runs, in run order: the ones today's TypeScript app knows,
+/// verbatim, then this app's own, which only add tables or indexes so the previous app
+/// version can still open the file.
+pub const EMBEDDED: &[Migration] = &ALL;
+
+/// How many of [`EMBEDDED`] today's TypeScript app knows; the ones after are this app's own.
+pub const TYPESCRIPT_MIGRATIONS: usize = embedded::EMBEDDED.len();
+
+const ALL: [Migration; TYPESCRIPT_MIGRATIONS + own::OWN.len()] = concat(embedded::EMBEDDED, own::OWN);
+
+const fn concat<const N: usize>(first: &[Migration], then: &[Migration]) -> [Migration; N] {
+    let mut all = [Migration { id: "", sql: "" }; N];
+    let mut i = 0;
+    while i < N {
+        all[i] = if i < first.len() { first[i] } else { then[i - first.len()] };
+        i += 1;
+    }
+    all
+}
 
 /// Reserved row the weekly vacuum keeps in the same table.
 pub const VACUUM_MARKER: &str = "__vacuum_last_run";
@@ -121,9 +138,10 @@ mod tests {
 
     #[test]
     fn every_typescript_migration_is_embedded_in_order() {
-        assert_eq!(EMBEDDED.len(), 64);
+        assert_eq!(TYPESCRIPT_MIGRATIONS, 64);
         assert_eq!(EMBEDDED[0].id, "001_init_workers");
         assert_eq!(EMBEDDED[63].id, "064_genui_views");
+        assert_eq!(EMBEDDED[64].id, "065_idx_events_worker_type_id");
         let listed: Vec<&str> = EMBEDDED.iter().map(|m| m.id).collect();
         let mut sorted = listed.clone();
         sorted.sort_unstable();
@@ -142,7 +160,7 @@ mod tests {
     fn a_fresh_file_takes_every_migration_and_a_second_run_does_nothing() {
         let conn = mem();
         let first = run(&conn, EMBEDDED, 1).expect("first run");
-        assert_eq!(first.applied.len(), 64);
+        assert_eq!(first.applied.len(), EMBEDDED.len());
         assert!(first.adopted.is_empty() && first.unknown.is_empty());
         let second = run(&conn, EMBEDDED, 2).expect("second run");
         assert!(second.up_to_date());
@@ -160,7 +178,47 @@ mod tests {
         let report = run(&conn, EMBEDDED, 2).expect("run");
         assert!(report.up_to_date());
         assert_eq!(report.unknown, vec!["050_workflows", "999_from_the_future"]);
-        assert_eq!(ids(&conn).len(), 67);
+        assert_eq!(ids(&conn).len(), EMBEDDED.len() + 3);
+    }
+
+    fn schema(conn: &Connection) -> Vec<(String, String, Option<String>)> {
+        conn.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name")
+            .and_then(|mut s| s.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?.collect())
+            .expect("schema")
+    }
+
+    #[test]
+    fn this_apps_own_migrations_only_add_tables_and_indexes() {
+        let conn = mem();
+        run(&conn, &EMBEDDED[..TYPESCRIPT_MIGRATIONS], 1).expect("typescript's");
+        let before = schema(&conn);
+        run(&conn, EMBEDDED, 2).expect("ours");
+        let after = schema(&conn);
+        for object in &before {
+            assert!(after.contains(object), "{} {} changed", object.0, object.1);
+        }
+        let added: Vec<_> = after.iter().filter(|o| !before.contains(o)).collect();
+        assert!(!added.is_empty());
+        for (kind, name, _) in added {
+            assert!(kind == "table" || kind == "index", "{kind} {name}");
+        }
+    }
+
+    #[test]
+    fn the_previous_app_opens_a_file_this_app_migrated() {
+        let conn = mem();
+        run(&conn, EMBEDDED, 1).expect("this app");
+        let previous = run(&conn, &EMBEDDED[..TYPESCRIPT_MIGRATIONS], 2).expect("the previous app");
+        assert!(previous.up_to_date());
+        let own: Vec<&str> = EMBEDDED[TYPESCRIPT_MIGRATIONS..].iter().map(|m| m.id).collect();
+        assert_eq!(previous.unknown, own);
+        // Its writes keep the new index up to date by themselves.
+        conn.execute_batch(
+            "INSERT INTO events (worker_id, ts, type, payload) VALUES ('w', 1, 'user_message', '{}'), ('w', 2, 'state', NULL)",
+        )
+        .expect("write");
+        let integrity: String = conn.query_row("PRAGMA integrity_check", [], |r| r.get(0)).expect("check");
+        assert_eq!(integrity, "ok");
     }
 
     #[test]

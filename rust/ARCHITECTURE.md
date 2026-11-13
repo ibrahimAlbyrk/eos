@@ -92,8 +92,9 @@ format and has cross-implementation vectors.
 
 **Data on disk** (`~/.eos`) keeps its formats. The database opens in place: the 64 migrations
 today's code knows are embedded verbatim under their ids; other ids found in the table are ignored
-(a real file records 67 rows: two migrations older builds ran, and the vacuum marker); new migrations
-add tables, never columns to existing ones, so the previous app version can still open the file.
+(a real file records 67 rows: two migrations older builds ran, and the vacuum marker). This app's
+own migrations follow them (`eos-kit-sqlite/src/migrate/own.rs`, from 065) and add tables or
+indexes, never columns to existing ones, so the previous app version can still open the file.
 Snapshot before the first open with a clone copy.
 
 **Proven choices** (from the phase-0 spikes; do not re-decide without evidence): `rusqlite`
@@ -182,6 +183,11 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   std never forks the app, which has Chromium in it), SQLite has its own reader and writer
   threads, the sign-in's Keychain item is read and written through `spawn_blocking`, and
   the clock is read in process (`eos-platform`), never from a program.
+  Every thread of the core (async workers, blocking pool, SQLite writer and readers, the
+  ordered lane) runs at macOS's user-initiated class (`eos_platform::set_thread_class`):
+  at the default class it lost the CPU to Chromium's busy threads in every burst. Long work
+  nobody waits on (unpacking and hashing an update) lowers its own thread to utility for its
+  duration (`in_thread_class`). Processes the core starts keep the default class.
   The shell keeps a runtime of two workers for the window's bridges, so a busy core never
   delays them. `host/tests/responsiveness.py` holds this to a budget.
 - **`eos-shell` is the only crate that names Tauri or CEF**, and only in its private modules:
@@ -202,7 +208,9 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   bundle in and puts the old one back unless the new app writes `boot-ok` in time
   (`docs/first-rust-release.md`).
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
-  notifications), each use with its reason. Also checked by `cargo xtask shell`.
+  notifications), each use with its reason. Also checked by `cargo xtask shell`. The one
+  exception in the main workspace is `eos-platform/src/darwin/qos.rs`: two pthread calls
+  that set and read the calling thread's scheduling class, behind a safe function.
 - **The runtime is vendored with patches kept as diffs** (`host/patches/`, each with its
   reason); the helper executable is built from this repo. `host/scripts/check-patches.sh`
   proves the vendored code is upstream plus those diffs. No binary is swapped after a build.

@@ -21,6 +21,7 @@ mod net;
 mod paths;
 mod process;
 mod shell;
+mod thread_class;
 mod tool;
 
 #[cfg(target_os = "macos")]
@@ -43,6 +44,7 @@ pub use process::{
     process_alive, soft_fd_limit, user_id,
 };
 pub use shell::{PosixShell, shell_invocation};
+pub use thread_class::{ThreadClass, in_thread_class, set_thread_class};
 
 #[cfg(target_os = "macos")]
 pub use darwin::{SecurityKeychain, caffeinate_args, open_in_argv, trash_argv};

@@ -1,7 +1,8 @@
-//! A fresh file migrated here has the schema today's TypeScript runner builds
-//! (`tests/fixtures/ts-schema.json`, written by `scripts/gen-reference-schema.ts`).
+//! A fresh file migrated with the migrations today's TypeScript app knows has the schema its
+//! runner builds (`tests/fixtures/ts-schema.json`, written by `scripts/gen-reference-schema.ts`).
+//! This app's own migrations, after them, are pinned by the migrate module's tests.
 
-use eos_kit_sqlite::{Db, EMBEDDED, Error, Options, preflight};
+use eos_kit_sqlite::{Db, EMBEDDED, Error, Migration, Options, TYPESCRIPT_MIGRATIONS, preflight};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize, PartialEq, Eq)]
@@ -25,14 +26,15 @@ struct Reference {
 #[test]
 fn a_fresh_database_equals_the_one_typescript_creates() {
     let reference: Reference = serde_json::from_str(include_str!("fixtures/ts-schema.json")).expect("reference schema");
-    assert_eq!(reference.applied, EMBEDDED.len());
+    assert_eq!(reference.applied, TYPESCRIPT_MIGRATIONS);
+    let typescript: &'static [Migration] = &EMBEDDED[..TYPESCRIPT_MIGRATIONS];
 
     let dir = tempfile::tempdir().expect("dir");
     let path = dir.path().join("state.db");
-    let before = preflight(&path, EMBEDDED).expect("preflight");
-    assert!(!before.exists && before.pending.len() == EMBEDDED.len());
+    let before = preflight(&path, typescript).expect("preflight");
+    assert!(!before.exists && before.pending.len() == typescript.len());
 
-    let (db, report) = Db::open(&path, Options::default(), 1).expect("open");
+    let (db, report) = Db::open_with(&path, Options::default(), typescript, 1).expect("open");
     assert_eq!(report.applied.len(), reference.applied);
 
     let (objects, ids, auto_vacuum, journal_mode) = db
@@ -60,6 +62,6 @@ fn a_fresh_database_equals_the_one_typescript_creates() {
     assert_eq!(journal_mode, reference.journal_mode);
 
     drop(db);
-    let after = preflight(&path, EMBEDDED).expect("preflight");
+    let after = preflight(&path, typescript).expect("preflight");
     assert!(after.up_to_date() && after.unknown.is_empty());
 }

@@ -7,6 +7,7 @@ use std::path::Path;
 use eos_core::BoxFuture;
 use eos_core::net::updates::BundleIndexer;
 use eos_domain::update::{BundleIndex, LocalChunk, UpdateError};
+use eos_platform::ThreadClass;
 
 use crate::scan::{ScannedEntry, scan_bundle};
 
@@ -34,11 +35,13 @@ impl BundleIndexer for FsBundleIndexer {
     fn index<'a>(&'a self, root: &'a Path) -> BoxFuture<'a, Result<BundleIndex, UpdateError>> {
         let root = root.to_owned();
         Box::pin(async move {
-            // Reads and hashes the whole bundle.
-            tokio::task::spawn_blocking(move || scan_bundle(&root, true).map(index_of))
-                .await
-                .map_err(|e| UpdateError::disk(e.to_string()))?
-                .map_err(|e| UpdateError::disk(format!("reading the installed app failed: {e}")))
+            // Reads and hashes the whole bundle: long work nobody waits on.
+            tokio::task::spawn_blocking(move || {
+                eos_platform::in_thread_class(ThreadClass::Utility, || scan_bundle(&root, true).map(index_of))
+            })
+            .await
+            .map_err(|e| UpdateError::disk(e.to_string()))?
+            .map_err(|e| UpdateError::disk(format!("reading the installed app failed: {e}")))
         })
     }
 }

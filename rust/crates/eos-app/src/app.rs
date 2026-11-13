@@ -61,6 +61,7 @@ use crate::display::StripSenderTags;
 use crate::host::{self, HostLocalTime, HostStats, SystemBrowser};
 use crate::modules::{self, Context};
 use crate::notes::{Notes, ProfilePrompt};
+use crate::threads;
 use crate::updates::{Install, Updates};
 
 /// What the app is built from. Tests swap the clock, the timers, the id
@@ -270,7 +271,14 @@ impl App {
 
         // Before the database opens: a migration must not run ahead of the copy.
         let snapshot = boot::snapshot(&paths, clock.as_ref());
-        let (db, migrations) = Db::open(paths.state_db(), eos_kit_sqlite::Options::default(), clock.now_ms())?;
+        // A reader per async worker: a burst of transcript reads (a chat switch, several
+        // panes) does not queue behind a few connections.
+        let db_options = eos_kit_sqlite::Options {
+            readers: threads::machine_workers(),
+            on_thread_start: threads::core_thread_start,
+            ..eos_kit_sqlite::Options::default()
+        };
+        let (db, migrations) = Db::open(paths.state_db(), db_options, clock.now_ms())?;
         if !migrations.unknown.is_empty() {
             tracing::info!(ids = ?migrations.unknown, "the database records migrations this build does not know; left alone");
         }
