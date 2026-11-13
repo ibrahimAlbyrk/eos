@@ -475,5 +475,6 @@ fn worker_git(temp: &TempStore) -> WorkerGit {
         tries: Arc::new(eos_git::GitTries::new(git.as_ref().clone(), temp.home.path().join("tries"))),
         merge: git,
         desktop: Arc::new(eos_testkit::FakeDesktop::default()),
+        state: Arc::new(eos_testkit::FakeRepoState::new()),
     }
 }

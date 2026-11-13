@@ -84,6 +84,8 @@ pub(crate) struct Context {
     /// Claude Code's memory of the projects workers work in.
     pub(crate) project_memory: Arc<dyn eos_core::store::ProjectMemoryStore>,
     pub(crate) git_watcher: Arc<dyn eos_core::git::GitWatcher>,
+    /// git: the kept working-tree snapshots and the adapter whose writes tell them.
+    pub(crate) repos: crate::files::Repos,
     /// The app works on the user's own data folder: it may delete on its own.
     pub(crate) sweep_leftovers: bool,
     pub(crate) terminals: Terminal,

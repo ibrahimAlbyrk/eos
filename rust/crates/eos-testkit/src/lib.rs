@@ -96,4 +96,4 @@ pub use update_fakes::{
     FAKE_DOWNLOAD_BYTES, FakeBundleCheck, FakeBundleIndexer, FakeTopLevelAgents, FakeUpdateApplier, FakeUpdateFeed,
     FakeUpdateSignature, FakeUpdateWorkspace,
 };
-pub use watchers::FakeWatcher;
+pub use watchers::{FakeRepoState, FakeWatcher, RepoStateCall};

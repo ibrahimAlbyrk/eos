@@ -102,6 +102,7 @@ impl Bench {
             tries: Arc::new(GitTries::new(adapter.as_ref().clone(), temp.home.path().join("tries"))),
             merge: adapter,
             desktop: Arc::new(FakeDesktop::default()),
+            state: Arc::new(eos_testkit::FakeRepoState::new()),
         };
         let files = Arc::new(FsWorkerDefinitionFiles::new(temp.home.path().join("workers")));
         let definitions = Arc::new(WorkerDefinitions::new(files, temp.port(), clock));

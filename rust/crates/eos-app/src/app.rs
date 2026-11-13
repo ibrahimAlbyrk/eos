@@ -361,7 +361,9 @@ impl App {
         // session service every feature that touches an agent goes through.
         let models = Arc::new(CachedModelCatalog::open(&paths.join("models.json")));
         let recents = Arc::new(JsonRecents::open(paths.join("recents.json")));
-        let git = Arc::new(crate::files::git(&clock));
+        // One set of working-tree snapshots for the whole app; every git write tells them.
+        let repos = crate::files::repos(&clock);
+        let git = repos.git.clone();
         // Chats without a folder work in a scratch folder of their own, deleted with them.
         let claude_dir = agents.claude_home.clone().unwrap_or_else(claude_home);
         let claude_projects = claude_dir.join("projects");
@@ -522,7 +524,8 @@ impl App {
                 clock.clone(),
             )),
             sweep_leftovers,
-            git_watcher: crate::files::git_watcher(&clock, &kernel.bus),
+            git_watcher: crate::files::git_watcher(&clock, &kernel.bus, &repos),
+            repos,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),
             remote: Arc::new(eos_mod_remote::RemoteModule::new(eos_mod_remote::RemoteParts {
                 config: config.clone(),

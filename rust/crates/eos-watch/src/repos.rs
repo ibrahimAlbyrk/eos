@@ -1,18 +1,26 @@
 //! The git state of working trees.
 //!
-//! For each watched working tree, four places are observed:
+//! For each watched working tree, five places are observed:
 //!
 //! | Place | What a change there means |
 //! |---|---|
-//! | the worktree's own git folder, its direct entries | HEAD, the index, a merge or rebase in progress |
+//! | the worktree's own git folder, its direct entries | HEAD, the index, a merge or rebase in progress, its settings |
 //! | `<common>/refs`, the whole subtree | branches, tags, remote refs, the stash |
-//! | the shared git folder's direct entries (a linked worktree only) | packed refs |
+//! | the shared git folder's direct entries (a linked worktree only) | packed refs, the shared settings |
+//! | `<common>/info`, its direct entries | the repository's own ignore and attribute rules |
 //! | the working tree, the whole subtree minus ignored folders | uncommitted edits |
 //!
 //! The shared git folder is never watched as a whole: `objects/` churns on
 //! every commit, fetch and gc. Linked worktrees of one repository share the
 //! common folder, so its watches are shared too, and a commit in one worktree
 //! tells every working tree that registered them — each under its own name.
+//!
+//! When given a [`RepoState`], the watcher tells it of each change as soon as
+//! the system reports it (before gathering, so a read the `git:change` event
+//! triggers never meets what was there before), that the changes of an
+//! operation were gathered (just before the event goes out), and which trees
+//! it watches. Settings and rule files tell only the state: the dashboard has
+//! nothing to show for them.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -21,7 +29,7 @@ use std::sync::{Arc, Mutex, MutexGuard, Weak};
 use std::time::Duration;
 
 use eos_contracts::{GitChangeEvent, GitChangeKind, Num};
-use eos_core::git::{GitChangeSink, GitDirs, GitWatcher};
+use eos_core::git::{GitChangeSink, GitDirs, GitWatcher, RepoChange, RepoState};
 use eos_core::os::WatchLease;
 use eos_core::{BoxFuture, Clock};
 use eos_domain::fs_ignore::is_ignored;
@@ -52,8 +60,23 @@ enum Place {
     GitDir,
     CommonTop,
     Refs,
+    Info,
     Worktree,
 }
+
+/// What a change means: to the kept state, and on the wire (`None`: the
+/// dashboard has nothing to show for it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Change {
+    state: RepoChange,
+    wire: Option<GitChangeKind>,
+}
+
+const fn both(state: RepoChange, wire: GitChangeKind) -> Option<Change> {
+    Some(Change { state, wire: Some(wire) })
+}
+
+const SETTINGS: Option<Change> = Some(Change { state: RepoChange::Settings, wire: None });
 
 fn base_name(path: &Path) -> &str {
     path.file_name().and_then(|name| name.to_str()).unwrap_or_default()
@@ -65,24 +88,43 @@ impl Place {
     }
 
     /// What a change of `path` under `root` means; `None` when it means
-    /// nothing the dashboard shows (`COMMIT_EDITMSG`, `config`, logs, lock files).
-    fn classify(self, root: &Path, path: &Path) -> Option<GitChangeKind> {
+    /// nothing (`COMMIT_EDITMSG`, logs, lock files).
+    fn classify(self, root: &Path, path: &Path) -> Option<Change> {
         match self {
             Place::GitDir => match base_name(path) {
-                "HEAD" | "ORIG_HEAD" => Some(GitChangeKind::Head),
-                "index" => Some(GitChangeKind::Index),
-                "packed-refs" => Some(GitChangeKind::Refs),
+                "HEAD" | "ORIG_HEAD" => both(RepoChange::Head, GitChangeKind::Head),
+                "index" => both(RepoChange::Index, GitChangeKind::Index),
+                "packed-refs" => both(RepoChange::Refs, GitChangeKind::Refs),
                 "MERGE_HEAD" | "CHERRY_PICK_HEAD" | "REVERT_HEAD" | "rebase-merge" | "rebase-apply" => {
-                    Some(GitChangeKind::Conflict)
+                    both(RepoChange::Conflict, GitChangeKind::Conflict)
                 }
+                // `git branch -u` and `git remote set-url` change only these.
+                "config" | "config.worktree" => SETTINGS,
                 _ => None,
             },
-            Place::CommonTop => (base_name(path) == "packed-refs").then_some(GitChangeKind::Refs),
+            Place::CommonTop => match base_name(path) {
+                "packed-refs" => both(RepoChange::Refs, GitChangeKind::Refs),
+                "config" => SETTINGS,
+                _ => None,
+            },
             Place::Refs => {
+                let below = path.strip_prefix(root).ok();
+                let first = below.and_then(|below| below.components().next()).map(|c| c.as_os_str());
                 let is_stash = base_name(path) == "stash" && path.parent().is_some_and(|dir| base_name(dir) == "refs");
-                Some(if is_stash { GitChangeKind::Stash } else { GitChangeKind::Refs })
+                if is_stash {
+                    both(RepoChange::Stash, GitChangeKind::Stash)
+                } else if first.is_some_and(|first| first == "remotes") {
+                    both(RepoChange::RemoteRefs, GitChangeKind::Refs)
+                } else {
+                    both(RepoChange::Refs, GitChangeKind::Refs)
+                }
             }
-            Place::Worktree => (!ignored_below(root, path)).then_some(GitChangeKind::Worktree),
+            Place::Info => {
+                matches!(base_name(path), "exclude" | "attributes" | "sparse-checkout").then_some(SETTINGS).flatten()
+            }
+            Place::Worktree => {
+                (!ignored_below(root, path)).then(|| both(RepoChange::Worktree, GitChangeKind::Worktree)).flatten()
+            }
         }
     }
 }
@@ -132,6 +174,9 @@ struct Repo {
     /// git folders are still being resolved.
     id: u64,
     targets: Vec<(PathBuf, Place)>,
+    /// Once its watches are set up: its git folders, and whether its files
+    /// are watched too.
+    watched: Option<(GitDirs, bool)>,
 }
 
 /// One folder watched as one kind of place. A folder can be two places at
@@ -167,12 +212,22 @@ impl State {
             self.pending[at].1.push(kind);
         }
     }
+
+    /// The top folder of the working tree watched as `dir`.
+    fn toplevel(&self, dir: &Path) -> Option<&Path> {
+        self.repos
+            .iter()
+            .find(|repo| repo.dir == dir)
+            .and_then(|repo| repo.watched.as_ref())
+            .map(|(dirs, _)| dirs.toplevel.as_path())
+    }
 }
 
 struct Core {
     state: Mutex<State>,
     clock: Arc<dyn Clock>,
     sink: GitChangeSink,
+    repo_state: Option<Arc<dyn RepoState>>,
 }
 
 impl Core {
@@ -184,7 +239,7 @@ impl Core {
 impl Reactor for Core {
     fn on_path(&self, path: &Path) -> bool {
         let mut state = self.state();
-        let mut fired: Vec<(PathBuf, GitChangeKind)> = Vec::new();
+        let mut fired: Vec<(PathBuf, Change)> = Vec::new();
         for target in &state.targets {
             let inside = if target.place.recursive() {
                 path.starts_with(&target.path)
@@ -194,19 +249,37 @@ impl Reactor for Core {
             if !inside {
                 continue;
             }
-            if let Some(kind) = target.place.classify(&target.path, path) {
-                fired.extend(target.consumers.iter().map(|dir| (dir.clone(), kind)));
+            if let Some(change) = target.place.classify(&target.path, path) {
+                fired.extend(target.consumers.iter().map(|dir| (dir.clone(), change)));
             }
         }
-        for (dir, kind) in &fired {
-            state.note(dir, *kind);
+        if let Some(repo_state) = &self.repo_state {
+            let mut told: Vec<(&Path, RepoChange)> = Vec::new();
+            for (dir, change) in &fired {
+                if let Some(top) = state.toplevel(dir)
+                    && !told.contains(&(top, change.state))
+                {
+                    repo_state.changed(top, change.state);
+                    told.push((top, change.state));
+                }
+            }
         }
-        !fired.is_empty()
+        let mut waiting = false;
+        for (dir, change) in &fired {
+            if let Some(kind) = change.wire {
+                state.note(dir, kind);
+                waiting = true;
+            }
+        }
+        waiting
     }
 
     // Events were lost: every watched working tree is told that everything
     // may have changed, and the dashboard reads its state again.
     fn on_overflow(&self) -> bool {
+        if let Some(repo_state) = &self.repo_state {
+            repo_state.lost();
+        }
         let mut state = self.state();
         let dirs: Vec<PathBuf> =
             state.repos.iter().filter(|repo| !repo.targets.is_empty()).map(|r| r.dir.clone()).collect();
@@ -219,7 +292,20 @@ impl Reactor for Core {
     }
 
     fn flush(&self) {
-        let batch = std::mem::take(&mut self.state().pending);
+        let (batch, tops) = {
+            let mut state = self.state();
+            let batch = std::mem::take(&mut state.pending);
+            let mut tops: Vec<PathBuf> =
+                batch.iter().filter_map(|(dir, _)| state.toplevel(dir)).map(Path::to_owned).collect();
+            tops.dedup();
+            (batch, tops)
+        };
+        // Recomputed before the dashboard hears of it, so its reads join the refresh.
+        if let Some(repo_state) = &self.repo_state {
+            for top in &tops {
+                repo_state.settled(top);
+            }
+        }
         let ts = Num::from(self.clock.now_ms());
         for (dir, kinds) in batch {
             if !kinds.is_empty() {
@@ -263,6 +349,11 @@ impl Inner {
         if dirs.common_dir != dirs.git_dir {
             places.push((dirs.common_dir.clone(), Place::CommonTop));
         }
+        // Not every repository has one; a missing one is no failure.
+        let info = dirs.common_dir.join("info");
+        if info.is_dir() {
+            places.push((info, Place::Info));
+        }
         if self.native_recursive || within_dir_budget(&dirs.toplevel, WORKTREE_DIR_BUDGET) {
             places.push((dirs.toplevel.clone(), Place::Worktree));
         } else {
@@ -284,6 +375,7 @@ impl Inner {
         if state.closed || !state.repos.iter().any(|repo| repo.id == id) {
             return;
         }
+        let planned = places.len();
         let mut registered = Vec::new();
         for (path, place) in places {
             let real = fs::canonicalize(&path).unwrap_or(path);
@@ -304,8 +396,16 @@ impl Inner {
             }
             registered.push((real, place));
         }
+        // Every change is seen only when every place is watched, the files included.
+        let whole = source.is_some()
+            && registered.len() == planned
+            && registered.iter().any(|(_, place)| *place == Place::Worktree);
         if let Some(repo) = state.repos.iter_mut().find(|repo| repo.id == id) {
             repo.targets = registered;
+            repo.watched = Some((dirs.clone(), whole));
+        }
+        if let Some(repo_state) = &self.core.repo_state {
+            repo_state.watching(dirs, whole);
         }
     }
 
@@ -331,6 +431,9 @@ impl Inner {
                 }
             }
         }
+        if let (Some(repo_state), Some((dirs, whole))) = (&self.core.repo_state, &repo.watched) {
+            repo_state.unwatching(dirs, *whole);
+        }
     }
 }
 
@@ -343,7 +446,29 @@ impl RepoWatcher {
     /// [`watch`](GitWatcher::watch) must be called inside a tokio runtime: the
     /// lookup of the git folders runs on it.
     pub fn new(resolve: ResolveGitDirs, clock: Arc<dyn Clock>, sink: GitChangeSink, native_recursive: bool) -> Self {
-        let core = Arc::new(Core { state: Mutex::new(State::default()), clock, sink });
+        Self::build(resolve, clock, sink, native_recursive, None)
+    }
+
+    /// The same watcher, telling `repo_state` what it sees (on its own
+    /// thread; the calls must not block).
+    pub fn telling(
+        resolve: ResolveGitDirs,
+        clock: Arc<dyn Clock>,
+        sink: GitChangeSink,
+        native_recursive: bool,
+        repo_state: Arc<dyn RepoState>,
+    ) -> Self {
+        Self::build(resolve, clock, sink, native_recursive, Some(repo_state))
+    }
+
+    fn build(
+        resolve: ResolveGitDirs,
+        clock: Arc<dyn Clock>,
+        sink: GitChangeSink,
+        native_recursive: bool,
+        repo_state: Option<Arc<dyn RepoState>>,
+    ) -> Self {
+        let core = Arc::new(Core { state: Mutex::new(State::default()), clock, sink, repo_state });
         let source = match Source::start("eos-git-watch", core.clone(), WINDOW) {
             Ok(source) => Some(source),
             Err(error) => {
@@ -381,7 +506,7 @@ impl GitWatcher for RepoWatcher {
                 return WatchLease::new(release);
             }
             let id = self.inner.next_id.fetch_add(1, Ordering::Relaxed);
-            state.repos.push(Repo { dir: dir.to_owned(), refs: 1, id, targets: Vec::new() });
+            state.repos.push(Repo { dir: dir.to_owned(), refs: 1, id, targets: Vec::new(), watched: None });
             id
         };
         // Finding the git folders asks git, so the watches start once it answers.
@@ -401,12 +526,18 @@ impl GitWatcher for RepoWatcher {
 
     fn close_all(&self) {
         let source = self.inner.source().take();
-        {
+        let watched: Vec<(GitDirs, bool)> = {
             let mut state = self.inner.core.state();
             state.closed = true;
-            state.repos.clear();
+            let watched = state.repos.drain(..).filter_map(|repo| repo.watched).collect();
             state.targets.clear();
             state.pending.clear();
+            watched
+        };
+        if let Some(repo_state) = &self.inner.core.repo_state {
+            for (dirs, whole) in &watched {
+                repo_state.unwatching(dirs, *whole);
+            }
         }
         drop(source);
     }
@@ -416,43 +547,64 @@ impl GitWatcher for RepoWatcher {
 mod tests {
     use super::*;
 
-    fn kind(place: Place, root: &str, path: &str) -> Option<GitChangeKind> {
-        place.classify(Path::new(root), Path::new(path))
+    fn wire(place: Place, root: &str, path: &str) -> Option<GitChangeKind> {
+        place.classify(Path::new(root), Path::new(path)).and_then(|change| change.wire)
+    }
+
+    fn state(place: Place, root: &str, path: &str) -> Option<RepoChange> {
+        place.classify(Path::new(root), Path::new(path)).map(|change| change.state)
     }
 
     #[test]
     fn a_git_folders_top_level_files_say_what_changed() {
         let git = "/r/.git";
-        assert_eq!(kind(Place::GitDir, git, "/r/.git/HEAD"), Some(GitChangeKind::Head));
-        assert_eq!(kind(Place::GitDir, git, "/r/.git/ORIG_HEAD"), Some(GitChangeKind::Head));
-        assert_eq!(kind(Place::GitDir, git, "/r/.git/index"), Some(GitChangeKind::Index));
-        assert_eq!(kind(Place::GitDir, git, "/r/.git/packed-refs"), Some(GitChangeKind::Refs));
+        assert_eq!(wire(Place::GitDir, git, "/r/.git/HEAD"), Some(GitChangeKind::Head));
+        assert_eq!(wire(Place::GitDir, git, "/r/.git/ORIG_HEAD"), Some(GitChangeKind::Head));
+        assert_eq!(wire(Place::GitDir, git, "/r/.git/index"), Some(GitChangeKind::Index));
+        assert_eq!(wire(Place::GitDir, git, "/r/.git/packed-refs"), Some(GitChangeKind::Refs));
         for marker in ["MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply"] {
-            assert_eq!(kind(Place::GitDir, git, &format!("/r/.git/{marker}")), Some(GitChangeKind::Conflict));
+            assert_eq!(wire(Place::GitDir, git, &format!("/r/.git/{marker}")), Some(GitChangeKind::Conflict));
         }
         for quiet in ["COMMIT_EDITMSG", "config", "index.lock", "logs", "FETCH_HEAD"] {
-            assert_eq!(kind(Place::GitDir, git, &format!("/r/.git/{quiet}")), None, "{quiet}");
+            assert_eq!(wire(Place::GitDir, git, &format!("/r/.git/{quiet}")), None, "{quiet}");
         }
-        assert_eq!(kind(Place::CommonTop, git, "/r/.git/packed-refs"), Some(GitChangeKind::Refs));
-        assert_eq!(kind(Place::CommonTop, git, "/r/.git/HEAD"), None);
+        assert_eq!(wire(Place::CommonTop, git, "/r/.git/packed-refs"), Some(GitChangeKind::Refs));
+        assert_eq!(wire(Place::CommonTop, git, "/r/.git/HEAD"), None);
+    }
+
+    #[test]
+    fn settings_and_rules_tell_the_state_only() {
+        let git = "/r/.git";
+        for settings in ["/r/.git/config", "/r/.git/config.worktree"] {
+            assert_eq!(state(Place::GitDir, git, settings), Some(RepoChange::Settings), "{settings}");
+            assert_eq!(wire(Place::GitDir, git, settings), None, "{settings}");
+        }
+        assert_eq!(state(Place::CommonTop, git, "/r/.git/config"), Some(RepoChange::Settings));
+        assert_eq!(state(Place::Info, "/r/.git/info", "/r/.git/info/exclude"), Some(RepoChange::Settings));
+        assert_eq!(wire(Place::Info, "/r/.git/info", "/r/.git/info/exclude"), None);
+        assert_eq!(state(Place::Info, "/r/.git/info", "/r/.git/info/exclude.lock"), None);
+        assert_eq!(state(Place::GitDir, git, "/r/.git/COMMIT_EDITMSG"), None);
     }
 
     #[test]
     fn refs_are_refs_except_the_stash() {
         let refs = "/r/.git/refs";
-        assert_eq!(kind(Place::Refs, refs, "/r/.git/refs/heads/main"), Some(GitChangeKind::Refs));
-        assert_eq!(kind(Place::Refs, refs, "/r/.git/refs/remotes/origin/main"), Some(GitChangeKind::Refs));
-        assert_eq!(kind(Place::Refs, refs, "/r/.git/refs/stash"), Some(GitChangeKind::Stash));
-        assert_eq!(kind(Place::Refs, refs, "/r/.git/refs/heads/stash"), Some(GitChangeKind::Refs));
+        assert_eq!(wire(Place::Refs, refs, "/r/.git/refs/heads/main"), Some(GitChangeKind::Refs));
+        assert_eq!(wire(Place::Refs, refs, "/r/.git/refs/remotes/origin/main"), Some(GitChangeKind::Refs));
+        assert_eq!(wire(Place::Refs, refs, "/r/.git/refs/stash"), Some(GitChangeKind::Stash));
+        assert_eq!(wire(Place::Refs, refs, "/r/.git/refs/heads/stash"), Some(GitChangeKind::Refs));
+        // Only a remote-tracking ref leaves the working tree's changes standing.
+        assert_eq!(state(Place::Refs, refs, "/r/.git/refs/remotes/origin/main"), Some(RepoChange::RemoteRefs));
+        assert_eq!(state(Place::Refs, refs, "/r/.git/refs/heads/remotes"), Some(RepoChange::Refs));
     }
 
     #[test]
     fn ignored_folders_below_the_working_tree_do_not_count() {
         let root = "/r/.eos/worktrees/w1";
-        assert_eq!(kind(Place::Worktree, root, "/r/.eos/worktrees/w1/src/a.rs"), Some(GitChangeKind::Worktree));
-        assert_eq!(kind(Place::Worktree, root, root), Some(GitChangeKind::Worktree));
+        assert_eq!(wire(Place::Worktree, root, "/r/.eos/worktrees/w1/src/a.rs"), Some(GitChangeKind::Worktree));
+        assert_eq!(wire(Place::Worktree, root, root), Some(GitChangeKind::Worktree));
         for noise in [".git/index", "node_modules/p/i.js", "a/dist/x.js", ".eos/worktrees/w2/a.rs", "x/.DS_Store"] {
-            assert_eq!(kind(Place::Worktree, root, &format!("{root}/{noise}")), None, "{noise}");
+            assert_eq!(wire(Place::Worktree, root, &format!("{root}/{noise}")), None, "{noise}");
         }
     }
 

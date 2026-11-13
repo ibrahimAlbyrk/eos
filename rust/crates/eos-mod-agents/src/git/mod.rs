@@ -26,7 +26,8 @@ use eos_contracts::WorkerEventType;
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_core::Error;
 use eos_core::git::{
-    BranchIntegration, BranchMerge, BranchPush, ConflictResolution, GitDiffs, GitInfo, RemoteSync, WorkingTreeRestore,
+    BranchIntegration, BranchMerge, BranchPush, ConflictResolution, GitDiffs, GitInfo, RemoteSync, RepoState,
+    WorkingTreeRestore,
 };
 use eos_core::os::DesktopFiles;
 use eos_domain::Worker;
@@ -53,6 +54,8 @@ pub struct WorkerGit {
     pub merge: Arc<dyn BranchMerge>,
     /// "Open in": the folder in the file manager or an editor.
     pub desktop: Arc<dyn DesktopFiles>,
+    /// Told when an agent's tool call may have changed its worker's folder.
+    pub state: Arc<dyn RepoState>,
 }
 
 impl std::fmt::Debug for WorkerGit {

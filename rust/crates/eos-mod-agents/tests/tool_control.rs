@@ -68,6 +68,7 @@ fn bench() -> Bench {
         tries,
         merge: git,
         desktop: Arc::new(FakeDesktop::default()),
+        state: Arc::new(eos_testkit::FakeRepoState::new()),
     };
     let module = AgentsModule::new(sessions.clone(), temp.port(), ids, definitions, spawning, worker_git);
     let control = ToolControl::new(&module).expect("the routes compose");

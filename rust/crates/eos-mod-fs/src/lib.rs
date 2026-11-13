@@ -32,7 +32,7 @@ use std::sync::{Arc, Mutex};
 
 use eos_contracts::stream::topics;
 use eos_contracts::{FsChangeEvent, FsChangeKind, GitChangeEvent};
-use eos_core::git::{BranchAdmin, GitChangeSink, GitDiffs, GitInfo, GitWatcher, RemoteSync, WorkingTree};
+use eos_core::git::{BranchAdmin, GitChangeSink, GitDiffs, GitInfo, GitWatcher, RemoteSync, RepoState, WorkingTree};
 use eos_core::os::{DesktopFiles, FileSystem, FileWatcher, FsChangeSink, SymbolIndex};
 use eos_core::shell::FilePicker;
 use eos_runtime::Kernel;
@@ -72,6 +72,8 @@ pub struct Ports {
     pub branches: Arc<dyn BranchAdmin>,
     pub remotes: Arc<dyn RemoteSync>,
     pub git_watcher: Arc<dyn GitWatcher>,
+    /// Told of every file the routes change: the git reads keep each working tree's state.
+    pub repo_state: Arc<dyn RepoState>,
     /// The per-project file lists, shared with the symbol index.
     pub candidates: Arc<CandidateCache>,
     /// `None` leaves the `/symbols/*` routes out.
@@ -102,6 +104,7 @@ pub(crate) struct Deps {
     branches: Arc<dyn BranchAdmin>,
     remotes: Arc<dyn RemoteSync>,
     git_watcher: Arc<dyn GitWatcher>,
+    repo_state: Arc<dyn RepoState>,
     candidates: Arc<CandidateCache>,
     file_leases: Arc<WatchLeases>,
     git_leases: Arc<WatchLeases>,
@@ -151,6 +154,7 @@ impl FsModule {
             branches: ports.branches,
             remotes: ports.remotes,
             git_watcher: ports.git_watcher,
+            repo_state: ports.repo_state,
             candidates: ports.candidates,
             file_leases,
             git_leases,

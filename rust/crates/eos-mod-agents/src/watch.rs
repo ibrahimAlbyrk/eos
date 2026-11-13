@@ -14,7 +14,7 @@
 //! worker's session ends or the worker is removed.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
@@ -74,6 +74,8 @@ pub(crate) struct Watching {
     reminded: Mutex<HashSet<String>>,
     /// The folders watched for the active workers.
     watched: Mutex<HashMap<String, WatchLease>>,
+    /// Each active worker's folder, by worker: what its tool calls may change.
+    folders: Mutex<HashMap<String, PathBuf>>,
     reconcile: Mutex<Option<JoinHandle<()>>>,
     listening: Mutex<Vec<Subscription>>,
 }
@@ -348,8 +350,10 @@ impl AgentsModule {
     async fn reconcile_watches(&self) {
         let Some(watch) = self.watch() else { return };
         let Ok(rows) = self.store.read(|tx| tx.workers().list_all()).await else { return };
-        let desired: HashSet<String> =
-            rows.iter().filter(|w| is_active(w.state)).filter_map(git_dir).map(str::to_owned).collect();
+        let active = || rows.iter().filter(|w| is_active(w.state));
+        *locked(&self.watching.folders) =
+            active().filter_map(|w| git_dir(w).map(|dir| (w.id.clone(), PathBuf::from(dir)))).collect();
+        let desired: HashSet<String> = active().filter_map(git_dir).map(str::to_owned).collect();
         let mut watched = locked(&self.watching.watched);
         watched.retain(|dir, _| desired.contains(dir));
         for dir in desired {
@@ -370,9 +374,18 @@ impl AgentsModule {
         }));
     }
 
+    /// A tool of the worker's agent ran: what git shows of its folder may
+    /// have changed before the folder's watch says so.
+    pub(crate) fn tool_ran(&self, worker_id: &str) {
+        if let Some(folder) = locked(&self.watching.folders).get(worker_id) {
+            self.git().state.touched(folder);
+        }
+    }
+
     /// Everything a worker's end frees.
     fn forget(&self, id: &str) {
         self.track_idle(id, false);
+        locked(&self.watching.folders).remove(id);
         locked(&self.watching.reported).remove(id);
         locked(&self.watching.reminded).remove(id);
     }
@@ -434,6 +447,7 @@ impl AgentsModule {
             task.abort();
         }
         locked(&self.watching.watched).clear();
+        locked(&self.watching.folders).clear();
     }
 }
 

@@ -25,6 +25,7 @@ eos-git.workspace = true
 eos-kit-proc.workspace = true
 eos-platform.workspace = true
 eos-symbols.workspace = true
+eos-testkit.workspace = true
 eos-watch.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

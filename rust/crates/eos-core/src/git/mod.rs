@@ -20,6 +20,7 @@
 //! | [`BranchIntegration`] | Try: a worker's work shown in the user's checkout, kept or discarded |
 //! | [`BranchMerge`] | an orchestrator merging its workers' work into its checkout |
 //! | [`GitWatcher`] | live `git:change` events for a working tree |
+//! | [`RepoState`] | the working-tree state kept between reads, told when it goes stale |
 //! | [`CandidateFiles`] | the files of a project that search and the symbol index look at |
 //! | [`ProjectKeys`] | a project folder ⇄ the key it travels under between computers |
 
@@ -30,6 +31,7 @@ mod info;
 mod merge;
 mod project_keys;
 mod resolve;
+mod state;
 mod tries;
 mod watch;
 mod worktree;
@@ -41,6 +43,7 @@ pub use info::{ConflictEntry, GitDirs, GitInfo, SyncStatus};
 pub use merge::{BranchMerge, MergeAllResult, MergeWorkerResult};
 pub use project_keys::ProjectKeys;
 pub use resolve::{ConflictResolution, ConflictSide, WorkingTreeRestore};
+pub use state::{RepoChange, RepoState};
 pub use tries::{BranchIntegration, TryApplied, TryApplyRefusal, TryDiscardRefusal, TryDiscarded, TrySync};
 pub use watch::{GitChangeSink, GitWatcher};
 pub use worktree::{WorktreeCreate, WorktreeCreated, WorktreeEntry, WorktreeManager, WorktreeRef, WorktreeRemoved};

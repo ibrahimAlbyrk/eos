@@ -18,6 +18,7 @@ use eos_runtime::http::{Method, Request, Response};
 use eos_runtime::router::{AllPluginsOn, Router};
 use eos_runtime::stream::AttachOptions;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
+use eos_testkit::{FakeRepoState, RepoStateCall};
 use eos_watch::{DirWatcher, RepoWatcher, ResolveGitDirs};
 use serde_json::{Value, json};
 
@@ -28,6 +29,8 @@ struct App {
     runtime: Runtime,
     raw: Router,
     dirs: Arc<DirWatcher>,
+    /// What the write routes told of the files they changed.
+    state: FakeRepoState,
     repos: Arc<RepoWatcher>,
 }
 
@@ -49,6 +52,7 @@ fn app() -> App {
     let dirs = Arc::new(DirWatcher::new(clock.clone(), fs_change_sink(kernel.bus.clone())));
     let repos = Arc::new(RepoWatcher::new(resolve, clock.clone(), git_change_sink(kernel.bus.clone()), true));
     let candidates = Arc::new(CandidateCache::new(git.clone(), clock.clone()));
+    let state = FakeRepoState::new();
     let pdfjs = root.join("pdfjs");
     fs::create_dir_all(pdfjs.join("web")).expect("the viewer folder");
     fs::write(pdfjs.join("web/viewer.html"), "<html>viewer</html>").expect("the viewer");
@@ -65,6 +69,7 @@ fn app() -> App {
             branches: git.clone(),
             remotes: git,
             git_watcher: repos.clone(),
+            repo_state: Arc::new(state.clone()),
             symbols: Some(Arc::new(eos_symbols::TagIndex::new(candidates.clone()))),
             candidates,
             pdfjs_root: Some(pdfjs),
@@ -72,7 +77,7 @@ fn app() -> App {
     );
     let raw = Router::builder().routes(module.raw_routes()).build().expect("raw routes");
     let runtime = Runtime::build(kernel, vec![Arc::new(module)], Arc::new(AllPluginsOn)).expect("composes");
-    App { _keep: keep, root, runtime, raw, dirs, repos }
+    App { _keep: keep, root, runtime, raw, dirs, repos, state }
 }
 
 impl App {
@@ -201,6 +206,8 @@ async fn trashing_reports_each_path_and_keeps_what_it_removed() {
     assert!(!app.root.join("p/a.txt").exists() && !app.root.join("p/sub").exists());
     let kept: Vec<_> = fs::read_dir(app.root.join(".eos-trash")).expect("the fallback trash").collect();
     assert_eq!(kept.len(), 2, "what was trashed can be put back by hand");
+    // What git shows of that folder is stale now.
+    assert_eq!(app.state.calls(), [RepoStateCall::Touched { path: app.root.join("p") }]);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -376,13 +383,14 @@ async fn a_tabs_watches_send_changes_and_end_with_its_stream() {
 
     // The git watch starts once git has named the repository's folders.
     assert_eq!(app.post("/fs/git/watch", json!({ "dir": dir_text, "clientId": "tab-1" })).await.0, 200);
+    // Its git folder, its refs, its own rules, its files.
     for _ in 0..2000 {
-        if app.repos.targets() == 3 {
+        if app.repos.targets() == 4 {
             break;
         }
         tokio::time::sleep(Duration::from_millis(5)).await;
     }
-    assert_eq!(app.repos.targets(), 3);
+    assert_eq!(app.repos.targets(), 4);
     git(&dir, &["commit", "-q", "--allow-empty", "-m", "empty"]);
     assert!(frame(&mut stream, "git:change").await.contains(&format!("\"dir\":\"{dir_text}\"")));
 

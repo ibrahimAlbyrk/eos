@@ -1,10 +1,10 @@
-//! Fakes of the two watcher ports: they record what is watched and let a
-//! test say that something changed.
+//! Fakes of the two watcher ports and of what the git watcher feeds
+//! (`RepoState`): they record what is watched and what they were told.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use eos_core::git::GitWatcher;
+use eos_core::git::{GitDirs, GitWatcher, RepoChange, RepoState};
 use eos_core::os::{FileWatcher, WatchLease};
 
 /// Counts the leases held per folder. Implements both `FileWatcher` and
@@ -68,6 +68,86 @@ impl GitWatcher for FakeWatcher {
 
     fn close_all(&self) {
         self.close();
+    }
+}
+
+/// One call a [`FakeRepoState`] received.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RepoStateCall {
+    Watching {
+        toplevel: PathBuf,
+        whole: bool,
+    },
+    Unwatching {
+        toplevel: PathBuf,
+        whole: bool,
+    },
+    Changed {
+        toplevel: PathBuf,
+        change: RepoChange,
+    },
+    Settled {
+        toplevel: PathBuf,
+    },
+    Lost,
+    Touched {
+        path: PathBuf,
+    },
+    /// Something the test noted in between (an event that went out, say).
+    Mark(String),
+}
+
+/// `RepoState` that records every call in order; `then` runs after each
+/// one (a test can note what else happened by then).
+#[derive(Default, Clone)]
+pub struct FakeRepoState {
+    calls: Arc<Mutex<Vec<RepoStateCall>>>,
+}
+
+impl std::fmt::Debug for FakeRepoState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("FakeRepoState").field("calls", &self.calls()).finish()
+    }
+}
+
+impl FakeRepoState {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn calls(&self) -> Vec<RepoStateCall> {
+        self.calls.lock().expect("lock").clone()
+    }
+
+    /// Records a call made by something else, in the same order (a sink of the watcher, say).
+    pub fn note(&self, call: RepoStateCall) {
+        self.calls.lock().expect("lock").push(call);
+    }
+}
+
+impl RepoState for FakeRepoState {
+    fn watching(&self, dirs: &GitDirs, whole: bool) {
+        self.note(RepoStateCall::Watching { toplevel: dirs.toplevel.clone(), whole });
+    }
+
+    fn unwatching(&self, dirs: &GitDirs, whole: bool) {
+        self.note(RepoStateCall::Unwatching { toplevel: dirs.toplevel.clone(), whole });
+    }
+
+    fn changed(&self, toplevel: &Path, change: RepoChange) {
+        self.note(RepoStateCall::Changed { toplevel: toplevel.to_owned(), change });
+    }
+
+    fn settled(&self, toplevel: &Path) {
+        self.note(RepoStateCall::Settled { toplevel: toplevel.to_owned() });
+    }
+
+    fn lost(&self) {
+        self.note(RepoStateCall::Lost);
+    }
+
+    fn touched(&self, path: &Path) {
+        self.note(RepoStateCall::Touched { path: path.to_owned() });
     }
 }
 

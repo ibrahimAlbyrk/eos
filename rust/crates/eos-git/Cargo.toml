@@ -1,6 +1,6 @@
 [package]
 name = "eos-git"
-description = "The git program as the core's git ports: repository facts, diffs, branches, remotes, worktrees, candidate files."
+description = "The git program as the core's git ports: repository facts, diffs, branches, remotes, worktrees, candidate files; working-tree snapshots the hot reads come from."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -13,10 +13,12 @@ eos-core.workspace = true
 eos-domain.workspace = true
 eos-kit-fs.workspace = true
 eos-kit-proc.workspace = true
+gix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
-tokio = { workspace = true, features = ["rt", "sync"] }
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+tracing.workspace = true
 
 [dev-dependencies]
 eos-platform.workspace = true

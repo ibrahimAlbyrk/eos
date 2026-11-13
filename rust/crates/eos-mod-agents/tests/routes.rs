@@ -18,8 +18,9 @@ use eos_sessions::{NoHooks, SessionDeps, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::worker_definitions::FsWorkerDefinitionFiles;
 use eos_testkit::{
-    FakeClock, FakeConfig, FakeDesktop, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSettings,
-    FakeSleeper, FakeTries, FakeWatcher, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore, Turn,
+    FakeClock, FakeConfig, FakeDesktop, FakeModelCatalog, FakePrompts, FakeRecents, FakeRepoState, FakeScratch,
+    FakeSettings, FakeSleeper, FakeTries, FakeWatcher, FakeWorktrees, RepoStateCall, ScriptedRuntime, SeqIds,
+    TempStore, Turn,
 };
 use eos_workers::WorkerDefinitions;
 use serde_json::{Value, json};
@@ -34,6 +35,8 @@ struct Bench {
     watcher: Arc<FakeWatcher>,
     tries: Arc<FakeTries>,
     desktop: Arc<FakeDesktop>,
+    /// What was told that a worker's folder may have changed.
+    repo_state: FakeRepoState,
 }
 
 impl Bench {
@@ -47,6 +50,7 @@ impl Bench {
         let config = Arc::new(FakeConfig::new(config));
         let (settings, scratch) = (Arc::new(FakeSettings::default()), Arc::new(FakeScratch::default()));
         let worktrees = Arc::new(FakeWorktrees::default());
+        let repo_state = FakeRepoState::new();
         let library = Arc::new(LibraryPromptSource::with_overrides(Vec::new()));
         let spawning = Spawning {
             config: config.clone(),
@@ -92,11 +96,12 @@ impl Bench {
             tries: tries.clone(),
             merge: git,
             desktop: desktop.clone(),
+            state: Arc::new(repo_state.clone()),
         };
         let module =
             Arc::new(AgentsModule::new(sessions, temp.port(), ids, definitions, spawning, worker_git).watching(watch));
         let runtime = Runtime::build(kernel, vec![module], Arc::new(AllPluginsOn)).expect("composes");
-        Self { runtime, agents, temp, settings, scratch, worktrees, watcher, tries, desktop }
+        Self { runtime, agents, temp, settings, scratch, worktrees, watcher, tries, desktop, repo_state }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -540,6 +545,24 @@ async fn what_happens_around_agents_without_anybody_asking() {
     let banner: Value = serde_json::from_str(&banners[0]).expect("a banner");
     assert_eq!((banner["title"].as_str(), banner["body"].as_str()), (Some("Fix the parser"), Some("All done here.")));
     assert!(watches_chat(), "the folder of an active worker is watched: {:?}", bench.watcher.watched());
+
+    // A tool its agent ran may have changed that folder before its watch says so.
+    let tool_result: eos_contracts::AgentEvent = serde_json::from_value(json!({
+        "type": "message", "role": "tool",
+        "blocks": [{ "type": "tool_result", "callId": "c1", "isError": false, "content": "ok" }],
+    }))
+    .expect("an event");
+    bench.runtime.modules.on_agent_event("w-CHAT", &tool_result);
+    let touched: Vec<_> = bench
+        .repo_state
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            RepoStateCall::Touched { path } => Some(path),
+            _ => None,
+        })
+        .collect();
+    assert!(touched.iter().any(|path| path.ends_with("alpha")), "{touched:?}");
 
     // Left idle long enough, its session is closed; the next message continues it.
     assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("IDLE"), "not before its time");

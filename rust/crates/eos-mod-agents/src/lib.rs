@@ -29,6 +29,7 @@ pub use tool_control::ToolControl;
 
 use std::sync::{Arc, Mutex};
 
+use eos_contracts::{AgentEvent, ContentBlock};
 use eos_core::BoxFuture;
 use eos_core::Ids;
 use eos_core::agent::ScratchFolders;
@@ -141,6 +142,13 @@ impl Module for AgentsModule {
 
     fn idle_hooks(&self) -> Vec<IdleHook> {
         self.watch_hooks()
+    }
+
+    fn on_agent_event(&self, worker_id: &str, event: &AgentEvent) {
+        let AgentEvent::Message(message) = event else { return };
+        if message.blocks.iter().any(|block| matches!(block, ContentBlock::ToolResult(_))) {
+            self.tool_ran(worker_id);
+        }
     }
 
     fn start(&self) -> BoxFuture<'_, Result<(), ModuleError>> {

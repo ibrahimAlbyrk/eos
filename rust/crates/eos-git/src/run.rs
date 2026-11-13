@@ -14,6 +14,8 @@ pub(crate) const DEFAULT_CAP: usize = 4 * 1024 * 1024;
 pub(crate) const PATCH_CAP: usize = 32 * 1024 * 1024;
 /// Commands that talk to a remote may wait on the network.
 pub(crate) const REMOTE_TIMEOUT: Duration = Duration::from_secs(600);
+/// What a command that printed more than its cap failed with (Node's words).
+const TOO_LARGE: &str = "stdout maxBuffer length exceeded";
 
 /// A command that exited 0.
 #[derive(Debug)]
@@ -50,6 +52,11 @@ impl Failed {
     /// The first non-empty line of what git said.
     pub(crate) fn first_line(&self) -> String {
         first_line(self.stderr_or_message())
+    }
+
+    /// The command printed more than its cap and was ended.
+    pub(crate) fn is_too_large(&self) -> bool {
+        self.code.is_none() && self.message == TOO_LARGE
     }
 
     /// git's message, trimmed; the command line when git said nothing.
@@ -96,8 +103,64 @@ impl Default for Limits {
     }
 }
 
+/// `git`'s arguments past a leading `-C <dir>`, and that folder.
+fn subcommand(args: &[OsString]) -> (Option<&Path>, &[OsString]) {
+    match args {
+        [flag, dir, rest @ ..] if flag == "-C" => (Some(Path::new(dir)), rest),
+        _ => (None, args),
+    }
+}
+
+/// Whether a git command only reads. A read runs with `--no-optional-locks`
+/// (it never takes `index.lock`, which would make an agent's own `git commit`
+/// fail); anything not known to read counts as a write, after which what is
+/// kept of its working tree is dropped.
+pub(crate) fn is_read(args: &[OsString]) -> bool {
+    let Some(words) = args.iter().map(|a| a.to_str()).collect::<Option<Vec<&str>>>() else { return false };
+    let Some((first, rest)) = words.split_first() else { return false };
+    match *first {
+        "status" | "diff" | "rev-parse" | "rev-list" | "ls-files" | "log" | "show" | "merge-base" | "cat-file"
+        | "for-each-ref" | "ls-tree" | "check-ignore" | "check-attr" | "describe" => true,
+        "reflog" => rest.first().is_none_or(|w| w.starts_with('-') || *w == "show"),
+        "stash" | "worktree" => matches!(rest.first(), Some(&("list" | "show"))),
+        "remote" => rest.first().is_none_or(|w| matches!(*w, "get-url" | "-v" | "--verbose")),
+        // Listing: flags only, none that changes a branch.
+        "branch" => {
+            const CHANGES: [&str; 14] = [
+                "-d",
+                "-D",
+                "--delete",
+                "-m",
+                "-M",
+                "--move",
+                "-c",
+                "-C",
+                "--copy",
+                "-f",
+                "--force",
+                "-u",
+                "--unset-upstream",
+                "--edit-description",
+            ];
+            rest.iter().all(|w| w.starts_with('-'))
+                && !rest.iter().any(|w| CHANGES.contains(w) || w.starts_with("--set-upstream"))
+        }
+        _ => false,
+    }
+}
+
+fn command_line(program: &str, args: &[OsString]) -> String {
+    std::iter::once(program.to_owned())
+        .chain(args.iter().map(|a| a.to_string_lossy().into_owned()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 impl Git {
     /// Runs `program args…`, optionally in `cwd`, with extra environment.
+    /// `git` starts by its resolved path; a read gets `--no-optional-locks`;
+    /// a write tells the write hook its folder once it ended. A failure's
+    /// message names the command as it was asked for.
     pub(crate) async fn exec(
         &self,
         program: &str,
@@ -106,11 +169,42 @@ impl Git {
         env: &[(&str, &str)],
         limits: Limits,
     ) -> Result<Ran, Failed> {
-        let line = std::iter::once(program.to_owned())
-            .chain(args.iter().map(|a| a.to_string_lossy().into_owned()))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let mut command = Command::new(program).args(args).max_output(limits.cap, Overflow::Fail);
+        let line = command_line(program, &args);
+        if program != "git" {
+            return self.start(OsString::from(program), program, &line, args, cwd, env, limits).await;
+        }
+        let (dir, sub) = subcommand(&args);
+        let (read, dir) = (is_read(sub), dir.or(cwd).map(Path::to_owned));
+        let mut started = args.clone();
+        if read {
+            started.insert(0, "--no-optional-locks".into());
+        }
+        let path = self.program.get(&self.runner).await;
+        let mut ran = self.start(path.clone(), program, &line, started.clone(), cwd, env, limits).await;
+        // The binary moved (an Xcode update, say): look it up again, once.
+        if matches!(&ran, Err(failed) if failed.stderr.is_none()) && self.program.forget(&path) {
+            let path = self.program.get(&self.runner).await;
+            ran = self.start(path, program, &line, started, cwd, env, limits).await;
+        }
+        if !read && let (Some(hook), Some(dir)) = (&self.on_write, dir) {
+            hook(&dir);
+        }
+        ran
+    }
+
+    /// Starts `path`, reporting it as `program` with the command line `line`.
+    #[allow(clippy::too_many_arguments)]
+    async fn start(
+        &self,
+        path: OsString,
+        program: &str,
+        line: &str,
+        args: Vec<OsString>,
+        cwd: Option<&Path>,
+        env: &[(&str, &str)],
+        limits: Limits,
+    ) -> Result<Ran, Failed> {
+        let mut command = Command::new(path).args(args).max_output(limits.cap, Overflow::Fail);
         if let Some(cwd) = cwd {
             command = command.cwd(cwd);
         }
@@ -139,7 +233,13 @@ impl Git {
                 code: None,
                 stdout: String::new(),
                 stderr: Some(String::new()),
-                message: "stdout maxBuffer length exceeded".to_owned(),
+                message: TOO_LARGE.to_owned(),
+            }),
+            Err(eos_kit_proc::Error::Spawn { source, .. }) => Err(Failed {
+                code: None,
+                stdout: String::new(),
+                stderr: None,
+                message: format!("could not start {program}: {source}"),
             }),
             Err(e) => Err(Failed { code: None, stdout: String::new(), stderr: None, message: e.to_string() }),
         }
@@ -191,6 +291,50 @@ mod tests {
         assert_eq!(count("12\n"), 12);
         assert_eq!(count("-1"), 0);
         assert_eq!(count("nope"), 0);
+    }
+
+    fn args(line: &str) -> Vec<OsString> {
+        line.split(' ').map(OsString::from).collect()
+    }
+
+    #[test]
+    fn reads_are_told_from_writes() {
+        for read in [
+            "status --porcelain=v1 -z",
+            "diff --numstat HEAD",
+            "rev-parse --abbrev-ref HEAD",
+            "branch --format=%(refname:short)",
+            "branch -r --format=%(refname:short)",
+            "branch --show-current",
+            "stash list --format=%H",
+            "remote",
+            "remote get-url origin",
+            "reflog -n 300 --format=%gs",
+            "worktree list --porcelain",
+            "ls-files --others --exclude-standard",
+        ] {
+            assert!(is_read(&args(read)), "{read}");
+        }
+        for write in [
+            "checkout main",
+            "branch feature",
+            "branch -m a b",
+            "branch -D x",
+            "branch --set-upstream-to=origin/x",
+            "stash push",
+            "stash apply stash@{0}",
+            "remote add o url",
+            "reflog expire --all",
+            "worktree add /x -b y",
+            "commit -m x",
+            "fetch --prune",
+            "",
+        ] {
+            assert!(!is_read(&args(write)), "{write}");
+        }
+        let line = args("-C /r status");
+        let (dir, rest) = subcommand(&line);
+        assert_eq!((dir, rest.len()), (Some(Path::new("/r")), 1));
     }
 
     #[test]

@@ -1,4 +1,5 @@
-//! Changing files: write, paste, create, rename, move, trash.
+//! Changing files: write, paste, create, rename, move, trash. Each change
+//! tells the kept git state of its working tree (`RepoState::touched`).
 
 use std::path::Path;
 
@@ -70,6 +71,7 @@ async fn write(deps: Deps, req: Request) -> Handled {
         .write_text(&target, &body.content, body.mkdirp.unwrap_or(false))
         .await
         .map_err(|e| ApiError::Internal(e.to_string()))?;
+    deps.repo_state.touched(&target);
     Ok(Response::json(200, &FsWatchResponse { ok: true }))
 }
 
@@ -121,6 +123,7 @@ async fn create(deps: Deps, req: Request) -> Handled {
             deps.files.create_file(&target, body.content.as_deref().unwrap_or_default()).await?
         }
     }
+    deps.repo_state.touched(&target);
     Ok(mutated(&target))
 }
 
@@ -132,6 +135,7 @@ async fn rename(deps: Deps, req: Request) -> Handled {
     // target is in the same folder, which is inside the root.
     let to = from.parent().unwrap_or(&root).join(&body.new_name);
     deps.files.rename(&from, &to).await?;
+    deps.repo_state.touched(&root);
     Ok(mutated(&to))
 }
 
@@ -161,6 +165,7 @@ async fn move_entries(deps: Deps, req: Request) -> Handled {
         };
         results.push(FsMoveResponseResultsItem { from: path, ok: error.is_none(), error });
     }
+    deps.repo_state.touched(&root);
     Ok(Response::json(200, &FsMoveResponse { ok: results.iter().all(|r| r.ok), results }))
 }
 
@@ -178,6 +183,7 @@ async fn trash(deps: Deps, req: Request) -> Handled {
             Err(error) => failed.push(FsTrashResponseFailedItem { path, error }),
         }
     }
+    deps.repo_state.touched(&root);
     Ok(Response::json(200, &FsTrashResponse { ok: failed.is_empty(), trashed, failed }))
 }
 

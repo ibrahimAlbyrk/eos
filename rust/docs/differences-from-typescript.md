@@ -66,6 +66,15 @@ changes there without a decision.
 | Whether a tab is playing sound | Known | Always "not playing" | The embedded browser (CEF) offers no way to ask. |
 | Sites signed in to in the panel | Kept in Electron's profile | A new profile: those sign-ins are not carried over | The new browser cannot read the old one's cookie store. |
 
+### Git panels and a worker's folder
+
+| What | Today | Rust | Why |
+|---|---|---|---|
+| Which `git` is started | `git` on `PATH`: on a Mac usually `/usr/bin/git`, Apple's `xcrun` shim, which then starts the real one | The real binary behind it, found once from `git --exec-path` (looked up again if it moves); `git` on `PATH` when it cannot be found | The shim roughly doubled the cost of every command. Same binary, same settings. |
+| What a git read may write | `git status` refreshed the index and wrote it back (taking `index.lock`) | Every read runs with `--no-optional-locks` and never writes | A read racing an agent's `git commit` made the commit fail on `index.lock`. |
+| When the git routes ask git (diff, push-state, conflicts, changes, `/fs/branches`, `/fs/changes`) | On every request: a chat switch started 15 processes and walked the working tree four times | From what is kept per working tree. A tree the dashboard or a running worker watches is read again after the watcher, a git command Eos ran, a file Eos wrote or an agent's tool call says it changed, and at least every 30 s; reads of a tree nobody watches share one reading for a second | A warm chat switch takes well under a millisecond instead of 100–500 ms. A change made outside Eos to a tree nobody watches can take up to a second to show; a change no event reports (the global git config) up to 30 s. |
+| How branches, the upstream, ahead/behind, remotes and the stash count are read | Nine git commands | In process (gix), by git's own naming rules; a repository gix might read differently (reftable, a configured branch order, URL rewriting, shallow history, replaced objects, a name two refs could claim, git settings from the environment, an untrusted folder) is still asked of git | The answers are the same: random runs of git operations compare every read with git's own after each step. |
+
 ### Visual answers
 
 | What | Today | Rust | Why |

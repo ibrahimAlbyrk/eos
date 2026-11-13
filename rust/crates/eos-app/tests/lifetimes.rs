@@ -357,3 +357,55 @@ async fn two_thousand_views_are_presented_and_removed_with_their_chats() {
     judge("views", &warm, &end);
     app.shutdown(Duration::from_secs(5)).await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore = "1,500 working trees read and released that measure the process: scripts/perf.sh"]
+async fn fifteen_hundred_working_trees_are_read_and_released() {
+    let home = TempHome::new();
+    let agents = ScriptedRuntime::unlogged();
+    let app = rig::build(home.path(), &agents);
+    app.start().await.expect("starts");
+    // More trees than the snapshots keep (64), each with a change and a patch.
+    let folders: Vec<tempfile::TempDir> = (0..80).map(|_| project()).collect();
+    let git = |dir: &str, args: &[&str]| {
+        let status = std::process::Command::new("git").arg("-C").arg(dir).args(args).status().expect("git");
+        assert!(status.success(), "git {args:?}");
+    };
+    for folder in &folders {
+        let dir = cwd(folder);
+        git(&dir, &["init", "-q", "-b", "main"]);
+        git(&dir, &["-c", "user.name=t", "-c", "user.email=t@t.t", "commit", "-q", "--allow-empty", "-m", "init"]);
+        std::fs::write(folder.path().join("README.md"), "# changed\n").expect("an edit");
+    }
+    let dirs: Vec<String> = folders.iter().map(cwd).collect();
+    let cycle = |n: usize| {
+        let (app, dir) = (&app, dirs[n % dirs.len()].clone());
+        async move {
+            let query = dir.replace('/', "%2F");
+            // Every other tree is watched while it is read, as the chat on screen.
+            let (lease, watched) = (json!({"dir": dir, "clientId": format!("tab-{n}")}), n.is_multiple_of(2));
+            if watched {
+                let (status, body) = rig::call(app, Method::Post, "/fs/git/watch", Some(lease.clone())).await;
+                assert_eq!(status, 200, "git watch {n}: {body}");
+            }
+            for target in [format!("/fs/branches?cwd={query}"), format!("/fs/changes?cwd={query}&patches=1")] {
+                let (status, body) = rig::call(app, Method::Get, &target, None).await;
+                assert_eq!(status, 200, "{target}: {body}");
+            }
+            if watched {
+                let (status, body) = rig::call(app, Method::Post, "/fs/git/unwatch", Some(lease)).await;
+                assert_eq!(status, 200, "git unwatch {n}: {body}");
+            }
+        }
+    };
+    for n in 0..200 {
+        cycle(n).await;
+    }
+    let warm = settled(&app, &agents).await;
+    for n in 200..1_500 {
+        cycle(n).await;
+    }
+    let end = settled(&app, &agents).await;
+    judge("working trees", &warm, &end);
+    app.shutdown(Duration::from_secs(5)).await;
+}

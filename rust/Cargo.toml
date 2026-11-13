@@ -112,6 +112,8 @@ flate2 = "1"
 futures-core = "0.3"
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 getrandom = "0.4"
+# Refs read in process for the git snapshots (eos-git); the git program does everything else.
+gix = { version = "0.90", default-features = false, features = ["parallel", "sha1"] }
 h2 = "0.4"
 hex = "0.4"
 hkdf = "0.13"
