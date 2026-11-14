@@ -13,12 +13,15 @@ const source = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url
 function page({ seed = null, stored = {}, answers = {} } = {}) {
   const sent = [];
   const storage = new Map(Object.entries(stored));
-  const handlers = { window: {}, document: {} };
+  const handlers = { window: {}, windowCapture: {}, windowBubble: {}, document: {} };
   const classes = new Set();
   let source_ = null;
   const element = { classList: { add: (c) => classes.add(c), toggle: (c, on) => (on ? classes.add(c) : classes.delete(c)) }, dataset: {} };
   const window = {
-    addEventListener: (name, f) => { handlers.window[name] = f; },
+    addEventListener: (name, f, capture) => {
+      handlers.window[name] = f;
+      (capture === true ? handlers.windowCapture : handlers.windowBubble)[name] = f;
+    },
   };
   const context = vm.createContext({
     window,
@@ -173,9 +176,33 @@ function page({ seed = null, stored = {}, answers = {} } = {}) {
   press(strip, 1, 2);
   press(strip, 3);
   assert.deepEqual(p.sent.map((s) => s.path), ["window/startDragging", "window/toggleZoom"]);
-  let prevented = 0;
-  p.handlers.window.contextmenu({ preventDefault: () => prevented++ });
-  assert.equal(prevented, 1, "the system's context menu never opens");
+}
+
+// ---- a right-click: the page's own menu sees it untouched, the system's never opens
+{
+  const p = page();
+  // A contextmenu event on its way: down to the target (capture), the page's handler,
+  // back up to the window unless the handler stops it.
+  const rightClick = (pageHandler) => {
+    const e = {
+      defaultPrevented: false,
+      stopped: false,
+      preventDefault() { this.defaultPrevented = true; },
+      stopPropagation() { this.stopped = true; },
+      stopImmediatePropagation() { this.stopped = true; },
+    };
+    p.handlers.windowCapture.contextmenu(e);
+    pageHandler(e);
+    if (!e.stopped) p.handlers.windowBubble.contextmenu(e);
+    return e;
+  };
+  let seen = null;
+  const plain = rightClick((e) => { seen = e.defaultPrevented; });
+  assert.equal(seen, false, "the dashboard's menus see a fresh event (MessageRow returns on defaultPrevented)");
+  assert.equal(plain.defaultPrevented, true, "the system's context menu never opens");
+  const stopped = rightClick((e) => e.stopPropagation());
+  assert.ok(stopped.stopped && stopped.defaultPrevented, "a handler that stops the event keeps the system's menu shut too");
+  assert.ok(rightClick((e) => e.stopImmediatePropagation()).defaultPrevented);
 }
 
 // ---- a Finder drop: the shell reads the paths of the parked File objects

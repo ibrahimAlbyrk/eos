@@ -604,3 +604,19 @@ async fn the_machine_list_is_empty_for_now() {
         json!({ "hosts": [], "active": null, "local": null })
     );
 }
+
+#[test]
+fn a_browser_download_lands_in_downloads_without_replacing_a_file() {
+    let dir = Dir::new("browser-download");
+    let downloads = dir.path();
+    assert_eq!(download_destination(downloads, "report.pdf"), downloads.join("report.pdf"));
+    std::fs::write(downloads.join("report.pdf"), b"mine").unwrap();
+    assert_eq!(download_destination(downloads, "report.pdf"), downloads.join("report (1).pdf"));
+    std::fs::write(downloads.join("report (1).pdf"), b"mine too").unwrap();
+    assert_eq!(download_destination(downloads, "report.pdf"), downloads.join("report (2).pdf"));
+    // The page's name never leaves the folder; no name at all is "download".
+    assert_eq!(download_destination(downloads, "../../etc/passwd"), downloads.join("passwd"));
+    assert_eq!(download_destination(downloads, ""), downloads.join("download"));
+    std::fs::write(downloads.join(".env"), b"x").unwrap();
+    assert_eq!(download_destination(downloads, ".env"), downloads.join(".env (1)"));
+}

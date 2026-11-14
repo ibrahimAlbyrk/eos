@@ -34,6 +34,16 @@ changes there without a decision.
 | Closing the window | The daemon kept running in the background, with a tray icon | The app stays in the Dock; quitting stops everything, agents included | Owner's decision D8; no tray (its Lock Screen and Install Screen Saver… items are in the Eos menu). So the phone link and the nightly dream work only while the app runs. |
 | Windows | Supported | Not yet; Windows stays on the last TypeScript release | Owner's decision D2. |
 
+### The window
+
+| What | 0.1.x | Rust | Why |
+|---|---|---|---|
+| Permission requests of the dashboard (camera, microphone, notifications, clipboard reading, geolocation) | Granted, except the old synchronous clipboard read; geolocation only to the dashboard's own top frame | Every request refused, in every view | The dashboard asks for none of them: the location comes from the location helper through the core, banners from the shell. Browser tabs and artifact views refused them in 0.1.x too. |
+| A right-click in a browser tab, an artifact view or a frame of the raw origin (file previews, visual answers' apps, the PDF viewer) | No menu at all | Chromium's own menu, trimmed to editing, copying and spelling (Inspect where DevTools is on) | The shell refuses the menu only in the dashboard's own document, which draws its own; the runtime trims it everywhere else. |
+| Eos › Rebuild & Relaunch (a build from a checkout) | Rebuilt the checkout and relaunched | Not in the menu | `eos build` does the same from the checkout. |
+| The View menu | Reload, Toggle Developer Tools | Also Enter Full Screen (⌃⌘F) | The system's item; ⌃⌘F is not one of the dashboard's keys. |
+| View › Reload | Emptied the HTTP cache first | Reloads | The dashboard is served from the bundle inside the app; there is no stale cache to empty. |
+
 ### Agents
 
 | What | 0.1.x | Rust | Why |

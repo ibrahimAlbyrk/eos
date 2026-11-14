@@ -35,7 +35,7 @@ pub mod transport;
 pub mod urlspace;
 pub mod window_state;
 
-pub use bridge::{Bridge, Notified, Parts, sanitize_filename};
+pub use bridge::{Bridge, Notified, Parts, download_destination, sanitize_filename};
 pub use core::{Core, NoCore, Plane};
 pub use host::{Banner, BannerTarget, EditCommand, ShellHost, Theme};
 pub use router::{Classify, RouterCore};

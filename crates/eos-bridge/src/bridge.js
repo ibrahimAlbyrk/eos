@@ -201,8 +201,19 @@
     else if (e.detail === 1) send("window/startDragging");
   }, true);
 
-  // ---- the system's own context menu never opens; the dashboard draws its own.
-  window.addEventListener("contextmenu", (e) => e.preventDefault(), true);
+  // ---- the system's own context menu never opens; the dashboard draws its own. The page
+  // must see the event untouched first: its menus read `defaultPrevented` to know that an
+  // inner one already took the click (a path chip inside a message, CodeMirror's own
+  // handlers), so a press refused here, before them, opened nothing at all. The refusal
+  // comes once the event is back at the window, or as soon as a handler stops it short of
+  // there.
+  window.addEventListener("contextmenu", (e) => {
+    for (const name of ["stopPropagation", "stopImmediatePropagation"]) {
+      const stop = e[name];
+      e[name] = function () { e.preventDefault(); return stop.call(e); };
+    }
+  }, true);
+  window.addEventListener("contextmenu", (e) => e.preventDefault());
 
   // ---- files dropped from the Finder: the page only sees File objects, the shell reads
   // their real paths from the objects parked here.

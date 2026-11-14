@@ -167,8 +167,13 @@ impl ShellHost for Host {
     }
 
     fn downloads_dir(&self) -> PathBuf {
-        PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("Downloads")
+        downloads_folder()
     }
+}
+
+/// The user's Downloads folder: where a saved export and a browser view's download go.
+pub(crate) fn downloads_folder() -> PathBuf {
+    PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join("Downloads")
 }
 
 /// Hands a file path or a web link to the system (`open`). Never a string that could be

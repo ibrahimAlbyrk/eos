@@ -18,10 +18,10 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
   const closeMenu = useCallback(() => setMenuAt(null), []);
 
   const openMenu = (e) => {
-    if (e.defaultPrevented) return;
+    const at = menuPoint(e, rowRef.current.getBoundingClientRect());
+    if (!at) return;
     e.preventDefault();
-    const box = rowRef.current.getBoundingClientRect();
-    setMenuAt({ x: e.clientX - box.left, y: e.clientY - box.top });
+    setMenuAt(at);
   };
 
   const copy = () => {
@@ -58,45 +58,72 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
       {children}
       {menuAt && (
         <ActionBar at={menuAt} onClose={closeMenu}>
-          {ts != null && (
-            <span className="msg-time" title={new Date(ts).toLocaleString()}>{fmtTimeAgo(ts)}</span>
-          )}
-          {onRewind && (
-            <button
-              className={"msg-action-btn" + (rewindDisabled || rewindState === "busy" ? " is-busy" : rewindState === "error" ? " is-err" : "")}
-              onClick={rewind}
-              disabled={rewindDisabled || rewindState === "busy"}
-              title={rewindState === "error" ? "Rewind failed" : rewindDisabled ? "Agent is busy" : "Rewind to here"}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" />
-                <path d="M3 3v5h5" />
-              </svg>
-            </button>
-          )}
-          <button className="msg-action-btn" onClick={copy} title="Copy">
-            {copied ? (
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m3 8.5 3 3 7-7" />
-              </svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="8" y="8" width="13" height="13" rx="2.5" />
-                <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-              </svg>
-            )}
-          </button>
-          {onReply && (
-            <button className="msg-action-btn" onClick={reply} title="Reply">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 14 4 9l5-5" />
-                <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
-              </svg>
-            </button>
-          )}
+          <MessageActions
+            ts={ts}
+            canRewind={Boolean(onRewind)}
+            rewindDisabled={rewindDisabled}
+            rewindState={rewindState}
+            onRewind={rewind}
+            copied={copied}
+            onCopy={copy}
+            onReply={onReply ? reply : null}
+          />
         </ActionBar>
       )}
     </div>
+  );
+}
+
+// Where a right-click opens the bar, relative to the row; null when an inner element's
+// own menu already took the click (a path chip, a link with its own menu) and said so
+// with preventDefault.
+export function menuPoint(e, box) {
+  if (e.defaultPrevented) return null;
+  return { x: e.clientX - box.left, y: e.clientY - box.top };
+}
+
+// The bar's items, in order: the time, Rewind (user messages; dimmed and inert while the
+// agent is busy), Copy, Reply.
+export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onRewind, copied, onCopy, onReply }) {
+  return (
+    <>
+      {ts != null && (
+        <span className="msg-time" title={new Date(ts).toLocaleString()}>{fmtTimeAgo(ts)}</span>
+      )}
+      {canRewind && (
+        <button
+          className={"msg-action-btn" + (rewindDisabled || rewindState === "busy" ? " is-busy" : rewindState === "error" ? " is-err" : "")}
+          onClick={onRewind}
+          disabled={rewindDisabled || rewindState === "busy"}
+          title={rewindState === "error" ? "Rewind failed" : rewindDisabled ? "Agent is busy" : "Rewind to here"}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 12a9 9 0 1 0 2.64-6.36L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+        </button>
+      )}
+      <button className="msg-action-btn" onClick={onCopy} title="Copy">
+        {copied ? (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="m3 8.5 3 3 7-7" />
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="8" y="8" width="13" height="13" rx="2.5" />
+            <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+          </svg>
+        )}
+      </button>
+      {onReply && (
+        <button className="msg-action-btn" onClick={onReply} title="Reply">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 14 4 9l5-5" />
+            <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+          </svg>
+        </button>
+      )}
+    </>
   );
 }
 

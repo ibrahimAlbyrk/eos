@@ -23,7 +23,10 @@ const PAGE: &str = "PLANTED-PAGE-body-walrus";
 async fn a_scripted_session_is_told_by_id_and_nothing_private_reaches_the_log() {
     let logs = tempfile::tempdir().expect("a folder");
     let user_home = std::env::var_os("HOME").map(std::path::PathBuf::from);
-    assert!(eos_kit_log::init_with(Some("warn,eos=debug,eos_agent=warn"), false), "the only subscriber of this test binary");
+    assert!(
+        eos_kit_log::init_with(Some("warn,eos=debug,eos_agent=warn"), false),
+        "the only subscriber of this test binary"
+    );
     eos_kit_log::catch_panics();
     eos_kit_log::attach(logs.path(), Scrubber::new(user_home.as_deref()));
 

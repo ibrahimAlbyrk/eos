@@ -777,6 +777,13 @@ impl Shell {
                 let help = items.iter().filter_map(|item| item.as_submenu()).find(|s| s.text().ok().as_deref() == Some("Help"))?;
                 Some(help.items().ok()?.iter().filter_map(|item| item.as_menuitem().and_then(|m| m.text().ok())).collect::<Vec<_>>())
             }),
+            // The Window menu's items, by title, the system's own items included.
+            "windowMenu": self.app.get().and_then(|app| app.menu()).and_then(|menu| menu.items().ok()).and_then(|items| {
+                let window = items.iter().filter_map(|item| item.as_submenu()).find(|s| s.text().ok().as_deref() == Some("Window"))?;
+                Some(window.items().ok()?.iter().filter_map(|item| {
+                    item.as_menuitem().and_then(|m| m.text().ok()).or_else(|| item.as_predefined_menuitem().and_then(|m| m.text().ok()))
+                }).filter(|text| !text.is_empty()).collect::<Vec<_>>())
+            }),
             "views": self.views.get().map(|v| v.status()),
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),

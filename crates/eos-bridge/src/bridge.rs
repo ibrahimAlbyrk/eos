@@ -559,6 +559,25 @@ pub fn sanitize_filename(name: &str) -> String {
     if clean.is_empty() || clean == "." || clean == ".." { "download".to_string() } else { clean }
 }
 
+/// Where a page's download in the browser panel is saved: Downloads, under the name the page
+/// suggests (sanitized), with " (1)", " (2)", … before the extension when that name is taken,
+/// so nothing already there is replaced.
+pub fn download_destination(downloads: &Path, suggested: &str) -> PathBuf {
+    let name = sanitize_filename(suggested);
+    let first = downloads.join(&name);
+    if !first.exists() {
+        return first;
+    }
+    let (stem, ext) = match name.rfind('.') {
+        Some(at) if at > 0 => (&name[..at], &name[at..]),
+        _ => (name.as_str(), ""),
+    };
+    (1..1000)
+        .map(|n| downloads.join(format!("{stem} ({n}){ext}")))
+        .find(|candidate| !candidate.exists())
+        .unwrap_or(first)
+}
+
 /// `[{path, isDir}]`, the shape the dashboard takes for dropped and pasted files.
 fn entries(paths: Vec<String>) -> Value {
     Value::Array(

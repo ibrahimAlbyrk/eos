@@ -123,15 +123,17 @@ pub(crate) fn build(
     }
     items.push(&connect);
     let machines = Submenu::with_items(app, "Machines", true, &items)?;
+    // The Electron app's Window menu, item for item. No Close Window: ⌘W is the dashboard's
+    // (archive the selected chat, close a terminal pane), and a menu item would take it first.
     let window = Submenu::with_items(
         app,
         "Window",
         true,
         &[
             &PredefinedMenuItem::minimize(app, None)?,
-            &PredefinedMenuItem::maximize(app, None)?,
+            &PredefinedMenuItem::maximize(app, Some("Zoom"))?,
             &separator()?,
-            &PredefinedMenuItem::close_window(app, None)?,
+            &PredefinedMenuItem::bring_all_to_front(app, None)?,
         ],
     )?;
     let help = Submenu::with_items(app, "Help", true, &[&plain("reveal-logs", "Reveal Logs")?])?;

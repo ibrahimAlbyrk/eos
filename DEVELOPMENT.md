@@ -179,6 +179,8 @@ python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page 
                                   # sign-in window, tab, peek (zoom, shield), reload swap, stills
 python3 tests/signin_popup_smoke.py <Eos.app> # the sign-in window's provider popup against local
                                   # stand-ins: opens with its opener, refused elsewhere, contained
+python3 tests/context_menu_smoke.py <Eos.app> # right-clicks a user message, an assistant message and
+                                  # a chat: the dashboard's menus open, the system's does not, Copy copies
 python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
 python3 tests/responsiveness.py <Eos.app>  # clicks the dashboard's harmless controls 20 times
@@ -301,6 +303,14 @@ stream. Members of the Electron preload and of main's calls into the page:
 crossfade still) and, when it runs this computer's own dashboard, saving a file into
 Downloads; none of the rest.
 
+**Right-clicks.** Every context menu of the dashboard is drawn by the dashboard itself, as in
+the Electron app (the message action bar, the chat, archive, branch, file, path and Changes
+menus, CodeMirror's references): the page gets the `contextmenu` event untouched, and the
+bridge script refuses Chromium's own menu only once the event is back at the window (or a
+handler stopped it), so a menu that checks `defaultPrevented` still opens. A browser tab, an
+artifact view and a frame of the raw origin show Chromium's menu, trimmed by the runtime to
+editing and copying (`vendor/…/client/context_menu.rs`).
+
 Not bridges, done in the shell: single instance (a later launch hands over; `Eos --status`,
 `Eos --quit`), close hides and the Dock reopens, quit runs the app's shutdown hook, the app
 menu with the Edit commands routed to whatever has the keyboard, the screen saver's two
@@ -311,7 +321,8 @@ content security policy, the ui-token for media loads of the dashboard document,
 the Eos sound (only while the window is not focused; a click opens the worker or view), native
 file pickers (`/pick-directory`, `/pick-file`: only for the dashboard's own document), wake
 hand-off to the app, the one-time `localStorage` carry-over, the browser's tabs as views
-(`eos-mod-browser` over `BrowserViews`; a device-sized tab is centered in the panel), the
+(`eos-mod-browser` over `BrowserViews`; a device-sized tab is centered in the panel; a page's
+download is saved into Downloads, never over a file there), the
 plugin preview (a hidden view of the dashboard's bundle, captured over DevTools: a hidden
 view keeps painting, so no off-screen rendering mode is used), the system opener for the
 core's sign-in pages, the PDF viewer for the raw-content origin, the core's banners

@@ -247,6 +247,10 @@ def checks(run):
     check("the window did not take the focus", st["window"]["focused"] is False, st["window"])
     check("the app menu is installed", st.get("menus") == ["Eos", "Edit", "View", "Machines", "Window", "Help"], st.get("menus"))
     check("the Help menu reveals the logs", "Reveal Logs" in (st.get("helpMenu") or []), st.get("helpMenu"))
+    window_menu = st.get("windowMenu") or []
+    check("the Window menu is the Electron app's, without a Close Window that would take ⌘W from the dashboard",
+          window_menu[:2] == ["Minimize", "Zoom"] and "Bring All to Front" in window_menu
+          and not any("Close" in item for item in window_menu), window_menu)
     logs = os.path.join(SHELL_DATA, "logs")
     check("the logs are beside this run's data, and --status says so",
           (st.get("logs") or {}).get("folder") == logs and os.path.isdir(logs), (st.get("logs") or {}).get("folder"))

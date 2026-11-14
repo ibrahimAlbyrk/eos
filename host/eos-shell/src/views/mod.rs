@@ -24,6 +24,7 @@ use eos_core::shell::{
     ViewListener, ViewSpec,
 };
 use serde_json::{Value, json};
+use tauri::webview::DownloadEvent;
 use tauri::{LogicalPosition, LogicalSize, Manager};
 use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
@@ -185,7 +186,30 @@ impl Views {
         // A name, not a path: Chromium keeps it under the app's root cache folder, apart from
         // the dashboard's own storage.
         let profile = format!("view-{}", profile_dir(&spec.profile));
-        let builder = create::builder(id.as_str(), (0.0, 0.0), PARKED_SIZE, Some(&PathBuf::from(&profile)), policy);
+        let builder = create::builder(id.as_str(), (0.0, 0.0), PARKED_SIZE, Some(&PathBuf::from(&profile)), policy)
+            .on_download(|_webview, event| {
+                match event {
+                    // Into Downloads as the Electron app saved them, never over a file there.
+                    DownloadEvent::Requested { destination, .. } => {
+                        let suggested = destination.file_name().map(|n| n.to_string_lossy().into_owned());
+                        *destination = eos_bridge::download_destination(
+                            &crate::host::downloads_folder(),
+                            suggested.as_deref().unwrap_or(""),
+                        );
+                        crate::log::log("views", "a download of a browser view started");
+                    }
+                    DownloadEvent::Finished { success, .. } => crate::log::log(
+                        "views",
+                        if success {
+                            "a download of a browser view was saved"
+                        } else {
+                            "a download of a browser view failed"
+                        },
+                    ),
+                    _ => {}
+                }
+                true
+            });
         let loaded = self.load_profile(std::path::Path::new(&profile));
         let webview = self.window.add_child(builder).map_err(shell_error)?;
         drop(loaded);

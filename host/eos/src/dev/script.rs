@@ -32,7 +32,11 @@
 //! (the run's measuring code), `{"click": {"selector": "…", "text": "…", "index": 0}}`: a
 //! trusted mouse click at the center of that element, refused unless the element is visible,
 //! on top at that point and none of the controls a click must never reach (see
-//! [`CLICK_TARGET`]), and `{"stalls": null}`: the UI thread's stalls since the last read.
+//! [`CLICK_TARGET`]); `"button": "right"` makes it a right-click, which only opens a menu, so
+//! it is refused only on a control that takes text; `{"focus": true}`: the dashboard behaves
+//! as if its window had the focus (DevTools' focus emulation: a quiet run never takes the
+//! focus, and the clipboard refuses an unfocused page), and `{"stalls": null}`: the UI
+//! thread's stalls since the last read.
 //! There is no keyboard step. With `EOS_DEV_SCRIPT_FOLLOW=1` the steps file is JSON lines
 //! that the run appends to as it goes, and each result is appended to the output file as a
 //! line, until an `{"end": null}` step.
@@ -221,6 +225,11 @@ impl Run {
                 windows.cdp(&profile, &text("method"), arg.get("params").cloned().unwrap_or(json!({}))).await
             }
             "click" => self.click(arg).await,
+            "focus" => {
+                let probe = self.ports.probe.clone().ok_or("no probe in this run")?;
+                let enabled = arg.as_bool().unwrap_or(false);
+                probe.dashboard("Emulation.setFocusEmulationEnabled", json!({ "enabled": enabled })).await
+            }
             "stalls" => Ok(self.ports.probe.as_ref().ok_or("no probe in this run")?.take_stalls()),
             // A Chromium trace over the run's next steps: `{"trace": {"start": "categories"}}`,
             // then `{"trace": {"stop": "/abs/file.json"}}`.
@@ -292,7 +301,7 @@ async fn follow(run: &mut Run, steps: &std::path::Path, out: &std::path::Path) {
 /// Finds the element a click step names and says where its center is, or why it may not be
 /// clicked. A click is a real input event: only a control that changes what is shown may get
 /// one, never one that writes, sends, runs or approves anything, or takes text.
-const CLICK_TARGET: &str = r#"((selector, text, index) => {
+const CLICK_TARGET: &str = r#"((selector, text, index, menuOnly) => {
   const all = [...document.querySelectorAll(selector)].filter((el) => {
     const r = el.getBoundingClientRect();
     return r.width > 0 && r.height > 0 && (!text || (el.textContent || "").includes(text) || (el.getAttribute("aria-label") || "").includes(text) || (el.getAttribute("title") || "").includes(text));
@@ -303,7 +312,7 @@ const CLICK_TARGET: &str = r#"((selector, text, index) => {
   const button = el.closest("button");
   if (el.closest("textarea, input, select") || el.isContentEditable || (button && button.form && button.type === "submit"))
     return { error: "refused: a control that takes text or submits" };
-  if (/\b(send|submit|run|approve|allow|deny|delete|remove|archive|stop|kill|restart|install|uninstall|reset|discard|apply|sign (in|out)|log ?out|quit)\b/i.test(words))
+  if (!menuOnly && /\b(send|submit|run|approve|allow|deny|delete|remove|archive|stop|kill|restart|install|uninstall|reset|discard|apply|sign (in|out)|log ?out|quit)\b/i.test(words))
     return { error: `refused: "${words.trim().slice(0, 60)}" may act` };
   const r = el.getBoundingClientRect();
   const x = Math.round(r.left + r.width / 2), y = Math.round(r.top + r.height / 2);
@@ -321,13 +330,15 @@ impl Run {
         }
     }
 
-    /// A trusted left click on the dashboard element the step names.
+    /// A trusted click on the dashboard element the step names: left, or right with
+    /// `"button": "right"`.
     async fn click(&self, arg: &Value) -> Result<Value, String> {
         let probe = self.ports.probe.clone().ok_or("no probe in this run")?;
         let quoted =
             |key: &str| Value::String(arg.get(key).and_then(Value::as_str).unwrap_or("").to_owned()).to_string();
         let index = arg.get("index").and_then(Value::as_u64).unwrap_or(0);
-        let expression = format!("{CLICK_TARGET}({}, {}, {index})", quoted("selector"), quoted("text"));
+        let right = arg.get("button").and_then(Value::as_str) == Some("right");
+        let expression = format!("{CLICK_TARGET}({}, {}, {index}, {right})", quoted("selector"), quoted("text"));
         let found = probe
             .dashboard("Runtime.evaluate", json!({ "expression": expression, "returnByValue": true }))
             .await?
@@ -340,8 +351,9 @@ impl Run {
         let (Some(x), Some(y)) = (found["x"].as_f64(), found["y"].as_f64()) else {
             return Err("no position".into());
         };
-        for (kind, buttons) in [("mouseMoved", 0), ("mousePressed", 1), ("mouseReleased", 0)] {
-            let mut params = json!({ "type": kind, "x": x, "y": y, "button": "left", "buttons": buttons });
+        let (button, held) = if right { ("right", 2) } else { ("left", 1) };
+        for (kind, buttons) in [("mouseMoved", 0), ("mousePressed", held), ("mouseReleased", 0)] {
+            let mut params = json!({ "type": kind, "x": x, "y": y, "button": button, "buttons": buttons });
             if kind != "mouseMoved" {
                 params["clickCount"] = json!(1);
             }
