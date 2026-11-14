@@ -7,7 +7,7 @@ fixed time after the dashboard is ready, the window painting, a fresh shell prof
             [--no-core] [--covered] [--vmmap]
 
   --network-in-process  Chromium's network service inside the browser process (the setting)
-  --no-core             the shell and the dev proxy alone, without the Rust core in process
+  --no-core             the shell alone, without the Rust core in process
   --covered             let Chromium stop painting when other windows cover the app's
   --vmmap               on the last run, how much of the CEF framework's constant data is
                         dirty in the dashboard's renderer (clean when the framework is
@@ -158,7 +158,9 @@ def one_run(chat, wait, env_extra, vmmap):
             text = f.read()
     except OSError:
         text = ""
-    opened = set(re.findall(r"path=/workers/([^/\s]+)/events", text))
+    # The chat's first page comes in the boot snapshot (`/api/boot?focus=…`, whose query the
+    # log leaves out); the routes the page then asks for that chat name it.
+    opened = set(re.findall(r"path=/workers/([^/\s]+)/", text))
     if len(fp) != len(rows) or not after.get("running") or after.get("pid") != st.get("pid"):
         run["void"] = "a process of the app went away"
     elif opened != {chat}:
@@ -192,12 +194,11 @@ def main():
 
 
 def measure(runs, wait, label):
-    status, workers = smoke.daemon("/workers")
-    roots = [w for w in (workers or []) if isinstance(w, dict) and not w.get("parent_id") and not w.get("archived_at")] if status == 200 else []
+    roots = smoke.chats()
     wanted = os.environ.get("MEM_CHAT")
     named = [w for w in roots if wanted and (w.get("name") or "").strip() == wanted]
     if not roots or (wanted and not named):
-        print("the isolated daemon does not list the chat to open")
+        print("the data copy does not hold the chat to open")
         return 1
     chat = (named or roots)[0]["id"]
 

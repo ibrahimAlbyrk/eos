@@ -4,7 +4,7 @@
 
 import { useId } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum, attrText, parseOptions } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum, attrText, parseOptions } from "../../../shared/genui/attrs.ts";
 import { SegmentedBar } from "../layout/layout.jsx";
 import { formatNumber } from "../data/format.js";
 

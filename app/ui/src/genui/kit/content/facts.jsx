@@ -2,7 +2,7 @@
 
 import { Icon } from "../icons.jsx";
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText } from "../../../shared/genui/attrs.ts";
 import { clamp, cls, currencySymbol, formatAmount, formatCount, scopedText, textOf, tpl } from "./util.js";
 import { sourceName } from "./Sources.jsx";
 

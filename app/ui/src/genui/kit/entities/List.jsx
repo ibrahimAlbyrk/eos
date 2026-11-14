@@ -8,7 +8,7 @@ import { Icon } from "../icons.jsx";
 import { ActionRow } from "../content/ActionButton.jsx";
 import { BadgeChip, oneOf } from "../content/text.jsx";
 import { cls, isTone, itemName, photoSrcs, sameId, siteOf, toneClass, tpl } from "../content/util.js";
-import { attrBool, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, splitIds } from "../../../shared/genui/attrs.ts";
 import { FilterEmpty } from "../inputs/FilterEmpty.jsx";
 import { elementChildren } from "../layout/layout.jsx";
 import { Thumb } from "./cards.jsx";

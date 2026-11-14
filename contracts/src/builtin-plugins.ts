@@ -3,23 +3,13 @@
 // UI, its routes (they answer "turned off"), and, for sessions started after,
 // its agent tools and prompt section. Its data stays.
 //
-// Ids start with "eos." — a prefix plugin folders may not use.
+// Ids start with "eos." — a prefix plugin folders may not use. The ids live with the
+// dashboard (app/ui/src/shared/builtin-plugins.ts), one text for both sides.
 
 import type { PluginManifest } from "./plugin.ts";
+import { BUILTIN_PLUGINS } from "../../app/ui/src/shared/builtin-plugins.ts";
 
-export const BUILTIN_PLUGIN_PREFIX = "eos.";
-
-export const BUILTIN_PLUGINS = {
-  pages: "eos.pages",
-  btw: "eos.btw",
-  artifacts: "eos.artifacts",
-  browser: "eos.browser",
-  autoName: "eos.auto-name",
-  terminal: "eos.terminal",
-  // Built like a plugin, but a core feature: always on, never listed or switched
-  // off (it has no manifest below).
-  archive: "eos.archive",
-} as const;
+export { BUILTIN_PLUGIN_PREFIX, BUILTIN_PLUGINS } from "../../app/ui/src/shared/builtin-plugins.ts";
 
 export const BUILTIN_PLUGIN_MANIFESTS: readonly PluginManifest[] = [
   {

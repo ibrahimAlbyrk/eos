@@ -3,7 +3,7 @@
 // the slots are filled before they render.
 
 import { headerRight, sidebarNav, mainViews } from "../../slots/index.js";
-import { BUILTIN_PLUGINS } from "../../../../../contracts/src/builtin-plugins.ts";
+import { BUILTIN_PLUGINS } from "../../shared/builtin-plugins.ts";
 import { JobsBeacon } from "../jobs/JobsBeacon.jsx";
 import { UpdateBeacon } from "../update/UpdateBeacon.jsx";
 import { NewTaskNavItem, ChangesNavItem, ArchiveNavItem } from "./sidebar/navItems.jsx";

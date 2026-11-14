@@ -1,6 +1,6 @@
 //! The feature's pure rules against the TypeScript: every case in
-//! `tests/fixtures/terminal-vectors.json` (written by
-//! `tools/terminal-vectors/generate.ts`) must give what today's code gave.
+//! `tests/fixtures/terminal-vectors.json` (frozen from the TypeScript, see `rust/fixtures/README.md`) must give what
+//! the TypeScript gave.
 
 use eos_contracts::PtyQuestionAnswer;
 use eos_testkit::FakeTerminals;

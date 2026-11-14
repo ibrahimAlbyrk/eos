@@ -2,7 +2,7 @@
 // every failure ends on a monogram — never a broken image.
 
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
-import { attrText, dataRef, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrText, dataRef, splitIds } from "../../../shared/genui/attrs.ts";
 import { MediaImg, MonoTile, Monogram } from "./media.jsx";
 import { oneOf } from "./text.jsx";
 import { cls, hostOf, itemName, logoSrcs, sameId, tpl } from "./util.js";

@@ -1,5 +1,5 @@
 //! The registry held to what the TypeScript registry gives agents
-//! (`fixtures/tools`, written by `tools/tools-vectors`).
+//! (`fixtures/tools`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use std::sync::Arc;
 

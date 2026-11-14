@@ -65,10 +65,23 @@ mod tests {
         let ours = files(&repo.join("rust/assets/claude-plugin"));
         assert!(ours.iter().any(|(name, _)| name == "skills/eos-plugin-authoring/SKILL.md"));
         assert!(ours.iter().any(|(name, _)| name == ".claude-plugin/plugin.json"));
-        // While the TypeScript tree is the reference, the two copies are one text.
-        let theirs = repo.join("manager/claude-plugin");
-        if theirs.is_dir() {
-            assert!(ours == files(&theirs), "rust/assets/claude-plugin differs from manager/claude-plugin");
-        }
+        // Each file as the TypeScript tree shipped it (`rust/fixtures/claude-plugin`).
+        let frozen: serde_json::Value = serde_json::from_slice(
+            &fs::read(repo.join("rust/fixtures/claude-plugin/files.json")).expect("the frozen hashes"),
+        )
+        .expect("json");
+        let theirs: Vec<(String, String)> = frozen["sha256"]
+            .as_object()
+            .expect("a map")
+            .iter()
+            .map(|(name, sha)| (name.clone(), sha.as_str().unwrap_or_default().to_owned()))
+            .collect();
+        let ours: Vec<(String, String)> = ours.into_iter().map(|(name, bytes)| (name, sha256(&bytes))).collect();
+        assert_eq!(ours, theirs, "rust/assets/claude-plugin differs from the TypeScript tree's skill");
+    }
+
+    fn sha256(bytes: &[u8]) -> String {
+        use sha2::Digest;
+        sha2::Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
     }
 }

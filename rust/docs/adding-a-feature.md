@@ -175,8 +175,8 @@ among the others); `plugin()`, `protected_settings()`, `sync()`, `holds_worker()
 - **The wire**: anything that must equal today's answer is compared with a recording
   (`eos_testkit::fixtures::recorded_response("31-pages", "create")`), never with a hand-written
   guess of what TypeScript answers.
-- **Replay** is the judge of a route group: the recorded scenarios (`fixtures/wire/scenarios`)
-  run against the composed app, in process:
+- **Replay** is the judge of a route group: the recordings (`fixtures/wire/recordings`) run
+  against the composed app, in process:
 
   ```bash
   scripts/replay.sh --only 31-pages,32-profile --verbose   # the synthetic seed, fresh every run
@@ -184,9 +184,9 @@ among the others); `plugin()`, `protected_settings()`, `sync()`, `holds_worker()
   ```
 
   Steps whose route is not registered yet are counted apart (`not served yet`); the run fails
-  only when an answered step differs in a way nobody listed. A group is done when its scenarios
+  only when an answered step differs in a way nobody listed. A group is done when its recordings
   pass with `--only`, or every remaining difference is in `fixtures/wire/rust-differences.toml`
-  with its reason — and the entries that said "until" this work are gone. To see what today's daemon
-  answers for a new scenario, `scripts/wire.sh` (`fixtures/README.md`).
+  with its reason. The recordings are frozen (nothing records any more, `fixtures/README.md`): a route
+  the daemon never had is pinned by the crate's own tests.
 - No `unwrap` in library code; no sleeps in tests (wait for the event); `scripts/check.sh` green
   before every merge.

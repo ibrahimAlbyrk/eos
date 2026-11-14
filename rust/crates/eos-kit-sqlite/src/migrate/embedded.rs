@@ -1,4 +1,5 @@
-// Written by scripts/export-migrations.ts from infra/src/persistence/MigrationRunner.ts.
+// The migrations of infra/src/persistence/MigrationRunner.ts, in run order (exported once,
+// frozen); this app's own follow in `own.rs`.
 // Never edit, reorder or drop an entry: `schema_migrations` in every user's file records these ids.
 
 use super::Migration;

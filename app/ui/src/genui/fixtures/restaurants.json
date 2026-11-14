@@ -1,0 +1,212 @@
+{
+  "title": "Kadıköy'de bu akşam",
+  "tone": "blue",
+  "icon": "utensils",
+  "data": {
+    "places": [
+      {
+        "id": "moda",
+        "type": "Place",
+        "name": "Moda Kıyı",
+        "cuisine": "Meyhane · Deniz ürünü",
+        "area": "Moda",
+        "rating": 4.7,
+        "reviews": 1284,
+        "price": 2,
+        "distance": "650 m",
+        "walk": "9 dk",
+        "geo": [
+          40.981,
+          29.025
+        ],
+        "hours": {
+          "until": "00:00"
+        },
+        "tags": [
+          "sea",
+          "meyhane",
+          "rez"
+        ],
+        "site": "modakiyi.example",
+        "url": "https://modakiyi.example/menu",
+        "source": 1
+      },
+      {
+        "id": "lal",
+        "type": "Place",
+        "name": "Lâl Balık",
+        "cuisine": "Balık",
+        "area": "Çarşı",
+        "rating": 4.6,
+        "reviews": 2103,
+        "price": 2,
+        "distance": "400 m",
+        "walk": "5 dk",
+        "geo": [
+          40.9905,
+          29.0255
+        ],
+        "hours": {
+          "until": "23:30"
+        },
+        "tags": [
+          "sea"
+        ],
+        "site": "lalbalik.example",
+        "source": 1
+      },
+      {
+        "id": "ocak",
+        "type": "Place",
+        "name": "Ocak 34",
+        "cuisine": "Ocakbaşı",
+        "area": "Bahariye",
+        "rating": 4.5,
+        "reviews": 860,
+        "price": 1,
+        "distance": "900 m",
+        "walk": "12 dk",
+        "geo": [
+          40.987,
+          29.031
+        ],
+        "hours": {
+          "until": "01:00"
+        },
+        "tags": [],
+        "source": 1
+      },
+      {
+        "id": "rihtim",
+        "type": "Place",
+        "name": "Rıhtım Lokanta",
+        "cuisine": "Ev yemekleri",
+        "area": "Rıhtım",
+        "rating": 4.4,
+        "reviews": 512,
+        "price": 1,
+        "distance": "300 m",
+        "walk": "4 dk",
+        "geo": [
+          40.9925,
+          29.023
+        ],
+        "hours": {
+          "until": "21:00"
+        },
+        "status": "closing",
+        "tags": [],
+        "source": 3
+      },
+      {
+        "id": "yel",
+        "type": "Place",
+        "name": "Yel Meyhane",
+        "cuisine": "Meyhane",
+        "area": "Yeldeğirmeni",
+        "rating": 4.6,
+        "reviews": 540,
+        "price": 3,
+        "distance": "1,4 km",
+        "walk": "18 dk",
+        "geo": [
+          40.9955,
+          29.03
+        ],
+        "hours": {
+          "until": "02:00"
+        },
+        "tags": [
+          "meyhane",
+          "rez"
+        ],
+        "site": "yelmeyhane.example",
+        "source": [
+          1,
+          4
+        ]
+      },
+      {
+        "id": "sofra",
+        "type": "Place",
+        "name": "Sofra Moda",
+        "cuisine": "Anadolu mutfağı",
+        "area": "Moda",
+        "rating": 4.3,
+        "reviews": 377,
+        "price": 2,
+        "distance": "1,1 km",
+        "walk": "14 dk",
+        "geo": [
+          40.984,
+          29.0275
+        ],
+        "hours": {
+          "closed": true,
+          "text": "Bugün kapalı"
+        },
+        "tags": [
+          "rez"
+        ],
+        "source": 1
+      }
+    ],
+    "sources": [
+      {
+        "title": "Harita kaydı",
+        "site": "maps.example",
+        "note": "puan, saatler",
+        "at": "19:12"
+      },
+      {
+        "title": "Mekan sitesi",
+        "site": "modakiyi.example",
+        "url": "https://modakiyi.example",
+        "note": "menü, rezervasyon"
+      },
+      {
+        "title": "Yorum derlemesi",
+        "site": "yorumlar.example",
+        "note": "son 3 ay"
+      },
+      {
+        "title": "Rehber yazısı",
+        "site": "rehber.example"
+      }
+    ]
+  },
+  "actions": {
+    "book": {
+      "label": "Masa ayırt",
+      "kind": "send",
+      "primary": true,
+      "text": "{name} için bu akşam 2 kişilik masa ayırt"
+    },
+    "route": {
+      "label": "Yol tarifi",
+      "kind": "open",
+      "href": "maps:{geo}"
+    },
+    "menu": {
+      "label": "Menü",
+      "kind": "open",
+      "href": "{url}"
+    },
+    "seaOnly": {
+      "label": "Sadece deniz manzaralılar",
+      "kind": "send"
+    },
+    "youBook": {
+      "label": "Rezervasyonu sen ayarla",
+      "kind": "send",
+      "text": "Moda Kıyı için rezervasyonu sen ayarla"
+    },
+    "veg": {
+      "label": "Vejetaryen seçenekler",
+      "kind": "send",
+      "text": "Vejetaryen seçeneği güçlü olanları göster"
+    }
+  },
+  "ui": "<Filters of=\"places\" chips=\"Şu an açık: open, Deniz ürünü: tags~sea, Meyhane: tags~meyhane, ₺–₺₺: price<=2, 4.5+: rating>=4.5, Rezervasyon alıyor: tags~rez\" on=\"0\"/>\n<Map of=\"places\" pin=\"index\" you/>\n<Hero of=\"places\" pick=\"moda\" badge=\"En iyi eşleşme\" meta=\"{cuisine} · {area}\" actions=\"book route menu\">\n  Deniz kenarında, meze çeşidi geniş ve iki kişi için ortalama hesap bütçene uyuyor. Hafta içi akşamları dolu oluyor — **masa ayırtmak** iyi olur.\n</Hero>\n<Section title=\"Diğer seçenekler\">\n  <Carousel of=\"places\" skip=\"moda\" card=\"compact\" meta=\"{cuisine} · {area}\"/>\n</Section>\n<Table of=\"places\" cols=\"name:Mekan, rating:Puan, price:Fiyat, distance:Mesafe, hours:Kapanış\" best=\"rating:max price:min\" numbered/>\n<Sources/>\n<Actions ids=\"seaOnly youBook veg\"/>",
+  "summary": "Kadıköy'de bu akşam açık 6 yer. En iyi eşleşme: Moda Kıyı — meyhane, ★4.7, ₺₺, 650 m, 00:00'a kadar açık. Diğerleri: Lâl Balık, Ocak 34, Rıhtım Lokanta, Yel Meyhane, Sofra Moda (bugün kapalı)."
+}

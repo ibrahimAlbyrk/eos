@@ -8,7 +8,7 @@ import { MediaImg, MonoTile } from "../content/media.jsx";
 import { Markdown } from "../content/Markdown.jsx";
 import { GalleryTiles, LogoMark } from "../content/visual.jsx";
 import { cls, itemName, openHref, photoSrcs, sameId, siteOf, textOf, tpl } from "../content/util.js";
-import { attrBool, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, splitIds } from "../../../shared/genui/attrs.ts";
 import { EntityStatus, Facts, defaultMeta, kindOf } from "./entity.jsx";
 
 function HeroMedia({ view, item, badge, gallery, onSelect, selected }) {

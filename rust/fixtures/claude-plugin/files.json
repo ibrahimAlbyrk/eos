@@ -1,0 +1,8 @@
+{
+ "about": "SHA-256 of each file of manager/claude-plugin at 059c4b38: the skill the Rust app ships (rust/assets/claude-plugin) is that folder.",
+ "sha256": {
+  ".claude-plugin/plugin.json": "6fc5697e2c7dd8d0f556d0928d10edeafbc3d8d57e7768ba2c1ede074093e942",
+  "skills/eos-plugin-authoring/SKILL.md": "8e314fb4c70ff62ec8007503713449aae864c7d75fbfdf4934b9fa0ce86a7b7f",
+  "skills/eos-plugin-authoring/references/design.md": "679c91a30f856e413d38426e66578be2dabdda358f0e908236a44cd3598e525c"
+ }
+}

@@ -1,6 +1,6 @@
 //! The page, user-memory and user-profile rules against the TypeScript they
-//! are ported from: every vector in `tests/fixtures/*-vectors.json` (written
-//! by `scripts/gen-notes-vectors.mjs`) must give what the TypeScript gave.
+//! are ported from: every vector in `tests/fixtures/*-vectors.json` (frozen from the TypeScript, see `rust/fixtures/README.md`)
+//! must give what the TypeScript gave.
 
 // Vector shapes, read once.
 #![allow(clippy::large_enum_variant)]

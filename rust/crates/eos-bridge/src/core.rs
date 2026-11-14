@@ -1,9 +1,8 @@
 //! What the bridge needs from the core: its router, and the ui-token it checks.
 //!
 //! `eos-runtime`'s `Router` is the real implementation (`router::RouterCore`, a thin
-//! mapping from [`Req`] and [`Sink`] to its request and response types). Until it declares
-//! every route, the `dev-proxy` feature sends the routes it does not declare to an isolated
-//! Node daemon (`dev::Hybrid`).
+//! mapping from [`Req`] and [`Sink`] to its request and response types); a dev run puts the
+//! guard in front of it (`dev::Guarded`, feature `dev-run`).
 
 use crate::transport::{Req, Sink};
 

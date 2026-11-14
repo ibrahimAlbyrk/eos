@@ -27,7 +27,7 @@ pub fn processes() -> Processes {
     Processes::new(ProcessTrees::new(eos_platform::isolate_command, |pid| eos_platform::kill_process_tree(pid).is_ok()))
 }
 
-/// The esbuild `npm ci` put under `infra/node_modules`, or `EOS_ESBUILD`.
+/// `EOS_ESBUILD`, or the pinned esbuild `rust/host/scripts/setup.sh` fetched.
 pub fn esbuild() -> Option<PathBuf> {
     let given = std::env::var_os("EOS_ESBUILD").map(PathBuf::from);
     locate(given.as_deref(), dev_checkout().as_deref())

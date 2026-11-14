@@ -1,5 +1,4 @@
-//! The update fixtures (`rust/fixtures/update`, written by
-//! `tools/update-vectors/generate.mjs` from today's TypeScript) and the
+//! The update fixtures (`rust/fixtures/update`, frozen from the TypeScript, see `rust/fixtures/README.md`) and the
 //! generators that rebuild their inputs: the fixtures name a generator
 //! instead of carrying megabytes of bytes.
 

@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText } from "../../../shared/genui/attrs.ts";
 import { formatNumber } from "./format.js";
 import { isTone, looseNumber, toneStyle } from "./util.js";
 

@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import tests from "../../../../../../contracts/src/__tests__/fixtures/genui/tests.json";
-import learn from "../../../../../../contracts/src/__tests__/fixtures/genui/learn.json";
-import { COMPONENTS } from "../../../../../../contracts/src/genui/catalog.ts";
+import restaurants from "../../fixtures/restaurants.json";
+import tests from "../../fixtures/tests.json";
+import learn from "../../fixtures/learn.json";
+// The catalog the core validates against (its frozen TypeScript original).
+import catalog from "../../../../../../rust/fixtures/genui/catalog.json";
 import { components as layout } from "./index.js";
 import { components as content } from "../content/index.js";
 import { components as entities } from "../entities/index.js";
@@ -14,7 +15,7 @@ vi.mock("../../../lib/markdown.js", async (importOriginal) => {
   return { ...mod, renderMarkdown: mod.markdownToHtml };
 });
 
-const groupNames = (group) => Object.entries(COMPONENTS).filter(([, d]) => d.group === group).map(([n]) => n).sort();
+const groupNames = (group) => catalog.components.filter((c) => c.group === group).map((c) => c.name).sort();
 
 describe("Kit A exports", () => {
   it("each group exports exactly its catalog names", () => {

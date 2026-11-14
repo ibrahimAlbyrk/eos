@@ -1,6 +1,6 @@
 [package]
 name = "wire-recorder"
-description = "Records what a daemon answers, route by route, and replays it against another target."
+description = "Replays what the Node daemon answered, route by route, against the Rust core."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +12,6 @@ anyhow.workspace = true
 eos-app.workspace = true
 eos-kit-sqlite.workspace = true
 eos-runtime.workspace = true
-flate2 = "1"
 regex = "1"
 serde.workspace = true
 serde_json.workspace = true

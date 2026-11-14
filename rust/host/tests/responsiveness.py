@@ -16,8 +16,9 @@ it, each click `--reps` times (20). Per click it records:
   ui       the shell's UI thread: how late a task posted every 4 ms ran, when over 16 ms
   probe    how long the core held a trivial request (`/health`) sent during the click (its
            whole trip through the transport is shown too)
-  requests what the click asked for: path, duration, which side answered (Server-Timing:
-           rust | daemon) and that side's time to the head
+  requests what the click asked for: path, duration, whether the core answered it (its
+           Server-Timing `rust`; the shell's own routes have none) and the core's time to
+           the head
 
 Budgets (see `report`): paint p95 < 100 ms; probe < 50 ms in the core; no UI-thread stall over 16 ms
 while a bridge or browser-view call is in flight; no long frame over 50 ms running the
@@ -358,10 +359,9 @@ def main():
     os.makedirs(SHELL_DATA)
     run = smoke.Run(max_seconds=1200)
     try:
-        status, workers = smoke.daemon("/workers")
-        roots = [w for w in (workers or []) if isinstance(w, dict) and not w.get("parent_id") and not w.get("archived_at")] if status == 200 else []
+        roots = smoke.chats()
         if not roots:
-            print("the isolated daemon lists no chats")
+            print("the data copy holds no chats")
             return 1
         seed_layout(roots[0]["id"])
         st = launch()

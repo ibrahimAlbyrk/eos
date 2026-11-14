@@ -2,10 +2,9 @@
 // frontend. Every fetch in the codebase resolves its path through here so a
 // daemon endpoint rename is one edit, not a hunt.
 //
-// Mirrors contracts/src/http.ts ROUTES. Kept duplicated rather than imported
-// because Vite/esbuild doesn't ergonomically pull from ../../../contracts
-// without workspace config; the cost of one shadow constants file is small
-// compared to the cost of misaligned URLs.
+// Mirrors the core's route table (rust/crates/eos-contracts/src/routes): a
+// `cargo xtask` test compares the two entry by entry. Kept as its own file so the
+// dashboard builds by itself.
 
 export const ROUTES = {
   health: "/health",

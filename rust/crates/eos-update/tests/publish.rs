@@ -1,7 +1,7 @@
 //! The release builder against the TypeScript one: for the same bundle, key,
 //! time and levels, every file of the feed comes out byte for byte as
 //! `infra/src/update/buildRelease.ts` wrote it (`rust/fixtures/update`,
-//! `tools/update-vectors/generate.mjs`).
+//! frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 #![cfg(unix)]
 

@@ -1,6 +1,5 @@
 //! A conversation's subagents and artifacts against what the dashboard derives
-//! today from the same log (`rust/fixtures/subagent-lists/vectors.json`,
-//! written by `rust/tools/subagent-lists-vectors/generate.mjs`).
+//! from the same log (`rust/fixtures/subagent-lists/vectors.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 

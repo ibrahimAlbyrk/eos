@@ -1,10 +1,10 @@
 //! The Eos application: starts the window shell and hands it the core.
 //!
 //! The core is `eos-app`, built from the data folder (`data_folder`); the shell reaches its
-//! router in process. While routes are still being ported, the `dev-proxy` feature sends
-//! every route the router does not declare to an isolated Node daemon (see `dev.rs`).
+//! router in process. A build with the `dev-run` feature is a development or test run on a
+//! copy of real data (see `dev.rs`).
 
-#[cfg(feature = "dev-proxy")]
+#[cfg(feature = "dev-run")]
 mod dev;
 mod follow;
 
@@ -66,22 +66,23 @@ fn options() -> Options {
         network_in_process: env("EOS_SHELL_NETWORK_IN_PROCESS").is_some(),
         paint_when_covered: env("EOS_SHELL_PAINT_WHEN_COVERED").is_some(),
         artifact_origin: artifact_origin(),
-        // The measuring probe drives the dashboard: a build with the dev proxy only.
-        probe: cfg!(feature = "dev-proxy") && env("EOS_SHELL_PROBE").is_some(),
+        // The measuring probe drives the dashboard: a dev run only.
+        probe: cfg!(feature = "dev-run") && env("EOS_SHELL_PROBE").is_some(),
     }
 }
 
 /// A page on this computer standing in for claude.ai in the artifact views, for a test run:
-/// read only by a build with the dev proxy, and only a loopback address.
+/// read only by a dev run, and only a loopback address.
 fn artifact_origin() -> Option<String> {
-    if !cfg!(feature = "dev-proxy") {
+    if !cfg!(feature = "dev-run") {
         return None;
     }
     env("EOS_DEV_ARTIFACT_ORIGIN").filter(|origin| origin.starts_with("http://127.0.0.1:"))
 }
 
-/// A release build: no dev proxy, so every route is the Rust core's.
-const RELEASE: bool = cfg!(not(feature = "dev-proxy"));
+/// A release build: not a dev run, so it opens the user's own data folder unasked and
+/// reaches other computers from it (`eos_bridge::launch`).
+const RELEASE: bool = cfg!(not(feature = "dev-run"));
 
 /// The update hand-over with its splash: shown before the applier starts, up until the app
 /// has quit; closed again when the restart failed (the dashboard says why).
@@ -119,8 +120,6 @@ struct Eos {
     /// The core's own runtime (`eos_app::runtime`): the shell's small one stays free for
     /// the window's bridges whatever the core is doing.
     rt: tokio::runtime::Runtime,
-    #[cfg(feature = "dev-proxy")]
-    dev: dev::Dev,
 }
 
 impl Eos {
@@ -185,11 +184,10 @@ impl Eos {
 
 impl Hooks for Eos {
     fn core(&self, ports: &Ports) -> Arc<dyn Core> {
-        let rust = self.start_core(ports);
-        #[cfg(feature = "dev-proxy")]
-        return self.dev.core(rust, ports);
-        #[cfg(not(feature = "dev-proxy"))]
-        match rust {
+        match self.start_core(ports) {
+            #[cfg(feature = "dev-run")]
+            Some(core) => dev::guarded(core),
+            #[cfg(not(feature = "dev-run"))]
             Some(core) => core,
             None => Arc::new(eos_bridge::NoCore::default()),
         }
@@ -205,8 +203,8 @@ impl Hooks for Eos {
             app.mark_update_booted();
             app.update_signals().window_shown();
         }
-        #[cfg(feature = "dev-proxy")]
-        self.dev.started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
+        #[cfg(feature = "dev-run")]
+        dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
     }
 
     fn window_shown(&self) {
@@ -236,8 +234,8 @@ impl Hooks for Eos {
     }
 }
 
-/// Logs go to stderr; `EOS_LOG` picks what is shown (`eos::bridge=debug` shows which side
-/// served each request), warnings by default.
+/// Logs go to stderr; `EOS_LOG` picks what is shown (`eos::bridge=debug` in a dev run shows
+/// what became of each request), warnings by default.
 fn init_logs() {
     let filter = tracing_subscriber::EnvFilter::try_new(env("EOS_LOG").unwrap_or_else(|| "warn".into()))
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
@@ -259,8 +257,6 @@ fn main() {
         dist: options.ui_dist.clone(),
         app: OnceLock::new(),
         rt,
-        #[cfg(feature = "dev-proxy")]
-        dev: dev::Dev::from_env(),
     };
     std::process::exit(eos_shell::run(options, Arc::new(hooks)));
 }

@@ -1,6 +1,6 @@
 //! A real profile and its memories render as the TypeScript renders them.
 //! Runs when `EOS_REAL_HOME` names a private copy of a data folder that holds
-//! `render-expected.json` (written by `scripts/render-real-data.mjs`); reads
+//! `render-expected.json` (what the TypeScript rendered for that copy); reads
 //! only, and prints a count, never content.
 
 use std::path::PathBuf;

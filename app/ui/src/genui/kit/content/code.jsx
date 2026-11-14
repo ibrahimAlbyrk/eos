@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum, attrText } from "../../../shared/genui/attrs.ts";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { cls, openHref, textOf, tpl } from "./util.js";
 

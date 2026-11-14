@@ -1,6 +1,5 @@
 //! The envelope and the relay's own messages against what the two TypeScript
-//! codecs write (`fixtures/relay/envelopes.json`, made by
-//! `tools/relay-vectors/generate.mjs`).
+//! codecs wrote (`fixtures/relay/envelopes.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use bytes::Bytes;
 use eos_relay::control::{self, Control};

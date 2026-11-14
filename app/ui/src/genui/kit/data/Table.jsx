@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, parseBest, parseCols, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, parseBest, parseCols, splitIds } from "../../../shared/genui/attrs.ts";
 import { applyLens, itemId, numberItems, sameId } from "./util.js";
 import { bestCells, bestDirections, cellDisplay, nextSort, sortRows } from "./tableLogic.js";
 import { FilterEmpty } from "../inputs/FilterEmpty.jsx";

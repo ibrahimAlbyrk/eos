@@ -7,8 +7,8 @@ import { meterMax } from "./Meter.jsx";
 import { progressOf } from "./Progress.jsx";
 import { valueText } from "./Value.jsx";
 import { deltaDirection, deltaMood } from "./Stat.jsx";
-import { parseBest, parseCols } from "../../../../../../contracts/src/genui/attrs.ts";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
+import { parseBest, parseCols } from "../../../shared/genui/attrs.ts";
+import restaurants from "../../fixtures/restaurants.json";
 
 const places = restaurants.data.places;
 

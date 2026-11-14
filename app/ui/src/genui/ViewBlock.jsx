@@ -11,7 +11,7 @@
 
 import "./view.css";
 import { Component as ReactComponent, memo, useEffect, useMemo, useRef, useState } from "react";
-import { parseMarkup, parsePartial } from "../../../../contracts/src/genui/markup.ts";
+import { parseMarkup, parsePartial } from "../shared/genui/markup.ts";
 import { useUi } from "../state/ui.jsx";
 import { viewTabId } from "../lib/panelTabs.js";
 import { useStream } from "./streamStore.js";

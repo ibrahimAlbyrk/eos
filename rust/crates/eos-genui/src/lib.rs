@@ -5,8 +5,7 @@
 //! for the core: the same accept/reject decision, the same problem paths and
 //! messages (agents read them), the same parsed structure and the same catalog
 //! prompt, byte for byte. `rust/fixtures/genui` holds the vectors both are held
-//! to (`tests/corpus.rs`); `rust/tools/genui-vectors` regenerates them from the
-//! TypeScript in `contracts/src/genui`, and the tests fail when they are stale.
+//! to (`tests/corpus.rs`), frozen from the TypeScript in `contracts/src/genui`.
 //!
 //! Where "the same" is not the obvious thing, the TypeScript wins:
 //! - lengths, offsets, lines and columns count UTF-16 code units;

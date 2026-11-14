@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Smoke run of the bundled app against the dev proxy. Safe to run again and again.
+"""Smoke run of the test bundle (scripts/bundle.sh test) on private test data. Safe to run
+again and again.
 
 What it checks:
   1. the app starts once, the dashboard reaches "ready", the storage carry-over ran;
   2. the dashboard's own browser panel puts a child Chromium view on screen;
   3. DevTools round trips work: on a test view through the shell's ports (hidden view
      included), and through the core's browser route for the panel's tab;
-  4. the Rust core runs beside the daemon: a route goes to the Rust router when it declares
-     it (the event stream included), to the write-refusing proxy otherwise;
+  4. the Rust core answers every request behind the dev guard, the event stream included;
   5. a second launch hands over, `--quit` stops everything.
 
 Rules it keeps (see 08-shell-gate.md §10): it never types into a page and never drives the
@@ -20,11 +20,10 @@ usage: smoke.py <path to Eos.app> [--keep]      --keep leaves the app running at
 import json
 import os
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 
 HOST = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # The same defaults as scripts/dev-env.sh.
@@ -33,7 +32,6 @@ DEV_HOME = os.environ.get("EOS_DEV_HOME", os.path.join(DATA, "run-shell"))
 DEV_OUT = os.environ.get("EOS_DEV_OUT", os.path.join(DATA, "shell-out"))
 OUT = os.path.join(DEV_OUT, "smoke")
 SHELL_DATA = os.path.join(OUT, "data")
-DAEMON = "http://127.0.0.1:" + os.environ.get("EOS_DEV_PORT", "7490")
 APP = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else ""
 KEEP = "--keep" in sys.argv
 BIN = os.path.join(APP, "Contents", "MacOS", "Eos")
@@ -57,19 +55,16 @@ def ctl(*args, timeout=15):
 
 
 class Run:
-    """What a test run started, and its end: the app and the daemon are stopped whether the
-    run finishes, fails, is interrupted or is killed (guard.py covers the last)."""
+    """What a test run started, and its end: the app is stopped whether the run finishes,
+    fails, is interrupted or is killed (guard.py covers the last)."""
 
     def __init__(self, max_seconds=900):
-        up = subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "status"], capture_output=True, text=True).stdout.strip() == "up"
-        self.started_daemon = not up
         self.guard = subprocess.Popen(
-            [sys.executable, os.path.join(HOST, "tests", "guard.py"), str(os.getpid()), APP, SHELL_DATA, "1" if self.started_daemon else "0", str(max_seconds)],
+            [sys.executable, os.path.join(HOST, "tests", "guard.py"), str(os.getpid()), APP, SHELL_DATA, str(max_seconds)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         # An interrupt or a polite kill ends the run through `finally`.
         for sig in (signal.SIGTERM, signal.SIGHUP):
             signal.signal(sig, lambda *_: sys.exit(130))
-        subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "start"], check=True, capture_output=True)
 
     def stop_app(self):
         """Quits the app this run launched and waits for its processes to go."""
@@ -82,12 +77,10 @@ class Run:
         return gone
 
     def close(self, keep=False):
-        """`keep`: leave the app and the daemon running for a person to look at."""
+        """`keep`: leave the app running for a person to look at."""
         try:
             if not keep:
                 self.stop_app()
-                if self.started_daemon:
-                    subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "stop"], capture_output=True, timeout=30)
         finally:
             self.guard.terminate()  # our own child: it has nothing left to watch
 
@@ -108,25 +101,20 @@ def wait_for(what, predicate, seconds):
     return None
 
 
-def token():
-    with open(os.path.join(DEV_HOME, "ui-token")) as f:
-        return f.read().strip()
-
-
-def daemon(path, body=None, method=None):
-    """A request to the isolated daemon as the dashboard would make it. The token is read
-    from the daemon's own home and never printed."""
-    req = urllib.request.Request(DAEMON + path, method=method or ("POST" if body is not None else "GET"))
-    req.add_header("x-eos-ui-token", token())
-    data = None
-    if body is not None:
-        data = json.dumps(body).encode()
-        req.add_header("content-type", "application/json")
+def chats():
+    """The data copy's top-level chats that are not archived, newest first (as the sidebar
+    lists them): `{"id", "name"}` each. Read from its state.db without writing to it, before
+    the app runs; from the folder it is copied from while the copy is not made yet."""
+    db = next((d for d in (os.path.join(DEV_HOME, "state.db"), os.path.join(DATA, "home", "state.db")) if os.path.isfile(d)), None)
+    if not db:
+        return []
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     try:
-        with urllib.request.urlopen(req, data=data, timeout=20) as r:
-            return r.status, json.loads(r.read() or b"null")
-    except urllib.error.HTTPError as e:
-        return e.code, None
+        rows = conn.execute(
+            "SELECT id, name FROM workers WHERE parent_id IS NULL AND archived_at IS NULL ORDER BY started_at DESC").fetchall()
+    finally:
+        conn.close()
+    return [{"id": id, "name": name} for id, name in rows]
 
 
 def main():
@@ -164,9 +152,8 @@ def checks(run):
     # one chat selected with the Browser tab open in its side panel.
     subprocess.run(["rm", "-rf", OUT], check=True)
     os.makedirs(SHELL_DATA)
-    status, workers = daemon("/workers")
-    roots = [w for w in (workers or []) if isinstance(w, dict) and not w.get("parent_id") and not w.get("archived_at")] if status == 200 else []
-    if not check("the isolated daemon lists chats", roots, f"{len(roots)} top-level"):
+    roots = chats()
+    if not check("the data copy holds chats", roots, f"{len(roots)} top-level"):
         return 1
     chat = roots[0]["id"]
     layout = {
@@ -263,16 +250,16 @@ def checks(run):
             check("placed at the panel's rectangle by the dashboard", view and view["placed"] and panel["bounds"][2] > 100 and panel["bounds"][3] > 100, panel["bounds"])
             check("the panel is the selected chat's", panel["view"] == tab and panel["session"] == chat)
         core = bridge_of(ctl("--status")).get("core") or {}
-        check("the browser routes are the Rust core's", any(route.startswith("POST /browser/") for route in core.get("rustRoutes") or []))
+        check("the browser routes are the Rust core's", any(route.startswith("POST /browser/") for route in core.get("routes") or []))
 
-    # ---- 4. the write guard: the dashboard itself already tried a write on startup.
+    # ---- 4. the Rust core behind the dev guard.
     st = ctl("--status")
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("the app is still up and answering", st.get("running") and bridge_of(st).get("requests", {}).get("core", 0) > 10, bridge_of(st).get("requests"))
     core = bridge_of(st).get("core") or {}
-    check("the Rust core runs and the daemon answers what it does not declare", isinstance(core.get("rust"), int) and core.get("proxy", 0) > 0,
-          {k: core.get(k) for k in ("rust", "proxy", "proxyRefusedWrites", "rustRoutes")})
-    check("the dashboard's event stream is the Rust core's", "GET /stream" in (core.get("rustRoutes") or []))
+    check("the Rust core answers behind the dev guard, agents refused", core.get("rust", 0) > 10 and core.get("agentsAllowed") is False,
+          {k: core.get(k) for k in ("rust", "refused", "agentsAllowed")})
+    check("the dashboard's event stream is the Rust core's", "GET /stream" in (core.get("routes") or []))
     check("nothing failed in the shell's log", "failed" not in log and "could not" not in log and "panic" not in log)
 
     # ---- 5. single instance, then quit

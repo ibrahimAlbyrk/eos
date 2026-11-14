@@ -14,7 +14,7 @@
 #   the same on every copy;
 # - archive retention off and dreaming off (nothing ages out or runs at boot);
 #   worktree origins cleared (no boot prune of worktrees);
-# - the chats the private scenarios read are picked (scripts/private-vars.sh).
+# - the chats the private recordings read are picked (scripts/private-vars.sh).
 #
 # Two copies whose paths have the same length answer byte-for-byte alike, which is
 # what a recording on one and a replay on the other need.

@@ -1,10 +1,10 @@
 //! The Rust builder against today's: every sample plugin under
 //! `tests/samples` must build to the same text, or fail with the same
-//! message, as `infra/src/plugins/EsbuildPluginBuilder.ts` recorded in
-//! `expected.json` (`rust/tools/plugin-vectors/build.mts`).
+//! message, as `infra/src/plugins/EsbuildPluginBuilder.ts` did in
+//! `expected.json` (frozen from the TypeScript, see `rust/fixtures/README.md`).
 //!
-//! These tests drive the real esbuild binary: `EOS_ESBUILD`, or the one
-//! `npm ci` puts under `infra/node_modules`. Without one they say so and pass.
+//! These tests drive the real esbuild binary: `EOS_ESBUILD`, or the pinned one
+//! `rust/host/scripts/setup.sh` fetches. Without one they say so and pass.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -46,7 +46,7 @@ fn binary() -> Option<PathBuf> {
     let given = std::env::var_os("EOS_ESBUILD").map(PathBuf::from);
     let found = locate(given.as_deref(), dev_checkout().as_deref());
     if found.is_none() {
-        eprintln!("skipped: no esbuild binary (set EOS_ESBUILD or run `npm ci` in infra/)");
+        eprintln!("skipped: no esbuild binary (set EOS_ESBUILD or run rust/host/scripts/setup.sh)");
     }
     found
 }

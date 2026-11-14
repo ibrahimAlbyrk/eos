@@ -5,7 +5,7 @@
 // side-effect); SidePanel imports it so the registry is populated before it reads.
 
 import { registerPanel } from "../../../lib/panelRegistry.js";
-import { BUILTIN_PLUGINS } from "../../../../../../contracts/src/builtin-plugins.ts";
+import { BUILTIN_PLUGINS } from "../../../shared/builtin-plugins.ts";
 import { shortcutLabel } from "../../../lib/platform.js";
 import { useFeature } from "../../../state/featuresStore.js";
 import { useArtifactCatalog } from "../../../state/artifactCatalogStore.js";

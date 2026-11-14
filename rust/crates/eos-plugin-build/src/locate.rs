@@ -1,29 +1,20 @@
 //! Where the esbuild binary is.
 
-use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::ESBUILD_VERSION;
+
 /// The binary the app ships (`bundled`: its full path, when the app has
-/// one), else — in a development checkout — the one `npm ci` put under
-/// `infra/node_modules` for the TypeScript tree. `None`: plugins with a UI
-/// cannot be built, and each says so.
+/// one), else — in a development checkout — the pinned release
+/// `rust/host/scripts/setup.sh` fetched into the host's work folder. `None`:
+/// plugins with a UI cannot be built, and each says so.
 pub fn locate(bundled: Option<&Path>, checkout: Option<&Path>) -> Option<PathBuf> {
-    bundled.filter(|path| path.is_file()).map(Path::to_owned).or_else(|| checkout.and_then(installed_by_npm))
+    bundled.filter(|path| path.is_file()).map(Path::to_owned).or_else(|| checkout.and_then(fetched_by_setup))
 }
 
-/// npm installs exactly one `@esbuild/<system>` package: the one for this
-/// computer. Its binary is `bin/esbuild`, or `esbuild.exe` where programs
-/// carry that suffix.
-fn installed_by_npm(checkout: &Path) -> Option<PathBuf> {
-    let packages = checkout.join("infra/node_modules/@esbuild");
-    let mut found: Vec<PathBuf> = fs::read_dir(packages)
-        .ok()?
-        .flatten()
-        .flat_map(|package| [package.path().join("bin/esbuild"), package.path().join("esbuild.exe")])
-        .filter(|binary| binary.is_file())
-        .collect();
-    found.sort();
-    found.into_iter().next()
+fn fetched_by_setup(checkout: &Path) -> Option<PathBuf> {
+    let binary = checkout.join(format!("rust/host/.work/tools/esbuild-{ESBUILD_VERSION}/esbuild"));
+    binary.is_file().then_some(binary)
 }
 
 /// The repository this crate was compiled in, for a development build's
@@ -38,23 +29,25 @@ pub fn dev_checkout() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+
     use super::*;
 
     #[test]
     fn the_bundled_binary_wins_and_a_missing_one_falls_back() {
         let temp = tempfile::tempdir().expect("a folder");
         let bundled = temp.path().join("esbuild");
-        let npm = temp.path().join("repo/infra/node_modules/@esbuild/some-system/bin/esbuild");
-        fs::create_dir_all(npm.parent().expect("a parent")).expect("folders");
-        fs::write(&npm, "").expect("a file");
+        let fetched = temp.path().join(format!("repo/rust/host/.work/tools/esbuild-{ESBUILD_VERSION}/esbuild"));
+        fs::create_dir_all(fetched.parent().expect("a parent")).expect("folders");
+        fs::write(&fetched, "").expect("a file");
         let repo = temp.path().join("repo");
 
-        assert_eq!(locate(Some(&bundled), Some(&repo)), Some(npm.clone()), "the bundled path is not there yet");
+        assert_eq!(locate(Some(&bundled), Some(&repo)), Some(fetched.clone()), "the bundled path is not there yet");
         fs::write(&bundled, "").expect("a file");
         assert_eq!(locate(Some(&bundled), Some(&repo)), Some(bundled));
-        assert_eq!(locate(None, Some(&repo)), Some(npm));
+        assert_eq!(locate(None, Some(&repo)), Some(fetched));
         assert_eq!(locate(None, None), None);
-        assert_eq!(locate(None, Some(temp.path())), None, "no node_modules here");
+        assert_eq!(locate(None, Some(temp.path())), None, "nothing fetched here");
     }
 
     #[test]

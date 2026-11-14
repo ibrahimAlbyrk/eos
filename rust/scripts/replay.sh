@@ -5,9 +5,9 @@
 #   replay.sh [--only 11-chats,12-transcript] [--verbose]
 #       a fresh synthetic data folder (the recordings' seed), against fixtures/wire/recordings
 #   replay.sh --private <copy> [--only …]
-#       a copy of a real data folder (scripts/private-copy.sh), against fixtures/private (made by
-#       `wire.sh record-private` on another copy of the same folder, whose path has the same
-#       length). Differences are printed without their values.
+#       a copy of a real data folder (scripts/private-copy.sh), against fixtures/private (what the
+#       daemon answered on another copy of the same folder, whose path has the same length).
+#       Differences are printed without their values.
 #
 # Steps whose route the Rust core does not serve yet are counted apart ("not
 # served yet"), and so are differences listed with their reason in
@@ -30,14 +30,14 @@ root="$(cd "$root" && pwd -P)"
 cargo build --quiet --manifest-path "$rust/Cargo.toml" -p wire-recorder
 tool="$rust/target/debug/wire-recorder"
 # The `claude` a synthetic run's Claude pane starts: the compiled stand-in, as the recording
-# run had it (scripts/wire.sh). A run on a copy of real data gets none.
+# run had it. A run on a copy of real data gets none.
 cargo build --quiet --manifest-path "$rust/Cargo.toml" -p eos-mod-terminals --example fake_claude
 mkdir -p "$root/bin"
 ln -sf "$rust/target/debug/examples/fake_claude" "$root/bin/claude"
 
 # The core runs inside the tool: give it the recording daemon's surroundings
 # (its own $HOME and Claude folder, UTC, a fixed locale, the phone link and
-# hosting switched off as wire-daemon.sh switches them), nothing of the caller's.
+# hosting switched off), nothing of the caller's.
 isolated() {
   local user="$1"
   shift

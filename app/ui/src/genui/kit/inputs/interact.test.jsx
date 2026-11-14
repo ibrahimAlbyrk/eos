@@ -4,9 +4,9 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { testRuntime, findElements } from "../data/testkit.jsx";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import learn from "../../../../../../contracts/src/__tests__/fixtures/genui/learn.json";
+import restaurants from "../../fixtures/restaurants.json";
+import trip from "../../fixtures/trip.json";
+import learn from "../../fixtures/learn.json";
 
 const h = vi.hoisted(() => ({ rt: null }));
 vi.mock("../../runtime/ViewContext.jsx", () => ({

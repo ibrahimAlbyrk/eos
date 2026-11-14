@@ -3,7 +3,7 @@
 // and a small glass chip in place of an artifact link in assistant prose. Both
 // carry data-art-slug, which hooks/useArtifactLinks.jsx reads to peek and open.
 import { escapeHtml } from "./markdown.js";
-import { artifactSlugFromUrl } from "../../../../contracts/src/artifact-ids.ts";
+import { artifactSlugFromUrl } from "../shared/artifact-ids.ts";
 
 const ARTIFACT_URL = /https:\/\/(?:preview\.)?claude\.(?:ai|com)\/(?:code\/)?artifact\/[A-Za-z0-9-]+/;
 const ARTIFACT_HREF = new RegExp(`^${ARTIFACT_URL.source}(?:[/?#][^\\s]*)?$`);

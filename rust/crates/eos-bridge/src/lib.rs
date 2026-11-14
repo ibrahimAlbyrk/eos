@@ -12,7 +12,7 @@ pub mod assets;
 mod bridge;
 pub mod chromium;
 pub mod core;
-#[cfg(feature = "dev-proxy")]
+#[cfg(feature = "dev-run")]
 pub mod dev;
 pub mod events;
 pub mod host;
@@ -46,7 +46,4 @@ pub enum Error {
     /// The old profile's storage could not be read or the marker not written.
     #[error("storage carry-over: {0}")]
     Migration(String),
-    /// The dev proxy could not reach its daemon.
-    #[error("dev proxy: {0}")]
-    DevProxy(String),
 }

@@ -1,4 +1,4 @@
-//! Walks a scenario's steps against a target and returns the raw answers.
+//! Walks a recording's steps against a target and returns the raw answers.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -27,7 +27,7 @@ pub struct Settings {
     /// reports the missing frames as a difference (which may be a listed one).
     pub report_missing_frames: bool,
     /// The target serves a real data folder (session ids and paths of real chats):
-    /// only reads are sent. Anything else is refused here, whatever the scenario says,
+    /// only reads are sent. Anything else is refused here, whatever the recording says,
     /// because a message, spawn, resume or compaction would start an agent on real data.
     pub real_data: bool,
 }

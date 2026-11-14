@@ -3,7 +3,7 @@
 
 import { Icon, hasIcon } from "../icons.jsx";
 import { useItem, useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum } from "../../../shared/genui/attrs.ts";
 import { monoTone } from "../monogram.js";
 import { ActionButton } from "./ActionButton.jsx";
 import { Markdown } from "./Markdown.jsx";

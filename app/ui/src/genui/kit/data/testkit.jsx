@@ -3,7 +3,7 @@
 // be observed without a DOM.
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { parseMarkup } from "../../../../../../contracts/src/genui/markup.ts";
+import { parseMarkup } from "../../../shared/genui/markup.ts";
 import { ViewProvider } from "../../runtime/ViewContext.jsx";
 import { _resetSendLocks, createViewRuntime, scanMarkup } from "../../runtime/runtime.js";
 import { setSelection, setViewState } from "../../runtime/viewStateStore.js";

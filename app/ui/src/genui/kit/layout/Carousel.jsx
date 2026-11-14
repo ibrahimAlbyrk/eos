@@ -5,8 +5,8 @@
 import { useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 import { ItemScope, useView } from "../../runtime/ViewContext.jsx";
 import { Icon } from "../icons.jsx";
-import { matchWhere } from "../../../../../../contracts/src/genui/expr.ts";
-import { splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { matchWhere } from "../../../shared/genui/expr.ts";
+import { splitIds } from "../../../shared/genui/attrs.ts";
 import { oneOf } from "../content/text.jsx";
 import { cls, sameId } from "../content/util.js";
 import { EntityCard } from "../entities/cards.jsx";

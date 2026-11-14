@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum, attrText, dataRef, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum, attrText, dataRef, splitIds } from "../../../shared/genui/attrs.ts";
 import { formatNumber, withUnit } from "./format.js";
 import { applyLens, itemId, mix, seriesColors } from "./util.js";
 import {

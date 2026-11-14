@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText, dataRef } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText, dataRef } from "../../../shared/genui/attrs.ts";
 import { isTone, toneStyle } from "./util.js";
 import { sourceName } from "../content/Sources.jsx";
 import { Sparkline } from "./Chart.jsx";

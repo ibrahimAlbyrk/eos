@@ -2,7 +2,7 @@
 // one artifact's display data from a tool call merged with the catalog
 // (contracts/src/artifacts.ts), relative times, account avatars, the list's
 // filters and its grouping by Claude sign-in.
-import { artifactViewerUrl } from "../../../../contracts/src/artifact-ids.ts";
+import { artifactViewerUrl } from "../shared/artifact-ids.ts";
 import { artifactLabel } from "./artifactLink.js";
 
 const MIN = 60_000;

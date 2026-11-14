@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import tests from "../../../../../../contracts/src/__tests__/fixtures/genui/tests.json";
+import restaurants from "../../fixtures/restaurants.json";
+import trip from "../../fixtures/trip.json";
+import tests from "../../fixtures/tests.json";
 import { count, renderView, textOf } from "../layout/kitHarness.jsx";
 import { placeStatus, statusLabel } from "./facts.jsx";
 import { currencySymbol, formatAmount, hostOf, openHref, photoSrcs, tpl } from "./util.js";

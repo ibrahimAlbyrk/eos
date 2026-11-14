@@ -1,8 +1,8 @@
 // Helpers shared by the data, inputs and geo kits: tones, item lookup, the
 // collection lens (where / skip / sort / limit) and loose number reading.
 
-import { matchWhere } from "../../../../../../contracts/src/genui/expr.ts";
-import { attrNum, parseSort, splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { matchWhere } from "../../../shared/genui/expr.ts";
+import { attrNum, parseSort, splitIds } from "../../../shared/genui/attrs.ts";
 import { TONES as PALETTE, toneVars } from "../../runtime/runtime.js";
 
 // The six view tones, from the runtime's palette. `on` is the text color on a

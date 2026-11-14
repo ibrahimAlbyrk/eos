@@ -9,8 +9,10 @@ publish.workspace = true
 
 [features]
 default = []
-# Runs against an isolated Node daemon instead of the Rust core. Never part of a release.
-dev-proxy = ["eos-bridge/dev-proxy"]
+# A development or test run on a copy of real data: no default data folder, no network,
+# the dev guard in front of the core, and what the test drivers use (the dev script, the
+# measuring probe, a stand-in claude.ai origin). Never part of a release.
+dev-run = ["eos-bridge/dev-run"]
 
 [dependencies]
 eos-app.workspace = true

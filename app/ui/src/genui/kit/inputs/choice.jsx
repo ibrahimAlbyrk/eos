@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrText, parseOptions, splitIds, splitLabels } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrText, parseOptions, splitIds, splitLabels } from "../../../shared/genui/attrs.ts";
 import { ActionButton } from "../content/ActionButton.jsx";
 import { Icon } from "../icons.jsx";
 import { Markdown } from "../content/Markdown.jsx";

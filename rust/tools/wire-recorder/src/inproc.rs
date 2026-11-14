@@ -19,8 +19,8 @@ use crate::sse::SseParser;
 use crate::target::{Request, Response, Stream, Target};
 
 const TOKEN_HEADER: &str = "x-eos-ui-token";
-/// The PDF viewer the daemon serves from the repository; the app gets its copy from the host.
-const PDFJS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../manager/vendor/pdfjs");
+/// The PDF viewer the bundle ships (`rust/assets/pdfjs`).
+const PDFJS: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/pdfjs");
 /// How long a streamed answer to a plain request may stay silent before it is taken as complete.
 const STREAM_QUIET: Duration = Duration::from_millis(300);
 

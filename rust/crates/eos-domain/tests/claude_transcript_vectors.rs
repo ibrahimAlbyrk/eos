@@ -1,6 +1,6 @@
 //! A Claude transcript as conversation rows, against the TypeScript: every
-//! session in `tests/fixtures/claude-transcript-vectors.json` (written by
-//! `tools/terminal-vectors/generate.ts`) must give what `transcriptRows.ts` gave.
+//! session in `tests/fixtures/claude-transcript-vectors.json` (frozen from the TypeScript, see `rust/fixtures/README.md`)
+//! must give what `transcriptRows.ts` gave.
 
 use eos_domain::claude_transcript::TranscriptRows;
 use serde::Deserialize;

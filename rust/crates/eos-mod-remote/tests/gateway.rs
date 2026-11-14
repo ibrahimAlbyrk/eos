@@ -1,6 +1,6 @@
 //! The gateway against today's: `fixtures/relay/gateway.json` holds whole
 //! sessions run through the TypeScript gateway, bridge, patcher and live text
-//! (`tools/relay-vectors/gateway.mjs`). The same steps here — the same
+//! (frozen from the TypeScript, see `rust/fixtures/README.md`). The same steps here — the same
 //! phones, bus events and route answers — must hand each phone the same
 //! frames: the same JSON text, in the same order, packed for the same ones.
 

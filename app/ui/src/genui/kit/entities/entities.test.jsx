@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import tests from "../../../../../../contracts/src/__tests__/fixtures/genui/tests.json";
+import restaurants from "../../fixtures/restaurants.json";
+import tests from "../../fixtures/tests.json";
 import { count, renderView, textOf } from "../layout/kitHarness.jsx";
 import { defaultMeta, eventDay, formatDistance, kindOf } from "./entity.jsx";
 

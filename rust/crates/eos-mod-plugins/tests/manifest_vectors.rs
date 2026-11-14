@@ -1,6 +1,5 @@
 //! The manifest check against today's: `tests/vectors/manifests.json` holds
-//! what `parsePluginManifest` and `pluginUiEntry` answer
-//! (`rust/tools/plugin-vectors/manifests.mts`).
+//! what `parsePluginManifest` and `pluginUiEntry` answered (frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use eos_mod_plugins::{parse_plugin_manifest, plugin_ui_entry};
 use serde::Deserialize;

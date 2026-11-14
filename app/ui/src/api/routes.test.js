@@ -1,51 +1,22 @@
 import { describe, it, expect } from "vitest";
 import { ROUTES as webRoutes } from "./routes.js";
 import clientSrc from "./client.js?raw";
-// Vitest transpiles TS on the fly and resolves the contracts package's own
-// node_modules (for zod), so importing the source schema file works directly.
-// This is the whole point of the test: catch drift between the duplicated web
-// route table and the canonical contracts one (finding D5).
-import { ROUTES as contractRoutes } from "../../../../contracts/src/http.ts";
 
-// Resolve a route entry to a comparable path string. Function routes are
-// path templates; invoke with a sentinel id so string and function entries
-// compare on equal footing.
-function resolve(entry) {
-  return typeof entry === "function" ? entry(":id") : entry;
-}
+// The table's keys and paths against the core's own table are checked on the Rust
+// side (`cargo xtask` test `generated_routes_js_matches_the_dashboards_file`).
 
-// Routes only the Rust core has, beside the ones they relate to: additive, so
-// the contracts table (today's daemon) has no entry for them. The core's own
-// table marks them (`added` in rust/crates/eos-contracts/src/routes/table.rs).
-const CORE_ONLY = new Set(["workerSubagents", "workerSubagentRows", "workerArtifacts"]);
-
-describe("web ROUTES parity with contracts ROUTES", () => {
-  it("contracts ROUTES actually loaded (import did not silently no-op)", () => {
-    expect(contractRoutes).toBeTruthy();
-    expect(contractRoutes.health).toBe("/health");
-  });
-
-  it("every web ROUTES key exists in contracts ROUTES", () => {
-    const missing = Object.keys(webRoutes).filter(
-      (key) => !(key in contractRoutes) && !CORE_ONLY.has(key),
-    );
-    expect(missing).toEqual([]);
-    expect([...CORE_ONLY].filter((key) => key in contractRoutes || !(key in webRoutes))).toEqual([]);
-  });
-
-  // The mirror is deliberately partial (web ⊂ contracts), so contracts-only
-  // keys are fine — but a ROUTES.x referenced by client.js that's missing
-  // here resolves to undefined and dies as a silent unhandled rejection
-  // inside the async api fns. Catch that drift at test time.
+describe("web ROUTES", () => {
+  // The mirror is deliberately partial (the core's table has more), but a
+  // ROUTES.x referenced by client.js that's missing here resolves to undefined
+  // and dies as a silent unhandled rejection inside the async api fns. Catch
+  // that drift at test time.
   it("every ROUTES key referenced by client.js exists in the web table", () => {
     const used = [...clientSrc.matchAll(/ROUTES\.(\w+)/g)].map((m) => m[1]);
     const missing = [...new Set(used)].filter((key) => !(key in webRoutes));
     expect(missing).toEqual([]);
   });
 
-  // The archive feature's frozen contract, asserted explicitly (the parity
-  // sweep below also covers these, but a rename there would fail with a less
-  // pointed message than this).
+  // The archive feature's frozen contract, asserted explicitly.
   it("archive endpoints match the frozen backend contract", () => {
     expect(webRoutes.workersArchived).toBe("/workers/archived");
     expect(webRoutes.workerArchive("w1")).toBe("/workers/w1/archive");
@@ -54,22 +25,11 @@ describe("web ROUTES parity with contracts ROUTES", () => {
     expect(webRoutes.settingsArchive).toBe("/api/settings/archive");
   });
 
-  it("visual answers routes match the contracts table", () => {
+  it("visual answers routes match the core's table", () => {
     expect(webRoutes.genuiView("v_abcdefghijkl")).toBe("/api/genui/views/v_abcdefghijkl");
     expect(webRoutes.genuiViewState("v_abcdefghijkl")).toBe("/api/genui/views/v_abcdefghijkl/state");
-    for (const key of ["settingsGenui", "genuiViews", "genuiApps", "genuiMediaImg", "genuiMediaOg", "genuiMediaIcon", "genuiMap", "genuiGeocode", "genuiPlaces", "location"]) {
-      expect(webRoutes[key]).toBe(contractRoutes[key]);
-    }
-  });
-
-  it("every web ROUTES path matches the contracts path for that key", () => {
-    const mismatched = [];
-    for (const key of Object.keys(webRoutes)) {
-      if (!(key in contractRoutes)) continue;
-      const web = resolve(webRoutes[key]);
-      const contract = resolve(contractRoutes[key]);
-      if (web !== contract) mismatched.push({ key, web, contract });
-    }
-    expect(mismatched).toEqual([]);
+    expect(webRoutes.settingsGenui).toBe("/api/settings/genui");
+    expect(webRoutes.genuiViews).toBe("/api/genui/views");
+    expect(webRoutes.genuiApps).toBe("/api/genui/apps");
   });
 });

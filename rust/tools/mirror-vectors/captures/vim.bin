@@ -1,22 +1,0 @@
-[?1034h$ vim -u NONE -N notes.txt
-[?1049h[>4;2m[?1h=[?2004h[?1004h[1;24r[?12h[?12l[22;2t[22;1t[27m[23m[29m[m[H[2J[?25l[24;1H"notes.txt" 200L, 15700B[2;1H▽[6n[2;1H  [3;1HPzz\[0%m[6n[3;1H           [1;1H[>c[1;1Hline 000  lorem ipsum dolor sit amet
-line 001  lorem ipsum dolor sit amet lorem ipsum dolor sit amet [2;65H[K[3;1Hline 002  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[4;1Hr sit amet
-line 003  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[6;1Hr sit amet lorem ipsum dolor sit amet
-line 004  lorem ipsum dolor sit amet
-line 005  lorem ipsum dolor sit amet lorem ipsum dolor sit amet
-line 006  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[10;1Hr sit amet
-line 007  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[12;1Hr sit amet lorem ipsum dolor sit amet
-line 008  lorem ipsum dolor sit amet
-line 009  lorem ipsum dolor sit amet lorem ipsum dolor sit amet
-line 010  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[16;1Hr sit amet
-line 011  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[18;1Hr sit amet lorem ipsum dolor sit amet
-line 012  lorem ipsum dolor sit amet
-line 013  lorem ipsum dolor sit amet lorem ipsum dolor sit amet
-line 014  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[22;1Hr sit amet
-line 015  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum dolo[23;1H[94m@                                                                               [1;1H[?25h[?4m[?25l[m[24;70H5j[1;1H[24;70H  [8;1H[?25hline 0[?25l[24;70Hl[8;7H[24;70H [8;8H[?25h[?25l[24;1H[1m-- INSERT --[m[24;13H[K[24;1H[K[8;16H[8;8Hinserted 5  lorem ipsum dolor sit amet lorem ipsum dolor sit amet[24;1H[1m-- INSERT --[8;17H[m[24;70H^[[8;16H[?25h[?25l[24;70H  [8;17H[24;1H[K[8;16H[?25h[?25l[24;70Hdd[8;16H[24;70H  [8;1H[8;23r[23;1H
-[1;24r[22;1Hline 015  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[23;1Hr sit amet lorem ipsum dolor sit amet[8;1H[?25h[?25l[24;70HG[8;1H[24;70H [22;1H[1;6H185[29Clorem ipsum dolor sit amet[2;6H186[56Clorem ipsum doloo[3;1Hr sit amet [3;12H[K[4;1Hline 187  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[5;1Hr sit amet lorem ipsum dolor sit amet [5;39H[K[6;1Hline 188  lorem ipsum dolor sit amet [7;6H189[29Clorem ipsum dolor sit amet[8;6H190[71Coo[9;1Hr[10;6H191[71Coo[11;1Hr[12;6H192[13;6H193[14;6H194[71Coo[15;1Hr[16;6H195[71Coo[17;1Hr[18;6H196[19;6H197[20;6H198[71Coo[21;1Hr[22;6H199[71Coo[23;1Hr[22;1H[?25h[?25l
-
-:split[1;7H93[2;7H94[71Coo[3;1Hr[4;7H95[71Coo[5;1Hr[6;7H96[7;7H97[8;8H8[71Coo[9;1Hr[10;8H9[71Coo[11;1Hr
-[1m[7mnotes.txt [+]                                                                   [m[13;8H4[56Clorem ipsum doloo[14;1Hr sit amet [14;12H[K[15;1Hline 195  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[16;1Hr sit amet lorem ipsum dolor sit amet [16;39H[K[17;1Hline 196  lorem ipsum dolor sit amet [18;8H7[29Clorem ipsum dolor sit amet[19;8H8[56Clorem ipsum doloo[20;1Hr sit amet [20;12H[K[21;1Hline 199  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[22;1Hr sit amet lorem ipsum dolor sit amet [22;39H[K[23;1H[7mnotes.txt [+]                                                                   [10;1H[?25h[?25l[m[24;70H^D[10;1H[24;70H  [10;1H[?25h[?25l[24;1H[K[24;1H:q![1;7H85[2;7H86[71Coo[3;1Hr[4;7H87[71Coo[5;1Hr[6;7H88[7;7H89[8;8H0[71Coo[9;1Hr[10;8H1[71Coo[11;1Hr
-line 192  lorem ipsum dolor sit amet [12;38H[K[13;8H3[13;65H[K[14;1Hline 194  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[15;1Hr sit amet [15;12H[K[16;1Hline 195  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[17;1Hr sit amet lorem ipsum dolor sit amet[18;8H6[18;38H[K[19;8H7[19;65H[K[20;1Hline 198  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[21;1Hr sit amet [21;12H[K[22;1Hline 199  lorem ipsum dolor sit amet lorem ipsum dolor sit amet lorem ipsum doloo[23;1Hr sit amet lorem ipsum dolor sit amet [23;39H[K[22;1H[?25h[?25l[24;1H[K[24;1H:q![?2004l[>4;m[23;2t[23;1t[24;1H[K[24;1H[?1004l[?2004l[?1l>[?1049l[?25h[>4;m$ exit
-exit

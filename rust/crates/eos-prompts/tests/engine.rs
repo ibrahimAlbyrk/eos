@@ -1,6 +1,6 @@
 //! The template language, `when` conditions, frontmatter checks and the
-//! memory section against today's TypeScript (`rust/fixtures/prompts/engine.json`,
-//! written by `rust/tools/prompt-vectors/generate.mjs`), errors included.
+//! memory section against the TypeScript (`rust/fixtures/prompts/engine.json`,
+//! frozen from the TypeScript, see `rust/fixtures/README.md`), errors included.
 
 use std::path::PathBuf;
 

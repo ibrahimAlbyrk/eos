@@ -14,7 +14,7 @@ globalThis.localStorage = {
 };
 
 const app = JSON.parse(
-  readFileSync(new URL("../../../../../contracts/src/__tests__/fixtures/genui/app.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../fixtures/app.json", import.meta.url), "utf8"),
 );
 
 const render = (el) => renderToStaticMarkup(<UiProvider>{el}</UiProvider>);

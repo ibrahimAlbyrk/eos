@@ -1,6 +1,5 @@
 //! The pure parts against what the TypeScript computes
-//! (`rust/fixtures/genui-media/vectors.json`, written by
-//! `rust/tools/genui-media-vectors/generate.mjs`).
+//! (`rust/fixtures/genui-media/vectors.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use std::sync::LazyLock;
 

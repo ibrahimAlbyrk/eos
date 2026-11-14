@@ -4,9 +4,9 @@ import { _reset } from "../../runtime/viewStateStore.js";
 import { snap, optionIndex } from "./controls.jsx";
 import { answerIndex, choiceMarks, actionVariants, checkedIds } from "./choice.jsx";
 import { activeChips } from "./FilterEmpty.jsx";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import learn from "../../../../../../contracts/src/__tests__/fixtures/genui/learn.json";
+import restaurants from "../../fixtures/restaurants.json";
+import trip from "../../fixtures/trip.json";
+import learn from "../../fixtures/learn.json";
 
 vi.mock("../../../lib/markdown.js", async (importOriginal) => {
   const mod = await importOriginal();

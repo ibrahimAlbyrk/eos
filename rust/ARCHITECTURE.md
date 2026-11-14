@@ -50,7 +50,7 @@ paired Mac ────┴── gateways call the Router directly
 | feature | `eos-mod-<name>`, `eos-tools` | one user-facing feature each (routes + its own use-cases over ports); the agent tools. Features never depend on each other: a capability another feature needs is a trait in `eos-core`, handed in at composition. |
 | app | `eos-app` | the composition root: builds adapters, services and modules, returns the `Router` and the lifecycle handle. The only place that knows every concrete type. |
 | host | `eos-bridge`, `eos-shell`, `eos` | request mapping and everything of the shell that needs no window; the Tauri/CEF shell (implements view ports such as `BrowserViews`, `Capture`, `FilePicker`); the binary. In that order: each may use the one before it. `eos-shell` and `eos` live in the `host/` workspace (§5). |
-| support | `eos-testkit`, `eos-wire-recorder`, `xtask` | fakes, fixture loading, recording and replay, repo checks. |
+| support | `eos-testkit`, `eos-wire-recorder`, `xtask` | fakes, fixture loading, replay of the recorded wire, repo checks. |
 
 ## 3. Conventions
 
@@ -172,9 +172,9 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   (`ui_token`, `call(plane, req, sink)`), implemented over `eos-runtime`'s `Router` by
   `RouterCore`: the caller comes from `eos-app`'s `callers().classify`, bodies stream at the
   reader's pace, a dropped request cancels its handler or stream, and every request is
-  answered. During the port the `dev-proxy` feature sends the routes the router does not
-  declare to an isolated Node daemon; it is never part of a release, where an undeclared
-  route is the router's 404.
+  answered; a route the router does not declare is its 404. A development or test run (the
+  `dev-run` feature, never part of a release) puts the dev guard in front of it
+  (`eos_bridge::dev::Guarded`).
 - **The core has threads of its own.** It runs on `eos_app::runtime()`: one async worker
   per core the system gives the process (`available_parallelism`), never fewer than 2 nor
   more than 8, with the blocking pool's bound stated beside them (`eos-app/src/threads.rs`).
@@ -229,6 +229,6 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   refuses a control that takes text, submits a form or reads as sending, running,
   approving or deleting; there is no keyboard step. A dev run works on a copy of real data
   and refuses whatever would act for the user from it (an agent, a model call, a command,
-  another computer, files outside the data folder), on the daemon's side and before the
-  Rust router (`eos-bridge/src/dev/guard.rs`); a test run that is killed leaves no process behind
+  another computer, files outside the data folder) before the router sees it
+  (`eos-bridge/src/dev/guard.rs`); a test run that is killed leaves no process behind
   (`host/tests/guard.py`).

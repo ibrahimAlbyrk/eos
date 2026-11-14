@@ -1,6 +1,6 @@
-//! The route table against its sources: the keys and templates of `ROUTES` in
-//! `contracts/src/http.ts` (exported by `rust/tools/zod-port/vectors.mjs`) and,
-//! once the wire fixtures are in the tree, the methods the Node daemon registers.
+//! The route table against its sources, both frozen from the TypeScript: the keys
+//! and templates of `ROUTES` in `contracts/src/http.ts` (`tests/golden/routes.json`)
+//! and the methods the Node daemon registered (`rust/fixtures/wire/routes.json`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 

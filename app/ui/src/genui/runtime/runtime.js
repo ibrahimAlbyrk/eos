@@ -10,9 +10,9 @@
 // The runtime seeds those inputs' defaults (default=, else the first option /
 // min) so a where="day == state.day" lens works before the user touches them.
 
-import { evalExpr as evalExprRaw, fillTemplate, hasTemplate, matchWhere } from "../../../../../contracts/src/genui/expr.ts";
-import { attrBool, attrNum, attrText, parseChips, parseOptions, parseSort, splitIds, splitLabels } from "../../../../../contracts/src/genui/attrs.ts";
-import { walkMarkup } from "../../../../../contracts/src/genui/markup.ts";
+import { evalExpr as evalExprRaw, fillTemplate, hasTemplate, matchWhere } from "../../shared/genui/expr.ts";
+import { attrBool, attrNum, attrText, parseChips, parseOptions, parseSort, splitIds, splitLabels } from "../../shared/genui/attrs.ts";
+import { walkMarkup } from "../../shared/genui/markup.ts";
 import { media as defaultMedia } from "./media.js";
 
 // The view tones (Grafit palette). Every hue shares one OKLCH lightness and

@@ -1971,7 +1971,6 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-runtime",
- "reqwest",
  "rusty-leveldb",
  "serde_json",
  "thiserror 2.0.21",

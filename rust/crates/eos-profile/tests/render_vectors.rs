@@ -1,6 +1,6 @@
 //! The renderer against the TypeScript it is ported from: every vector in
-//! `tests/fixtures/render-vectors.json` (written by
-//! `scripts/gen-render-vectors.mjs`) must render byte for byte the same.
+//! `tests/fixtures/render-vectors.json` (frozen from the TypeScript, see `rust/fixtures/README.md`) must render byte
+//! for byte the same.
 
 use std::path::PathBuf;
 use std::sync::Arc;

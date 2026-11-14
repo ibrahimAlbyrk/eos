@@ -2,9 +2,9 @@
 //! plain read must have been classified, so a new one cannot start an agent, reach another
 //! computer or change the user's folders from a copy of real data because nobody looked.
 
-#![cfg(feature = "dev-proxy")]
+#![cfg(feature = "dev-run")]
 
-use eos_bridge::dev::guard::{FOLDER_ROUTES, HARMLESS_ROUTES, REFUSED_ROUTES, allows_rust};
+use eos_bridge::dev::guard::{FOLDER_ROUTES, HARMLESS_ROUTES, REFUSED_ROUTES, allows};
 use eos_testkit::TempHome;
 
 /// Modules whose routes act on agents, terminals or other computers: their reads are
@@ -42,6 +42,6 @@ async fn every_route_that_is_not_a_plain_read_is_classified() {
             app.router().routes().any(|r| r.methods.to_string() == method && r.pattern.as_ref() == pattern),
             "{pattern}"
         );
-        assert!(!allows_rust(method, pattern, b"{}", Some(home.path())));
+        assert!(!allows(method, pattern, b"{}", Some(home.path())));
     }
 }

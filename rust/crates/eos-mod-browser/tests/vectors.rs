@@ -1,5 +1,5 @@
-//! The pure rules of the browser against what today's TypeScript computes
-//! (`rust/fixtures/browser/vectors.json`, written by `rust/tools/browser-vectors`).
+//! The pure rules of the browser against what the TypeScript computed
+//! (`rust/fixtures/browser/vectors.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use std::path::PathBuf;
 

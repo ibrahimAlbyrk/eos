@@ -1,6 +1,5 @@
-//! What a recording runs against. Today that is a daemon behind HTTP
-//! ([`crate::http::HttpTarget`]); the Rust core's in-process router implements
-//! the same two calls later, so recordings carry over unchanged.
+//! What a recording runs against: the Rust core's in-process router
+//! ([`crate::inproc::RustTarget`]), or a scripted stand-in in tests.
 
 use std::sync::mpsc::Receiver;
 

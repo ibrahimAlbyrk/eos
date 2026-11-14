@@ -1,8 +1,8 @@
 // Helpers shared by the layout, content and entity kits: class joining,
 // templates in the current item scope, media URL chains and small formatters.
 
-import { fillTemplate, hasTemplate } from "../../../../../../contracts/src/genui/expr.ts";
-import { attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { fillTemplate, hasTemplate } from "../../../shared/genui/expr.ts";
+import { attrText } from "../../../shared/genui/attrs.ts";
 
 export function cls(...parts) {
   return parts.filter(Boolean).join(" ");

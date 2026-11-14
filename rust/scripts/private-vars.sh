@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Picks the chats and records the private scenarios (fixtures/wire/scenarios-private)
-# read on a copy of a real data folder, and prints them as `--var NAME=VALUE`
-# arguments, one per line. A boot rewrites rows (it cuts event logs), so the picks
-# are made once, by private-copy.sh before anything opened the copy, and kept
-# beside it in <copy>.vars: a recording made on one copy then replays against
-# another copy of the same folder.
+# Picks the chats and records the private recordings (fixtures/private) read on a
+# copy of a real data folder, and prints them as `--var NAME=VALUE` arguments, one
+# per line. A boot rewrites rows (it cuts event logs), so the picks are made once,
+# by private-copy.sh before anything opened the copy, and kept beside it in
+# <copy>.vars: a recording made on one copy then replays against another copy of
+# the same folder.
 #
 #   private-vars.sh <copy>
 set -euo pipefail

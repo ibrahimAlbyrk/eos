@@ -1,5 +1,5 @@
 //! The update rules against bytes the TypeScript code produced
-//! (`rust/fixtures/update`, written by `tools/update-vectors/generate.mjs`).
+//! (`rust/fixtures/update`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use eos_contracts::update::{SignedUpdatePointer, UpdateEntry, UpdatePlatform};
 use eos_domain::update::{

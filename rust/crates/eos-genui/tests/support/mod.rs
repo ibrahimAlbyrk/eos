@@ -17,12 +17,8 @@ use eos_genui::partial_json::{self, DEFAULT_PARTIAL_KEYS};
 use eos_genui::spec::{self, AppValidation};
 use eos_genui::{Object, Value};
 
-pub(crate) fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..").canonicalize().expect("the repository root")
-}
-
 pub(crate) fn fixtures() -> PathBuf {
-    repo_root().join("rust/fixtures/genui")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/genui")
 }
 
 pub(crate) fn read_json(path: &Path) -> Value {
@@ -193,7 +189,7 @@ fn run_vector(corpus: &Corpus, v: &Value, id: &str, out: &mut Outcome) {
     };
     if !matches {
         let want = v.get("out").map_or_else(
-            || "(hash only: node rust/tools/genui-vectors/generate.mjs --explain <file> <n>)".to_owned(),
+            || "(the TypeScript's answer is recorded as its hash only)".to_owned(),
             |w| clip(&w.to_json()),
         );
         out.mismatches.push(format!("{id} {function}\n    typescript: {want}\n    rust:       {}", clip(&got)));
@@ -204,7 +200,7 @@ fn clip(s: &str) -> String {
     if s.chars().count() > 1200 { format!("{}…", s.chars().take(1200).collect::<String>()) } else { s.to_owned() }
 }
 
-// ---- edits (see tools/genui-vectors/lib/ops.mjs) -----------------------------------
+// ---- edits (the generator's own edit operations, replayed) ----------------------------
 
 fn apply_op(input: &mut Option<Value>, op: &Value) {
     let op = op.as_array().expect("an edit");

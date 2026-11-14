@@ -1,0 +1,155 @@
+{
+  "title": "manager · test run",
+  "tone": "red",
+  "icon": "flask",
+  "data": {
+    "run": {
+      "total": 412,
+      "branch": "dev",
+      "commit": "2fd4eb2",
+      "at": "12:41"
+    },
+    "failures": [
+      {
+        "id": "f1",
+        "name": "reciprocal:true adopts the device as a host",
+        "file": "manager/peer/__tests__/pair-mutual.test.ts",
+        "line": 84,
+        "tag": "socket",
+        "group": true,
+        "trace": "Error: connect ECONNREFUSED /tmp/eos-test-81f2/daemon.sock\n    at PipeConnectWrap.afterConnect (node:net:1611:16)\n    at probeDaemon (manager/shared/daemon-probe.ts:58:11)\n    at TestContext.<anonymous> (pair-mutual.test.ts:84:5)"
+      },
+      {
+        "id": "f2",
+        "name": "classifies a missing LAN route as local-network",
+        "file": "manager/peer/__tests__/dial-failure.test.ts",
+        "line": 41,
+        "tag": "socket",
+        "group": true,
+        "trace": "Error: connect ECONNREFUSED /tmp/eos-test-81f2/daemon.sock\n    at PipeConnectWrap.afterConnect (node:net:1611:16)\n    at probeDaemon (manager/shared/daemon-probe.ts:58:11)\n    at TestContext.<anonymous> (dial-failure.test.ts:41:7)"
+      },
+      {
+        "id": "f3",
+        "name": "releases caffeinate when the daemon exits",
+        "file": "manager/remote/__tests__/keepAwake.test.ts",
+        "line": 29,
+        "tag": "socket",
+        "group": true,
+        "trace": "Error: connect ECONNREFUSED /tmp/eos-test-81f2/daemon.sock\n    at PipeConnectWrap.afterConnect (node:net:1611:16)\n    at probeDaemon (manager/shared/daemon-probe.ts:58:11)\n    at TestContext.<anonymous> (keepAwake.test.ts:29:3)"
+      },
+      {
+        "id": "f4",
+        "name": "skips a dream while usage is over the ceiling",
+        "file": "manager/services/__tests__/DreamService.test.ts",
+        "line": 132,
+        "tag": "timeout",
+        "group": false,
+        "trace": "Error: test timed out after 5000ms\n    at DreamService.tick (manager/services/DreamService.ts:96:9)\n    — the fake clock is never advanced past the 60 s tick."
+      },
+      {
+        "id": "f5",
+        "name": "reloadConfig keeps the frozen snapshot",
+        "file": "manager/shared/__tests__/config.test.ts",
+        "line": 57,
+        "tag": "assert",
+        "group": false,
+        "trace": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n  true !== false\n    at config.test.ts:57:12   // Object.isFrozen(cfg.compaction)"
+      }
+    ],
+    "slow": [
+      {
+        "name": "peer/",
+        "t": 9.8
+      },
+      {
+        "name": "services/",
+        "t": 7.1
+      },
+      {
+        "name": "backends/sdk/",
+        "t": 5.6
+      },
+      {
+        "name": "routes/",
+        "t": 4.2
+      },
+      {
+        "name": "tools/",
+        "t": 3.4
+      },
+      {
+        "name": "shared/",
+        "t": 2.1
+      }
+    ],
+    "flaky": [
+      {
+        "id": "k1",
+        "name": "HostLink moves relay → direct when it can",
+        "file": "manager/peer/__tests__/host-link.test.ts",
+        "rate": "20%",
+        "runs": [
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1,
+          0,
+          1,
+          1
+        ]
+      },
+      {
+        "id": "k2",
+        "name": "SSE resumes from ?since= after a drop",
+        "file": "manager/routes/__tests__/stream.test.ts",
+        "rate": "10%",
+        "runs": [
+          1,
+          1,
+          1,
+          1,
+          1,
+          0,
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    ]
+  },
+  "actions": {
+    "fixAll": {
+      "label": "Fix all 3 with a worker",
+      "kind": "send",
+      "primary": true,
+      "text": "Fix the 3 socket failures with one worker: the shared test fixture connects before it creates the unix socket."
+    },
+    "fixOne": {
+      "label": "Fix with a worker",
+      "kind": "send",
+      "text": "Fix \"{name}\" ({file}:{line}) with a worker"
+    },
+    "rerunOne": {
+      "label": "Re-run this",
+      "kind": "send",
+      "text": "Re-run {file}"
+    },
+    "rerunFailed": {
+      "label": "Re-run failed (5)",
+      "kind": "send",
+      "primary": true,
+      "text": "Re-run the 5 failed tests"
+    },
+    "log": {
+      "label": "Open full log",
+      "kind": "open",
+      "href": "/tmp/eos-test-81f2/run.log"
+    }
+  },
+  "ui": "<Grid cols=\"4\">\n  <Stat label=\"Passed\" value=\"404\" meta=\"98,1%\" tone=\"green\"/>\n  <Stat label=\"Failed\" value=\"5\" meta=\"2 root causes\" tone=\"red\"/>\n  <Stat label=\"Skipped\" value=\"3\" meta=\"platform-gated\"/>\n  <Stat label=\"Duration\" value=\"38,4s\" delta=\"+4,1s vs main\" trend=\"up\" good=\"down\"/>\n</Grid>\n<Tabs bind=\"tab\">\n  <Stack label=\"Failures · 5\">\n    <Callout kind=\"warning\" title=\"3 failures share a root cause\" action=\"fixAll\">`connect ECONNREFUSED …/daemon.sock` — the shared fixture connects before the socket exists.</Callout>\n    <List of=\"failures\" variant=\"disclosure\" title=\"{name}\" meta=\"{file}\" badge=\"{tag}\" actions=\"fixOne rerunOne\">\n      <Code lang=\"text\" value=\"{trace}\"/>\n      <FileRef path=\"{file}\" line=\"{line}\"/>\n    </List>\n  </Stack>\n  <Stack label=\"Slowest\">\n    <Meter of=\"slow\" label=\"{name}\" value=\"t\" max=\"9.8\" unit=\"s\"/>\n    <Text muted>`peer/` got 2,9s slower — the new TLS handshake tests open real sockets.</Text>\n  </Stack>\n  <Stack label=\"Flaky · 2\">\n    <List of=\"flaky\" title=\"{name}\" meta=\"{file}\" badge=\"{rate} flaky\"/>\n  </Stack>\n</Tabs>\n<Actions ids=\"rerunFailed log\"/>",
+  "summary": "manager suite: 404 passed, 5 failed, 3 skipped in 38,4s. Three failures share one root cause — the shared fixture connects to daemon.sock before creating it; the other two are a DreamService timeout and a frozen-config assertion. peer/ is the slowest suite (9,8s); 2 tests are flaky."
+}

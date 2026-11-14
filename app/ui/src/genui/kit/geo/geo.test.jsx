@@ -15,8 +15,8 @@ import {
 import { MAX_LIVE, isLive, liveIds, releaseLive, requestLive, resetLiveMapsForTests, setVisible } from "./liveMaps.js";
 import { cachedGeocode, geocode, loadStyle, resetGeoServicesForTests, userLocation } from "./services.js";
 import { framingCoords } from "./Map.jsx";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../../../contracts/src/__tests__/fixtures/genui/trip.json";
+import restaurants from "../../fixtures/restaurants.json";
+import trip from "../../fixtures/trip.json";
 
 // MapLibre must never load while rendering: the static map is all a test sees.
 vi.mock("maplibre-gl", () => {

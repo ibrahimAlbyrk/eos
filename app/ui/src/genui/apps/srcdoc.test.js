@@ -4,7 +4,7 @@ import { APP_ALLOW, APP_CSP, APP_SANDBOX, buildSrcdoc, splitDocument } from "./s
 import { MCP_THEME_VARIABLES } from "./theme.js";
 
 const fixture = JSON.parse(
-  readFileSync(new URL("../../../../../contracts/src/__tests__/fixtures/genui/app.json", import.meta.url), "utf8"),
+  readFileSync(new URL("../fixtures/app.json", import.meta.url), "utf8"),
 );
 
 // A live http-equiv attribute (not the defused data-eos-dropped-http-equiv).

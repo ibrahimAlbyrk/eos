@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UiProvider } from "../state/ui.jsx";
-import { parseMarkup, walkMarkup } from "../../../../contracts/src/genui/markup.ts";
-import restaurants from "../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import tests from "../../../../contracts/src/__tests__/fixtures/genui/tests.json";
-import learn from "../../../../contracts/src/__tests__/fixtures/genui/learn.json";
-import app from "../../../../contracts/src/__tests__/fixtures/genui/app.json";
+import { parseMarkup, walkMarkup } from "../shared/genui/markup.ts";
+import restaurants from "./fixtures/restaurants.json";
+import trip from "./fixtures/trip.json";
+import tests from "./fixtures/tests.json";
+import learn from "./fixtures/learn.json";
+import app from "./fixtures/app.json";
 import { ViewBlock, ViewSurface } from "./ViewBlock.jsx";
 import { GenuiHostContext } from "./runtime/host.jsx";
 import { KIT } from "./kit/index.js";

@@ -1,6 +1,6 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
-import { hasTemplate } from "../../../../../../contracts/src/genui/expr.ts";
+import { attrNum, attrText } from "../../../shared/genui/attrs.ts";
+import { hasTemplate } from "../../../shared/genui/expr.ts";
 import { formatNumber, withUnit } from "./format.js";
 import { applyLens, getPath, isTone, itemId, itemName, looseNumber, sameId, toneHex } from "./util.js";
 import { FilterEmpty } from "../inputs/FilterEmpty.jsx";

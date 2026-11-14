@@ -1,15 +1,13 @@
-//! Freezes what a daemon answers so another implementation can be checked
-//! against it route by route.
+//! Checks the Rust core against what the Node daemon answered, route by route.
 //!
-//! A scenario file lists requests (and stream openings) for one route group.
-//! `record` walks it against a [`target::Target`], normalizes what came back
-//! and writes a recording. `replay` runs a recording's steps against another
-//! target, normalizes the same way and reports every difference.
+//! A recording holds one route group's steps (requests and stream openings)
+//! and the daemon's normalized answers, frozen when the daemon still existed.
+//! `replay` runs the steps against a [`target::Target`] (the Rust core in
+//! process), normalizes the same way and reports every difference.
 
 pub mod clock;
 pub mod coverage;
 pub mod diff;
-pub mod http;
 pub mod inproc;
 pub mod known;
 pub mod model;

@@ -55,10 +55,10 @@ fn without_a_users_file_the_bundled_policy_is_in_force() {
     assert_eq!(value["rules"].as_array().map(Vec::len), Some(18));
     assert_eq!(file.read_user().expect("reads"), None);
 
-    // The bundled copy is the TypeScript tree's file, while that tree exists.
-    if let Ok(theirs) = std::fs::read_to_string(repo_file("manager/policy.example.yaml")) {
-        assert_eq!(BUNDLED_POLICY, theirs);
-    }
+    // The bundled copy is the TypeScript tree's file: the corpus lists it fourth.
+    let text = std::fs::read_to_string(repo_file("rust/fixtures/policy/decisions.json")).expect("the corpus");
+    let corpus: Corpus = serde_json::from_str(&text).expect("the corpus");
+    assert_eq!(BUNDLED_POLICY, corpus.policies[3].text);
 }
 
 #[test]

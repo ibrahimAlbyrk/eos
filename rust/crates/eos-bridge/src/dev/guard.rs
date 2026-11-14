@@ -1,46 +1,12 @@
-//! The write guard of the dev proxy.
+//! What a dev run lets the Rust core answer.
 //!
-//! The daemon behind the proxy runs on a copy of real user data. A stray request could start
-//! an agent there (it happened once: a keystroke meant for another field sent a chat
-//! message). So the proxy forwards reads, and of the writes only the ones listed here; there
-//! is no switch to turn this off.
-
-/// Writes the dashboard needs to draw itself: the watches of the explorer and the git
-/// status, and which chat the event stream follows. None of them can start an agent or a
-/// model call.
-const ALLOWED_WRITES: [&str; 5] = ["/fs/git/unwatch", "/fs/git/watch", "/fs/unwatch", "/fs/watch", "/stream/focus"];
-
-fn path_of(target: &str) -> &str {
-    target.split_once('?').map_or(target, |(path, _)| path)
-}
-
-/// Reads that make the daemon start a `claude` process: listing the slash commands asks
-/// Claude Code itself, in the chat's own project folder. No agent runs, but a process of
-/// the daemon's would start in a real folder of the user's on every launch.
-const REFUSED_READS: [&str; 1] = ["/commands"];
-
-/// Whether the proxy forwards this request.
-pub fn allows(method: &str, target: &str) -> bool {
-    let path = path_of(target);
-    if matches!(method, "GET" | "HEAD" | "OPTIONS") {
-        return !REFUSED_READS.contains(&path);
-    }
-    // A dot segment could make an allowed prefix resolve to another route.
-    if path.split('/').any(|segment| segment == ".." || segment == "." || segment.eq_ignore_ascii_case("%2e%2e")) {
-        return false;
-    }
-    ALLOWED_WRITES.contains(&path)
-}
-
-// ---- the Rust core's own routes ----------------------------------------------------------
-//
-// The Rust core opens the same copy of real data, and it runs agents itself. So the same
-// rule holds on its side, before its router sees a request. A dev run refuses whatever
-// starts an agent, a model call or a command, connects to another computer or the relay, or
-// changes files outside the copied data folder, unless the run was started with
-// `EOS_DEV_ALLOW_AGENTS=1`. A route that is not a plain read must be on one of the three
-// lists below; one that is on none is refused, and a test over the composed app fails until
-// someone has decided where it belongs.
+//! The core opens a copy of real data and runs agents itself. A stray request could start
+//! one there (it happened once: a keystroke meant for another field sent a chat message).
+//! So a dev run refuses whatever starts an agent, a model call or a command, connects to
+//! another computer or the relay, or changes files outside the copied data folder, unless
+//! the run was started with `EOS_DEV_ALLOW_AGENTS=1`. A route that is not a plain read must
+//! be on one of the three lists below; one that is on none is refused, and a test over the
+//! composed app fails until someone has decided where it belongs.
 
 /// What a dev run answers a refused request with.
 pub const REFUSAL: &str = r#"{"error":"refused in a dev run: this request can start an agent, a model call or a command, reach another computer, or change files outside the data folder (EOS_DEV_ALLOW_AGENTS=1 allows it)"}"#;
@@ -183,8 +149,7 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/workers/{id}/peers"),
     ("GET", "/workers/{fromWorker}/peer-request/{requestId}"),
     // What git says of a worker's folder. A Try preview and its state write only
-    // unreferenced objects into the repository (and a temporary index), as the daemon's
-    // own reads behind the proxy do.
+    // unreferenced objects into the repository (and a temporary index).
     ("GET", "/workers/{id}/diff"),
     ("GET", "/workers/{id}/changes"),
     ("GET", "/workers/{id}/changes/file"),
@@ -361,10 +326,10 @@ fn stays_in(body: &[u8], data_folder: Option<&std::path::Path>) -> bool {
     !paths.is_empty() && paths.iter().all(|path| inside(path, folder))
 }
 
-/// Whether a dev run lets the Rust router answer a request for its route `pattern`
+/// Whether a dev run lets the router answer a request for its route `pattern`
 /// (`/workers/{id}/message`). A read passes unless it is listed as refused; a write passes
 /// when it is listed as harmless, or acts only on folders inside `data_folder`.
-pub fn allows_rust(method: &str, pattern: &str, body: &[u8], data_folder: Option<&std::path::Path>) -> bool {
+pub fn allows(method: &str, pattern: &str, body: &[u8], data_folder: Option<&std::path::Path>) -> bool {
     if listed(REFUSED_ROUTES, method, pattern) {
         return false;
     }
@@ -377,64 +342,6 @@ pub fn allows_rust(method: &str, pattern: &str, body: &[u8], data_folder: Option
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn reads_pass() {
-        for target in ["/health", "/workers", "/workers/w1/events?since=3", "/stream?topics=x", "/api/settings"] {
-            assert!(allows("GET", target), "{target}");
-        }
-        assert!(allows("HEAD", "/fs/raw?path=/a"));
-    }
-
-    #[test]
-    fn a_read_that_starts_a_claude_process_is_refused() {
-        assert!(!allows("GET", "/commands?cwd=/Users/someone/project"));
-        assert!(!allows("GET", "/commands"));
-        assert!(allows("GET", "/commands/x"), "only the route that asks Claude Code");
-    }
-
-    #[test]
-    fn every_write_to_an_agent_route_is_refused() {
-        for (method, target) in [
-            ("POST", "/workers/w1/message"),
-            ("POST", "/workers"),
-            ("POST", "/orchestrators"),
-            ("POST", "/workers/w1/btw"),
-            ("POST", "/workers/w1/resume"),
-            ("DELETE", "/workers/w1"),
-            ("PUT", "/api/settings"),
-            ("PATCH", "/api/profile"),
-            ("POST", "/pty"),
-            ("POST", "/policy/decide"),
-            ("POST", "/fs/open"),
-            ("POST", "/fs/watcher"),
-            ("POST", "/fs/git/commit"),
-            ("POST", "/fs/git/watch/x"),
-            ("POST", "/stream/focus/x"),
-            ("POST", "/browser/tabs"),
-            ("DELETE", "/browser/tabs/t1"),
-            ("POST", "/"),
-        ] {
-            assert!(!allows(method, target), "{method} {target}");
-        }
-    }
-
-    #[test]
-    fn the_dashboards_own_writes_pass() {
-        assert!(allows("POST", "/fs/watch"));
-        assert!(allows("POST", "/fs/unwatch?x=1"));
-        assert!(allows("POST", "/fs/git/watch"));
-        assert!(allows("POST", "/fs/git/unwatch"));
-        assert!(allows("POST", "/stream/focus"));
-    }
-
-    #[test]
-    fn an_allowed_prefix_cannot_be_used_to_reach_another_route() {
-        assert!(!allows("POST", "/fs/watch/../workers/w1/message"));
-        assert!(!allows("POST", "/fs/watch/%2e%2e/workers/w1/message"));
-        assert!(!allows("POST", "/fs/./../workers"));
-        assert!(!allows("POST", "/fs/watch/../../workers"));
-    }
 
     #[test]
     fn the_rust_core_gets_no_request_that_could_make_an_agent_run() {
@@ -451,21 +358,21 @@ mod tests {
             ("POST", "/api/sync/now"),
             ("POST", "/api/transfers"),
         ] {
-            assert!(!allows_rust(method, pattern, b"{}", None), "{method} {pattern}");
+            assert!(!allows(method, pattern, b"{}", None), "{method} {pattern}");
         }
         // Reads pass, and the writes someone has looked at.
-        assert!(allows_rust("GET", "/workers/{id}/events", b"", None));
-        assert!(allows_rust("POST", "/browser/tabs/{tabId}/navigate", b"{}", None));
-        assert!(allows_rust("PUT", "/api/pages/{id}", b"{}", None));
+        assert!(allows("GET", "/workers/{id}/events", b"", None));
+        assert!(allows("POST", "/browser/tabs/{tabId}/navigate", b"{}", None));
+        assert!(allows("PUT", "/api/pages/{id}", b"{}", None));
         // A write nobody has classified is refused.
-        assert!(!allows_rust("POST", "/workers/{id}/something-new", b"{}", None));
-        assert!(!allows_rust("PATCH", "/api/pages/{id}", b"{}", None));
+        assert!(!allows("POST", "/workers/{id}/something-new", b"{}", None));
+        assert!(!allows("PATCH", "/api/pages/{id}", b"{}", None));
     }
 
     #[test]
     fn the_files_panel_may_only_change_what_is_inside_the_data_folder() {
         let data = std::path::Path::new("/data/run-copy");
-        let ask = |pattern: &str, body: &str| allows_rust("POST", pattern, body.as_bytes(), Some(data));
+        let ask = |pattern: &str, body: &str| allows("POST", pattern, body.as_bytes(), Some(data));
         assert!(ask("/fs/write", r#"{"path":"/data/run-copy/pages/a.md","content":"x"}"#));
         assert!(ask("/fs/create", r#"{"root":"/data/run-copy/templates","path":"b.txt","type":"file"}"#));
         assert!(ask("/fs/trash", r#"{"root":"/data/run-copy","paths":["/data/run-copy/a","/data/run-copy/b"]}"#));
@@ -479,7 +386,7 @@ mod tests {
         // A body that names no path, or is not JSON, or a run that does not know its folder.
         assert!(!ask("/fs/create", r#"{"path":"b.txt"}"#));
         assert!(!ask("/fs/write", "not json"));
-        assert!(!allows_rust("POST", "/fs/write", br#"{"path":"/data/run-copy/a"}"#, None));
+        assert!(!allows("POST", "/fs/write", br#"{"path":"/data/run-copy/a"}"#, None));
         // Watching and pasting change nothing in a folder of the user's.
         assert!(ask("/fs/watch", r#"{"dir":"/Users/someone/project"}"#));
         assert!(ask("/fs/paste-b64", r#"{"name":"a.jpg","base64":"/9j/4AAQ"}"#));

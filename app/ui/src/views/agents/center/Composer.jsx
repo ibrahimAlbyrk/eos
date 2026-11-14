@@ -57,7 +57,7 @@ import { confirmSubagentStop } from "../../../state/subagentStopConfirm.js";
 import { GlassLayers } from "../../../components/glass/GlassLayers.jsx";
 import { modifiers } from "../../../lib/platform.js";
 import { useBuiltinOn } from "../../../plugins/pluginsStore.js";
-import { BUILTIN_PLUGINS } from "../../../../../../contracts/src/builtin-plugins.ts";
+import { BUILTIN_PLUGINS } from "../../../shared/builtin-plugins.ts";
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();

@@ -6,19 +6,18 @@ engine. It is built beside the TypeScript backend and replaces it in one release
 ## Layout
 
 ```
-assets/    files the app ships as they are (claude-plugin: the skill that teaches agents to write Eos plugins)
+assets/    files the app ships as they are (claude-plugin: the skill that teaches agents to write Eos plugins;
+           pdfjs: the PDF viewer of the raw-content origin)
 crates/    one crate per responsibility, in layers (see xtask/src/layers.rs)
 host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a workspace of its own
-tools/     dev tooling: wire-recorder (records and replays what the daemon answers);
-           *-vectors (what today's TypeScript computes, for the corpora under fixtures/)
+tools/     dev tooling: wire-recorder (replays what the Node daemon answered against the Rust core)
 xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`) and the update feed's release
            builder (`cargo xtask publish-update`, see docs/first-rust-release.md)
 scripts/   link-sdk.sh: link the agent engine's checkout (run once per checkout, see "The agent engine");
-           check.sh: everything CI runs for the main workspace; wire.sh: record the wire fixtures from
-           today's daemon; replay.sh: replay them against the Rust core, in process
-fixtures/  recorded responses and TypeScript-made vectors the Rust code must reproduce,
-           see fixtures/README.md
-           (fixtures/private is never committed)
+           check.sh: everything CI runs for the main workspace; replay.sh: replay the recorded wire
+           against the Rust core, in process
+fixtures/  what the TypeScript app answered and computed, frozen: the recorded wire and the vectors the
+           Rust code must reproduce, see fixtures/README.md (fixtures/private is never committed)
 docs/      how-tos: adding-a-feature.md is the path every feature crate follows;
            first-rust-release.md is what the first Rust release must be to install over 0.1.x
 ```
@@ -34,7 +33,7 @@ docs/      how-tos: adding-a-feature.md is the path every feature crate follows;
 
 ```bash
 scripts/check.sh         # fmt, clippy -D warnings, tests, layers, shell rules; never builds Tauri or CEF
-host/scripts/check.sh    # the host workspace: fmt, clippy, the bridge's dev proxy, patches, the same repo guards
+host/scripts/check.sh    # the host workspace: fmt, clippy, the bridge's dev guard, patches, the same repo guards
 ```
 
 ## The agent engine
@@ -64,41 +63,46 @@ cef-helper/    the executable of the five CEF helper apps (renderer, GPU, …)
 eos-apply/     the update applier: swaps the staged app in while Eos is closed (serde_json only)
 vendor/        tauri-runtime-cef 3.0.0-alpha.7 with our patches applied
 patches/       those patches as diffs (scripts/check-patches.sh proves vendor = upstream + patches)
-bundle/        Info.plist templates, entitlements
-scripts/       setup, env, check, bundle, sign, dev, try, the isolated daemon
+bundle/        Info.plist templates, entitlements, the app icon, the banner sound
+location/      the CoreLocation helper's source (`EosLocation.app`, built by scripts/bundle.sh)
+scripts/       setup, env, check, bundle, sign, dev, try, launch on test data
 tests/         smoke run, browser run on a local page, memory measurement, local-network
                probe, proxy-script test; guard.py stops what a killed run started
-.work/         build caches (not in git): cmake and ninja (scripts/setup.sh), cargo registry,
-               CEF (~460 MB), target, bundles
+.work/         build caches (not in git): cmake, ninja and esbuild (scripts/setup.sh), cargo
+               registry, CEF (~460 MB), target, bundles
 ```
 
 The portable half of the shell lives in the main workspace and is tested there without a
 window: `crates/eos-bridge` (transport, URL space, token rule, bridges, panel geometry, storage
-carry-over, single instance, window state, the dev proxy) and `crates/eos-core` (`shell`: the
+carry-over, single instance, window state, the dev guard) and `crates/eos-core` (`shell`: the
 view ports the shell implements).
 
 ### Build, check, run
 
-Needs: rustup's `cargo`, Xcode (`swiftc`, `codesign`), Node 23.6 or later with `npm`, `curl`.
-Everything else comes from `scripts/setup.sh`, run once on a clean checkout and again whenever
-you like (it keeps what is in place and prints what it did):
+Needs: rustup's `cargo`, Xcode (`swiftc`, `codesign`), Node with `npm` for the dashboard (20.19,
+or 22.12 or later), `curl`. Everything else comes from `scripts/setup.sh`, run once on a clean
+checkout and again whenever you like (it keeps what is in place and prints what it did):
 
 - cmake and ninja, pinned releases from their GitHub release pages, checked against the SHA-256
   in the script, under `.work/tools/` (`env.sh` puts them on `PATH`);
-- `npm ci` in `app/ui`, `infra` (the esbuild the bundle ships) and the isolated dev daemon's
-  folders (`contracts`, `core`, `infra`, `gateway`, `spawner`, `manager`), inside this
-  checkout only, where the lockfile changed since the last install;
-- the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
+- esbuild, the release `eos-plugin-build` speaks (`ESBUILD_VERSION`), from the npm registry,
+  checked against the SHA-256 in the script, under `.work/tools/esbuild-<version>/`: the bundle
+  ships it, and development builds and tests of this checkout find it there
+  (`eos_plugin_build::locate`);
+- `npm ci` in `app/ui`, inside this checkout only, when its lockfile changed since the last
+  install, and the dashboard's build (`app/ui/dist`) when it is missing or older than its sources.
 
 CEF (~460 MB) is fetched by `cef-dll-sys`'s build script on the first build into `.work/cef`
 and checked against the CEF builds index's SHA-1. `bundle.sh` and `check.sh` stop with one line
 naming `scripts/setup.sh` when something it provides is missing; `try.sh build` runs it itself.
 
 ```bash
-scripts/setup.sh                  # a clean checkout → buildable (tools, node modules, dashboard)
-scripts/check.sh                  # fmt, clippy, the bridge with its dev proxy, patches, repo guards
-scripts/dev.sh                    # debug bundle against the isolated Node daemon
-scripts/bundle.sh release         # Eos.app with the five helper apps → .work/bundle/release/
+scripts/setup.sh                  # a clean checkout → buildable (tools, esbuild, the dashboard)
+scripts/check.sh                  # fmt, clippy, the bridge with its dev guard, patches, repo guards
+scripts/bundle.sh release         # Eos.app as it ships, with the five helper apps → .work/bundle/release/
+scripts/bundle.sh test            # the same with `dev-run` (the dev guard, the test drivers' hooks)
+                                  # → .work/bundle/test/; every test driver below runs this one
+scripts/dev.sh                    # debug bundle with `dev-run` on the private data copy
 scripts/sign.sh <Eos.app>         # local Developer ID signature, --timestamp=none, nothing sent anywhere
 python3 tests/smoke.py <Eos.app>  # launches quietly, 36 checks, quits (never types into a page)
 python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
@@ -109,23 +113,23 @@ python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
 python3 tests/responsiveness.py <Eos.app>  # clicks the dashboard's harmless controls 20 times
                                   # each, fails over budget (see "Responsiveness")
-scripts/try.sh build              # setup when needed, the release bundle, signed locally
+scripts/try.sh build              # setup when needed, the test bundle, signed locally
 scripts/try.sh                    # for a person: see the header of the script
 ```
 
 A change to the shell, the bridge or the threads the core runs on is finished when
-`scripts/check.sh` of both workspaces passes and, on the rebuilt release bundle,
+`scripts/check.sh` of both workspaces passes and, on the rebuilt test bundle,
 `smoke.py`, `browser_smoke.py`, `artifact_smoke.py` and `responsiveness.py`.
 
 `scripts/bundle.sh` assembles the bundle itself (binary, dashboard, framework, helper apps);
 the Tauri CLI is not used, because it compiles its own copy of the helper and offers no way to
 build ours. The Rust core serves every route of the dashboard except the metered provider
-settings (`/api/backends*`) and `/metrics` (it had a listener to count; there is none). A bundle
-is still built with the `dev-proxy` feature by default, until the app has been walked through
-screen by screen without it (`EOS_BUNDLE_FEATURES=` for one without: a route Rust does not
-declare is a 404).
+settings (`/api/backends*`) and `/metrics` (it had a listener to count; there is none): a route
+it does not declare is a 404. Everything a bundle ships comes from this tree (`rust/assets`,
+`host/bundle`, `host/location`, the dashboard's `app/ui/dist`) and from `scripts/setup.sh`
+(esbuild).
 
-### The core, and the dev proxy during the transition
+### The core, and a dev run
 
 The binary builds `eos-app` from the data folder named by `EOS_HOME` and the shell reaches its
 router in process (`eos_bridge::RouterCore`): each page request becomes a runtime request
@@ -133,45 +137,38 @@ tagged with its caller (`eos-app`'s `callers().classify` on the ui-token; the ra
 never the dashboard), whole bodies are sent at once and streams chunk by chunk at the
 reader's pace, a route's own 206 passes through, a request the page drops cancels the handler
 or its stream, and a request is always answered, also when its task dies. A release build
-opens `~/.eos` when `EOS_HOME` is not set; a development build has no default: without it
-the Rust core does not start, so nothing opens the real `~/.eos` by accident
-(`eos_bridge::launch`). Only a release build on the user's own `~/.eos` reaches other
-computers (the phone's relay, paired computers): never a development build, a test or a
-copy of a data folder.
+opens `~/.eos` when `EOS_HOME` is not set; a dev run (a build with the `dev-run` feature:
+`bundle.sh test` or `debug`) has no default: without it the Rust core does not start, so
+nothing opens the real `~/.eos` by accident (`eos_bridge::launch`). Only a release build on the
+user's own `~/.eos` reaches other computers (the phone's relay, paired computers): never a dev
+run, a test or a copy of a data folder.
 
-With the `dev-proxy` feature a request goes to the Rust router when it declares that route
-and to an **isolated** Node daemon otherwise (`eos_bridge::dev::Hybrid`). Without the feature an undeclared route answers as the
-router answers it (404). Which side served a request is logged at debug level under
-`eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and `Eos --status` counts
-both sides and lists the routes Rust has served.
-
-The event stream (`/stream`, `/stream/focus`) is the Rust core's too. What still reaches the
-daemon is little: the raw-content origin and the model catalog's refresh (a write, refused).
-
-The daemon (`scripts/daemon.sh`) runs on a copy of the data folder, ports 7490/7491
-(`scripts/dev-env.sh`: every run can name its own copy, output folder and ports), its own
-`HOME`, no launchd, `CLAUDE_CONFIG_DIR` at an empty folder that must stay empty. The Rust
-core opens the same isolated folder, so both sides share one ui-token and one set of data.
+`scripts/launch.sh` opens a dev-run bundle on a copy of real data (`scripts/dev-env.sh`: every
+run can name its own copy and output folder; a missing copy is made from
+`$EOS_DEV_DATA/home`), with `CLAUDE_CONFIG_DIR` at an empty folder inside the copy that must stay
+empty, and refuses a bundle without the dev guard. What became of each request is logged at
+debug level under `eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and
+`Eos --status` counts what the core served and refused and lists the routes it served.
 
 **A dev run works on a copy of real data, so it may not act for the user**
-(`crates/eos-bridge/src/dev/guard.rs`), on either side:
+(`crates/eos-bridge/src/dev/guard.rs`): the Rust core runs agents itself, so before its router
+sees a request the dev run refuses (403, "refused in a dev run") whatever starts an agent, a
+model call or a command, connects to another computer or the relay, or changes files outside
+the copied data folder. Three lists say which route is which: `REFUSED_ROUTES` (spawn,
+message, resume, rewind, a side question, "dream now", terminals and `!` commands, transfers,
+sync, …), `FOLDER_ROUTES` (the Files and Changes panels: let through only when every path the
+request names lies inside the data folder) and `HARMLESS_ROUTES`. A route that is not a plain
+read and is on none of them is refused, and a test over the composed app
+(`crates/eos-bridge/tests/dev_guard.rs`, run by `host/scripts/check.sh`) fails until it is
+classified. `EOS_DEV_ALLOW_AGENTS=1` lets a run that is meant to try these through; the
+launcher gives the app the isolated `CLAUDE_CONFIG_DIR` either way.
 
-- the proxy forwards the daemon's reads and refuses every write except the file and git
-  watches and the stream's focus, and the one read that makes the daemon start a `claude`
-  process (`GET /commands`); there is no switch to turn that off;
-- the Rust core runs agents itself, so before its router sees a request the dev run refuses
-  (403, "refused in a dev run") whatever starts an agent, a model call or a command,
-  connects to another computer or the relay, or changes files outside the copied data
-  folder. Three lists say which route is which: `REFUSED_ROUTES` (spawn, message, resume,
-  rewind, a side question, "dream now", terminals and `!` commands, transfers, sync, …),
-  `FOLDER_ROUTES` (the Files and Changes panels: let through only when every path the
-  request names lies inside the data folder) and `HARMLESS_ROUTES`. A route that is not a
-  plain read and is on none of them is refused, and a test over the composed app fails
-  until it is classified. `EOS_DEV_ALLOW_AGENTS=1` lets a run that is meant to try these
-  through; the launcher gives the app the isolated `CLAUDE_CONFIG_DIR` either way.
+A dev run also carries what the test drivers drive the app with: the dev script
+(`eos/src/dev/script.rs`: steps on test views, browser routes, artifact calls), the measuring
+probe (`EOS_SHELL_PROBE`) and a local page standing in for claude.ai (`EOS_DEV_ARTIFACT_ORIGIN`).
+A release build has none of them.
 
-The browser panel's routes are the Rust core's; its tabs are the shell's views. The daemon's
-notifications become native banners.
+The browser panel's routes are the Rust core's; its tabs are the shell's views.
 
 ### What the dashboard gets (bridge inventory)
 
@@ -351,14 +348,18 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 | `EOS_SHELL_TRACE`, `EOS_SHELL_NETLOG` | log each request's path and status; write Chromium's net log |
 | `EOS_SHELL_NETWORK_IN_PROCESS` | run Chromium's network service inside the browser process: one process and about 9 MB less, without its crash isolation and its own sandbox (off by default; see "Memory") |
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
-| `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a development build (see above) |
+| `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a dev run (see above) |
 | `EOS_LOG` | what is logged to stderr, as a `tracing` filter (default `warn`) |
-| `EOS_DEV_DAEMON_URL`, `EOS_DEV_DAEMON_RAW_URL`, `EOS_DEV_DAEMON_HOME` | `dev-proxy`: the isolated daemon |
-| `EOS_DEV_ALLOW_AGENTS` | `dev-proxy`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
-| `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-proxy`: steps on test views (`eos/src/dev/script.rs`) |
-| `EOS_DEV_SCRIPT_FOLLOW` | `dev-proxy`: the steps file is JSON lines a test appends to, results come back the same way |
-| `EOS_SHELL_PROBE` | `dev-proxy`: the measuring probe (`tests/responsiveness.py`): DevTools calls and clicks on the dashboard, a UI-thread heartbeat, a Chromium trace |
-| `EOS_DEV_ARTIFACT_ORIGIN` | `dev-proxy`: a page on `http://127.0.0.1:<port>` standing in for claude.ai in the artifact views (`tests/artifact_smoke.py`) |
+| `EOS_DEV_ALLOW_AGENTS` | `dev-run`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
+| `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-run`: steps on test views (`eos/src/dev/script.rs`) |
+| `EOS_DEV_SCRIPT_FOLLOW` | `dev-run`: the steps file is JSON lines a test appends to, results come back the same way |
+| `EOS_SHELL_PROBE` | `dev-run`: the measuring probe (`tests/responsiveness.py`): DevTools calls and clicks on the dashboard, a UI-thread heartbeat, a Chromium trace |
+| `EOS_DEV_ARTIFACT_ORIGIN` | `dev-run`: a page on `http://127.0.0.1:<port>` standing in for claude.ai in the artifact views (`tests/artifact_smoke.py`) |
+
+The scripts' own variables are in their headers: the data copy and output folder of a dev run
+(`EOS_DEV_DATA`, `EOS_DEV_HOME`, `EOS_DEV_OUT`: `scripts/dev-env.sh`), the bundle's identifier,
+dashboard, esbuild and update channel (`scripts/bundle.sh`), the build caches
+(`EOS_HOST_WORK`: `scripts/env.sh`).
 
 ### Open points
 

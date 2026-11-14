@@ -1,4 +1,4 @@
-//! The route table a daemon registers, and how much of it the recordings reach.
+//! The route table the Node daemon registered, and how much of it the recordings reach.
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -8,9 +8,9 @@ use anyhow::Context;
 use regex::Regex;
 use serde::Deserialize;
 
-use crate::model::{Recording, Via};
+use crate::model::Recording;
 
-/// `routes.json`, written by the route probe from the running Node daemon.
+/// `routes.json`: what the Node daemon registered, frozen with the recordings.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RouteFile {
@@ -66,7 +66,7 @@ impl Route {
     }
 }
 
-/// Finds the registration that answers a request: first match wins, like the daemon's router.
+/// The registered routes, with their path patterns compiled.
 #[derive(Debug)]
 pub struct RouteTable {
     file: RouteFile,
@@ -91,19 +91,6 @@ impl RouteTable {
             })
             .collect::<anyhow::Result<_>>()?;
         Ok(Self { file, patterns })
-    }
-
-    pub fn find(&self, via: Via, method: &str, path: &str) -> Option<&Route> {
-        let router = u8::from(via == Via::Raw);
-        self.file.routes.iter().zip(&self.patterns).find_map(|(route, pattern)| {
-            let hit = route.router == router
-                && route.method == method
-                && match pattern {
-                    Some(pattern) => pattern.is_match(path),
-                    None => route.pattern == path,
-                };
-            hit.then_some(route)
-        })
     }
 }
 
@@ -303,29 +290,6 @@ mod tests {
         }))
         .expect("route file");
         RouteTable::new(file).expect("patterns compile")
-    }
-
-    #[test]
-    fn first_match_wins_per_router_and_method() {
-        let table = routes();
-        assert_eq!(
-            table.find(Via::Api, "GET", "/workers/archived").map(Route::label).as_deref(),
-            Some("GET /workers/archived")
-        );
-        assert_eq!(
-            table.find(Via::Socket, "GET", "/workers/w-1").map(Route::label).as_deref(),
-            Some("GET /workers/:id")
-        );
-        assert_eq!(
-            table.find(Via::Api, "DELETE", "/workers/w-1").map(Route::label).as_deref(),
-            Some("DELETE /workers/:id")
-        );
-        assert_eq!(
-            table.find(Via::Raw, "GET", "/pdfjs/web/viewer.html").map(Route::label).as_deref(),
-            Some("GET /pdfjs/* (raw)")
-        );
-        assert!(table.find(Via::Api, "GET", "/pdfjs/web/viewer.html").is_none());
-        assert!(table.find(Via::Api, "POST", "/workers").is_none());
     }
 
     #[test]

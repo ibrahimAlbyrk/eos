@@ -1,5 +1,5 @@
 //! This computer's position, read by a small native helper the app ships
-//! (`app/location/main.swift`, run as `app/src/main/location.ts` runs it).
+//! (`host/location/main.swift`, built into the bundle by `host/scripts/bundle.sh`).
 //!
 //! A browser's own geolocation never reaches the system's location service
 //! inside an embedded view, so the helper asks — showing the system's prompt

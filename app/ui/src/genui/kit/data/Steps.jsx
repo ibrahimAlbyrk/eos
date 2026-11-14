@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
 import { Icon } from "../icons.jsx";
 import { elementChildren } from "../layout/layout.jsx";
-import { attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrText } from "../../../shared/genui/attrs.ts";
 import { applyLens, itemId, itemName } from "./util.js";
 import { stepDots, stepFlags, stepNav, clampStep } from "./stepsLogic.js";
 

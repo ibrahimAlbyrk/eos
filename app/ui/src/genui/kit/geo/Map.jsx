@@ -10,7 +10,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum } from "../../../shared/genui/attrs.ts";
 import { applyLens, numberItems, toneHex } from "../data/util.js";
 import { filteredOut } from "../inputs/FilterEmpty.jsx";
 import { logoSrcs } from "../content/util.js";

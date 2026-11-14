@@ -3,17 +3,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { UiProvider } from "../state/ui.jsx";
 import { buildBlocks } from "../lib/messageParser.js";
 import { foldTurns, turnBounds } from "../lib/turnFold.js";
-import restaurants from "../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import tests from "../../../../contracts/src/__tests__/fixtures/genui/tests.json";
-import learn from "../../../../contracts/src/__tests__/fixtures/genui/learn.json";
-import app from "../../../../contracts/src/__tests__/fixtures/genui/app.json";
+import restaurants from "./fixtures/restaurants.json";
+import trip from "./fixtures/trip.json";
+import tests from "./fixtures/tests.json";
+import learn from "./fixtures/learn.json";
+import app from "./fixtures/app.json";
 import { ViewBlock } from "./ViewBlock.jsx";
 import { GenuiHostContext } from "./runtime/host.jsx";
 import { createViewRuntime, scanMarkup } from "./runtime/runtime.js";
 import { setViewState, _reset as resetViewState } from "./runtime/viewStateStore.js";
 import { applyGenuiDelta, _reset as resetStreams } from "./streamStore.js";
-import { parseMarkup } from "../../../../contracts/src/genui/markup.ts";
+import { parseMarkup } from "../shared/genui/markup.ts";
 import { ViewReplyChip } from "../views/agents/messages/MessageUser.jsx";
 
 // The five scenario boards end to end: each contracts fixture goes in as the

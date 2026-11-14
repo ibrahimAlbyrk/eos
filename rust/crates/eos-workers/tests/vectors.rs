@@ -1,6 +1,5 @@
 //! Resolution, defaults, `provider/model`, the catalog and model tiers
-//! against today's TypeScript (`rust/fixtures/workers/vectors.json`, written
-//! by `rust/tools/workers-vectors/generate.mjs`).
+//! against the TypeScript (`rust/fixtures/workers/vectors.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 
 use std::fs;
 use std::path::PathBuf;

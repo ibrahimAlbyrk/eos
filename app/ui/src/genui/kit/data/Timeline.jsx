@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrText } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrText } from "../../../shared/genui/attrs.ts";
 import { applyLens, itemId, itemName, numberItems, sameId } from "./util.js";
 import { FilterEmpty } from "../inputs/FilterEmpty.jsx";
 

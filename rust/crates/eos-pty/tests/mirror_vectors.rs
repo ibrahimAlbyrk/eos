@@ -1,6 +1,6 @@
 //! The screen mirror against today's: every session in
 //! `tests/fixtures/mirror-vectors.json` was run through
-//! `manager/services/pty/screenMirror.ts` (`tools/mirror-vectors`), and each
+//! `manager/services/pty/screenMirror.ts` (frozen from the TypeScript, see `rust/fixtures/README.md`), and each
 //! snapshot here must be that text exactly.
 
 use eos_pty::Screen;

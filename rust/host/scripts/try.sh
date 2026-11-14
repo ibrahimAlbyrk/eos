@@ -1,7 +1,7 @@
 #!/bin/bash
-# For the owner: the things only a person can check, on the release bundle. Everything runs
-# on the isolated data copy; sending a message is refused by the dev proxy. Nothing is
-# notarized or uploaded; signing is local.
+# For the owner: the things only a person can check, on the test bundle (the release build
+# with the dev guard, bundle.sh test). Everything runs on the private data copy; sending a
+# message is refused by the dev guard. Nothing is notarized or uploaded; signing is local.
 #
 #   try.sh            open the app: drag the window by the top strip, double-click it, resize,
 #                     ⌘C/⌘V/⌘Z in the composer and in a browser tab, full screen, close the
@@ -20,9 +20,9 @@
 #                     tab swaps without a blank frame, ⌘C/⌘V inside the artifact, a link in
 #                     it opens in your browser
 #   try.sh status     the running app's state as JSON
-#   try.sh build      rebuild the release bundle (after a change) and sign it; sets the
+#   try.sh build      rebuild the test bundle (after a change) and sign it; sets the
 #                     checkout up first (scripts/setup.sh) when it is not
-#   try.sh stop       quit the app and stop the isolated daemon
+#   try.sh stop       quit the app
 #
 # claude.ai sign-in: in the app, open the side panel → Browser → claude.ai and sign in (also
 # with Google). That view has its own profile and no bridge of any kind.
@@ -34,19 +34,18 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/env.sh"
 source "$HERE/dev-env.sh"
 OUT="$EOS_DEV_OUT"
-APP="$EOS_HOST_WORK/bundle/release/Eos.app"
-build() { require_setup 2>/dev/null || "$HERE/setup.sh"; "$HERE/bundle.sh" release >/dev/null; }
+APP="$EOS_HOST_WORK/bundle/test/Eos.app"
+build() { require_setup 2>/dev/null || "$HERE/setup.sh"; "$HERE/bundle.sh" test >/dev/null; }
 # The output is read whole first: grep -q leaving early would fail the pipe and sign again.
 signed() { local said; said="$(codesign -dvv "$APP" 2>&1 || true)"; grep -q "^Authority=Developer ID" <<<"$said"; }
 sign() { signed || "$HERE/sign.sh" "$APP" || echo "not signed (no Developer ID identity): running unsigned" >&2; }
 ready() {
   [ -d "$APP" ] || build
   sign
-  "$HERE/daemon.sh" start
 }
 case "${1:-run}" in
   status) "$HERE/ctl.sh" "$APP" --status; exit 0 ;;
-  stop) "$HERE/ctl.sh" "$APP" --quit || true; "$HERE/daemon.sh" stop; exit 0 ;;
+  stop) "$HERE/ctl.sh" "$APP" --quit || true; exit 0 ;;
   link) "$HERE/ctl.sh" "$APP" "eos://pair/try-this-is-not-a-real-invite"; exit 0 ;;
   build) build; sign; exit 0 ;;
   run) ready; "$HERE/launch.sh" "$APP" ;;

@@ -2,8 +2,8 @@
 //! served by revision, rebuilt when its folder changes, previews, and an
 //! install from a registry served by the test — none of whose files may run.
 //!
-//! Tests that build a UI need the esbuild binary (`EOS_ESBUILD`, or `npm ci`
-//! in `infra/`); without one they say so and pass.
+//! Tests that build a UI need the esbuild binary (`EOS_ESBUILD`, or the one
+//! `rust/host/scripts/setup.sh` fetches); without one they say so and pass.
 
 mod support;
 
@@ -38,7 +38,7 @@ fn clock_home() -> TempHome {
 fn have_esbuild() -> bool {
     let found = support::esbuild().is_some();
     if !found {
-        eprintln!("skipped: no esbuild binary (set EOS_ESBUILD or run `npm ci` in infra/)");
+        eprintln!("skipped: no esbuild binary (set EOS_ESBUILD or run rust/host/scripts/setup.sh)");
     }
     found
 }

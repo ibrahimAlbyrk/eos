@@ -1,6 +1,5 @@
 //! The prompt library and the system prompts assembled from it against
-//! today's TypeScript (`rust/fixtures/prompts`, written by
-//! `rust/tools/prompt-vectors/generate.mjs`): every prompt reads the same,
+//! the TypeScript (`rust/fixtures/prompts`, frozen from the TypeScript, see `rust/fixtures/README.md`): every prompt reads the same,
 //! renders the same, and every assembled system prompt is byte-identical.
 
 use std::collections::BTreeMap;
@@ -147,6 +146,11 @@ fn registry() -> Arc<PromptRegistry> {
     Arc::new(PromptRegistry::new(Arc::new(LibraryPromptSource::embedded())))
 }
 
+#[derive(Deserialize)]
+struct Files {
+    sha256: BTreeMap<String, String>,
+}
+
 #[test]
 fn the_shipped_library_is_the_typescript_trees() {
     let library: Library = fixture("library.json");
@@ -154,12 +158,11 @@ fn the_shipped_library_is_the_typescript_trees() {
     let theirs: Vec<String> =
         library.prompts.iter().map(|p| format!("{}.prompt.md", p.file.trim_end_matches(".prompt.md"))).collect();
     assert_eq!(files, theirs, "the same files, walked in the same order");
-    // While the TypeScript tree exists, the embedded copy is that tree.
-    let tree = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../manager/prompts"));
-    if tree.is_dir() {
-        for (file, text) in EMBEDDED_PROMPTS {
-            assert_eq!(std::fs::read_to_string(tree.join(file)).ok().as_deref(), Some(*text), "{file}");
-        }
+    // Each file's text, byte for byte, as the TypeScript tree held it.
+    let frozen: Files = fixture("files.json");
+    assert_eq!(frozen.sha256.len(), EMBEDDED_PROMPTS.len());
+    for (file, text) in EMBEDDED_PROMPTS {
+        assert_eq!(frozen.sha256.get(*file), Some(&sha(text)), "{file}");
     }
 }
 

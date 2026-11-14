@@ -4,22 +4,20 @@
 A test that is interrupted cleans up after itself; one that is killed outright cannot. So
 every run starts this guard, detached, and tells it what it started. The guard watches the
 run's process: when it is gone (or the run outlived its time), the guard quits the app over
-its own socket, ends the app's processes that are still there, and stops the isolated
-daemon if the run started it. A run that ends normally stops the guard first.
+its own socket and ends the app's processes that are still there. A run that ends normally
+stops the guard first.
 
 Only processes this run started are ever signalled: the app the run launched (the pid its
 own status names) and that app's children, each checked to still be running from the same
-bundle; the daemon by the pid file daemon.sh wrote.
+bundle.
 
-usage: guard.py <pid to watch> <Eos.app> <shell data folder> <stop the daemon: 0|1> <seconds>
+usage: guard.py <pid to watch> <Eos.app> <shell data folder> <seconds>
 """
 import os
 import signal
 import subprocess
 import sys
 import time
-
-HOST = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def alive(pid):
@@ -76,7 +74,7 @@ def stop_app(app, data, known):
 
 
 def main():
-    watch, app, data, stop_daemon, seconds = int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4] == "1", float(sys.argv[5])
+    watch, app, data, seconds = int(sys.argv[1]), sys.argv[2], sys.argv[3], float(sys.argv[4])
     # A run that ends normally stops its guard: nothing is left to do then.
     signal.signal(signal.SIGTERM, lambda *_: os._exit(0))
     deadline = time.time() + seconds
@@ -87,8 +85,6 @@ def main():
             known |= tree(app, pid)
         time.sleep(1.0)
     stop_app(app, data, known)
-    if stop_daemon:
-        subprocess.run([os.path.join(HOST, "scripts", "daemon.sh"), "stop"], capture_output=True, timeout=30)
 
 
 if __name__ == "__main__":

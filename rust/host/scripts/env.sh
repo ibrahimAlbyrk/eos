@@ -1,6 +1,6 @@
 # Source this: the build environment of the host workspace. Caches live under .work/ (not in
 # git): cargo's registry, the CEF distribution (~460 MB, downloaded on the first build), the
-# target folder and the pinned cmake and ninja that scripts/setup.sh fetches. Set
+# target folder and the pinned cmake, ninja and esbuild that scripts/setup.sh fetches. Set
 # EOS_HOST_WORK to keep them elsewhere.
 HOST_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 export HOST_DIR
@@ -16,6 +16,14 @@ CMAKE_BIN="$(find "$EOS_HOST_WORK/tools" -maxdepth 4 -type d -path "*/CMake.app/
 NINJA_BIN="$(find "$EOS_HOST_WORK/tools" -maxdepth 1 -type d -name "ninja-*" 2>/dev/null | head -1 || true)"
 export PATH="${CMAKE_BIN:+$CMAKE_BIN:}${NINJA_BIN:+$NINJA_BIN:}$HOME/.cargo/bin:/opt/homebrew/bin:$PATH"
 
+# The esbuild release the plugin builder speaks (its packets are private to a release), and
+# where setup.sh puts it. Development builds and tests of a checkout look there too
+# (`eos_plugin_build::locate`).
+esbuild_version() {
+  sed -n 's/^pub const ESBUILD_VERSION: &str = "\(.*\)";/\1/p' "$HOST_DIR/../crates/eos-plugin-build/src/service.rs"
+}
+ESBUILD_BIN="$EOS_HOST_WORK/tools/esbuild-$(esbuild_version)/esbuild"
+
 # What a build or a check needs from scripts/setup.sh. One line naming it when something is
 # missing, instead of a failure deep inside a build.
 require_setup() {
@@ -24,8 +32,8 @@ require_setup() {
   command -v cargo >/dev/null || missing+=("cargo")
   [ -n "$CMAKE_BIN" ] || missing+=("cmake")
   [ -n "$NINJA_BIN" ] || missing+=("ninja")
+  [ -x "$ESBUILD_BIN" ] || missing+=("esbuild")
   [ -f "$repo/app/ui/dist/index.html" ] || missing+=("the dashboard build")
-  [ -d "$repo/infra/node_modules" ] || missing+=("node modules")
   [ ${#missing[@]} -eq 0 ] && return 0
   echo "not set up (missing: ${missing[*]}): run rust/host/scripts/setup.sh" >&2
   return 1

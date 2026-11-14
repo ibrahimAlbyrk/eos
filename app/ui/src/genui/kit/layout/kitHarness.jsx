@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ViewProvider } from "../../runtime/ViewContext.jsx";
 import { renderNodes } from "../../render.jsx";
 import { _reset, setSelection, setViewState } from "../../runtime/viewStateStore.js";
-import { parseMarkup } from "../../../../../../contracts/src/genui/markup.ts";
+import { parseMarkup } from "../../../shared/genui/markup.ts";
 
 // A local key: state written here never schedules a PUT to the daemon.
 export const TEST_VIEW = "local:kit-test";

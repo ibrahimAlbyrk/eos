@@ -11,8 +11,8 @@
 
 import { Component as ReactComponent, memo } from "react";
 import { renderMarkdown } from "../lib/markdown.js";
-import { truthy } from "../../../../contracts/src/genui/expr.ts";
-import { walkMarkup } from "../../../../contracts/src/genui/markup.ts";
+import { truthy } from "../shared/genui/expr.ts";
+import { walkMarkup } from "../shared/genui/markup.ts";
 import { KIT } from "./kit/index.js";
 import { useView } from "./runtime/ViewContext.jsx";
 

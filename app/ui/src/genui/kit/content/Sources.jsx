@@ -4,7 +4,7 @@
 import { useId, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool } from "../../../shared/genui/attrs.ts";
 import { MediaImg, Monogram } from "./media.jsx";
 import { cls, hostOf, iconSrcs, openHref } from "./util.js";
 

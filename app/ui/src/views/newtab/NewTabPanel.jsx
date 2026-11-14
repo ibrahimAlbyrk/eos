@@ -16,7 +16,7 @@ import { TAB_ICONS } from "../agents/panes/panelTabMeta.jsx";
 import { getPanel } from "../../lib/panelRegistry.js";
 import { shortcutLabel } from "../../lib/platform.js";
 import { useBuiltinOn } from "../../plugins/pluginsStore.js";
-import { BUILTIN_PLUGINS } from "../../../../../contracts/src/builtin-plugins.ts";
+import { BUILTIN_PLUGINS } from "../../shared/builtin-plugins.ts";
 
 // New-tab launcher: one field (an address or a web search opens the browser;
 // "#" finds pages, "@" files, "?" asks the agent), the panel's tools, the

@@ -11,9 +11,8 @@
 //! `geo/`. The folder is regenerable; its formats are today's, so a cache the
 //! previous app filled keeps answering.
 //!
-//! `rust/fixtures/genui-media/vectors.json` holds what the TypeScript computes
-//! for the pure parts (`tests/vectors.rs`); `rust/tools/genui-media-vectors`
-//! regenerates it.
+//! `rust/fixtures/genui-media/vectors.json` holds what the TypeScript computed
+//! for the pure parts (`tests/vectors.rs`), frozen.
 
 mod cache;
 mod geo;

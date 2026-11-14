@@ -2,7 +2,7 @@
 """Artifact views on the real bundle, against a LOCAL page standing in for claude.ai.
 
 A server on 127.0.0.1 serves the viewer's URL shape (`/artifact/<short id>`) and a sign-in
-page; the app is started with it as the artifact origin (a dev-proxy build only accepts
+page; the app is started with it as the artifact origin (only a dev-run build accepts
 one). The steps call `eosArtifacts` in process as the dashboard does: a view of a profile
 with no sign-in asks for one, the sign-in window signs the profile in (the local page sets
 the cookie itself), the view loads, moves into a tab and into the peek and back without a

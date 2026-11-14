@@ -1,7 +1,7 @@
 // <Card of pick variant kind meta badge actions/> — one entity from a collection.
 
 import { ItemScope, useView } from "../../runtime/ViewContext.jsx";
-import { splitIds } from "../../../../../../contracts/src/genui/attrs.ts";
+import { splitIds } from "../../../shared/genui/attrs.ts";
 import { oneOf } from "../content/text.jsx";
 import { sameId } from "../content/util.js";
 import { EntityCard } from "./cards.jsx";

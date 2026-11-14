@@ -157,7 +157,7 @@ def probe_run():
     with open(steps_file, "w") as f:
         json.dump(steps, f)
     before = window_owners()
-    env = dict(os.environ, EOS_DEV_DATA=smoke.DATA, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none", EOS_DEV_SCRIPT=steps_file, EOS_DEV_SCRIPT_OUT=steps_out)
+    env = dict(os.environ, EOS_SHELL_DATA=SHELL_DATA, EOS_ELECTRON_PROFILE="none", EOS_DEV_SCRIPT=steps_file, EOS_DEV_SCRIPT_OUT=steps_out)
     subprocess.run([os.path.join(smoke.HOST, "scripts", "launch.sh"), smoke.APP, "--quiet"], check=True, env=env)
 
     # Sockets are sampled the whole time; each sample is stamped with the step that was running.

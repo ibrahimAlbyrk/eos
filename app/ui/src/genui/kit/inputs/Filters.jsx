@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { parseChips } from "../../../../../../contracts/src/genui/attrs.ts";
+import { parseChips } from "../../../shared/genui/attrs.ts";
 import { Icon } from "../icons.jsx";
 import { FilterEmpty, activeChips } from "./FilterEmpty.jsx";
 

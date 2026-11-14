@@ -1,5 +1,5 @@
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrNum, attrText, dataRef } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrNum, attrText, dataRef } from "../../../shared/genui/attrs.ts";
 import { applyLens, getPath, itemName } from "./util.js";
 
 function scalar(v) {

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { UiProvider } from "../state/ui.jsx";
-import restaurants from "../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import tests from "../../../../contracts/src/__tests__/fixtures/genui/tests.json";
-import learn from "../../../../contracts/src/__tests__/fixtures/genui/learn.json";
+import restaurants from "./fixtures/restaurants.json";
+import trip from "./fixtures/trip.json";
+import tests from "./fixtures/tests.json";
+import learn from "./fixtures/learn.json";
 import { ViewBlock, ViewSurface, viewMeta } from "./ViewBlock.jsx";
 import { GenuiHostContext } from "./runtime/host.jsx";
 import { genuiIndex } from "./runtime/conversation.js";
@@ -20,7 +20,9 @@ vi.mock("../lib/markdown.js", async (importOriginal) => {
 // and the lenses that read data print what the runtime hands them. This pins the
 // renderer + runtime contract independently of the real kit's markup.
 vi.mock("./kit/index.js", async () => {
-  const { COMPONENT_NAMES } = await import("../../../../contracts/src/genui/catalog.ts");
+  // The catalog the core validates against (its frozen TypeScript original).
+  const { default: catalog } = await import("../../../../rust/fixtures/genui/catalog.json");
+  const COMPONENT_NAMES = catalog.components.map((c) => c.name);
   const { useView, ItemScope } = await import("./runtime/ViewContext.jsx");
   const counted = new Set(["Carousel", "Table", "Map", "Timeline", "Meter", "Checklist", "KeyValue"]);
   const make = (name) => function Stub({ attrs, node, children }) {

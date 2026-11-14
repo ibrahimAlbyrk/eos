@@ -5,7 +5,7 @@
 import { Children, createContext, useCallback, useContext, useId, useMemo, useRef, useState } from "react";
 import { Icon, hasIcon } from "../icons.jsx";
 import { useView } from "../../runtime/ViewContext.jsx";
-import { attrBool, attrNum, splitLabels } from "../../../../../../contracts/src/genui/attrs.ts";
+import { attrBool, attrNum, splitLabels } from "../../../shared/genui/attrs.ts";
 import { BadgeChip, oneOf } from "../content/text.jsx";
 import { cls, isTone, toneClass, tpl } from "../content/util.js";
 

@@ -109,9 +109,8 @@ def checks(base):
     check = smoke.check
     subprocess.run(["rm", "-rf", OUT], check=True)
     os.makedirs(SHELL_DATA)
-    status, workers = smoke.daemon("/workers")
-    roots = [w for w in (workers or []) if isinstance(w, dict) and not w.get("parent_id") and not w.get("archived_at")] if status == 200 else []
-    if not check("the isolated daemon lists chats", roots, f"{len(roots)} top-level"):
+    roots = smoke.chats()
+    if not check("the data copy holds chats", roots, f"{len(roots)} top-level"):
         return 1
     agent = roots[0]["id"]  # the agent the calls are attributed to: its session's browser
 
@@ -248,7 +247,7 @@ def drive(steps, base, agent):
     core = smoke.bridge_of(st).get("core") or {}
     views = [v for v in st.get("views") or []]
     check("no tab was ever on screen", views and not any(v.get("placed") for v in views), views)
-    check("the app is still up; the dashboard was not driven", st.get("running") and smoke.bridge_of(st).get("panel", {}).get("view") is None, {k: core.get(k) for k in ("rust", "proxy", "rustRefused")})
+    check("the app is still up; the dashboard was not driven", st.get("running") and smoke.bridge_of(st).get("panel", {}).get("view") is None, {k: core.get(k) for k in ("rust", "refused")})
     log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read()
     check("nothing failed in the shell's log", "failed" not in log and "could not" not in log and "panic" not in log)
 

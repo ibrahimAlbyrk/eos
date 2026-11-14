@@ -1,4 +1,4 @@
-// Written by rust/tools/zod-port/vectors.mjs: Zod schema name → Rust type.
+// Zod schema name → Rust type, as the TypeScript corpus named them (frozen).
 dispatch! {
     "SubscriptionStateSchema" => SubscriptionState,
     "BillingRouteSchema" => BillingRoute,

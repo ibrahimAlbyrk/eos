@@ -1,7 +1,7 @@
-//! The Rust decisions against today's TypeScript: `rust/fixtures/policy` is
-//! written by `rust/tools/policy-vectors/generate.mjs`, which runs the real
-//! loader and `PolicyGatewayService.evaluate` over a matrix of policies,
-//! tools, inputs, modes and tool scopes. Every decision must be equal.
+//! The Rust decisions against the TypeScript's: `rust/fixtures/policy` holds
+//! what the real loader and `PolicyGatewayService.evaluate` decided over a
+//! matrix of policies, tools, inputs, modes and tool scopes (frozen, see
+//! `rust/fixtures/README.md`). Every decision must be equal.
 
 use std::fs;
 use std::path::PathBuf;

@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderSpec } from "./testkit.jsx";
 import { _reset } from "../../runtime/viewStateStore.js";
-import restaurants from "../../../../../../contracts/src/__tests__/fixtures/genui/restaurants.json";
-import trip from "../../../../../../contracts/src/__tests__/fixtures/genui/trip.json";
-import tests from "../../../../../../contracts/src/__tests__/fixtures/genui/tests.json";
-import learn from "../../../../../../contracts/src/__tests__/fixtures/genui/learn.json";
+import restaurants from "../../fixtures/restaurants.json";
+import trip from "../../fixtures/trip.json";
+import tests from "../../fixtures/tests.json";
+import learn from "../../fixtures/learn.json";
 
 // DOMPurify needs a DOM; the plain renderer is enough for markup assertions.
 vi.mock("../../../lib/markdown.js", async (importOriginal) => {

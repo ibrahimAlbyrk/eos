@@ -1,5 +1,5 @@
 //! A fresh file migrated with the migrations today's TypeScript app knows has the schema its
-//! runner builds (`tests/fixtures/ts-schema.json`, written by `scripts/gen-reference-schema.ts`).
+//! runner builds (`tests/fixtures/ts-schema.json`, frozen from the TypeScript, see `rust/fixtures/README.md`).
 //! This app's own migrations, after them, are pinned by the migrate module's tests.
 
 use eos_kit_sqlite::{Db, EMBEDDED, Error, Migration, Options, TYPESCRIPT_MIGRATIONS, preflight};

@@ -36,23 +36,21 @@ and catalog (`eos-genui`). Names follow the TypeScript ones without the `Schema`
 
 1. Write the struct in the module of its area and `impl Validate` (empty when it has no rules).
 2. List it in `schema.rs`.
-3. A new route: add its constant to `routes/table.rs` and to `ROUTES`.
-4. While `contracts/src` still exists, change it there too and refresh the corpus (below).
+3. A new route: add its constant to `routes/table.rs` and to `ROUTES`, marked `added` when the
+   TypeScript table never had it.
 
 ## Generators and tests
 
 - `cargo xtask contracts [dir]` writes `schema.json` (JSON Schema of every type), `routes.json`
   and `routes.js` to `target/generated/contracts`. An xtask test compares `routes.js` with the
   dashboard's `app/ui/src/api/routes.js` entry by entry.
-- `tests/zod_vectors.rs`: every Zod schema parsed ~4,800 sample inputs
-  (`node rust/tools/zod-port/vectors.mjs <repo> rust/crates/eos-contracts/tests/vectors`, needs
-  `npm ci` in `contracts/`); each Rust type must accept and reject the same ones, write the same
-  JSON and word a single failure the same way.
+- `tests/zod_vectors.rs`: every Zod schema parsed ~4,800 sample inputs (`tests/vectors`, frozen
+  from the TypeScript, see `rust/fixtures/README.md`); each Rust type must accept and reject the
+  same ones, write the same JSON and word a single failure the same way.
 - `tests/wire_fixtures.rs`: every body, stream payload and request the wire recorder captured
   (`rust/fixtures/wire`, or `EOS_WIRE_FIXTURES=<dir>`) through the type of its route.
-- `tests/routes.rs`: the table against `ROUTES` of `http.ts` and the methods the daemon registers.
-- `rust/tools/zod-port/port.mjs` and `routes.mjs` produced the first version of the types and
-  the table from the Zod schemas. They are kept for reference; the Rust files are edited by hand.
+- `tests/routes.rs`: the table against the TypeScript's `ROUTES` (`tests/golden/routes.json`) and
+  the methods the daemon registered (`rust/fixtures/wire/routes.json`), both frozen.
 
 ## Where Rust differs from Zod, on purpose
 

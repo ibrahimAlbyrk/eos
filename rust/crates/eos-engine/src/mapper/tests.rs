@@ -2,7 +2,7 @@
 //!
 //! `tests/vectors/*.json` hold conversations as the Claude Agent SDK streamed
 //! them and what the TypeScript mapper made of each
-//! (`tools/mapper-vectors`). [`Replay`] feeds the same conversation the way
+//! (frozen from the TypeScript, see `rust/fixtures/README.md`). [`Replay`] feeds the same conversation the way
 //! this engine reports it; the events must be the same. What differs by
 //! design is named in [`same_as_today`].
 

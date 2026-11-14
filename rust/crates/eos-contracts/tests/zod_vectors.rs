@@ -1,5 +1,5 @@
 //! Differential test against Zod: every exported schema of `contracts/src`
-//! parsed a set of inputs (`rust/tools/zod-port/vectors.mjs`); the Rust type
+//! parsed a set of inputs (`tests/vectors`, frozen from the TypeScript, see `rust/fixtures/README.md`); the Rust type
 //! of the same name must accept and reject the same ones, produce the same
 //! JSON for the accepted ones, and word a single failure the same way.
 

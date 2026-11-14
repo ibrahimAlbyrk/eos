@@ -1,6 +1,6 @@
 //! The file stores against today's: every page, memory and profile in
-//! `tests/fixtures/store-vectors.json` (written by `scripts/gen-store-vectors.mjs`
-//! from the TypeScript stores) must be written byte for byte as the
+//! `tests/fixtures/store-vectors.json` (from the TypeScript stores, frozen, see
+//! `rust/fixtures/README.md`) must be written byte for byte as the
 //! TypeScript wrote it, and every file must read back as the TypeScript read it.
 
 use eos_contracts::{Page, UserMemory, UserProfile};
