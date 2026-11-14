@@ -1,6 +1,6 @@
 // The choices the profile offers — one table, shared by Settings › Profile and the
-// first-run interview. A new option is a row here (the daemon's renderer has the
-// matching phrase in core/src/services/render-user-profile.ts).
+// first-run interview. A new option is a row here (the core's renderer has the
+// matching phrase in eos-profile `render.rs`).
 
 export const ROLE_OPTIONS = [
   { value: "engineering", label: "Engineering" },

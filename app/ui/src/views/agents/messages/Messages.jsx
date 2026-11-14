@@ -587,7 +587,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
 
   // (The old auto-flush effect lived here. Queued messages are now held and
   // drained by the DAEMON at the worker's IDLE transition — the view never
-  // dispatches; see core/use-cases/DrainQueuedMessages.)
+  // dispatches.)
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "subagents" || lastBlock.kind === "view" || lastBlock.kind === "workflow");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 

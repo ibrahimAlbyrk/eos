@@ -1,8 +1,9 @@
 # Release notes — rules and template
 
 Every release's notes live in `docs/release/notes/v<version>.md` and are written
-from this file. `scripts/release.sh` publishes that file as the GitHub release:
-its first line (`# …`) is the release title, the rest is the body.
+from this file. `cargo xtask publish-update --notes <file>` ships that file with the
+release in the update feed; on a GitHub release its first line (`# …`) is the title, the rest is
+the body.
 
 ## Rules
 

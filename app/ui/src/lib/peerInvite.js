@@ -5,7 +5,7 @@
 const PREFIX = "eos://pair/";
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
-// Mirrors core/src/domain/peer.ts formatDeviceId: 80 bits of the certificate
+// Mirrors eos-domain `peer/device_id.rs`: 80 bits of the certificate
 // fingerprint, Crockford base32, grouped by four.
 export function formatDeviceId(fingerprintHex) {
   const bytes = [];

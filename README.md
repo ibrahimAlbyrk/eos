@@ -8,8 +8,8 @@
 <div align="center">
 
 ![status](https://img.shields.io/badge/status-alpha-e8a06e?style=for-the-badge&labelColor=1a1a1a)
-![platform](https://img.shields.io/badge/macOS-primary-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
-![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
+![platform](https://img.shields.io/badge/macOS-Apple%20Silicon-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
+![runtime](https://img.shields.io/badge/built%20in-Rust-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
 ![license](https://img.shields.io/badge/license-MIT-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
 
 </div>
@@ -47,33 +47,22 @@ curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh |
 
 ## Quickstart
 
-The one-liner above installs the toolchain (Node · Bun · Xcode CLT · `claude`), clones the source to `~/eos`, builds, and launches the macOS app. Sign in once with `claude` and you're set — rebuild anytime with **`eos build`**.
+The one-liner above installs the signed, notarized `Eos.app` from the latest release (Apple Silicon Macs). Sign in to your Claude plan inside the app (Settings › Accounts) and you're set. Eos updates itself from then on (Settings › Updates).
 
 <details>
-<summary><b>Options · manual install · requirements</b></summary>
+<summary><b>Build from source · requirements</b></summary>
 
 <br/>
 
-The installer is idempotent — safe to re-run. It auto-installs anything missing, clones to `~/eos`, installs all 8 package dirs, links `eos`, fixes your `PATH`, then runs `eos build`.
-
-| Override | Default | Purpose |
-| :------- | :------ | :------ |
-| `EOS_DIR` / `--dir DIR` | `~/eos` | where the source is cloned |
-| `EOS_BRANCH` / `--branch B` | `main` | branch to track |
-| `--no-build` | — | set up only; run `eos build` yourself |
-
-Pass flags through the pipe with `-s --`, e.g. `… | bash -s -- --no-build`.
-
-**Manual, from a clone:**
-
 ```bash
-git clone https://github.com/ibrahimAlbyrk/eos ~/eos && cd ~/eos
-npm run bootstrap                  # install all 8 package dirs in order (NOT a workspace)
-bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos
-eos build                          # compile web + macOS app, start the daemon
+git clone https://github.com/ibrahimAlbyrk/eos && cd eos
+scripts/link-sdk.sh            # link the agent engine (eos-agent-sdk, a checkout beside this one)
+host/scripts/setup.sh          # build tools, esbuild, the dashboard
+cargo xtask install            # build, sign (ad hoc without a Developer ID) and install /Applications/Eos.app
+cargo xtask install --restore  # put the previous app back
 ```
 
-**Needs:** macOS (primary; Linux works, minus the app) · Node 22+ · Bun · git · the `claude` CLI signed in to a Max / Pro plan · a writable `/Applications`. The installer provides all of it.
+**Needs:** an Apple Silicon Mac · Xcode · rustup · Node 20.19 or 22.12+ with npm (for the dashboard) · a Claude Max / Pro plan. A build from source does not update itself; run `cargo xtask install` again for a newer one. Details: [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 </details>
 
@@ -81,18 +70,18 @@ eos build                          # compile web + macOS app, start the daemon
 
 ## How it works
 
-You talk to a persistent **orchestrator**. It breaks your instruction into pieces and spawns **workers** — each in its own git worktree, on its own branch, free to spawn sub-workers or [consult its peers](docs/PROMPTING.md). A **daemon** supervises everything; a **permission gateway** brokers every tool call. State and a full event log live in SQLite and stream to every UI over SSE in ~100 ms.
+You talk to a persistent **orchestrator**. It breaks your instruction into pieces and spawns **workers** — each in its own git worktree, on its own branch, free to spawn sub-workers or [consult its peers](docs/PROMPTING.md). Or talk to one **focused** agent with Claude Code's full toolset. Eos is one native app: the window, the core that runs every agent, and a **permission gateway** that decides every tool call, all in one process. State and a full event log live in SQLite and stream to the dashboard, your iPhone and your other Macs live.
 
 ```
         you ─ "add tests, refactor the session helper, update the changelog"
                                    │
-                  Web UI   ·   eos CLI   ·   macOS app
-                                   │  http · sse
+              Eos.app  ·  iPhone (through a relay)  ·  your other Macs
+                                   │
                       ╭───────────────────────────╮       ╭──────────────────╮
-                      │      daemon · :7400        │ ────▶ │   SQLite · WAL   │
-                      │   http · sse · event log   │       │  events · state  │
+                      │   Eos core (in the app)    │ ────▶ │   SQLite · WAL   │
+                      │  agents · events · policy  │       │  events · state  │
                       ╰─────────────┬──────────────╯       ╰──────────────────╯
-                                    │  spawns persistent sessions
+                                    │  runs persistent sessions
                       ╭───────────────────────────╮
                       │       orchestrator         │   decomposes one
                       │   persistent · long-lived  │   instruction → many
@@ -105,15 +94,11 @@ You talk to a persistent **orchestrator**. It breaks your instruction into piece
         │ worktree  │         │ worktree  │         │ worktree  │
         └─────┬─────┘         └─────┬─────┘         └─────┬─────┘
               │       peers may consult one another       │
-              ╰─────────────── every tool call ───────────╯
-                                    │
-                      ╭───────────────────────────╮
-                      │       gateway · Bun        │   allow · deny ·
-                      │     permission broker      │   ask-human · rewrite
-                      ╰───────────────────────────╯
+              ╰──── every tool call → permission gateway ─╯
+                          allow · deny · ask you
 ```
 
-> **Why subscription, not credits?** Claude's interactive plan (Max / Pro) and the metered API / `claude -p` pool are two different wallets. Eos drives every session against the **subscription** one — by default through the in-process Agent SDK, falling back to an interactive PTY when no subscription credential is present. Never the metered pool. Point it at a big job, it fans out into a swarm, and the bill stays the flat subscription you're already paying.
+> **Why subscription, not credits?** Claude's interactive plan (Max / Pro) and the metered API / `claude -p` pool are two different wallets. Eos drives every session against the **subscription** one, through your own sign-in. An API key is used only for a session you explicitly move to it. Point it at a big job, it fans out into a swarm, and the bill stays the flat subscription you're already paying.
 
 <br/>
 
@@ -124,16 +109,15 @@ You talk to a persistent **orchestrator**. It breaks your instruction into piece
 
 | | |
 | :-- | :-- |
-| **Parallel swarms** | One instruction → many workers, each in its own worktree + branch. Pick model (`high` · `medium` · `low`) and effort per worker. Workers spawn sub-workers. |
+| **Parallel swarms** | One instruction → many workers, each in its own worktree + branch. Pick model and effort per worker. Workers spawn sub-workers. |
 | **Dynamic workers** | Not a fixed roster. Beyond the built-ins, the orchestrator **defines new workers at runtime** — `create_worker` sets role, model, tool fences, permission mode, even `extends` inheritance — then runs them with `spawn_worker({from})`. It's how 12 bespoke domain-experts staffed the Witherreach run. |
-| **Dynamic loops** | Attach a **goal-driven loop** to a worker — it can't finish until a structured goal *verifiably* passes. Each criterion is checked by a shell command, an **LLM judge that grades real artifacts** (tests · diffs · files — not the agent's word, fail-closed), or both. A premature "done" is held and the worker re-triggered. Runs to goal-met with **no token or time budget** — just a no-progress safety net, or an optional attempt cap. |
 | **Peer collaboration** | Workers consult one another directly — `ask_peer` / `respond_to_peer` / `list_peers` — instead of routing every question back through the orchestrator. |
-| **Live dashboard** | Every session streamed at ~100 ms: tool calls, results, thinking timer, reports, a task tray, background jobs (header beacon + Jobs tab). Per-worker logs at `~/.eos/logs/`. |
+| **Live dashboard** | Every session streamed live: tool calls, results, thinking, reports, a task tray, background jobs, Claude Code Workflow runs, a read-only side question (`/btw`). |
 | **Split-screen** | Watch up to **4 agents at once** (2-up · 1+2 · 2×2). Click a pane to focus; the header, composer, and side panel follow it — steer one without losing the rest. |
-| **In-app Git** | Branches, deterministic push / fast-forward pull (no agent turn spent), diff + commit viewers, a hunk-level conflict resolver, PRs via `gh`, a **Try** stack, and `integrate_workers` to merge a swarm's branches. |
-| **Policy gateway** | YAML decides every tool call: `allow` · `deny` · `ask` (long-poll a human, no timeout) · `rewrite`. Per-worker permission modes, inline approval banners, full audit log. |
-| **Assembled prompts (DPI)** | System prompts composed per-spawn from a central library, selected by role and context — never hardcoded. Project memory + reusable templates are first-class. |
-| **Three ways in, one daemon** | React 18 web UI · `eos` CLI · native macOS app (Electron). ⌘K palette, session resume that survives daemon restarts, per-worker token pricing (display-only). |
+| **In-app Git** | Branches, push / pull without an agent turn, diff + commit viewers, a hunk-level conflict resolver, a **Try** stack, and `integrate_workers` to merge a swarm's branches. |
+| **Policy gateway** | YAML decides every tool call: `allow` · `deny` · `ask` (waits for you) · `rewrite`. Per-worker permission modes, inline approval banners, full audit trail. |
+| **Assembled prompts** | System prompts composed per spawn from a central library, selected by role and context — never hardcoded. Project memory, your profile and reusable templates are first-class. |
+| **Everywhere you are** | Pages, memories, templates and worker definitions sync between your Macs (end-to-end encrypted); control another Mac from this one; drive your agents from the iPhone app. |
 
 <!-- Optional screenshots — drop files in assets/ and uncomment any you like:
 <p align="center"><img src="assets/eos-split-screen.png" alt="Split-screen — four live transcripts" width="100%"></p>
@@ -169,49 +153,31 @@ A sub-agent is only as good as its brief. Eos's orchestrator writes each worker'
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## The `eos` CLI
-
-One daemon, one binary. `eos help` lists everything.
-
-| Command | What it does |
-| :------ | :----------- |
-| `start` · `stop` · `restart` | Run, halt, or restart the daemon (`restart --db` also wipes state). |
-| `build` · `doctor` · `status` | Converge the deploy · sanity-check the environment · reachability. |
-| `orchestrator new` · `chat <msg>` | Spawn a persistent orchestrator · send it an instruction. |
-| `spawn` | Launch a single worker directly (`--worktree-from` · `--prompt` · `--model`). |
-| `ls` · `show <id>` · `logs <id> -f` | List workers · inspect one · tail its log. |
-| `kill <id>` · `perm ok\|no <id>` | Terminate a worker · approve or deny a pending permission. |
-| `config print` · `prompts validate` · `hooks` | Dump merged config · validate the prompt library · install the gateway hook. |
-
-<br/>
-
 ## Who it's for
 
 | Built for | Not for |
 | :-------- | :------ |
 | Solo engineers on a Claude Max / Pro plan who want real parallelism. | Teams wanting a hosted, multi-user platform. |
-| Operators comfortable with daemons, PTYs, git worktrees, and YAML policy. | Anyone trying to escape an interactive billing model. |
-| macOS first, Linux second. | Pipelines that need headless, `-p`-style invocation. |
+| Operators comfortable with git worktrees and YAML policy. | Anyone trying to escape an interactive billing model. |
+| Apple Silicon Macs. | Pipelines that need headless, `-p`-style invocation. |
 
 <details>
 <summary><b>Project layout</b></summary>
 
 <br/>
 
-Clean-architecture monorepo — `contracts` → `core` → `infra` → entrypoints, dependency direction enforced at lint time. Each dir installs on its own; **not** an npm workspace.
-
 ```
-contracts/   Zod schemas + types — single source of truth for every IPC shape
-core/        pure domain · ports · use-cases · services (zero Node imports)
-infra/       adapters for core ports — SQLite, child_process, chokidar, …
-gateway/     MCP permission broker (runs on Bun)
-spawner/     worker.ts — PTY lifecycle, verified delivery, JSONL ingest (Node only)
-manager/     daemon · CLI · MCP tools · routes · prompt library
-app/         native macOS shell — Electron (Forge, main+preload) → app/out/
-app/ui/      React 18 + Vite dashboard (nested), bundled into the Electron app
+crates/ · host/  the app — one Rust program: window shell (Tauri on CEF), core, agent engine
+fixtures/        what the 0.1.x app answered, frozen: the reference the app is held to
+app/ui/          React 18 + Vite dashboard, bundled into the app
+ios/             the iPhone client (SwiftUI)
+relay/           the relay for the phone link and the sync vault (deployed separately)
+update-server/   the update feed's server
 ```
 
-User data lives in **`~/.eos`** — `state.db`, `policy.yaml`, `config.json`, `templates/`, `logs/`, startup `backups/`. Non-regenerable; never destroyed by tooling.
+Architecture and rules: [`ARCHITECTURE.md`](ARCHITECTURE.md); adding a feature: [`docs/adding-a-feature.md`](docs/adding-a-feature.md).
+
+User data lives in **`~/.eos`** — `state.db`, `policy.yaml`, `config.json`, `templates/`, `workers/`, `pages/`, `profile/`, startup `backups/`. Non-regenerable; never destroyed by tooling.
 
 </details>
 
@@ -219,9 +185,9 @@ User data lives in **`~/.eos`** — `state.db`, `policy.yaml`, `config.json`, `t
 
 ## Roadmap
 
-**Alpha** — single-author, in daily use, moving fast. Solid today: multi-orchestrator control, worker↔worker swarms, goal-driven dynamic loops (opt-in), the live dashboard, in-app git (push / pull · PR · conflict resolver · Try · integrate), the policy gateway, per-spawn prompt assembly, session resume, and the native macOS app.
+**Alpha** — single-author, in daily use, moving fast. Solid today: multi-orchestrator control, worker↔worker swarms, focused chats, the live dashboard, in-app git (push / pull · conflict resolver · Try · integrate), the policy gateway, per-spawn prompt assembly, session resume, sync between Macs, the iPhone app, and in-app updates.
 
-Next: **deterministic workflows** (the Workflows tab is still a stub) · an **in-app project explorer** · **more backends** (Deepseek · Kimi · Codex · local LLMs, same orchestration layer) · **Linux & Windows** first-class.
+Next: **more backends** (same orchestration layer) · **Windows** on the Rust app.
 
 <br/>
 

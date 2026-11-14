@@ -6,8 +6,7 @@ import { isGenuiTool } from "../genui/runtime/toolCall.js";
 export { parsePayload };
 
 // Typed provider-error codes → human English with remediation. The keys MUST match
-// the STRING contract produced by the in-process model clients
-// (infra/src/backends/{Anthropic,OpenAI}ModelClient.ts); any other reason (raw
+// the STRING contract produced by the metered model clients; any other reason (raw
 // `HTTP <status>: …`, stream stalls) falls back to the raw string.
 const PROVIDER_ERROR_MESSAGES = {
   insufficient_credits: "Provider API credits exhausted — add credits in your provider console.",

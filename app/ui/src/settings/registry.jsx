@@ -497,7 +497,7 @@ export const SETTINGS_SECTIONS = [
   { id: "updates", label: "Updates", Icon: UpdatesIcon, Component: UpdatesSettings },
 ];
 
-// Settings that belong to a built-in plugin (contracts/src/builtin-plugins.ts),
+// Settings that belong to a built-in plugin (shared/builtin-plugins.ts),
 // by plugin id — shown on its page under Settings › Plugins rather than in a
 // section.
 export const BUILTIN_PLUGIN_SETTINGS = {};

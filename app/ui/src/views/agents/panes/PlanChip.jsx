@@ -13,7 +13,7 @@ import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 //
 // Data is the worker's `tasks` column — a JSON snapshot of Claude's TodoWrite
 // list, daemon-stamped on every TodoWrite call and nulled on /clear (see
-// core/src/domain/tasks.ts). It rides the /workers refetch, so it updates live.
+// eos-domain `tasks.rs`). It rides the /workers refetch, so it updates live.
 // Hidden until the agent actually has a task list.
 
 const RING_C = 2 * Math.PI * 6;

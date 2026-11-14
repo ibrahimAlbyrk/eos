@@ -21,7 +21,7 @@ import { registerSessionTracker } from "./ptyPanelStore.js";
 import { recordClosed, forgetSession } from "./codeHistoryStore.js";
 
 // Shown on the launcher; the daemon builds the actual command line (mirrors
-// CLAUDE_COMMAND in contracts/src/http.ts — the user's `cc` alias). Each pane's
+// CLAUDE_COMMAND in eos-contracts `http/terminal.rs` — the user's `cc` alias). Each pane's
 // conversation id is pinned daemon-side at launch, and the session hook keeps it
 // current (/clear, /resume), so reconcile() can resume that conversation after
 // the PTY dies.

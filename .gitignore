@@ -8,12 +8,8 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Dependencies (per-package, no workspace)
+# Dependencies (app/ui and relay each have their own)
 node_modules/
-
-# Bun
-.bun/
-bun.lockb
 
 # Logs
 *.log
@@ -35,7 +31,7 @@ pnpm-debug.log*
 *.swo
 *~
 
-# TypeScript build artifacts
+# Build artifacts
 dist/
 build/
 out/
@@ -53,5 +49,10 @@ temp/
 # Runtime state (eos writes here, lives under $HOME but ignore if symlinked in)
 .eos/
 
-# vendored pdf.js viewer ships a build/ dir — keep it
-!manager/vendor/pdfjs/build/
+# Rust build output
+/target/
+# The agent engine's checkout, linked by scripts/link-sdk.sh.
+/vendor/
+# Responses recorded from a real data folder hold personal data.
+/fixtures/private
+__pycache__/

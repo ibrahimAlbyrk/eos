@@ -3,8 +3,8 @@
 // no effect on other sessions) that prints the current session id to the pane's
 // own terminal as a private, invisible OSC sequence; TerminalView parses it back
 // out. The hook fires on startup/resume/clear/compact, so /clear and /resume
-// keep the pane's resumable id current. Launch side:
-// manager/services/pty/claudeLaunch.ts.
+// keep the pane's resumable id current. Launch side: the core's terminals
+// (eos-mod-terminals).
 
 export const CLAUDE_SESSION_OSC = 7777;
 const PREFIX = "eos-claude-session=";

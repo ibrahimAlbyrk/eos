@@ -15,7 +15,7 @@ function PdfBody({ path }) {
 function HtmlBody({ path, frameGen }) {
   const ref = useRef(null);
   // allow-same-origin is safe ONLY because rawUrl points at the dedicated
-  // raw-content origin (daemon.rawPort) — see manager/routes/fs-raw.ts.
+  // raw-content origin (daemon.rawPort).
   return (
     <iframe
       key={frameGen}

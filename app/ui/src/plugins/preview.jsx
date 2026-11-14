@@ -1,5 +1,4 @@
-// The page the app's hidden preview window runs (app/src/main/pluginPreview.ts,
-// for the plugin_preview tool): one plugin's build, activated alone, drawn in the
+// The page the app's hidden preview view runs (for the plugin_preview tool): one plugin's build, activated alone, drawn in the
 // same markup Eos gives that surface — main view, side-panel tab or header —
 // with stand-in stored values. Nothing here writes to the daemon.
 

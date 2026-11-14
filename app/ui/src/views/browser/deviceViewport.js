@@ -2,9 +2,9 @@
 // math for the embedded view. The page renders in a native WebContentsView, so
 // the "device frame" is not a DOM box (the old canvas-era DeviceFrame) but the
 // native view itself, sized to the device rect and centered in the panel by the
-// main process (app/src/main/browser/views.ts ViewManager.viewRectFor, which
-// mirrors these dims + this formula). Kept here as the renderer-side source of
-// truth so the centering stays unit-testable without Electron.
+// window shell (eos-bridge `panel.rs`, which mirrors these dims + this
+// formula). Kept here as the renderer-side source of
+// truth so the centering stays unit-testable without the shell.
 
 export const DEVICE_DIMS = {
   mobile: { width: 375, height: 812 },

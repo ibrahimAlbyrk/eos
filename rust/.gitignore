@@ -1,7 +1,0 @@
-/target
-# The agent engine's checkout, linked by scripts/link-sdk.sh.
-/vendor/
-# Responses recorded from a real data folder hold personal data.
-/fixtures/private
-.DS_Store
-__pycache__/

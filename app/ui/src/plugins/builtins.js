@@ -1,4 +1,4 @@
-// The dashboard side of built-in plugins (contracts/src/builtin-plugins.ts):
+// The dashboard side of built-in plugins (shared/builtin-plugins.ts):
 // what each adds to the UI, added while it's on and taken away when it's
 // turned off — the same way a folder plugin's UI comes and goes.
 

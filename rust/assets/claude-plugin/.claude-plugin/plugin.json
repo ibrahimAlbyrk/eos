@@ -1,5 +1,0 @@
-{
-  "name": "eos",
-  "description": "Skills for working inside Eos: building Eos plugins that change Eos's own interface.",
-  "version": "1.0.0"
-}

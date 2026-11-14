@@ -29,7 +29,7 @@ public enum FileViewer {
         return nil
     }
 
-    // Mirrors the daemon's IMAGE_MIME extension set (manager/routes/fs-shared.ts) minus svg —
+    // Mirrors the daemon's image extension set (eos-mod-fs `image_mime`) minus svg —
     // svg is XML text, better served by /fs/read + highlighting than UIImage (which can't decode
     // it). heic/heif added: the route falls back to octet-stream but UIImage decodes the bytes.
     private static let imageExts: Set<String> = [

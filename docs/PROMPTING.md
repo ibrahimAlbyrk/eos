@@ -1,6 +1,6 @@
 # How the orchestrator prompts its workers
 
-> The craft behind Eos's fan-out. This is *encoded*, not improvised — it lives in the prompt library at `manager/prompts/role/orchestrator/`, assembled per-spawn by DPI (deterministic prompt injection).
+> The craft behind Eos's fan-out. This is *encoded*, not improvised — it lives in the prompt library at `crates/eos-store-files/assets/prompts/role/orchestrator/`, assembled per-spawn by DPI (deterministic prompt injection).
 
 A sub-agent is only as good as its brief. Most multi-agent systems split a task and hope. Eos's orchestrator writes each worker's prompt the way a senior engineer writes a handoff.
 

@@ -8,7 +8,7 @@ const TOOL_RE = /^mcp__(?:orchestrator|worker)__(present|present_app)$/;
 const VIEW_ID_IN_TEXT = /\bview (v_[A-Za-z0-9]{12})\b/;
 
 export const GENUI_OFF_TEXT = "Visual answers are off — answer in text";
-// core/src/use-cases/PresentView.ts — present_app while apps are switched off.
+// What present_app answers while apps are switched off (eos-mod-genui).
 export const GENUI_APPS_OFF_TEXT = "Apps are turned off in Settings — use present or plain text";
 
 // "view" for present, "app" for present_app, else null.

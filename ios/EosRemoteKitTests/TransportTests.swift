@@ -7,7 +7,7 @@ import XCTest
 //   • the relay join-frame shape (§4.2)
 //   • a BYTE-level match of the outer envelope against the desktop framer's exact output, so the
 //     two ends provably agree without a live relay. The golden hex strings are produced by
-//     manager/remote/envelope.ts for fixed inputs (see the fixture note on each test).
+//     the desktop app's envelope codec for fixed inputs (see the fixture note on each test).
 final class TransportTests: XCTestCase {
 
     // MARK: QR v3
@@ -129,7 +129,7 @@ final class TransportTests: XCTestCase {
         }
     }
 
-    // MARK: byte-level cross-impl match (desktop manager/remote/envelope.ts)
+    // MARK: byte-level cross-impl match (the desktop app's envelope)
 
     // Golden output of encodeEnvelope({ type:data, dir:s2c, epoch:0, seq:0n,
     //   room:"A"×22, clientId:00..0f, payload:"hello" }).

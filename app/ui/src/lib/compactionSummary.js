@@ -1,5 +1,5 @@
 // The summarizer writes numbered sections ("1. Primary Request and Intent:" …,
-// see manager/prompts/compaction/summarize). Split them so the card can hang
+// see the prompt compaction/summarize). Split them so the card can hang
 // each on its constellation line. Headings must count up from 1 — a numbered
 // item inside a section body never starts a new section. Text that doesn't
 // follow the shape stays one untitled section.

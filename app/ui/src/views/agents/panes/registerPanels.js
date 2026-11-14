@@ -55,7 +55,7 @@ panel("view", "View", { Component: ViewPanel, useTitle: useViewTitle });
 // A Workflow run's live view, opened from its card (workflow:<workerId>/<callId>).
 panel("workflow", "Workflow", { Component: WorkflowPanel, useTitle: useWorkflowTitle });
 
-// The side-panel tabs of built-in plugins (contracts/src/builtin-plugins.ts):
+// The side-panel tabs of built-in plugins (shared/builtin-plugins.ts):
 // registered while that plugin is on (plugins/builtins.js), not here.
 export const BUILTIN_PANELS = {
   [BUILTIN_PLUGINS.terminal]: [

@@ -18,7 +18,7 @@ sidebarNav.add({ id: "changes", order: 20, Component: ChangesNavItem });
 
 mainViews.add({ id: "memory", Component: MemoryView });
 
-// The slot items of built-in plugins (contracts/src/builtin-plugins.ts): added
+// The slot items of built-in plugins (shared/builtin-plugins.ts): added
 // while that plugin is on (plugins/builtins.js), not here.
 export const BUILTIN_SLOTS = {
   [BUILTIN_PLUGINS.archive]: [

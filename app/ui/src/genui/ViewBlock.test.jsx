@@ -21,7 +21,7 @@ vi.mock("../lib/markdown.js", async (importOriginal) => {
 // renderer + runtime contract independently of the real kit's markup.
 vi.mock("./kit/index.js", async () => {
   // The catalog the core validates against (its frozen TypeScript original).
-  const { default: catalog } = await import("../../../../rust/fixtures/genui/catalog.json");
+  const { default: catalog } = await import("../../../../fixtures/genui/catalog.json");
   const COMPONENT_NAMES = catalog.components.map((c) => c.name);
   const { useView, ItemScope } = await import("./runtime/ViewContext.jsx");
   const counted = new Set(["Carousel", "Table", "Map", "Timeline", "Meter", "Checklist", "KeyValue"]);

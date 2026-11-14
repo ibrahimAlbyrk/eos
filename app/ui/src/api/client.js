@@ -16,7 +16,7 @@ import { notify } from "../lib/notify.js";
 const DAEMON =
   (typeof window !== "undefined" && window.__EOS_DAEMON_URL) || "http://127.0.0.1:7400";
 // Raw-content base (daemon.rawPort). Separate origin by design — runnable
-// HTML is sandboxed with allow-same-origin there; see manager/routes/fs-raw.ts.
+// HTML is sandboxed with allow-same-origin there.
 // The app shell injects it (a controlled computer's view gets that host's
 // /h/<id> prefix on the raw port); otherwise it mirrors the default port.
 const RAW_ORIGIN = (() => {
@@ -321,7 +321,7 @@ export const api = {
       signal,
     });
   },
-  // Background jobs (contracts/src/background-job.ts), all ui-token.
+  // Background jobs (eos-contracts `background_job.rs`), all ui-token.
   async listJobs() {
     const r = await getJson(ROUTES.jobs, { headers: uiTokenHeader() });
     if (!r.ok) throw new Error(r.body?.error ?? `listJobs → ${r.status}`);
@@ -334,14 +334,14 @@ export const api = {
     if (!r.ok) throw new Error(r.body?.error ?? `getJobOutput → ${r.status}`);
     return r.body;
   },
-  // Plugins (contracts/src/plugin.ts).
+  // Plugins (eos-contracts `plugin.rs`).
   // { plugins, installs }: every plugin, and where the installed ones came from.
   async listPlugins() {
     const r = await getJson(ROUTES.plugins, { headers: uiTokenHeader() });
     if (!r.ok) throw new Error(r.body?.error ?? `plugins → ${r.status}`);
     return { plugins: r.body.plugins, installs: r.body.installs ?? {} };
   },
-  // Installing (contracts/src/plugin-install.ts): stage, review, then install.
+  // Installing (eos-contracts `plugin_install.rs`): stage, review, then install.
   async stagePlugin(source) {
     return postJson(ROUTES.pluginInstall, { source }, uiTokenHeader());
   },
@@ -377,7 +377,7 @@ export const api = {
   async stopJob(id) { return postJson(ROUTES.jobStop(id), {}, uiTokenHeader()); },
   async dismissJob(id) { return postJson(ROUTES.jobDismiss(id), {}, uiTokenHeader()); },
   async clearJobs() { return postJson(ROUTES.jobsClear, {}, uiTokenHeader()); },
-  // In-app updates (contracts/src/update.ts), ui-token. Every action answers with
+  // In-app updates (eos-contracts `update.rs`), ui-token. Every action answers with
   // the new UpdateState.
   async getUpdate() {
     const r = await getJson(ROUTES.update, { headers: uiTokenHeader() });
@@ -1195,7 +1195,7 @@ export const api = {
     return r.ok ? r.body : null;
   },
 
-  // The artifact catalog (contracts/src/artifacts.ts ArtifactCatalog), ui-token.
+  // The artifact catalog (eos-contracts `artifacts.rs` ArtifactCatalog), ui-token.
   async getArtifacts() {
     const r = await getJson(ROUTES.artifacts, { headers: uiTokenHeader() });
     if (!r.ok) throw new Error(r.body?.error ?? `getArtifacts → ${r.status}`);

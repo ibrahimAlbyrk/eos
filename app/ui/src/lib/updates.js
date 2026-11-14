@@ -1,5 +1,5 @@
 // What the update beacon and Settings › Updates say for an UpdateState
-// (contracts/src/update.ts). Pure, so both read the same words.
+// (eos-contracts `update.rs`). Pure, so both read the same words.
 
 import { formatBytes } from "./format.js";
 

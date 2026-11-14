@@ -3,7 +3,7 @@ import restaurants from "../../fixtures/restaurants.json";
 import tests from "../../fixtures/tests.json";
 import learn from "../../fixtures/learn.json";
 // The catalog the core validates against (its frozen TypeScript original).
-import catalog from "../../../../../../rust/fixtures/genui/catalog.json";
+import catalog from "../../../../../../fixtures/genui/catalog.json";
 import { components as layout } from "./index.js";
 import { components as content } from "../content/index.js";
 import { components as entities } from "../entities/index.js";

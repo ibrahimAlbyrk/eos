@@ -1,7 +1,7 @@
 // A subagent as the lists read it: collectSubagents' entry without the bodies
 // (prompt, report, inner tools' inputs and outputs). The core answers this
 // shape for the whole conversation (GET /workers/:id/subagents, see
-// rust/crates/eos-contracts/src/subagents.rs); the transcript's own window is
+// crates/eos-contracts/src/subagents.rs); the transcript's own window is
 // put in the same shape, so the two can be joined. Keep the three in step.
 
 export const ACTIVITY_TEXT_MAX = 200;

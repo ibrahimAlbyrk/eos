@@ -8,9 +8,6 @@ which you self-host, can therefore see content, so **TLS at the relay edge
 (Caddy/ACME) is the only confidentiality layer**. The room id + bearer are the
 capability: admission is `SHA-256(bearer)` hash-membership, unchanged.
 
-See `docs/mobile-redesign/01-plaintext-relay-protocol.md` §4–§5 for the
-authoritative contract.
-
 ## What it does
 
 - One plain-`ws` listener (TLS/ACME is owned by a fronting reverse proxy — see Deploy).
@@ -48,7 +45,7 @@ npm test             # node strip-types test suite
 
 ## Vault (Eos sync)
 
-Plain HTTP next to the ws listener, backing Mac↔Mac sync (`docs/sync/00-SYNC-PLAN.md`).
+Plain HTTP next to the ws listener, backing Mac↔Mac sync.
 It stores **opaque blobs only**: record keys are HMACs and data is AES-GCM ciphertext
 sealed on the Macs — the relay never sees ids, names or content. It only orders writes
 (one monotonic `seq` per vault) and refuses stale ones. SQLite via `node:sqlite`.

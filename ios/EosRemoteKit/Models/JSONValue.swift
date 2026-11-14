@@ -2,7 +2,7 @@ import Foundation
 
 // A lenient JSON value. Snapshot/patch `data` and control `body` carry the daemon's resource
 // shapes verbatim; we keep them as JSONValue and read known fields through typed accessors
-// rather than mirror every contracts/ schema (design §5.2 "id-keyed dicts").
+// rather than mirror every desktop wire schema (design §5.2 "id-keyed dicts").
 public enum JSONValue: Codable, Sendable, Equatable {
     case string(String)
     case number(Double)

@@ -1,5 +1,5 @@
 // Checklist counts of a page body ("- [ ]" / "- [x]"), skipping fenced code —
-// the same rule the daemon's page summaries use (core/src/domain/page.ts).
+// the same rule the core's page summaries use (eos-domain `page.rs`).
 export function countTasks(body) {
   let total = 0;
   let done = 0;

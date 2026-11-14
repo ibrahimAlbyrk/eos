@@ -1,6 +1,6 @@
 // Pure model behind the artifact card, peek, tab and list (views/artifacts/):
 // one artifact's display data from a tool call merged with the catalog
-// (contracts/src/artifacts.ts), relative times, account avatars, the list's
+// (eos-contracts `artifacts.rs`), relative times, account avatars, the list's
 // filters and its grouping by Claude sign-in.
 import { artifactViewerUrl } from "../shared/artifact-ids.ts";
 import { artifactLabel } from "./artifactLink.js";

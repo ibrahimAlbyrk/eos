@@ -5,7 +5,7 @@
 // stream is up. Without a snapshot (an older daemon, a failed request) every store asks
 // its own route, as before.
 //
-// Not in ROUTES: that table mirrors contracts/src/http.ts, which has no such route.
+// Not in ROUTES: that table holds the 0.1.x routes, and this one is an addition.
 export const BOOT_ROUTE = "/api/boot";
 
 let parts = null; // path → { status, body }

@@ -85,8 +85,8 @@ export function reconcileAttachmentItems(prev, text, { usedLabels, paths, kinds,
   return [...kept, ...added];
 }
 
-// Canonical parser now lives in contracts/src/attachments.ts (shared with the
-// daemon's GET /workers/:id/attachments). Re-exported here so existing composer
+// Canonical parser lives in shared/attachments.ts (the same rules as the
+// core's GET /workers/:id/attachments). Re-exported here so existing composer
 // / message-bubble consumers keep importing from this module unchanged.
 export { buildAttachmentSuffix, kindFromExt } from "../shared/attachments.ts";
 import { parseAttachmentMessage as parseAttachmentMessageBase } from "../shared/attachments.ts";

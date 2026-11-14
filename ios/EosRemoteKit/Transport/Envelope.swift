@@ -17,7 +17,7 @@ public enum EnvelopeType: UInt8, Sendable {
 }
 
 // Outer envelope (§4.4): relay-visible, binary, big-endian. One envelope = one WS binary message.
-// Byte-identical to the desktop manager/remote/envelope.ts.
+// Byte-identical to the desktop app's envelope (crates/eos-relay/src/envelope.rs).
 //   ver(1) type(1) dir(1) epoch(1) seq(8 BE) roomLen(1) room(R) clientId(16) payload(..)
 // For type=data(0x01) the payload is plaintext inner-frame JSON (§5) — no AEAD; epoch/seq are set
 // to 0 and never validated (they lost their crypto role in v3).

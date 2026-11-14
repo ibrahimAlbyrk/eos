@@ -2,7 +2,7 @@
 // frontend. Every fetch in the codebase resolves its path through here so a
 // daemon endpoint rename is one edit, not a hunt.
 //
-// Mirrors the core's route table (rust/crates/eos-contracts/src/routes): a
+// Mirrors the core's route table (crates/eos-contracts/src/routes): a
 // `cargo xtask` test compares the two entry by entry. Kept as its own file so the
 // dashboard builds by itself.
 
@@ -33,17 +33,17 @@ export const ROUTES = {
   workerSubagents: (id) => `/workers/${id}/subagents`,
   workerSubagentRows: (id, callId) => `/workers/${id}/subagents/${callId}/events`,
   workerArtifacts: (id) => `/workers/${id}/artifacts`,
-  // Claude Code Workflow runs (contracts/src/workflow-run.ts).
+  // Claude Code Workflow runs (eos-contracts `workflow_run.rs`).
   workerWorkflowRuns: (id) => `/workers/${id}/workflow-runs`,
   workerWorkflowRun: (id, callId) => `/workers/${id}/workflow-runs/${callId}`,
   workerWorkflowRunStop: (id, callId) => `/workers/${id}/workflow-runs/${callId}/stop`,
-  // Background jobs (contracts/src/background-job.ts), all ui-token.
+  // Background jobs (eos-contracts `background_job.rs`), all ui-token.
   jobs: "/api/jobs",
   jobsClear: "/api/jobs/clear",
   jobOutput: (id) => `/api/jobs/${encodeURIComponent(id)}/output`,
   jobStop: (id) => `/api/jobs/${encodeURIComponent(id)}/stop`,
   jobDismiss: (id) => `/api/jobs/${encodeURIComponent(id)}/dismiss`,
-  // In-app updates (contracts/src/update.ts), ui-token, this Mac only.
+  // In-app updates (eos-contracts `update.rs`), ui-token, this Mac only.
   update: "/api/update",
   updateCheck: "/api/update/check",
   updateDownload: "/api/update/download",
@@ -52,7 +52,7 @@ export const ROUTES = {
   updateDismiss: "/api/update/dismiss",
   settingsUpdates: "/api/settings/updates",
   workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
-  // The /btw side question (contracts/src/side-question.ts), ui-token.
+  // The /btw side question (eos-contracts `side_question.rs`), ui-token.
   workerSideQuestion: (id) => `/workers/${id}/btw`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerWarm: (id) => `/workers/${id}/warm`,
@@ -182,7 +182,7 @@ export const ROUTES = {
   syncKey: "/api/sync/key",
   syncNow: "/api/sync/now",
   syncLeave: "/api/sync/leave",
-  // File transfer (contracts/src/transfer.ts): /transfer/* is a daemon's own disk
+  // File transfer (eos-contracts `transfer.rs`): /transfer/* is a daemon's own disk
   // (this Mac's, or a paired one's through /h/<id>); /api/transfers this Mac's engine.
   transferList: "/transfer/list",
   transferKey: "/transfer/key",
@@ -196,7 +196,7 @@ export const ROUTES = {
   settings: "/api/settings",
   settingsArchive: "/api/settings/archive",
   settingsCompaction: "/api/settings/compaction",
-  // Visual answers (contracts/src/genui/spec.ts). settingsGenui GET/PUT (ui-token)
+  // Visual answers (eos-contracts `genui.rs`). settingsGenui GET/PUT (ui-token)
   // is the only write path for location.share and the logo.dev key.
   settingsGenui: "/api/settings/genui",
   genuiViews: "/api/genui/views",
@@ -218,7 +218,7 @@ export const ROUTES = {
   remoteConfig: "/api/remote/config",
   remoteArm: "/api/remote/arm",
   remotePair: "/api/remote/pair",
-  // Eos ↔ Eos peering (contracts/src/peer.ts).
+  // Eos ↔ Eos peering (eos-contracts `peer.rs`).
   hostInfo: "/api/host",
   peer: "/api/peer",
   peerInvite: "/api/peer/invite",
@@ -234,11 +234,11 @@ export const ROUTES = {
   // Subscription usage snapshot (Settings > Usage) — open read; daemon answers
   // from its held UsageResponse at once (`?wait=1` waits for a stale one's refresh).
   usage: "/api/usage",
-  // Every artifact of every Claude sign-in (contracts/src/artifacts.ts) —
+  // Every artifact of every Claude sign-in (eos-contracts `artifacts.rs`) —
   // ui-token, this Mac only.
   artifacts: "/api/artifacts",
   artifactsRefresh: "/api/artifacts/refresh",
-  // Plugins (contracts/src/plugin.ts) — writes are ui-token.
+  // Plugins (eos-contracts `plugin.rs`) — writes are ui-token.
   plugins: "/api/plugins",
   plugin: (id) => `/api/plugins/${encodeURIComponent(id)}`,
   pluginReport: (id) => `/api/plugins/${encodeURIComponent(id)}/report`,

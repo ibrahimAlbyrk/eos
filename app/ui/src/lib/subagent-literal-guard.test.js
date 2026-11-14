@@ -4,7 +4,7 @@ import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Background subagents are detected via the canonical subagent_started /
-// subagent_completed events (contracts/src/canonical.ts), never by matching
+// subagent_completed events (eos-contracts `canonical.rs`), never by matching
 // launch-stub text. This test fails if a stub-string heuristic reappears
 // anywhere in the UI source. Mirrors manager's backend-kind-literal-guard.
 

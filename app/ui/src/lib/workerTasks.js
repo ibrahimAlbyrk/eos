@@ -1,5 +1,5 @@
 // Parse the worker row's `tasks` column — a JSON snapshot of Claude's
-// TodoWrite list, daemon-stamped (see core/src/domain/tasks.ts) — into a plain
+// TodoWrite list, stamped by the core (eos-domain `tasks.rs`) — into a plain
 // array the TaskTray renders. Defensive: any malformed/absent payload yields []
 // so the tray simply hides rather than throwing.
 const STATUSES = new Set(["pending", "in_progress", "completed"]);

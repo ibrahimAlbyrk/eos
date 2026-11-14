@@ -1,5 +1,5 @@
 // artifactCatalogStore — every claude.ai artifact of every Claude sign-in
-// (GET /api/artifacts, contracts/src/artifacts.ts). Loaded once on first use,
+// (GET /api/artifacts, eos-contracts `artifacts.rs`). Loaded once on first use,
 // then read again on every artifacts:change (a bare signal: the catalog itself
 // only comes from this Mac's route), when the stream restarts and on window
 // focus once a minute has passed, which lets the daemon refresh any sign-in gone

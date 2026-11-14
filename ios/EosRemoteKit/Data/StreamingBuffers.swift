@@ -53,7 +53,7 @@ public actor TerminalBuffers {
 }
 
 // Transient live goal-check progress for one worker (spec 03 §4.5 / §4.10 #4, port of the transient
-// LoopCheckProgress payload — contracts/src/loop.ts LoopCheckProgressSchema). The daemon publishes
+// LoopCheckProgress payload of the 0.1.x desktop app). That app publishes
 // "loop:check" phase updates (started → verifying|judging → verdict) while it runs a looped worker's
 // goal check on its idle edge — the otherwise-silent window. `startedAt` is the local elapsed anchor
 // (reset on a fresh "started" phase); only the verdict phase carries met/outcome/reason.

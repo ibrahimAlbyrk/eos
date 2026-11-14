@@ -9,7 +9,7 @@ yourself with your own Apple signing — there is no App Store / TestFlight (des
   tests pass** (golden-fixture crypto byte-match incl. the `dataFrameKa` go/no-go gate, the
   full-PAIR choreography reproducing the golden session keys, transport framing).
 - **Live end-to-end PROVEN over the relay.** The Simulator client paired with and controlled a
-  real Node daemon through the live relay: SIGMA handshake → sealed welcome (durable bearer +
+  desktop Eos through the live relay: SIGMA handshake → sealed welcome (durable bearer +
   resumption ticket) → `GET /workers` (200) → per-action Secure-Enclave **step-up** verified.
 - **Screens:** Code list (agents tree + Archived), Conversation (live transcript + composer +
   permission banners), New session, Devices (+ device switcher); QR-scan pairing; deep links

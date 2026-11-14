@@ -7,7 +7,7 @@
 import { basename } from "./path.js";
 import { stripCatLineNumbers } from "./diff.jsx";
 
-// Same frontmatter block shape as skillBody.js / commands.ts, capturing the body.
+// Same frontmatter block shape as skillBody.js, capturing the body.
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---/;
 
 function frontmatterName(resultText) {

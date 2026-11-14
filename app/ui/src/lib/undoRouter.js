@@ -1,5 +1,5 @@
 // Native ⌘Z/⇧⌘Z never reach the page as keys: the app menu owns them
-// (app/src/main/menu.ts) and calls window.__eosUndo/__eosRedo instead. Every
+// and calls window.__eosUndo/__eosRedo instead. Every
 // editor with its own undo stack registers a target { undo, redo, hasFocus? }.
 // A target with hasFocus takes the call only while focused (a code editor);
 // otherwise the most recently registered target without it does (the composer —
