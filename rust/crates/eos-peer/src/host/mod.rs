@@ -208,7 +208,13 @@ impl PeerHost {
             relay,
             open_invites: i64::try_from(open_invites).unwrap_or(i64::MAX),
             devices: self.devices_view(),
+            off: None,
         }
+    }
+
+    /// The relay the settings name for this computer, dialled or not.
+    pub(crate) fn configured_relay(&self) -> Option<String> {
+        (self.deps.relay_url)()
     }
 
     fn devices_view(&self) -> Vec<PairedDeviceView> {

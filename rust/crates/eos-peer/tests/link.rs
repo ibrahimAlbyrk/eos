@@ -408,6 +408,31 @@ async fn a_link_with_no_route_says_so_and_a_waiting_request_fails_with_its_code(
     assert_eq!(device.peering.call(&"0".repeat(64), call).await, Err(PeerCallError::NotPaired));
 }
 
+/// The same data folder, opened by a run that keeps off the network (a copy,
+/// a build from source): a transfer to a paired computer is told so, not that
+/// the computer is out of reach.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_that_keeps_off_the_network_says_so_to_a_call() {
+    let host = Mac::new("Office").await;
+    let device = Mac::new("Laptop").await;
+    device.peering.pair(&host.invite(), None, false).await.expect("pairs");
+    let home = device.home.clone();
+    drop(device);
+    let away = Mac::on(home, MacOptions { network: false, ..MacOptions::named("Laptop") }).await;
+
+    let link = away.host_view(&host.id()).expect("still paired").link;
+    assert_eq!((link.state, link.error.as_deref()), (LinkState::Offline, Some("off-network")));
+    let call = PeerRequest {
+        method: "GET",
+        target: "/transfer/list".into(),
+        content_type: None,
+        body: bytes::Bytes::new(),
+        ready_ms: 300,
+        timeout_ms: 1000,
+    };
+    assert_eq!(away.peering.call(&host.id(), call).await, Err(PeerCallError::OffNetwork));
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_transfer_engine_reaches_a_paired_computer_as_the_user() {
     let (host, device) = paired().await;

@@ -45,7 +45,12 @@ async fn an_app_that_was_not_told_it_may_use_the_network_never_listens() {
     assert_eq!(peer["enabled"], app.config().current().peer.enabled, "the setting keeps its value");
     assert_eq!(peer["listening"], false, "the side effect needs the host's go");
     assert_eq!(peer["addrs"], serde_json::json!([]));
-    assert_eq!(peer["relay"], Value::Null);
+    // Hosting on: the relay the settings name is shown, never dialled, and why.
+    let hosting = app.config().current().peer.enabled;
+    let relay = app.config().current().remote.relay.as_ref().map(|relay| relay.url.clone());
+    let shown = relay.filter(|_| hosting).map(|url| serde_json::json!({ "url": url, "online": false }));
+    assert_eq!(peer["relay"], shown.unwrap_or(Value::Null));
+    assert_eq!(peer.get("off").is_some(), hosting, "{peer}");
     assert_eq!(peer["host"], info);
 
     // Applying the settings again still opens nothing.

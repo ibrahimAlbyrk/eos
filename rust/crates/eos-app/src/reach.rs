@@ -11,14 +11,19 @@
 //! | Paired computers | no listener, no dial |
 //! | Sync | its vault refuses every call: nothing is pulled or pushed |
 //! | The update feed | updates are off |
-//! | Eos's own reads of the user's accounts: plan usage, the artifact catalog, the model list | no sign-in's token is handed out or renewed for them |
+//! | Eos's own reads of the user's accounts: plan usage, the artifact catalog, the model list | no sign-in's token is handed out or renewed for them; usage and artifacts say why |
+//! | The check of an older install's setup token (`config.anthropic.authToken`) | never asked: the token counts as signed in, as when the network does not answer |
+//! | The saved plan usage (`usage-cache.json`, read by the TypeScript app too) | shown as not refreshed, never written |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
+//! Each service says why it does nothing in the words or code its answer
+//! already has, never as "not signed in" or "not set".
 
 use std::sync::Arc;
 
+use eos_contracts::ProviderUsage;
 use eos_contracts::update::UpdateOffReason;
-use eos_core::accounts::{PlanStores, StoreLogin};
+use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, UsageSnapshotStore};
 use eos_core::net::relay::Relay;
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
 use eos_core::{BoxFuture, Error};
@@ -27,6 +32,9 @@ use eos_domain::update::UpdateInstall;
 
 /// Why sync does nothing on another data folder, as Settings › Sync shows it.
 const SYNC_OFF: &str = "Sync runs only in the installed Eos on your own data folder";
+/// Why usage and artifacts are not read, as Settings › Usage and the
+/// artifact list show it.
+const ACCOUNT_READS_OFF: &str = "Only the installed Eos on your own data folder reads your accounts";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reach {
@@ -63,6 +71,39 @@ impl Reach {
     pub(crate) fn account_reads(self, stores: Arc<dyn PlanStores>) -> Arc<dyn PlanStores> {
         if self.network { stores } else { Arc::new(NoTokens(stores)) }
     }
+
+    /// Where plan usage is saved between runs. A run that reads none has
+    /// nothing to add, and what it would drop is still the user's.
+    pub(crate) fn usage_cache(self, cache: Arc<dyn UsageSnapshotStore>) -> Arc<dyn UsageSnapshotStore> {
+        if self.network { cache } else { Arc::new(ReadOnly(cache)) }
+    }
+
+    /// How an older install's setup token is checked: it is sent to Claude.
+    pub(crate) fn token_probe(self, probe: Arc<dyn TokenProbe>) -> Arc<dyn TokenProbe> {
+        if self.network { probe } else { Arc::new(NoProbe) }
+    }
+}
+
+/// A token check that asks nobody: the answer is the one for no answer.
+struct NoProbe;
+
+impl TokenProbe for NoProbe {
+    fn probe<'a>(&'a self, _token: &'a str) -> BoxFuture<'a, TokenProbeResult> {
+        Box::pin(std::future::ready(TokenProbeResult::Unknown))
+    }
+}
+
+/// Saved usage that is read and never written.
+struct ReadOnly(Arc<dyn UsageSnapshotStore>);
+
+impl UsageSnapshotStore for ReadOnly {
+    fn load(&self) -> Vec<ProviderUsage> {
+        self.0.load()
+    }
+
+    fn save(&self, _snapshots: &[ProviderUsage]) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 /// Sync accounts whose vault is never reached.
@@ -91,7 +132,7 @@ impl SyncVault for Refused {
     }
 }
 
-/// Stores that say what they hold but hand out no token.
+/// Stores that say what they hold but hand out no token, and say why.
 struct NoTokens(Arc<dyn PlanStores>);
 
 impl PlanStores for NoTokens {
@@ -110,12 +151,16 @@ impl PlanStores for NoTokens {
     fn sign_out<'a>(&'a self, provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         self.0.sign_out(provider, store_dir)
     }
+
+    fn withheld(&self) -> Option<&'static str> {
+        Some(ACCOUNT_READS_OFF)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use eos_contracts::update::UpdatePlatform;
-    use eos_testkit::FakePlanStores;
+    use eos_testkit::{FakePlanStores, FakeTokenProbe};
 
     use super::*;
 
@@ -127,8 +172,20 @@ mod tests {
         assert!(off.read("anthropic", "/acc/claude").await.present, "what it holds still shows");
         assert_eq!(off.access_token("anthropic", "/acc/claude").await, None);
         assert!(!off.refused("anthropic", "/acc/claude", "t").await);
+        assert_eq!(off.withheld(), Some(ACCOUNT_READS_OFF), "and says why");
         let on = Reach::new(true).account_reads(stores);
         assert!(on.access_token("anthropic", "/acc/claude").await.is_some());
+        assert_eq!(on.withheld(), None);
+    }
+
+    #[tokio::test]
+    async fn off_the_network_an_old_setup_token_is_never_sent_to_be_checked() {
+        let probe = Arc::new(FakeTokenProbe::default());
+        probe.answer(TokenProbeResult::Rejected);
+        let off = Reach::new(false).token_probe(probe.clone());
+        assert_eq!(off.probe("setup").await, TokenProbeResult::Unknown, "never read as expired");
+        assert_eq!(probe.calls(), 0);
+        assert_eq!(Reach::new(true).token_probe(probe.clone()).probe("setup").await, TokenProbeResult::Rejected);
     }
 
     #[test]

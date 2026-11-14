@@ -34,6 +34,9 @@ pub enum PeerCallError {
     NotPaired,
     #[error("that computer isn't reachable right now")]
     NotReady,
+    /// This run dials no other computer at all.
+    #[error("only the installed Eos on your own data folder reaches other computers")]
+    OffNetwork,
     #[error("the link to that computer dropped")]
     Dropped,
     #[error("the other computer stopped answering")]

@@ -204,11 +204,13 @@ pub(crate) struct MacOptions {
     /// Where the relay is; a made-up address serves a relay held in memory.
     pub(crate) relay_url: Option<String>,
     pub(crate) direct: bool,
+    /// `PeeringOptions::network`: false for a run that keeps off the network.
+    pub(crate) network: bool,
 }
 
 impl MacOptions {
     pub(crate) fn named(name: &'static str) -> Self {
-        Self { name, hosting: true, relay: None, relay_url: None, direct: true }
+        Self { name, hosting: true, relay: None, relay_url: None, direct: true, network: true }
     }
 }
 
@@ -237,6 +239,7 @@ impl Mac {
         opts.addresses = Some(Arc::new(|port| vec![format!("127.0.0.1:{port}")]));
         opts.keep_awake = Arc::new(|| None);
         opts.ping_interval = Duration::from_millis(200);
+        opts.network = options.network;
         if let Some(relay) = options.relay {
             opts.relay = Some(relay);
             let url = options.relay_url.unwrap_or_else(|| "wss://relay.invalid/ws".to_owned());

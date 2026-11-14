@@ -11,7 +11,8 @@
 
 import { refreshUsage, useUsage } from "../state/usageStore.js";
 import {
-  USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, planUsageSections,
+  USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, outdatedNote,
+  planUsageSections,
 } from "../lib/usageFormat.js";
 
 export const USAGE_SETTING_DEFAULTS = {};
@@ -145,7 +146,7 @@ export function UsageSettings() {
           {failures.map((e) => (
             <div className="stg-row stg-row--stack" key={e.provider}>
               <div className="stg-prov-err">
-                {USAGE_PROVIDER_NAMES[e.provider] ?? e.provider}: {friendlyUsageError(e.reason)}
+                {USAGE_PROVIDER_NAMES[e.provider.split(":")[0]] ?? e.provider}: {friendlyUsageError(e.reason)}
               </div>
             </div>
           ))}
@@ -163,7 +164,7 @@ export function UsageSettings() {
           style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}
         >
           <span className="stg-row__desc">
-            Last updated: {formatAgo(lastUpdated)}{outdated ? " · couldn’t refresh, retrying" : ""}
+            Last updated: {formatAgo(lastUpdated)}{outdated ? outdatedNote(data?.errors) : ""}
           </span>
           <button type="button" className="stg-prov-save" disabled={busy} onClick={refreshUsage}>
             {busy ? "Refreshing…" : "Refresh"}

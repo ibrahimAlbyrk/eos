@@ -712,6 +712,24 @@ async fn usage_is_read_per_sign_in_with_its_own_token_and_chatgpt_reports_what_i
     assert_eq!(t.accounts.access_token(CLAUDE, "nope").await, None);
 }
 
+/// A run that keeps off the network withholds every token: the old
+/// setup-token in the configuration is no way round that.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_that_withholds_tokens_reads_no_usage_with_the_old_setup_token() {
+    let t = fixture(json!({ "anthropic": { "authToken": "old-setup-token" } }));
+    t.stores.withhold("not on this run");
+    let usage = t.accounts.usage().get_usage().await;
+    assert!(t.usage_api.tokens().is_empty(), "the usage endpoint was never asked");
+    let errors = usage.errors.unwrap_or_default();
+    assert_eq!(errors.first().map(|e| (e.provider.as_str(), e.reason.as_str())), Some(("claude", "not on this run")));
+
+    // With no setup-token either, nobody is signed in: that is the reason.
+    let t = fixture(json!({}));
+    t.stores.withhold("not on this run");
+    let errors = t.accounts.usage().get_usage().await.errors.unwrap_or_default();
+    assert_eq!(errors.first().map(|e| e.reason.as_str()), Some(NO_CLAUDE_TOKEN));
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn the_sign_in_from_before_is_adopted_in_place() {
     let t = fixture(json!({}));

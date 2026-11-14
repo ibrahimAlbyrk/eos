@@ -11,8 +11,8 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use eos_contracts::{
-    Fingerprint, HostView, KnownHost, LinkRoute, LinkState, LinkStatus, PairRequest, PairRequestReciprocal,
-    PairResponse, PeerInvite, RelayGrant, UpdateHostRequest,
+    Fingerprint, HostView, KnownHost, LinkRoute, LinkState, PairRequest, PairRequestReciprocal, PairResponse,
+    PeerInvite, RelayGrant, UpdateHostRequest,
 };
 use eos_core::net::peer::PairingError;
 use eos_core::net::relay::RoomJoin;
@@ -342,18 +342,10 @@ impl HostLinkService {
 
     pub(crate) fn view(&self, host: KnownHost) -> HostView {
         let link = self.existing(&host.id.0);
-        let offline = || LinkStatus {
-            state: LinkState::Offline,
-            route: None,
-            rtt_ms: None,
-            since: self.deps.clock.now_ms().into(),
-            attempt: 0,
-            error: None,
-        };
         HostView {
             device_id: format_device_id(&host.id.0),
             has_relay: host.relay.is_some(),
-            link: link.as_ref().map_or_else(offline, |l| l.status()),
+            link: link.as_ref().map_or_else(|| self.deps.offline(), |l| l.status()),
             info: link.and_then(|l| l.info()),
             id: host.id,
             name: host.name,

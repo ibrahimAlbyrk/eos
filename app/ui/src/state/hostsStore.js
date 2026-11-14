@@ -117,6 +117,8 @@ export function routeLabel(link) {
   if (link.state === "unauthorized") return link.error === "identity-changed" ? "ID changed" : "Not paired";
   if (link.error === "remote-access-off") return "Remote access off";
   if (link.error === "local-network") return "Local network blocked";
+  // This copy of Eos dials no other computer (only the installed app on your own data folder does).
+  if (link.error === "off-network") return "Off for this copy";
   return "Offline";
 }
 

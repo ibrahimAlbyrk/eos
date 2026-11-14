@@ -138,13 +138,15 @@ export function RemoteAccessSettings() {
 
   const host = status?.host;
   const enabled = Boolean(status?.enabled);
+  // This run keeps off the network: nothing listens and no relay is dialled.
+  const offNetwork = status?.off === "off-network";
 
   return (
     <>
       <h2 className="stg-title">Remote access</h2>
 
       <div className="peer-hero">
-        <MachineGlyph name={host?.name} platform={host?.platform} tone={enabled ? (status?.listening || !status?.direct ? "ok" : "warn") : "off"} size="xl" />
+        <MachineGlyph name={host?.name} platform={host?.platform} tone={enabled && !offNetwork ? (status?.listening || !status?.direct ? "ok" : "warn") : "off"} size="xl" />
         <div className="peer-hero__text">
           <span className="peer-hero__title">Allow other computers to control {host?.name ?? "this Mac"}</span>
           <span className="peer-hero__desc">Paired computers get full control of agents, terminals and files. Every connection is end-to-end encrypted. While on, this Mac stays awake on power so it can be reached — the screen still locks.</span>
@@ -172,7 +174,9 @@ export function RemoteAccessSettings() {
             <div className="stg-row__text">
               <div className="stg-row__label">Direct on this network</div>
               <div className="stg-row__desc">
-                {status?.direct && status?.listening
+                {offNetwork
+                  ? "Off for this copy — only the installed Eos on your own data folder lets other computers in."
+                  : status?.direct && status?.listening
                   ? <>Reachable at <span className="mono">{status.addrs.join(", ") || "—"}</span> · the fastest route.</>
                   : status?.direct ? "Couldn't open the port — another app may be using it." : "Off — other computers can't connect directly."}
               </div>
@@ -185,7 +189,9 @@ export function RemoteAccessSettings() {
                 <div className="stg-row__label">Relay</div>
                 <div className="stg-row__desc">For connections from outside this network. It only forwards encrypted bytes — it can't read them.</div>
               </div>
-              {status?.relay
+              {status?.relay && offNetwork
+                ? <span className="m-pill">Off for this copy</span>
+                : status?.relay
                 ? <span className={"m-pill" + (status.relay.online ? " m-pill--ok" : " m-pill--warn")}>{status.relay.online ? "Online" : "Connecting…"}</span>
                 : <span className="m-pill">Not set</span>}
             </div>

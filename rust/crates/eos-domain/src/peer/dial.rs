@@ -15,6 +15,8 @@ pub mod link_error {
     /// A direct path failed with "no route to host": most often macOS Local
     /// Network privacy keeping Eos off the LAN.
     pub const LOCAL_NETWORK: &str = "local-network";
+    /// This run of Eos dials no host at all.
+    pub const OFF_NETWORK: &str = eos_contracts::OFF_NETWORK;
 }
 
 /// One failed attempt: the route it tried and the system's error name

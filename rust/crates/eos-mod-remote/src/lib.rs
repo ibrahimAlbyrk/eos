@@ -46,7 +46,8 @@ pub struct RemoteParts {
     pub store: Arc<dyn RemoteStore>,
     /// How the relay is reached. `None`: this app never dials one — arming
     /// does nothing, whatever the configuration says (tests, replays, a
-    /// build that must not leave the computer).
+    /// build that must not leave the computer), and asking for a pairing
+    /// code of a switched-on link says so.
     pub relay: Option<Arc<dyn Relay>>,
     pub keep_awake: Arc<dyn KeepAwake>,
     pub kernel: Kernel,

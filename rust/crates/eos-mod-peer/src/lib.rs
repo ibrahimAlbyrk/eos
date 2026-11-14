@@ -13,7 +13,9 @@
 //!
 //! - **The go for the network.** `eos_app::Options::reaches_network = true`,
 //!   only in the installed app on the user's own data folder. Without it the
-//!   settings answer and nothing listens or dials.
+//!   settings answer, saying why (`off: "off-network"`, and every host's
+//!   link `error: "off-network"`), no invite is made, and nothing listens or
+//!   dials.
 //! - **The bundle.** `eos_app::Options::dashboard`: the folder of the
 //!   dashboard bundle, so `GET /ui/*` serves it and `servesUi` is true.
 //! - **A view per controlled host**, in its own profile, with a content

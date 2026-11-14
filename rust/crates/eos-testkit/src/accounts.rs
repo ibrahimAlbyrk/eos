@@ -93,9 +93,15 @@ impl PlanLoginDirs for FakePlanLoginDirs {
 pub struct FakePlanStores {
     stores: Mutex<HashMap<String, StoreLogin>>,
     signed_out: Mutex<Vec<String>>,
+    withheld: Mutex<Option<&'static str>>,
 }
 
 impl FakePlanStores {
+    /// From now on no token is handed out, for `why`.
+    pub fn withhold(&self, why: &'static str) {
+        *locked(&self.withheld) = Some(why);
+    }
+
     pub fn sign_in(&self, store_dir: &str, plan: Option<&str>, email: Option<&str>) {
         let login = StoreLogin {
             present: true,
@@ -124,9 +130,9 @@ impl PlanStores for FakePlanStores {
         Box::pin(async move { login })
     }
 
-    /// `token-of:<store>` while the store is signed in.
+    /// `token-of:<store>` while the store is signed in and tokens are not withheld.
     fn access_token<'a>(&'a self, _provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Option<String>> {
-        let present = locked(&self.stores).get(store_dir).is_some_and(|l| l.present);
+        let present = locked(&self.stores).get(store_dir).is_some_and(|l| l.present) && self.withheld().is_none();
         Box::pin(async move { present.then(|| format!("token-of:{store_dir}")) })
     }
 
@@ -139,6 +145,10 @@ impl PlanStores for FakePlanStores {
         locked(&self.stores).remove(store_dir);
         locked(&self.signed_out).push(store_dir.to_owned());
         Box::pin(async { Ok(()) })
+    }
+
+    fn withheld(&self) -> Option<&'static str> {
+        *locked(&self.withheld)
     }
 }
 

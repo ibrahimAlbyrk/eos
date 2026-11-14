@@ -75,7 +75,8 @@ impl FrameApiArtifacts {
     }
 
     async fn token(&self, login_id: &str) -> Result<String, String> {
-        self.access.access_token(PROVIDER, login_id).await.ok_or_else(|| NO_TOKEN_MESSAGE.to_owned())
+        let token = self.access.access_token(PROVIDER, login_id).await;
+        token.ok_or_else(|| self.access.withheld().unwrap_or(NO_TOKEN_MESSAGE).to_owned())
     }
 
     async fn read(&self, login_id: &str) -> Result<Vec<ArtifactSummary>, String> {

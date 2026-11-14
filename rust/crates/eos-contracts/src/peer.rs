@@ -340,6 +340,12 @@ pub struct PeerStatus {
     pub relay: Option<PeerStatusRelay>,
     pub open_invites: i64,
     pub devices: Vec<PairedDeviceView>,
+    /// [`OFF_NETWORK`] when hosting is on but this run of Eos keeps off the
+    /// network: nothing listens and no relay is dialled. An addition of the
+    /// Rust core, left out otherwise (so a run on the network answers as
+    /// today).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub off: Option<String>,
 }
 
 impl Validate for PeerStatus {
@@ -512,3 +518,9 @@ pub mod peer_refusal {
     pub const NOT_PAIRED: &str = "not-paired";
     pub const HOSTING_OFF: &str = "remote-access-off";
 }
+
+/// Why nothing listens and no host or relay is dialled: only the installed
+/// Eos on the user's own data folder reaches other computers.
+/// [`PeerStatus::off`], the phone link's `off`, and a link's `error` on such
+/// a run.
+pub const OFF_NETWORK: &str = "off-network";

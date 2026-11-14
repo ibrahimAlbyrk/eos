@@ -27,7 +27,21 @@ export function friendlyUsageError(reason) {
   if (reason && /user:profile|scope requirement|permission_error/i.test(reason)) {
     return "Your Claude sign-in runs agents but can't read plan usage. Sign out and sign in again in Settings › Accounts to see usage here.";
   }
+  if (isNotReadHereReason(reason)) return "Only the installed Eos on your own data folder reads plan usage.";
   return "Couldn’t load usage right now. Please try again in a moment.";
+}
+
+// A copy of Eos that keeps off the network (a build from source, a copied data
+// folder) reads no plan usage: the sign-in is there, it is just not read here.
+export function isNotReadHereReason(reason) {
+  return /only the installed Eos on your own data folder/i.test(reason ?? "");
+}
+
+// The footer's note on usage that is not current: why it was not refreshed.
+export function outdatedNote(errors) {
+  return (errors ?? []).some((e) => isNotReadHereReason(e.reason))
+    ? " · not refreshed — only the installed Eos on your own data folder reads plan usage"
+    : " · couldn’t refresh, retrying";
 }
 
 // "2 hr 41 min" left until the window resets (relative — the session subtitle).

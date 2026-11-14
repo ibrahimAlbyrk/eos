@@ -30,7 +30,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use eos_contracts::{HostInfo, HostView, InviteResponse, PEER_HUMAN_HEADER, PeerStatus, UpdateHostRequest};
+use eos_contracts::{
+    HostInfo, HostView, InviteResponse, OFF_NETWORK, PEER_HUMAN_HEADER, PeerStatus, PeerStatusRelay, UpdateHostRequest,
+};
 use eos_core::net::machines::{Machines, PeerCallError, PeerRequest, PeerResponse};
 use eos_core::net::peer::{
     HostLinks, HostingOff, LinkError, LinkRequest, LocalApi, PairingError, PeerAnswer, PeerEvents, PeerHosting,
@@ -226,7 +228,14 @@ impl PeerHosting for Peering {
     }
 
     fn status(&self) -> PeerStatus {
-        self.host.status()
+        let mut status = self.host.status();
+        // Hosting is on, yet nothing listens and no relay is dialled: say why,
+        // and show the relay the settings name as one that is not online.
+        if !self.network && status.enabled {
+            status.relay = self.host.configured_relay().map(|url| PeerStatusRelay { url, online: false });
+            status.off = Some(OFF_NETWORK.to_owned());
+        }
+        status
     }
 
     fn create_invite(&self) -> Result<InviteResponse, HostingOff> {
@@ -368,6 +377,7 @@ impl Machines for Peering {
             let whole = async {
                 let answer = sent.await.map_err(|e| match e {
                     LinkError::UnknownHost => PeerCallError::NotPaired,
+                    LinkError::Unavailable { code } if code == OFF_NETWORK => PeerCallError::OffNetwork,
                     LinkError::Unavailable { .. } => PeerCallError::NotReady,
                     LinkError::Failed(_) => PeerCallError::Dropped,
                 })?;

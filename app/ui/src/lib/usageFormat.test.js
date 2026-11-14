@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planUsageSections, isSignedOutReason, formatResetIn, formatResetInShort, formatResetAt, formatRowReset, formatCredits,
-  isUsageWarn, WARN_THRESHOLD, friendlyUsageError, rolledWindow,
+  isUsageWarn, WARN_THRESHOLD, friendlyUsageError, outdatedNote, rolledWindow,
 } from "./usageFormat.js";
 
 const win = (utilization, resetsAt = "2099-01-01T08:59:00Z") => ({ utilization, resetsAt });
@@ -132,6 +132,20 @@ describe("friendlyUsageError", () => {
 
   it("falls back to the generic one-liner when the reason is missing", () => {
     expect(friendlyUsageError(undefined)).toBe("Couldn’t load usage right now. Please try again in a moment.");
+  });
+
+  // What a copy of Eos that keeps off the network answers for a sign-in it does not read.
+  const notReadHere = "Only the installed Eos on your own data folder reads your accounts";
+
+  it("says that a copy of Eos reads no plan usage, not that you are signed out or it failed", () => {
+    expect(isSignedOutReason(notReadHere)).toBe(false);
+    expect(friendlyUsageError(notReadHere)).toBe("Only the installed Eos on your own data folder reads plan usage.");
+  });
+
+  it("explains why the usage on screen was not refreshed", () => {
+    expect(outdatedNote([{ provider: "claude:lg-1", reason: notReadHere }])).toMatch(/not refreshed — only the installed Eos/);
+    expect(outdatedNote([{ provider: "claude:lg-1", reason: "usage fetch failed (HTTP 429)" }])).toBe(" · couldn’t refresh, retrying");
+    expect(outdatedNote(undefined)).toBe(" · couldn’t refresh, retrying");
   });
 });
 

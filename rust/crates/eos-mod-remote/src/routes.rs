@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{RemoteConfig, RemoteConfigRelay, Validate};
+use eos_contracts::{OFF_NETWORK, RemoteConfig, RemoteConfigRelay, Validate};
 use eos_runtime::access::Access;
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::router::RouteDef;
@@ -21,6 +21,10 @@ struct Status<'a> {
     armed: bool,
     /// The saved URL, also while disarmed: Settings shows it.
     relay_url: Option<&'a str>,
+    /// `off-network` when the link is switched on and set but this app
+    /// dials no relay. An addition of the Rust core, left out otherwise.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    off: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -57,6 +61,15 @@ impl Validate for RemoteConfigPatch {
 
 const ACCESS: Access = Access::ui_token().local_only();
 
+/// Why no pairing code is made by an app that dials no relay.
+const NO_RELAY: &str = "The phone link runs only in the installed Eos on your own data folder";
+
+/// The phone link is switched on and set, but this app dials no relay at all.
+fn off_network(shared: &Shared, remote: &RemoteConfig) -> bool {
+    let set = remote.enabled && remote.relay.as_ref().is_some_and(|relay| !relay.url.is_empty());
+    set && shared.parts.relay.is_none()
+}
+
 pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
     let status = {
         let shared = shared.clone();
@@ -66,7 +79,8 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
                 let config = shared.parts.config.current();
                 let relay_url = config.remote.relay.as_ref().map(|relay| relay.url.as_str());
                 let armed = shared.armed().is_some();
-                Ok(Response::json(200, &Status { enabled: config.remote.enabled, armed, relay_url }))
+                let off = off_network(&shared, &config.remote).then_some(OFF_NETWORK);
+                Ok(Response::json(200, &Status { enabled: config.remote.enabled, armed, relay_url, off }))
             }
         })
     };
@@ -90,6 +104,9 @@ pub(crate) fn all(shared: &Arc<Shared>) -> Vec<RouteDef> {
             async move {
                 match shared.pairing() {
                     Some(code) => Ok(Response::json(200, &code)),
+                    None if off_network(&shared, &shared.parts.config.current().remote) => {
+                        Err(ApiError::Conflict(NO_RELAY.into()))
+                    }
                     None => Err(ApiError::Conflict("remote not armed; enable + set relay URL + Save".into())),
                 }
             }

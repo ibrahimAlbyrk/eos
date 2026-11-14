@@ -66,6 +66,12 @@ pub trait PlanStores: Send + Sync + 'static {
     fn refused<'a>(&'a self, provider: &'a str, store_dir: &'a str, rejected: &'a str) -> BoxFuture<'a, bool>;
     /// Removes the store's sign-in; a store that holds none is not an error.
     fn sign_out<'a>(&'a self, provider: &'a str, store_dir: &'a str) -> BoxFuture<'a, Result<(), Error>>;
+    /// Why no token is handed out at all on this run, when none is: then
+    /// `access_token` is `None` whatever the stores hold, and a reader says
+    /// this instead of "not signed in". Words a person reads.
+    fn withheld(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// Secrets the system keeps for the user under a service name (provider API
@@ -157,7 +163,8 @@ pub enum UsageError {
     /// Nobody is signed in: the last snapshot belongs to no one and is dropped.
     #[error("{0}")]
     NoAccount(String),
-    /// The provider or the network failed: the last snapshot is kept, marked stale.
+    /// The provider or the network failed, or this run reads no usage
+    /// ([`PlanStores::withheld`]): the last snapshot is kept, marked stale.
     #[error("{0}")]
     Failed(String),
 }
@@ -301,6 +308,10 @@ pub trait PlanAccess: Send + Sync + 'static {
     /// How much of its plan the sign-in a new session would use has spent:
     /// the larger of its five-hour and weekly windows, 0–1. `None`: unknown.
     fn utilization<'a>(&'a self, provider: &'a str) -> BoxFuture<'a, Option<f64>>;
+    /// [`PlanStores::withheld`]: why no token is handed out on this run.
+    fn withheld(&self) -> Option<&'static str> {
+        None
+    }
 }
 
 /// What the accounts service asks of the engine. Implemented by the engine.

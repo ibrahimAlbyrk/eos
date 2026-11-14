@@ -125,7 +125,11 @@ impl UsageProvider for ClaudeUsage {
         Box::pin(async move {
             let dir = &self.login.store_dir;
             let token = self.stores.access_token(CLAUDE, dir).await;
-            let token = token.ok_or_else(|| UsageError::NoAccount(NO_CLAUDE_TOKEN.to_owned()))?;
+            let token = token.ok_or_else(|| match self.stores.withheld() {
+                // The sign-in is there: its last snapshot stays, marked stale.
+                Some(why) => UsageError::Failed(why.to_owned()),
+                None => UsageError::NoAccount(NO_CLAUDE_TOKEN.to_owned()),
+            })?;
             let snapshot = self.api.fetch(&token).await.map_err(UsageError::Failed)?;
             // The label of the moment: the user may have renamed the sign-in.
             let label = self.logins.registry().find(CLAUDE, &self.login.id).map(|l| l.label.clone());
@@ -143,6 +147,9 @@ impl UsageProvider for ClaudeUsage {
 /// endpoint refuses it for scope, which the dashboard turns into "sign in again".
 struct LegacyClaudeUsage {
     config: Arc<dyn ConfigSource>,
+    /// Asked only whether this run withholds tokens: the setup-token is the
+    /// configuration's, not a store's.
+    stores: Arc<dyn PlanStores>,
     api: Arc<dyn PlanUsageApi>,
 }
 
@@ -156,6 +163,9 @@ impl UsageProvider for LegacyClaudeUsage {
             let token = self.config.current().anthropic.auth_token.clone();
             let token = token.map(|t| t.trim().to_owned()).filter(|t| !t.is_empty());
             let token = token.ok_or_else(|| UsageError::NoAccount(NO_CLAUDE_TOKEN.to_owned()))?;
+            if let Some(why) = self.stores.withheld() {
+                return Err(UsageError::Failed(why.to_owned()));
+            }
             self.api.fetch(&token).await.map_err(UsageError::Failed)
         })
     }
@@ -218,7 +228,8 @@ impl Accounts {
         // One usage provider per Claude sign-in, kept while the sign-in is
         // listed; then ChatGPT's.
         let (stores, api, config) = (deps.stores.clone(), deps.usage_api, deps.config.clone());
-        let legacy: Arc<dyn UsageProvider> = Arc::new(LegacyClaudeUsage { config: config.clone(), api: api.clone() });
+        let legacy: Arc<dyn UsageProvider> =
+            Arc::new(LegacyClaudeUsage { config: config.clone(), stores: stores.clone(), api: api.clone() });
         let per_login: Mutex<HashMap<String, Arc<dyn UsageProvider>>> = Mutex::default();
         let listed = logins.clone();
         let chatgpt_slot: Arc<Mutex<Option<Arc<dyn UsageProvider>>>> = Arc::default();
@@ -400,6 +411,10 @@ impl PlanAccess for Accounts {
                 .fold(None, |most: Option<f64>, used| Some(most.map_or(used, |m| m.max(used))));
             spent.map(|percent| percent / 100.0)
         })
+    }
+
+    fn withheld(&self) -> Option<&'static str> {
+        self.plan.stores.withheld()
     }
 }
 

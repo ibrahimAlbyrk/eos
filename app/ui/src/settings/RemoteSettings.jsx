@@ -35,6 +35,8 @@ export function RemoteSettings({ embedded = false }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [qr, setQr] = useState(null); // the v3 pair payload object, or null
+  // Switched on and set, but this copy of Eos dials no relay.
+  const [offNetwork, setOffNetwork] = useState(false);
   const loaded = useRef(false);
 
   // On mount: reflect the current enabled/armed state and prefill the URL field
@@ -46,6 +48,7 @@ export function RemoteSettings({ embedded = false }) {
     api.getRemoteStatus()
       .then(async (s) => {
         setArmed(!!s?.armed);
+        setOffNetwork(s?.off === "off-network");
         if (s?.relayUrl) setRelayUrl(s.relayUrl);
         // Already armed (an enabled config auto-arms on daemon boot), so no toggle
         // round-trip happens: fetch the QR now, otherwise the panel shows "Armed"
@@ -79,7 +82,7 @@ export function RemoteSettings({ embedded = false }) {
       if (!armRes.ok) { setError(armRes.body?.error ?? `arm failed (HTTP ${armRes.status})`); return; }
       setArmed(!!armRes.body?.armed);
 
-      if (!enabled) { setQr(null); return; }
+      if (!enabled) { setQr(null); setOffNetwork(false); return; }
 
       const pairRes = await api.pairRemote();
       if (!pairRes.ok) { setError(pairRes.body?.error ?? `pairing failed (HTTP ${pairRes.status})`); return; }
@@ -129,7 +132,9 @@ export function RemoteSettings({ embedded = false }) {
         <div className="stg-row__text">
           <div className="stg-row__label">{embedded ? "Enable iPhone access" : "Enable remote access"}</div>
           <div className="stg-row__desc">
-            {armed ? "Armed — scan the QR below to connect." : "Off. Anyone with the QR can drive this desktop, so treat it like a password."}
+            {armed ? "Armed — scan the QR below to connect."
+              : offNetwork ? "Off for this copy — only the installed Eos on your own data folder connects to your phone."
+              : "Off. Anyone with the QR can drive this desktop, so treat it like a password."}
           </div>
         </div>
         <Toggle value={armed} onChange={(v) => { if (!busy) apply(v); }} />

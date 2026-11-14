@@ -80,8 +80,12 @@ async fn nothing_is_armed_when_switched_off_without_a_url_or_without_a_relay() {
     no_relay.module.start().await.expect("starts");
     assert!(!no_relay.module.is_armed());
     assert_eq!(no_relay.awake.taken(), 0);
+    // Switched on and set: it says why, not that a setting is missing.
     let (_, status) = call(&no_relay, Method::Get, "/api/remote/status", Caller::DASHBOARD, "").await;
-    assert_eq!(status, json!({ "enabled": true, "armed": false, "relayUrl": RELAY_URL }));
+    assert_eq!(status, json!({ "enabled": true, "armed": false, "relayUrl": RELAY_URL, "off": "off-network" }));
+    let (code, refused) = call(&no_relay, Method::Post, "/api/remote/pair", Caller::DASHBOARD, "").await;
+    let why = json!({ "error": "The phone link runs only in the installed Eos on your own data folder" });
+    assert_eq!((code, refused), (409, why));
 }
 
 #[tokio::test(flavor = "multi_thread")]

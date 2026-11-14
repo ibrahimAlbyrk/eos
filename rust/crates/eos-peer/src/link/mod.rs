@@ -89,6 +89,25 @@ pub(crate) struct LinkDeps {
     pub(crate) network: bool,
 }
 
+impl LinkDeps {
+    /// A link that is not up. On a run that dials no host it says so, so
+    /// the dashboard does not show it as merely offline.
+    pub(crate) fn offline(&self) -> LinkStatus {
+        LinkStatus {
+            state: LinkState::Offline,
+            route: None,
+            rtt_ms: None,
+            since: self.clock.now_ms().into(),
+            attempt: 0,
+            error: self.off_network(),
+        }
+    }
+
+    fn off_network(&self) -> Option<String> {
+        (!self.network).then(|| link_error::OFF_NETWORK.to_owned())
+    }
+}
+
 /// Someone waiting for a live session to send on.
 type Waiter = oneshot::Sender<Result<SendRequest<Bytes>, Unavailable>>;
 
@@ -153,14 +172,7 @@ fn jitter() -> f64 {
 
 impl HostLink {
     pub(crate) fn new(host_id: &str, deps: Arc<LinkDeps>) -> Arc<Self> {
-        let status = LinkStatus {
-            state: LinkState::Offline,
-            route: None,
-            rtt_ms: None,
-            since: deps.clock.now_ms().into(),
-            attempt: 0,
-            error: None,
-        };
+        let status = deps.offline();
         Arc::new_cyclic(|me| Self {
             host_id: host_id.to_owned(),
             deps,
@@ -244,7 +256,7 @@ impl HostLink {
             state: Some(LinkState::Offline),
             route: Some(None),
             rtt_ms: Some(None),
-            error: Some(None),
+            error: Some(self.deps.off_network()),
             attempt: Some(0),
         };
         self.set_status(state, patch);

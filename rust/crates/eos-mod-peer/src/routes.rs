@@ -50,6 +50,9 @@ struct Paired {
 /// The user's own settings: this dashboard only, never from a paired computer.
 const SETTINGS: Access = Access::ui_token().local_only();
 
+/// Why no invite is made on a run that keeps off the network.
+const OFF_NETWORK_INVITE: &str = "Only the installed Eos on your own data folder lets other computers in";
+
 /// The id in the path, when it is a fingerprint.
 fn fingerprint<'a>(req: &'a Request, name: &str) -> Option<&'a str> {
     req.param(name).filter(|id| is_fingerprint(id))
@@ -108,6 +111,10 @@ fn hosting(hosting: Arc<dyn PeerHosting>, config: Arc<dyn ConfigSource>) -> Vec<
             async move {
                 if !config.current().peer.enabled {
                     return Err(ApiError::Conflict("turn on remote access first".into()));
+                }
+                // A link from a run that keeps off the network names no way in.
+                if hosting.status().off.is_some() {
+                    return Err(ApiError::Conflict(OFF_NETWORK_INVITE.into()));
                 }
                 let invite = hosting.create_invite().map_err(|e| ApiError::Conflict(e.to_string()))?;
                 Ok(Response::json(200, &invite))
