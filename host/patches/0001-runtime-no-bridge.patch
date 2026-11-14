@@ -13,7 +13,7 @@ the renderer process does not install `window.ipc` (on macOS that half is patch 
 helper executable). The view is driven from Rust only: its `Webview` handle and the DevTools
 protocol.
 
-Not covered: a popup opened by such a view (Eos denies every popup).
+A popup opened by such a view gets the same `extra_info` entry: patch 0004.
 
 diff --git a/src/cef_impl/ipc.rs b/src/cef_impl/ipc.rs
 index 3a477a60..04b6a21b 100644

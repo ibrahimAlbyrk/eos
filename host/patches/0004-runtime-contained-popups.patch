@@ -1,0 +1,217 @@
+"Contained popups": what a webview's CEF-owned popups may do, and no bridge in them.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7 (crates.io) + 0001, applied in vendor/tauri-runtime-cef.
+Not offered upstream yet; `WebviewBuilderCefExt::contain_popups` is the shape it would take.
+
+Why: Eos lets exactly one view open popups, the claude.ai sign-in window, for Google's
+sign-in popup (which needs `window.opener`, so it must stay CEF's own popup). Upstream, a
+popup inherits its opener's navigation and new-window handlers, which are closures over a
+URL alone: they cannot tell the popup from the view, so the popup could go wherever the
+view may and open further windows. With `contain_popups(f)` the view's popups decide their
+main-frame navigations with `f` instead and every window they ask for is denied. The view's
+own handlers are unchanged.
+
+And: CEF hands a popup's renderer only the `extra_info` set in `OnBeforePopup` (none by
+default), so the renderer would install `window.ipc` in a popup of a no-bridge view (0001).
+A popup of such a view now gets the `tauri:no-bridge` entry, which both render-process
+handlers (0001, 0002) already read.
+
+diff --git a/src/cef_impl/client/life_span.rs b/src/cef_impl/client/life_span.rs
+index c7cc50a..f046960 100644
+--- a/src/cef_impl/client/life_span.rs
++++ b/src/cef_impl/client/life_span.rs
+@@ -87,6 +87,7 @@ wrap_with_args! {
+     context: RuntimeContext<T>,
+     new_window_handler: Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>>,
+     initial_url: Option<String>,
++    no_bridge: bool,
+     frame_navigation_state: crate::FrameNavigationState,
+     popup_family: Weak<crate::popup::PopupFamily>,
+     opener: Option<crate::popup::PopupRequest>,
+@@ -126,7 +127,7 @@ wrap_with_args! {
+       window_info: Option<&mut WindowInfo>,
+       client: Option<&mut Option<Client>>,
+       _settings: Option<&mut BrowserSettings>,
+-      _extra_info: Option<&mut Option<DictionaryValue>>,
++      extra_info: Option<&mut Option<DictionaryValue>>,
+       _no_javascript_access: Option<&mut i32>,
+     ) -> std::os::raw::c_int {
+       if let Some(window_info) = window_info {
+@@ -161,6 +162,11 @@ wrap_with_args! {
+             return 1;
+           }
+           self.context.wake_event_loop();
++          // A popup of a webview without a bridge has none either: the renderer
++          // reads this entry before the popup's first V8 context exists.
++          if self.no_bridge && let Some(extra_info) = extra_info {
++            *extra_info = crate::cef_impl::ipc::no_bridge_extra_info();
++          }
+           // Keep CEF's popup creation and JavaScript opener relationship. Only
+           // its client changes: root IPC, load/title callbacks and close handling
+           // cannot be inherited by a different native browser lifetime.
+diff --git a/src/cef_impl/client/mod.rs b/src/cef_impl/client/mod.rs
+index 3791b93..f2d79e3 100644
+--- a/src/cef_impl/client/mod.rs
++++ b/src/cef_impl/client/mod.rs
+@@ -48,6 +48,7 @@ pub(crate) struct TauriCefBrowserClientHandlers<T: UserEvent> {
+   pub(crate) document_title_changed_handler:
+     Option<Arc<tauri_runtime::webview::DocumentTitleChangedHandler>>,
+   pub(crate) navigation_handler: Option<Arc<tauri_runtime::webview::NavigationHandler>>,
++  pub(crate) popup_navigation_handler: Option<Arc<crate::webview::PopupNavigationHandler>>,
+   pub(crate) new_window_handler:
+     Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>>,
+   pub(crate) download_handler: Option<Arc<tauri_runtime::webview::DownloadHandler>>,
+@@ -65,6 +66,7 @@ impl<T: UserEvent> Clone for TauriCefBrowserClientHandlers<T> {
+       on_page_load_handler: self.on_page_load_handler.clone(),
+       document_title_changed_handler: self.document_title_changed_handler.clone(),
+       navigation_handler: self.navigation_handler.clone(),
++      popup_navigation_handler: self.popup_navigation_handler.clone(),
+       new_window_handler: self.new_window_handler.clone(),
+       download_handler: self.download_handler.clone(),
+       console_message_handler: self.console_message_handler.clone(),
+@@ -83,6 +85,7 @@ wrap_with_args! {
+     pub(crate) webview_id: u32,
+     pub(crate) label: String,
+     initial_url: Option<String>,
++    no_bridge: bool,
+     devtools_enabled: bool,
+     zoom_hotkeys_enabled: bool,
+     allowed_chrome_commands: Vec<crate::ChromeCommandGroup>,
+@@ -144,8 +147,18 @@ wrap_with_args! {
+       // opener's allowances rather than being locked down harder than its opener.
+       let allowed_chrome_commands = self.allowed_chrome_commands.clone();
+       let target = self.drag_drop_event_target;
+-      let navigation_handler = self.handlers.navigation_handler.clone();
+-      let new_window_handler = self.handlers.new_window_handler.clone();
++      let no_bridge = self.no_bridge;
++      // A contained popup navigates by the popup handler and opens no window.
++      let contained = self.handlers.popup_navigation_handler.clone();
++      let navigation_handler = match contained.clone() {
++        Some(handler) => Some(handler as Arc<tauri_runtime::webview::NavigationHandler>),
++        None => self.handlers.navigation_handler.clone(),
++      };
++      let new_window_handler: Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>> =
++        match contained {
++          Some(_) => Some(Arc::new(|_, _| tauri_runtime::webview::NewWindowResponse::Deny)),
++          None => self.handlers.new_window_handler.clone(),
++        };
+       let download_handler = self.handlers.download_handler.clone();
+       let permission_request_handler = self.handlers.permission_request_handler.clone();
+       let family = self.popup_family.clone();
+@@ -157,6 +170,7 @@ wrap_with_args! {
+           webview_id,
+           label: label.clone(),
+           initial_url: None,
++          no_bridge,
+           devtools_enabled,
+           zoom_hotkeys_enabled,
+           allowed_chrome_commands: allowed_chrome_commands.clone(),
+@@ -176,6 +190,7 @@ wrap_with_args! {
+             // app observes popups without their URLs through `Webview::popups`.
+             frame_event_handler: Some(Arc::new(move |event| events.on_frame_event(&event))),
+             navigation_handler: navigation_handler.clone(),
++            popup_navigation_handler: None,
+             new_window_handler: new_window_handler.clone(),
+             // CEF cancels every download of a client whose download handler is
+             // NULL, so the popup keeps the opener's — as it did when it still
+@@ -216,6 +231,7 @@ wrap_with_args! {
+         context: self.context.clone(),
+         new_window_handler: self.handlers.new_window_handler.clone(),
+         initial_url: self.initial_url.clone(),
++        no_bridge: self.no_bridge,
+         frame_navigation_state: self.frame_navigation_state.clone(),
+         popup_family: self.popup_family.clone(),
+         opener: self.opener.clone(),
+diff --git a/src/tauri_ext.rs b/src/tauri_ext.rs
+index 6973924..88add87 100644
+--- a/src/tauri_ext.rs
++++ b/src/tauri_ext.rs
+@@ -484,6 +484,13 @@ pub trait WebviewBuilderCefExt {
+     self,
+     callback: F,
+   ) -> Self;
++
++  /// Keeps the popups this webview opens to the pages `navigation` admits, and
++  /// lets them open no window of their own. See
++  /// [`CefWebviewAttributes::popup_navigation_handler`].
++  #[must_use]
++  fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(self, navigation: F)
++  -> Self;
+ }
+ 
+ #[cfg(feature = "unstable")]
+@@ -545,4 +552,15 @@ where
+     });
+     self
+   }
++
++  fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(
++    mut self,
++    navigation: F,
++  ) -> Self {
++    let navigation = Arc::new(navigation);
++    with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
++      attributes.popup_navigation_handler = Some(navigation.clone());
++    });
++    self
++  }
+ }
+diff --git a/src/webview.rs b/src/webview.rs
+index e8dbb86..6a50abb 100644
+--- a/src/webview.rs
++++ b/src/webview.rs
+@@ -405,6 +405,10 @@ pub type ConsoleMessageHandler = dyn Fn(ConsoleMessage) + Send + Sync + 'static;
+ /// Last look at a webview's [`cef::BrowserSettings`] before its browser is created.
+ pub type BrowserSettingsCallback = dyn Fn(&mut cef::BrowserSettings) + Send + Sync + 'static;
+ 
++/// Decides the main-frame navigations of a webview's CEF-owned popups, see
++/// [`CefWebviewAttributes::popup_navigation_handler`].
++pub type PopupNavigationHandler = dyn Fn(&Url) -> bool + Send + Sync + 'static;
++
+ impl ConsoleMessage {
+   pub(crate) fn from_cef(
+     level: cef::LogSeverity,
+@@ -791,6 +795,10 @@ impl<T: UserEvent> WinitCefApp<T> {
+       on_page_load_handler,
+       document_title_changed_handler,
+       navigation_handler: pending.navigation_handler.map(Arc::from),
++      popup_navigation_handler: pending
++        .runtime_specific_attributes
++        .popup_navigation_handler
++        .clone(),
+       new_window_handler: pending.new_window_handler.map(Arc::from),
+       download_handler: pending.download_handler.take(),
+       console_message_handler: pending
+@@ -808,6 +816,7 @@ impl<T: UserEvent> WinitCefApp<T> {
+         webview_id,
+         label: pending.label.clone(),
+         initial_url: Some(pending.url.as_str().to_string()),
++        no_bridge,
+         devtools_enabled,
+         zoom_hotkeys_enabled,
+         allowed_chrome_commands,
+@@ -1550,6 +1559,13 @@ pub struct CefWebviewAttributes {
+   /// from Rust only: its `Webview` handle, the DevTools protocol, the raw
+   /// `cef::Browser`.
+   pub no_bridge: bool,
++  /// Keeps the webview's CEF-owned popups to the pages this handler admits.
++  ///
++  /// When set, a popup the webview opened (its `on_new_window` answered
++  /// `NewWindowResponse::Allow`), and only such a popup, decides its main-frame
++  /// navigations with this handler instead of the webview's `on_navigation`, and
++  /// opens no window of its own. Without it a popup keeps the opener's handlers.
++  pub popup_navigation_handler: Option<Arc<PopupNavigationHandler>>,
+ }
+ 
+ impl std::fmt::Debug for CefWebviewAttributes {
+@@ -1569,6 +1585,10 @@ impl std::fmt::Debug for CefWebviewAttributes {
+         &self.browser_settings_callback.is_some(),
+       )
+       .field("no_bridge", &self.no_bridge)
++      .field(
++        "popup_navigation_handler",
++        &self.popup_navigation_handler.is_some(),
++      )
+       .finish()
+   }
+ }

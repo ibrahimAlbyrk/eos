@@ -67,6 +67,7 @@ fn options() -> Options {
         network_in_process: env("EOS_SHELL_NETWORK_IN_PROCESS").is_some(),
         paint_when_covered: env("EOS_SHELL_PAINT_WHEN_COVERED").is_some(),
         artifact_origin: artifact_origin(),
+        sign_in_provider: artifact_origin().and(sign_in_provider()),
         // The measuring probe drives the dashboard: a dev run only.
         probe: cfg!(feature = "dev-run") && env("EOS_SHELL_PROBE").is_some(),
     }
@@ -79,6 +80,15 @@ fn artifact_origin() -> Option<String> {
         return None;
     }
     env("EOS_DEV_ARTIFACT_ORIGIN").filter(|origin| origin.starts_with("http://127.0.0.1:"))
+}
+
+/// A page on this computer standing in for the identity provider of the claude.ai sign-in
+/// window's popup, for a test run: read only by a dev run, and only a loopback address.
+fn sign_in_provider() -> Option<String> {
+    if !cfg!(feature = "dev-run") {
+        return None;
+    }
+    env("EOS_DEV_SIGNIN_PROVIDER").filter(|origin| origin.starts_with("http://localhost:"))
 }
 
 /// A release build: not a dev run, so it opens the user's own data folder unasked and

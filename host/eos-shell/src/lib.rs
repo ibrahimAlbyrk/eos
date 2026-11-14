@@ -25,6 +25,7 @@ use eos_core::accounts::Browser;
 use eos_core::plugin::PluginPreviewer;
 use eos_core::shell::{BrowserPanel, BrowserViews, Capture, FilePicker};
 
+pub use crate::app::SignInWindows;
 pub use crate::probe::Probe;
 
 /// How the shell is started.
@@ -57,6 +58,10 @@ pub struct Options {
     /// A local page standing in for claude.ai in the artifact views (a test run's server,
     /// `http://127.0.0.1:<port>`). The binary sets it only in a build with the dev proxy.
     pub artifact_origin: Option<String>,
+    /// A local page standing in for the identity provider whose popup the claude.ai
+    /// sign-in window opens (a test run's server, `http://localhost:<port>`). Set only with
+    /// [`artifact_origin`](Self::artifact_origin), in a build with the dev proxy.
+    pub sign_in_provider: Option<String>,
     /// Start the measuring probe (`Ports::probe`): for responsiveness runs only.
     pub probe: bool,
 }
@@ -82,6 +87,8 @@ pub struct Ports {
     pub splash: Arc<dyn Fn(Option<String>) + Send + Sync>,
     /// The measuring probe, when `Options::probe` asked for it.
     pub probe: Option<Arc<Probe>>,
+    /// The claude.ai sign-in windows, when the artifact views show a stand-in.
+    pub sign_in: Option<SignInWindows>,
 }
 
 impl std::fmt::Debug for Ports {

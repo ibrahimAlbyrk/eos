@@ -17,7 +17,11 @@
 //! `{t}` in a later path stands for it. `retry_ms` asks again until the answer names a tab.
 //! The step's value is `{"status": …, "body": …}`.
 //! `{"artifacts": {"verb": "warm", "body": {…}}}`: an `eosArtifacts` call as the dashboard
-//! makes it (`verb: "status"` reads the views' states and places).
+//! makes it (`verb: "status"` reads the views' states and places; `"background": true`
+//! starts it and goes on, as a sign-in that waits for its window).
+//! `{"signin": {"profile": "claude-x", "method": "…", "params": {…}}}`: a DevTools call on
+//! that profile's claude.ai sign-in window, `{"signin": {"profile": "claude-x", "close":
+//! true}}` closes it; only while the artifact views show a local stand-in.
 //! `{"hosts": {"verb": "list"}}`, `{"hosts": {"verb": "switchTo", "id": "…"}}`: the machine
 //! switcher as the dashboard sees it. `{"splash": "Updating · …"}` shows the update splash,
 //! `{"splash": null}` closes it.
@@ -170,6 +174,11 @@ impl Run {
                     return Ok(self.bridge.artifact_status().await);
                 }
                 let body = arg.get("body").cloned().unwrap_or(json!({}));
+                if arg.get("background").and_then(Value::as_bool) == Some(true) {
+                    let bridge = self.bridge.clone();
+                    self.ports.rt.spawn(async move { bridge.artifact_call(&verb, &body).await });
+                    return Ok(Value::Null);
+                }
                 self.bridge.artifact_call(&verb, &body).await.ok_or_else(|| format!("no artifact verb {verb:?}"))
             }
             // The update splash, as a restart into an update shows it (`null` closes it).
@@ -202,6 +211,14 @@ impl Run {
                     return Err(format!("the expression threw: {thrown}"));
                 }
                 Ok(answer.pointer("/result/value").cloned().unwrap_or(Value::Null))
+            }
+            "signin" => {
+                let windows = self.ports.sign_in.as_ref().ok_or("the artifact views show claude.ai itself")?;
+                let profile = text("profile");
+                if arg.get("close").and_then(Value::as_bool) == Some(true) {
+                    return windows.close(&profile).map(|()| Value::Null);
+                }
+                windows.cdp(&profile, &text("method"), arg.get("params").cloned().unwrap_or(json!({}))).await
             }
             "click" => self.click(arg).await,
             "stalls" => Ok(self.ports.probe.as_ref().ok_or("no probe in this run")?.take_stalls()),

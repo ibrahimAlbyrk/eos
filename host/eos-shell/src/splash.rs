@@ -37,6 +37,7 @@ impl Splash {
             .map_err(|e| e.to_string())?;
         // Its own document only: nothing else may load, nothing opens.
         let policy = create::Policy {
+            popups: None,
             navigation: Box::new(|url| matches!(url.scheme(), "data" | "about")),
             open_requested: Box::new(|_| {}),
         };

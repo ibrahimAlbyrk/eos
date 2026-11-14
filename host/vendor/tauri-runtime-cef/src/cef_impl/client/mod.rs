@@ -48,6 +48,7 @@ pub(crate) struct TauriCefBrowserClientHandlers<T: UserEvent> {
   pub(crate) document_title_changed_handler:
     Option<Arc<tauri_runtime::webview::DocumentTitleChangedHandler>>,
   pub(crate) navigation_handler: Option<Arc<tauri_runtime::webview::NavigationHandler>>,
+  pub(crate) popup_navigation_handler: Option<Arc<crate::webview::PopupNavigationHandler>>,
   pub(crate) new_window_handler:
     Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>>,
   pub(crate) download_handler: Option<Arc<tauri_runtime::webview::DownloadHandler>>,
@@ -65,6 +66,7 @@ impl<T: UserEvent> Clone for TauriCefBrowserClientHandlers<T> {
       on_page_load_handler: self.on_page_load_handler.clone(),
       document_title_changed_handler: self.document_title_changed_handler.clone(),
       navigation_handler: self.navigation_handler.clone(),
+      popup_navigation_handler: self.popup_navigation_handler.clone(),
       new_window_handler: self.new_window_handler.clone(),
       download_handler: self.download_handler.clone(),
       console_message_handler: self.console_message_handler.clone(),
@@ -83,6 +85,7 @@ wrap_with_args! {
     pub(crate) webview_id: u32,
     pub(crate) label: String,
     initial_url: Option<String>,
+    no_bridge: bool,
     devtools_enabled: bool,
     zoom_hotkeys_enabled: bool,
     allowed_chrome_commands: Vec<crate::ChromeCommandGroup>,
@@ -144,8 +147,18 @@ wrap_with_args! {
       // opener's allowances rather than being locked down harder than its opener.
       let allowed_chrome_commands = self.allowed_chrome_commands.clone();
       let target = self.drag_drop_event_target;
-      let navigation_handler = self.handlers.navigation_handler.clone();
-      let new_window_handler = self.handlers.new_window_handler.clone();
+      let no_bridge = self.no_bridge;
+      // A contained popup navigates by the popup handler and opens no window.
+      let contained = self.handlers.popup_navigation_handler.clone();
+      let navigation_handler = match contained.clone() {
+        Some(handler) => Some(handler as Arc<tauri_runtime::webview::NavigationHandler>),
+        None => self.handlers.navigation_handler.clone(),
+      };
+      let new_window_handler: Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>> =
+        match contained {
+          Some(_) => Some(Arc::new(|_, _| tauri_runtime::webview::NewWindowResponse::Deny)),
+          None => self.handlers.new_window_handler.clone(),
+        };
       let download_handler = self.handlers.download_handler.clone();
       let permission_request_handler = self.handlers.permission_request_handler.clone();
       let family = self.popup_family.clone();
@@ -157,6 +170,7 @@ wrap_with_args! {
           webview_id,
           label: label.clone(),
           initial_url: None,
+          no_bridge,
           devtools_enabled,
           zoom_hotkeys_enabled,
           allowed_chrome_commands: allowed_chrome_commands.clone(),
@@ -176,6 +190,7 @@ wrap_with_args! {
             // app observes popups without their URLs through `Webview::popups`.
             frame_event_handler: Some(Arc::new(move |event| events.on_frame_event(&event))),
             navigation_handler: navigation_handler.clone(),
+            popup_navigation_handler: None,
             new_window_handler: new_window_handler.clone(),
             // CEF cancels every download of a client whose download handler is
             // NULL, so the popup keeps the opener's — as it did when it still
@@ -216,6 +231,7 @@ wrap_with_args! {
         context: self.context.clone(),
         new_window_handler: self.handlers.new_window_handler.clone(),
         initial_url: self.initial_url.clone(),
+        no_bridge: self.no_bridge,
         frame_navigation_state: self.frame_navigation_state.clone(),
         popup_family: self.popup_family.clone(),
         opener: self.opener.clone(),

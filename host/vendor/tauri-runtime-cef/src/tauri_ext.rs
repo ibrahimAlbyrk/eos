@@ -484,6 +484,13 @@ pub trait WebviewBuilderCefExt {
     self,
     callback: F,
   ) -> Self;
+
+  /// Keeps the popups this webview opens to the pages `navigation` admits, and
+  /// lets them open no window of their own. See
+  /// [`CefWebviewAttributes::popup_navigation_handler`].
+  #[must_use]
+  fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(self, navigation: F)
+  -> Self;
 }
 
 #[cfg(feature = "unstable")]
@@ -542,6 +549,17 @@ where
     let callback = Arc::new(callback);
     with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
       attributes.browser_settings_callback = Some(callback.clone());
+    });
+    self
+  }
+
+  fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(
+    mut self,
+    navigation: F,
+  ) -> Self {
+    let navigation = Arc::new(navigation);
+    with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
+      attributes.popup_navigation_handler = Some(navigation.clone());
     });
     self
   }

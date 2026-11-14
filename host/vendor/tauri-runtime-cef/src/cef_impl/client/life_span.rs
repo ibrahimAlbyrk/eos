@@ -87,6 +87,7 @@ wrap_with_args! {
     context: RuntimeContext<T>,
     new_window_handler: Option<Arc<tauri_runtime::webview::NewWindowHandler<T, CefRuntime<T>>>>,
     initial_url: Option<String>,
+    no_bridge: bool,
     frame_navigation_state: crate::FrameNavigationState,
     popup_family: Weak<crate::popup::PopupFamily>,
     opener: Option<crate::popup::PopupRequest>,
@@ -126,7 +127,7 @@ wrap_with_args! {
       window_info: Option<&mut WindowInfo>,
       client: Option<&mut Option<Client>>,
       _settings: Option<&mut BrowserSettings>,
-      _extra_info: Option<&mut Option<DictionaryValue>>,
+      extra_info: Option<&mut Option<DictionaryValue>>,
       _no_javascript_access: Option<&mut i32>,
     ) -> std::os::raw::c_int {
       if let Some(window_info) = window_info {
@@ -161,6 +162,11 @@ wrap_with_args! {
             return 1;
           }
           self.context.wake_event_loop();
+          // A popup of a webview without a bridge has none either: the renderer
+          // reads this entry before the popup's first V8 context exists.
+          if self.no_bridge && let Some(extra_info) = extra_info {
+            *extra_info = crate::cef_impl::ipc::no_bridge_extra_info();
+          }
           // Keep CEF's popup creation and JavaScript opener relationship. Only
           // its client changes: root IPC, load/title callbacks and close handling
           // cannot be inherited by a different native browser lifetime.

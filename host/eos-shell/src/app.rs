@@ -88,6 +88,38 @@ fn engine(options: &Options, system: &SystemProxy) -> Option<Cef> {
     Some(cef)
 }
 
+/// The claude.ai sign-in windows, for a test run whose artifact views show a stand-in
+/// (`Ports::sign_in`): the run clicks the stand-in's buttons in them as the user would.
+#[derive(Clone)]
+pub struct SignInWindows(std::sync::Weak<Shell>);
+
+impl std::fmt::Debug for SignInWindows {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SignInWindows").finish_non_exhaustive()
+    }
+}
+
+impl SignInWindows {
+    fn artifacts(&self) -> Result<Arc<ArtifactShell>, String> {
+        let shell = self.0.upgrade().ok_or("the shell is closing")?;
+        shell.artifacts.get().cloned().ok_or_else(|| "no artifact views".to_owned())
+    }
+
+    /// A DevTools call on the open sign-in window of `profile`.
+    pub async fn cdp(&self, profile: &str, method: &str, params: Value) -> Result<Value, String> {
+        self.artifacts()?.sign_in_cdp(profile, method, params).await
+    }
+
+    /// Closes the open sign-in window of `profile`, as its close button does.
+    pub fn close(&self, profile: &str) -> Result<(), String> {
+        if self.artifacts()?.close_sign_in(profile) {
+            Ok(())
+        } else {
+            Err(format!("no sign-in window for {profile:?}"))
+        }
+    }
+}
+
 struct Shell {
     options: Options,
     /// The system's proxy settings as they were at launch.
@@ -283,11 +315,13 @@ impl Shell {
                 })
             },
             probe: options.probe.then(|| crate::probe::Probe::start(app.clone(), views.clone())),
+            sign_in: options.artifact_origin.is_some().then(|| SignInWindows(Arc::downgrade(self))),
         };
 
         // The dashboard may only be the dashboard: any other place opens in the system
         // browser, and a page-opened window never opens here.
         let policy = create::Policy {
+            popups: None,
             navigation: Box::new(|url| {
                 let own = url.scheme() == "http" && url.host_str() == Some(APP_HOST);
                 if !own && url.scheme() != "about" {
@@ -360,7 +394,8 @@ impl Shell {
     /// dashboard through its event stream.
     fn start_artifacts(&self, views: &Arc<Views>, bridge: &Arc<Bridge>) -> ArtifactViews {
         let viewer = self.options.artifact_origin.as_deref().map_or_else(Viewer::default, Viewer::at);
-        let surface = ArtifactShell::new(views.clone(), viewer.clone(), self.options.quiet);
+        let provider = self.options.sign_in_provider.as_deref().and_then(|p| tauri::Url::parse(p).ok());
+        let surface = ArtifactShell::new(views.clone(), viewer.clone(), provider, self.options.quiet);
         let to_page = Arc::downgrade(bridge);
         let pool = ArtifactViews::start(
             surface.clone(),

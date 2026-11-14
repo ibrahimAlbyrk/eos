@@ -405,6 +405,10 @@ pub type ConsoleMessageHandler = dyn Fn(ConsoleMessage) + Send + Sync + 'static;
 /// Last look at a webview's [`cef::BrowserSettings`] before its browser is created.
 pub type BrowserSettingsCallback = dyn Fn(&mut cef::BrowserSettings) + Send + Sync + 'static;
 
+/// Decides the main-frame navigations of a webview's CEF-owned popups, see
+/// [`CefWebviewAttributes::popup_navigation_handler`].
+pub type PopupNavigationHandler = dyn Fn(&Url) -> bool + Send + Sync + 'static;
+
 impl ConsoleMessage {
   pub(crate) fn from_cef(
     level: cef::LogSeverity,
@@ -791,6 +795,10 @@ impl<T: UserEvent> WinitCefApp<T> {
       on_page_load_handler,
       document_title_changed_handler,
       navigation_handler: pending.navigation_handler.map(Arc::from),
+      popup_navigation_handler: pending
+        .runtime_specific_attributes
+        .popup_navigation_handler
+        .clone(),
       new_window_handler: pending.new_window_handler.map(Arc::from),
       download_handler: pending.download_handler.take(),
       console_message_handler: pending
@@ -808,6 +816,7 @@ impl<T: UserEvent> WinitCefApp<T> {
         webview_id,
         label: pending.label.clone(),
         initial_url: Some(pending.url.as_str().to_string()),
+        no_bridge,
         devtools_enabled,
         zoom_hotkeys_enabled,
         allowed_chrome_commands,
@@ -1550,6 +1559,13 @@ pub struct CefWebviewAttributes {
   /// from Rust only: its `Webview` handle, the DevTools protocol, the raw
   /// `cef::Browser`.
   pub no_bridge: bool,
+  /// Keeps the webview's CEF-owned popups to the pages this handler admits.
+  ///
+  /// When set, a popup the webview opened (its `on_new_window` answered
+  /// `NewWindowResponse::Allow`), and only such a popup, decides its main-frame
+  /// navigations with this handler instead of the webview's `on_navigation`, and
+  /// opens no window of its own. Without it a popup keeps the opener's handlers.
+  pub popup_navigation_handler: Option<Arc<PopupNavigationHandler>>,
 }
 
 impl std::fmt::Debug for CefWebviewAttributes {
@@ -1569,6 +1585,10 @@ impl std::fmt::Debug for CefWebviewAttributes {
         &self.browser_settings_callback.is_some(),
       )
       .field("no_bridge", &self.no_bridge)
+      .field(
+        "popup_navigation_handler",
+        &self.popup_navigation_handler.is_some(),
+      )
       .finish()
   }
 }

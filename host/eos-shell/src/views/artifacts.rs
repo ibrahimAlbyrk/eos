@@ -21,10 +21,12 @@ use eos_core::shell::Rect;
 use serde_json::{Value, json};
 use tauri::{LogicalPosition, LogicalSize, Manager};
 use tauri_runtime_cef::WebviewCefExt;
-use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
+use tauri_runtime_cef::cef::{
+    CefString, ContentSettingTypes, ContentSettingValues, ImplBrowser, ImplBrowserHost, ImplRequestContext,
+};
 use tokio::sync::watch;
 
-use super::{Cdp, PARKED_SIZE, View, Views, create, fetch, profile_dir};
+use super::{Cdp, PARKED_SIZE, View, Views, create, fetch, profile_dir, sign_in};
 use crate::host::open_external;
 use crate::log::log;
 use crate::native::appkit;
@@ -51,8 +53,8 @@ struct ArtView {
     world: Mutex<Option<i64>>,
 }
 
-/// An open sign-in window, and how its sign-in ended (`None` while it goes on).
-type SignInWindow = (tauri::Window, watch::Receiver<Option<bool>>);
+/// An open sign-in window, its view, and how its sign-in ended (`None` while it goes on).
+type SignInWindow = (tauri::Window, Arc<View>, watch::Receiver<Option<bool>>);
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
@@ -62,6 +64,8 @@ pub(crate) struct ArtifactShell {
     me: std::sync::Weak<ArtifactShell>,
     views: Arc<Views>,
     viewer: Viewer,
+    /// A test run's stand-in for the identity provider's popup (its origin).
+    provider_stand_in: Option<tauri::Url>,
     quiet: bool,
     live: Mutex<HashMap<ViewKey, Arc<ArtView>>>,
     /// The pool, told what the pages do.
@@ -101,11 +105,17 @@ fn surface_event(art: &ArtView, method: &str, params: &Value) -> Option<SurfaceE
 }
 
 impl ArtifactShell {
-    pub(crate) fn new(views: Arc<Views>, viewer: Viewer, quiet: bool) -> Arc<Self> {
+    pub(crate) fn new(
+        views: Arc<Views>,
+        viewer: Viewer,
+        provider_stand_in: Option<tauri::Url>,
+        quiet: bool,
+    ) -> Arc<Self> {
         Arc::new_cyclic(|me| ArtifactShell {
             me: me.clone(),
             views,
             viewer,
+            provider_stand_in,
             quiet,
             live: Mutex::default(),
             pool: OnceLock::new(),
@@ -179,6 +189,7 @@ impl ArtifactShell {
         let refused = self.me.clone();
         let viewer = self.viewer.clone();
         let policy = create::Policy {
+            popups: None,
             // Only the viewer stays in the view; the pool decides what becomes of the rest.
             navigation: Box::new(move |url| {
                 let allowed = viewer.is_viewer(url.as_str()) || url.as_str() == "about:blank";
@@ -257,16 +268,39 @@ impl ArtifactShell {
             .build()
             .map_err(|e| e.to_string())?;
         // The site's sign-in may pass through its identity providers' pages: any web page
-        // may load here, nothing privileged, and no window opens.
+        // may load here, nothing privileged. Only Google's sign-in popup opens, and it stays
+        // on Google's sign-in hosts (`sign_in`).
+        let (opens, visits) = (self.provider_stand_in.clone(), self.provider_stand_in.clone());
         let policy = create::Policy {
             navigation: Box::new(|url| matches!(url.scheme(), "http" | "https" | "about")),
             open_requested: Box::new(|_| {}),
+            popups: Some(create::Popups {
+                open: Box::new(move |url| sign_in::opens(url, opens.as_ref())),
+                navigation: Box::new(move |url| sign_in::may_visit(url, visits.as_ref())),
+            }),
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
         let builder = create::builder(&format!("{label}-view"), (0.0, 0.0), SIGN_IN_SIZE, Some(&folder), policy);
         let loaded = self.views.load_profile(&folder);
         let webview = window.add_child(builder.auto_resize()).map_err(|e| e.to_string())?;
         drop(loaded);
+        if let Some(stand_in) = &self.provider_stand_in {
+            // A test run: its stand-ins' pages may ask for a window without a click, so
+            // what the popup policy answers is what the run sees (not the popup blocker).
+            let origins = [stand_in.as_str().to_owned(), self.viewer.cookie_url()];
+            let _ = webview.with_cef_webview(move |w| {
+                let Some(context) = w.browser().host().and_then(|h| h.request_context()) else { return };
+                for origin in &origins {
+                    let url = CefString::from(origin.as_str());
+                    context.set_content_setting(
+                        Some(&url),
+                        Some(&url),
+                        ContentSettingTypes::POPUPS,
+                        ContentSettingValues::ALLOW,
+                    );
+                }
+            });
+        }
         let cdp = Cdp::attach(&webview, |_, _| {}).map_err(|e| e.to_string())?;
         let url = tauri::Url::parse(&self.viewer.login_url()).map_err(|e| e.to_string())?;
         webview.navigate(url).map_err(|e| e.to_string())?;
@@ -275,7 +309,7 @@ impl ArtifactShell {
 
     async fn sign_in_flow(&self, profile: &str) -> bool {
         let existing = lock(&self.signing_in).get(profile).cloned();
-        if let Some((window, mut ended)) = existing {
+        if let Some((window, _, mut ended)) = existing {
             if !self.quiet {
                 let _ = window.set_focus();
             }
@@ -289,7 +323,7 @@ impl ArtifactShell {
         };
         let label = window.label().to_owned();
         let (ended, waiting) = watch::channel(None);
-        lock(&self.signing_in).insert(profile.to_owned(), (window.clone(), waiting));
+        lock(&self.signing_in).insert(profile.to_owned(), (window.clone(), view.clone(), waiting));
         let cookie_url = self.viewer.cookie_url();
         let finished = loop {
             tokio::time::sleep(SIGN_IN_POLL).await;
@@ -314,6 +348,20 @@ impl ArtifactShell {
         if let Some(key) = key {
             self.report(key, SurfaceEvent::Crashed { reason: reason.to_owned() });
         }
+    }
+
+    /// A DevTools call on the open sign-in window of `profile`: for a test run against a
+    /// stand-in, which clicks the stand-in's buttons as the user would.
+    pub(crate) async fn sign_in_cdp(&self, profile: &str, method: &str, params: Value) -> Result<Value, String> {
+        let open = lock(&self.signing_in).get(profile).map(|(_, view, _)| view.clone());
+        let view = open.ok_or_else(|| format!("no sign-in window for {profile:?}"))?;
+        view.cdp.call(method, params).await.map_err(|e| e.to_string())
+    }
+
+    /// Closes the open sign-in window of `profile`, as the user's click on its close button.
+    pub(crate) fn close_sign_in(&self, profile: &str) -> bool {
+        let open = lock(&self.signing_in).get(profile).map(|(window, _, _)| window.clone());
+        open.is_some_and(|window| window.close().is_ok())
     }
 
     /// For the menu's edit commands: every artifact view's native view.

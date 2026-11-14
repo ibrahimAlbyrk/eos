@@ -9,6 +9,7 @@ mod hosts;
 mod preview;
 mod profiles;
 mod proxy;
+mod sign_in;
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -173,6 +174,7 @@ impl Views {
         let n = self.counter.fetch_add(1, Ordering::SeqCst);
         let id = ViewId(format!("bt-{:08x}{n:04x}", std::process::id()));
         let policy = create::Policy {
+            popups: None,
             // Fence privileged schemes only; where a page may go is the core's decision.
             navigation: Box::new(|url| !matches!(url.scheme(), "eos" | "file" | "chrome" | "devtools")),
             open_requested: {

@@ -179,6 +179,12 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   in-process handler of the app's own origin; a bridge is a route under `/_shell/` that
   requires the ui-token and a request made by the dashboard document (a host's view: its own
   token and document, on its own door). Shell → page is one event stream per page. `cargo xtask shell` fails the check when any of this is broken.
+  A page's `window.open` opens nothing (a view reports it, the dashboard sends it to the
+  system browser) except in the claude.ai sign-in window, whose policy lets Google's sign-in
+  popup open (`views/sign_in.rs`): a real window in that profile with its opener, closed
+  with its view, without a bridge, opening no window and kept to Google's sign-in hosts
+  (the runtime's `contain_popups`, `host/patches/0004`). Every popup asked for is logged
+  with the view's kind and the target's host, never its address.
   A view's profile is loaded before the view (`views/profiles.rs`): the runtime spins the
   UI thread on CEF's loop until the view's profile is ready, so a profile still being read
   from disk froze the whole window.

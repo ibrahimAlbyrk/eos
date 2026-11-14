@@ -163,6 +163,7 @@ impl Views {
     fn create_app_view(&self, size: (f64, f64)) -> Result<Arc<View>, ViewError> {
         let n = self.counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let policy = create::Policy {
+            popups: None,
             navigation: Box::new(|url| {
                 (url.scheme() == "http" && url.host_str() == Some(APP_HOST)) || url.as_str() == "about:blank"
             }),

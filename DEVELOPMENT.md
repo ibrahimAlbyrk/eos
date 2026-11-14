@@ -176,6 +176,8 @@ python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving
                                   # temporary folder; a plugin preview; 28 checks
 python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page standing in for claude.ai:
                                   # sign-in window, tab, peek (zoom, shield), reload swap, stills
+python3 tests/signin_popup_smoke.py <Eos.app> # the sign-in window's provider popup against local
+                                  # stand-ins: opens with its opener, refused elsewhere, contained
 python3 tests/lan_probe.py <Eos.app>
 python3 tests/memory.py <Eos.app> # the app's memory with the dashboard open (see "Memory")
 python3 tests/responsiveness.py <Eos.app>  # clicks the dashboard's harmless controls 20 times
@@ -300,7 +302,12 @@ the site's account document with the profile's cookies from the browser process 
 `session.fetch`), kept 10 minutes (a failed read: one). The peek's half zoom and its shield are a script
 in an isolated world: a closed shadow root, a binding only that world can call, trusted
 clicks only. Sign-in is the site's own page in a window of its own in that profile; it
-ends when a `sessionKey` cookie is there and the page has left the sign-in pages. The
+ends when a `sessionKey` cookie is there and the page has left the sign-in pages. It is the
+one view whose popups may open (`eos-shell/src/views/sign_in.rs`): "Continue with Google"
+opens `https://accounts.google.com/o/oauth2/…` in a popup that keeps its opener, and the
+popup may visit only `accounts.google.com`, `accounts.google.<country>`,
+`accounts.youtube.com` and `gds.google.com` over https; it opens no window, has no bridge
+and closes with the sign-in window. Apple and email sign in within the window itself. The
 Electron partitions' sessions cannot be read by Chromium here: each sign-in signs in once.
 
 **Views of paired computers** (`eos_bridge::hosts`, `eos-shell/src/views/hosts.rs`): one
@@ -455,8 +462,9 @@ dashboard, esbuild and update channel (`scripts/bundle.sh`), the build caches
 
 ### Open points
 
-- Only a person can confirm: a real window drag, ⌘C/⌘V/⌘Z in the composer and in an embedded
-  view, a banner's sound and click, claude.ai sign-in and a real artifact
+- Only a person can confirm: a real window drag, ⌘C/⌘V/⌘Z in the composer, in an embedded
+  view and in the Google sign-in popup, a banner's sound and click, claude.ai sign-in (with
+  Google, Apple and email) and a real artifact
   (`scripts/try.sh artifacts <link>`), a view of a paired computer (a dev run refuses to
   reach one).
 - The local-network guard (`crates/eos-bridge/src/lan_guard.rs`, a proxy script per profile)
@@ -469,6 +477,10 @@ dashboard, esbuild and update channel (`scripts/bundle.sh`), the build caches
   on the local network its other tabs can reach it too. The system's fixed proxies and exceptions are carried inside the script
   and re-read every 30 seconds; a system set to a proxy script or to auto-discovery is not
   followed (direct connections), since one proxy script cannot call another.
+- A popup in the side panel's browser opens as a tab of its own, without `window.opener`:
+  a site whose sign-in needs its popup to answer the page cannot sign in there.
+- A Google Workspace account that signs in through its company's own identity provider
+  leaves Google's hosts inside the sign-in popup, which the popup's rule does not follow.
 - Chromium still makes a few requests of its own (Google account list, component updates) in
   spite of `--disable-component-update` and `--disable-background-networking`;
   `EOS_SHELL_NETLOG` shows them.

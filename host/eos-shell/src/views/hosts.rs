@@ -61,6 +61,7 @@ impl HostShell {
         service: Arc<dyn Service>,
     ) -> Result<Arc<View>, String> {
         let policy = create::Policy {
+            popups: None,
             navigation: Box::new(|url| {
                 let own = own_page(url);
                 if !own {
