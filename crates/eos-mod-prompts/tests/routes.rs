@@ -40,10 +40,12 @@ fn recorded_profile(prompts: &PromptService) -> String {
 }
 
 /// A recorded answer as this app gives it: the catalog without the goal loop's
-/// prompts, which it does not ship (`fixtures/wire/rust-differences.toml`).
+/// prompts and the one sent after an account switch, which it does not ship
+/// (`fixtures/wire/rust-differences.toml`).
 fn shipped(mut recorded: Value) -> Value {
+    let gone = |id: &str| id.starts_with("loop/") || id == "tool/dynamic_loop" || id == "accounts/continue";
     if let Some(list) = recorded.get_mut("prompts").and_then(Value::as_array_mut) {
-        list.retain(|p| p["id"].as_str().is_some_and(|id| !id.starts_with("loop/") && id != "tool/dynamic_loop"));
+        list.retain(|p| p["id"].as_str().is_some_and(|id| !gone(id)));
     }
     recorded
 }

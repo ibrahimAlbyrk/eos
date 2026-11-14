@@ -1,7 +1,6 @@
 {
- "about": "SHA-256 of each prompt file the Rust library embeds, as manager/prompts held it at 059c4b38: the library's raw text is that tree's.",
+ "about": "SHA-256 of each prompt file the Rust library embeds, as manager/prompts held it at 059c4b38: the library's raw text is that tree's, less accounts/continue, left out on purpose (the Rust app carries a turn on after an account switch with no new input, so it never sends that prompt).",
  "sha256": {
-  "accounts/continue.prompt.md": "d45361b0b83a8748d682afa48769a405f1c3b31710996728e4a769de80478469",
   "commit.prompt.md": "69a78ef629a3f761ffef01073162c10eae7af730bb2415823f418ff44a51272a",
   "compaction/continuation.prompt.md": "84275eaff7237aadeefe10b8f585ea8a1b02552dcff224ce35ae0579df909342",
   "compaction/summarize.prompt.md": "57385211af2d1ceb0bc80445c2e566ab1cf09a4ab7e37c5c65b5069b310595ad",

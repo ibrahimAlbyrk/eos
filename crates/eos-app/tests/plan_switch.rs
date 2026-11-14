@@ -176,6 +176,20 @@ impl Bench {
             rig::call(&self.app, Method::Get, &format!("/workers/{id}/events?order=asc&limit=500"), None).await;
         rows.to_string()
     }
+
+    /// Carrying on after a credential change adds nothing of Eos's to the
+    /// conversation: the chat holds the user's one message, and every request
+    /// the model got carries the conversation the first one did, no more.
+    async fn gained_no_message_of_ours(&self, id: &str, requests: &[Recorded]) {
+        let said = self.rows(id, "user_message").await;
+        assert_eq!(said.len(), 1, "only the user's own message: {}", self.transcript(id).await);
+        let first = requests.first().expect("a request").json()["messages"].clone();
+        let users = first.as_array().into_iter().flatten().filter(|m| m["role"] == "user").count();
+        assert_eq!(users, 1, "the first request holds the user's message alone: {first}");
+        for request in requests {
+            assert_eq!(request.json()["messages"], first, "no new input when the turn carries on");
+        }
+    }
 }
 
 fn bearer(request: &Recorded) -> Option<&str> {
@@ -208,6 +222,7 @@ async fn a_limit_with_another_sign_in_ready_moves_the_session_and_sends_the_requ
     let transcript = b.transcript(&id).await;
     assert!(transcript.contains("answered on b"), "the turn carried on: {transcript}");
     assert!(!transcript.contains("limit reached"), "the refusal never shows: {transcript}");
+    b.gained_no_message_of_ours(&id, &requests).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -236,6 +251,7 @@ async fn with_every_sign_in_out_the_turn_goes_on_with_the_api_key_when_the_user_
     assert_eq!(switched.len(), 1, "{}", b.transcript(&id).await);
     assert_eq!((&switched[0].1["to"], &switched[0].1["reason"]), (&json!("API key"), &json!("api_key")));
     assert!(b.transcript(&id).await.contains("answered on the key"));
+    b.gained_no_message_of_ours(&id, &requests).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -265,6 +281,7 @@ async fn with_every_sign_in_out_resume_at_carries_the_turn_on_once_the_limit_res
     assert_eq!(resumed[0].1["resumed"], json!(true), "{}", resumed[0].1);
     assert!(resumed[0].1.get("resumeAt").is_none(), "{}", resumed[0].1);
     assert!(b.transcript(&id).await.contains("answered after the reset"));
+    b.gained_no_message_of_ours(&id, &requests).await;
 }
 
 fn login_states(claude: &Value) -> Vec<(String, String)> {
@@ -298,6 +315,7 @@ async fn a_sign_in_that_cannot_be_renewed_is_found_out_by_its_first_turn() {
     let after = b.claude().await;
     assert_eq!(login_states(&after), [("login-a".into(), "expired".into()), ("login-b".into(), "signed_in".into())]);
     assert_eq!(after["route"], json!("subscription"));
+    b.gained_no_message_of_ours(&id, &requests).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
