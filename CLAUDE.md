@@ -36,7 +36,7 @@ python3 host/tests/smoke.py <Eos.app>     # also browser_smoke, artifact_smoke, 
 cd app/ui && npm test && npm run lint && npm run build
 cd relay && npm test
 eos build                                 # build this checkout, install it as /Applications/Eos.app (= cargo xtask install)
-eos restore · eos start · eos stop · eos restart · eos status · eos help
+eos restore · eos start · eos stop · eos restart · eos status · eos logs · eos help
 ```
 
 The agent engine is a git dependency pinned in `Cargo.toml`; `scripts/local-sdk.sh <checkout>` builds against a local one (`DEVELOPMENT.md`, "The agent engine"). `eos` is `scripts/eos`, a launcher over `cargo xtask eos` (`xtask/src/eos.rs`); `eos build` links `~/.local/bin/eos` to it.
@@ -77,6 +77,7 @@ Preview a system prompt: `cargo run -p eos-store-files --example preview_prompt 
 - **claude.ai Artifacts** (catalog `eos-mod-artifacts` over `eos-auth`'s frame API; views `eos_bridge::artifacts` and `eos-shell`): each Artifact opens in its own side-panel tab, a native view per Claude sign-in, pool of 4. UI: `views/artifacts/`.
 - **In-app updates** (`eos-mod-updates`, `eos-update`, applier `host/eos-apply`): only a release build with `Resources/update.json` updates itself, from the signed feed (`update-server/`), checking every 30 min ±20%; a build from source says "Built from source". Publish with `cargo xtask publish-update` (`docs/first-rust-release.md`).
 - **Screen saver** (`host/saver`, Swift + Metal, built into `Contents/Resources/Eos.saver` by `bundle.sh`; `eos_platform::ScreenSaver`): the Eos menu's "Lock Screen" starts it through the login window's screen-saver daemon (every display), "Install Screen Saver…" copies it into `~/Library/Screen Savers` and opens the settings to pick it.
+- **Logs** (`eos-kit-log`): `core.log` (every `tracing` event past `EOS_LOG`, Eos's info by default) and `shell.log`, rotated and bounded, in `~/Library/Application Support/com.ibrahimalbyrk.eos/logs/` (a test run: its `EOS_SHELL_DATA/logs`; never `~/.eos`). Help › Reveal Logs, `eos logs`. Log ids, kinds, states and durations — never message, prompt, page or file text, tokens, URL queries, e-mails or names (`ARCHITECTURE.md`, "What may be logged").
 - **Notifications**: the core's `notification:fire` becomes a macOS banner with Eos's sound, only while the window is not focused; a click opens the worker. Dashboard code calls `notify.warning/.error` (`lib/notify.js`); `notify.info` is silent; there are no in-app toasts.
 
 ## Dashboard conventions (`app/ui`)

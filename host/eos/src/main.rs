@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use eos_bridge::launch::{data_folder, reaches_network};
+use eos_bridge::launch::{data_folder, logs_folder, reaches_network};
 use eos_bridge::splash::update_caption;
 use eos_bridge::{Bridge, Classify, Core, RouterCore};
 use eos_contracts::update::UpdateApply;
@@ -45,9 +45,21 @@ fn bundled_resources() -> Option<PathBuf> {
     resources.is_dir().then_some(resources)
 }
 
-fn options() -> Options {
-    let data_dir = env("EOS_SHELL_DATA")
-        .map_or_else(|| home().join("Library/Application Support/com.ibrahimalbyrk.eos"), PathBuf::from);
+/// What kind of build this is, for the log: `release`, or a `dev-run` build (`test`, or
+/// `debug` with debug assertions).
+const BUILD: &str = if RELEASE {
+    "release"
+} else if cfg!(debug_assertions) {
+    "debug"
+} else {
+    "test"
+};
+
+fn options(core_home: Option<&std::path::Path>) -> Options {
+    let named = env("EOS_SHELL_DATA");
+    let data_dir =
+        named.clone().map_or_else(|| home().join("Library/Application Support/com.ibrahimalbyrk.eos"), PathBuf::from);
+    let logs = logs_folder(&data_dir, named.is_some(), core_home, &home(), RELEASE);
     // The Electron app's profile, for the one-time carry-over. `none` skips it.
     let electron_profile = match env("EOS_ELECTRON_PROFILE").as_deref() {
         Some("none") => None,
@@ -58,6 +70,7 @@ fn options() -> Options {
         name: "Eos".into(),
         version: env!("CARGO_PKG_VERSION").into(),
         data_dir,
+        logs,
         resources: bundled_resources(),
         ui_dist: env("EOS_UI_DIST").map(PathBuf::from).or_else(bundled_dist).unwrap_or_else(|| PathBuf::from("dist")),
         electron_profile,
@@ -137,13 +150,17 @@ impl Eos {
     /// Builds and starts the core; `None` when there is no data folder or it did not start.
     fn start_core(&self, ports: &Ports) -> Option<Arc<RouterCore>> {
         let Some(home) = &self.home else {
-            eprintln!("eos: EOS_HOME is not set (a development build has no default): running without the Rust core");
+            tracing::warn!(target: "eos", "EOS_HOME is not set (a development build has no default): running without the Rust core");
             return None;
         };
         // Building the app spawns its own tasks.
         let _runtime = self.rt.enter();
         let resources = bundled_resources();
         let real_data = *home == crate::home().join(".eos");
+        // The data folder's kind, never its path.
+        let data = if real_data { "own" } else { "other" };
+        tracing::info!(target: "eos", version = env!("CARGO_PKG_VERSION"), build = BUILD, data, "the core is starting");
+        let began = std::time::Instant::now();
         let network = reaches_network(home, &crate::home(), RELEASE);
         // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
         // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
@@ -174,14 +191,15 @@ impl Eos {
         let app = match eos_app::App::build(options) {
             Ok(app) => Arc::new(app),
             Err(e) => {
-                eprintln!("eos: the core could not be built: {e}");
+                tracing::error!(target: "eos", error = %e, "the core could not be built");
                 return None;
             }
         };
         if let Err(e) = self.rt.block_on(app.start()) {
-            eprintln!("eos: the core did not start: {e}");
+            tracing::error!(target: "eos", error = %e, "the core did not start");
             return None;
         }
+        tracing::info!(target: "eos", ms = began.elapsed().as_millis() as u64, network = network, "the core is ready");
         let callers = app.callers().clone();
         let ui_token = callers.ui_token().to_owned();
         let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
@@ -214,11 +232,13 @@ impl Hooks for Eos {
             app.mark_update_booted();
             app.update_signals().window_shown();
         }
+        tracing::info!(target: "eos", "the window is up");
         #[cfg(feature = "dev-run")]
         dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
     }
 
     fn window_shown(&self) {
+        tracing::debug!(target: "eos", "the window was shown");
         if let Some((app, _)) = self.app.get() {
             app.update_signals().window_shown();
         }
@@ -240,22 +260,24 @@ impl Hooks for Eos {
     fn shutdown(&self) {
         if let Some((app, rt)) = self.app.get() {
             let report = rt.block_on(app.shutdown(SHUTDOWN));
-            tracing::info!(target: "eos", ?report, "the core stopped");
+            tracing::info!(target: "eos", ms = report.took.as_millis() as u64, clean = report.clean(), "the core stopped");
         }
     }
 }
 
-/// Logs go to stderr; `EOS_LOG` picks what is shown (`eos::bridge=debug` in a dev run shows
-/// what became of each request), warnings by default.
+/// Logs go to stderr at once, and to `core.log` once the shell opens the logs' folder as the
+/// running app (`eos_kit_log`). `EOS_LOG` picks what is logged in both (`eos::bridge=debug`
+/// in a dev run shows what became of each request); Eos's own info by default. A panic in
+/// any thread is logged with its place before it unwinds.
 fn init_logs() {
-    let filter = tracing_subscriber::EnvFilter::try_new(env("EOS_LOG").unwrap_or_else(|| "warn".into()))
-        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
-    let _ = tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr).with_ansi(false).try_init();
+    eos_kit_log::init(env("EOS_LOG").as_deref());
+    eos_kit_log::catch_panics();
 }
 
 fn main() {
     init_logs();
-    let options = options();
+    let core_home = data_folder(env("EOS_HOME").map(PathBuf::from), &home(), RELEASE);
+    let options = options(core_home.as_deref());
     let rt = match eos_app::runtime() {
         Ok(rt) => rt,
         Err(e) => {
@@ -263,11 +285,6 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let hooks = Eos {
-        home: data_folder(env("EOS_HOME").map(PathBuf::from), &home(), RELEASE),
-        dist: options.ui_dist.clone(),
-        app: OnceLock::new(),
-        rt,
-    };
+    let hooks = Eos { home: core_home, dist: options.ui_dist.clone(), app: OnceLock::new(), rt };
     std::process::exit(eos_shell::run(options, Arc::new(hooks)));
 }

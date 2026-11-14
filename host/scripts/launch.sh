@@ -9,8 +9,9 @@
 #   Which data folder: see dev-env.sh. A missing copy is made from $EOS_DEV_DATA/home.
 #   EOS_HOME              the Rust core's data folder (default: $EOS_DEV_HOME); set it empty
 #                         to run the shell alone, without the core
-#   EOS_LOG               what the app logs to $EOS_DEV_OUT/app.err (default: what became of
-#                         each request, at debug level)
+#   EOS_LOG               what the app logs to $EOS_DEV_OUT/app.err and to
+#                         $EOS_SHELL_DATA/logs/core.log (default: the app's own info, and
+#                         what became of each request, at debug level)
 #   EOS_SHELL_DATA        the shell's data folder (default: $EOS_DEV_OUT/data)
 #   EOS_ELECTRON_PROFILE  an Electron profile COPY to carry localStorage over from, or `none`
 #   EOS_DEV_SCRIPT[_OUT]  steps to run on test views (see eos/src/dev/script.rs)
@@ -35,7 +36,7 @@ if [ "${EOS_DEV_ALLOW_AGENTS:-}" != "1" ] && [ -n "$(ls -A "$EOS_DEV_HOME/claude
   exit 1
 fi
 ENVS=(--env "EOS_SHELL_DATA=$SHELL_DATA"
-      --env "EOS_HOME=${EOS_HOME-$EOS_DEV_HOME}" --env "EOS_LOG=${EOS_LOG:-warn,eos::bridge=debug}"
+      --env "EOS_HOME=${EOS_HOME-$EOS_DEV_HOME}" --env "EOS_LOG=${EOS_LOG:-warn,eos=info,eos_agent=warn,eos::bridge=debug}"
       --env "CLAUDE_CONFIG_DIR=$EOS_DEV_HOME/claude-config"
       # Test data: never the real Electron profile, never the login keychain.
       --env "EOS_ELECTRON_PROFILE=${EOS_ELECTRON_PROFILE:-none}" --env "EOS_SHELL_MOCK_KEYCHAIN=1")

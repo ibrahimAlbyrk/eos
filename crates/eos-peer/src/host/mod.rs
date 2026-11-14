@@ -295,7 +295,7 @@ impl PeerHost {
             relay_bearer_hash,
         });
         self.refresh_relay_allow();
-        tracing::info!(device_id = %format_device_id(fp), name, "device paired");
+        tracing::info!(device_id = %format_device_id(fp), "device paired");
         self.publish_presence();
         if let Some(links) = self.links() {
             links.offer_reverse(fp);

@@ -439,7 +439,7 @@ impl Inner {
     async fn answer(self: &Arc<Self>, client: RelayClientId, generation: u64, frame: ControlFrame) {
         let device = hex(client);
         let reply = self.dispatcher.handle(&device, &frame).await;
-        tracing::debug!(method = ?frame.method, path = %frame.path, "remote control");
+        tracing::debug!(method = ?frame.method, path = frame.path.split('?').next().unwrap_or_default(), "remote control");
         // The session may be gone by now; its answer goes nowhere.
         let Some(deflate) = self.state().device(client, generation).map(|d| d.deflate()) else { return };
         // An answer waits for room: the phone's requests slow down, nothing is dropped.

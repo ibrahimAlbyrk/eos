@@ -1521,13 +1521,13 @@ dependencies = [
  "eos-bridge",
  "eos-contracts",
  "eos-core",
+ "eos-kit-log",
  "eos-runtime",
  "eos-shell",
  "eos-update",
  "serde_json",
  "tokio",
  "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -2165,6 +2165,15 @@ dependencies = [
  "serde",
  "serde_norway",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "eos-kit-log"
+version = "0.0.1"
+dependencies = [
+ "crossbeam-channel",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -2814,6 +2823,7 @@ dependencies = [
  "eos-bridge",
  "eos-contracts",
  "eos-core",
+ "eos-kit-log",
  "eos-platform",
  "objc2",
  "objc2-foundation",

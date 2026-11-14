@@ -133,6 +133,7 @@ impl Sessions {
             return Err(Error::Conflict("backend does not support interrupt".into()));
         }
         self.0.turns.mark_interrupt(worker_id);
+        tracing::info!(worker_id, "turn interrupted");
         // What it asked a peer, and what a peer asked it, ends with the turn.
         self.0.peers.cancel_by_worker(worker_id);
         let recall_row = self.0.turns.recallable(worker_id);
@@ -197,6 +198,9 @@ impl Sessions {
             session.stop().await;
         }
         self.leaving(worker_id, false);
+        if parked.is_ok() {
+            tracing::info!(worker_id, reason, "worker suspended");
+        }
         parked
     }
 
@@ -249,6 +253,7 @@ impl Sessions {
             self.0.peers.cancel_by_worker(&id);
             match removed {
                 Ok(Some(row)) => {
+                    tracing::info!(worker_id = %id, "worker removed");
                     self.0.deps.runtime.forget(&id).await;
                     self.0.deps.hooks.removed(&row);
                 }

@@ -529,7 +529,10 @@ impl PluginService {
         // What to build, when the plugin is on and has a UI entry.
         let mut entry_file = None;
         let (manifest, error, has_entry) = match parsed {
-            Err(why) => (None, Some(why), true),
+            Err(why) => {
+                tracing::warn!(plugin = id, error = %first_line(&why), "a plugin could not be loaded");
+                (None, Some(why), true)
+            }
             Ok(manifest) => {
                 let ui = plugin_ui_entry(&manifest, &folder.files);
                 let has_entry = ui.is_some();
@@ -568,7 +571,8 @@ impl PluginService {
                 }
                 Err(e) => {
                     let why = e.to_string();
-                    tracing::warn!(plugin = id, error = %why, "plugin build failed");
+                    // The first line only: the builder's later lines quote the plugin's source.
+                    tracing::warn!(plugin = id, error = %first_line(&why), "plugin build failed");
                     if let Some(entry) = state.entries.get_mut(id) {
                         entry.error = Some(why);
                     }
@@ -577,4 +581,9 @@ impl PluginService {
         }
         self.announce(id);
     }
+}
+
+/// An error's first line, cut to 200 characters, for the log.
+fn first_line(text: &str) -> String {
+    text.lines().next().unwrap_or_default().chars().take(200).collect()
 }

@@ -26,6 +26,7 @@ eos-genui = { path = "crates/eos-genui" }
 eos-genui-media = { path = "crates/eos-genui-media" }
 eos-git = { path = "crates/eos-git" }
 eos-kit-fs = { path = "crates/eos-kit-fs" }
+eos-kit-log = { path = "crates/eos-kit-log" }
 eos-kit-net = { path = "crates/eos-kit-net" }
 eos-kit-proc = { path = "crates/eos-kit-proc" }
 eos-kit-sqlite = { path = "crates/eos-kit-sqlite" }
@@ -147,6 +148,8 @@ tokio = { version = "1", features = ["io-util", "macros", "net", "process", "rt"
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs"] }
 tokio-tungstenite = { version = "0.26", default-features = false, features = ["connect", "handshake"] }
 tracing = "0.1"
+# The log pipeline (eos-kit-log): the same release and features as the host workspace.
+tracing-subscriber = { version = "0.3", default-features = false, features = ["env-filter", "fmt", "std"] }
 unicode-normalization = "0.1"
 url = "2"
 zstd = { version = "0.14", default-features = false }

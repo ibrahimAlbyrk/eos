@@ -19,7 +19,9 @@ use eos_contracts::{HostInfo, KnownHost, LinkRoute, LinkState, LinkStatus, PEER_
 use eos_core::Clock;
 use eos_core::net::peer::PeerEvents;
 use eos_core::net::relay::{Relay, RoomJoin};
-use eos_domain::peer::{blocked_from_local_network, explain_dial_failures, link_error, parse_address};
+use eos_domain::peer::{
+    blocked_from_local_network, explain_dial_failures, format_device_id, link_error, parse_address,
+};
 use h2::client::SendRequest;
 use h2::{Ping, PingPong};
 use tokio::sync::{Notify, oneshot};
@@ -430,7 +432,7 @@ impl HostLink {
                 // Retries repeat the same failure; say why once, and again when it changes.
                 if state.last_failure.as_deref() != Some(e.message.as_str()) {
                     state.last_failure = Some(e.message.clone());
-                    tracing::warn!(host = %host.name, why = %e.message, "no route to host");
+                    tracing::warn!(host = %format_device_id(&host.id.0), why = %e.message, "no route to host");
                 }
                 // A tunnel from the host arrived while this dial ran: use it now.
                 let delay = state.reverse.is_some().then_some(Duration::ZERO);
@@ -629,7 +631,7 @@ impl HostLink {
                 // The connection failed: its own task reports that.
                 Ok(Err(_)) => return,
                 Err(_) => {
-                    tracing::info!(host = ?self.host().map(|h| h.name), "ping unanswered — reconnecting");
+                    tracing::info!(host = ?self.host().map(|h| format_device_id(&h.id.0)), "ping unanswered — reconnecting");
                     self.destroy(id);
                     return;
                 }
@@ -673,7 +675,7 @@ impl HostLink {
             && let Ok((tls, _)) = race(&self.deps.channel, None, &host.id.0, attempts, DIAL_TIMEOUT).await
             && self.adopt(tls, LinkRoute::Direct, Some(old)).await == Ok(true)
         {
-            tracing::info!(host = %host.name, "link moved to a direct path");
+            tracing::info!(host = %format_device_id(&host.id.0), "link moved to a direct path");
         }
         self.state().upgrading = false;
     }
@@ -814,6 +816,12 @@ impl HostLink {
         }
         if next.state != before.state || next.route != before.route {
             next.since = self.deps.clock.now_ms().into();
+            tracing::info!(
+                host = %format_device_id(&self.host_id),
+                state = ?next.state,
+                route = ?next.route,
+                "link to a paired computer changed"
+            );
         }
         let changed = next != before;
         state.status = next;

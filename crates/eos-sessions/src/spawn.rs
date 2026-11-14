@@ -341,6 +341,7 @@ impl Sessions {
         let mut launch = launch_of(&facts, cwd, system_prompt);
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
+            tracing::warn!(worker_id = %id, error = %e, "a worker's session did not start");
             // Nothing started: the row and what hung on it go again.
             let worktree = (!attached).then(|| request.worktree_from.clone().zip(branch)).flatten();
             let (gone, now) = (id.clone(), self.now());
@@ -368,6 +369,13 @@ impl Sessions {
             }
             return Err(e);
         }
+        tracing::info!(
+            worker_id = %id,
+            parent_id = ?request.parent_id,
+            orchestrator = request.is_orchestrator,
+            worktree = worktree_dir.is_some(),
+            "worker started"
+        );
         // It may be the peer an earlier worker already asked for by name.
         if let Some(parent_id) = request.parent_id.as_deref().filter(|_| request.collaborate) {
             self.bind_awaiting_peers(parent_id).await;
@@ -416,6 +424,7 @@ impl Sessions {
         let started = deps.runtime.start(launch, self.sink()).await;
         let (id, now) = (worker_id.to_owned(), self.now());
         if let Err(e) = started {
+            tracing::warn!(worker_id, error = %e, "a session could not be resumed");
             self.store()
                 .write(move |tx, out| transition_state(tx, out, now, &id, WorkerState::Suspended, "resume_failed"))
                 .await?;
@@ -432,6 +441,7 @@ impl Sessions {
                 Ok(())
             })
             .await?;
+        tracing::info!(worker_id, "session resumed");
         Ok(true)
     }
 }

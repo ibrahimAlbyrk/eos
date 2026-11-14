@@ -147,6 +147,7 @@ impl PluginPreviewer for Previewer {
                 .map_err(Error::storage)?;
             let drawn = tokio::time::timeout(TIMEOUT, self.draw(&view, &call, size)).await;
             // Whatever happened, the view does not outlive the call.
+            crate::views::create::closed(view.webview.label());
             let _ = tokio::task::spawn_blocking(move || view.webview.close()).await;
             match drawn {
                 Ok(Ok(result)) => Ok(result),

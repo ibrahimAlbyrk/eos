@@ -1,37 +1,43 @@
-//! The shell's log: one line per event on stderr and in `<data>/logs/shell.log`.
-//! Never logs a token, a URL query or page content.
+//! The shell's log: one line per event on stderr and in `<logs>/shell.log`, a rotated,
+//! bounded file written off the calling thread (`eos_kit_log`). Never logs a token, a
+//! URL's query or a page's content; a host, not an address.
 
-use std::io::Write;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
-use std::time::Instant;
+use std::sync::OnceLock;
 
-static START: OnceLock<Instant> = OnceLock::new();
-static FILE: OnceLock<Mutex<std::fs::File>> = OnceLock::new();
+use eos_kit_log::{Limits, LogFile, Scrubber};
 
-/// A log that grew past this is started over at launch.
-const MAX_BYTES: u64 = 2 << 20;
+static FILE: OnceLock<LogFile> = OnceLock::new();
 
-pub(crate) fn init(data_dir: &Path) {
-    START.get_or_init(Instant::now);
-    let dir = data_dir.join("logs");
-    let _ = std::fs::create_dir_all(&dir);
-    let path = dir.join("shell.log");
-    if std::fs::metadata(&path).is_ok_and(|m| m.len() > MAX_BYTES) {
-        let _ = std::fs::remove_file(&path);
-    }
-    if let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
-        let _ = FILE.set(Mutex::new(file));
-    }
+/// Opens the app's logs in `dir`: the shell's own and the core's (`core.log`, which the
+/// process's `tracing` events reach from now on). Called once this process is the running
+/// app, never for a `--status` or a launch that hands over.
+pub(crate) fn init(dir: Option<&Path>) {
+    let Some(dir) = dir else { return };
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let scrubber = Scrubber::new(home.as_deref());
+    eos_kit_log::attach(dir, scrubber.clone());
+    let _ = FILE.set(LogFile::open(dir, eos_kit_log::SHELL_LOG, Limits::SHELL, scrubber));
 }
 
 pub(crate) fn log(tag: &str, message: &str) {
-    let ms = START.get().map_or(0, |s| s.elapsed().as_millis());
-    let line = format!("[{ms:>7} ms] {tag}: {message}\n");
+    let line = format!("{} {tag}: {message}\n", eos_kit_log::utc_now());
     eprint!("{line}");
-    if let Some(file) = FILE.get()
-        && let Ok(mut file) = file.lock()
-    {
-        let _ = file.write_all(line.as_bytes());
+    if let Some(file) = FILE.get() {
+        file.write(line.into_bytes());
     }
+}
+
+/// Lines of the shell's log dropped because its writer could not keep up.
+pub(crate) fn dropped() -> u64 {
+    FILE.get().map_or(0, LogFile::dropped)
+}
+
+/// Lets what was logged reach the disk before the process ends.
+pub(crate) fn flush() {
+    let wait = std::time::Duration::from_millis(500);
+    if let Some(file) = FILE.get() {
+        file.flush(wait);
+    }
+    eos_kit_log::flush(wait);
 }

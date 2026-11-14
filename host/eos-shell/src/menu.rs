@@ -15,6 +15,7 @@ pub(crate) enum Command {
     ConnectMachine,
     LockScreen,
     InstallScreenSaver,
+    RevealLogs,
     /// Show this computer (`None`) or a controlled one.
     Machine(Option<String>),
     Quit,
@@ -31,6 +32,7 @@ impl Command {
             "connect-machine" => Command::ConnectMachine,
             "lock-screen" => Command::LockScreen,
             "install-screen-saver" => Command::InstallScreenSaver,
+            "reveal-logs" => Command::RevealLogs,
             THIS_MACHINE => Command::Machine(None),
             "quit" => Command::Quit,
             other if other.starts_with(MACHINE) => Command::Machine(Some(other[MACHINE.len()..].to_owned())),
@@ -132,5 +134,6 @@ pub(crate) fn build(
             &PredefinedMenuItem::close_window(app, None)?,
         ],
     )?;
-    Menu::with_items(app, &[&app_menu, &edit, &view, &machines, &window])
+    let help = Submenu::with_items(app, "Help", true, &[&plain("reveal-logs", "Reveal Logs")?])?;
+    Menu::with_items(app, &[&app_menu, &edit, &view, &machines, &window, &help])
 }

@@ -34,9 +34,12 @@ pub struct Options {
     /// The app's name, as the menu shows it.
     pub name: String,
     pub version: String,
-    /// The shell's own data folder: the Chromium profile, window state, one-time markers,
-    /// the single-instance socket and the log.
+    /// The shell's own data folder: the Chromium profile, window state, one-time markers
+    /// and the single-instance socket.
     pub data_dir: PathBuf,
+    /// The app's logs (`shell.log`, `core.log`; `eos_bridge::launch::logs_folder`), opened
+    /// once this process is the running app. `None`: stderr only.
+    pub logs: Option<PathBuf>,
     /// The built dashboard (`app/ui/dist`).
     pub ui_dist: PathBuf,
     /// What the app ships beside its executable (`Contents/Resources`); `None` outside a bundle.

@@ -57,6 +57,11 @@ pub(crate) fn host(url: &Url) -> String {
     url.host_str().map_or_else(|| format!("({})", url.scheme()), str::to_owned)
 }
 
+/// A view goes, for the log: its kind, never its address.
+pub(crate) fn closed(label: &str) {
+    log("views", &format!("{} view closed", kind(label)));
+}
+
 /// A builder for a view at `position` with `size`, starting on a blank page, with the
 /// policy applied and every permission denied.
 pub(crate) fn builder(
@@ -72,13 +77,20 @@ pub(crate) fn builder(
         Some(Popups { open, navigation }) => (Some(open), Some(navigation)),
         None => (None, None),
     };
+    log("views", &format!("{kind} view opened"));
     let mut builder = WebviewBuilder::new(label, blank())
         .no_bridge(true)
         .position(LogicalPosition::new(position.0, position.1))
         .size(LogicalSize::new(size.0, size.1))
         .focused(false)
         .disable_drag_drop_handler()
-        .on_navigation(move |url| navigation(url))
+        .on_navigation(move |url| {
+            let allowed = navigation(url);
+            if !allowed {
+                log("views", &format!("the {kind} view did not go to {}", host(url)));
+            }
+            allowed
+        })
         .on_new_window(move |url, _features| {
             if opens.as_ref().is_some_and(|opens| opens(&url)) {
                 log("views", &format!("a popup of the {kind} view opened on {}", host(&url)));

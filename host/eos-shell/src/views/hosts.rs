@@ -160,6 +160,7 @@ impl HostSurface for HostShell {
         let view = lock(&self.live).remove(id);
         Box::pin(async move {
             if let Some(view) = view {
+                crate::views::create::closed(view.webview.label());
                 self.blocking(move |_| drop(view.webview.close())).await;
             }
         })

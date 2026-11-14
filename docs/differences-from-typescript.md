@@ -72,6 +72,7 @@ changes there without a decision.
 | What | 0.1.x | Rust | Why |
 |---|---|---|---|
 | The phone's audit log (`remote/remote-audit.log`, one line per request, so one per keystroke in a terminal) | Grew without end | Same lines; at 8 MiB (about 40,000 requests) it becomes `remote-audit.log.1`, replacing the one before | It filled the disk over months. |
+| The app's own logs, and `eos logs` | The daemon wrote `~/.eos/logs/daemon.log` (JSON lines, never rotated) and a log per agent (`o-*.log`, `w-*.log`) beside it; `eos logs [id]` tailed them | `core.log` and `shell.log` in `~/Library/Application Support/com.ibrahimalbyrk.eos/logs/` (text lines; rotated by size, at most about 19 MiB together), no log per agent (a session's lifecycle is in `core.log` by its id, its conversation in the database); `eos logs` prints the folder and the last lines of both, `eos logs --path` the folder; Help › Reveal Logs opens it | `~/.eos` is synced, backed up and copied for test runs, which logs have no place in; the 0.1.x files stay where they were, untouched. No message, prompt or file text is logged any more. |
 
 ### Browser panel
 

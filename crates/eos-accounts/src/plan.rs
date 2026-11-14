@@ -207,7 +207,7 @@ impl Plan {
             tracing::warn!(worker_id, error = %e, "the account-switched row could not be written");
         }
         self.live.set(worker_id, Some(&credential));
-        tracing::info!(worker_id, to = %to.label, reason = reason.as_str(), "session moved to another credential");
+        tracing::info!(worker_id, reason = reason.as_str(), "session moved to another sign-in");
         PlanVerdict::Switch(credential)
     }
 
@@ -286,14 +286,14 @@ impl Plan {
     ) -> Result<(), String> {
         let sessions = self.sessions.lock().unwrap_or_else(|p| p.into_inner()).clone();
         if let Err(reason) = sessions.move_session(worker_id, credential.clone()).await {
-            tracing::warn!(worker_id, to = row.to, error = %reason, "account switch failed");
+            tracing::warn!(worker_id, error = %reason, "account switch failed");
             return Err(reason);
         }
         self.live.set(worker_id, Some(&credential));
         if let Err(e) = self.record_switch(worker_id, &row).await {
             tracing::warn!(worker_id, error = %e, "the account-switched row could not be written");
         }
-        tracing::info!(worker_id, to = row.to, reason = row.reason, "session moved to another credential");
+        tracing::info!(worker_id, reason = row.reason, "session moved to another sign-in");
         Ok(())
     }
 

@@ -363,6 +363,7 @@ impl BrowserViews for ViewPorts {
             // The other views of the profile lose what only this one had open.
             *view.local() = LocalPage::None;
             views.sync_profile(&view.profile, false);
+            create::closed(view.webview.label());
             view.webview.close().map_err(shell_error)
         }))
     }

@@ -8,7 +8,8 @@ What it checks:
   3. DevTools round trips work: on a test view through the shell's ports (hidden view
      included), and through the core's browser route for the panel's tab;
   4. the Rust core answers every request behind the dev guard, the event stream included;
-  5. a second launch hands over, `--quit` stops everything.
+  5. a second launch hands over, `--quit` stops everything;
+  6. the logs: both files beside this run's data, the story told, nothing private in them.
 Also, without running it: the bundle's contents, the screen saver included (never installed
 or started), and the Eos menu's screen-saver items.
 
@@ -22,6 +23,7 @@ usage: smoke.py <path to Eos.app> [--keep]      --keep leaves the app running at
 import json
 import os
 import plistlib
+import re
 import signal
 import sqlite3
 import subprocess
@@ -243,7 +245,11 @@ def checks(run):
     check("ready soon after the first page", b["readyInPageMs"] < 15000, f"{b['readyInPageMs']} ms in the page")
     check("one event stream from the dashboard", b["eventStreams"] == 1, b["eventStreams"])
     check("the window did not take the focus", st["window"]["focused"] is False, st["window"])
-    check("the app menu is installed", st.get("menus") == ["Eos", "Edit", "View", "Machines", "Window"], st.get("menus"))
+    check("the app menu is installed", st.get("menus") == ["Eos", "Edit", "View", "Machines", "Window", "Help"], st.get("menus"))
+    check("the Help menu reveals the logs", "Reveal Logs" in (st.get("helpMenu") or []), st.get("helpMenu"))
+    logs = os.path.join(SHELL_DATA, "logs")
+    check("the logs are beside this run's data, and --status says so",
+          (st.get("logs") or {}).get("folder") == logs and os.path.isdir(logs), (st.get("logs") or {}).get("folder"))
     app_menu = st.get("appMenu") or []
     check("the app menu offers the screen saver", "Lock Screen" in app_menu and "Install Screen Saver…" in app_menu, app_menu)
     marker = os.path.join(SHELL_DATA, "migrated-from-electron.json")
@@ -304,6 +310,41 @@ def checks(run):
     return finish(0, pid)
 
 
+def read_logs():
+    """Both logs of this run, every rotated file included."""
+    folder = os.path.join(SHELL_DATA, "logs")
+    text = {}
+    for name in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+        with open(os.path.join(folder, name), errors="replace") as f:
+            text[name] = f.read()
+    return text
+
+
+def check_logs():
+    """After quitting: the two logs tell the run's story and hold nothing private."""
+    files = read_logs()
+    core, shell = files.get("core.log", ""), files.get("shell.log", "")
+    check("the core and the shell each wrote their log", core and shell, sorted(files))
+    for told in ["the core is starting", "database", "the core is ready", "the window is up", "the core stopped"]:
+        check(f"core.log tells {told!r}", told in core)
+    for told in ["shell: started", "views: dashboard view opened", "shell: quitting", "shell: stopped"]:
+        check(f"shell.log tells {told!r}", told in shell)
+    everything = "\n".join(files.values())
+    secrets = ["smoke-not-a-real-invite", os.path.expanduser("~") + "/"]
+    try:
+        with open(os.path.join(DEV_HOME, "ui-token")) as f:
+            secrets.append(f.read().strip())
+    except OSError:
+        pass
+    leaked = [s for s in secrets if s and s in everything]
+    check("no ui-token, link or home folder in the logs", not leaked, leaked)
+    emails = re.findall(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]*[A-Za-z]{2,}", everything)
+    check("no e-mail address in the logs", not emails, emails[:3])
+    queries = re.findall(r"\?[^\s\"'<]*=", everything)
+    check("no URL query in the logs", not queries, queries[:3])
+    check("no line was dropped", "dropped: the log could not keep up" not in everything)
+
+
 def bridge_of(status):
     """The bridge's part of the status; empty until the shell has built it."""
     return status.get("bridge") or {}
@@ -339,6 +380,7 @@ def finish(code, pid=None):
         check("the window's frame was kept for the next launch", frame.get("width", 0) >= 800 and frame.get("height", 0) >= 500, {k: frame.get(k) for k in ("width", "height")})
         log = open(os.path.join(SHELL_DATA, "logs", "shell.log")).read() if os.path.exists(os.path.join(SHELL_DATA, "logs", "shell.log")) else ""
         check("quitting ran the shutdown path once", log.count("shell: quitting") == 1)
+        check_logs()
     failed = [name for name, ok in results if not ok]
     print(f"\n{len(results) - len(failed)}/{len(results)} checks passed" + (f"; failed: {failed}" if failed else ""))
     return 1 if failed else code

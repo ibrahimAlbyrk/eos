@@ -130,12 +130,7 @@ impl Lifecycle {
                 Ok(outcome) => outcome,
                 Err(panic) => Err(format!("panicked: {panic}").into()),
             };
-            tracing::info!(
-                module = module.id(),
-                micros = step.elapsed().as_micros() as u64,
-                ok = outcome.is_ok(),
-                "module started"
-            );
+            log_step(module.id(), "module started", step.elapsed(), outcome.is_ok());
             if let Err(e) = outcome {
                 self.modules.failed().fail(module.id(), &e.to_string());
             }
@@ -160,12 +155,7 @@ impl Lifecycle {
                 Ok(outcome) => outcome,
                 Err(panic) => Err(format!("panicked: {panic}").into()),
             };
-            tracing::info!(
-                module = module.id(),
-                micros = step.elapsed().as_micros() as u64,
-                ok = outcome.is_ok(),
-                "module ready"
-            );
+            log_step(module.id(), "module ready", step.elapsed(), outcome.is_ok());
             if let Err(e) = outcome {
                 self.modules.failed().fail(module.id(), &e.to_string());
             }
@@ -233,7 +223,7 @@ impl Lifecycle {
                     report.timed_out.push(module.id());
                 }
             }
-            tracing::info!(module = module.id(), micros = step.elapsed().as_micros() as u64, "module stopped");
+            log_step(module.id(), "module stopped", step.elapsed(), true);
         }
         report.took = began.elapsed();
         report
@@ -266,6 +256,19 @@ async fn run_deferred(tasks: Vec<(&'static str, DeferredTask)>) {
             Ok(Err(e)) => tracing::warn!(task = name, micros, error = %e, "deferred start-up task failed"),
             Err(e) => tracing::error!(task = name, micros, error = %e, "deferred start-up task panicked"),
         }
+    }
+}
+
+/// A module's step that took this long is logged at info; the others at debug (the
+/// summary line says how the whole start went, a failure is logged where it is recorded).
+const SLOW_STEP: Duration = Duration::from_millis(250);
+
+fn log_step(module: &str, what: &str, took: Duration, ok: bool) {
+    let micros = took.as_micros() as u64;
+    if took >= SLOW_STEP {
+        tracing::info!(module, micros, ok, "{what} (slow)");
+    } else {
+        tracing::debug!(module, micros, ok, "{what}");
     }
 }
 

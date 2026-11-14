@@ -281,6 +281,11 @@ impl App {
             ..eos_kit_sqlite::Options::default()
         };
         let (db, migrations) = Db::open(paths.state_db(), db_options, clock.now_ms())?;
+        if migrations.applied.is_empty() && migrations.adopted.is_empty() {
+            tracing::info!("the database is up to date");
+        } else {
+            tracing::info!(applied = ?migrations.applied, adopted = ?migrations.adopted, "database migrations ran");
+        }
         if !migrations.unknown.is_empty() {
             tracing::info!(ids = ?migrations.unknown, "the database records migrations this build does not know; left alone");
         }

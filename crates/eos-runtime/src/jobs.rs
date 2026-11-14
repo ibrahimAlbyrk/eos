@@ -585,6 +585,9 @@ impl JobHandle {
         let mut state = inner.state();
         let Some(entry) = state.entry(&self.id, self.generation) else { return };
         if entry.spec.ambient {
+            if status == JobStatus::Failed {
+                tracing::warn!(kind = %entry.spec.kind, worker_id = ?entry.spec.worker_id, "a background job failed");
+            }
             state.entries.remove(&self.id);
             inner.send(state, Outgoing::Removed(vec![self.id.clone()]));
             return;
@@ -594,6 +597,12 @@ impl JobHandle {
         entry.job.status = status;
         if was_running {
             entry.job.ended_at = Some(now);
+            // Its kind, worker and exit code: never its title or command, which quote the work.
+            if status == JobStatus::Failed {
+                let ms = now - entry.job.started_at;
+                let (kind, worker_id, exit_code) = (&entry.spec.kind, &entry.spec.worker_id, entry.job.exit_code);
+                tracing::warn!(%kind, ?worker_id, ?exit_code, ms, "a background job failed");
+            }
         }
         state.announce(&self.id, now);
         if was_running {

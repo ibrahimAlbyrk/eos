@@ -215,7 +215,7 @@ impl HostLinkService {
                 return pairing(410, "the relay no longer accepts this invite — make a new one on that Mac");
             }
             let reasons: Vec<_> = failures.into_iter().map(|f| f.failure).collect();
-            tracing::warn!(host = %invite.name, failures = ?reasons, "pairing found no route to that Mac");
+            tracing::warn!(failures = ?reasons, "pairing found no route to that Mac");
             pairing(502, format!("couldn't reach that Mac: {}", explain_dial_failures(&reasons)))
         })?;
 
@@ -286,7 +286,7 @@ impl HostLinkService {
         link.stop();
         link.start();
         self.deps.events.host_changed(&host.id.0);
-        tracing::info!(host = %host.name, device_id = %format_device_id(&host.id.0), "paired with host");
+        tracing::info!(device_id = %format_device_id(&host.id.0), "paired with host");
         host
     }
 

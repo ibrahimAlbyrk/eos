@@ -114,6 +114,8 @@ impl SignInService {
         let store_dir =
             target.as_ref().map_or_else(|| self.deps.logins.single_store(provider), |t| t.store_dir.clone());
 
+        // The provider and whether it renews a sign-in: never whose.
+        tracing::info!(provider, renewal = renewal.is_some(), "sign-in started");
         let id = self.deps.ids.sign_in_id();
         let session = SignInSession {
             id: id.clone(),
@@ -198,11 +200,13 @@ impl SignInService {
         // A fresh sign-in to an account that is already listed replaced that
         // sign-in's store. The new one is in place by now and nothing reads
         // the old one, so cleaning it up never fails the sign-in.
+        let replaced_one = replaced.is_some();
         if let Some(old) = replaced
             && self.deps.stores.sign_out(provider.id(), &old).await.is_ok()
         {
             self.deps.logins.trash_store(&old);
         }
+        tracing::info!(provider = provider.id(), replaced = replaced_one, "sign-in succeeded");
         self.end(id, SignInState::Succeeded, None);
         self.changed();
     }
@@ -224,6 +228,7 @@ impl SignInService {
         if !self.sessions().get(id).is_some_and(|e| active(&e.session)) {
             return false;
         }
+        tracing::info!("sign-in cancelled");
         self.end(id, SignInState::Cancelled, None);
         true
     }
@@ -245,6 +250,7 @@ impl SignInService {
         if provider == CLAUDE {
             self.clear_legacy_token();
         }
+        tracing::info!(provider, "signed out");
         self.changed();
         Ok(())
     }
@@ -257,6 +263,7 @@ impl SignInService {
         }
         self.deps.logins.remove(provider, login_id)?;
         self.deps.ledger.clear(login_id);
+        tracing::info!(provider, "a sign-in was removed");
         self.changed();
         Ok(())
     }
@@ -280,6 +287,7 @@ impl SignInService {
     }
 
     fn fail(self: &Arc<Self>, id: &str, error: String) {
+        tracing::warn!(%error, "sign-in failed");
         self.end(id, SignInState::Failed, Some(error));
     }
 

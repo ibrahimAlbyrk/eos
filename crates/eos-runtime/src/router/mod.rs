@@ -13,7 +13,10 @@ mod tree;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+/// A request whose answer took longer is logged (at info) with its route and time.
+const SLOW_REQUEST: Duration = Duration::from_secs(2);
 
 use crate::access::{Access, PeerRule, check_plane, check_user, speaks_for_user};
 use crate::error::{Conflict, Error, panic_message};
@@ -250,29 +253,35 @@ impl Router {
         let caller = req.caller.kind();
         let if_none_match = req.headers.get("if-none-match").map(str::to_owned);
 
-        let (res, route) = self.dispatch(req).await;
+        let (res, route, failure) = self.dispatch(req).await;
         let res = res.revalidated(method, if_none_match.as_deref());
-        tracing::debug!(
-            target: "eos::request",
-            request_id = %id,
-            %method,
-            route = route.as_ref().map_or("-", |r| r.pattern.as_ref()),
-            status = res.status,
-            micros = started.elapsed().as_micros() as u64,
-            caller,
-        );
+        // The route's pattern, never the path: a path may name a file or a page.
+        let route = route.as_ref().map_or("-", |r| r.pattern.as_ref());
+        let (status, elapsed) = (res.status, started.elapsed());
+        let ms = elapsed.as_millis() as u64;
+        if status >= 500 {
+            let error = failure.as_deref().unwrap_or("-");
+            tracing::warn!(target: "eos::request", request_id = %id, %method, route, status, ms, caller, error, "request failed");
+        } else if elapsed >= SLOW_REQUEST {
+            tracing::info!(target: "eos::request", request_id = %id, %method, route, status, ms, caller, "slow request");
+        } else if status >= 400 {
+            tracing::debug!(target: "eos::request", request_id = %id, %method, route, status, ms, caller, "request refused");
+        } else {
+            tracing::trace!(target: "eos::request", request_id = %id, %method, route, status, micros = elapsed.as_micros() as u64, caller);
+        }
         res.header("x-request-id", id)
     }
 
-    async fn dispatch(&self, mut req: Request) -> (Response, Option<Arc<RouteMeta>>) {
+    /// The answer, the route it matched and, for a failure, what the handler said.
+    async fn dispatch(&self, mut req: Request) -> (Response, Option<Arc<RouteMeta>>, Option<String>) {
         let Some((index, spans)) = self.trees[req.method.index()].find(req.path()) else {
             let body = ErrorBody { error: "not found", path: Some(req.path()), ..ErrorBody::default() };
-            return (Response::json(404, &body), None);
+            return (Response::json(404, &body), None, None);
         };
         let route = &self.routes[index];
         let meta = &route.meta;
         let rule = meta.access.as_ref();
-        let done = |res: Response| (res, Some(meta.clone()));
+        let done = |res: Response| (res, Some(meta.clone()), None);
 
         if let Err(refusal) = check_plane(rule, &req.caller) {
             return done(refusal_response(refusal, req.path()));
@@ -292,7 +301,7 @@ impl Router {
         }
         if req.body.len() > meta.max_body {
             self.counters.body_too_large.fetch_add(1, Ordering::Relaxed);
-            tracing::warn!(request_id = %req.id, method = %req.method, path = req.path(), limit = meta.max_body, "body too large rejected");
+            tracing::warn!(request_id = %req.id, method = %req.method, route = %meta.pattern, limit = meta.max_body, "body too large rejected");
             return done(ApiError::BodyTooLarge { limit: meta.max_body }.into_response());
         }
         req.user = speaks_for_user(rule, &req.caller);
@@ -303,29 +312,25 @@ impl Router {
             return done(e.into_response());
         }
 
-        let (id, method, path) = (req.id.clone(), req.method, req.path().to_owned());
         // The handler runs twice behind the boundary: once to build its
         // future, then on every poll.
         let outcome = match catch_unwind(AssertUnwindSafe(|| route.handler.call(req))) {
             Ok(future) => CatchUnwind(future).await,
             Err(payload) => Err(payload),
         };
-        let res = match outcome {
-            Ok(Ok(res)) => res,
+        match outcome {
+            Ok(Ok(res)) => done(res),
             Ok(Err(e)) => {
-                if e.status() >= 500 {
-                    tracing::error!(request_id = %id, %method, path, error = %e, "request failed");
-                }
-                e.into_response()
+                let failure = (e.status() >= 500).then(|| e.to_string());
+                (e.into_response(), Some(meta.clone()), failure)
             }
             Err(payload) => {
                 self.counters.panics.fetch_add(1, Ordering::Relaxed);
                 let message = panic_message(payload.as_ref());
-                tracing::error!(request_id = %id, %method, path, panic = %message, "request handler panicked");
-                Response::error(500, message)
+                let failure = format!("the handler panicked: {message}");
+                (Response::error(500, message), Some(meta.clone()), Some(failure))
             }
-        };
-        done(res)
+        }
     }
 
     fn lookup(&self, method: Method, target: &str) -> Option<(&Route, Spans)> {

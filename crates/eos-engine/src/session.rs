@@ -207,7 +207,29 @@ enum End {
     Lost,
 }
 
-fn turn_error(error: &TurnError) -> TurnDone {
+/// What kind of failure a turn met, for the log: the kind and the API's error type, never
+/// the message (an API's message may quote the request).
+fn error_kind(error: &TurnError) -> (&'static str, Option<&str>) {
+    match error {
+        TurnError::Model(model) => match model {
+            ModelError::RateLimited { .. } => ("rate_limited", None),
+            ModelError::LimitReached { .. } => ("usage_limit", None),
+            ModelError::Overloaded { .. } => ("overloaded", None),
+            ModelError::Transient(_) => ("transient", None),
+            ModelError::Stalled => ("stalled", None),
+            ModelError::Auth(_) => ("auth", None),
+            ModelError::Invalid(_) => ("invalid_request", None),
+            ModelError::ContextWindowExceeded(_) => ("context_window", None),
+            ModelError::Api { kind, .. } => ("api", Some(kind.as_str())),
+        },
+        TurnError::Store(_) => ("store", None),
+        TurnError::Message(_) => ("message", None),
+    }
+}
+
+fn turn_error(worker_id: &str, error: &TurnError) -> TurnDone {
+    let (kind, api_type) = error_kind(error);
+    tracing::warn!(worker_id, kind, api_type, "the model request failed");
     let failed = |notice: String, plan| TurnDone::Failed { notice, plan };
     match error {
         TurnError::Model(ModelError::Auth(why)) if why == NOT_SIGNED_IN => {
@@ -222,19 +244,19 @@ fn turn_error(error: &TurnError) -> TurnDone {
     }
 }
 
-async fn run_turn(agent: Arc<SdkAgent>, text: String) -> TurnDone {
+async fn run_turn(agent: Arc<SdkAgent>, text: String, worker_id: String) -> TurnDone {
     match agent.send_input(&text).await {
         Ok(Ok(_)) => TurnDone::Reported,
-        Ok(Err(error)) => turn_error(&error),
+        Ok(Err(error)) => turn_error(&worker_id, &error),
         Err(InputError::Gone(_)) => TurnDone::Gone,
         Err(InputError::Command(error)) => TurnDone::Failed { notice: error.to_string(), plan: false },
     }
 }
 
-async fn rerun_turn(agent: Arc<SdkAgent>) -> TurnDone {
+async fn rerun_turn(agent: Arc<SdkAgent>, worker_id: String) -> TurnDone {
     match agent.resume().await {
         Ok(Ok(_)) => TurnDone::Reported,
-        Ok(Err(error)) => turn_error(&error),
+        Ok(Err(error)) => turn_error(&worker_id, &error),
         Err(_) => TurnDone::Gone,
     }
 }
@@ -322,8 +344,12 @@ impl Pump {
             tokio::select! {
                 biased;
                 command = self.inbox.recv() => match command {
-                    Some(Command::Turn(text)) => self.turns.push(Box::pin(run_turn(self.agent.clone(), text))),
-                    Some(Command::Rerun) => self.turns.push(Box::pin(rerun_turn(self.agent.clone()))),
+                    Some(Command::Turn(text)) => {
+                        self.turns.push(Box::pin(run_turn(self.agent.clone(), text, self.session.id().to_owned())));
+                    }
+                    Some(Command::Rerun) => {
+                        self.turns.push(Box::pin(rerun_turn(self.agent.clone(), self.session.id().to_owned())));
+                    }
                     Some(Command::Stop(done)) => break End::Stopped(done),
                     // Every handle to the session is gone.
                     None => break End::Lost,

@@ -301,7 +301,15 @@ impl Bridge {
             let outcome = me.bridge(&path, body).await;
             match outcome {
                 Ok(value) => send(&sink, json_response(200, json!({ "value": value }))),
-                Err(Refusal(status, error)) => me.refuse(&sink, status, error),
+                Err(Refusal(status, error)) => {
+                    // The bridge's path names the call (`/_shell/…`), never what it carried.
+                    if status >= 500 {
+                        tracing::warn!(target: "eos::bridge", bridge = %path, status, error, "a shell bridge call failed");
+                    } else {
+                        tracing::debug!(target: "eos::bridge", bridge = %path, status, error, "a shell bridge call was refused");
+                    }
+                    me.refuse(&sink, status, error)
+                }
             }
         });
     }

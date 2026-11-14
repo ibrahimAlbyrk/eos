@@ -179,7 +179,8 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
             return 1;
         }
     };
-    crate::log::init(&options.data_dir);
+    crate::log::init(options.logs.as_deref());
+    log("shell", &format!("started: version {}, pid {}", options.version, std::process::id()));
     let rt = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .thread_name("eos-shell")
@@ -533,6 +534,8 @@ impl Shell {
             }
             self.hooks.shutdown();
             let _ = std::fs::remove_file(self.options.data_dir.join("shell.sock"));
+            log("shell", "stopped");
+            crate::log::flush();
         });
     }
 
@@ -663,10 +666,21 @@ impl Shell {
                     self.rt.spawn(async move { hosts.switch_to(id).await });
                 }
             }
+            Command::RevealLogs => self.reveal_logs(),
             Command::LockScreen => self.screen_saver_action(false),
             Command::InstallScreenSaver => self.screen_saver_action(true),
             Command::Edit(command) => self.edit(views, bridge, command),
         }
+    }
+
+    /// Help › Reveal Logs: the logs' folder in Finder (made first, so there is one to show).
+    fn reveal_logs(&self) {
+        let Some(dir) = self.options.logs.clone() else {
+            log("shell", "no log folder in this run: nothing to reveal");
+            return;
+        };
+        let _ = std::fs::create_dir_all(&dir);
+        crate::host::open_with_system(&dir.to_string_lossy());
     }
 
     /// The system's screen saver and the folder holding the one the app ships, when both
@@ -758,10 +772,23 @@ impl Shell {
                 let submenu = items.first()?.as_submenu()?.items().ok()?;
                 Some(submenu.iter().filter_map(|item| item.as_menuitem().and_then(|m| m.text().ok())).collect::<Vec<_>>())
             }),
+            // The Help menu's items, by title.
+            "helpMenu": self.app.get().and_then(|app| app.menu()).and_then(|menu| menu.items().ok()).and_then(|items| {
+                let help = items.iter().filter_map(|item| item.as_submenu()).find(|s| s.text().ok().as_deref() == Some("Help"))?;
+                Some(help.items().ok()?.iter().filter_map(|item| item.as_menuitem().and_then(|m| m.text().ok())).collect::<Vec<_>>())
+            }),
             "views": self.views.get().map(|v| v.status()),
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },
             "bridge": self.bridge.get().map(|b| b.status()),
             "splash": self.splash.shown(),
+            "logs": self.options.logs.as_ref().map(|dir| json!({
+                "folder": dir,
+                "files": [eos_kit_log::CORE_LOG, eos_kit_log::SHELL_LOG],
+                "dropped": {
+                    "core": eos_kit_log::core_file().map_or(0, eos_kit_log::LogFile::dropped),
+                    "shell": crate::log::dropped(),
+                },
+            })),
         })
     }
 

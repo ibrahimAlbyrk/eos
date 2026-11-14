@@ -5,7 +5,10 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use eos_contracts::stream::topics::WORKER_EXIT;
-use eos_contracts::{AgentEvent, AgentMessageEventRole, DeltaEvent, WorkerEventType, WorkerState, WorkflowRunProgress};
+use eos_contracts::{
+    AgentEvent, AgentMessageEventRole, DeltaEvent, SessionEventOutcome, SessionEventPhase, TurnEventPhase,
+    WorkerEventType, WorkerState, WorkflowRunProgress,
+};
 use eos_core::agent::{
     AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, ModelCatalog, PromptAssembler, SessionSink,
     ToolInputDelta,
@@ -290,6 +293,7 @@ impl Sessions {
         let mut durable = Vec::new();
         let mut idle = false;
         for event in events {
+            self.log_lifecycle(worker_id, &event);
             match &event {
                 // Live text is relayed, never recorded; what was recorded
                 // before it goes out first, so rows and text keep their order.
@@ -310,6 +314,49 @@ impl Sessions {
         idle |= self.record(worker_id, durable).await;
         if idle {
             self.settled(worker_id).await;
+        }
+    }
+
+    /// A session's lifecycle in the log, by id: never what was said in it.
+    fn log_lifecycle(&self, worker_id: &str, event: &AgentEvent) {
+        match event {
+            AgentEvent::Turn(turn) => {
+                let reason = turn.reason.as_deref().unwrap_or("-");
+                match turn.phase {
+                    TurnEventPhase::Started => {
+                        self.0.turns.mark_started(worker_id);
+                        tracing::info!(worker_id, "turn started");
+                    }
+                    TurnEventPhase::Ended | TurnEventPhase::Aborted => {
+                        let ms = self.0.turns.take_duration(worker_id);
+                        let outcome = if turn.phase == TurnEventPhase::Ended { "ended" } else { "aborted" };
+                        tracing::info!(worker_id, outcome, reason, ms, "turn ended");
+                    }
+                    TurnEventPhase::Error => {
+                        let ms = self.0.turns.take_duration(worker_id);
+                        tracing::warn!(worker_id, outcome = "error", reason, ms, "turn ended");
+                    }
+                }
+            }
+            AgentEvent::Session(session) => {
+                let phase = match session.phase {
+                    SessionEventPhase::Started => "started",
+                    SessionEventPhase::Ready => "ready",
+                    SessionEventPhase::Ended => "ended",
+                    SessionEventPhase::Cleared => "cleared",
+                };
+                let outcome = session.outcome.map(|o| match o {
+                    SessionEventOutcome::Success => "success",
+                    SessionEventOutcome::Killed => "killed",
+                    SessionEventOutcome::Crashed => "crashed",
+                });
+                if outcome == Some("crashed") {
+                    tracing::warn!(worker_id, phase, outcome, "session crashed");
+                } else {
+                    tracing::info!(worker_id, phase, outcome, "session {phase}");
+                }
+            }
+            _ => {}
         }
     }
 
@@ -343,6 +390,7 @@ impl Sessions {
         if let Err(e) = written {
             tracing::error!(worker_id, error = %e, "a session's exit could not be recorded");
         }
+        tracing::info!(worker_id, ?code, expected, "session exited");
         self.0.turns.forget(worker_id);
         // Whoever waits on its answer hears that it is gone.
         self.0.peers.cancel_by_worker(worker_id);

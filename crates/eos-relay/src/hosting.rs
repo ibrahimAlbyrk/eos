@@ -188,6 +188,8 @@ async fn run(shared: Arc<Shared>, events: mpsc::Sender<RoomEvent>) {
     let mut stop = shared.stop.subscribe();
     let mut wake = WakeWatch::new(shared.clock.clone(), options.wake_check, options.wake_gap);
     let mut backoff = options.backoff_min;
+    // Retries repeat the same failure: it is logged when it changes.
+    let mut last_failure: Option<String> = None;
     loop {
         let dialled = tokio::select! {
             dialled = socket::connect(&shared.claim.url, options.connect_timeout) => dialled,
@@ -196,11 +198,20 @@ async fn run(shared: Arc<Shared>, events: mpsc::Sender<RoomEvent>) {
         wake.reset();
         let end = match dialled {
             Ok((sink, stream)) => {
+                last_failure = None;
                 let mut session = Session { shared: &shared, events: &events, stop: &mut stop, wake: &mut wake };
-                session.run(sink, stream, &mut backoff).await
+                let end = session.run(sink, stream, &mut backoff).await;
+                if !matches!(end, End::Stop) {
+                    tracing::info!(url = %shared.claim.url, "relay disconnected");
+                }
+                end
             }
             Err(error) => {
-                tracing::info!(url = %shared.claim.url, %error, "relay not reached");
+                let error = error.to_string();
+                if last_failure.as_deref() != Some(error.as_str()) {
+                    tracing::info!(url = %shared.claim.url, %error, "relay not reached; retrying");
+                    last_failure = Some(error);
+                }
                 End::Closed
             }
         };
@@ -212,7 +223,7 @@ async fn run(shared: Arc<Shared>, events: mpsc::Sender<RoomEvent>) {
         }
         let delay = backoff;
         backoff = (backoff * 2).min(options.backoff_max);
-        tracing::info!(delay_ms = delay.as_millis() as u64, "relay reconnect scheduled");
+        tracing::debug!(delay_ms = delay.as_millis() as u64, "relay reconnect scheduled");
         tokio::select! {
             () = tokio::time::sleep(delay) => {}
             () = wake.slept() => {

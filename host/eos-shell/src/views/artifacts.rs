@@ -321,6 +321,7 @@ impl ArtifactShell {
             log("artifacts", "the sign-in window did not open");
             return false;
         };
+        log("artifacts", "the sign-in window opened");
         let label = window.label().to_owned();
         let (ended, waiting) = watch::channel(None);
         lock(&self.signing_in).insert(profile.to_owned(), (window.clone(), view.clone(), waiting));
@@ -329,10 +330,14 @@ impl ArtifactShell {
             tokio::time::sleep(SIGN_IN_POLL).await;
             if self.views.app.get_window(&label).is_none() {
                 // Closed by the user: whatever the profile holds now.
-                break self.signed_in(profile).await;
+                let signed_in = self.signed_in(profile).await;
+                let outcome = if signed_in { "signed in" } else { "not signed in" };
+                log("artifacts", &format!("the sign-in window was closed: {outcome}"));
+                break signed_in;
             }
             let at = view.webview.url().map(|u| u.to_string()).unwrap_or_default();
             if Self::has_session(&view.cdp, &cookie_url).await && !self.viewer.on_sign_in_page(&at) {
+                log("artifacts", "the sign-in window finished: signed in");
                 let _ = window.close();
                 break true;
             }
@@ -522,6 +527,7 @@ impl ArtifactSurface for ArtifactShell {
         Box::pin(async move {
             if let Some(art) = art {
                 let webview = art.view.webview.clone();
+                create::closed(webview.label());
                 let _ = tokio::task::spawn_blocking(move || webview.close()).await;
             }
         })

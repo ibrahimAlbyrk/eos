@@ -67,7 +67,7 @@ pub async fn prune_orphan_worktrees(store: &dyn Store, worktrees: &dyn WorktreeM
                 branch: branch.to_owned(),
             };
             let outcome = worktrees.remove(&orphan).await;
-            tracing::info!(repo, path = %entry.path.display(), branch, ?outcome, "pruned an orphan worktree");
+            tracing::info!(repo, path = %entry.path.display(), ?outcome, "pruned an orphan worktree");
             if outcome == WorktreeRemoved::Removed {
                 removed.push(entry.path);
             }
@@ -94,11 +94,7 @@ pub async fn reap_worktree_removals(
             w.branch.as_deref() == Some(&entry.branch) && w.worktree_from.as_deref() == Some(&entry.repo_root)
         });
         if shared {
-            tracing::info!(
-                worker_id = entry.worker_id,
-                branch = entry.branch,
-                "worktree kept: another worker works in it"
-            );
+            tracing::info!(worker_id = entry.worker_id, "worktree kept: another worker works in it");
         } else {
             let gone = WorktreeRef {
                 repo_root: PathBuf::from(&entry.repo_root),
@@ -106,7 +102,7 @@ pub async fn reap_worktree_removals(
                 branch: entry.branch.clone(),
             };
             let outcome = worktrees.remove(&gone).await;
-            tracing::info!(worker_id = entry.worker_id, branch = entry.branch, ?outcome, "reaped a worktree");
+            tracing::info!(worker_id = entry.worker_id, ?outcome, "reaped a worktree");
             reaped += 1;
         }
         let id = entry.id.clone();

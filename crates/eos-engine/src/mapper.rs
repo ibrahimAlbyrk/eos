@@ -198,9 +198,17 @@ impl Mapper {
             EngineEvent::Interrupted => self.end_turn(TurnEventPhase::Aborted, Some("interrupted"), side, &mut out),
             // The conversation's own messages are recorded from their blocks
             // and results; retries, limits and summaries are not events.
+            // A retry in the log by its attempt and wait: its error text may quote the API.
+            EngineEvent::Retrying { attempt, delay, .. } => {
+                tracing::info!(
+                    worker_id = side.worker_id,
+                    attempt,
+                    delay_ms = delay.as_millis() as u64,
+                    "the model request is retried"
+                );
+            }
             EngineEvent::Message(_)
             | EngineEvent::RateLimit(_)
-            | EngineEvent::Retrying { .. }
             | EngineEvent::Compacting { .. }
             | EngineEvent::Compacted { .. } => {}
         }

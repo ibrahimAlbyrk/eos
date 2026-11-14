@@ -70,6 +70,7 @@ eos build                           # build this checkout, install it as /Applic
 eos restore                         # put the previous app back (run again to come back)
 eos start | stop | restart          # open the installed app, ask it to quit as its Quit menu does, both
 eos status                          # what the running app answers to `Eos --status`; exit 1 when it is not running
+eos logs [--path] [-n <lines>]      # the logs' folder and the last lines of core.log and shell.log
 eos help
 ```
 
@@ -80,8 +81,8 @@ is `cargo xtask install --restore`; use those in a checkout before the command i
 install links `~/.local/bin/eos` (`$EOS_BIN_DIR/eos` when that is set) to this checkout's
 launcher: a missing one is created, a link to another Eos launcher (another checkout, or the
 0.1.x app's `manager/bin/eos`) is replaced, and a file or a link to anything else is left alone
-with a message. A command of the 0.1.x `eos` (`chat`, `logs`, …) answers that it is not
-available and what to use instead.
+with a message. A command of the 0.1.x `eos` (`chat`, `config`, …) answers that it is not
+available and what to use instead; `eos logs` shows the app's logs (see "Logs").
 
 What the host workspace needs comes from `host/scripts/setup.sh`, which the build runs first
 ("Build, check, run" below). Options: `--no-open`; `--identity <name>` signs with another
@@ -229,6 +230,33 @@ run can name its own copy and output folder; a missing copy is made from
 empty, and refuses a bundle without the dev guard. What became of each request is logged at
 debug level under `eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and
 `Eos --status` counts what the core served and refused and lists the routes it served.
+
+### Logs
+
+The app keeps two logs in one folder (`eos_bridge::launch::logs_folder`): `core.log`, every
+`tracing` event that passes `EOS_LOG` (Eos's own info by default), and `shell.log`, the
+window shell's lines (views opened and closed, refused navigations and popups by host,
+renderer crashes, the sign-in window, the menu). The installed app's folder is
+`~/Library/Application Support/com.ibrahimalbyrk.eos/logs/`, where `shell.log` always was; a
+run that names its shell folder (`EOS_SHELL_DATA`: every test and dev run) logs in its
+`logs/`, a run on another data folder with the default shell folder in that data folder's
+`logs/`, and a dev build with neither writes no file. Never `~/.eos/logs`, which is the
+0.1.x app's: `~/.eos` is synced, backed up and copied for dev runs.
+
+Both files are written by `eos-kit-log`: a bounded queue the caller never waits on
+(`core.log` 2048 lines, `shell.log` 256; when full a line is dropped, counted in
+`Eos --status` under `logs.dropped`, and noted in the file), a writer thread per file that
+cuts a line at 4 KiB (2 KiB), scrubs it (home folder → `~`, URL queries, e-mail addresses,
+secret-looking values) and rotates the file by size: `core.log` at 4 MiB with three older
+files kept, `shell.log` at 1 MiB with two, about 19 MiB at most together. A failure to write
+loses lines, never the app. A panic in any thread is logged with its place
+(`eos::panic`) before it unwinds. What may be written is `ARCHITECTURE.md`'s rule ("What may
+be logged"); `crates/eos-app/tests/logs.rs` plants secrets in a scripted session and fails
+when one reaches the file.
+
+Help › Reveal Logs opens the folder in Finder; `eos logs` prints the folder and the last 40
+lines of both logs (`-n <lines>`), `eos logs --path` only the folder; `Eos --status` says
+where they are (`logs.folder`).
 
 **A dev run works on a copy of real data, so it may not act for the user**
 (`crates/eos-bridge/src/dev/guard.rs`): the Rust core runs agents itself, so before its router
@@ -448,7 +476,7 @@ clicks over DevTools: the path of a real mouse event through AppKit is not measu
 | `EOS_SHELL_NETWORK_IN_PROCESS` | run Chromium's network service inside the browser process: one process and about 9 MB less, without its crash isolation and its own sandbox (off by default; see "Memory") |
 | `EOS_SHELL_PAINT_WHEN_COVERED` | keep painting while other windows cover the app's: for memory measurements |
 | `EOS_HOME` | the core's data folder; `~/.eos` in a release build, no default in a dev run (see above) |
-| `EOS_LOG` | what is logged to stderr, as a `tracing` filter (default `warn`) |
+| `EOS_LOG` | what is logged to stderr and `core.log`, as a `tracing` filter (default `warn,eos=info,eos_agent=warn`: Eos's own info, warnings of everything else) |
 | `EOS_DEV_ALLOW_AGENTS` | `dev-run`: `1` lets the Rust core answer what a dev run refuses otherwise: agents, model calls, commands, other computers, files outside the data folder |
 | `EOS_DEV_SCRIPT`, `EOS_DEV_SCRIPT_OUT` | `dev-run`: steps on test views (`eos/src/dev/script.rs`) |
 | `EOS_DEV_SCRIPT_FOLLOW` | `dev-run`: the steps file is JSON lines a test appends to, results come back the same way |

@@ -84,6 +84,26 @@ dropped when the session ends; a test proves it where it matters.
 **Panics.** The release profile unwinds. Every agent task and every request runs behind a catch
 boundary in `eos-runtime` / `eos-engine`; a panic fails that task or request and is logged.
 
+**Logs.** One `tracing` pipeline (`eos-kit-log`): every event of the process that passes
+`EOS_LOG` (default: info for Eos's crates, warnings for everything else, the engine's
+included) goes to stderr and to `core.log`; the shell's own lines to `shell.log`; both in
+the run's logs folder (`eos_bridge::launch::logs_folder`: beside the shell's data, never
+`~/.eos`). The caller never waits: a bounded queue, a writer thread, a dropped line is
+counted and noted; each file rotates by size with a fixed number kept; a log that cannot be
+written costs only its lines. A panic is logged with its place before it unwinds.
+
+**What may be logged.** Ids (worker, session, request, job, device id), kinds, states,
+counts, durations, status codes, route patterns, error kinds and messages that quote no
+data, hosts, and paths (the home folder is written `~`). Never: tokens, keys, cookies,
+authorization headers, a URL's user info, query or fragment, message, transcript, prompt
+or page text, file contents, a tool's input or output, a job's title or command, an
+account's e-mail or label, a computer's or person's name. An error whose text may quote
+any of these is logged by its kind (the engine's model errors), or its first line (a
+plugin's build). The file's writer scrubs every line once more (home folder, URL queries,
+e-mail addresses, secret-looking values and opaque tokens) as a safety net, not as the
+rule; `crates/eos-app/tests/logs.rs` plants secrets in a scripted session and fails when
+one reaches the file.
+
 **Wire types.** `#[serde(rename_all = "camelCase")]` unless the recorded wire says otherwise;
 unknown fields are ignored on input (clients may be newer); optional fields are omitted exactly
 where the recorded wire omits them. JSON objects keep insertion order, as in JavaScript

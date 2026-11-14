@@ -25,6 +25,8 @@ struct Turn {
     seen: bool,
     /// The row of the prompt that started it.
     recall_row: Option<i64>,
+    /// When the agent said the turn started, for the log's duration.
+    started_at: Option<i64>,
 }
 
 pub(crate) struct Turns {
@@ -103,6 +105,18 @@ impl Turns {
     /// The prompt row an interrupt may take back: set, and nothing answered yet.
     pub(crate) fn recallable(&self, worker_id: &str) -> Option<i64> {
         self.with(worker_id, |t| if t.seen { None } else { t.recall_row })
+    }
+
+    /// The agent started a turn: now is when, for the log.
+    pub(crate) fn mark_started(&self, worker_id: &str) {
+        let now = self.clock.now_ms();
+        self.with(worker_id, |t| t.started_at = Some(now));
+    }
+
+    /// The turn ended: how long it took since its start, if one was seen.
+    pub(crate) fn take_duration(&self, worker_id: &str) -> Option<i64> {
+        let now = self.clock.now_ms();
+        self.with(worker_id, |t| t.started_at.take().map(|at| now - at))
     }
 
     /// The worker is gone.
