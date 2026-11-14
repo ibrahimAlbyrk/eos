@@ -1204,3 +1204,33 @@ async fn top_level_agents_in_a_turn_are_the_ones_without_a_parent_that_work() {
     );
     assert_eq!(bench.sessions.working().await, 2, "a subagent's work and a resting chat do not count");
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_turn_the_agent_starts_itself_works_holds_the_queue_and_settles_idle() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    // Its background command reported: the engine wakes the idle agent, no message of ours.
+    let (turn, gate) = eos_testkit::Turn::reply("the build passed").held();
+    bench.agents.wake(&id, turn);
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Working) }).await;
+    let worker = bench.worker(&id).await.expect("the row");
+    assert!(worker.turn_started_at.is_some(), "the turn clock starts as for any turn");
+
+    let queued = bench.sessions.dispatch(bench.composed(&id, "and now?", "c-1")).await.expect("queues");
+    assert!(matches!(queued, Dispatched::Queued { .. }), "nothing interleaves with the agent's own turn");
+    assert!(bench.agents.sent(&id).is_empty());
+
+    gate.release();
+    bench.agents.settled().await;
+    until(|| async { bench.agents.sent(&id).len() == 1 }).await;
+    bench.agents.settled().await;
+    assert!(bench.agents.sent(&id)[0].ends_with("and now?"), "the queue drains when the agent's turn ends");
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    let tags = bench.tags(&id).await;
+    assert_eq!(
+        tags[3..8],
+        ["agent:turn:started", "state:WORKING:agent:turn_started", "agent:message", "agent:usage", "agent:turn:ended"]
+    );
+    assert_eq!(tags[8], "state:IDLE:agent:turn_ended");
+    assert!(!tags.contains(&"state:IDLE:interrupt".to_owned()), "{tags:?}");
+}

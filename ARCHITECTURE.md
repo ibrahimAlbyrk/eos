@@ -105,7 +105,7 @@ existing identity files; `portable-pty` for terminals, with our own screen mirro
 xterm.js's buffer and serializer in `eos-pty`: `vt100` and `alacritty_terminal` cannot give the recorded
 snapshot text, which clients replay); the update chunker is the exact port in `spikes/data`.
 
-**The agent engine.** Its crates (`eos-agent-*`, linked at `vendor/eos-agent-sdk`) are visible to
+**The agent engine.** Its crates (`eos-agent-*`, git dependencies pinned in `Cargo.toml`) are visible to
 two crates, and `cargo xtask layers` fails any other dependency on them, dev-dependencies included:
 - `eos-engine` may use any of them: it is the one crate that runs agents and the only one that
   imports `eos-agent-sdk`;

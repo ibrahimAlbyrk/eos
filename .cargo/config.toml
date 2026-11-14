@@ -1,2 +1,11 @@
+# Written by scripts/local-sdk.sh (git-ignored): builds both workspaces against a local
+# checkout of the agent engine instead of the commit pinned in Cargo.toml.
+include = [{ path = "local-sdk.toml", optional = true }]
+
+# The agent engine is a private git dependency: fetch it with the git command line, so the
+# user's own git credentials (a credential helper such as `gh auth setup-git`) reach it.
+[net]
+git-fetch-with-cli = true
+
 [alias]
 xtask = "run --quiet -p xtask --"

@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TurnError};
-use eos_agent_sdk::{InputError, SdkAgent, SkillOrigin, SubagentEvent};
+use eos_agent_sdk::{InputError, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
 use eos_contracts::{
     AgentEvent, CommandItem, CommandItemSource, RewindMode, RewindTarget, SessionEvent, SessionEventOutcome,
     SessionEventPhase,
@@ -285,13 +285,27 @@ impl Pump {
 
     /// Everything waiting on the subagent and task channels.
     fn others(&mut self, out: &mut Vec<AgentEvent>) {
-        let side = side_of(&self.sink, &self.session);
         while let Ok(event) = self.subagents.try_recv() {
-            out.extend(self.mapper.subagent(event, &side));
+            self.subagent(event, out);
         }
+        self.tasks(out);
+    }
+
+    fn tasks(&mut self, out: &mut Vec<AgentEvent>) {
+        let side = side_of(&self.sink, &self.session);
         while let Ok(event) = self.tasks.try_recv() {
             out.extend(self.mapper.task(event, &side));
         }
+    }
+
+    /// One subagent event. Before a run's end, whatever its tasks reported
+    /// first: whether it still has commands running decides if it waits.
+    fn subagent(&mut self, event: SubagentEvent, out: &mut Vec<AgentEvent>) {
+        if matches!(event.event, SubagentEventKind::Ended(_)) {
+            self.tasks(out);
+        }
+        let side = side_of(&self.sink, &self.session);
+        out.extend(self.mapper.subagent(event, &side));
     }
 
     /// Everything waiting on every channel, the agent's own events first.
@@ -344,11 +358,7 @@ impl Pump {
                         TurnDone::Gone => break End::Lost,
                     }
                 },
-                Some(event) = self.subagents.recv() => {
-                    let side = side_of(&self.sink, &self.session);
-                    let mapped = self.mapper.subagent(event, &side);
-                    out.extend(mapped);
-                },
+                Some(event) = self.subagents.recv() => self.subagent(event, &mut out),
                 Some(event) = self.tasks.recv() => {
                     let side = side_of(&self.sink, &self.session);
                     let mapped = self.mapper.task(event, &side);

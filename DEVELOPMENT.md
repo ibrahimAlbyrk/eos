@@ -15,9 +15,9 @@ host/      the window shell (Tauri 3 + CEF), the `eos` binary, the CEF helper: a
 tools/     dev tooling: wire-recorder (replays the recorded wire against the Rust core)
 xtask/     repo checks (`cargo xtask layers`, `cargo xtask shell`) and the update feed's release
            builder (`cargo xtask publish-update`, see docs/first-rust-release.md)
-scripts/   link-sdk.sh: link the agent engine's checkout (run once per checkout, see "The agent engine");
-           check.sh: everything CI runs for the main workspace; replay.sh: replay the recorded wire
-           against the Rust core, in process
+scripts/   check.sh: everything CI runs for the main workspace; replay.sh: replay the recorded wire
+           against the Rust core, in process; local-sdk.sh: build against a local engine checkout
+           (see "The agent engine")
 fixtures/  what the 0.1.x app answered and computed, frozen: the recorded wire and the vectors the
            Rust code must reproduce, see fixtures/README.md (fixtures/private is never committed)
 docs/      how-tos: adding-a-feature.md is the path every feature crate follows;
@@ -41,28 +41,52 @@ host/scripts/check.sh    # the host workspace: fmt, clippy, the bridge's dev gua
 
 ## The agent engine
 
-Agent sessions run on `eos-agent-sdk`, a separate repository linked in as path dependencies
-(`eos-agent-sdk`, `eos-agent-core`, … in `Cargo.toml`). Nothing machine-specific is committed:
-`scripts/link-sdk.sh` creates the git-ignored link `vendor/eos-agent-sdk` to a checkout of it
-(`$EOS_AGENT_SDK` when set, else the folder `eos-agent-sdk` beside this repository's main checkout,
-which is the same place from every worktree), and `SDK_REV` names the engine commit this tree needs.
-`scripts/check.sh` starts with `scripts/link-sdk.sh --check`, which fails with what to do when the
-link is missing or the linked checkout does not contain that commit. To work on the engine and Eos
-together, point `EOS_AGENT_SDK` at your engine worktree, run the script again, and update `SDK_REV`
-once the engine change is merged. Only `eos-engine` (sessions) and `eos-auth` (sign-in) depend on
-the engine's crates.
+Agent sessions run on `eos-agent-sdk`, a separate (private) repository, taken as git dependencies
+pinned to one commit (`eos-agent-sdk`, `eos-agent-core`, … in `Cargo.toml`, every `rev` the
+same); both workspaces resolve them from there, so a fresh clone builds. Cargo fetches them with the
+git command line (`net.git-fetch-with-cli` in `.cargo/config.toml`), which uses your own git
+credentials: with the GitHub CLI signed in, `gh auth setup-git` once is enough. To move to a newer
+engine, push it to the engine's `main`, change every `rev` in `Cargo.toml` and run `cargo metadata
+--format-version 1 >/dev/null` here and in `host/`: both lockfiles change with it.
+
+To work on the engine and Eos together, build against a local checkout:
+
+```bash
+scripts/local-sdk.sh ../eos-agent-sdk   # both workspaces use that checkout's crates
+scripts/local-sdk.sh                    # say which engine is used
+scripts/local-sdk.sh --off              # back to the pinned commit
+```
+
+It writes the git-ignored `.cargo/local-sdk.toml`, a `[patch]` of the engine's crates that
+`.cargo/config.toml` includes when it exists (the host workspace warns that two of the patched
+crates, the engine's test kit and mock API, are not in its graph). While it is on, `Cargo.lock` and
+`host/Cargo.lock` name the local crates: commit neither, and turn it off before pinning the new
+commit. Only `eos-engine` (sessions) and `eos-auth` (sign-in) depend on the engine's crates.
 
 ## Build and install from source
 
 ```bash
-cargo xtask install                 # build this checkout, install it as /Applications/Eos.app, open it
-cargo xtask install --restore       # put the previous app back (run again to come back)
+eos build                           # build this checkout, install it as /Applications/Eos.app, open it
+eos restore                         # put the previous app back (run again to come back)
+eos start | stop | restart          # open the installed app, ask it to quit as its Quit menu does, both
+eos status                          # what the running app answers to `Eos --status`; exit 1 when it is not running
+eos help
 ```
 
-Run at the repository root, with the engine linked (`scripts/link-sdk.sh`) and what the host workspace
-needs ("Build, check, run" below). Options: `--no-open`; `--identity <name>` signs with another
-keychain identity, `-` ad hoc; `--dest <Eos.app>` installs elsewhere. `EOS_HOME` names the data
-folder the install belongs to (default `~/.eos`, as for the app).
+`eos` is `scripts/eos`, a launcher that runs `cargo xtask eos …` (`xtask/src/eos.rs`) in the
+checkout it belongs to, from any folder; it follows its own link to find that checkout and says
+so when the checkout or cargo is missing. `eos build` is `cargo xtask install` and `eos restore`
+is `cargo xtask install --restore`; use those in a checkout before the command is linked. Every
+install links `~/.local/bin/eos` (`$EOS_BIN_DIR/eos` when that is set) to this checkout's
+launcher: a missing one is created, a link to another Eos launcher (another checkout, or the
+0.1.x app's `manager/bin/eos`) is replaced, and a file or a link to anything else is left alone
+with a message. A command of the 0.1.x `eos` (`chat`, `logs`, …) answers that it is not
+available and what to use instead.
+
+What the host workspace needs comes from `host/scripts/setup.sh`, which the build runs first
+("Build, check, run" below). Options: `--no-open`; `--identity <name>` signs with another
+keychain identity, `-` ad hoc; `cargo xtask install --dest <Eos.app>` installs elsewhere.
+`EOS_HOME` names the data folder the install belongs to (default `~/.eos`, as for the app).
 
 1. **Build**: `host/scripts/setup.sh`, then `bundle.sh release` with the app's identity
    (`com.ibrahimalbyrk.eos`) and no update channel, then `sign.sh` with your Developer ID

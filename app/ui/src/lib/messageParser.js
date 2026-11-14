@@ -234,6 +234,9 @@ export function buildBlocks(rawEvents) {
   const subagentStartCallIds = new Set();
   const callIdByAgentId = new Map();
   const subagentCompletions = [];
+  // A subagent woken again under the same call (its own background work
+  // reported) runs once more: only a completion after its latest start ends it.
+  const lastStartByCallId = new Map();
   // A stopped subagent continued later (a message resumed it) starts a new run
   // under the call that resumed it; this maps that call to the agent's earlier
   // run so the panel keeps one subagent.
@@ -271,6 +274,7 @@ export function buildBlocks(rawEvents) {
       const p = rowPayload(ev);
       if (p.callId) {
         subagentStartCallIds.add(p.callId);
+        lastStartByCallId.set(p.callId, subagentCompletions.length);
         const earlier = p.resumes ?? callIdByAgentId.get(p.agentId);
         if (earlier && earlier !== p.callId) resumeOfByCallId.set(p.callId, earlier);
         if (p.agentId) callIdByAgentId.set(p.agentId, p.callId);
@@ -307,9 +311,10 @@ export function buildBlocks(rawEvents) {
   const agentEndTs = new Map();
   // Correlation: callId when present, else agentId via the started event's mapping.
   const completionByCallId = new Map();
-  for (const { p, ts } of subagentCompletions) {
+  for (const [order, { p, ts }] of subagentCompletions.entries()) {
     const callId = p.callId ?? callIdByAgentId.get(p.agentId);
     if (!callId) continue;
+    if (order < (lastStartByCallId.get(callId) ?? 0)) continue;
     completionByCallId.set(callId, { status: p.status ?? "completed", result: p.result ?? null, usage: p.usage ?? null });
     const span = agentSpans.get(callId);
     if (span) span.endTs = ts;

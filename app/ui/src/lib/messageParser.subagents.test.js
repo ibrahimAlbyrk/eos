@@ -112,6 +112,14 @@ describe("buildBlocks subagents continued by a message", () => {
     expect(done).toMatchObject({ status: "completed", result: "12 tags", endTs: 260 });
   });
 
+  it("runs a subagent woken under its own call again until its latest run completes", () => {
+    const again = [...first, ev(300, { type: "subagent_started", callId: "AG", agentId: "a1", background: true }), inner("I2", 310, "AG")];
+    const [running] = runs(buildBlocks(again));
+    expect(running).toMatchObject({ toolUseId: "AG", status: "running", endTs: null });
+    const [done] = runs(buildBlocks([...again, ev(360, { type: "subagent_completed", agentId: "a1", callId: "AG", status: "completed", result: "Dal: main, temiz" })]));
+    expect(done).toMatchObject({ status: "completed", result: "Dal: main, temiz", endTs: 360 });
+  });
+
   it("pairs a run with the agent's earlier one by agentId when the lane could not name it", () => {
     const events = [...first, send(200), result("S1", 201, "resuming"), ev(201, { type: "subagent_started", callId: "S1", agentId: "a1", background: true })];
     expect(runs(buildBlocks(events))[1].resumeOf).toBe("AG");

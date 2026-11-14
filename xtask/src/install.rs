@@ -19,12 +19,17 @@
 //! The data folder is `$EOS_HOME`, else `~/.eos`, as for the app. Only on the
 //! user's own `~/.eos` is launchd asked about the old daemon; on another
 //! folder the app is opened with `EOS_HOME` set to it.
+//!
+//! An install also puts the `eos` command on the PATH: `$EOS_BIN_DIR/eos`
+//! (default `~/.local/bin/eos`) links to this checkout's `scripts/eos` (see
+//! `link.rs` for when an existing one is replaced).
 
 mod build;
 mod bundle;
-mod quit;
+pub(crate) mod link;
+pub(crate) mod quit;
 mod swap;
-mod system;
+pub(crate) mod system;
 
 use std::path::{Path, PathBuf};
 
@@ -37,11 +42,11 @@ use self::quit::{Busy, QUIT_TIMEOUT, Stopped};
 use self::swap::{Disk, Failed, Previous, RealDisk, Slots};
 use self::system::{MacSystem, System};
 
-const DEFAULT_DEST: &str = "/Applications/Eos.app";
+pub(crate) const DEFAULT_DEST: &str = "/Applications/Eos.app";
 /// The applier of an in-app update is waiting (`eos_update::handover`).
 const APPLY_PENDING: &str = "updates/apply.json";
 const USAGE: &str = "usage: cargo xtask install [--no-open] [--identity <name | ->] [--dest <Eos.app>]\n       cargo xtask install --restore [--no-open] [--dest <Eos.app>]";
-const RESTORE: &str = "cargo xtask install --restore";
+const RESTORE: &str = "eos restore";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Args {
@@ -75,7 +80,7 @@ fn parse_args(args: &[String]) -> anyhow::Result<Args> {
 
 /// Where the install lives: the app's place, the keep place, the data folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Place {
+pub(crate) struct Place {
     slots: Slots,
     home: PathBuf,
     /// The data folder is the user's own `~/.eos`.
@@ -83,7 +88,16 @@ struct Place {
 }
 
 impl Place {
-    fn new(dest: PathBuf, home: PathBuf, user_home: Option<&Path>) -> Self {
+    /// The app at `dest`, on the data folder the app itself would use.
+    pub(crate) fn of(dest: PathBuf) -> Self {
+        Self::new(dest, eos_platform::eos_home(), eos_platform::home_dir().as_deref())
+    }
+
+    pub(crate) fn dest(&self) -> &Path {
+        &self.slots.dest
+    }
+
+    pub(crate) fn new(dest: PathBuf, home: PathBuf, user_home: Option<&Path>) -> Self {
         let own_home = user_home.is_some_and(|user| user.join(".eos") == home);
         let name = dest.file_name().map(PathBuf::from).unwrap_or_default();
         let keep = home.join("updates/previous").join(name);
@@ -91,7 +105,7 @@ impl Place {
     }
 
     /// What the opened app is told when its data folder is not the user's own.
-    fn named_home(&self) -> Option<&Path> {
+    pub(crate) fn named_home(&self) -> Option<&Path> {
         (!self.own_home).then_some(self.home.as_path())
     }
 }
@@ -220,7 +234,9 @@ fn describe(outcome: &Outcome, place: &Place, built: Option<&Built>) -> Vec<Stri
         None => lines.push("Nothing was installed there before, so nothing is kept.".to_owned()),
         Some((was, Previous::Kept)) => {
             lines.push(format!("The app it replaced, {was}, is kept at {}.", place.slots.keep.display()));
-            lines.push(format!("To go back to it: {RESTORE} (in the checkout); run it again to come back."));
+            lines.push(format!(
+                "To go back to it: {RESTORE} (or cargo xtask install --restore); run it again to come back."
+            ));
         }
         Some((was, Previous::Aside { at, error })) => lines.push(format!(
             "The app it replaced, {was}, could not be moved to {} ({error}) and is at {}: move it there yourself \
@@ -264,9 +280,24 @@ fn describe(outcome: &Outcome, place: &Place, built: Option<&Built>) -> Vec<Stri
     lines
 }
 
+/// The checkout this xtask was built from.
+pub(crate) fn checkout() -> anyhow::Result<&'static Path> {
+    Path::new(env!("CARGO_MANIFEST_DIR")).parent().context("the xtask folder has no parent")
+}
+
+/// Links the `eos` command to this checkout's launcher and says how it went.
+fn link_command(rust_dir: &Path) -> String {
+    let home = eos_platform::home_dir();
+    let Some(bin) = link::bin_dir(std::env::var_os("EOS_BIN_DIR").map(PathBuf::from), home.as_deref()) else {
+        return "The eos command was not linked: there is no home folder.".to_owned();
+    };
+    let linked = link::ensure(&bin, &rust_dir.join("scripts/eos"));
+    link::describe(&linked, &bin, std::env::var("PATH").ok().as_deref())
+}
+
 pub(crate) fn run(args: &[String]) -> anyhow::Result<()> {
     let args = parse_args(args)?;
-    let place = Place::new(args.dest.clone(), eos_platform::eos_home(), eos_platform::home_dir().as_deref());
+    let place = Place::of(args.dest.clone());
     preflight(&place)?;
     let (system, disk) = (MacSystem, RealDisk);
     let (outcome, built) = if args.restore {
@@ -276,13 +307,15 @@ pub(crate) fn run(args: &[String]) -> anyhow::Result<()> {
         }
         (swap_in(keep, &place, args.open, &system, &disk)?, None)
     } else {
-        let rust_dir = Path::new(env!("CARGO_MANIFEST_DIR")).parent().context("the xtask folder has no parent")?;
-        let built = build::build(rust_dir, args.identity.as_deref())?;
+        let built = build::build(checkout()?, args.identity.as_deref())?;
         (swap_in(&built.app, &place, args.open, &system, &disk)?, Some(built))
     };
     println!();
     for line in describe(&outcome, &place, built.as_ref()) {
         println!("{line}");
+    }
+    if built.is_some() {
+        println!("{}", link_command(checkout()?));
     }
     Ok(())
 }

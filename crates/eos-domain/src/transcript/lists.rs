@@ -262,6 +262,9 @@ fn parse<'a>(events: &[Event<'a>]) -> Parse<'a> {
     let mut started: HashSet<&str> = HashSet::new();
     let mut call_by_agent: HashMap<&str, &str> = HashMap::new();
     let mut ended: Vec<(&Item, f64)> = Vec::new();
+    // A subagent woken again under the same call runs once more: only a
+    // completion after its latest start ends it.
+    let mut last_start: HashMap<&str, usize> = HashMap::new();
     let mut resume_of: HashMap<&str, &str> = HashMap::new();
     let mut profiles: HashMap<&str, (Option<&str>, Option<&str>)> = HashMap::new();
 
@@ -277,6 +280,7 @@ fn parse<'a>(events: &[Event<'a>]) -> Parse<'a> {
             }
             Item::Started { call_id: Some(call), agent_id, resumes } => {
                 started.insert(call);
+                last_start.insert(call, ended.len());
                 let earlier = match resumes {
                     Some(r) => Some(r.as_str()),
                     None => agent_id.as_deref().and_then(|a| call_by_agent.get(a).copied()),
@@ -309,13 +313,16 @@ fn parse<'a>(events: &[Event<'a>]) -> Parse<'a> {
 
     let mut agent_end: HashMap<&str, f64> = HashMap::new();
     let mut completions: HashMap<&str, Completion> = HashMap::new();
-    for (item, ts) in ended {
+    for (order, (item, ts)) in ended.into_iter().enumerate() {
         let Item::Completed { call_id, agent_id, status, usage } = item else { continue };
         let call = match call_id {
             Some(call) => Some(call.as_str()),
             None => agent_id.as_deref().and_then(|a| call_by_agent.get(a).copied()),
         };
         let Some(call) = call.filter(|c| !c.is_empty()) else { continue };
+        if order < last_start.get(call).copied().unwrap_or(0) {
+            continue;
+        }
         completions
             .insert(call, Completion { status: status.as_deref().unwrap_or("completed"), usage: usage.as_ref() });
         if let Some(span) = spans.get_mut(call) {

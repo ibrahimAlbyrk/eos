@@ -65,6 +65,14 @@ impl Run {
         self.out.extend(self.mapper.task(event, &side));
     }
 
+    /// A task of the subagent `agent_id` (its own command or monitor).
+    fn sub_task(&mut self, agent_id: &str, task_id: &str, kind: TaskEventKind) {
+        let side = Side { sink: &self.sink, worker_id: WORKER, now_ms: self.now_ms };
+        let event =
+            TaskEvent { agent_id: agent_id.into(), task_id: task_id.into(), tool_use_id: Some("c".into()), kind };
+        self.out.extend(self.mapper.task(event, &side));
+    }
+
     fn failed(&mut self, notice: Option<&str>) {
         let side = Side { sink: &self.sink, worker_id: WORKER, now_ms: self.now_ms };
         self.out.extend(self.mapper.turn_failed(notice, &side));
@@ -795,4 +803,161 @@ fn a_subagents_profile_names_its_model_and_effort_once_and_again_when_they_chang
     run.sub("a2", WORKER, started_at("agent_2", "claude-3-haiku", None, false));
     let last = profiles(&run).last().cloned().expect("a profile");
     assert_eq!(last, json!({"type": "subagent_profile", "callId": "agent_2", "model": "claude-3-haiku"}));
+}
+
+fn shell_started() -> TaskEventKind {
+    TaskEventKind::Started {
+        task_type: "local_bash".into(),
+        description: "watch the build".into(),
+        workflow_name: None,
+        run_id: None,
+        transcript_dir: None,
+        command: Some("npm run build".into()),
+        output_file: None,
+    }
+}
+
+fn shell_ended(status: &str) -> TaskEventKind {
+    TaskEventKind::Ended {
+        status: status.into(),
+        summary: String::new(),
+        output_file: None,
+        usage: TaskUsage::default(),
+        workflow_progress: None,
+        exit_code: None,
+    }
+}
+
+/// A background subagent launched by `agent_1` and running as `a1`.
+fn launched() -> Run {
+    let mut run = Run::new(&[]);
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(tool_use("agent_1", "Agent", json!({"description": "look around", "run_in_background": true})));
+    run.agent(tool_result("agent_1", "Async agent launched successfully."));
+    run.sub("a1", WORKER, started("agent_1", "", true));
+    run.agent(turn_ended());
+    run
+}
+
+fn reply(run: &mut Run, text: &str) {
+    run.sub("a1", WORKER, SubagentEventKind::Agent(EngineEvent::BlockStart { index: 0, block: BlockKind::Text }));
+    run.sub("a1", WORKER, SubagentEventKind::Agent(EngineEvent::TextDelta { text: text.into() }));
+}
+
+fn completions(run: &Run) -> Vec<Value> {
+    run.json().into_iter().filter(|e| e["type"] == "subagent_completed").collect()
+}
+
+#[test]
+fn a_subagent_that_ends_with_its_own_commands_running_waits_and_its_wake_continues_the_same_run() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    reply(&mut run, "the build is running, I will report");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    assert!(completions(&run).is_empty(), "an interim end is not the subagent's completion");
+    assert_eq!(run.mapper.live(), 1, "it still counts as running: no turn-end banner, no compaction under it");
+
+    // Its command ends; the engine wakes it: the same run goes on, with no second start.
+    run.sub_task("a1", "t1", shell_ended("completed"));
+    run.sub("a1", WORKER, started("agent_1", "", false));
+    assert_eq!(run.json().iter().filter(|e| e["type"] == "subagent_started").count(), 1);
+    run.sub("a1", WORKER, SubagentEventKind::Agent(tool_use("inner", "Read", json!({}))));
+    assert_eq!(run.json().pop().expect("the activity")["parentCallId"], "agent_1");
+    reply(&mut run, "the build passed");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    let done = completions(&run);
+    assert_eq!(done.len(), 1, "one completion, the final one");
+    assert_eq!((done[0]["status"].as_str(), done[0]["result"].as_str()), (Some("completed"), Some("the build passed")));
+    assert_eq!(run.mapper.live(), 0);
+}
+
+#[test]
+fn a_wake_with_nothing_new_to_say_keeps_the_interim_answer() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    reply(&mut run, "interim");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.sub_task("a1", "t1", shell_ended("failed"));
+    run.sub("a1", WORKER, started("agent_1", "", false));
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    assert_eq!(completions(&run)[0]["result"], "interim");
+}
+
+#[test]
+fn a_waiting_subagent_whose_last_command_is_stopped_completes_with_its_answer() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    run.sub_task("a1", "t2", shell_started());
+    reply(&mut run, "waiting on two");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.sub_task("a1", "t1", shell_ended("stopped"));
+    assert!(completions(&run).is_empty(), "one command still runs");
+    run.sub_task("a1", "t2", shell_ended("stopped"));
+    let done = completions(&run);
+    assert_eq!((done[0]["status"].as_str(), done[0]["result"].as_str()), (Some("completed"), Some("waiting on two")));
+    assert_eq!(run.mapper.live(), 0);
+}
+
+#[test]
+fn a_message_to_a_waiting_subagent_completes_the_waiting_run_and_starts_its_own() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    reply(&mut run, "first answer");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(tool_use("send_1", "SendMessage", json!({"to": "a1", "message": "and this?"})));
+    run.agent(tool_result("send_1", "sent"));
+    run.sub("a1", WORKER, started("agent_1", "", false));
+    let events = run.json();
+    let tail: Vec<&str> = events[events.len() - 2..].iter().map(|e| e["type"].as_str().unwrap_or("")).collect();
+    assert_eq!(tail, ["subagent_completed", "subagent_started"]);
+    assert_eq!(events[events.len() - 2]["result"], "first answer");
+    assert_eq!(events[events.len() - 1]["callId"], "send_1");
+    assert_eq!(run.mapper.live(), 1);
+}
+
+#[test]
+fn a_subagent_that_stops_or_fails_never_waits_and_a_closing_session_keeps_a_waiting_answer() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    run.sub("a1", WORKER, ended("killed", Usage::default()));
+    assert_eq!(completions(&run)[0]["status"], "stopped", "a stopped subagent is not woken again");
+
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    reply(&mut run, "so far");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    run.stop_live();
+    let done = completions(&run);
+    assert_eq!((done[0]["status"].as_str(), done[0]["result"].as_str()), (Some("stopped"), Some("so far")));
+}
+
+#[test]
+fn a_subagent_without_commands_of_its_own_completes_at_once_and_a_later_wake_runs_again() {
+    let mut run = launched();
+    run.sub_task("a1", "t1", shell_started());
+    run.sub_task("a1", "t1", shell_ended("completed"));
+    reply(&mut run, "done");
+    run.sub("a1", WORKER, ended("completed", Usage::default()));
+    assert_eq!(completions(&run).len(), 1);
+    // Woken later (a report of its own subagent): the call runs again, under the same call.
+    run.sub("a1", WORKER, started("agent_1", "", false));
+    let again = run.json().pop().expect("the start");
+    assert_eq!((again["type"].as_str(), again["callId"].as_str()), (Some("subagent_started"), Some("agent_1")));
+    assert_eq!(run.mapper.live(), 1);
+}
+
+#[test]
+fn a_turn_the_host_did_not_start_opens_and_closes_like_any_other() {
+    let mut run = Run::new(&[]);
+    // A background command's note wakes the idle agent: no prompt of the host's.
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(EngineEvent::BlockStart { index: 0, block: BlockKind::Text });
+    run.agent(EngineEvent::TextDelta { text: "the build finished".into() });
+    run.agent(EngineEvent::BlockStop { index: 0 });
+    run.agent(turn_ended());
+    let tags = run.tags();
+    assert_eq!(tags.first().map(String::as_str), Some("turn:started"));
+    assert_eq!(tags.last().map(String::as_str), Some("turn:ended"));
+    assert!(tags.contains(&"msg:assistant:text".to_owned()), "{tags:?}");
 }

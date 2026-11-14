@@ -56,13 +56,15 @@ The one-liner above installs the signed, notarized `Eos.app` from the latest rel
 
 ```bash
 git clone https://github.com/ibrahimAlbyrk/eos && cd eos
-scripts/link-sdk.sh            # link the agent engine (eos-agent-sdk, a checkout beside this one)
 host/scripts/setup.sh          # build tools, esbuild, the dashboard
-cargo xtask install            # build, sign (ad hoc without a Developer ID) and install /Applications/Eos.app
-cargo xtask install --restore  # put the previous app back
+cargo xtask install            # build, sign (ad hoc without a Developer ID), install /Applications/Eos.app
+                               # and put the eos command at ~/.local/bin/eos
+eos build                      # the same, from then on, from any folder
+eos restore                    # put the previous app back
+eos start | stop | restart | status
 ```
 
-**Needs:** an Apple Silicon Mac · Xcode · rustup · Node 20.19 or 22.12+ with npm (for the dashboard) · a Claude Max / Pro plan. A build from source does not update itself; run `cargo xtask install` again for a newer one. Details: [`DEVELOPMENT.md`](DEVELOPMENT.md).
+**Needs:** an Apple Silicon Mac · Xcode · rustup · Node 20.19 or 22.12+ with npm (for the dashboard) · a Claude Max / Pro plan. The agent engine ([eos-agent-sdk](https://github.com/ibrahimAlbyrk/eos-agent-sdk)) is fetched by cargo with your git credentials. A build from source does not update itself; run `eos build` again for a newer one. Details: [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 </details>
 

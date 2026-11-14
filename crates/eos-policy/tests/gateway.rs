@@ -301,3 +301,29 @@ async fn a_saved_rule_applies_to_the_next_call() {
     let decision = f.gateway.decide(call("WebFetch", json!({"url": "https://x"}))).await.expect("decides");
     assert_eq!(behavior(&decision), "allow");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn reads_outside_the_project_are_decided_by_mode_and_rules_on_their_absolute_path() {
+    // The engine lets an agent read any path and sends Read's `file_path` and
+    // Glob's and Grep's `path` absolute: this gate is the only check on them.
+    let rules = json!({"default": "ask", "ttlMs": 3000, "rules": [
+        {"tool": ["Read", "Glob", "Grep"], "file_path": "/\\.ssh/", "action": "deny", "reason": "keys stay private"},
+        {"tool": ["Glob", "Grep"], "path": "/\\.ssh(/|$)", "action": "deny", "reason": "keys stay private"},
+    ]});
+    let f = fixture("acceptEdits", rules);
+    let pasted = "/var/folders/xy/T/eos-paste-a1b2c3/image.png";
+    for (tool, input) in [
+        ("Read", json!({"file_path": pasted})),
+        ("Glob", json!({"pattern": "*.png", "path": "/var/folders/xy/T/eos-paste-a1b2c3"})),
+        ("Grep", json!({"pattern": "todo", "path": "/Users/me/elsewhere"})),
+    ] {
+        let decision = f.gateway.decide(call(tool, input)).await.expect("decides");
+        assert_eq!(behavior(&decision), "allow", "{tool} outside the project");
+    }
+    let key = f.gateway.decide(call("Read", json!({"file_path": "/Users/me/.ssh/id_ed25519"}))).await.expect("decides");
+    assert_eq!((behavior(&key), message(&key)), ("deny", "keys stay private"));
+    let search =
+        f.gateway.decide(call("Grep", json!({"pattern": "x", "path": "/Users/me/.ssh"}))).await.expect("decides");
+    assert_eq!(behavior(&search), "deny");
+    assert_eq!(f.gateway.waiting(), 0, "nothing asked the user");
+}

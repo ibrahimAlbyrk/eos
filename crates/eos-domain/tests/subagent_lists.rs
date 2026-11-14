@@ -102,3 +102,23 @@ fn a_subagents_own_rows_rebuild_it_as_the_whole_log_does() {
         assert!(rows_of_subagent(&index, case.boot_prompt_offset, "no-such-call").is_empty());
     }
 }
+
+#[test]
+fn a_subagent_woken_again_under_its_own_call_runs_until_its_latest_run_completes() {
+    let row = |id: i64, payload: Value| Row {
+        id,
+        ts: id * 10,
+        kind: "agent_event".into(),
+        payload: Some(payload.to_string()),
+    };
+    let call = json!({"type": "message", "role": "assistant",
+        "blocks": [{"type": "tool_call", "callId": "AG", "name": "Agent", "input": {"description": "watch the build"}}]});
+    let stub = json!({"type": "message", "role": "tool", "blocks": [{"type": "tool_result", "callId": "AG", "content": "launched"}]});
+    let start = json!({"type": "subagent_started", "callId": "AG", "agentId": "a1", "background": true});
+    let done = |result: &str| json!({"type": "subagent_completed", "callId": "AG", "agentId": "a1", "status": "completed", "result": result});
+    let mut rows = vec![row(1, call), row(2, start.clone()), row(3, stub), row(4, done("first")), row(5, start)];
+    let status = |rows: &[Row]| lists(rows, 0)["subagents"][0]["status"].clone();
+    assert_eq!(status(&rows), "running", "woken again: it runs");
+    rows.push(row(6, done("second")));
+    assert_eq!(status(&rows), "completed");
+}

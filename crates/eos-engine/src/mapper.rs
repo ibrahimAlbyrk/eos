@@ -14,7 +14,11 @@
 //!   request (the prompt's size), `turn` events at the turn's edges;
 //! - background subagents and workflow runs start and end through their own
 //!   events; a workflow's progress, background commands and a followed tool's
-//!   input never become events: they go to the sink's side channels.
+//!   input never become events: they go to the sink's side channels;
+//! - a background subagent whose run ends while commands or monitors of its
+//!   own still run is waiting, not done: it will be woken when they report
+//!   (the engine tells its caller the result may be interim). It stays open,
+//!   its wake continues the same run, and only its last run completes it.
 
 mod blocks;
 mod convert;
@@ -23,10 +27,10 @@ mod tasks;
 mod tests;
 mod tracked;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use eos_agent_core::{AgentEvent as EngineEvent, BlockKind, TaskEvent};
+use eos_agent_core::{AgentEvent as EngineEvent, BlockKind, TaskEvent, TaskEventKind};
 use eos_agent_sdk::{SubagentEvent, SubagentEventKind};
 use eos_agent_types::StopReason;
 use eos_contracts::{
@@ -54,7 +58,14 @@ struct SubRun {
     background: bool,
     /// The text of the reply it is writing: a background run's result.
     reply: String,
+    /// Its last run ended while its own commands or monitors still ran: the
+    /// completion that run would have recorded, held until it is woken or
+    /// can no longer be.
+    waiting: Option<SubagentCompletedEvent>,
 }
+
+/// A background command or a monitor: what keeps a finished subagent waiting.
+const SHELL_TASK: &str = "local_bash";
 
 /// How many finished subagents are remembered, to recognise one that is woken.
 const KNOWN_SUBAGENTS: usize = 256;
@@ -80,6 +91,9 @@ pub(crate) struct Mapper {
     /// The model and effort last reported for each top-level subagent call.
     profiles: HashMap<String, (String, Option<String>)>,
     tasks: Tasks,
+    /// The commands and monitors each subagent has running, by agent id; an
+    /// entry goes with its last task.
+    sub_shells: HashMap<Arc<str>, HashSet<String>>,
 }
 
 impl Mapper {
@@ -99,6 +113,7 @@ impl Mapper {
             first_order: std::collections::VecDeque::new(),
             profiles: HashMap::new(),
             tasks: Tasks::default(),
+            sub_shells: HashMap::new(),
         }
     }
 
@@ -230,10 +245,14 @@ impl Mapper {
             SubagentEventKind::Started(about) => {
                 let top_level = &*parent_id == side.worker_id;
                 let first = self.first_calls.get(&agent_id).cloned();
+                let message = first.as_ref().and_then(|_| self.calls.take_wake());
+                if self.resume_waiting(&agent_id, message.as_deref(), &mut out) {
+                    return out;
+                }
                 // A subagent seen before is being woken: its new run is filed
                 // under the message that woke it, when that is known.
                 let call_id = match (&first, top_level) {
-                    (Some(first), _) => self.calls.take_wake().unwrap_or_else(|| first.clone()),
+                    (Some(first), _) => message.unwrap_or_else(|| first.clone()),
                     (None, true) => about.tool_use_id.clone(),
                     // A subagent's subagent: everything shows under the top-level call.
                     (None, false) => {
@@ -270,7 +289,7 @@ impl Mapper {
                         out.push(started);
                     }
                 }
-                let run = SubRun { call_id, background: background && top_level, reply: String::new() };
+                let run = SubRun { call_id, background: background && top_level, reply: String::new(), waiting: None };
                 self.runs.insert(agent_id, run);
             }
             SubagentEventKind::Agent(inner) => {
@@ -313,29 +332,38 @@ impl Mapper {
                 }
             }
             SubagentEventKind::Ended(ended) => {
-                let Some(run) = self.runs.remove(&agent_id) else { return out };
+                let Some(mut run) = self.runs.remove(&agent_id) else { return out };
                 if !run.background {
                     return out;
                 }
-                self.release_held(&run.call_id, &mut out);
+                let waits = ended.status == "completed" && self.sub_shells.contains_key(&agent_id);
+                if !waits {
+                    self.release_held(&run.call_id, &mut out);
+                }
                 let status = match ended.status {
                     "completed" => SubagentCompletedEventStatus::Completed,
                     "failed" => SubagentCompletedEventStatus::Failed,
                     _ => SubagentCompletedEventStatus::Stopped,
                 };
                 let total = ended.usage.context_tokens() + ended.usage.output_tokens.unwrap_or(0);
-                out.push(AgentEvent::SubagentCompleted(SubagentCompletedEvent {
+                let completed = SubagentCompletedEvent {
                     agent_id: agent_id.to_string(),
-                    call_id: Some(Some(run.call_id)),
+                    call_id: Some(Some(run.call_id.clone())),
                     status,
-                    result: Some(run.reply).filter(|r| !r.is_empty()).or(ended.error),
+                    result: Some(std::mem::take(&mut run.reply)).filter(|r| !r.is_empty()).or(ended.error),
                     output_file: None,
                     usage: Some(SubagentUsage {
                         total_tokens: Some(total.into()),
                         tool_uses: Some(ended.tool_uses.into()),
                         duration_ms: Some(ended.duration_ms.into()),
                     }),
-                }));
+                };
+                if waits {
+                    run.waiting = Some(completed);
+                    self.runs.insert(agent_id, run);
+                } else {
+                    out.push(AgentEvent::SubagentCompleted(completed));
+                }
             }
         }
         out
@@ -344,8 +372,10 @@ impl Mapper {
     /// One event of a background task of the session.
     pub(crate) fn task(&mut self, event: TaskEvent, side: &Side<'_>) -> Vec<AgentEvent> {
         let mut out = Vec::new();
-        // Only the session's own agent's tasks are shown; a subagent's are its own business.
+        // Only the session's own agent's tasks are shown; a subagent's are its
+        // own business, except for whether it waits on them.
         if event.agent_id != side.worker_id {
+            self.subagent_task(&event, &mut out);
             return out;
         }
         if let Some((call_id, started)) = self.tasks.apply(event, &self.calls, side, &mut out) {
@@ -373,7 +403,14 @@ impl Mapper {
         let mut out: Vec<AgentEvent> = std::mem::take(&mut self.held).into_iter().map(|(_, e)| e).collect();
         let mut runs: Vec<(Arc<str>, SubRun)> = self.runs.drain().filter(|(_, r)| r.background).collect();
         runs.sort_by(|a, b| a.0.cmp(&b.0));
+        self.sub_shells.clear();
         for (agent_id, run) in runs {
+            // A waiting subagent's last run had its answer: it is kept.
+            if let Some(mut waiting) = run.waiting {
+                waiting.status = SubagentCompletedEventStatus::Stopped;
+                out.push(AgentEvent::SubagentCompleted(waiting));
+                continue;
+            }
             out.push(AgentEvent::SubagentCompleted(SubagentCompletedEvent {
                 agent_id: agent_id.to_string(),
                 call_id: Some(Some(run.call_id)),
@@ -385,6 +422,52 @@ impl Mapper {
         }
         self.tasks.stop_all(side, &mut out);
         out
+    }
+
+    /// A subagent's command or monitor started or ended. A waiting subagent
+    /// whose last one was stopped is not woken again (a stop leaves it no
+    /// note): its held completion is recorded now.
+    fn subagent_task(&mut self, event: &TaskEvent, out: &mut Vec<AgentEvent>) {
+        let agent: Arc<str> = Arc::from(event.agent_id.as_str());
+        match &event.kind {
+            TaskEventKind::Started { task_type, .. } if task_type == SHELL_TASK => {
+                self.sub_shells.entry(agent).or_default().insert(event.task_id.clone());
+            }
+            TaskEventKind::Ended { status, .. } => {
+                let Some(running) = self.sub_shells.get_mut(&agent) else { return };
+                if !running.remove(&event.task_id) || !running.is_empty() {
+                    return;
+                }
+                self.sub_shells.remove(&agent);
+                let stopped = matches!(status.as_str(), "stopped" | "killed");
+                if stopped && self.runs.get(&agent).is_some_and(|r| r.waiting.is_some()) {
+                    self.close_waiting(&agent, out);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// A waiting subagent starts a run. Woken by its own work, it continues
+    /// the run it is waiting in (`true`: nothing more to record); woken by a
+    /// message, the waiting run is completed and the message's run starts.
+    fn resume_waiting(&mut self, agent_id: &Arc<str>, message: Option<&str>, out: &mut Vec<AgentEvent>) -> bool {
+        let Some(run) = self.runs.get_mut(agent_id).filter(|r| r.waiting.is_some()) else { return false };
+        if message.is_none_or(|m| m == run.call_id) {
+            // Its answer so far stands until the new run writes another.
+            run.reply = run.waiting.take().and_then(|w| w.result).unwrap_or_default();
+            return true;
+        }
+        self.close_waiting(agent_id, out);
+        false
+    }
+
+    fn close_waiting(&mut self, agent_id: &Arc<str>, out: &mut Vec<AgentEvent>) {
+        let Some(waiting) = self.runs.remove(agent_id).and_then(|r| r.waiting) else { return };
+        if let Some(Some(call)) = &waiting.call_id {
+            self.release_held(call, out);
+        }
+        out.push(AgentEvent::SubagentCompleted(waiting));
     }
 
     fn release_held(&mut self, call_id: &str, out: &mut Vec<AgentEvent>) {

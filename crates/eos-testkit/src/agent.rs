@@ -151,6 +151,13 @@ impl Turn {
         self
     }
 
+    /// The turn stops before its end and waits to be released (or interrupted).
+    pub fn held(mut self) -> (Self, Release) {
+        let gate = Arc::new(Notify::new());
+        self.hold = Some(gate.clone());
+        (self, Release(gate))
+    }
+
     /// The turn ends in an error instead.
     pub fn failing(mut self, reason: &str) -> Self {
         self.end = events::turn(TurnEventPhase::Error, Some(reason));
@@ -295,11 +302,10 @@ impl ScriptedRuntime {
 
     /// Like [`script`](Self::script), but the turn stops before its end and
     /// waits to be released (or interrupted).
-    pub fn script_held(&self, mut turn: Turn) -> Release {
-        let gate = Arc::new(Notify::new());
-        turn.hold = Some(gate.clone());
+    pub fn script_held(&self, turn: Turn) -> Release {
+        let (turn, release) = turn.held();
         self.script(turn);
-        Release(gate)
+        release
     }
 
     /// Makes the turn of every message no scripted turn is left for.
@@ -365,6 +371,15 @@ impl ScriptedRuntime {
         self.0.forgotten.lock().expect("forgotten").clone()
     }
 
+    /// Plays `turn` in a worker's live session without a message: a turn the
+    /// agent starts itself (woken by its own background work).
+    pub fn wake(&self, worker_id: &str, turn: Turn) {
+        let session = self.0.sessions.lock().expect("sessions").get(worker_id).cloned();
+        if let Some(session) = session {
+            session.run(None, turn);
+        }
+    }
+
     /// Ends a session as if its process had died.
     pub async fn crash(&self, worker_id: &str) {
         let session = self.0.sessions.lock().expect("sessions").remove(worker_id);
@@ -423,7 +438,13 @@ impl ScriptedSession {
             let fallback = self.shared.fallback.lock().expect("fallback").clone();
             fallback.map_or_else(|| Turn::reply("ok"), |make| make(&self.worker_id, &text))
         });
-        let running = Running::start(&self.shared);
+        session.run(Some(text), turn);
+    }
+
+    /// Plays `turn` after the turns before it; `text` is what started it, if anything did.
+    fn run(self: Arc<Self>, text: Option<String>, turn: Turn) {
+        let session = self;
+        let running = Running::start(&session.shared);
         tokio::spawn(async move {
             let _running = running;
             let _order = session.order.lock().await;
@@ -431,12 +452,14 @@ impl ScriptedSession {
         });
     }
 
-    async fn play(&self, text: String, turn: Turn) {
+    async fn play(&self, text: Option<String>, turn: Turn) {
         if !self.alive.load(Ordering::SeqCst) {
             return;
         }
         let mut interrupted = self.interrupt.subscribe();
-        self.said.lock().expect("said").push(TranscriptEntry::User { text });
+        if let Some(text) = text {
+            self.said.lock().expect("said").push(TranscriptEntry::User { text });
+        }
         let id = self.worker_id.as_str();
         let mut batch = vec![events::turn(TurnEventPhase::Started, None)];
         batch.extend(turn.body);

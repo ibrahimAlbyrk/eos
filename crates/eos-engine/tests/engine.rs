@@ -558,3 +558,57 @@ async fn a_rewind_to_the_first_message_after_a_compaction_keeps_the_summary() {
     let transcript = session.read_transcript().await.expect("reads").expect("a conversation");
     assert_eq!(transcript.entries[0], TranscriptEntry::User { text: "SUMMARY: a.py was read".into() });
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_file_outside_the_project_is_read_when_eos_policy_allows_it() {
+    // What the dashboard leaves for a pasted attachment: a folder of its own in the temp folder.
+    let pasted = tempfile::Builder::new().prefix("eos-paste-").tempdir().expect("the paste folder");
+    let file = pasted.path().canonicalize().expect("the folder").join("note.txt");
+    std::fs::write(&file, "pasted words").expect("the attachment");
+    let read = serde_json::json!({ "file_path": file }).to_string();
+    let glob = serde_json::json!({ "pattern": "*.txt", "path": "../home" }).to_string();
+    let bench = Bench::new([
+        Reply::tool_use("t1", "Read", &read),
+        Reply::tool_use("t2", "Glob", &glob),
+        Reply::tool_use("t3", "Read", &read),
+        Reply::text("read it"),
+    ])
+    .await;
+    bench.policy.deny.lock().expect("deny").push("Glob".into());
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("what did I paste?".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+
+    let results: Vec<&Value> = events.iter().filter(|e| e["role"] == "tool").map(|e| &e["blocks"][0]).collect();
+    assert_ne!(results[0]["isError"], true, "{}", results[0]);
+    assert!(results[0]["content"].as_str().is_some_and(|c| c.contains("pasted words")), "{}", results[0]);
+    assert_eq!(results[1]["content"], "Glob is denied by policy", "the policy is the only check on reads");
+
+    let asked = bench.policy.asked.lock().expect("asked");
+    assert_eq!(asked[0].input.get("file_path").and_then(Value::as_str), file.to_str());
+    let searched = asked[1].input.get("path").and_then(Value::as_str).expect("the search folder");
+    assert!(searched.starts_with('/') && searched.ends_with("home"), "made absolute for the policy: {searched}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_idle_agent_is_woken_by_its_own_background_command() {
+    let command = r#"{"command":"sleep 0.3; echo built","description":"Build","run_in_background":true}"#;
+    let bench =
+        Bench::new([Reply::tool_use("t1", "Bash", command), Reply::text("started it"), Reply::text("it built")]).await;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("build it".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 2).await;
+
+    // The second turn is the engine's: no message of the host started it.
+    let turns: Vec<&str> =
+        events.iter().filter(|e| e["type"] == "turn").map(|e| e["phase"].as_str().unwrap_or_default()).collect();
+    assert_eq!(turns, ["started", "ended", "started", "ended"]);
+    let answers: Vec<&Value> = events.iter().filter(|e| e["role"] == "assistant").map(|e| &e["blocks"][0]).collect();
+    assert_eq!(answers.last().map(|b| &b["text"]), Some(&Value::from("it built")));
+    assert!(bench.request_text(2).contains("task-notification"), "the wake turn reads the command's note");
+    let tasks = bench.sink.tasks.lock().expect("tasks");
+    let ended = tasks.iter().filter(|t| matches!(t, eos_core::agent::BackgroundTaskUpdate::Ended { .. })).count();
+    assert_eq!(ended, 1, "the job ends once");
+    drop(tasks);
+    assert_eq!(session.live_subagents(), 0);
+}

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# eos-launcher: the `eos` command. Runs `cargo xtask eos` in the checkout this file belongs to,
+# from any directory; `eos build` links ~/.local/bin/eos here. See `eos help`.
+set -euo pipefail
+src="${BASH_SOURCE[0]}"
+while [ -h "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+root="$(cd -P "$(dirname "$src")/.." && pwd)"
+if [[ ! -f "$root/xtask/Cargo.toml" ]]; then
+  echo "eos: $root is not an Eos checkout any more (no xtask/Cargo.toml); run scripts/eos from one" >&2
+  exit 1
+fi
+cargo="$(command -v cargo || true)"
+if [[ -z "$cargo" && -x "$HOME/.cargo/bin/cargo" ]]; then
+  cargo="$HOME/.cargo/bin/cargo"
+fi
+if [[ -z "$cargo" ]]; then
+  echo "eos: no cargo: install Rust with rustup (https://rustup.rs)" >&2
+  exit 1
+fi
+# The build's own scripts look for cargo on PATH.
+export PATH="$(dirname "$cargo"):$PATH"
+cd "$root"
+exec "$cargo" xtask eos "$@"

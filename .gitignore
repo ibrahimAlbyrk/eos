@@ -51,8 +51,8 @@ temp/
 
 # Rust build output
 /target/
-# The agent engine's checkout, linked by scripts/link-sdk.sh.
-/vendor/
+# A local agent engine checkout to build against (scripts/local-sdk.sh).
+/.cargo/local-sdk.toml
 # Responses recorded from a real data folder hold personal data.
 /fixtures/private
 __pycache__/

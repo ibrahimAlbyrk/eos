@@ -9,12 +9,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Layout
 
 ```
-Cargo.toml       the main cargo workspace: crates/ (in layers), xtask/ (repo checks, install,
-                 publish-update), tools/ (the wire replay), spikes/ (proven library choices)
+Cargo.toml       the main cargo workspace: crates/ (in layers), xtask/ (repo checks, install, the `eos`
+                 command, publish-update), tools/ (the wire replay), spikes/ (proven library choices)
 host/            the host workspace: the shell, the `eos` binary, the CEF helper, the update applier
 fixtures/        what the 0.1.x app answered and computed, frozen: the reference the app is held to
 assets/          files the app ships as they are (the plugin-authoring skill, pdf.js), and the banners
-scripts/         check.sh, replay.sh, link-sdk.sh and other development scripts
+scripts/         check.sh, replay.sh, local-sdk.sh, eos (the `eos` command's launcher) and other scripts
 app/ui/          the React 18 + Vite dashboard, bundled into the app (its own npm package)
 ios/             the iPhone client (SwiftUI, XcodeGen; ios/BUILD.md)
 relay/           the relay server for the phone link and the sync vault (Node, deployed on its own)
@@ -27,7 +27,6 @@ Read before changing Rust code: `ARCHITECTURE.md` (binding: layers, ports, error
 ## Build, test, install
 
 ```bash
-scripts/link-sdk.sh                       # once per checkout: link the agent engine (DEVELOPMENT.md)
 scripts/check.sh                          # fmt, clippy -D warnings, tests, layers, shell rules (never builds CEF)
 scripts/replay.sh [--only 31-pages]       # the recorded wire against the composed app, in process
 host/scripts/setup.sh                     # once: cmake, ninja, esbuild, the dashboard's node modules and build
@@ -36,13 +35,16 @@ host/scripts/bundle.sh test               # a test bundle (dev-run guard) → ho
 python3 host/tests/smoke.py <Eos.app>     # also browser_smoke, artifact_smoke, responsiveness
 cd app/ui && npm test && npm run lint && npm run build
 cd relay && npm test
-cargo xtask install                       # build this checkout and install it as /Applications/Eos.app
+eos build                                 # build this checkout, install it as /Applications/Eos.app (= cargo xtask install)
+eos restore · eos start · eos stop · eos restart · eos status · eos help
 ```
+
+The agent engine is a git dependency pinned in `Cargo.toml`; `scripts/local-sdk.sh <checkout>` builds against a local one (`DEVELOPMENT.md`, "The agent engine"). `eos` is `scripts/eos`, a launcher over `cargo xtask eos` (`xtask/src/eos.rs`); `eos build` links `~/.local/bin/eos` to it.
 
 Single test: `cargo test -p eos-mod-pages --test pages` · `cd app/ui && npx vitest run match`.
 Preview a system prompt: `cargo run -p eos-store-files --example preview_prompt -- <orchestrator|worker>`.
 
-**While developing Eos, never install or launch a release build** (`cargo xtask install`, `bundle.sh release`): the installed app is the user's real Eos on the real `~/.eos`, and installing quits it and every agent in it. Verify with the check scripts, the replay and the test bundle. A dev run (`bundle.sh test`/`debug`, `host/scripts/dev.sh`, `host/scripts/launch.sh`) has no default data folder and refuses whatever would act for the user — agents, model calls, commands, other computers, files outside its data copy (`DEVELOPMENT.md`, "The core, and a dev run").
+**While developing Eos, never install or launch a release build** (`eos build` / `cargo xtask install`, `eos restart`, `bundle.sh release`): the installed app is the user's real Eos on the real `~/.eos`, and installing quits it and every agent in it. Verify with the check scripts, the replay and the test bundle. A dev run (`bundle.sh test`/`debug`, `host/scripts/dev.sh`, `host/scripts/launch.sh`) has no default data folder and refuses whatever would act for the user — agents, model calls, commands, other computers, files outside its data copy (`DEVELOPMENT.md`, "The core, and a dev run").
 
 ## Rules that hold everywhere
 
