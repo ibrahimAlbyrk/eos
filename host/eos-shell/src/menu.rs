@@ -13,6 +13,8 @@ pub(crate) enum Command {
     Reload,
     DevTools,
     ConnectMachine,
+    LockScreen,
+    InstallScreenSaver,
     /// Show this computer (`None`) or a controlled one.
     Machine(Option<String>),
     Quit,
@@ -27,6 +29,8 @@ impl Command {
             "reload" => Command::Reload,
             "devtools" => Command::DevTools,
             "connect-machine" => Command::ConnectMachine,
+            "lock-screen" => Command::LockScreen,
+            "install-screen-saver" => Command::InstallScreenSaver,
             THIS_MACHINE => Command::Machine(None),
             "quit" => Command::Quit,
             other if other.starts_with(MACHINE) => Command::Machine(Some(other[MACHINE.len()..].to_owned())),
@@ -35,35 +39,47 @@ impl Command {
     }
 }
 
-/// The app menu; `machines` are the Machines menu's computers.
+/// The app menu; `machines` are the Machines menu's computers, `screen_saver` offers the
+/// app's screen saver (where the system has one and the app ships it).
 pub(crate) fn build(
     app: &tauri::AppHandle,
     name: &str,
     version: &str,
     machines: &[MachineItem],
+    screen_saver: bool,
 ) -> tauri::Result<Menu<tauri::DynRuntime>> {
     let item = |id: &str, text: &str, accelerator: &str| MenuItem::with_id(app, id, text, true, Some(accelerator));
     let separator = || PredefinedMenuItem::separator(app);
 
     let about =
         AboutMetadata { name: Some(name.to_string()), version: Some(version.to_string()), ..Default::default() };
-    let app_menu = Submenu::with_items(
-        app,
-        name,
-        true,
-        &[
-            &PredefinedMenuItem::about(app, None, Some(about))?,
-            &separator()?,
-            &PredefinedMenuItem::services(app, None)?,
-            &separator()?,
-            &PredefinedMenuItem::hide(app, None)?,
-            &PredefinedMenuItem::hide_others(app, None)?,
-            &PredefinedMenuItem::show_all(app, None)?,
-            &separator()?,
-            // Not the predefined item: quitting must run the app's shutdown first.
-            &item("quit", &format!("Quit {name}"), "CmdOrCtrl+Q")?,
-        ],
-    )?;
+    let plain = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
+    let (about, services, hide, hide_others, show_all) = (
+        PredefinedMenuItem::about(app, None, Some(about))?,
+        PredefinedMenuItem::services(app, None)?,
+        PredefinedMenuItem::hide(app, None)?,
+        PredefinedMenuItem::hide_others(app, None)?,
+        PredefinedMenuItem::show_all(app, None)?,
+    );
+    let (lock, install) =
+        (plain("lock-screen", "Lock Screen")?, plain("install-screen-saver", "Install Screen Saver…")?);
+    // Not the predefined item: quitting must run the app's shutdown first.
+    let quit = item("quit", &format!("Quit {name}"), "CmdOrCtrl+Q")?;
+    let separators = [separator()?, separator()?, separator()?, separator()?];
+    let mut items: Vec<&dyn IsMenuItem<tauri::DynRuntime>> = vec![&about, &separators[0]];
+    if screen_saver {
+        items.extend([&lock as &dyn IsMenuItem<tauri::DynRuntime>, &install, &separators[3]]);
+    }
+    items.extend([
+        &services as &dyn IsMenuItem<tauri::DynRuntime>,
+        &separators[1],
+        &hide,
+        &hide_others,
+        &show_all,
+        &separators[2],
+        &quit,
+    ]);
+    let app_menu = Submenu::with_items(app, name, true, &items)?;
     let edit = Submenu::with_items(
         app,
         "Edit",

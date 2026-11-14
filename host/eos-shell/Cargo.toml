@@ -17,6 +17,7 @@ tauri-build.workspace = true
 eos-bridge.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-platform.workspace = true
 
 base64.workspace = true
 block2.workspace = true

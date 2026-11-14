@@ -1,6 +1,7 @@
 #!/bin/bash
 # Signs the bundle locally with the Developer ID identity, inside out: the framework's
-# libraries, the framework, the helper apps, the bundled esbuild, the app; hardened runtime
+# libraries, the framework, the helper apps, the bundled esbuild, the applier, the location
+# helper, the screen saver, the app; hardened runtime
 # on the executables, and the CEF entitlements on those that run Chromium.
 #
 # --timestamp=none on purpose: nothing is sent to Apple's timestamp service, nothing is
@@ -36,5 +37,9 @@ ESBUILD="$APP/Contents/Resources/esbuild"
 [ -f "$APP/Contents/MacOS/eos-apply" ] && sign --options runtime "$APP/Contents/MacOS/eos-apply"
 LOCATION="$APP/Contents/Resources/EosLocation.app"
 [ ! -d "$LOCATION" ] || sign --options runtime "$LOCATION"
+# The screen saver: a loadable bundle of its own, copied out of the app when installed, so
+# it carries the app's identity by itself.
+SAVER="$APP/Contents/Resources/Eos.saver"
+[ ! -d "$SAVER" ] || sign --options runtime "$SAVER"
 sign --options runtime --entitlements "$ENT" "$APP"
 codesign --verify --deep --strict "$APP" && echo "signed and verified: $APP"

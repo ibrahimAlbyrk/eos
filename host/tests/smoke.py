@@ -9,6 +9,8 @@ What it checks:
      included), and through the core's browser route for the panel's tab;
   4. the Rust core answers every request behind the dev guard, the event stream included;
   5. a second launch hands over, `--quit` stops everything.
+Also, without running it: the bundle's contents, the screen saver included (never installed
+or started), and the Eos menu's screen-saver items.
 
 Rules it keeps (see 08-shell-gate.md §10): it never types into a page and never drives the
 dashboard. The dashboard is only told what layout to restore (through the storage
@@ -19,6 +21,7 @@ usage: smoke.py <path to Eos.app> [--keep]      --keep leaves the app running at
 """
 import json
 import os
+import plistlib
 import signal
 import sqlite3
 import subprocess
@@ -144,6 +147,32 @@ def bundle_contents():
           os.access(os.path.join(helper, "MacOS", "eos-location"), os.X_OK) and "<string>eos-location</string>" in helper_plist
           and ".location</string>" in helper_plist and "NSLocationUsageDescription" in helper_plist)
     check("the app says why it may use the local network", "NSLocalNetworkUsageDescription" in plist)
+    screen_saver(os.path.join(res, "Eos.saver"))
+
+
+def screen_saver(saver):
+    """The screen saver the app menu installs: a well-formed, signed loadable bundle. Never
+    installed or started here."""
+    contents = os.path.join(saver, "Contents")
+    try:
+        with open(os.path.join(contents, "Info.plist"), "rb") as f:
+            info = plistlib.load(f)
+    except (OSError, plistlib.InvalidFileException) as e:
+        check("the bundle ships the screen saver", False, e)
+        return
+    exe = os.path.join(contents, "MacOS", info.get("CFBundleExecutable", ""))
+    kind = subprocess.run(["/usr/bin/file", "-b", exe], capture_output=True, text=True).stdout.strip()
+    symbols = subprocess.run(["/usr/bin/nm", "-U", exe], capture_output=True, text=True).stdout
+    principal = info.get("NSPrincipalClass", "")
+    check("the screen saver is a loadable bundle with its principal class",
+          info.get("CFBundlePackageType") == "BNDL" and info.get("CFBundleName") == "Eos" and principal == "EosSaverView"
+          and kind == "Mach-O 64-bit bundle arm64" and f"_OBJC_CLASS_$_{principal}" in symbols, kind)
+    resources = os.path.join(contents, "Resources")
+    shipped = ["FirstLight.metal", "thumbnail.png", "thumbnail@2x.png", "Geist.woff2", "IBMPlexMono.woff2"]
+    missing = [f for f in shipped if not os.path.isfile(os.path.join(resources, f))]
+    check("the screen saver ships its shader, thumbnails and clock faces", not missing, missing)
+    signed = subprocess.run(["/usr/bin/codesign", "--verify", "--strict", saver], capture_output=True, text=True)
+    check("the screen saver is signed", signed.returncode == 0, signed.stderr.strip()[-200:])
 
 
 def checks(run):
@@ -215,6 +244,8 @@ def checks(run):
     check("one event stream from the dashboard", b["eventStreams"] == 1, b["eventStreams"])
     check("the window did not take the focus", st["window"]["focused"] is False, st["window"])
     check("the app menu is installed", st.get("menus") == ["Eos", "Edit", "View", "Machines", "Window"], st.get("menus"))
+    app_menu = st.get("appMenu") or []
+    check("the app menu offers the screen saver", "Lock Screen" in app_menu and "Install Screen Saver…" in app_menu, app_menu)
     marker = os.path.join(SHELL_DATA, "migrated-from-electron.json")
     done = wait_for("marker", lambda: os.path.exists(marker), 10)
     check("the storage carry-over ran once", done, json.load(open(marker)) if done else "no marker")

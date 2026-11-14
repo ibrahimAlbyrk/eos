@@ -5,6 +5,7 @@ mod bundle_check;
 mod desktop;
 mod keychain;
 pub(crate) mod qos;
+mod screen_saver;
 
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
@@ -13,12 +14,13 @@ use std::time::Duration;
 
 pub use desktop::open_in_argv;
 pub use keychain::SecurityKeychain;
+pub use screen_saver::{START_SCREEN_SAVER, screen_saver_settings_url};
 
 use crate::error::Error;
 use crate::generic::owner_only;
 use crate::host::{
-    AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, SpawnCommand,
-    TerminalShell,
+    AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, ScreenSaver,
+    SpawnCommand, TerminalShell,
 };
 use crate::process;
 use crate::shell::PosixShell;
@@ -184,6 +186,10 @@ impl HostPlatform for Darwin {
         &self.desktop
     }
 
+    fn screen_saver(&self) -> Option<&dyn ScreenSaver> {
+        Some(&screen_saver::MacScreenSaver)
+    }
+
     fn private_file_permissions(&self) -> Option<Permissions> {
         owner_only()
     }
@@ -250,5 +256,6 @@ mod tests {
         assert_eq!(host.chromium_browsers().len(), 2);
         assert!(host.private_file_permissions().is_some());
         assert!(host.native_recursive_watch());
+        assert!(host.screen_saver().is_some());
     }
 }

@@ -131,6 +131,7 @@ vendor/        tauri-runtime-cef 3.0.0-alpha.7 with our patches applied
 patches/       those patches as diffs (scripts/check-patches.sh proves vendor = upstream + patches)
 bundle/        Info.plist templates, entitlements, the app icon, the banner sound
 location/      the CoreLocation helper's source (`EosLocation.app`, built by scripts/bundle.sh)
+saver/         the screen saver's source, Swift + Metal (`Eos.saver`, built by scripts/bundle.sh)
 scripts/       setup, env, check, bundle, sign, dev, try, launch on test data
 tests/         smoke run, browser run on a local page, memory measurement, local-network
                probe, proxy-script test; guard.py stops what a killed run started
@@ -170,7 +171,7 @@ scripts/bundle.sh test            # the same with `dev-run` (the dev guard, the 
                                   # → .work/bundle/test/; every test driver below runs this one
 scripts/dev.sh                    # debug bundle with `dev-run` on the private data copy
 scripts/sign.sh <Eos.app> [-]     # local Developer ID signature (- : ad hoc), --timestamp=none, nothing sent anywhere
-python3 tests/smoke.py <Eos.app>  # launches quietly, 36 checks, quits (never types into a page)
+python3 tests/smoke.py <Eos.app>  # launches quietly, 40 checks, quits (never types into a page)
 python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
                                   # temporary folder; a plugin preview; 28 checks
 python3 tests/artifact_smoke.py <Eos.app> # artifact views against a local page standing in for claude.ai:
@@ -192,8 +193,18 @@ the Tauri CLI is not used, because it compiles its own copy of the helper and of
 build ours. The Rust core serves every route of the dashboard except the metered provider
 settings (`/api/backends*`) and `/metrics` (it had a listener to count; there is none): a route
 it does not declare is a 404. Everything a bundle ships comes from this tree (`assets`,
-`host/bundle`, `host/location`, the dashboard's `app/ui/dist`) and from `scripts/setup.sh`
-(esbuild).
+`host/bundle`, `host/location`, `host/saver`, the dashboard's `app/ui/dist` and two of its
+font packages, the screen saver's clock faces) and from `scripts/setup.sh` (esbuild).
+
+`Contents/Resources` holds, beside the dashboard (`dist`), `esbuild`, `claude-plugin`,
+`pdfjs`, the icon and the banner sound, two bundles of their own, each signed by itself
+before the app is sealed (`sign.sh`): `EosLocation.app` (the location helper) and
+`Eos.saver`, the screen saver. The saver is a loadable bundle the system's screen-saver host
+runs, never the app: `EosSaver` (Swift, `swiftc -emit-library -Xlinker -bundle`, arm64,
+macOS 14+), its `Info.plist` with the principal class `EosSaverView`, and in its resources
+the scene's shader as source (`FirstLight.metal`, compiled when the saver starts, so the
+build needs no Metal toolchain), the picker's thumbnails and the clock's Geist and IBM Plex
+Mono faces. `bundle.sh` fails when the binary lacks the principal class.
 
 ### The core, and a dev run
 
@@ -262,7 +273,9 @@ Downloads; none of the rest.
 
 Not bridges, done in the shell: single instance (a later launch hands over; `Eos --status`,
 `Eos --quit`), close hides and the Dock reopens, quit runs the app's shutdown hook, the app
-menu with the Edit commands routed to whatever has the keyboard, full screen, window frame
+menu with the Edit commands routed to whatever has the keyboard, the screen saver's two
+items in the Eos menu (below; only where `eos-platform` has a screen saver and the bundle
+ships `Eos.saver`), full screen, window frame
 restored, `eos://` links, navigation lockdown with external links in the system browser, the
 content security policy, the ui-token for media loads of the dashboard document, banners with
 the Eos sound (only while the window is not focused; a click opens the worker or view), native
@@ -298,7 +311,19 @@ token on every request (the core classifies it as that host's view with
 dashboard when the host speaks the same API, else the host's bundle from `/h/<id>/ui/`.
 While one covers the dashboard the artifact views stay hidden.
 
-Not ported: the tray (decided), the boot splash and daemon supervision (no daemon), the dev
+**The screen saver** (`eos_platform::ScreenSaver`, macOS only; the shell's
+`screen_saver_action`): the Eos menu's **Lock Screen** asks the login window's screen-saver
+daemon to start the saver (`ScreenSaverController.controller.screenSaverStartNow` through
+`osascript -l JavaScript`), so it runs on every display (`open -a ScreenSaverEngine` would
+show it on one); with "Require password immediately" in Lock Screen settings that is a real
+lock, and the Mac stays awake for the phone. **Install Screen Saver…** copies `Eos.saver`
+into `~/Library/Screen Savers` (made beside the older copy, then swapped in) and opens the
+settings where a saver is picked (Wallpaper on macOS 26 and later, Screen Saver before):
+macOS has no supported way to select one, so picking "Eos" there is the user's step. A
+failed install shows an alert ("Couldn’t install the Eos screen saver"). Both run off the
+main thread; tests install into a temporary folder and never start the saver.
+
+Not ported: the tray (decided; its screen-saver items are the Eos menu's now), the boot splash and daemon supervision (no daemon), the dev
 "Rebuild & Relaunch" item. Whether a tab is making sound stays unknown (the tab list says
 `audible: false`): CEF tells an app about a page's sound only through `CefAudioHandler`,
 which is an audio *capture* (made for windowless apps that play the sound themselves: the

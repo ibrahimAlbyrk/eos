@@ -1,5 +1,6 @@
 //! The app's life: one instance, the window, the dashboard view, the menu, quitting.
 
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Once, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -16,6 +17,7 @@ use eos_bridge::power::WakeDetector;
 use eos_bridge::recovery::{AfterCrash, Recovery};
 use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_bridge::{Bridge, EditCommand, Parts, Service, migrate};
+use eos_platform::{SCREEN_SAVER_BUNDLE, ScreenSaver};
 use serde_json::{Value, json};
 use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_runtime_cef::cef::{ContentSettingTypes, ContentSettingValues, ImplBrowser, ImplBrowserHost};
@@ -233,7 +235,7 @@ impl Shell {
         }
         let theme = Bridge::persisted_theme(&options.data_dir);
         let (window, state) = window::create(app, &options.data_dir, theme, options.quiet)?;
-        let _ = app.set_menu(menu::build(app, &options.name, &options.version, &[])?);
+        let _ = app.set_menu(menu::build(app, &options.name, &options.version, &[], self.screen_saver().is_some())?);
         let _ = self.app.set(app.clone());
         let _ = self.window.set(window.clone());
         let _ = self.keeper.set(StateKeeper::new(&options.data_dir, state.fullscreen));
@@ -563,7 +565,8 @@ impl Shell {
     fn rebuild_menu(&self, machines: Vec<MachineItem>) {
         let Some(app) = self.app.get().cloned() else { return };
         let (name, version) = (self.options.name.clone(), self.options.version.clone());
-        self.on_main(move || match menu::build(&app, &name, &version, &machines) {
+        let screen_saver = self.screen_saver().is_some();
+        self.on_main(move || match menu::build(&app, &name, &version, &machines, screen_saver) {
             Ok(built) => drop(app.set_menu(built)),
             Err(e) => log("shell", &format!("the menu was not rebuilt: {e}")),
         });
@@ -625,8 +628,39 @@ impl Shell {
                     self.rt.spawn(async move { hosts.switch_to(id).await });
                 }
             }
+            Command::LockScreen => self.screen_saver_action(false),
+            Command::InstallScreenSaver => self.screen_saver_action(true),
             Command::Edit(command) => self.edit(views, bridge, command),
         }
+    }
+
+    /// The system's screen saver and the folder holding the one the app ships, when both
+    /// exist: the menu offers it only then.
+    fn screen_saver(&self) -> Option<(&'static dyn ScreenSaver, PathBuf)> {
+        let saver = eos_platform::host().screen_saver()?;
+        let resources = self.options.resources.clone()?;
+        resources.join(SCREEN_SAVER_BUNDLE).is_dir().then_some((saver, resources))
+    }
+
+    /// Installs the screen saver (a failure is shown in an alert) or starts it now. Off the
+    /// main thread: both run system tools.
+    fn screen_saver_action(&self, install: bool) {
+        let (Some((saver, resources)), Some(app)) = (self.screen_saver(), self.app.get().cloned()) else { return };
+        self.rt.spawn_blocking(move || {
+            if !install {
+                if let Err(e) = saver.start() {
+                    log("shell", &format!("the screen saver did not start: {e}"));
+                }
+                return;
+            }
+            if let Err(e) = saver.install(&resources) {
+                log("shell", &format!("the screen saver was not installed: {e}"));
+                let detail = e.to_string();
+                let _ = app.run_on_main_thread(move || {
+                    appkit::error_alert("Couldn’t install the Eos screen saver", &detail);
+                });
+            }
+        });
     }
 
     /// The Edit menu acts on whatever has the keyboard: the dashboard decides for itself
@@ -683,6 +717,11 @@ impl Shell {
             },
             "menus": self.app.get().and_then(|app| app.menu()).and_then(|menu| menu.items().ok()).map(|items| {
                 items.iter().filter_map(|item| item.as_submenu().and_then(|submenu| submenu.text().ok())).collect::<Vec<_>>()
+            }),
+            // The app menu's own items, by title (separators left out).
+            "appMenu": self.app.get().and_then(|app| app.menu()).and_then(|menu| menu.items().ok()).and_then(|items| {
+                let submenu = items.first()?.as_submenu()?.items().ok()?;
+                Some(submenu.iter().filter_map(|item| item.as_menuitem().and_then(|m| m.text().ok())).collect::<Vec<_>>())
             }),
             "views": self.views.get().map(|v| v.status()),
             "transport": { "opened": scheme::OPENED.load(Ordering::Relaxed), "cancelled": scheme::CANCELLED.load(Ordering::Relaxed) },

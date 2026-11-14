@@ -18,6 +18,7 @@ eos-app = { path = "../crates/eos-app" }
 eos-bridge = { path = "../crates/eos-bridge" }
 eos-contracts = { path = "../crates/eos-contracts" }
 eos-core = { path = "../crates/eos-core" }
+eos-platform = { path = "../crates/eos-platform" }
 eos-runtime = { path = "../crates/eos-runtime" }
 eos-shell = { path = "eos-shell" }
 eos-update = { path = "../crates/eos-update" }

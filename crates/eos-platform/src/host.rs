@@ -129,6 +129,15 @@ pub trait AppUpdatePlatform: Send + Sync + Debug {
     fn verify_bundle(&self, staged: &Path, installed: &Path) -> Result<(), Error>;
 }
 
+/// The app's screen saver.
+pub trait ScreenSaver: Send + Sync + Debug {
+    /// Installs the saver the app ships in `resources` for this user, replacing an older
+    /// copy, and opens the settings where the user picks it.
+    fn install(&self, resources: &Path) -> Result<(), Error>;
+    /// Starts the screen saver now, on every display.
+    fn start(&self) -> Result<(), Error>;
+}
+
 /// Holds the computer out of system sleep until dropped.
 #[derive(Debug)]
 pub struct KeepAwake {
@@ -194,6 +203,8 @@ pub trait HostPlatform: Send + Sync + Debug {
     /// In-app updates; `None` where Eos cannot update itself.
     fn app_updates(&self) -> Option<&dyn AppUpdatePlatform>;
     fn desktop(&self) -> &dyn Desktop;
+    /// The app's screen saver; `None` where the system has none Eos can install.
+    fn screen_saver(&self) -> Option<&dyn ScreenSaver>;
     /// Permissions for a file only the user may read (keys, tokens); `None`
     /// where the system has no such bits and the folder's protection applies.
     fn private_file_permissions(&self) -> Option<Permissions>;

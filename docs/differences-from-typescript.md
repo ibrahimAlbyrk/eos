@@ -31,7 +31,7 @@ changes there without a decision.
 | `/metrics`, the `eos` runtime CLI, the stdio MCP servers, the launchd agent | Present | Not in the Rust app | They served or supervised a background daemon. There is none. |
 | `POST /workers/:id/events` | Served (the terminal-driven agent lane posted its rows there) | Not served | That lane is gone: every agent reports through its own session. |
 | The model list before it was ever fetched (no `models.json` yet) | `GET /api/ui-config` waited for the first fetch, up to 3 s | Answers at once with an empty list and fetches in the background; the dashboard's own refresh when it opens brings the list | Nothing waits on the network to draw the window. |
-| Closing the window | The daemon kept running in the background, with a tray icon | The app stays in the Dock; quitting stops everything, agents included | Owner's decision D8; no tray. So the phone link and the nightly dream work only while the app runs. |
+| Closing the window | The daemon kept running in the background, with a tray icon | The app stays in the Dock; quitting stops everything, agents included | Owner's decision D8; no tray (its Lock Screen and Install Screen Saver… items are in the Eos menu). So the phone link and the nightly dream work only while the app runs. |
 | Windows | Supported | Not yet; Windows stays on the last TypeScript release | Owner's decision D2. |
 
 ### Agents

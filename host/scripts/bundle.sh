@@ -1,6 +1,6 @@
 #!/bin/bash
 # Builds Eos.app: the `eos` binary, the dashboard, the CEF framework and its five helper
-# apps. Everything is built from this repo; nothing is swapped in after the build.
+# apps, the location helper and the screen saver. Everything is built from this repo; nothing is swapped in after the build.
 #
 #   usage: bundle.sh [release|test|debug]     prints the path of the .app
 #
@@ -95,6 +95,29 @@ sed -e "s/<string>com\.ibrahimalbyrk\.eos\.location<\/string>/<string>$ID.locati
 grep -q "<string>$ID.location</string>" "$LOCATION/Info.plist" \
   || { echo "the location helper's identifier was not set" >&2; exit 1; }
 codesign --force -s - "$APP/Contents/Resources/EosLocation.app" 2>/dev/null
+# The screen saver, a loadable bundle macOS's saver host runs (not code of the app): the
+# app menu's "Install Screen Saver…" copies it into ~/Library/Screen Savers. The shader
+# ships as source and is compiled when the saver starts, so building needs no Metal
+# toolchain. The clock's faces come from the dashboard's own font packages. Signed ad hoc
+# here; sign.sh signs it again with the app's identity. Never run by a test.
+SAVER="$APP/Contents/Resources/Eos.saver"
+FONTS="$REPO/app/ui/node_modules"
+GEIST="$FONTS/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"
+PLEX="$FONTS/@fontsource/ibm-plex-mono/files/ibm-plex-mono-latin-400-normal.woff2"
+[ -f "$GEIST" ] && [ -f "$PLEX" ] || { echo "the screen saver's fonts are missing: run host/scripts/setup.sh" >&2; exit 1; }
+mkdir -p "$SAVER/Contents/MacOS" "$SAVER/Contents/Resources"
+xcrun swiftc -O -target arm64-apple-macos14.0 -module-name EosSaver -emit-library -Xlinker -bundle \
+  -o "$SAVER/Contents/MacOS/EosSaver" saver/*.swift >&2
+cp saver/Info.plist "$SAVER/Contents/Info.plist"
+cp saver/FirstLight.metal saver/thumbnail.png saver/thumbnail@2x.png "$SAVER/Contents/Resources/"
+cp "$GEIST" "$SAVER/Contents/Resources/Geist.woff2"
+cp "$PLEX" "$SAVER/Contents/Resources/IBMPlexMono.woff2"
+# The saver host instantiates the principal class by its Objective-C name (the Swift
+# class carries an @objc name; the symbol is private to the bundle, which is enough).
+PRINCIPAL="$(/usr/libexec/PlistBuddy -c "Print :NSPrincipalClass" "$SAVER/Contents/Info.plist")"
+nm -U "$SAVER/Contents/MacOS/EosSaver" | grep -F "_OBJC_CLASS_\$_$PRINCIPAL" >/dev/null \
+  || { echo "the screen saver does not define its principal class $PRINCIPAL" >&2; exit 1; }
+codesign --force -s - "$SAVER" 2>/dev/null
 # -c: a clone copy where the volume supports it (APFS), so the 320 MB framework costs nothing.
 cp -Rc "$FRAMEWORK" "$APP/Contents/Frameworks/" 2>/dev/null || cp -R "$FRAMEWORK" "$APP/Contents/Frameworks/"
 

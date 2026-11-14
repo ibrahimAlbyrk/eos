@@ -3,13 +3,16 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash
 #
-# On Apple Silicon macOS it installs the signed + notarized Eos.app from the
-# latest GitHub release (needs only git, via Xcode CLT). Re-running updates it.
+# Installs the signed + notarized Eos.app from the latest GitHub release (needs
+# only git, via Xcode CLT). Re-running updates it. Eos runs on Apple Silicon
+# Macs only: there is no Intel, Linux or Windows build.
 #
-# --from-source (and Linux / Intel): auto-installs the toolchain (Xcode CLT / git,
-# Node 22+, Bun, claude), clones the source to ~/eos, installs every package dir,
-# links `eos`, fixes PATH, then runs `eos build` to compile and launch the macOS
-# app. Re-running is safe.
+# --from-source: installs the toolchain (Xcode CLT / git, Rust via rustup at the
+# checkout's rust-toolchain.toml, Node for the dashboard), clones the source to
+# ~/eos, then runs the checkout's own `eos build`, which builds, signs and
+# installs /Applications/Eos.app, opens it and links `eos` into ~/.local/bin.
+# The agent engine is a private repository: the build needs git access to it.
+# Re-running is safe.
 set -euo pipefail
 
 EOS_REPO="${EOS_REPO:-https://github.com/ibrahimAlbyrk/eos}"
@@ -18,7 +21,8 @@ EOS_DIR="${EOS_DIR:-$HOME/eos}"
 EOS_RELEASE_URL="${EOS_RELEASE_URL:-$EOS_REPO/releases/latest/download/Eos-darwin-arm64.zip}"
 APP_PATH="/Applications/Eos.app"
 DAEMON_LABEL="com.ibrahimalbyrk.eos.daemon"
-NODE_MIN=22
+# What the dashboard's build needs (host/scripts/setup.sh): 20.19, or 22.12 or later.
+NODE_WANTED="20.19 or 22.12+"
 DO_BUILD=1
 FROM_SOURCE="${EOS_FROM_SOURCE:-0}"
 
@@ -43,16 +47,21 @@ Eos installer
 
   curl -fsSL <raw-url>/install.sh | bash
 
-Default (Apple Silicon macOS): installs the signed Eos.app from the latest release.
+Installs the signed Eos.app from the latest release. Eos runs on Apple Silicon
+Macs only (no Intel, Linux or Windows build).
 
 Options (env or flags):
   --from-source        clone + build instead      (env EOS_FROM_SOURCE=1)
-  --no-build           from source: set up only; don't compile the macOS app
+  --no-build           from source: set up the toolchain and checkout and link
+                       \`eos\`; don't build or install the app
   --dir DIR            source location            (env EOS_DIR,    default ~/eos)
   --branch BRANCH      branch to clone            (env EOS_BRANCH, default main)
   -h, --help           this help
 
-After a source install:  eos build   (recompile + relaunch)   ·   eos help
+A source build needs git access to the private agent engine
+(github.com/ibrahimAlbyrk/eos-agent-sdk), e.g. through \`gh auth setup-git\`.
+
+After a source install:  eos build   (rebuild + reinstall)   ·   eos help
 EOF
 }
 
@@ -81,7 +90,7 @@ persist_path() {
   shellname="$(basename "${SHELL:-bash}")"
   case "$shellname" in
     zsh)  rc="${ZDOTDIR:-$HOME}/.zshrc" ;;
-    bash) [ "$OS" = "Darwin" ] && rc="$HOME/.bash_profile" || rc="$HOME/.bashrc" ;;
+    bash) rc="$HOME/.bash_profile" ;;
     *)    warn "add to your shell PATH manually: ${PERSIST_DIRS[*]}"; return 0 ;;
   esac
   touch "$rc"
@@ -100,11 +109,26 @@ persist_path() {
   EOS_RC="$rc"
 }
 
+# ── platform ─────────────────────────────────────────────────────────────────
+# The app, its helpers and the screen saver are built for Apple Silicon macOS
+# only (host/scripts/bundle.sh), so a source build cannot work anywhere else.
+require_apple_silicon() {
+  local arch
+  arch="$(uname -m)"
+  [ "$OS" = "Darwin" ] && [ "$arch" = "arm64" ] && return 0
+  case "$OS" in
+    Darwin) die "Eos runs on Apple Silicon Macs only; this Mac is $arch. There is no Intel build, from a release or from source." ;;
+    *)      die "Eos is a macOS app for Apple Silicon Macs; $OS is not supported, from a release or from source." ;;
+  esac
+}
+
 # ── toolchain ────────────────────────────────────────────────────────────────
-node_major() { node -v 2>/dev/null | sed -E 's/^v([0-9]+).*/\1/' | grep -E '^[0-9]+$' || echo 0; }
+# Node new enough for the dashboard's build (the rule host/scripts/setup.sh applies).
+node_ok() {
+  has node && node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 12) || (a === 20 && b >= 19) ? 0 : 1)' 2>/dev/null
+}
 
 ensure_xcode_clt() {
-  [ "$OS" = "Darwin" ] || return 0
   if xcode-select -p >/dev/null 2>&1 && has git; then
     ok "Xcode Command Line Tools present (git + swiftc)"
     return 0
@@ -120,28 +144,15 @@ ensure_xcode_clt() {
   ok "Xcode Command Line Tools installed"
 }
 
-ensure_git_linux() {
-  [ "$OS" = "Linux" ] || return 0
-  has git && { ok "git present"; return 0; }
-  log "Installing git…"
-  if   has apt-get; then sudo apt-get update -y && sudo apt-get install -y git
-  elif has dnf;     then sudo dnf install -y git
-  elif has pacman;  then sudo pacman -S --noconfirm git
-  else die "install git manually, then re-run"; fi
-  ok "git installed"
-}
-
 install_node_userspace() {
-  local os arch ver tgz url dest
-  case "$OS" in Darwin) os=darwin ;; Linux) os=linux ;; *) die "unsupported OS: $OS" ;; esac
-  case "$(uname -m)" in arm64|aarch64) arch=arm64 ;; x86_64) arch=x64 ;; *) die "unsupported arch: $(uname -m)" ;; esac
+  local ver tgz url dest
   # Newest current/LTS line ≥22 from the official dist index (no jq dependency).
   # grep -m1 (not | head) so pipefail can't trip on head closing the pipe early.
   ver="$(curl -fsSL https://nodejs.org/dist/index.json \
         | grep -m1 -oE '"v(2[2-9]|[3-9][0-9])[0-9.]*"' | tr -d '"')" \
-    || die "could not resolve a Node ${NODE_MIN}+ version from nodejs.org — install it manually"
-  [ -n "$ver" ] || die "could not resolve a Node ${NODE_MIN}+ version"
-  tgz="node-${ver}-${os}-${arch}.tar.gz"
+    || die "could not resolve a Node version from nodejs.org — install Node ${NODE_WANTED} manually"
+  [ -n "$ver" ] || die "could not resolve a Node version from nodejs.org"
+  tgz="node-${ver}-darwin-arm64.tar.gz"
   url="https://nodejs.org/dist/${ver}/${tgz}"
   dest="$HOME/.local/eos-node"
   log "Downloading $url"
@@ -151,40 +162,40 @@ install_node_userspace() {
 }
 
 ensure_node() {
-  if has node && [ "$(node_major)" -ge "$NODE_MIN" ]; then ok "node $(node -v)"; return 0; fi
-  log "Installing Node ${NODE_MIN}+…"
+  if node_ok; then ok "node $(node -v)"; return 0; fi
+  log "Installing Node ${NODE_WANTED}…"
   has brew && { brew install node || true; }
-  if has node && [ "$(node_major)" -ge "$NODE_MIN" ]; then ok "node $(node -v)"; return 0; fi
+  if node_ok; then ok "node $(node -v)"; return 0; fi
   install_node_userspace
-  has node && [ "$(node_major)" -ge "$NODE_MIN" ] \
-    || die "could not install Node ${NODE_MIN}+ — install from https://nodejs.org and re-run"
+  node_ok || die "could not install Node ${NODE_WANTED} — install it from https://nodejs.org and re-run"
   ok "node $(node -v)"
 }
 
-ensure_bun() {
-  if has bun; then ok "bun $(bun --version)"; return 0; fi
-  log "Installing Bun…"
-  has brew && { brew install bun >/dev/null 2>&1 || true; }
-  if ! has bun; then
-    curl -fsSL https://bun.sh/install | bash || true
-    use_dir "$HOME/.bun/bin"
+# rustup, not a packaged Rust: the checkout's rust-toolchain.toml picks the
+# toolchain, and rustup installs it on the first cargo call in the checkout.
+ensure_rustup() {
+  use_dir "$HOME/.cargo/bin"
+  if has rustup; then ok "rustup $(rustup --version 2>/dev/null | awk '{print $2; exit}')"; return 0; fi
+  if has cargo; then
+    die "cargo is installed without rustup ($(command -v cargo)); Eos's checkout pins its toolchain through rustup — install rustup from https://rustup.rs and re-run"
   fi
-  has bun || die "bun install failed — see https://bun.sh"
-  ok "bun $(bun --version)"
+  log "Installing rustup…"
+  curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+    | sh -s -- -y --no-modify-path --default-toolchain none \
+    || die "rustup install failed — see https://rustup.rs"
+  has rustup || die "rustup install failed — see https://rustup.rs"
+  ok "rustup installed"
 }
 
-# claude is needed at runtime (to spawn workers), not to build. Best-effort.
-ensure_claude() {
-  if has claude; then ok "claude present — make sure it's signed in to your Max/Pro plan"; return 0; fi
-  log "Installing the claude CLI…"
-  if curl -fsSL https://claude.ai/install.sh | bash; then
-    ok "claude installed — run 'claude' once to sign in to your Max/Pro plan"
-  else
-    warn "claude auto-install failed — install Claude Code from https://docs.anthropic.com/claude-code and run 'claude' to sign in"
-  fi
+# The toolchain the checkout's rust-toolchain.toml names (with its components).
+ensure_toolchain() {
+  log "Installing the Rust toolchain rust-toolchain.toml names…"
+  (cd "$EOS_DIR" && { rustup toolchain install >/dev/null 2>&1 || rustup show active-toolchain >/dev/null; }) \
+    || die "rustup could not install the toolchain of $EOS_DIR/rust-toolchain.toml"
+  ok "rust $(cd "$EOS_DIR" && rustc --version | awk '{print $2}')"
 }
 
-# ── source + deps ────────────────────────────────────────────────────────────
+# ── source ───────────────────────────────────────────────────────────────────
 clone_or_update() {
   if [ -d "$EOS_DIR/.git" ]; then
     log "Updating checkout at $EOS_DIR"
@@ -195,25 +206,52 @@ clone_or_update() {
     log "Cloning $EOS_REPO ($EOS_BRANCH) → $EOS_DIR"
     git clone --branch "$EOS_BRANCH" "$EOS_REPO" "$EOS_DIR"
   fi
+  [ -x "$EOS_DIR/scripts/eos" ] && [ -f "$EOS_DIR/rust-toolchain.toml" ] \
+    || die "$EOS_DIR ($EOS_BRANCH) is not the Rust app's source (no scripts/eos) — pick another --branch"
 }
 
-# Pin the absolute bun path so the claude-spawned permission gateway resolves it
-# regardless of the inherited PATH (config merge is one level deep — this keeps
-# every other paths.* default intact).
-pin_bun_path() {
-  local home bun_bin
-  home="${EOS_HOME:-$HOME/.eos}"
-  bun_bin="$(command -v bun || true)"
-  [ -n "$bun_bin" ] || return 0
-  mkdir -p "$home"
-  EOS_CFG="$home/config.json" EOS_BUN="$bun_bin" node -e '
-    const fs = require("fs"), p = process.env.EOS_CFG;
-    let c = {}; try { c = JSON.parse(fs.readFileSync(p, "utf8")); } catch {}
-    c.paths = c.paths || {};
-    c.paths.bunBin = process.env.EOS_BUN;
-    fs.writeFileSync(p, JSON.stringify(c, null, 2) + "\n");
-  '
-  ok "pinned bun → $bun_bin in $home/config.json"
+# The agent engine is a private git dependency (Cargo.toml), fetched by cargo
+# with the git command line and the user's own credentials. Ask git before the
+# long build, so a missing access is one clear message, not a failed build.
+check_engine_access() {
+  local engine
+  engine="$(grep -m1 -oE 'git = "https://github.com/[^"]*eos-agent-sdk[^"]*"' "$EOS_DIR/Cargo.toml" | sed -E 's/git = "(.*)"/\1/')" || true
+  [ -n "$engine" ] || { warn "no agent engine dependency found in $EOS_DIR/Cargo.toml — skipping the access check"; return 0; }
+  if GIT_TERMINAL_PROMPT=0 git ls-remote "$engine" HEAD >/dev/null 2>&1; then
+    ok "agent engine reachable ($engine)"
+    return 0
+  fi
+  die "$(cat <<EOF
+cannot reach the agent engine, $engine.
+  It is a private repository: building Eos from source needs read access to it
+  with your git credentials (with the GitHub CLI signed in: gh auth setup-git).
+  Without access, install the release app instead (run this script without --from-source).
+EOF
+)"
+}
+
+# What `eos build` links itself; done here for --no-build. A link to another Eos
+# launcher is replaced, anything else is left alone (xtask/src/install/link.rs).
+link_eos() {
+  local bin link target
+  bin="${EOS_BIN_DIR:-$HOME/.local/bin}"
+  link="$bin/eos"
+  mkdir -p "$bin"
+  if [ -L "$link" ]; then
+    target="$(readlink "$link")"
+    case "$target" in /*) ;; *) target="$bin/$target" ;; esac
+    if [ "$target" -ef "$EOS_DIR/scripts/eos" ]; then ok "eos already links to $EOS_DIR/scripts/eos"; return 0; fi
+    case "$target" in
+      */manager/bin/eos) ;;
+      *) grep -q eos-launcher "$target" 2>/dev/null || { warn "$link links to $target, not to an Eos launcher — left alone"; return 0; } ;;
+    esac
+    ln -sfn "$EOS_DIR/scripts/eos" "$link"
+  elif [ -e "$link" ]; then
+    warn "$link is not a link — left alone"; return 0
+  else
+    ln -s "$EOS_DIR/scripts/eos" "$link"
+  fi
+  ok "linked $link → $EOS_DIR/scripts/eos"
 }
 
 # ── prebuilt app (macOS) ─────────────────────────────────────────────────────
@@ -242,8 +280,9 @@ install_release() {
 
 # ── main ─────────────────────────────────────────────────────────────────────
 main() {
-  # Releases are Apple Silicon macOS only; everything else builds from source.
-  if [ "$FROM_SOURCE" != "1" ] && [ "$OS" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+  require_apple_silicon
+
+  if [ "$FROM_SOURCE" != "1" ]; then
     log "Eos installer · release app"
     ensure_xcode_clt
     install_release
@@ -251,42 +290,34 @@ main() {
     return 0
   fi
 
-  log "Eos installer · ${EOS_DIR}"
-  [ "$OS" = "Darwin" ] || [ "$OS" = "Linux" ] || die "unsupported platform: $OS (macOS / Linux only)"
-  [ "$OS" = "Linux" ] && warn "Linux: the macOS app step is skipped (no Swift compiler)."
-
+  log "Eos installer · from source · ${EOS_DIR}"
   ensure_xcode_clt
-  ensure_git_linux
   ensure_node
-  ensure_bun
-  ensure_claude
-
-  use_dir "$HOME/.local/bin"          # eos symlink + claude land here
+  ensure_rustup
+  use_dir "${EOS_BIN_DIR:-$HOME/.local/bin}"    # the eos link lands here
 
   clone_or_update
-  log "Installing dependencies (8 package dirs)…"
-  bash "$EOS_DIR/scripts/bootstrap.sh" --link
-  pin_bun_path
+  ensure_toolchain
+  check_engine_access
+  log "Setting up the build (tools, esbuild, the dashboard)…"
+  "$EOS_DIR/host/scripts/setup.sh"
   persist_path
 
   if [ "$DO_BUILD" = "1" ]; then
-    log "Building Eos…"
-    if [ "$OS" = "Darwin" ]; then
-      "$EOS_DIR/manager/bin/eos" build --open
-    else
-      "$EOS_DIR/manager/bin/eos" build --no-app
-    fi
+    log "Building and installing Eos (eos build)…"
+    "$EOS_DIR/scripts/eos" build
+  else
+    link_eos
   fi
 
   echo ""
   log "Done."
   ok "source:  $EOS_DIR"
   ok "cli:     eos help"
-  [ "$DO_BUILD" = "1" ] || ok "next:    eos build        (compile + launch the macOS app)"
+  [ "$DO_BUILD" = "1" ] || ok "next:    eos build        (build, install and open /Applications/Eos.app)"
   if [ -n "${EOS_RC:-}" ]; then
-    warn "open a new terminal (or: source ${EOS_RC}) so 'eos' is on PATH"
+    warn "open a new terminal (or: source ${EOS_RC}) so 'eos' and cargo are on PATH"
   fi
-  has claude || warn "install + sign in to the claude CLI before spawning workers"
 }
 
 main "$@"

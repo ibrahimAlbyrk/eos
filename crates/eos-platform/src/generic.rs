@@ -8,7 +8,7 @@ use std::process::Command;
 use crate::error::Error;
 use crate::host::{
     AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
-    SpawnCommand, TerminalShell,
+    ScreenSaver, SpawnCommand, TerminalShell,
 };
 use crate::paths::home_dir;
 use crate::process;
@@ -175,6 +175,10 @@ impl HostPlatform for Generic {
         &NoDesktop
     }
 
+    fn screen_saver(&self) -> Option<&dyn ScreenSaver> {
+        None
+    }
+
     fn private_file_permissions(&self) -> Option<Permissions> {
         owner_only()
     }
@@ -205,6 +209,7 @@ mod tests {
         assert!(matches!(host.credentials().write_secret("svc", "s"), Err(Error::Unsupported(_))));
         assert_eq!(host.credentials().read_secret("svc"), None);
         assert!(host.app_updates().is_none());
+        assert!(host.screen_saver().is_none());
         assert!(host.chromium_browsers().is_empty());
         assert!(matches!(host.desktop().open_path(Path::new("/nowhere")), Err(Error::Unsupported(_))));
         assert_eq!(host.executable_names("claude"), ["claude"]);

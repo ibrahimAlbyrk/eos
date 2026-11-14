@@ -47,12 +47,20 @@ curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh |
 
 ## Quickstart
 
-The one-liner above installs the signed, notarized `Eos.app` from the latest release (Apple Silicon Macs). Sign in to your Claude plan inside the app (Settings › Accounts) and you're set. Eos updates itself from then on (Settings › Updates).
+The one-liner above installs the signed, notarized `Eos.app` from the latest release. Eos runs on Apple Silicon Macs only: there is no Intel, Linux or Windows build, from a release or from source. Sign in to your Claude plan inside the app (Settings › Accounts) and you're set. Eos updates itself from then on (Settings › Updates).
 
 <details>
 <summary><b>Build from source · requirements</b></summary>
 
 <br/>
+
+The installer can do it for you: it installs what is missing (Xcode Command Line Tools, rustup at the checkout's `rust-toolchain.toml`, Node), clones to `~/eos` and runs `eos build`; `--no-build` stops after the set-up and links `eos`; `--dir`, `--branch` and `--help` as usual.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash -s -- --from-source
+```
+
+By hand:
 
 ```bash
 git clone https://github.com/ibrahimAlbyrk/eos && cd eos
@@ -64,7 +72,7 @@ eos restore                    # put the previous app back
 eos start | stop | restart | status
 ```
 
-**Needs:** an Apple Silicon Mac · Xcode · rustup · Node 20.19 or 22.12+ with npm (for the dashboard) · a Claude Max / Pro plan. The agent engine ([eos-agent-sdk](https://github.com/ibrahimAlbyrk/eos-agent-sdk)) is fetched by cargo with your git credentials. A build from source does not update itself; run `eos build` again for a newer one. Details: [`DEVELOPMENT.md`](DEVELOPMENT.md).
+**Needs:** an Apple Silicon Mac · Xcode · rustup · Node 20.19 or 22.12+ with npm (for the dashboard) · a Claude Max / Pro plan. The agent engine ([eos-agent-sdk](https://github.com/ibrahimAlbyrk/eos-agent-sdk)) is a private repository, fetched by cargo with your git credentials: a source build needs read access to it (the installer checks before building and says so). A build from source does not update itself; run `eos build` again for a newer one. Details: [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 </details>
 

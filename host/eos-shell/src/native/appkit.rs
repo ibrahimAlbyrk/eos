@@ -125,6 +125,19 @@ pub(crate) fn activate_app() {
     }
 }
 
+/// Shows an error the way the system shows one: a modal alert with a title and a detail.
+/// Blocks the main thread in the alert's own event loop until the user closes it.
+pub(crate) fn error_alert(title: &str, detail: &str) {
+    // SAFETY: main thread; plain NSAlert setters, then its modal loop.
+    unsafe {
+        let alert: Option<Retained<AnyObject>> = msg_send![class!(NSAlert), new];
+        let Some(alert) = alert else { return };
+        let _: () = msg_send![&*alert, setMessageText: &*ns(title)];
+        let _: () = msg_send![&*alert, setInformativeText: &*ns(detail)];
+        let _: isize = msg_send![&*alert, runModal];
+    }
+}
+
 // ---- pasteboard (any thread: NSPasteboard is documented as thread-safe) -----------
 
 fn pasteboard() -> Option<Retained<AnyObject>> {

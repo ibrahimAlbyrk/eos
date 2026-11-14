@@ -38,6 +38,8 @@ pub struct Options {
     pub data_dir: PathBuf,
     /// The built dashboard (`app/ui/dist`).
     pub ui_dist: PathBuf,
+    /// What the app ships beside its executable (`Contents/Resources`); `None` outside a bundle.
+    pub resources: Option<PathBuf>,
     /// The Electron app's profile folder, read once to carry `localStorage` over.
     pub electron_profile: Option<PathBuf>,
     /// The launch's arguments, without the program name.

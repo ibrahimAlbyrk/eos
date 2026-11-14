@@ -2814,6 +2814,7 @@ dependencies = [
  "eos-bridge",
  "eos-contracts",
  "eos-core",
+ "eos-platform",
  "objc2",
  "objc2-foundation",
  "serde_json",

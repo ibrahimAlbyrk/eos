@@ -58,6 +58,7 @@ fn options() -> Options {
         name: "Eos".into(),
         version: env!("CARGO_PKG_VERSION").into(),
         data_dir,
+        resources: bundled_resources(),
         ui_dist: env("EOS_UI_DIST").map(PathBuf::from).or_else(bundled_dist).unwrap_or_else(|| PathBuf::from("dist")),
         electron_profile,
         args: std::env::args().skip(1).collect(),
