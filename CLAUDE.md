@@ -38,6 +38,7 @@ cd app/ui && npm test             # web suite (vitest run)
 cd app/ui && npm run build        # production build → dist/ (bundled into the Electron app)
 cd app && npm start               # run the Electron desktop app (dev) against the running daemon
 cd app && npm run make            # package the Electron app → app/out/ (see app/README.md)
+cd rust && cargo xtask install    # the Rust app from source → /Applications/Eos.app, keeps the replaced app (--restore goes back); replaces `eos build --app` (rust/README.md)
 ```
 
 Single test: `cd manager && npx tsx --test --test-name-pattern="config" shared/__tests__/config.test.ts` · `cd app/ui && npx vitest run match`.

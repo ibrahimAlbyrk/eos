@@ -7031,10 +7031,12 @@ dependencies = [
  "eos-contracts",
  "eos-core",
  "eos-domain",
+ "eos-platform",
  "eos-testkit",
  "eos-update",
  "serde",
  "serde_json",
+ "tempfile",
  "tokio",
  "zstd",
 ]

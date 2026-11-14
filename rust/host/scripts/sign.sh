@@ -7,12 +7,19 @@
 # notarized, nothing is uploaded. A release needs the secure timestamp and notarization;
 # that is a separate, deliberate step.
 #
-#   usage: sign.sh <path to .app> [identity substring, default "Developer ID Application"]
+# `-` as the identity signs ad hoc, the same way: a signature of this build alone, with no
+# identity behind it (what `cargo xtask install` uses when the keychain holds no Developer ID).
+#
+#   usage: sign.sh <path to .app> [identity substring, default "Developer ID Application"; - for ad hoc]
 set -euo pipefail
 HOST_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$1"; WANT="${2:-Developer ID Application}"
-ID="$(security find-identity -v -p codesigning | grep "$WANT" | head -1 | sed -E 's/.*"(.*)"/\1/')"
-[ -n "$ID" ] || { echo "no signing identity matching: $WANT" >&2; exit 1; }
+if [ "$WANT" = "-" ]; then
+  ID="-"
+else
+  ID="$(security find-identity -v -p codesigning | grep "$WANT" | head -1 | sed -E 's/.*"(.*)"/\1/')"
+  [ -n "$ID" ] || { echo "no signing identity matching: $WANT" >&2; exit 1; }
+fi
 ENT="$HOST_DIR/bundle/entitlements.plist"
 FW="$APP/Contents/Frameworks/Chromium Embedded Framework.framework"
 # The identity's hash never reaches the output.

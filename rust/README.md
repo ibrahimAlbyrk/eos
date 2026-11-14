@@ -49,6 +49,45 @@ together, point `EOS_AGENT_SDK` at your engine worktree, run the script again, a
 once the engine change is merged. Only `eos-engine` (sessions) and `eos-auth` (sign-in) depend on
 the engine's crates.
 
+## Build and install from source
+
+```bash
+cargo xtask install                 # build this checkout, install it as /Applications/Eos.app, open it
+cargo xtask install --restore       # put the previous app back (run again to come back)
+```
+
+Run in `rust/`, with the engine linked (`scripts/link-sdk.sh`) and what the host workspace
+needs ("Build, check, run" below). Options: `--no-open`; `--identity <name>` signs with another
+keychain identity, `-` ad hoc; `--dest <Eos.app>` installs elsewhere. `EOS_HOME` names the data
+folder the install belongs to (default `~/.eos`, as for the app).
+
+1. **Build**: `host/scripts/setup.sh`, then `bundle.sh release` with the app's identity
+   (`com.ibrahimalbyrk.eos`) and no update channel, then `sign.sh` with your Developer ID
+   identity; with none in the keychain it signs ad hoc and says so. An ad hoc build opens as
+   usual (a build made on this Mac carries no quarantine flag, so Gatekeeper does not check it),
+   but its signature changes with every build: macOS may ask again for location, local network
+   and keychain access after each install.
+2. **Quit**: the installed app is asked to quit as its Quit menu does (30 s), the TypeScript
+   app's daemon is stopped through launchd (`eos_update::legacy`, the call the app's own first
+   start makes; only on the user's own `~/.eos`), and then nothing may run from the bundle.
+   Nothing is killed: what still runs is listed and nothing is changed. Nothing starts either
+   while an in-app update is being applied (`~/.eos/updates/apply.json`).
+3. **Swap**: the new app is moved beside the installed one (copied when it lies on another
+   volume), then two renames: the installed app aside, the new one in. A failure up to there is
+   undone. The replaced app goes to `~/.eos/updates/previous/Eos.app`, where the in-app updater
+   keeps the app an update replaced: one previous app, whoever replaced it. An interrupted run's
+   leftovers (hidden `.Eos.app.*` beside the app or the kept one) stop the next run until you
+   move them away.
+4. **Open** it, and say what was installed, where the previous app is and how to go back.
+
+`--restore` makes the same checks and trades the installed and the kept app; a restored
+TypeScript app starts its daemon again when it opens.
+
+The installed build is the user's app: a release build that opens `~/.eos` and reaches the
+phone, paired computers, sync and the accounts (`crates/eos-app/src/reach.rs`). It does not
+update itself: it has no `update.json`, so Settings › Updates says "Built from source"; run the
+command again for a newer build.
+
 ## Host workspace
 
 `host/` holds the window shell (Tauri 3 on CEF), the `eos` binary and the CEF helper. It is a
@@ -103,7 +142,7 @@ scripts/bundle.sh release         # Eos.app as it ships, with the five helper ap
 scripts/bundle.sh test            # the same with `dev-run` (the dev guard, the test drivers' hooks)
                                   # → .work/bundle/test/; every test driver below runs this one
 scripts/dev.sh                    # debug bundle with `dev-run` on the private data copy
-scripts/sign.sh <Eos.app>         # local Developer ID signature, --timestamp=none, nothing sent anywhere
+scripts/sign.sh <Eos.app> [-]     # local Developer ID signature (- : ad hoc), --timestamp=none, nothing sent anywhere
 python3 tests/smoke.py <Eos.app>  # launches quietly, 36 checks, quits (never types into a page)
 python3 tests/browser_smoke.py <Eos.app>  # the browser on hidden views, driving a page served from a
                                   # temporary folder; a plugin preview; 28 checks
