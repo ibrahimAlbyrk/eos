@@ -69,7 +69,7 @@ impl BackendCatalog for Nothing {
 }
 
 impl CommandCatalog for Nothing {
-    fn commands<'a>(&'a self, _cwd: Option<&'a Path>) -> BoxFuture<'a, Vec<CommandItem>> {
+    fn commands<'a>(&'a self, _cwd: Option<&'a Path>, _worker: Option<&'a str>) -> BoxFuture<'a, Vec<CommandItem>> {
         Box::pin(std::future::ready(Vec::new()))
     }
 }

@@ -60,9 +60,15 @@ pub trait ModelsApi: Send + Sync + 'static {
 /// The skills and slash commands a user can type in a chat, as the composer's
 /// menu lists them before any session runs: the folder's own, the user's,
 /// the plugins', and (with a folder) the engine's bundled ones. A name given
-/// twice is listed once, the folder's first.
+/// twice is listed once, the folder's first. With a worker whose session is
+/// live, what that session found since it started (the skills of the
+/// folders its agents touched) follows.
 pub trait CommandCatalog: Send + Sync + 'static {
-    fn commands<'a>(&'a self, cwd: Option<&'a Path>) -> crate::BoxFuture<'a, Vec<CommandItem>>;
+    fn commands<'a>(
+        &'a self,
+        cwd: Option<&'a Path>,
+        worker_id: Option<&'a str>,
+    ) -> crate::BoxFuture<'a, Vec<CommandItem>>;
 }
 
 /// The agent backends this build can run sessions on, as the dashboard's

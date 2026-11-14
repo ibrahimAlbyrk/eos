@@ -54,6 +54,13 @@ describe("triggerContext", () => {
     expect(triggerContext("a@b.com", 7, "@")).toBeNull();
   });
 
+  it("keeps a scoped skill's name whole", () => {
+    expect(triggerContext("/apps/web:de", 12, "/")).toEqual({ start: 0, query: "apps/web:de" });
+    expect(triggerContext("run /apps/web:deploy", 20, "/")).toEqual({ start: 4, query: "apps/web:deploy" });
+    expect(triggerContext("@src/a/b", 8, "/")).toBeNull();
+    expect(triggerContext("@node_modules/@types", 20, "@")).toEqual({ start: 0, query: "node_modules/@types" });
+  });
+
   it("only looks before the cursor", () => {
     expect(triggerContext("/co tail", 3, "/")).toEqual({ start: 0, query: "co" });
   });

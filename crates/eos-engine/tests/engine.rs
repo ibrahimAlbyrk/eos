@@ -716,3 +716,75 @@ async fn the_user_stops_one_background_subagent() {
         other => panic!("a second stop: {other:?}"),
     }
 }
+
+/// A subagent started in plan mode: its calls reach Eos's policy with the
+/// mode its chain resolves to (the engine leaves the decision to Eos), and
+/// whether the call only looks.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_subagents_declared_mode_reaches_the_policy() {
+    let mock = MockApi::responder(std::net::SocketAddr::from(([127, 0, 0, 1], 0)), move |body| {
+        let body: Value = serde_json::from_slice(body).unwrap_or_default();
+        let text = body["messages"].to_string();
+        if text.contains("CHILD-START") {
+            if text.contains("tool_result") {
+                return Reply::text("child done");
+            }
+            return Reply::tool_use("toolu_write", "Write", r#"{"file_path":"plan.md","content":"x"}"#);
+        }
+        if text.contains("tool_result") {
+            return Reply::text("parent done");
+        }
+        let input = serde_json::json!({"description": "Plan", "prompt": "CHILD-START", "mode": "plan"});
+        Reply::tool_use("toolu_plan", "Agent", &input.to_string())
+    })
+    .await
+    .expect("the mock API");
+    let bench = Bench::with_mock(tempfile::tempdir().expect("a folder"), mock).await;
+    let spec = LaunchSpec { role: eos_contracts::SessionFactsRole::Focused, ..bench.spec("w-1") };
+    let session = bench.start(spec).await;
+    session.send("PARENT-START".into()).await.expect("sends");
+    let wrote = || bench.policy.asked.lock().expect("asked").iter().any(|c| c.tool_name == "Write");
+    tokio::time::timeout(Duration::from_secs(30), async {
+        while !wrote() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("the child writes");
+
+    let asked = bench.policy.asked.lock().expect("asked");
+    let parent = asked.iter().find(|c| c.tool_name == "Agent").expect("the Agent call");
+    assert_eq!(parent.subagent, None, "the worker's own call is decided in its own mode");
+    let write = asked.iter().find(|c| c.tool_name == "Write").expect("the child's Write");
+    assert!(write.agent_id.is_some());
+    let modes = write.subagent.expect("the child's declared mode");
+    use eos_contracts::PermissionMode::{AcceptEdits, BypassPermissions};
+    use eos_core::policy::AgentMode::Plan;
+    assert_eq!((modes.under(AcceptEdits), modes.under(BypassPermissions)), (Plan, Plan));
+    assert!(!modes.looks_only, "a Write changes something");
+}
+
+/// A file read under a subfolder with skills of its own: the model is told,
+/// the composer's menu lists them for the worker, and the notice stays out
+/// of the chat.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn skills_of_a_touched_subfolder_join_the_workers_commands() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let project = dir.path().join("project");
+    let skill = project.join("apps/web/.claude/skills/deploy/SKILL.md");
+    std::fs::create_dir_all(skill.parent().expect("a parent")).expect("folders");
+    std::fs::write(&skill, "---\ndescription: Deploy the web app\n---\nweb deploy").expect("the skill");
+    std::fs::write(project.join("apps/web/index.ts"), "x").expect("a file");
+    let read = project.canonicalize().expect("the project").join("apps/web/index.ts");
+    let input = serde_json::json!({ "file_path": read }).to_string();
+    let bench = Bench::in_dir(dir, [Reply::tool_use("t1", "Read", &input), Reply::text("done")]).await;
+    let session = bench.start(LaunchSpec { role: eos_contracts::SessionFactsRole::Focused, ..bench.spec("w-1") }).await;
+    assert!(!session.commands().iter().any(|c| c.name == "deploy"), "not before a file there is touched");
+    session.send("go".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+
+    assert!(bench.request_text(1).contains("New skills discovered in apps/web/.claude/skills"));
+    assert!(session.commands().iter().any(|c| c.name == "deploy"), "{:?}", session.commands());
+    let shown = serde_json::to_string(&events).expect("json");
+    assert!(!shown.contains("New skills discovered"), "the notice is the model's, not the chat's");
+}

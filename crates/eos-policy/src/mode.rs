@@ -7,6 +7,7 @@ use eos_contracts::builtin_tools::{
 use eos_contracts::tool_scope::is_browser_tool;
 use eos_contracts::{PermissionMode, UnknownRecord};
 use eos_core::Error;
+use eos_core::policy::AgentMode;
 use eos_core::store::WorkerRepo;
 use serde_json::Value;
 
@@ -122,13 +123,19 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
 /// `acceptEdits` also lets file edits inside the working directories and
 /// browser reads through and leaves edits outside them, the shell, the
 /// network, browser actions and everything else to the policy's default;
-/// `bypassPermissions` ("Full access") lets everything through.
-pub fn mode_verdict(mode: PermissionMode, category: ToolCategory) -> Verdict {
+/// `bypassPermissions` ("Full access") lets everything through. The modes
+/// only a subagent runs in (plan, dontAsk, default) also leave file edits to
+/// the policy; what plan and dontAsk deny besides is [`crate::evaluate`]'s.
+pub fn mode_verdict(mode: AgentMode, category: ToolCategory) -> Verdict {
     use ToolCategory::{BrowserRead, FileEdit, Mcp, PlanFile, Read};
     match mode {
-        PermissionMode::BypassPermissions => Verdict::Allow,
-        PermissionMode::AcceptEdits => match category {
+        AgentMode::FullAccess => Verdict::Allow,
+        AgentMode::AcceptEdits => match category {
             Mcp | Read | PlanFile | BrowserRead | FileEdit => Verdict::Allow,
+            _ => Verdict::Ask,
+        },
+        AgentMode::Default | AgentMode::DontAsk | AgentMode::Plan => match category {
+            Mcp | Read | PlanFile | BrowserRead => Verdict::Allow,
             _ => Verdict::Ask,
         },
     }
@@ -232,7 +239,7 @@ mod tests {
 
     #[test]
     fn what_each_mode_lets_through() {
-        use PermissionMode::{AcceptEdits, BypassPermissions};
+        use AgentMode::{AcceptEdits, Default, DontAsk, FullAccess, Plan};
         use ToolCategory::{
             BrowserRead, BrowserWrite, FileEdit, FileEditOutside, Mcp, Network, Other, PlanFile, Read, Shell,
         };
@@ -241,7 +248,16 @@ mod tests {
         }
         for category in [Shell, Network, BrowserWrite, Other, FileEditOutside] {
             assert_eq!(mode_verdict(AcceptEdits, category), Verdict::Ask);
-            assert_eq!(mode_verdict(BypassPermissions, category), Verdict::Allow);
+            assert_eq!(mode_verdict(FullAccess, category), Verdict::Allow);
+        }
+        // The narrower modes let through a subset of what accept edits does.
+        for mode in [Default, DontAsk, Plan] {
+            for category in [Mcp, Read, PlanFile, BrowserRead] {
+                assert_eq!(mode_verdict(mode, category), Verdict::Allow);
+            }
+            for category in [FileEdit, FileEditOutside, Shell, Network, BrowserWrite, Other] {
+                assert_eq!(mode_verdict(mode, category), Verdict::Ask);
+            }
         }
     }
 }

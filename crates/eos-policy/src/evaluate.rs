@@ -7,18 +7,23 @@
 //! 3. the worker definition's tool scope may deny (deny list, allow list,
 //!    `editRegex` on file edits) and never allows — Eos's control tools are
 //!    outside it, except the browser verbs;
-//! 4. a `policy.yaml` rule that matches the call decides;
-//! 5. the worker's permission mode allows by kind of tool (a file edit that
-//!    writes outside the working directories is a kind of its own);
-//! 6. the policy's default.
+//! 4. a subagent in plan mode may only look: a call that would change
+//!    something is denied;
+//! 5. a `policy.yaml` rule that matches the call decides;
+//! 6. the call's mode (the worker's, or a subagent's narrower one) allows by
+//!    kind of tool (a file edit that writes outside the working directories
+//!    is a kind of its own);
+//! 7. the policy's default.
 //!
-//! Rungs 1–3 sit above the user's rules so neither a broad allow nor full
-//! access can undo them.
+//! Rungs 1–4 sit above the user's rules so neither a broad allow nor full
+//! access can undo them. In dontAsk mode (a subagent's), what rungs 5–7
+//! leave to the user is denied instead.
 
 use eos_contracts::tool_scope::{
     blocked_builtin_tool_message, is_blocked_builtin_tool, is_browser_tool, is_eos_control_tool,
 };
-use eos_contracts::{AllowVariant, Decision, DenyVariant, PermissionMode, ToolScope, UnknownRecord};
+use eos_contracts::{AllowVariant, Decision, DenyVariant, ToolScope, UnknownRecord};
+use eos_core::policy::AgentMode;
 use serde_json::Value;
 
 use crate::glob::matches_any;
@@ -35,8 +40,11 @@ pub struct Call<'a> {
     pub agent_id: Option<&'a str>,
     /// A focused session.
     pub full_surface: bool,
-    /// The mode in force for the worker.
-    pub mode: PermissionMode,
+    /// The mode the call is decided in: the worker's, or a subagent's
+    /// narrower one.
+    pub mode: AgentMode,
+    /// The call only looks (decides it in plan mode); the engine says so.
+    pub looks_only: bool,
     /// The tool scope the worker was started with.
     pub scope: Option<&'a ToolScope>,
     /// The plans folder (`~/.claude/plans`): edits inside it pass in every mode.
@@ -89,6 +97,23 @@ pub fn evaluate(policy: &Policy, call: &Call<'_>) -> Decision {
     {
         return deny(message);
     }
+    if call.mode == AgentMode::Plan && !call.looks_only {
+        return deny(format!(
+            "Permission denied: this agent runs in plan mode, so it may read and research but not change anything ({tool} was not run)."
+        ));
+    }
+    let decision = decide(policy, call);
+    if call.mode == AgentMode::DontAsk && matches!(decision, Decision::Ask) {
+        return deny(format!(
+            "Permission denied: this agent runs in dontAsk mode, so {tool} — which needs approval — was not run."
+        ));
+    }
+    decision
+}
+
+/// Rungs 5–7.
+fn decide(policy: &Policy, call: &Call<'_>) -> Decision {
+    let tool = call.tool_name;
     if policy.has_rule_for(tool, call.input) {
         return evaluate_policy(policy, tool, call.input);
     }
@@ -109,19 +134,27 @@ mod tests {
 
     use super::*;
     use crate::load::load_policy;
+    use eos_contracts::PermissionMode;
 
     fn policy(document: Value) -> Policy {
         load_policy(PolicyDocument::Parsed { source: "test".into(), value: document }, 0)
     }
 
-    fn decide(policy: &Policy, mode: PermissionMode, tool: &str, path: &str, writes_outside: bool) -> &'static str {
+    fn decide(
+        policy: &Policy,
+        mode: impl Into<AgentMode>,
+        tool: &str,
+        path: &str,
+        writes_outside: bool,
+    ) -> &'static str {
         let input: UnknownRecord = serde_json::from_value(json!({ "file_path": path })).expect("an object");
         let call = Call {
             tool_name: tool,
             input: &input,
             agent_id: None,
             full_surface: false,
-            mode,
+            mode: mode.into(),
+            looks_only: false,
             scope: None,
             plans_dir: Some("/home/u/.claude/plans"),
             writes_outside,
@@ -162,5 +195,58 @@ mod tests {
         // An "always allow" rule for the tool allows its writes anywhere.
         assert_eq!(decide(&rules, mode, "Edit", "/elsewhere/a.txt", true), "allow");
         assert_eq!(decide(&rules, PermissionMode::BypassPermissions, "Edit", "/work/secret/a.txt", false), "deny");
+    }
+
+    fn subagent(policy: &Policy, mode: AgentMode, looks_only: bool, tool: &str) -> &'static str {
+        let input: UnknownRecord =
+            serde_json::from_value(json!({ "file_path": "/work/a.txt", "command": "ls" })).expect("an object");
+        let call = Call {
+            tool_name: tool,
+            input: &input,
+            agent_id: Some("a1"),
+            full_surface: false,
+            mode,
+            looks_only,
+            scope: None,
+            plans_dir: Some("/home/u/.claude/plans"),
+            writes_outside: false,
+        };
+        match evaluate(policy, &call) {
+            Decision::Allow(_) => "allow",
+            Decision::Deny(_) => "deny",
+            Decision::Ask => "ask",
+        }
+    }
+
+    #[test]
+    fn plan_denies_what_changes_above_the_users_rules() {
+        let allows = policy(json!({"default": "allow", "rules": [{"tool": "Write", "action": "allow"}]}));
+        assert_eq!(subagent(&allows, AgentMode::Plan, false, "Write"), "deny");
+        assert_eq!(subagent(&allows, AgentMode::Plan, false, "Bash"), "deny");
+        assert_eq!(subagent(&allows, AgentMode::Plan, true, "Read"), "allow");
+        // A read-only command still goes by the policy, as in default mode.
+        let asks = policy(json!({"default": "ask", "rules": []}));
+        assert_eq!(subagent(&asks, AgentMode::Plan, true, "Bash"), "ask");
+    }
+
+    #[test]
+    fn dont_ask_denies_what_would_be_asked() {
+        let asks = policy(json!({"default": "ask", "rules": [
+            {"tool": "Bash", "action": "allow"},
+            {"tool": "WebFetch", "action": "ask"},
+        ]}));
+        assert_eq!(subagent(&asks, AgentMode::DontAsk, false, "Edit"), "deny");
+        assert_eq!(subagent(&asks, AgentMode::DontAsk, false, "WebFetch"), "deny");
+        assert_eq!(subagent(&asks, AgentMode::DontAsk, false, "Bash"), "allow", "a pre-approved tool runs");
+        assert_eq!(subagent(&asks, AgentMode::DontAsk, true, "Read"), "allow");
+    }
+
+    #[test]
+    fn default_asks_for_file_edits() {
+        let asks = policy(json!({"default": "ask", "rules": []}));
+        assert_eq!(subagent(&asks, AgentMode::Default, false, "Edit"), "ask");
+        assert_eq!(subagent(&asks, AgentMode::Default, true, "Read"), "allow");
+        assert_eq!(subagent(&asks, AgentMode::AcceptEdits, false, "Edit"), "allow");
+        assert_eq!(subagent(&asks, AgentMode::FullAccess, false, "Bash"), "allow");
     }
 }

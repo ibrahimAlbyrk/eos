@@ -134,10 +134,10 @@ export function Composer({ live, worker, paneId, focused }) {
   }, [focused, toggleGitMode, ui.registerGitModeToggle]);
 
   const cwd = selected?.cwd ?? composerCwd(ui.composer, live.recents);
-  const commands = useCommands(cwd);
+  const commands = useCommands(cwd, selected?.id ?? null, selected?.state ?? null);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
-  const slashItems = useSlashItems(cwd);
+  const slashItems = useSlashItems(cwd, selected?.id ?? null, selected?.state ?? null);
   // Pill highlighting + click-info lookup span the full slash universe
   // (builtins/templates included), unlike cmdMap (daemon commands only,
   // drives argument hints and token deletion).

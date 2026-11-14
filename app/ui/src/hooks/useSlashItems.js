@@ -15,8 +15,8 @@ export const BUILTIN_COMMANDS = [
 // Shared by the composer menu/pills and the message-bubble pill rule so both
 // surfaces recognize the same names. Same name allowed across sources — the
 // "(template)" / "(skill)" source tag disambiguates.
-export function useSlashItems(cwd) {
-  const commands = useCommands(cwd);
+export function useSlashItems(cwd, workerId = null, workerState = null) {
+  const commands = useCommands(cwd, workerId, workerState);
   const templates = useTemplates();
   return useMemo(() => [
     ...BUILTIN_COMMANDS,

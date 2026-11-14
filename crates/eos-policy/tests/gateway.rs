@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use eos_contracts::{ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType};
 use eos_core::Error;
-use eos_core::policy::{DecisionCounter, DecisionCounts, PolicyDecider, ToolCall};
+use eos_core::policy::{AgentMode, DecisionCounter, DecisionCounts, PolicyDecider, SubagentModes, ToolCall};
 use eos_policy::{Answer, GatewayOptions, PolicyGateway};
 use eos_testkit::{FakeClock, FakePolicyFile, SeqIds, TempStore};
 use serde_json::{Value, json};
@@ -326,4 +326,34 @@ async fn reads_outside_the_project_are_decided_by_mode_and_rules_on_their_absolu
         f.gateway.decide(call("Grep", json!({"pattern": "x", "path": "/Users/me/.ssh"}))).await.expect("decides");
     assert_eq!(behavior(&search), "deny");
     assert_eq!(f.gateway.waiting(), 0, "nothing asked the user");
+}
+
+/// A subagent's call is decided in the mode its chain resolves to under the
+/// worker's mode at the time, never wider than the worker's.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_subagent_runs_in_its_declared_mode_within_the_workers() {
+    let f = fixture("acceptEdits", json!({"default": "deny", "rules": []}));
+    let sub = |tool: &str, modes: SubagentModes| ToolCall {
+        agent_id: Some("a1".into()),
+        subagent: Some(modes),
+        ..call(tool, json!({"file_path": "/work/a.txt", "command": "ls"}))
+    };
+    let wide =
+        SubagentModes { accept_edits: AgentMode::FullAccess, full_access: AgentMode::FullAccess, looks_only: false };
+    // Full access asked for under accept edits: still accept edits.
+    let bash = f.gateway.decide(sub("Bash", wide)).await.expect("decides");
+    assert_eq!(behavior(&bash), "deny");
+    let edit = f.gateway.decide(sub("Edit", wide)).await.expect("decides");
+    assert_eq!(behavior(&edit), "allow");
+
+    let plan = SubagentModes { accept_edits: AgentMode::Plan, full_access: AgentMode::Plan, looks_only: false };
+    f.temp.exec("UPDATE workers SET permission_mode = 'bypassPermissions' WHERE id = 'w1'");
+    let denied = f.gateway.decide(sub("Edit", plan)).await.expect("decides");
+    assert_eq!(behavior(&denied), "deny");
+    assert!(message(&denied).contains("plan mode"), "{}", message(&denied));
+    let read = f.gateway.decide(sub("Read", SubagentModes { looks_only: true, ..plan })).await.expect("decides");
+    assert_eq!(behavior(&read), "allow");
+    // Under full access a chain may run in full access.
+    let full = f.gateway.decide(sub("Bash", wide)).await.expect("decides");
+    assert_eq!(behavior(&full), "allow");
 }

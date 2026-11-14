@@ -6,9 +6,14 @@ use serde::{Deserialize, Serialize};
 use crate::validate::Validate;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct CommandsQuery {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+    /// A worker whose live session found more (skills of the folders its
+    /// agents touched): those are listed too.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worker_id: Option<String>,
 }
 
 impl Validate for CommandsQuery {}

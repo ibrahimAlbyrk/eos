@@ -51,6 +51,15 @@ pub(crate) fn folder_commands(paths: &ClaudePaths, plugin_dirs: &[PathBuf], cwd:
         .collect()
 }
 
+/// The folder's list, then what a live session lists beyond it: the skills
+/// it found under the folders its agents touched (a scoped one by its
+/// prefixed name, `apps/web:deploy`) and path skills it activated.
+pub(crate) fn with_session_commands(mut listed: Vec<CommandItem>, session: Vec<CommandItem>) -> Vec<CommandItem> {
+    let mut seen: HashSet<String> = listed.iter().map(|c| c.name.to_lowercase()).collect();
+    listed.extend(session.into_iter().filter(|c| seen.insert(c.name.to_lowercase())));
+    listed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -86,5 +95,23 @@ mod tests {
         let in_folder = folder_commands(&paths, &[], Some(&project));
         assert_eq!(in_folder.iter().filter(|c| c.name == "shared").count(), 1, "listed once");
         assert_eq!((in_folder[0].name.as_str(), in_folder[0].source), ("build", CommandItemSource::Project));
+    }
+
+    #[test]
+    fn a_live_session_adds_what_it_found_after_the_folders_own() {
+        let item = |name: &str, source| CommandItem {
+            name: name.into(),
+            description: String::new(),
+            source,
+            argument_hint: None,
+        };
+        let folder = vec![item("deploy", CommandItemSource::Project), item("review", CommandItemSource::Skill)];
+        let session = vec![
+            item("Deploy", CommandItemSource::Skill),
+            item("apps/web:deploy", CommandItemSource::Skill),
+            item("lint", CommandItemSource::Skill),
+        ];
+        let names: Vec<String> = with_session_commands(folder, session).into_iter().map(|c| c.name).collect();
+        assert_eq!(names, ["deploy", "review", "apps/web:deploy", "lint"]);
     }
 }

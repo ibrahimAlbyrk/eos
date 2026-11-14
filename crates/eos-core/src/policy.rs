@@ -1,7 +1,7 @@
 //! Ports for permission decisions: the gate every tool call passes, and the
 //! policy file behind it.
 
-use eos_contracts::{ExternalDecision, UnknownRecord};
+use eos_contracts::{ExternalDecision, PermissionMode, UnknownRecord};
 use serde_json::Value;
 
 use crate::{BoxFuture, Error};
@@ -22,6 +22,56 @@ pub struct ToolCall {
     /// A file tool would write outside the agent's working directories (its
     /// folder and the folders added to it). Paths in `input` are absolute.
     pub writes_outside: bool,
+    /// For a subagent whose chain declares permission modes: the mode its
+    /// calls are decided in. `None`: the worker's mode.
+    pub subagent: Option<SubagentModes>,
+}
+
+/// The mode one call is decided in. A worker runs in accept edits or full
+/// access; a subagent may run narrower (see [`SubagentModes`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AgentMode {
+    /// Looks only: every call that would change something is denied.
+    Plan,
+    /// What would be asked is denied instead.
+    DontAsk,
+    /// Reads pass; file edits are asked, as everything else.
+    Default,
+    AcceptEdits,
+    FullAccess,
+}
+
+impl From<PermissionMode> for AgentMode {
+    fn from(mode: PermissionMode) -> Self {
+        match mode {
+            PermissionMode::AcceptEdits => Self::AcceptEdits,
+            PermissionMode::BypassPermissions => Self::FullAccess,
+        }
+    }
+}
+
+/// What the permission modes a subagent's chain declares resolve to, for
+/// each mode its worker may be in when the call is decided (the user can
+/// switch it meanwhile).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SubagentModes {
+    /// The mode under a worker in accept edits.
+    pub accept_edits: AgentMode,
+    /// The mode under a worker in full access.
+    pub full_access: AgentMode,
+    /// The call only looks (what a plan-mode agent may still do).
+    pub looks_only: bool,
+}
+
+impl SubagentModes {
+    /// The mode under a worker in `worker`: never wider than the worker's.
+    pub fn under(&self, worker: PermissionMode) -> AgentMode {
+        let resolved = match worker {
+            PermissionMode::AcceptEdits => self.accept_edits,
+            PermissionMode::BypassPermissions => self.full_access,
+        };
+        resolved.min(AgentMode::from(worker))
+    }
 }
 
 impl ToolCall {
@@ -34,6 +84,7 @@ impl ToolCall {
             agent_id: None,
             full_surface: false,
             writes_outside: false,
+            subagent: None,
         }
     }
 }

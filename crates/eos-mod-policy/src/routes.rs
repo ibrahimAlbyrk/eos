@@ -31,6 +31,7 @@ fn decide(gateway: Arc<PolicyGateway>) -> RouteDef {
                     agent_id: body.agent_id.flatten(),
                     full_surface: false,
                     writes_outside: false,
+                    subagent: None,
                 })
                 .await?;
             Ok(Response::json(200, &decision))

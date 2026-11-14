@@ -23,7 +23,7 @@ use eos_core::{BoxFuture, Clock, Error};
 use tokio::sync::mpsc;
 
 use crate::accounts::{Accounts, Failover, NotSignedIn};
-use crate::commands::folder_commands;
+use crate::commands::{folder_commands, with_session_commands};
 use crate::gate::EosGate;
 use crate::prompter::Prompter;
 use crate::registry::Registry;
@@ -505,21 +505,32 @@ impl OneShot for LazyEngine {
     }
 }
 
+impl LazyEngine {
+    /// The folder's commands. Read from the engine's configuration: listing
+    /// never builds the engine.
+    async fn folder(&self, cwd: Option<&Path>) -> Vec<CommandItem> {
+        let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        let Some((options, _)) = setup else { return Vec::new() };
+        let Some(paths) = options.claude_home.as_deref().map(ClaudePaths::for_home).or_else(ClaudePaths::from_env)
+        else {
+            return Vec::new();
+        };
+        let cwd = cwd.map(Path::to_path_buf);
+        let listed =
+            tokio::task::spawn_blocking(move || folder_commands(&paths, &options.plugin_dirs, cwd.as_deref())).await;
+        listed.unwrap_or_default()
+    }
+}
+
 impl CommandCatalog for LazyEngine {
-    fn commands<'a>(&'a self, cwd: Option<&'a Path>) -> BoxFuture<'a, Vec<CommandItem>> {
+    fn commands<'a>(&'a self, cwd: Option<&'a Path>, worker_id: Option<&'a str>) -> BoxFuture<'a, Vec<CommandItem>> {
         Box::pin(async move {
-            // Read from the engine's configuration: listing never builds the engine.
-            let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-            let Some((options, _)) = setup else { return Vec::new() };
-            let Some(paths) = options.claude_home.as_deref().map(ClaudePaths::for_home).or_else(ClaudePaths::from_env)
-            else {
-                return Vec::new();
-            };
-            let cwd = cwd.map(Path::to_path_buf);
-            let listed =
-                tokio::task::spawn_blocking(move || folder_commands(&paths, &options.plugin_dirs, cwd.as_deref()))
-                    .await;
-            listed.unwrap_or_default()
+            let mut listed = self.folder(cwd).await;
+            // What the live session found since (a subfolder's skills, `apps/web:deploy`).
+            if let Some(session) = worker_id.and_then(|id| self.session(id)) {
+                listed = with_session_commands(listed, session.commands());
+            }
+            listed
         })
     }
 }

@@ -203,8 +203,9 @@ impl Module for SystemModule {
         let commands = move |req: Request| {
             let catalog = catalog.clone();
             let cwd = req.query().get("cwd").map(|c| c.into_owned()).filter(|c| !c.is_empty());
+            let worker = req.query().get("workerId").map(|w| w.into_owned()).filter(|w| !w.is_empty());
             async move {
-                let commands = catalog.commands(cwd.as_deref().map(std::path::Path::new)).await;
+                let commands = catalog.commands(cwd.as_deref().map(std::path::Path::new), worker.as_deref()).await;
                 Ok(Response::json(200, &json!({"commands": commands})))
             }
         };

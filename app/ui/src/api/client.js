@@ -789,8 +789,12 @@ export const api = {
     }
   },
 
-  async listCommands(cwd) {
-    const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+  // With a worker, its live session's finds too (skills of the folders its agents touched).
+  async listCommands(cwd, workerId) {
+    const query = new URLSearchParams();
+    if (cwd) query.set("cwd", cwd);
+    if (workerId) query.set("workerId", workerId);
+    const params = query.size ? `?${query}` : "";
     const r = await getJson(`${ROUTES.commands}${params}`);
     if (!r.ok) throw new Error(`listCommands → ${r.status}`);
     return r.body;
