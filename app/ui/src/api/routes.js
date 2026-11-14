@@ -32,6 +32,8 @@ export const ROUTES = {
   // that rebuild one of them when its detail opens, and every artifact.
   workerSubagents: (id) => `/workers/${id}/subagents`,
   workerSubagentRows: (id, callId) => `/workers/${id}/subagents/${callId}/events`,
+  // Stops one subagent of the chat, by any of its runs' call ids.
+  workerSubagentStop: (id, callId) => `/workers/${id}/subagents/${callId}/stop`,
   workerArtifacts: (id) => `/workers/${id}/artifacts`,
   // Claude Code Workflow runs (eos-contracts `workflow_run.rs`).
   workerWorkflowRuns: (id) => `/workers/${id}/workflow-runs`,

@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { AgentName } from "../../../lib/agentName.js";
 import { modDown, shortcutLabel } from "../../../lib/platform.js";
+import { permissionTarget } from "../../../lib/permissionTarget.js";
 
 function parseInput(raw) {
   if (!raw) return {};
@@ -33,7 +34,7 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
   if (!current) return null;
 
   const worker = workers.find((w) => w.id === current.worker_id);
-  const detail = input.command ?? input.file_path ?? input.path ?? input.query ?? input.regex ?? "";
+  const { detail, outside } = permissionTarget(current.tool_name, input, worker);
   const stacked = Math.min(total - 1, 2);
 
   const handle = async (fn) => {
@@ -54,7 +55,7 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
               Allow <strong>{worker ? <AgentName worker={worker} /> : current.worker_id}</strong> to run <strong>{current.tool_name}</strong>?
             </span>
             {total > 1 && <span className="perm-count">{total} pending</span>}
-            <span className="perm-scope">project (local)</span>
+            <span className="perm-scope">{outside ? "outside this chat's folder" : "project (local)"}</span>
           </div>
           {detail && <pre className="perm-detail">{detail}</pre>}
           <div className="perm-actions">

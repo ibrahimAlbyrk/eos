@@ -28,6 +28,7 @@ impl PermissionGate for EosGate {
                 input,
                 tool_use_id: Some(call.id.to_owned()),
                 agent_id: call.origin.map(|_| call.agent_id.to_owned()),
+                writes_outside: call.writes_outside(),
             };
             match self.policy.decide(ask).await {
                 Ok(ExternalDecision::Allow(allow)) => {

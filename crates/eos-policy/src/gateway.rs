@@ -158,6 +158,7 @@ impl PolicyGateway {
                 mode: permissions.mode,
                 scope: permissions.scope.as_ref(),
                 plans_dir: self.plans_dir.as_deref(),
+                writes_outside: call.writes_outside,
             },
         );
         let now = self.clock.now_ms();

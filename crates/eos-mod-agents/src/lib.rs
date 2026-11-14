@@ -5,6 +5,8 @@
 //! reads the request, calls the use-case and answers in today's shape. The
 //! read side of the same routes is `eos-mod-workers`.
 //!
+//! Stopping one subagent of a chat is `subagents`.
+//!
 //! The routes over a worker's folder (diff, changes, push, pull, Try,
 //! conflicts, integrating an orchestrator's workers) are in `git`.
 //!
@@ -20,6 +22,7 @@ mod git;
 mod nudge;
 mod routes;
 mod spawn;
+mod subagents;
 mod tool_control;
 mod watch;
 
@@ -136,6 +139,7 @@ impl Module for AgentsModule {
         all.extend(collab::all(self));
         all.extend(nudge::all(self));
         all.extend(git::all(self));
+        all.extend(subagents::all(self));
         all
     }
 

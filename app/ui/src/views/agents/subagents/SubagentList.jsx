@@ -3,10 +3,11 @@ import { splitByStatus } from "../../../lib/subagentRuns.js";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 import { SubagentsIcon } from "./SubagentsIcon.jsx";
 import { SubagentMeta, subagentActivity } from "./SubagentStatus.jsx";
+import { SubagentStop } from "./SubagentStop.jsx";
 
 // The Subagents tab's main view: every subagent of this agent, active ones on
 // top with what they're doing, finished ones below, most recent first.
-export function SubagentList({ runs, now, onOpen }) {
+export function SubagentList({ workerId, runs, now, onOpen }) {
   if (runs.length === 0) {
     return (
       <div className="empty-state">
@@ -22,9 +23,12 @@ export function SubagentList({ runs, now, onOpen }) {
       <div className="sa-list__head">Active · {active.length}</div>
       {active.length === 0 && <div className="sa-list__none">No active subagents</div>}
       {active.map((r) => (
-        <SubagentRow key={r.toolUseId} run={r} now={now} onOpen={onOpen}>
-          <span className="sa-activity ti-sheen-host">{subagentActivity(r)}<Sheen>{subagentActivity(r)}</Sheen></span>
-        </SubagentRow>
+        <div key={r.toolUseId} className="sa-item">
+          <SubagentRow run={r} now={now} onOpen={onOpen}>
+            <span className="sa-activity ti-sheen-host">{subagentActivity(r)}<Sheen>{subagentActivity(r)}</Sheen></span>
+          </SubagentRow>
+          <SubagentStop workerId={workerId} run={r} />
+        </div>
       ))}
       {done.length > 0 && <div className="sa-list__head">Done · {done.length}</div>}
       {done.map((r) => <SubagentRow key={r.toolUseId} run={r} now={now} onOpen={onOpen} />)}

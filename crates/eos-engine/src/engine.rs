@@ -59,6 +59,9 @@ pub struct EngineOptions {
     pub mcp: bool,
     /// Plugin folders every session loads (Eos's own skills).
     pub plugin_dirs: Vec<PathBuf>,
+    /// Paths no file tool writes, whatever the policy allows (the app's own
+    /// state); the engine's folder is always one.
+    pub protected: Vec<PathBuf>,
 }
 
 impl EngineOptions {
@@ -70,6 +73,7 @@ impl EngineOptions {
             claude_home: None,
             mcp: true,
             plugin_dirs: Vec::new(),
+            protected: Vec::new(),
         }
     }
 }
@@ -174,6 +178,11 @@ impl Engine {
             .store(Arc::new(store.clone()) as Arc<dyn TranscriptStore>)
             .data_dir(options.dir.join("data"))
             .workflow_dir(options.dir.join("workflows"));
+        // Transcripts, scratch and workflow runs: the engine's, never a tool's to write.
+        builder = builder.protect_from_writes(options.dir.clone());
+        for path in &options.protected {
+            builder = builder.protect_from_writes(path.clone());
+        }
         if let Some(model) = &options.default_model {
             builder = builder.model(model.clone());
         }

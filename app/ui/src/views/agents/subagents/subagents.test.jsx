@@ -177,3 +177,27 @@ describe("SubagentDetail", () => {
     expect(html).not.toContain("6000.0.23f1");
   });
 });
+
+describe("Stopping a subagent", () => {
+  const background = (over) => ({ ...summaryOf("files"), background: true, ...over });
+
+  it("offers Stop on a working background subagent in the list and its detail", () => {
+    const list = render(<SubagentList workerId="w1" runs={[background(), summaryOf("git")]} now={NOW} onOpen={() => {}} />);
+    expect(list.match(/class="jb-btn is-danger sa-stop"/g)).toHaveLength(1);
+    expect(text(list)).toContain("Stop");
+    const detail = render(<SubagentDetail workerId="w1" run={background()} now={NOW} cwd="/p" workers={[]} onBack={() => {}} />);
+    expect(detail).toContain("sa-stop");
+  });
+
+  it("offers none for a finished, a foreground or a workflow's agent", () => {
+    const html = render(
+      <SubagentList
+        workerId="w1"
+        runs={[summaryOf("files"), background({ toolUseId: "wf", subagentType: "workflow-subagent" }), { ...summaryOf("unity"), background: true }]}
+        now={NOW}
+        onOpen={() => {}}
+      />,
+    );
+    expect(html).not.toContain("sa-stop");
+  });
+});

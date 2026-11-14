@@ -610,3 +610,54 @@ async fn what_happens_around_agents_without_anybody_asking() {
     bench.runtime.idle.run(&id).await;
     assert_eq!(bench.state(&id).await.as_deref(), Some("SUSPENDED"));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn one_subagent_is_stopped_by_the_call_that_started_it() {
+    let bench = Bench::new(TempStore::new());
+    bench.agents.script(Turn::reply("on it"));
+    let created =
+        bench.post("/orchestrators", json!({"mode": "focused", "cwd": "/sandbox/alpha", "prompt": "go"})).await;
+    assert_eq!(created.0, 201);
+    bench.agents.settled().await;
+    let w = "w-00000001";
+    let started = |call: &str, agent: &str| {
+        json!({"type": "subagent_started", "callId": call, "agentId": agent, "background": true}).to_string()
+    };
+    let rows = [started("toolu_scout", "a-scout"), started("toolu_done", "a-done"), started("toolu_again", "a-scout")];
+    bench
+        .temp
+        .store
+        .write_blocking(move |tx, _| {
+            for row in &rows {
+                tx.events().append(w, 2, eos_contracts::WorkerEventType::AgentEvent, Some(row))?;
+            }
+            Ok(())
+        })
+        .expect("writes");
+    bench.agents.end_task("a-done");
+
+    let stopped = bench.post(&format!("/workers/{w}/subagents/toolu_scout/stop"), json!({})).await;
+    assert_eq!(stopped, (200, json!({"ok": true, "agentId": "a-scout"})));
+    // A later run of the same subagent names it too.
+    let again = bench.post(&format!("/workers/{w}/subagents/toolu_again/stop"), json!({})).await;
+    assert_eq!(again.1["agentId"], "a-scout");
+    let ended = bench.post(&format!("/workers/{w}/subagents/toolu_done/stop"), json!({})).await;
+    assert_eq!(ended.0, 409);
+    assert_eq!(ended.1["code"], "subagent_ended");
+    let unknown = bench.post(&format!("/workers/{w}/subagents/toolu_nobody/stop"), json!({})).await;
+    assert_eq!(unknown.0, 404);
+    let stops: Vec<String> = bench
+        .agents
+        .calls()
+        .into_iter()
+        .filter_map(|call| match call {
+            eos_testkit::agent::Call::StopTask { worker_id, task_id } if worker_id == w => Some(task_id),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(stops, ["a-scout", "a-scout", "a-done"]);
+
+    // Only the user's own dashboard may stop one.
+    let phone = Request::new(Method::Post, &format!("/workers/{w}/subagents/toolu_scout/stop"), Caller::UNTRUSTED);
+    assert_eq!(bench.runtime.router.handle(phone).await.status, 403);
+}

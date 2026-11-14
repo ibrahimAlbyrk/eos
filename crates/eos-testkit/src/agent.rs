@@ -207,6 +207,8 @@ struct Shared {
     /// The next start waits here before it does anything.
     start_hold: Mutex<Option<Arc<Notify>>>,
     forgotten: Mutex<Vec<String>>,
+    /// Task ids `stop_task` answers as already ended.
+    ended_tasks: Mutex<Vec<String>>,
     /// Turns started and not yet ended.
     running: watch::Sender<usize>,
 }
@@ -286,6 +288,7 @@ impl ScriptedRuntime {
             start_error: Mutex::default(),
             start_hold: Mutex::default(),
             forgotten: Mutex::default(),
+            ended_tasks: Mutex::default(),
             running: watch::Sender::new(0),
         }))
     }
@@ -293,6 +296,11 @@ impl ScriptedRuntime {
     /// As the port: what features hold.
     pub fn port(&self) -> Arc<dyn AgentRuntime> {
         Arc::new(self.clone())
+    }
+
+    /// `stop_task` answers `task_id` as a task that has already ended.
+    pub fn end_task(&self, task_id: &str) {
+        self.0.ended_tasks.lock().expect("ended").push(task_id.to_owned());
     }
 
     /// The next message (to any session) plays `turn`.
@@ -633,6 +641,9 @@ impl AgentSession for ScriptedSession {
         Box::pin(async move {
             self.gone()?;
             self.shared.record(Call::StopTask { worker_id: self.worker_id.clone(), task_id: task_id.to_owned() });
+            if self.shared.ended_tasks.lock().expect("ended").iter().any(|t| t == task_id) {
+                return Err(SessionError::TaskEnded(format!("Task {task_id} is not running (status: killed)")));
+            }
             Ok(())
         })
     }

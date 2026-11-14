@@ -312,6 +312,10 @@ export const api = {
   async stopWorkflowRun(workerId, callId) {
     return postJson(ROUTES.workerWorkflowRunStop(workerId, callId), {}, uiTokenHeader());
   },
+  // Stops one background subagent by a call that started one of its runs.
+  async stopSubagent(workerId, callId) {
+    return postJson(ROUTES.workerSubagentStop(workerId, callId), {}, uiTokenHeader());
+  },
   // The /btw side question; aborting `signal` cancels the answer.
   async askSideQuestion(workerId, question, { signal } = {}) {
     return fetchJson(`${DAEMON}${ROUTES.workerSideQuestion(workerId)}`, {

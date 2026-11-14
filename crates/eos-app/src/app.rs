@@ -399,7 +399,7 @@ impl App {
         let model_list = Arc::new(ClaudeModels::new(credentials.clone(), reach.account_reads(stores.clone())));
         let models = Arc::new(CachedModelCatalog::live(&paths.join("models.json"), model_list, clock.clone()));
         let engine = agent::engine(
-            &paths.join("engine"),
+            &paths,
             &agents,
             EngineDeps {
                 policy: policy.clone(),

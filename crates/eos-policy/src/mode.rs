@@ -15,6 +15,9 @@ use serde_json::Value;
 pub enum ToolCategory {
     /// Edit, Write, MultiEdit, NotebookEdit.
     FileEdit,
+    /// A file edit that writes outside the agent's working directories: the
+    /// engine says so per call, `classify_tool` never returns it.
+    FileEditOutside,
     /// A file edit inside the plans folder: writing the plan is the planning.
     PlanFile,
     Shell,
@@ -116,9 +119,10 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
 }
 
 /// A mode's verdict. Reads, MCP tools and the plan file pass in every mode.
-/// `acceptEdits` also lets file edits and browser reads through and leaves
-/// the shell, the network, browser actions and everything else to the
-/// policy's default; `bypassPermissions` ("Full access") lets everything through.
+/// `acceptEdits` also lets file edits inside the working directories and
+/// browser reads through and leaves edits outside them, the shell, the
+/// network, browser actions and everything else to the policy's default;
+/// `bypassPermissions` ("Full access") lets everything through.
 pub fn mode_verdict(mode: PermissionMode, category: ToolCategory) -> Verdict {
     use ToolCategory::{BrowserRead, FileEdit, Mcp, PlanFile, Read};
     match mode {
@@ -229,11 +233,13 @@ mod tests {
     #[test]
     fn what_each_mode_lets_through() {
         use PermissionMode::{AcceptEdits, BypassPermissions};
-        use ToolCategory::{BrowserRead, BrowserWrite, FileEdit, Mcp, Network, Other, PlanFile, Read, Shell};
+        use ToolCategory::{
+            BrowserRead, BrowserWrite, FileEdit, FileEditOutside, Mcp, Network, Other, PlanFile, Read, Shell,
+        };
         for category in [Mcp, Read, PlanFile, BrowserRead, FileEdit] {
             assert_eq!(mode_verdict(AcceptEdits, category), Verdict::Allow);
         }
-        for category in [Shell, Network, BrowserWrite, Other] {
+        for category in [Shell, Network, BrowserWrite, Other, FileEditOutside] {
             assert_eq!(mode_verdict(AcceptEdits, category), Verdict::Ask);
             assert_eq!(mode_verdict(BypassPermissions, category), Verdict::Allow);
         }

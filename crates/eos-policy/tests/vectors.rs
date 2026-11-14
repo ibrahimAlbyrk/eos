@@ -104,6 +104,7 @@ fn every_decision_equals_typescripts() {
             mode: modes[m],
             scope: corpus.scopes[s].as_ref(),
             plans_dir: switch.plans_dir.as_deref(),
+            writes_outside: false,
         };
         let ours = serde_json::to_value(evaluate(&policies[p], &call)).expect("a decision");
         if ours != expected[d] {
@@ -172,6 +173,7 @@ struct Units {
 fn category_name(category: ToolCategory) -> &'static str {
     match category {
         ToolCategory::FileEdit => "fileEdit",
+        ToolCategory::FileEditOutside => "fileEditOutside",
         ToolCategory::PlanFile => "planFile",
         ToolCategory::Shell => "shell",
         ToolCategory::Read => "read",

@@ -15,6 +15,7 @@ import { useArtifactLinks } from "../../artifacts/useArtifactLinks.jsx";
 import { joinHandlers } from "../../../lib/joinHandlers.js";
 import { useSubagentDetail } from "../../../hooks/useSubagentDetail.js";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
+import { SubagentStop } from "./SubagentStop.jsx";
 
 // Inner tools as transcript blocks (lone tools and grouped runs), in ToolItem's
 // shape. Once the subagent is over nothing in it can still be running, whatever
@@ -57,6 +58,7 @@ export function SubagentDetail({ workerId, run, now, cwd, workers, onBack }) {
         <SubagentGlyph identity={run.identity} status={run.status} size={16} />
         <span className="sa-detail__name">{run.description}</span>
         {meta && <span className="sa-detail__meta">{meta}</span>}
+        <SubagentStop workerId={workerId} run={run} />
       </div>
       <ScrollHoldContext.Provider value={stick.hold}>
         <div className="sa-detail__scroll" ref={stick.scrollerRef}>

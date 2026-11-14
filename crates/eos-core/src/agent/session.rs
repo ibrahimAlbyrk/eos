@@ -89,6 +89,10 @@ pub enum SessionError {
     /// It was tried and failed; the text is for the user.
     #[error("{0}")]
     Failed(String),
+    /// The task to stop has already ended, or the session has no task by
+    /// that id; the text says which.
+    #[error("{0}")]
+    TaskEnded(String),
 }
 
 /// How a background task ended.
@@ -242,7 +246,9 @@ pub trait AgentSession: Send + Sync + 'static {
     /// end when the session does.
     fn live_subagents(&self) -> usize;
 
-    /// Stops one background task; the task's own end event closes it.
+    /// Stops one background task (a command, a monitor, a workflow run) or a
+    /// subagent (by its agent id); the task's own end event closes it.
+    /// [`SessionError::TaskEnded`] when it has already ended.
     fn stop_task<'a>(&'a self, task_id: &'a str) -> BoxFuture<'a, Result<(), SessionError>>;
 
     /// Answers a question from the conversation as it stands, without

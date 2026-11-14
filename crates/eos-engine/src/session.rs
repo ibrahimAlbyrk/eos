@@ -551,7 +551,12 @@ impl AgentSession for EngineSession {
     }
 
     fn stop_task<'a>(&'a self, task_id: &'a str) -> BoxFuture<'a, Result<(), SessionError>> {
-        Box::pin(async move { self.agent()?.stop_task(task_id).await.map(|_| ()).map_err(failed) })
+        Box::pin(async move {
+            match self.agent()?.stop_task(task_id).await {
+                Ok(_) => Ok(()),
+                Err(ended) => Err(SessionError::TaskEnded(ended.to_string())),
+            }
+        })
     }
 
     fn ask_side(&self, question: String) -> BoxFuture<'_, Result<String, SessionError>> {

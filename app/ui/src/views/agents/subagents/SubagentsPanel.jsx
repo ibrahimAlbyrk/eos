@@ -35,7 +35,7 @@ export function SubagentsPanel({ live }) {
           onBack={() => openSubagents(ui, workerId)}
         />
       ) : (
-        <SubagentList runs={runs} now={live.now} onOpen={(id) => openSubagents(ui, workerId, id)} />
+        <SubagentList workerId={workerId} runs={runs} now={live.now} onOpen={(id) => openSubagents(ui, workerId, id)} />
       )}
     </PanelShell>
   );

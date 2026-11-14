@@ -26,6 +26,7 @@ use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock};
 use eos_domain::{ProviderIdentity, Worker};
 use eos_engine::{EngineDeps, EngineOptions, LazyEngine};
+use eos_platform::DataPaths;
 use eos_policy::ask::parent_nudge;
 use eos_prompts::PromptService;
 use eos_prompts::spawn::{SpawnPrompt, system_prompt_for};
@@ -75,13 +76,14 @@ impl std::fmt::Debug for AgentOptions {
     }
 }
 
-pub(crate) fn engine(dir: &Path, options: &AgentOptions, deps: EngineDeps) -> Arc<LazyEngine> {
+pub(crate) fn engine(paths: &DataPaths, options: &AgentOptions, deps: EngineDeps) -> Arc<LazyEngine> {
     let engine = EngineOptions {
+        protected: paths.agent_protected(),
         default_model: options.default_model.clone(),
         base_url: options.base_url.clone(),
         claude_home: options.claude_home.clone(),
         mcp: !options.no_mcp,
-        ..EngineOptions::new(dir)
+        ..EngineOptions::new(paths.join("engine"))
     };
     Arc::new(LazyEngine::new(engine, deps))
 }

@@ -28,8 +28,16 @@ struct Bench {
 
 impl Bench {
     async fn new(replies: impl IntoIterator<Item = Reply>) -> Self {
-        let mock = MockApi::start(replies).await.expect("the mock API");
-        let dir = tempfile::tempdir().expect("a folder");
+        Self::in_dir(tempfile::tempdir().expect("a folder"), replies).await
+    }
+
+    /// The bench with `dir` as its data folder.
+    async fn in_dir(dir: tempfile::TempDir, replies: impl IntoIterator<Item = Reply>) -> Self {
+        Self::with_mock(dir, MockApi::start(replies).await.expect("the mock API")).await
+    }
+
+    /// The bench over a mock of the test's own.
+    async fn with_mock(dir: tempfile::TempDir, mock: MockApi) -> Self {
         for sub in ["home", "project"] {
             std::fs::create_dir_all(dir.path().join(sub)).expect("a folder");
         }
@@ -41,6 +49,7 @@ impl Bench {
             base_url: Some(mock.base_url()),
             claude_home: Some(dir.path().join("home")),
             mcp: false,
+            protected: eos_platform::DataPaths::new(dir.path()).agent_protected(),
             ..EngineOptions::new(dir.path().join("engine"))
         };
         let deps = EngineDeps {
@@ -178,6 +187,46 @@ async fn a_tool_call_goes_through_the_policy_to_eos_and_back() {
         .collect();
     assert_eq!(seen, [("w-1", TOOL, false, false), ("w-1", "Read", false, false)]);
     assert_eq!(asked[0].tool_use_id.as_deref(), Some("t1"));
+}
+
+/// Full access (the fake policy allows every call): a file tool still never
+/// writes the app's own state, while a plugin, outside the chat's folder too,
+/// is the policy's to decide and is written.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_apps_own_state_stays_unwritten_and_plugins_are_written() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let data = dir.path().canonicalize().expect("the folder");
+    let write = |id: &str, path: &std::path::Path| {
+        let input = serde_json::json!({ "file_path": path, "content": "x" });
+        Reply::tool_use(id, "Write", &input.to_string())
+    };
+    let plugin = data.join("plugins/hello/plugin.json");
+    let refused = [
+        data.join("accounts/claude-a/.credentials.json"),
+        data.join("state.db"),
+        data.join("peer/identity.json"),
+        data.join("engine/transcripts/w-1.jsonl"),
+    ];
+    let mut replies: Vec<Reply> = refused.iter().enumerate().map(|(n, p)| write(&format!("t{n}"), p)).collect();
+    replies.push(write("tp", &plugin));
+    replies.push(Reply::text("done"));
+    let bench = Bench::in_dir(dir, replies).await;
+    std::fs::create_dir_all(plugin.parent().expect("a parent")).expect("a folder");
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("go".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+
+    let results: Vec<&Value> = events.iter().filter(|e| e["role"] == "tool").map(|e| &e["blocks"][0]).collect();
+    for (n, path) in refused.iter().enumerate() {
+        let text = results[n]["content"].as_str().unwrap_or_default();
+        assert!(text.contains("which tools do not write"), "{}: {text}", path.display());
+        assert!(!path.is_file() || n == 3, "{} was not written", path.display());
+    }
+    assert_eq!(std::fs::read_to_string(&plugin).expect("the plugin"), "x");
+    let asked = bench.policy.asked.lock().expect("asked");
+    let plugin_call = asked.iter().find(|c| c.tool_use_id.as_deref() == Some("tp")).expect("asked about the plugin");
+    assert!(plugin_call.writes_outside, "a plugin is outside the chat's folder");
+    assert_eq!(plugin_call.input.get("file_path").and_then(Value::as_str), plugin.to_str());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -611,4 +660,59 @@ async fn an_idle_agent_is_woken_by_its_own_background_command() {
     assert_eq!(ended, 1, "the job ends once");
     drop(tasks);
     assert_eq!(session.live_subagents(), 0);
+}
+
+/// The user stops one background subagent through the session, by its agent
+/// id: it ends as stopped, its idle parent is told, and stopping it again
+/// says it has ended.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_user_stops_one_background_subagent() {
+    let seen: Arc<std::sync::Mutex<Vec<String>>> = Arc::default();
+    let log = seen.clone();
+    let mock = MockApi::responder(std::net::SocketAddr::from(([127, 0, 0, 1], 0)), move |body| {
+        let body: Value = serde_json::from_slice(body).unwrap_or_default();
+        let text = body["messages"].to_string();
+        log.lock().expect("log").push(text.clone());
+        if !text.contains("PARENT-START") {
+            return Reply::text("scouting").slowed(Duration::from_secs(30));
+        }
+        if text.contains("was stopped by user") {
+            return Reply::text("noted");
+        }
+        if text.contains("tool_result") {
+            return Reply::text("parent waits");
+        }
+        let input = serde_json::json!({"description": "Scout", "prompt": "CHILD-START", "name": "scout",
+                                       "run_in_background": true});
+        Reply::tool_use("toolu_scout", "Agent", &input.to_string())
+    })
+    .await
+    .expect("the mock API");
+    let bench = Bench::with_mock(tempfile::tempdir().expect("a folder"), mock).await;
+    let spec = LaunchSpec { role: eos_contracts::SessionFactsRole::Focused, ..bench.spec("w-1") };
+    let session = bench.start(spec).await;
+    session.send("PARENT-START".into()).await.expect("sends");
+    let started = |events: &[Value]| events.iter().any(|e| e["type"] == "subagent_started");
+    let events =
+        tokio::time::timeout(Duration::from_secs(30), bench.sink.until("w-1", started)).await.expect("it starts");
+    let start = events.iter().find(|e| e["type"] == "subagent_started").expect("the start");
+    assert_eq!(start["callId"], "toolu_scout");
+    let agent = start["agentId"].as_str().expect("an agent id").to_owned();
+
+    session.stop_task(&agent).await.expect("stopped");
+    let completed = |events: &[Value]| {
+        events.iter().any(|e| e["type"] == "subagent_completed" && e["callId"] == "toolu_scout")
+            && events.iter().filter(|e| e["type"] == "turn" && e["phase"] != "started").count() >= 2
+    };
+    let events =
+        tokio::time::timeout(Duration::from_secs(30), bench.sink.until("w-1", completed)).await.expect("it ends");
+    let end = events.iter().find(|e| e["type"] == "subagent_completed").expect("the end");
+    assert_eq!(end["status"], "stopped");
+    let told =
+        seen.lock().expect("log").iter().any(|t| t.contains("PARENT-START") && t.contains("was stopped by user"));
+    assert!(told, "the idle parent was woken and told");
+    match session.stop_task(&agent).await {
+        Err(eos_core::agent::SessionError::TaskEnded(message)) => assert!(message.contains("not running"), "{message}"),
+        other => panic!("a second stop: {other:?}"),
+    }
 }

@@ -19,6 +19,9 @@ pub struct ToolCall {
     pub agent_id: Option<String>,
     /// A focused session: the built-ins blocked everywhere else stay open.
     pub full_surface: bool,
+    /// A file tool would write outside the agent's working directories (its
+    /// folder and the folders added to it). Paths in `input` are absolute.
+    pub writes_outside: bool,
 }
 
 impl ToolCall {
@@ -30,6 +33,7 @@ impl ToolCall {
             tool_use_id: None,
             agent_id: None,
             full_surface: false,
+            writes_outside: false,
         }
     }
 }

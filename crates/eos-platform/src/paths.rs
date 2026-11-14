@@ -65,6 +65,34 @@ pub const USER_DATA_ENTRIES: &[&str] = &[
     ".eos-trash",
 ];
 
+/// What no agent's file tool (Edit, Write, NotebookEdit) writes in the data
+/// folder, whatever the permission mode or policy says: the app's own state,
+/// which a stray or steered write could corrupt or use to take over. The
+/// engine's folder is added by the engine itself. Left out on purpose:
+/// what agents write for the user (`plugins`, `plugin-data`, `pages`,
+/// `templates`, `prompts`, `workers`, `profile`, `policy.yaml`, `config.json`)
+/// and a chat's own folder (`scratch`), which the gate decides.
+pub(crate) const AGENT_PROTECTED_ENTRIES: &[&str] = &[
+    // The database and its journal.
+    "state.db",
+    "state.db-wal",
+    "state.db-shm",
+    // Sign-in stores and API keys.
+    "accounts",
+    "secrets",
+    // Browser profiles: cookies and logins.
+    "browser",
+    // This computer's identity and pairings, the sync key, the phone link.
+    "peer",
+    "sync",
+    "remote",
+    // Staged updates and startup snapshots.
+    "updates",
+    "backups",
+    // Transcripts of the previous app's in-process conversations.
+    "conversations",
+];
+
 /// Paths inside one data folder.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DataPaths {
@@ -96,6 +124,11 @@ impl DataPaths {
     /// Startup snapshots, one folder per snapshot.
     pub fn backups_dir(&self) -> PathBuf {
         self.home.join("backups")
+    }
+
+    /// [`AGENT_PROTECTED_ENTRIES`] in this data folder.
+    pub fn agent_protected(&self) -> Vec<PathBuf> {
+        AGENT_PROTECTED_ENTRIES.iter().map(|entry| self.home.join(entry)).collect()
     }
 
     /// Where a deleted file goes when the system trash is unavailable.

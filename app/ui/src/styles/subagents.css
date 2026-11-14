@@ -134,6 +134,12 @@
   color: var(--fg);
   text-align: left;
 }
+/* a running row with its Stop control beside it */
+.sa-item { display: flex; align-items: center; gap: 6px; }
+.sa-item > .sa-row { flex: 1; min-width: 0; }
+.sa-stop { flex-shrink: 0; }
+.sa-detail__head .sa-stop { margin-left: auto; }
+.sa-detail__head .sa-detail__meta + .sa-stop { margin-left: 0; }
 .sa-row:hover, .sa-row:focus-visible {
   background: var(--lg-chip-bg);
   box-shadow: var(--lg-chip-sh);
