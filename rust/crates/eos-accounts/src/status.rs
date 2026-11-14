@@ -154,13 +154,16 @@ impl AccountsService {
             // A plan Eos has no lane for cannot bill anything: the key keeps the route.
             let login = if supported {
                 let dir = self.plan.logins.single_store(preset.id);
-                Some(self.plan.stores.read(preset.id, &dir).await).filter(|read| read.present)
+                Some(self.plan.stores.read(preset.id, &dir).await)
             } else {
                 None
             };
             Some(match login {
-                Some(read) => subscription(supported, SubscriptionState::SignedIn, read.plan),
-                None => subscription(supported, SubscriptionState::SignedOut, None),
+                Some(read) if read.present => subscription(supported, SubscriptionState::SignedIn, read.plan),
+                // The TypeScript app's sign-in cannot be used here: it shows
+                // as one to sign in to again.
+                Some(read) if read.left_behind => subscription(supported, SubscriptionState::Expired, None),
+                _ => subscription(supported, SubscriptionState::SignedOut, None),
             })
         } else {
             None

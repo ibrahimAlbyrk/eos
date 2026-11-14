@@ -47,6 +47,9 @@ pub struct StoreLogin {
     pub plan: Option<String>,
     /// The account signed in to it, when the store says.
     pub email: Option<String>,
+    /// No sign-in here, but the TypeScript app left one of this provider in
+    /// a form this app cannot use: a new sign-in is needed.
+    pub left_behind: bool,
 }
 
 /// The credential stores themselves. Every read of a sign-in's token goes

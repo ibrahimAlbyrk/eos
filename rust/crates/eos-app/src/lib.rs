@@ -25,6 +25,7 @@ mod notes;
 mod patches;
 mod peer;
 mod plugins;
+mod reach;
 mod terminals;
 mod threads;
 mod tools;
@@ -37,7 +38,8 @@ pub use threads::{MAX_BLOCKING_THREADS, MAX_WORKERS, MIN_WORKERS, runtime, worke
 
 /// How the installed app reaches the phone link's relay: a WebSocket it
 /// dials out, redialled when it drops and at once after the computer wakes.
-/// Hand it to [`Options::relay`]; an app built without it never dials.
+/// Hand it to [`Options::relay`]; an app built without it, or one that does
+/// not [reach the network](Options::reaches_network), never dials.
 pub fn relay() -> std::sync::Arc<dyn eos_core::net::relay::Relay> {
     std::sync::Arc::new(eos_relay::RelayClient::new(std::sync::Arc::new(eos_core::SystemClock)))
 }

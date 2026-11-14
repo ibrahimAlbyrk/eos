@@ -411,6 +411,7 @@ mod composed {
                 ids: Arc::new(SeqIds::new()),
                 env,
                 relay: Some(Arc::new(dialler) as Arc<dyn Relay>),
+                reaches_network: true,
                 keep_awake: Some(awake.clone()),
                 ..Options::new(home.path())
             })

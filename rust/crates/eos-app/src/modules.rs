@@ -88,6 +88,8 @@ pub(crate) struct Context {
     pub(crate) repos: crate::files::Repos,
     /// The app works on the user's own data folder: it may delete on its own.
     pub(crate) sweep_leftovers: bool,
+    /// What this run may do as the user beyond this computer.
+    pub(crate) reach: crate::reach::Reach,
     pub(crate) terminals: Terminal,
     /// The phone link. Built ahead of the rest: the app hands it the router afterwards.
     pub(crate) remote: Arc<eos_mod_remote::RemoteModule>,

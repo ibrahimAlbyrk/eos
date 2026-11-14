@@ -75,10 +75,11 @@ pub(crate) struct Parts<'a> {
     pub(crate) kernel: &'a Kernel,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) applier: Option<Arc<dyn UpdateApplier>>,
+    pub(crate) reach: crate::reach::Reach,
 }
 
 pub(crate) fn build(parts: Parts<'_>) -> Result<Arc<Updates>, Error> {
-    let Parts { install, paths, config, agents, kernel, clock, applier } = parts;
+    let Parts { install, paths, config, agents, kernel, clock, applier, reach } = parts;
     let updates_dir = paths.join("updates");
     let platform = eos_platform::host().app_updates();
     let file_modes = platform.is_none_or(|platform| platform.file_modes());
@@ -87,7 +88,7 @@ pub(crate) fn build(parts: Parts<'_>) -> Result<Arc<Updates>, Error> {
         Arc::new(move || feed_config.current().updates.feed_url.clone().unwrap_or_else(|| UPDATE_FEED_URL.to_owned()));
     let feed = HttpUpdateFeed::new(base_url).map_err(eos_core::Error::storage)?;
     let service = UpdateService::new(UpdateDeps {
-        install: install.install.clone(),
+        install: reach.update_install(install.install.clone()),
         download: DownloadDeps {
             feed: Arc::new(feed),
             indexer: Arc::new(FsBundleIndexer),

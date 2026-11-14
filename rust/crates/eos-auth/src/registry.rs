@@ -28,24 +28,40 @@ fn text<'a>(entry: &'a Map<String, Value>, key: &str) -> Option<&'a str> {
     entry.get(key).and_then(Value::as_str).filter(|s| !s.is_empty())
 }
 
-fn parse_login(value: &Value) -> Option<PlanLoginRecord> {
+fn parse_login(value: &Value, accounts: &Path) -> Option<PlanLoginRecord> {
     let entry = value.as_object()?;
     Some(PlanLoginRecord {
         id: text(entry, "id")?.to_owned(),
         provider: text(entry, "provider")?.to_owned(),
         label: text(entry, "label")?.to_owned(),
         email: text(entry, "email").map(str::to_owned),
-        store_dir: text(entry, "storeDir")?.to_owned(),
+        store_dir: local_store(accounts, text(entry, "storeDir")?),
         created_at: text(entry, "createdAt")?.to_owned(),
     })
 }
 
+/// The store a recorded path names, in this data folder. Every store lies in
+/// the accounts folder beside the registry, which records absolute paths, so
+/// a data folder that was copied or moved names the stores of the one it came
+/// from, and with them that folder's keychain items. Such a path is read as
+/// the store of the same name here; the file keeps what it says.
+fn local_store(accounts: &Path, recorded: &str) -> String {
+    let path = Path::new(recorded);
+    let here = |parent: &Path| {
+        parent == accounts || fs::canonicalize(parent).is_ok_and(|p| fs::canonicalize(accounts).is_ok_and(|a| a == p))
+    };
+    match (path.parent(), path.file_name()) {
+        (Some(parent), Some(name)) if !here(parent) => accounts.join(name).to_string_lossy().into_owned(),
+        _ => recorded.to_owned(),
+    }
+}
+
 /// Entries that are not valid are dropped rather than failing the whole file.
-fn parse(raw: &Value) -> PlanLoginRegistry {
+fn parse(raw: &Value, accounts: &Path) -> PlanLoginRegistry {
     let mut registry = PlanLoginRegistry::default();
     let Some(root) = raw.as_object() else { return registry };
     if let Some(logins) = root.get("logins").and_then(Value::as_array) {
-        registry.logins = logins.iter().filter_map(parse_login).collect();
+        registry.logins = logins.iter().filter_map(|login| parse_login(login, accounts)).collect();
     }
     if let Some(defaults) = root.get("defaults").and_then(Value::as_object) {
         for (provider, id) in defaults {
@@ -94,7 +110,8 @@ fn document(registry: &PlanLoginRegistry) -> Value {
 impl PlanLoginStore for FilePlanLoginStore {
     fn load(&self) -> PlanLoginRegistry {
         let raw = fs::read(&self.file).ok().and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok());
-        raw.map(|raw| parse(&raw)).unwrap_or_default()
+        let accounts = self.file.parent().unwrap_or(Path::new(""));
+        raw.map(|raw| parse(&raw, accounts)).unwrap_or_default()
     }
 
     fn save(&self, registry: &PlanLoginRegistry) -> Result<(), Error> {
@@ -177,13 +194,13 @@ mod tests {
     use super::*;
     use eos_testkit::TempHome;
 
-    fn login(id: &str, email: Option<&str>) -> PlanLoginRecord {
+    fn login(home: &TempHome, id: &str, email: Option<&str>) -> PlanLoginRecord {
         PlanLoginRecord {
             id: id.into(),
             provider: "anthropic".into(),
             label: email.unwrap_or("Account 1").into(),
             email: email.map(str::to_owned),
-            store_dir: format!("/home/.eos/accounts/claude-{id}"),
+            store_dir: home.join(format!("accounts/claude-{id}")).to_string_lossy().into_owned(),
             created_at: "2026-01-01T09:30:00.125Z".into(),
         }
     }
@@ -196,8 +213,8 @@ mod tests {
         assert_eq!(store.load(), PlanLoginRegistry::default());
 
         let registry = PlanLoginRegistry::default()
-            .with_login(login("lg-a", Some("a@example.com")))
-            .with_login(login("lg-b", None))
+            .with_login(login(&home, "lg-a", Some("a@example.com")))
+            .with_login(login(&home, "lg-b", None))
             .with_default_login("anthropic", "lg-b")
             .with_auto_switch("anthropic", false);
         store.save(&registry).expect("saves");
@@ -232,11 +249,14 @@ mod tests {
         let registry = FilePlanLoginStore::new(home.join("accounts/logins.json")).load();
         assert_eq!(registry.logins.len(), 1);
         assert_eq!(registry.logins[0].email.as_deref(), Some("x@example.com"));
-        assert_eq!(registry.logins[0].store_dir, "/Users/x/.eos/accounts/claude");
+        let here = home.join("accounts/claude").to_string_lossy().into_owned();
+        assert_eq!(registry.logins[0].store_dir, here, "a store of another data folder is read as this one's");
         assert!(registry.defaults.is_empty(), "a default that names no login is dropped");
         assert_eq!(registry.default_login("anthropic").map(|l| l.id.as_str()), Some("lg-1a2b3c4d5e6f"));
         assert!(!registry.auto_switch("anthropic") && registry.auto_switch("openai"));
 
+        // The file keeps what it says until this app saves it.
+        assert!(home.read("accounts/logins.json").contains(r#""storeDir": "/Users/x/.eos/accounts/claude""#));
         home.write("accounts/logins.json", "{nope");
         assert_eq!(FilePlanLoginStore::new(home.join("accounts/logins.json")).load(), PlanLoginRegistry::default());
     }

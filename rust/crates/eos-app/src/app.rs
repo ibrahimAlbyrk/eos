@@ -61,6 +61,7 @@ use crate::display::StripSenderTags;
 use crate::host::{self, HostLocalTime, HostStats, SystemBrowser};
 use crate::modules::{self, Context};
 use crate::notes::{Notes, ProfilePrompt};
+use crate::reach::Reach;
 use crate::threads;
 use crate::updates::{Install, Updates};
 
@@ -111,21 +112,20 @@ pub struct Options {
     /// folder stops the TypeScript-era daemon through it before it opens the
     /// data; nothing else ever uses it.
     pub launchd: Option<Arc<dyn Launchd + Send + Sync>>,
-    /// Whether this run may listen for paired computers and dial the ones it
-    /// controls (through `relay` too, when there is one). Off unless the host
-    /// says so, whatever `config.peer` says: a
-    /// test, a replay or a run on a copy of someone's data folder holds that
-    /// person's identity and must never answer — or call — as their computer.
-    /// The installed app on the user's own data folder turns it on.
-    pub peer_network: bool,
+    /// Whether this run may act as the user beyond this computer: the phone's
+    /// relay, paired computers, the sync vault, the update feed, and Eos's own
+    /// reads of the user's accounts ([`crate::reach`]). Off unless the host
+    /// says so, whatever the configuration says: a test, a replay or a run on
+    /// a copy of someone's data folder holds that person's identity and must
+    /// never answer, call or sync as them. The installed app on the user's own
+    /// data folder turns it on.
+    pub reaches_network: bool,
     /// The folder of this app's dashboard bundle (`index.html` inside it): a
     /// computer that controls this one loads its dashboard from here
     /// (`GET /ui/*`). Without it this app serves none.
     pub dashboard: Option<PathBuf>,
     /// How the phone link reaches its relay ([`crate::relay`] in the real
-    /// app). Without one the app never dials a relay, whatever the
-    /// configuration says: a test, a replay or a tool can open a data folder
-    /// whose phone link is switched on and still stay on this computer.
+    /// app), used only when the run [`reaches_network`](Self::reaches_network).
     pub relay: Option<Arc<dyn Relay>>,
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
@@ -173,7 +173,7 @@ impl Options {
             exec_path: std::env::current_exe().ok(),
             update_applier: None,
             launchd: Launchctl::for_this_user().map(|launchctl| Arc::new(launchctl) as Arc<dyn Launchd + Send + Sync>),
-            peer_network: false,
+            reaches_network: false,
             dashboard: None,
             relay: None,
             keep_awake: None,
@@ -253,12 +253,14 @@ impl App {
             update_applier,
             launchd,
             sweep_leftovers,
-            peer_network,
+            reaches_network,
             dashboard,
             relay,
             keep_awake,
             extra_modules,
         } = options;
+        let reach = Reach::new(reaches_network);
+        let relay = reach.relay(relay);
         let paths = DataPaths::new(&home);
         fs::create_dir_all(paths.home()).map_err(|source| Error::Home { path: paths.home().to_owned(), source })?;
         // Before anything in the data folder is read: the previous Eos's
@@ -318,7 +320,7 @@ impl App {
             announcer,
             login_store: Arc::new(FilePlanLoginStore::new(accounts_dir.join("logins.json"))),
             dirs: Arc::new(AccountDirs::new(&accounts_dir)),
-            stores: stores.clone(),
+            stores: reach.account_reads(stores.clone()),
             providers: vec![Arc::new(ClaudeSignIn::new(stores.clone())), Arc::new(ChatGptSignIn::new(stores.clone()))],
             browser: shell.as_ref().map_or_else(|| Arc::new(SystemBrowser) as Arc<dyn Browser>, |s| s.opener.clone()),
             probe: Arc::new(ClaudeTokenProbe::default()),
@@ -389,7 +391,7 @@ impl App {
             None => accounts.clone(),
         };
         // The model list, fetched with the sign-in a new session would use.
-        let model_list = Arc::new(ClaudeModels::new(credentials.clone(), stores.clone()));
+        let model_list = Arc::new(ClaudeModels::new(credentials.clone(), reach.account_reads(stores.clone())));
         let models = Arc::new(CachedModelCatalog::live(&paths.join("models.json"), model_list, clock.clone()));
         let engine = agent::engine(
             &paths.join("engine"),
@@ -443,6 +445,7 @@ impl App {
             kernel: &kernel,
             clock: clock.clone(),
             applier: update_applier,
+            reach,
         })?;
 
         // The browser's tabs are the shell's views; without a shell the feature is there
@@ -487,7 +490,7 @@ impl App {
                 bus: kernel.bus.clone(),
                 view_tokens: callers.view_tokens(),
                 dashboard,
-                network: peer_network,
+                network: reach.peers(),
                 relay: relay.clone(),
             })?,
             project_keys: crate::machines::project_keys(
@@ -526,6 +529,7 @@ impl App {
                 clock.clone(),
             )),
             sweep_leftovers,
+            reach,
             git_watcher: crate::files::git_watcher(&clock, &kernel.bus, &repos),
             repos,
             terminals: crate::terminals::terminal(credentials, accounts_dir.join("claude")),

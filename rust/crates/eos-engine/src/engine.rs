@@ -3,7 +3,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use eos_agent_compat::ClaudePaths;
+use eos_agent_compat::{ClaudePaths, transcript_path};
 use eos_agent_core::{Extensions, TranscriptStore};
 use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{AgentOptions, CompleteRequest, Sdk, SystemPromptOverride};
@@ -29,7 +29,7 @@ use crate::prompter::Prompter;
 use crate::registry::Registry;
 use crate::session::{self, Launch, Shared};
 use crate::tools::{Adapters, EosSession};
-use crate::transcript;
+use crate::{takeover, transcript};
 
 /// The provider every session runs on today.
 const PROVIDER: &str = "anthropic";
@@ -211,22 +211,41 @@ impl Engine {
         let Some(session_id) = spec.resume.as_deref().filter(|id| !id.is_empty()) else { return Ok(Vec::new()) };
         let inner = &self.0;
         let own = inner.store.load(&spec.worker_id).await.map_err(Error::storage)?;
-        if !own.is_empty() || session_id == spec.worker_id {
+        if session_id == spec.worker_id {
             return Ok(own);
         }
-        // A chat from before the engine: Claude Code recorded it. It is read
-        // once; from here on the engine's own store holds the conversation.
-        let claude = match &inner.claude {
-            Some(paths) => Some(paths.clone()),
-            None => ClaudePaths::from_env(),
+        // A chat from before the engine, resumed by the Claude Code session
+        // the TypeScript app resumes it by. The engine takes that conversation
+        // once and keeps it in its own record, unless the TypeScript app went
+        // on with the chat since (a user went back to it, then came back).
+        let record = inner.store.path(&spec.worker_id);
+        let claude = inner.claude.clone().or_else(ClaudePaths::from_env);
+        let transcript = claude.map(|paths| transcript_path(&paths, Path::new(&spec.cwd), session_id));
+        let taken = match takeover::read(&record).await {
+            Some(origin) => Some(!origin.gone_on(session_id, transcript.as_deref())),
+            // Taken by a build that kept no note: what Claude Code holds now is what it took.
+            None if tokio::fs::try_exists(&record).await.unwrap_or(false) => {
+                if let Some(now) = transcript.as_deref().and_then(takeover::recorded) {
+                    takeover::write(&record, &takeover::Origin::of(session_id, &now)).await;
+                }
+                Some(true)
+            }
+            None => None,
         };
-        let old = claude.and_then(|paths| {
-            transcript::claude_history(&paths, std::path::Path::new(&spec.cwd), session_id, &spec.model)
-        });
-        let Some(messages) = old else {
+        if taken == Some(true) {
+            return Ok(own);
+        }
+        let Some(now) = transcript.as_deref().and_then(takeover::recorded) else {
+            // Gone on into a session Claude Code has no transcript of: the record is what is left.
+            if taken.is_some() {
+                return Ok(own);
+            }
             return Err(Error::Rule("this conversation's transcript was not found, so it cannot be continued".into()));
         };
+        let origin = takeover::Origin::of(session_id, &now);
+        let messages = transcript::claude_messages(now.session, &spec.model);
         inner.store.replace(&spec.worker_id, &messages).await.map_err(Error::storage)?;
+        takeover::write(&record, &origin).await;
         Ok(messages)
     }
 
@@ -338,11 +357,13 @@ impl AgentRuntime for Engine {
 
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
         Box::pin(async move {
-            let path = self.0.store.path(worker_id);
-            if let Err(e) = tokio::fs::remove_file(&path).await
-                && e.kind() != std::io::ErrorKind::NotFound
-            {
-                tracing::warn!(worker_id, error = %e, "a recorded conversation could not be deleted");
+            let record = self.0.store.path(worker_id);
+            for path in [takeover::note_path(&record), record] {
+                if let Err(e) = tokio::fs::remove_file(&path).await
+                    && e.kind() != std::io::ErrorKind::NotFound
+                {
+                    tracing::warn!(worker_id, error = %e, "a recorded conversation could not be deleted");
+                }
             }
         })
     }

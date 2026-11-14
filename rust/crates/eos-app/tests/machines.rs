@@ -36,7 +36,7 @@ async fn every_feature_that_contributes_data_syncs_it_to_the_vault() {
     home.write("config.json", json!({ "peer": { "relayUrl": served.relay_url(), "name": "Test Mac" } }).to_string());
     home.write("templates/review.md", "---\ndescription: d\n---\n\nbody\n");
     home.write("workers/reviewer.md", "---\nname: reviewer\n---\nReview.\n");
-    let app = App::build(options(&home)).expect("builds");
+    let app = App::build(Options { reaches_network: true, ..options(&home) }).expect("builds");
     app.start().await.expect("starts");
     let router = app.router();
     assert_eq!(router.undeclared(), Vec::<String>::new());

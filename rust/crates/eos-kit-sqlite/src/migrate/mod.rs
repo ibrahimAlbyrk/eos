@@ -262,4 +262,52 @@ mod tests {
         assert!(!half, "the failed migration was rolled back whole");
         assert!(conn.is_autocommit());
     }
+
+    // Builds before 067 wrote the worker's own id into `workers.session_id`,
+    // where the TypeScript app reads the Claude Code session it resumes a chat
+    // by (`ResumeWorker.ts`, `options.resume`: a UUID). Every resume, in either
+    // app, logs the session it resumed in its `spawn` row.
+    #[test]
+    fn a_session_an_earlier_build_overwrote_is_put_back_from_the_log() {
+        let conn = mem();
+        let before_067 = EMBEDDED.len() - 1;
+        assert_eq!(EMBEDDED[before_067].id, "067_engine_sessions");
+        run(&conn, &EMBEDDED[..before_067], 1).expect("an earlier build");
+        let (older, newer) = ("1d6c5b0e-2f43-4a8e-9c1d-5e7f8a9b0c12", "0b8f3c1e-7d2a-4c55-9a51-3e9d2f6a8b10");
+        conn.execute_batch(&format!(
+            "INSERT INTO workers (id, state, prompt, started_at, session_id) VALUES
+               ('w-touched', 'SUSPENDED', 'p', 1, 'w-touched'),
+               ('w-begun-here', 'SUSPENDED', 'p', 1, 'w-begun-here'),
+               ('w-log-cut', 'DONE', 'p', 1, 'w-log-cut'),
+               ('w-untouched', 'SUSPENDED', 'p', 1, '{older}'),
+               ('w-never', 'DONE', 'p', 1, NULL);
+             INSERT INTO events (worker_id, ts, type, payload) VALUES
+               ('w-touched', 1, 'spawn', '{{\"pid\":7}}'),
+               ('w-touched', 2, 'spawn', '{{\"resumed\":true,\"sessionId\":\"{older}\",\"pid\":8}}'),
+               ('w-touched', 3, 'spawn', '{{\"resumed\":true,\"sessionId\":\"{newer}\",\"pid\":null}}'),
+               ('w-touched', 4, 'spawn', '{{\"resumed\":true,\"sessionId\":\"w-touched\",\"pid\":null}}'),
+               ('w-touched', 5, 'spawn', 'not json'),
+               ('w-touched', 6, 'user_message', '{{\"sessionId\":\"{older}\"}}'),
+               ('w-begun-here', 1, 'spawn', '{{\"pid\":null}}'),
+               ('w-begun-here', 2, 'spawn', '{{\"resumed\":true,\"sessionId\":\"w-begun-here\",\"pid\":null}}');"
+        ))
+        .expect("rows");
+
+        let report = run(&conn, EMBEDDED, 2).expect("this build");
+        assert_eq!(report.applied, vec!["067_engine_sessions"]);
+        let column = |id: &str| -> Option<String> {
+            conn.query_row("SELECT session_id FROM workers WHERE id = ?1", [id], |r| r.get(0)).expect("the row")
+        };
+        assert_eq!(column("w-touched").as_deref(), Some(newer), "the session it had when this app took it");
+        assert_eq!(column("w-begun-here"), None, "none the TypeScript app could resume");
+        assert_eq!(column("w-log-cut"), None, "nothing in the log names it any more");
+        assert_eq!(column("w-untouched").as_deref(), Some(older));
+        assert_eq!(column("w-never"), None);
+        let own: Vec<(String, String)> = conn
+            .prepare("SELECT worker_id, session_id FROM engine_sessions ORDER BY worker_id")
+            .and_then(|mut s| s.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect())
+            .expect("rows");
+        let own: Vec<(&str, &str)> = own.iter().map(|(w, s)| (w.as_str(), s.as_str())).collect();
+        assert_eq!(own, [("w-begun-here", "w-begun-here"), ("w-log-cut", "w-log-cut"), ("w-touched", "w-touched")]);
+    }
 }

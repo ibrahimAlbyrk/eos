@@ -26,6 +26,26 @@ pub struct Endpoints {
 /// item for the store.
 const CLAUDE_FILE: &str = ".credentials.json";
 
+/// The folder beside this app's ChatGPT store where the TypeScript app kept
+/// its ChatGPT sign-in: the Codex CLI's home. Its tokens belong to the Codex
+/// CLI's own client and lack the permission to use the plan that this app's
+/// sign-in asks for, and renewing them here would spend the refresh token
+/// the TypeScript app still holds; so it is only ever noticed, never used.
+const TYPESCRIPT_CHATGPT: &str = "codex/auth.json";
+
+/// Whether the TypeScript app's ChatGPT sign-in sits beside `dir` while the
+/// user has neither signed in nor out of ChatGPT in this app (either makes
+/// `dir`).
+fn chatgpt_left_behind(dir: &Path) -> bool {
+    let Some(auth) = dir.parent().map(|accounts| accounts.join(TYPESCRIPT_CHATGPT)) else { return false };
+    if dir.exists() {
+        return false;
+    }
+    let doc: Value = std::fs::read(auth).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default();
+    let has = |key: &str| doc["tokens"][key].as_str().is_some_and(|s| !s.is_empty());
+    has("access_token") || has("refresh_token")
+}
+
 type IoFuture<'a, T> = Pin<Box<dyn Future<Output = std::io::Result<T>> + Send + 'a>>;
 
 /// A Claude store's keychain item, as the engine's `ClaudeLogin` reads and
@@ -83,6 +103,7 @@ fn read_claude(raw: Option<&str>, dir: &Path) -> StoreLogin {
         present: true,
         plan: oauth.get("subscriptionType").and_then(Value::as_str).map(str::to_owned),
         email: claude_email(dir),
+        left_behind: false,
     }
 }
 
@@ -179,8 +200,10 @@ impl PlanStores for Stores {
                 "openai" => match self.chatgpt_login(dir).account().await {
                     // A sign-in whose refresh token is spent stays on disk as
                     // a registration only: it cannot run.
-                    Some(account) => StoreLogin { present: account.plan_usage, plan: None, email: account.email },
-                    None => StoreLogin::default(),
+                    Some(account) => {
+                        StoreLogin { present: account.plan_usage, plan: None, email: account.email, left_behind: false }
+                    }
+                    None => StoreLogin { left_behind: chatgpt_left_behind(dir), ..StoreLogin::default() },
                 },
                 _ => StoreLogin::default(),
             }
@@ -226,7 +249,10 @@ impl PlanStores for Stores {
                     let login = self.chatgpt_login(dir);
                     self.chatgpt.lock().unwrap_or_else(|p| p.into_inner()).remove(dir);
                     // The registration's host id stays, so a later sign-in is the same app.
-                    login.sign_out().await.map(|_| ()).map_err(Error::storage)
+                    login.sign_out().await.map_err(Error::storage)?;
+                    // The folder says the user dealt with ChatGPT here: the
+                    // TypeScript app's sign-in is no longer news.
+                    eos_platform::create_private_dir(dir).map_err(Error::storage)
                 }
                 _ => Ok(()),
             }

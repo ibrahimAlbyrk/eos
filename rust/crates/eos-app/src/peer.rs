@@ -26,7 +26,7 @@ pub(crate) struct Parts<'a> {
     pub(crate) view_tokens: Arc<ViewTokens>,
     /// The dashboard bundle a controlling computer loads from this one.
     pub(crate) dashboard: Option<PathBuf>,
-    /// Whether this run may listen and dial (`Options::peer_network`).
+    /// Whether this run may listen and dial (`Options::reaches_network`).
     pub(crate) network: bool,
     /// The relay connection: the leg of a link when neither computer reaches
     /// the other directly. Without one links are direct or tunnelled only.

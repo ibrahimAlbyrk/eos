@@ -478,6 +478,50 @@ async fn a_session_that_dies_parks_its_worker_and_resume_brings_it_back() {
     );
 }
 
+// The TypeScript app resumes a chat by `workers.session_id`: `resumeIfDead`
+// and `ResumeWorker.ts` skip or refuse a row without one, and hand it to
+// Claude Code as `options.resume` (`ClaudeSdkBackend.ts`), which accepts only
+// the UUID of a transcript it recorded ("… is not a UUID" otherwise). A chat
+// this app woke, continued and parked must still hold that UUID there.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_chat_from_the_typescript_app_can_go_back_to_it_after_this_app_continued_it() {
+    let bench = Bench::new();
+    bench.temp.exec(&eos_testkit::fixtures::seed_sql("/sandbox"));
+    let claude = "11111111-1111-4111-8111-111111111111";
+    let column = |id: &str| {
+        bench.temp.count(&format!("SELECT COUNT(*) FROM workers WHERE id = '{id}' AND session_id = '{claude}'"))
+    };
+    assert_eq!(column("w-CHAT"), 1, "the recorded TypeScript row");
+
+    // The composer wakes it on the first keystroke; then a turn; then the app quits.
+    bench.sessions.wake("w-CHAT").await.expect("wakes");
+    until(|| async { bench.worker("w-CHAT").await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    let started = bench.agents.started().pop().expect("a start");
+    assert_eq!(started.resume.as_deref(), Some(claude), "it continues from the Claude Code session");
+    bench.agents.script(Turn::reply("still here"));
+    bench.sessions.dispatch(bench.message("w-CHAT", "go on")).await.expect("delivers");
+    bench.agents.settled().await;
+    bench.sessions.suspend_all("app quit").await;
+
+    let is_uuid = |s: &str| {
+        let groups: Vec<&str> = s.split('-').collect();
+        groups.iter().map(|g| g.len()).eq([8, 4, 4, 4, 12]) && s.chars().all(|c| c == '-' || c.is_ascii_hexdigit())
+    };
+    let row = bench.worker("w-CHAT").await.expect("the row");
+    assert_eq!(row.state, WorkerState::Suspended);
+    assert!(row.session_id.as_deref().is_some_and(is_uuid), "{:?}", row.session_id);
+    assert_eq!(column("w-CHAT"), 1, "the TypeScript app resumes it as before");
+
+    // A chat begun here has no Claude Code session: the TypeScript app finds none to try.
+    bench.agents.script(Turn::reply("hello back"));
+    let id = bench.chat("hello").await;
+    let none = bench.temp.count(&format!("SELECT COUNT(*) FROM workers WHERE id = '{id}' AND session_id IS NULL"));
+    assert_eq!(none, 1);
+    bench.agents.crash(&id).await;
+    bench.sessions.resume(&id).await.expect("this app resumes it from its own session");
+    assert_eq!(bench.agents.started().pop().expect("a start").resume.as_deref(), Some(id.as_str()));
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_message_queued_before_the_session_ended_goes_out_once_the_worker_is_resumed() {
     let bench = Bench::new();

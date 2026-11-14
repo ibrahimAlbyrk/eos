@@ -155,7 +155,8 @@ pub struct Worker {
     pub tool_scope: Option<String>,
     pub worktree_dir: Option<String>,
     pub turn_started_at: Option<i64>,
-    /// The engine's session: what a resume needs.
+    /// What a resume continues: the Claude Code session the TypeScript app
+    /// resumes the chat by, else the engine's own (a chat begun in this app).
     pub session_id: Option<String>,
     /// The commit its worktree was forked at: the base of its diff.
     pub fork_base_sha: Option<String>,

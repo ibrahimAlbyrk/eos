@@ -29,7 +29,7 @@ async fn json(app: &App, method: Method, target: &str, caller: Caller) -> (u16, 
 #[tokio::test(flavor = "multi_thread")]
 async fn an_app_that_was_not_told_it_may_use_the_network_never_listens() {
     let home = TempHome::new();
-    assert!(!options(&home).peer_network, "off unless the host says so");
+    assert!(!options(&home).reaches_network, "off unless the host says so");
     let app = App::build(options(&home)).expect("builds");
     app.start().await.expect("starts");
 

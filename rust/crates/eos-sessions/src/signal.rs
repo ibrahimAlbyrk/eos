@@ -156,7 +156,7 @@ fn reduce(
             SessionEventPhase::Ready => {
                 // What a resume needs after a restart.
                 if let Some(id) = session.session_id.as_deref().filter(|id| !id.is_empty()) {
-                    tx.workers().set_session_id(worker_id, id)?;
+                    tx.workers().set_engine_session(worker_id, id)?;
                 }
             }
             SessionEventPhase::Ended => {

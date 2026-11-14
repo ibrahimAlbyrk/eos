@@ -544,6 +544,24 @@ async fn one_sign_in_is_removed_or_the_provider_is_signed_out_of_all() {
     assert_eq!(t.accounts.for_new_session(CHATGPT).await, None);
 }
 
+// The TypeScript app kept its ChatGPT sign-in in the Codex CLI's home, which
+// this app cannot use: Settings › Accounts asks for a new sign-in ("Sign-in
+// expired · Sign in again") until the user signs in or out here.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_chatgpt_sign_in_the_typescript_app_left_asks_for_a_new_one() {
+    let t = fixture(json!({}));
+    t.stores.left_behind("/acc/chatgpt");
+    let openai = t.accounts.status().list().await.remove(1);
+    assert_eq!(openai.subscription.as_ref().map(|s| s.state), Some(SubscriptionState::Expired));
+    assert_eq!(openai.route, BillingRoute::Blocked);
+    assert_eq!(t.accounts.for_new_session(CHATGPT).await, None, "nothing runs on it");
+
+    t.accounts.sign_ins().sign_out(CHATGPT).await.expect("signs out");
+    let openai = t.accounts.status().list().await.remove(1);
+    assert_eq!(openai.subscription.as_ref().map(|s| s.state), Some(SubscriptionState::SignedOut));
+    assert_eq!(openai.route, BillingRoute::None);
+}
+
 // ---- manager/services/__tests__/AccountsService.test.ts ------------------------
 
 #[tokio::test(flavor = "multi_thread")]

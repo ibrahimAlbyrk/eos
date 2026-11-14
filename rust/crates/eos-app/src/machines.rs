@@ -76,7 +76,7 @@ pub(crate) fn sync(cx: &Context, contributions: Vec<SyncContribution>) -> Result
         service: SyncServiceDeps {
             identities: Arc::new(FileSyncIdentityStore::new(&dir)),
             state: Arc::new(FileSyncStateStore::new(&dir, cx.clock.clone())),
-            accounts: Arc::new(RelayAccounts::new(http)),
+            accounts: cx.reach.sync_accounts(Arc::new(RelayAccounts::new(http))),
             // A new account is created on the relay hosting uses, else the phone's.
             relay_url: Arc::new(move || {
                 let current = config.current();

@@ -148,8 +148,8 @@ impl Eos {
                 opener: ports.opener.clone(),
             }),
             sweep_leftovers: real_data,
-            relay: network.then(eos_app::relay),
-            peer_network: network,
+            relay: Some(eos_app::relay()),
+            reaches_network: network,
             dashboard: Some(self.dist.clone()).filter(|dist| dist.join("index.html").is_file()),
             ..eos_app::Options::new(home)
         };

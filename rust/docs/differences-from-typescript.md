@@ -47,6 +47,13 @@ changes there without a decision.
 | Rewinding a chat | Restored the conversation and Claude Code's file checkpoints | Restores the conversation only | The engine keeps no file checkpoints. |
 | Goal loops (an orchestrator gives a worker a goal; at each idle edge a check of its criteria sends the worker back to work until they pass) | Present, off unless `config.loop.enabled` | None. `POST /orchestrators/:id/loop` and `…/loop/stop` are not served (404). A spawn that asks for a `loop` is refused before anything starts (400, "goal loops are not available — spawn the worker without `loop`"). A worker row never carries `loop`; a worker's report goes to its parent at once; `get_worker` answers `loop: null`. The prompt list and an exported chat page have no loop parts. The loop rows and the `loop` section of `config.json` a TypeScript app left are kept as they are and never read: such a worker works as a plain one | Owner's decision: the feature is to be designed again from scratch. |
 
+### Accounts
+
+| What | Today | Rust | Why |
+|---|---|---|---|
+| A ChatGPT sign-in made in the TypeScript app | Kept by the Codex CLI in `accounts/codex` (`CODEX_HOME`) | Not carried over. Settings › Accounts shows ChatGPT as "Sign-in expired · Sign in again" until the user signs in here (the engine's own sign-in, in `accounts/chatgpt`) or signs out. `accounts/codex` is never read for a token, renewed or changed | Its tokens belong to the Codex CLI's own client and lack the permission to use the plan that the engine's sign-in asks for, and renewing them here would spend the single-use refresh token the TypeScript app still holds. Each app renews only its own ChatGPT store, so going back and forth breaks neither. |
+| A copied or moved data folder | `accounts/logins.json` names each sign-in's store by its absolute path, so a copy used the original folder's stores and keychain items (and could renew or sign them out) | A recorded store outside this data folder's `accounts` folder is read as the store of the same name inside it; the file is left as it is, and on the user's own folder nothing changes | A copy must never act with, renew or sign out the original's sign-ins. |
+
 ### Chats
 
 | What | Today | Rust | Why |

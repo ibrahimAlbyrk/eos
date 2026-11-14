@@ -44,6 +44,15 @@ fn store(home: &Path, name: &str, token: &str) -> String {
     dir.to_string_lossy().into_owned()
 }
 
+/// Makes `name`'s login one whose access token lapsed and that holds no way
+/// to renew it.
+fn unrenewable(home: &Path, name: &str) {
+    let dir = home.join("accounts").join(format!("claude-{name}"));
+    let login = json!({"claudeAiOauth": {"accessToken": format!("tok-{name}"), "expiresAt": 1_000_u64,
+        "scopes": ["user:inference", "user:profile"], "subscriptionType": "team"}});
+    std::fs::write(dir.join(".credentials.json"), login.to_string()).expect("a login");
+}
+
 /// Signs `names` in (the first is the default), with an API key beside them.
 fn sign_in(home: &Path, names: &[&str]) {
     let logins: Vec<Value> = names
@@ -86,8 +95,14 @@ struct Bench {
 
 impl Bench {
     async fn new(names: &[&str], replies: Vec<Reply>) -> Self {
+        Self::with(names, replies, |_| {}).await
+    }
+
+    /// As [`Bench::new`], with the data folder changed by `prepare` first.
+    async fn with(names: &[&str], replies: Vec<Reply>, prepare: impl FnOnce(&Path)) -> Self {
         let home = TempHome::new();
         sign_in(home.path(), names);
+        prepare(home.path());
         let mock = MockApi::start(replies).await.expect("the scripted model API");
         let claude = tempfile::tempdir().expect("a folder");
         let options = Options {
@@ -146,6 +161,14 @@ impl Bench {
                 (row["id"].as_i64().unwrap_or_default(), payload)
             })
             .collect()
+    }
+
+    /// Claude's account as Settings › Accounts reads it.
+    async fn claude(&self) -> Value {
+        let (status, answer) = rig::call(&self.app, Method::Get, "/api/accounts", None).await;
+        assert_eq!(status, 200, "{answer}");
+        let all = answer.get("accounts").unwrap_or(&answer).as_array().cloned().unwrap_or_default();
+        all.into_iter().find(|a| a["id"] == "anthropic").unwrap_or_else(|| panic!("no Claude account: {answer}"))
     }
 
     async fn transcript(&self, id: &str) -> String {
@@ -242,4 +265,75 @@ async fn with_every_sign_in_out_resume_at_carries_the_turn_on_once_the_limit_res
     assert_eq!(resumed[0].1["resumed"], json!(true), "{}", resumed[0].1);
     assert!(resumed[0].1.get("resumeAt").is_none(), "{}", resumed[0].1);
     assert!(b.transcript(&id).await.contains("answered after the reset"));
+}
+
+fn login_states(claude: &Value) -> Vec<(String, String)> {
+    let logins = claude["logins"].as_array().cloned().unwrap_or_default();
+    logins
+        .iter()
+        .map(|l| (l["id"].as_str().unwrap_or("").to_owned(), l["state"].as_str().unwrap_or("").to_owned()))
+        .collect()
+}
+
+// The TypeScript app counts a store holding either token as signed in
+// (`readClaudeCodeLogin`), so a sign-in whose access token lapsed with no way
+// to renew it shows as signed in until a turn finds out. That turn ends on
+// `authentication_failed`, `SwitchSessionAccount` marks the sign-in expired,
+// and the session moves to a ready one; with none, the provider's state is
+// `expired` and its route `blocked` (`billing-route.ts`), the key unused.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_sign_in_that_cannot_be_renewed_is_found_out_by_its_first_turn() {
+    let mut b = Bench::with(&["a", "b"], vec![Reply::text("answered on b")], |home| unrenewable(home, "a")).await;
+    let before = b.claude().await;
+    assert_eq!(login_states(&before), [("login-a".into(), "signed_in".into()), ("login-b".into(), "signed_in".into())]);
+    assert_eq!((&before["route"], &before["subscription"]["state"]), (&json!("subscription"), &json!("signed_in")));
+
+    let id = b.chat("say hello").await;
+    b.idle(&id).await;
+    let requests = b.requests(1).await;
+    assert_eq!(requests.iter().map(bearer).collect::<Vec<_>>(), [Some("Bearer tok-b")], "nothing went out on a");
+    let switched = b.rows(&id, "account_switched").await;
+    assert_eq!(switched.len(), 1, "{}", b.transcript(&id).await);
+    assert_eq!((&switched[0].1["from"], &switched[0].1["reason"]), (&json!("a@example.com"), &json!("expired")));
+    let after = b.claude().await;
+    assert_eq!(login_states(&after), [("login-a".into(), "expired".into()), ("login-b".into(), "signed_in".into())]);
+    assert_eq!(after["route"], json!("subscription"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn with_no_other_sign_in_one_that_cannot_be_renewed_blocks_its_provider() {
+    let mut b = Bench::with(&["a"], vec![Reply::text("never sent")], |home| unrenewable(home, "a")).await;
+    let id = b.chat("say hello").await;
+    b.idle(&id).await;
+    assert_eq!(b.rows(&id, "accounts_exhausted").await.len(), 1, "{}", b.transcript(&id).await);
+    assert!(b.mock.requests().is_empty(), "the API key is not used without the user's say");
+    let after = b.claude().await;
+    assert_eq!(login_states(&after), [("login-a".into(), "expired".into())]);
+    assert_eq!((&after["route"], &after["subscription"]["state"]), (&json!("blocked"), &json!("expired")));
+}
+
+// The registry records each store's absolute path (as the TypeScript app
+// writes it). A copy of a data folder still names the original's stores, and
+// with them the original's sign-ins and keychain items: it reads its own.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_copy_of_a_data_folder_reads_its_own_sign_ins() {
+    let original = TempHome::new();
+    sign_in(original.path(), &["a"]);
+    let before = std::fs::read(original.join("accounts/claude-a/.credentials.json")).expect("the original's login");
+    let copy = TempHome::new();
+    copy.write("accounts/logins.json", original.read("accounts/logins.json"));
+    let options =
+        Options { secrets: Arc::new(NoKeychain), env: Default::default(), launchd: None, ..Options::new(copy.path()) };
+    let app = App::build(options).expect("builds");
+    app.start().await.expect("starts");
+
+    let (_, answer) = rig::call(&app, Method::Get, "/api/accounts", None).await;
+    let all = answer.get("accounts").unwrap_or(&answer).as_array().cloned().unwrap_or_default();
+    let claude = all.into_iter().find(|a| a["id"] == "anthropic").expect("Claude");
+    assert_eq!(login_states(&claude), [("login-a".into(), "signed_out".into())], "not the original's sign-in");
+    let (status, _) = rig::call(&app, Method::Delete, "/api/accounts/anthropic/logins/login-a", None).await;
+    assert_eq!(status, 200);
+    app.shutdown(Duration::from_secs(5)).await;
+    let after = std::fs::read(original.join("accounts/claude-a/.credentials.json")).expect("still there");
+    assert_eq!(before, after, "a sign-out in the copy leaves the original's store alone");
 }

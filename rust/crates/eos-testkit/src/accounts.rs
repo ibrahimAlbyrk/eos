@@ -97,8 +97,19 @@ pub struct FakePlanStores {
 
 impl FakePlanStores {
     pub fn sign_in(&self, store_dir: &str, plan: Option<&str>, email: Option<&str>) {
-        let login = StoreLogin { present: true, plan: plan.map(str::to_owned), email: email.map(str::to_owned) };
+        let login = StoreLogin {
+            present: true,
+            plan: plan.map(str::to_owned),
+            email: email.map(str::to_owned),
+            left_behind: false,
+        };
         locked(&self.stores).insert(store_dir.to_owned(), login);
+    }
+
+    /// `store_dir` holds no sign-in, and the TypeScript app left one of its
+    /// provider that this app cannot use.
+    pub fn left_behind(&self, store_dir: &str) {
+        locked(&self.stores).insert(store_dir.to_owned(), StoreLogin { left_behind: true, ..StoreLogin::default() });
     }
 
     /// The stores that were signed out, in order.

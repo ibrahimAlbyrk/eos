@@ -324,6 +324,70 @@ async fn an_old_chat_continues_from_the_transcript_claude_code_wrote() {
     assert!(bench.engine.session("w-gone").is_none());
 }
 
+/// Writes Claude Code's transcript of `session` for the bench's project:
+/// one prompt and its answer per pair.
+fn claude_transcript(bench: &Bench, session: &str, turns: &[(&str, &str)]) -> PathBuf {
+    let folder =
+        bench.dir.path().join("home/.claude/projects").join(eos_agent_compat::project_dir_name(&bench.project()));
+    std::fs::create_dir_all(&folder).expect("a folder");
+    let mut lines = String::new();
+    let mut parent = Value::Null;
+    for (n, (prompt, answer)) in turns.iter().enumerate() {
+        let (user, assistant) = (format!("u{n}"), format!("a{n}"));
+        let entry = |kind: &str, uuid: &str, parent: Value, message: Value| {
+            serde_json::json!({"type": kind, "uuid": uuid, "parentUuid": parent, "sessionId": session,
+                               "timestamp": "2026-01-01T00:00:00.000Z", "message": message})
+            .to_string()
+                + "\n"
+        };
+        lines += &entry("user", &user, parent, serde_json::json!({"role": "user", "content": prompt}));
+        let reply = serde_json::json!({"role": "assistant", "model": "claude-old", "content": [{"type": "text", "text": answer}]});
+        lines += &entry("assistant", &assistant, user.into(), reply);
+        parent = assistant.into();
+    }
+    let path = folder.join(format!("{session}.jsonl"));
+    std::fs::write(&path, lines).expect("the transcript");
+    path
+}
+
+// Going back to the TypeScript app resumes the chat from the same Claude Code
+// session (the row keeps it), where the turns made here are not. When the
+// user goes on there and then comes back, the conversation Claude Code holds
+// is the newer one, and the chat continues from it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_chat_the_typescript_app_went_on_with_is_taken_again() {
+    let bench = Bench::new([Reply::text("one"), Reply::text("two"), Reply::text("three"), Reply::text("four")]).await;
+    let session = "0b8f3c1e-7d2a-4c55-9a51-3e9d2f6a8b10";
+    claude_transcript(&bench, session, &[("remember PELICAN", "noted")]);
+    let resume =
+        |prompt: &str| LaunchSpec { resume: Some(session.into()), prompt: Some(prompt.into()), ..bench.spec("w-old") };
+
+    let first = bench.start(resume("RUST-ONE")).await;
+    bench.after_turns("w-old", 1).await;
+    first.stop().await;
+    let again = bench.start(resume("RUST-TWO")).await;
+    bench.after_turns("w-old", 2).await;
+    again.stop().await;
+    let sent = bench.request_text(1);
+    assert!(sent.contains("PELICAN") && sent.contains("RUST-ONE") && sent.contains("RUST-TWO"), "{sent}");
+
+    // Back in the TypeScript app, the chat went on from the Claude Code session.
+    claude_transcript(&bench, session, &[("remember PELICAN", "noted"), ("TS-TURN", "answered there")]);
+    let back = bench.start(resume("RUST-THREE")).await;
+    bench.after_turns("w-old", 3).await;
+    let sent = bench.request_text(2);
+    assert!(sent.contains("PELICAN") && sent.contains("TS-TURN") && sent.contains("RUST-THREE"), "{sent}");
+    assert!(!sent.contains("RUST-ONE"), "the newer conversation is the TypeScript app's: {sent}");
+
+    // A chat cleared here stays cleared: the record is the conversation.
+    back.clear_context().await.expect("clears");
+    back.stop().await;
+    bench.start(resume("RUST-FOUR")).await;
+    bench.after_turns("w-old", 4).await;
+    let sent = bench.request_text(3);
+    assert!(sent.contains("RUST-FOUR") && !sent.contains("PELICAN") && !sent.contains("TS-TURN"), "{sent}");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_conversation_can_be_cut_back_cleared_and_replaced() {
     let bench = Bench::new([Reply::text("one"), Reply::text("two"), Reply::text("three"), Reply::text("four")]).await;

@@ -12,12 +12,17 @@ use crate::tx::{SqliteTx, failed};
 /// Every column a [`Worker`] holds, in the order [`worker`] reads them. Named
 /// one by one: the table grew by `ALTER TABLE`, so its own column order
 /// differs between a migrated file and nothing else should depend on it.
+///
+/// The session a resume continues is the Claude Code one the TypeScript app
+/// resumes the chat by (`workers.session_id`, never written here), else this
+/// app's own (`engine_sessions`): a chat begun here has only that one.
 const COLUMNS: &str = "id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, \
     ended_at, exit_code, parent_id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_create, \
     tokens_cache_create_1h, cost_usd, last_context_tokens, tasks, is_orchestrator, tool_calls, permission_mode, \
     effort, backend_kind, backend_profile, agent_role, worker_definition, tool_scope, worktree_dir, \
-    turn_started_at, session_id, fork_base_sha, with_gateway, collaborate, workspace_owner_id, workspace_ready, \
-    archived_at, scratch";
+    turn_started_at, \
+    COALESCE(NULLIF(session_id, ''), (SELECT s.session_id FROM engine_sessions s WHERE s.worker_id = workers.id)), \
+    fork_base_sha, with_gateway, collaborate, workspace_owner_id, workspace_ready, archived_at, scratch";
 
 fn worker(row: &Row<'_>) -> Result<Worker, Error> {
     // Flags and counters written before their column existed are NULL: off, zero.
@@ -254,8 +259,13 @@ impl WorkerRepo for SqliteTx<'_> {
         self.exec("UPDATE workers SET workspace_ready = 1 WHERE id = ?1", [id]).map(drop)
     }
 
-    fn set_session_id(&self, id: &str, session_id: &str) -> Result<(), Error> {
-        self.exec("UPDATE workers SET session_id = ?1 WHERE id = ?2", [session_id, id]).map(drop)
+    fn set_engine_session(&self, id: &str, session_id: &str) -> Result<(), Error> {
+        self.exec(
+            "INSERT INTO engine_sessions (worker_id, session_id) VALUES (?1, ?2) \
+             ON CONFLICT (worker_id) DO UPDATE SET session_id = excluded.session_id",
+            [id, session_id],
+        )
+        .map(drop)
     }
 
     fn set_tasks(&self, id: &str, tasks: Option<&str>) -> Result<(), Error> {
@@ -279,6 +289,7 @@ impl WorkerRepo for SqliteTx<'_> {
     }
 
     fn delete(&self, id: &str) -> Result<(), Error> {
+        self.exec("DELETE FROM engine_sessions WHERE worker_id = ?1", [id])?;
         self.exec("DELETE FROM workers WHERE id = ?1", [id]).map(drop)
     }
 }

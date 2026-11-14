@@ -23,6 +23,7 @@ mod mapper;
 mod prompter;
 mod registry;
 mod session;
+mod takeover;
 mod tools;
 mod transcript;
 mod workflow_files;

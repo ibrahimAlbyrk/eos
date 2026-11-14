@@ -193,7 +193,7 @@ fn a_worker_goes_through_its_writes() {
             )?;
             workers.set_context_tokens("w-1", 900)?;
             workers.increment_tool_calls("w-1")?;
-            workers.set_session_id("w-1", "sess-1")?;
+            workers.set_engine_session("w-1", "w-1")?;
             workers.set_tasks("w-1", Some("[]"))?;
             assert!(workers.update_name_if_source("w-1", "Auto name", NameSource::Default, NameSource::Auto)?);
             assert!(!workers.update_name_if_source("w-1", "Again", NameSource::Default, NameSource::Auto)?);
@@ -249,6 +249,45 @@ fn a_worker_goes_through_its_writes() {
 
     temp.store.write_blocking(|tx, _| tx.workers().delete("w-1")).expect("deletes");
     assert_eq!(temp.store.read_blocking(|tx| tx.workers().find("w-1")).expect("reads"), None);
+    assert_eq!(temp.count("SELECT COUNT(*) FROM engine_sessions"), 0, "its session goes with it");
+}
+
+// The TypeScript app resumes a chat by `workers.session_id`: `ResumeWorker.ts`
+// refuses a row without one ("worker has no recorded session to resume") and
+// passes it as `options.resume` to Claude Code (`ClaudeSdkBackend.ts`), which
+// takes only a UUID with a transcript under its projects folder. So that a
+// user can go back to that app, this app never writes the column.
+#[test]
+fn the_session_the_typescript_app_resumes_by_is_never_replaced() {
+    let temp = TempStore::new();
+    let claude = "0b8f3c1e-7d2a-4c55-9a51-3e9d2f6a8b10";
+    temp.store
+        .write_blocking(|tx, _| {
+            tx.workers().insert(&new_worker("w-old"))?;
+            tx.workers().insert(&new_worker("w-new"))
+        })
+        .expect("writes");
+    temp.exec(&format!("UPDATE workers SET session_id = '{claude}' WHERE id = 'w-old'"));
+
+    // Both sessions come up in this app under the worker's own id.
+    let (old, new) = temp
+        .store
+        .write_blocking(|tx, _| {
+            tx.workers().set_engine_session("w-old", "w-old")?;
+            tx.workers().set_engine_session("w-new", "w-new")?;
+            Ok((tx.workers().find("w-old")?, tx.workers().find("w-new")?))
+        })
+        .expect("writes");
+    let column =
+        |id: &str| temp.count(&format!("SELECT COUNT(*) FROM workers WHERE id = '{id}' AND session_id IS NULL"));
+    assert_eq!(
+        temp.count(&format!("SELECT COUNT(*) FROM workers WHERE id = 'w-old' AND session_id = '{claude}'")),
+        1,
+        "the chat goes on in the TypeScript app from its Claude Code session"
+    );
+    assert_eq!(column("w-new"), 1, "a chat begun here has none the TypeScript app could resume");
+    assert_eq!(old.expect("the row").session_id.as_deref(), Some(claude), "a resume here reads it too");
+    assert_eq!(new.expect("the row").session_id.as_deref(), Some("w-new"), "and this app's own when it has no other");
 }
 
 #[test]

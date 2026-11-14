@@ -140,8 +140,9 @@ or its stream, and a request is always answered, also when its task dies. A rele
 opens `~/.eos` when `EOS_HOME` is not set; a dev run (a build with the `dev-run` feature:
 `bundle.sh test` or `debug`) has no default: without it the Rust core does not start, so
 nothing opens the real `~/.eos` by accident (`eos_bridge::launch`). Only a release build on the
-user's own `~/.eos` reaches other computers (the phone's relay, paired computers): never a dev
-run, a test or a copy of a data folder.
+user's own `~/.eos` acts as the user beyond this computer (the phone's relay, paired computers,
+the sync vault, the update feed, Eos's own reads of the user's accounts: one switch,
+`crates/eos-app/src/reach.rs`): never a dev run, a test or a copy of a data folder.
 
 `scripts/launch.sh` opens a dev-run bundle on a copy of real data (`scripts/dev-env.sh`: every
 run can name its own copy and output folder; a missing copy is made from

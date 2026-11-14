@@ -81,7 +81,10 @@ pub trait WorkerRepo {
     fn set_worktree_dir(&self, id: &str, dir: &str) -> Result<(), Error>;
     fn set_fork_base_sha(&self, id: &str, sha: &str) -> Result<(), Error>;
     fn set_workspace_ready(&self, id: &str) -> Result<(), Error>;
-    fn set_session_id(&self, id: &str, session_id: &str) -> Result<(), Error>;
+    /// Records the session this app continues the worker's conversation in.
+    /// The Claude Code session the TypeScript app resumes a chat by stays as
+    /// it is: a user who goes back to that app must still be able to go on.
+    fn set_engine_session(&self, id: &str, session_id: &str) -> Result<(), Error>;
     /// The task list as JSON text; `None` clears it.
     fn set_tasks(&self, id: &str, tasks: Option<&str>) -> Result<(), Error>;
     /// Forgets the process (pid and port): it is known to be gone.

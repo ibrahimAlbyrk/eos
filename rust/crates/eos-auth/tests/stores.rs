@@ -87,7 +87,15 @@ async fn a_file_store_is_read_renewed_once_by_everyone_who_shares_it_and_signed_
         (Stores::new(Arc::new(NoKeychain), endpoints.clone()), Stores::new(Arc::new(NoKeychain), endpoints));
 
     let read = ours.read("anthropic", &store).await;
-    assert_eq!(read, StoreLogin { present: true, plan: Some("max".into()), email: Some("me@example.com".into()) });
+    assert_eq!(
+        read,
+        StoreLogin {
+            present: true,
+            plan: Some("max".into()),
+            email: Some("me@example.com".into()),
+            left_behind: false
+        }
+    );
     assert_eq!(
         ours.read("anthropic", &home.join("accounts/claude-none").to_string_lossy()).await,
         StoreLogin::default()
@@ -145,7 +153,15 @@ async fn a_store_the_typescript_app_signed_in_keeps_working_from_its_keychain_it
     let (ours, theirs) = (Stores::new(keychain.clone(), endpoints.clone()), Stores::new(keychain.clone(), endpoints));
 
     let read = ours.read("anthropic", &store).await;
-    assert_eq!(read, StoreLogin { present: true, plan: Some("max".into()), email: Some("me@example.com".into()) });
+    assert_eq!(
+        read,
+        StoreLogin {
+            present: true,
+            plan: Some("max".into()),
+            email: Some("me@example.com".into()),
+            left_behind: false
+        }
+    );
     let tokens = tokio::join!(ours.access_token("anthropic", &store), theirs.access_token("anthropic", &store));
     assert_eq!(tokens, (Some("at-new".into()), Some("at-new".into())));
     assert_eq!(renewals.load(Ordering::SeqCst), 1);
@@ -311,7 +327,10 @@ async fn a_chatgpt_store_is_read_and_signed_out_and_keeps_its_registration() {
     home.write("accounts/chatgpt/siwc.json", record.to_string());
     home.write("accounts/chatgpt/host-id", "urn:uuid:1");
     let read = stores.read("openai", &store).await;
-    assert_eq!(read, StoreLogin { present: true, plan: None, email: Some("me@example.com".into()) });
+    assert_eq!(
+        read,
+        StoreLogin { present: true, plan: None, email: Some("me@example.com".into()), left_behind: false }
+    );
     assert_eq!(stores.access_token("openai", &store).await.as_deref(), Some("at-chatgpt"));
 
     stores.sign_out("openai", &store).await.expect("signs out");
@@ -322,6 +341,33 @@ async fn a_chatgpt_store_is_read_and_signed_out_and_keeps_its_registration() {
     let provider = ChatGptSignIn::new(stores);
     assert!(!provider.accepts_code() && !provider.multi_login() && provider.id() == "openai");
     assert_eq!(stores_of_unknown_provider().await, StoreLogin::default());
+}
+
+// What the TypeScript app's ChatGPT sign-in left (`codex login` with
+// CODEX_HOME = accounts/codex): tokens of the Codex CLI's own client.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_typescript_apps_chatgpt_sign_in_is_noticed_and_never_used() {
+    let home = TempHome::new();
+    let auth = json!({"auth_mode": "chatgpt", "OPENAI_API_KEY": null, "last_refresh": "2026-09-30T00:00:00Z",
+        "tokens": {"id_token": "id", "access_token": "at-codex", "refresh_token": "rt-codex", "account_id": "acct"}});
+    home.write("accounts/codex/auth.json", auth.to_string());
+    let before = std::fs::read(home.join("accounts/codex/auth.json")).expect("reads");
+    let store = home.join("accounts/chatgpt").to_string_lossy().into_owned();
+    let stores = Stores::new(Arc::new(NoKeychain), Endpoints::default());
+
+    assert_eq!(stores.read("openai", &store).await, StoreLogin { left_behind: true, ..StoreLogin::default() });
+    assert_eq!(stores.access_token("openai", &store).await, None);
+    assert!(!stores.refused("openai", &store, "at-codex").await);
+    stores.sign_out("openai", &store).await.expect("signs out");
+    assert_eq!(stores.read("openai", &store).await, StoreLogin::default(), "the user dealt with ChatGPT here");
+    let after = std::fs::read(home.join("accounts/codex/auth.json")).expect("reads");
+    assert_eq!(before, after, "the TypeScript app's sign-in is left as it was");
+
+    // A Codex home that holds an API key, or nothing, is no sign-in.
+    let other = TempHome::new();
+    other.write("accounts/codex/auth.json", json!({"auth_mode": "apikey", "OPENAI_API_KEY": "sk"}).to_string());
+    let store = other.join("accounts/chatgpt").to_string_lossy().into_owned();
+    assert_eq!(stores.read("openai", &store).await, StoreLogin::default());
 }
 
 async fn stores_of_unknown_provider() -> StoreLogin {

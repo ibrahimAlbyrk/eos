@@ -2,9 +2,7 @@
 //! prompts a rewind can go back to, and the recorded conversation a resumed
 //! session continues (the engine's own, or one Claude Code wrote).
 
-use std::path::Path;
-
-use eos_agent_compat::{ClaudePaths, ClaudeSession, transcript_path};
+use eos_agent_compat::ClaudeSession;
 use eos_agent_core::StoredMessage;
 use eos_agent_types::{ContentBlock, Role, ToolResultContent};
 use eos_contracts::RewindTarget;
@@ -169,23 +167,12 @@ pub(crate) fn prompts(messages: &[StoredMessage]) -> Vec<Prompt> {
         .collect()
 }
 
-/// A conversation Claude Code recorded for `session_id` in `cwd`, as the
-/// messages a resumed session sends the model; `None` when there is none.
-/// Thinking is signed for the model that wrote it, so it is kept only when
-/// the session goes on with that very model.
-pub(crate) fn claude_history(
-    paths: &ClaudePaths,
-    cwd: &Path,
-    session_id: &str,
-    model: &str,
-) -> Option<Vec<StoredMessage>> {
-    let path = transcript_path(paths, cwd, session_id);
-    let session = ClaudeSession::read(&path).ok()?;
-    if session.messages.is_empty() {
-        return None;
-    }
+/// A conversation Claude Code recorded, as the messages a resumed session
+/// sends the model. Thinking is signed for the model that wrote it, so it is
+/// kept only when the session goes on with that very model.
+pub(crate) fn claude_messages(session: ClaudeSession, model: &str) -> Vec<StoredMessage> {
     let same_model = session.model.as_deref() == Some(model);
-    Some(if same_model { session.messages } else { session.without_thinking() })
+    if same_model { session.messages } else { session.without_thinking() }
 }
 
 #[cfg(test)]

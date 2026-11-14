@@ -11,7 +11,7 @@
 //!
 //! ## What the window shell provides
 //!
-//! - **The go for the network.** `eos_app::Options::peer_network = true`,
+//! - **The go for the network.** `eos_app::Options::reaches_network = true`,
 //!   only in the installed app on the user's own data folder. Without it the
 //!   settings answer and nothing listens or dials.
 //! - **The bundle.** `eos_app::Options::dashboard`: the folder of the

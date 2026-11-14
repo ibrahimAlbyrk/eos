@@ -57,6 +57,14 @@ binary makes.
      ignores ids it does not know (`infra/src/persistence/MigrationRunner.ts`).
    - The start-up work on the rows (prune delivered messages, cut event logs, deny expired asks,
      park rows whose process died) is what the old daemon does at its own start.
+   - A chat keeps the Claude Code session the old app resumes it by (`workers.session_id`); the
+     Rust app keeps its own in `engine_sessions` (067, which also puts back the session an earlier
+     Rust build had overwritten, from the chat's newest resume row). After going back, a chat from
+     before the switch continues in 0.1.x from its last Claude Code state: the turns made in the
+     Rust app stay visible in its history but are not in the model's context. A chat begun in the
+     Rust app has no Claude Code session, so 0.1.x cannot continue it (its history stays). Coming
+     back to Rust, a chat 0.1.x went on with continues from that newer Claude Code conversation;
+     any other from the Rust app's own record.
    - `updates/last-version` is rewritten to the new version. After a rollback the old app reads a
      higher version than its own there and shows nothing for it; the rollback notice comes from
      `result.json`.
