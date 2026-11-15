@@ -24,6 +24,9 @@ use serde_json::Value;
 struct Hooks {
     idle: AtomicUsize,
     deltas: AtomicUsize,
+    /// Each piece of live text: block, phase, text.
+    pieces: std::sync::Mutex<Vec<(String, String, String)>>,
+    exited: std::sync::Mutex<Vec<String>>,
     held: std::sync::Mutex<Vec<String>>,
     removed: std::sync::Mutex<Vec<String>>,
     missing_folders: std::sync::Mutex<Vec<String>>,
@@ -35,8 +38,14 @@ struct Hooks {
 }
 
 impl SessionHooks for Hooks {
-    fn delta(&self, _worker_id: &str, _delta: &eos_contracts::DeltaEvent) {
+    fn delta(&self, _worker_id: &str, delta: &eos_contracts::DeltaEvent) {
         self.deltas.fetch_add(1, Ordering::SeqCst);
+        let phase = serde_json::to_value(delta.phase).expect("a phase").as_str().unwrap_or_default().to_owned();
+        self.pieces.lock().expect("pieces").push((delta.block_id.clone(), phase, delta.text.clone()));
+    }
+
+    fn exited(&self, worker_id: &str) {
+        self.exited.lock().expect("exited").push(worker_id.to_owned());
     }
 
     fn holds_worker(&self, worker_id: &str) -> bool {
@@ -70,8 +79,49 @@ impl SessionHooks for Hooks {
     }
 }
 
+/// The real store, refusing the next `refuse` writes as a full write queue does, and
+/// running the next `unsaved` ones without saving them, as a failed commit does.
+struct Busy {
+    inner: Arc<dyn Store>,
+    refuse: std::sync::Mutex<usize>,
+    unsaved: std::sync::Mutex<usize>,
+}
+
+impl Store for Busy {
+    fn run_read(&self, job: eos_core::store::ReadJob) -> eos_core::BoxFuture<'_, Result<(), Error>> {
+        self.inner.run_read(job)
+    }
+
+    fn run_write(&self, job: eos_core::store::WriteJob) -> eos_core::BoxFuture<'_, Result<(), Error>> {
+        let refused = {
+            let mut left = self.refuse.lock().expect("refuse");
+            let refused = *left > 0;
+            *left = left.saturating_sub(1);
+            refused
+        };
+        if refused {
+            return Box::pin(async { Err(Error::LimitExceeded("the database is busy".into())) });
+        }
+        let unsaved = {
+            let mut left = self.unsaved.lock().expect("unsaved");
+            let unsaved = *left > 0;
+            *left = left.saturating_sub(1);
+            unsaved
+        };
+        if unsaved {
+            // Its own savepoint undoes what it wrote.
+            return self.inner.run_write(Box::new(move |tx, out| {
+                job(tx, out)?;
+                Err(Error::Storage("the write was not saved: its transaction failed to commit".into()))
+            }));
+        }
+        self.inner.run_write(job)
+    }
+}
+
 struct Bench {
     sessions: Sessions,
+    busy: Arc<Busy>,
     agents: ScriptedRuntime,
     temp: TempStore,
     hooks: Arc<Hooks>,
@@ -92,8 +142,10 @@ impl Bench {
         let recents = Arc::new(FakeRecents::default());
         let sleeper = Arc::new(FakeSleeper::default());
         let clock = Arc::new(FakeClock::new());
+        let busy =
+            Arc::new(Busy { inner: temp.port(), refuse: std::sync::Mutex::new(0), unsaved: std::sync::Mutex::new(0) });
         let sessions = Sessions::new(SessionDeps {
-            store: temp.port(),
+            store: busy.clone(),
             runtime: agents.port(),
             clock: clock.clone(),
             ids: Arc::new(SeqIds::new()),
@@ -106,7 +158,7 @@ impl Bench {
             sleeper: sleeper.clone(),
         });
         let _ = hooks.sessions.set(sessions.clone());
-        Self { sessions, agents, temp, hooks, prompts, worktrees, recents, sleeper, clock }
+        Self { sessions, busy, agents, temp, hooks, prompts, worktrees, recents, sleeper, clock }
     }
 
     fn store(&self) -> Arc<dyn Store> {
@@ -1233,4 +1285,149 @@ async fn a_turn_the_agent_starts_itself_works_holds_the_queue_and_settles_idle()
     );
     assert_eq!(tags[8], "state:IDLE:agent:turn_ended");
     assert!(!tags.contains(&"state:IDLE:interrupt".to_owned()), "{tags:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_busy_database_delays_an_agents_events_and_never_drops_the_turns_end() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let waiting = bench.sleeper.pending().len();
+    *bench.busy.refuse.lock().expect("refuse") = 2;
+    bench.agents.wake(&id, Turn::reply("the build passed"));
+    // Each refused write is tried again after a pause that grows.
+    for pause in [50, 100] {
+        until(|| async { bench.sleeper.pending().len() > waiting }).await;
+        assert_eq!(bench.sleeper.pending().last(), Some(&pause));
+        assert!(bench.sleeper.wake());
+    }
+    bench.agents.settled().await;
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    let tags = bench.tags(&id).await;
+    let turn: Vec<&str> = tags.iter().map(String::as_str).skip_while(|t| *t != "agent:turn:started").collect();
+    assert_eq!(
+        turn,
+        [
+            "agent:turn:started",
+            "state:WORKING:agent:turn_started",
+            "agent:message",
+            "agent:usage",
+            "agent:turn:ended",
+            "state:IDLE:agent:turn_ended"
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_batch_that_was_not_saved_moves_the_worker_as_a_first_try_would() {
+    use eos_core::agent::SessionSink;
+    use eos_testkit::agent::events;
+    let bench = Bench::new();
+    let id = bench.chat("hello").await;
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    // Past the settle window of that first turn.
+    bench.clock.advance(10_000);
+    let mark = bench.tags(&id).await.len();
+    // An idle chat's agent speaks and ends a turn of its own; the first write of it is lost.
+    *bench.busy.unsaved.lock().expect("unsaved") = 1;
+    let waiting = bench.sleeper.pending().len();
+    let sessions = bench.sessions.clone();
+    let (worker, batch) =
+        (id.clone(), vec![events::text("late", "m9:0"), events::turn(eos_contracts::TurnEventPhase::Ended, None)]);
+    let recorded = tokio::spawn(async move { sessions.events(&worker, batch).await });
+    until(|| async { bench.sleeper.pending().len() > waiting }).await;
+    assert!(bench.sleeper.wake());
+    recorded.await.expect("recorded");
+    let tags = bench.tags(&id).await;
+    let moves: Vec<&str> = tags[mark..].iter().map(String::as_str).filter(|t| t.starts_with("state:")).collect();
+    assert_eq!(moves, ["state:WORKING:agent:text", "state:IDLE:agent:turn_ended"]);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn one_batch_folds_every_task_call_and_follows_its_own_moves() {
+    use eos_testkit::agent::events;
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let input = |value: Value| serde_json::from_value(value).expect("an object");
+    bench.agents.wake(
+        &id,
+        Turn::of(vec![
+            events::tool_call("t1", "TaskCreate", input(serde_json::json!({"subject": "read"}))),
+            events::tool_call("t2", "Read", input(serde_json::json!({"subject": "not a task"}))),
+            events::tool_call("t3", "TaskCreate", input(serde_json::json!({"subject": "write"}))),
+            events::tool_call("t4", "TaskUpdate", input(serde_json::json!({"taskId": "1", "status": "completed"}))),
+            events::text("done", "m1:0"),
+        ]),
+    );
+    bench.agents.settled().await;
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    let worker = bench.worker(&id).await.expect("the row");
+    assert_eq!(worker.tool_calls, 4);
+    let tasks: Value = serde_json::from_str(worker.tasks.as_deref().expect("a task list")).expect("json");
+    let listed: Vec<(&str, &str)> = tasks
+        .as_array()
+        .expect("a list")
+        .iter()
+        .map(|t| (t["content"].as_str().expect("content"), t["status"].as_str().expect("status")))
+        .collect();
+    assert_eq!(listed, [("read", "completed"), ("write", "pending")]);
+    let tags = bench.tags(&id).await;
+    let turn: Vec<&str> = tags.iter().map(String::as_str).skip_while(|t| *t != "agent:turn:started").collect();
+    let moves: Vec<&str> = turn.iter().copied().filter(|t| t.starts_with("state:")).collect();
+    assert_eq!(moves, ["state:WORKING:agent:turn_started", "state:IDLE:agent:turn_ended"], "{turn:?}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_blocks_pieces_in_one_batch_go_out_as_one() {
+    use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventChannel, DeltaEventPhase};
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let piece = |block: &str, channel, phase, text: &str| {
+        AgentEvent::Delta(DeltaEvent { channel, phase, block_id: block.into(), text: text.into() })
+    };
+    let (text, think) = (DeltaEventChannel::Text, DeltaEventChannel::Reasoning);
+    let (start, append, stop) = (DeltaEventPhase::Start, DeltaEventPhase::Append, DeltaEventPhase::Stop);
+    bench.agents.wake(
+        &id,
+        Turn::of(vec![
+            piece("r", think, start, "Hm"),
+            piece("r", think, append, "m."),
+            piece("r", think, stop, ""),
+            piece("r", think, append, "late"),
+            piece("t", text, start, "He"),
+            piece("t", text, append, "l"),
+            piece("t", text, append, "lo 😀"),
+            piece("t", think, append, "?"),
+            piece("t", think, append, "!"),
+            piece("u", text, append, "x"),
+            piece("t", text, append, " again"),
+            eos_testkit::agent::events::text("Hello again", "t"),
+            piece("t", text, append, "after"),
+            piece("t", text, stop, ""),
+        ]),
+    );
+    bench.agents.settled().await;
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    let pieces = bench.hooks.pieces.lock().expect("pieces").clone();
+    let pieces: Vec<(&str, &str, &str)> = pieces.iter().map(|(b, p, t)| (b.as_str(), p.as_str(), t.as_str())).collect();
+    assert_eq!(
+        pieces,
+        [
+            ("r", "start", "Hmm."),
+            ("r", "stop", ""),
+            ("r", "append", "late"),
+            ("t", "start", "Hello 😀"),
+            ("t", "append", "?!"),
+            ("u", "append", "x"),
+            ("t", "append", " again"),
+            ("t", "append", "after"),
+            ("t", "stop", ""),
+        ],
+        "a stop, another channel, another block and a recorded event each end a piece"
+    );
+    let tags = bench.tags(&id).await;
+    let turn: Vec<&str> = tags.iter().map(String::as_str).skip_while(|t| *t != "agent:turn:started").collect();
+    assert_eq!(turn[..3], ["agent:turn:started", "state:WORKING:agent:turn_started", "agent:message"]);
+
+    bench.sessions.suspend(&id, "test").await.expect("suspends");
+    until(|| async { bench.hooks.exited.lock().expect("exited").contains(&id) }).await;
 }

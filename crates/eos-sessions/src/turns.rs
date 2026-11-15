@@ -16,7 +16,7 @@ use eos_core::Clock;
 /// How long late events of a finished turn are ignored.
 const SETTLE_MS: i64 = 4000;
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
 struct Turn {
     settle_until: Option<i64>,
     /// Interrupted, and the agent's stream has not ended that turn yet.
@@ -27,6 +27,13 @@ struct Turn {
     recall_row: Option<i64>,
     /// When the agent said the turn started, for the log's duration.
     started_at: Option<i64>,
+}
+
+/// A worker's turn before and after [`Turns::mark_settling`].
+#[derive(Clone, Copy)]
+pub(crate) struct Marked {
+    before: Turn,
+    after: Turn,
 }
 
 pub(crate) struct Turns {
@@ -41,15 +48,31 @@ impl Turns {
 
     fn with<T>(&self, worker_id: &str, change: impl FnOnce(&mut Turn) -> T) -> T {
         let mut all = self.by_worker.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(turn) = all.get_mut(worker_id) {
+            return change(turn);
+        }
         change(all.entry(worker_id.to_owned()).or_default())
     }
 
-    /// A turn just ended: its stragglers are ignored for a while.
-    pub(crate) fn mark_settling(&self, worker_id: &str) {
+    /// A turn just ended: its stragglers are ignored for a while. Returns what to hand
+    /// [`unmark`](Self::unmark) when the write that saw the end is not saved.
+    pub(crate) fn mark_settling(&self, worker_id: &str) -> Marked {
         let until = self.clock.now_ms() + SETTLE_MS;
         self.with(worker_id, |t| {
+            let before = *t;
             t.settle_until = Some(until);
             t.interrupted = false;
+            Marked { before, after: *t }
+        })
+    }
+
+    /// Takes marks back (`marked`: the first and last of one write) unless something
+    /// changed the worker's turn since.
+    pub(crate) fn unmark(&self, worker_id: &str, first: Marked, last: Marked) {
+        self.with(worker_id, |t| {
+            if *t == last.after {
+                *t = first.before;
+            }
         });
     }
 

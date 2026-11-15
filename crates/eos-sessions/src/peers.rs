@@ -486,12 +486,10 @@ impl Sessions {
         }
         // One look at a worker at a time: a second caller that read "idle" beside a delivery
         // would decline the request that just went out.
-        if !peers.pumping.claim(worker_id) {
-            return true;
-        }
+        let Some(claim) = peers.pumping.claim(worker_id) else { return true };
         let delivered = self.deliver_next_peer_request(worker_id).await;
         // An idle edge that came by meanwhile is looked at now.
-        if peers.pumping.release(worker_id) {
+        if claim.release() {
             self.settled(worker_id).await;
         }
         delivered

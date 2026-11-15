@@ -6,11 +6,12 @@
 //! starts the same way.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use eos_contracts::stream::topics::{WORKER_CHANGE, WORKER_SPAWN};
 use eos_contracts::{FOCUSED_ROLE, NameSource, SessionFactsRole, WorkerEventType, WorkerState};
 use eos_core::Error;
-use eos_core::agent::{LaunchSpec, SpawnFacts};
+use eos_core::agent::{LaunchSpec, PromptAssembler, SpawnFacts};
 use eos_core::git::{WorktreeCreate, WorktreeCreated};
 use eos_core::store::{NewWorker, WorktreeRemoval};
 use eos_domain::Worker;
@@ -101,6 +102,17 @@ fn facts_of(row: &Worker) -> SpawnFacts {
         collaborate: row.collaborate,
         worker_definition: row.worker_definition.clone(),
         backend_profile: row.backend_profile.clone(),
+    }
+}
+
+/// The session's system prompt, assembled on a blocking thread: it reads the
+/// prompt library, the worker definitions and the profile from disk.
+async fn system_prompt(prompts: &Arc<dyn PromptAssembler>, facts: &SpawnFacts) -> Option<String> {
+    let (prompts, facts) = (prompts.clone(), facts.clone());
+    match tokio::task::spawn_blocking(move || prompts.system_prompt(&facts)).await {
+        Ok(text) => text,
+        Err(e) if e.is_panic() => std::panic::resume_unwind(e.into_panic()),
+        Err(_) => None,
     }
 }
 
@@ -317,7 +329,9 @@ impl Sessions {
             })
             .await?;
         if let Some(folder) = request.cwd.as_deref().or(request.worktree_from.as_deref()).filter(|_| !request.scratch) {
-            deps.recents.push(folder);
+            // The list is written through to its file, flushed to the disk.
+            let (recents, folder) = (deps.recents.clone(), folder.to_owned());
+            let _ = tokio::task::spawn_blocking(move || recents.push(&folder)).await;
         }
 
         let facts = SpawnFacts {
@@ -337,7 +351,7 @@ impl Sessions {
             worker_definition: request.worker_definition.clone(),
             backend_profile: request.backend_profile.clone(),
         };
-        let system_prompt = deps.prompts.system_prompt(&facts);
+        let system_prompt = system_prompt(&deps.prompts, &facts).await;
         let mut launch = launch_of(&facts, cwd, system_prompt);
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
@@ -419,7 +433,7 @@ impl Sessions {
         self.store().write(move |tx, out| transition_state(tx, out, now, &id, WorkerState::Spawning, "resume")).await?;
 
         let facts = facts_of(&row);
-        let mut launch = launch_of(&facts, cwd, deps.prompts.system_prompt(&facts));
+        let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await);
         launch.resume = Some(session_id.clone());
         let started = deps.runtime.start(launch, self.sink()).await;
         let (id, now) = (worker_id.to_owned(), self.now());

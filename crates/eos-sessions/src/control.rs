@@ -211,18 +211,22 @@ impl Sessions {
             return 0;
         }
         let Ok(rows) = self.store().read(|tx| tx.workers().list_all()).await else { return 0 };
-        let mut parked = 0;
-        for row in rows {
-            let live = matches!(row.state, WorkerState::Spawning | WorkerState::Working | WorkerState::Idle);
-            if !live || row.session_id.as_deref().is_none_or(str::is_empty) {
-                continue;
-            }
+        let live = rows.into_iter().filter(|row| {
+            matches!(row.state, WorkerState::Spawning | WorkerState::Working | WorkerState::Idle)
+                && row.session_id.as_deref().is_some_and(|s| !s.is_empty())
+        });
+        // All at once: a session slow to stop holds up only itself.
+        let parked = futures_util::future::join_all(live.map(|row| async move {
             match self.suspend(&row.id, reason).await {
-                Ok(()) => parked += 1,
-                Err(e) => tracing::warn!(worker_id = %row.id, error = %e, "a chat could not be parked"),
+                Ok(()) => 1,
+                Err(e) => {
+                    tracing::warn!(worker_id = %row.id, error = %e, "a chat could not be parked");
+                    0
+                }
             }
-        }
-        parked
+        }))
+        .await;
+        parked.into_iter().sum()
     }
 
     /// Removes a worker for good, the workers it spawned first: sessions

@@ -14,6 +14,11 @@ fn status(value: Option<&Value>) -> Option<TaskStatus> {
     serde_json::from_value(value?.clone()).ok()
 }
 
+/// Whether calls of tool `name` change the task list.
+pub fn is_task_tool(name: &str) -> bool {
+    matches!(name, "TodoWrite" | "TaskCreate" | "TaskUpdate")
+}
+
 /// The list after a call of tool `name`; `None` when the tool is not a task
 /// tool (or its input makes no list).
 pub fn apply_task_tool(prev: &[Task], name: &str, input: &UnknownRecord) -> Option<Vec<Task>> {
@@ -76,6 +81,8 @@ mod tests {
     fn task_tools_build_and_change_the_list() {
         let none: Vec<Task> = Vec::new();
         assert_eq!(apply_task_tool(&none, "Read", &input(json!({}))), None);
+        assert!(!is_task_tool("Read"));
+        assert!(["TodoWrite", "TaskCreate", "TaskUpdate"].into_iter().all(is_task_tool));
         let one = apply_task_tool(
             &none,
             "TaskCreate",

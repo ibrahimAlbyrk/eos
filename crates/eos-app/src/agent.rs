@@ -6,13 +6,15 @@
 //! accounts feature's; [`FixedCredential`] is for a run that names its own
 //! (tests).
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError, Weak};
 use std::time::Duration;
 
 use eos_contracts::stream::topics::{AGENT_DELTA, PENDING_CREATED};
-use eos_contracts::{AgentEvent, DeltaEvent, DeltaEventPhase, SessionFactsRole, WorkflowRunProgress};
+use eos_contracts::{
+    AgentEvent, DeltaEvent, DeltaEventChannel, DeltaEventPhase, SessionFactsRole, WorkflowRunProgress,
+};
 use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
@@ -38,7 +40,8 @@ use eos_sessions::{KILL_GRACE_MS, MessageInput, SessionHooks, Sessions};
 use eos_workers::WorkerDefinitions;
 use eos_workers::catalog::render_catalog;
 use eos_workers::resolve::resolve_by_name;
-use serde_json::{Value, json};
+use serde::Serialize;
+use serde_json::Value;
 use tokio::runtime::Handle;
 
 /// How agents reach the model and Claude Code's files. The defaults are the
@@ -292,31 +295,85 @@ const MAX_OPEN_BLOCKS: usize = 512;
 
 /// Where each piece of live text starts in its block, so a client that gets
 /// merged pieces places text exactly. Offsets count UTF-16 units, as the
-/// dashboard's strings do.
+/// dashboard's strings do. The blocks touched longest ago are forgotten first.
 #[derive(Default)]
 struct DeltaOffsets {
-    lengths: HashMap<(String, String), u64>,
-    order: VecDeque<(String, String)>,
+    /// By worker, then block: the block's length so far and when it was last touched.
+    open: HashMap<String, HashMap<String, (u64, u64)>>,
+    /// The open blocks by when they were last touched, oldest first.
+    order: BTreeMap<u64, (String, String)>,
+    touches: u64,
 }
 
 impl DeltaOffsets {
     fn next(&mut self, worker_id: &str, delta: &DeltaEvent) -> u64 {
-        let key = (worker_id.to_owned(), delta.block_id.clone());
-        let at = if delta.phase == DeltaEventPhase::Start { 0 } else { self.lengths.get(&key).copied().unwrap_or(0) };
-        self.lengths.remove(&key);
-        self.order.retain(|k| *k != key);
+        let known = self.open.get(worker_id).and_then(|blocks| blocks.get(&delta.block_id)).copied();
+        let at = match (delta.phase, known) {
+            (DeltaEventPhase::Start, _) | (_, None) => 0,
+            (_, Some((length, _))) => length,
+        };
         if delta.phase == DeltaEventPhase::Stop {
+            if let Some((_, touched)) = known {
+                self.order.remove(&touched);
+                self.remove(worker_id, &delta.block_id);
+            }
             return at;
         }
-        self.lengths.insert(key.clone(), at + delta.text.encode_utf16().count() as u64);
-        self.order.push_back(key);
+        self.touches += 1;
+        let entry = (at + delta.text.encode_utf16().count() as u64, self.touches);
+        let key = known.and_then(|(_, touched)| self.order.remove(&touched));
+        let key = key.unwrap_or_else(|| (worker_id.to_owned(), delta.block_id.clone()));
+        match self.open.get_mut(worker_id) {
+            Some(blocks) => {
+                blocks.insert(key.1.clone(), entry);
+            }
+            None => {
+                self.open.insert(key.0.clone(), HashMap::from([(key.1.clone(), entry)]));
+            }
+        }
+        self.order.insert(self.touches, key);
         while self.order.len() > MAX_OPEN_BLOCKS {
-            if let Some(oldest) = self.order.pop_front() {
-                self.lengths.remove(&oldest);
+            if let Some((_, (worker, block))) = self.order.pop_first() {
+                self.remove(&worker, &block);
             }
         }
         at
     }
+
+    fn remove(&mut self, worker_id: &str, block_id: &str) {
+        if let Some(blocks) = self.open.get_mut(worker_id) {
+            blocks.remove(block_id);
+            if blocks.is_empty() {
+                self.open.remove(worker_id);
+            }
+        }
+    }
+
+    /// The worker's session is over: none of its blocks goes on.
+    fn forget(&mut self, worker_id: &str) {
+        if let Some(blocks) = self.open.remove(worker_id) {
+            for (_, touched) in blocks.into_values() {
+                self.order.remove(&touched);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.order.len()
+    }
+}
+
+/// An `agent:delta` payload.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LiveDelta<'a> {
+    worker_id: &'a str,
+    channel: DeltaEventChannel,
+    phase: DeltaEventPhase,
+    block_id: &'a str,
+    text: &'a str,
+    at: u64,
 }
 
 /// The running app around sessions. The modules and the idle hooks exist
@@ -350,15 +407,22 @@ impl AppHooks {
 impl SessionHooks for AppHooks {
     fn delta(&self, worker_id: &str, delta: &DeltaEvent) {
         let at = self.offsets.lock().unwrap_or_else(PoisonError::into_inner).next(worker_id, delta);
-        let payload = json!({
-            "workerId": worker_id,
-            "channel": delta.channel,
-            "phase": delta.phase,
-            "blockId": delta.block_id,
-            "text": delta.text,
-            "at": at,
-        });
-        self.bus.publish_raw(AGENT_DELTA, Some(Scope::worker(worker_id)), payload.to_string().into());
+        let payload = LiveDelta {
+            worker_id,
+            channel: delta.channel,
+            phase: delta.phase,
+            block_id: &delta.block_id,
+            text: &delta.text,
+            at,
+        };
+        match serde_json::to_vec(&payload) {
+            Ok(json) => self.bus.publish_raw(AGENT_DELTA, Some(Scope::worker(worker_id)), json.into()),
+            Err(e) => tracing::error!(error = %e, "a piece of live text could not be serialized; dropped"),
+        }
+    }
+
+    fn exited(&self, worker_id: &str) {
+        self.offsets.lock().unwrap_or_else(PoisonError::into_inner).forget(worker_id);
     }
 
     fn agent_event(&self, worker_id: &str, event: &AgentEvent) {
@@ -461,8 +525,9 @@ pub(crate) fn nudge_parents(bus: &Bus, store: Arc<dyn Store>, sessions: Sessions
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
-    use eos_contracts::DeltaEventChannel;
 
     #[test]
     fn each_piece_of_live_text_knows_where_it_starts() {
@@ -479,5 +544,82 @@ mod tests {
         assert_eq!(offsets.next("w", &piece(DeltaEventPhase::Stop, "")), 9);
         assert_eq!(offsets.next("w", &piece(DeltaEventPhase::Append, "x")), 0, "a stopped block is forgotten");
         assert_eq!(offsets.next("other", &piece(DeltaEventPhase::Start, "a")), 0);
+    }
+
+    /// The offsets as a list of every open block, most recently touched last.
+    #[derive(Default)]
+    struct Plain(Vec<((String, String), u64)>);
+
+    impl Plain {
+        fn next(&mut self, worker_id: &str, delta: &DeltaEvent) -> u64 {
+            let key = (worker_id.to_owned(), delta.block_id.clone());
+            let found = self.0.iter().position(|(k, _)| *k == key).map(|i| self.0.remove(i).1);
+            let at = if delta.phase == DeltaEventPhase::Start { 0 } else { found.unwrap_or(0) };
+            if delta.phase != DeltaEventPhase::Stop {
+                self.0.push((key, at + delta.text.encode_utf16().count() as u64));
+                if self.0.len() > MAX_OPEN_BLOCKS {
+                    self.0.remove(0);
+                }
+            }
+            at
+        }
+    }
+
+    #[test]
+    fn offsets_follow_many_blocks_and_forget_the_oldest_and_an_exited_workers() {
+        let (mut offsets, mut plain) = (DeltaOffsets::default(), Plain::default());
+        let phases = [DeltaEventPhase::Start, DeltaEventPhase::Append, DeltaEventPhase::Append, DeltaEventPhase::Stop];
+        for n in 0..5_000_u64 {
+            let worker = format!("w{}", n % 7);
+            let delta = DeltaEvent {
+                channel: DeltaEventChannel::Text,
+                phase: phases[(n * 13 % 11 % 4) as usize],
+                block_id: format!("b{}", n * 31 % 600),
+                text: "é😀x".repeat((n % 3) as usize),
+            };
+            assert_eq!(offsets.next(&worker, &delta), plain.next(&worker, &delta), "piece {n}");
+            assert_eq!(offsets.len(), plain.0.len());
+        }
+        assert!(offsets.len() > 400, "{}", offsets.len());
+        offsets.forget("w3");
+        plain.0.retain(|((worker, _), _)| worker != "w3");
+        assert_eq!(offsets.len(), plain.0.len());
+        assert!(!offsets.open.contains_key("w3"));
+        let append = DeltaEvent {
+            channel: DeltaEventChannel::Reasoning,
+            phase: DeltaEventPhase::Append,
+            block_id: "b5".into(),
+            text: "z".into(),
+        };
+        for worker in ["w1", "w3"] {
+            assert_eq!(offsets.next(worker, &append), plain.next(worker, &append));
+        }
+    }
+
+    #[test]
+    fn a_live_delta_is_written_as_the_wire_has_it() {
+        let delta = DeltaEvent {
+            channel: DeltaEventChannel::Reasoning,
+            phase: DeltaEventPhase::Append,
+            block_id: "m1:0".into(),
+            text: "line\n\"q\" ✓ \u{7}".into(),
+        };
+        let payload = LiveDelta {
+            worker_id: "w-1",
+            channel: delta.channel,
+            phase: delta.phase,
+            block_id: &delta.block_id,
+            text: &delta.text,
+            at: 42,
+        };
+        let want = json!({
+            "workerId": "w-1",
+            "channel": delta.channel,
+            "phase": delta.phase,
+            "blockId": delta.block_id,
+            "text": delta.text,
+            "at": 42_u64,
+        });
+        assert_eq!(serde_json::to_vec(&payload).expect("json"), want.to_string().into_bytes());
     }
 }
