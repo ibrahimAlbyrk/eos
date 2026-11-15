@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSettings } from "../../state/settings.jsx";
-import { visibleSections } from "../../settings/registry.jsx";
+import { settingsPanes, visibleSections } from "../../settings/registry.jsx";
 import { useFeatures } from "../../state/featuresStore.js";
 import { SettingsGroups } from "../../settings/SettingsGroups.jsx";
 
@@ -41,7 +41,22 @@ function SectionContent({ section, settings, setSetting }) {
 // any tab. Sections/items live in the settings registry; this component only
 // renders the active section and the query-narrowed nav.
 export function SettingsModal() {
-  const { settingsOpen, closeSettings, settingsSection, setSettingsSection, settings, setSetting } = useSettings();
+  const { settingsOpen: asked, closeSettings, settingsSection, setSettingsSection, settings, setSetting } = useSettings();
+  // The section Components load after the first paint; asked for sooner, the modal
+  // opens when they are in, whole. A failed load closes the ask, so the next open
+  // tries again.
+  const panesIn = settingsPanes.value !== null;
+  const [, setLoaded] = useState(0);
+  useEffect(() => {
+    if (!asked || panesIn) return;
+    let live = true;
+    settingsPanes.load().then(
+      () => { if (live) setLoaded((n) => n + 1); },
+      () => { if (live) closeSettings(); },
+    );
+    return () => { live = false; };
+  }, [asked, panesIn, closeSettings]);
+  const settingsOpen = asked && panesIn;
   const [query, setQuery] = useState("");
   const inputRef = useRef(null);
 

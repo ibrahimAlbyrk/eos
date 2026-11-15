@@ -6,7 +6,7 @@ import { onPtyExit } from "../../state/ptyBus.js";
 import {
   KINDS, focusPane, splitPane, closePane, setSplitRatio, sessionExited, setTitle, setClaudeSession, dropPaneOn,
 } from "../../state/codeWorkspaceStore.js";
-import { TerminalView } from "../../components/terminal/TerminalView.jsx";
+import { TerminalView } from "../../components/terminal/TerminalViewLazy.jsx";
 import { useDropSplit, DropPreview, Divider } from "../agents/panes/PaneGrid.jsx";
 import { useUi } from "../../state/ui.jsx";
 import { TermLauncher } from "./TermLauncher.jsx";

@@ -75,7 +75,7 @@ fi
 cp bundle/icon.icns "$APP/Contents/Resources/icon.icns"
 # Banners play it by name; macOS finds it in the bundle's resources.
 cp bundle/eos-notification.aiff "$APP/Contents/Resources/"
-cp -R "$DIST" "$APP/Contents/Resources/dist"
+rsync -a --exclude "*.map" "$DIST/" "$APP/Contents/Resources/dist/" # the sourcemaps stay in app/ui/dist
 # What the core finds through `Options.resources`: the plugin builder's esbuild (sign.sh
 # signs it again with the app's identity) and the skill that teaches agents to write plugins.
 cp "$ESBUILD" "$APP/Contents/Resources/esbuild"

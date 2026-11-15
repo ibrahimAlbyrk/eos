@@ -6,7 +6,7 @@ import { usePanelHost } from "../../../state/panelHost.js";
 import { useSidePanelVisible } from "../../../state/paneScope.js";
 import { subscribe, getPtyPanel, openTab, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
-import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
+import { TerminalView } from "../../../components/terminal/TerminalViewLazy.jsx";
 
 // Terminal docked-panel viewer — one of the pane's right-side island panels
 // (chrome via the shared PanelShell). A SINGLE terminal, no inner tab strip

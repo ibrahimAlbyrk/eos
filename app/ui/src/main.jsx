@@ -7,9 +7,11 @@ import "./styles.css";
 import App from "./App.jsx";
 import { api } from "./api/client.js";
 import { receiveBoot } from "./api/boot.js";
-import { holdUntilFirstPaint, releaseAfterPaint } from "./lib/firstPaint.js";
+import { afterFirstPaint, holdUntilFirstPaint, releaseAfterPaint } from "./lib/firstPaint.js";
 import { startPlugins } from "./plugins/runtime.js";
 import { primeFromBoot } from "./state/bootPrime.js";
+import { terminalViewModule } from "./components/terminal/TerminalViewLazy.jsx";
+import { settingsPanes } from "./settings/registry.jsx";
 
 // The app shell loads this page while the daemon may still be starting, and the
 // boot fetches (ui config, settings, projects, templates) run once on mount — so
@@ -55,5 +57,7 @@ if (location.hash === "#plugin-preview") {
     await primeFromBoot();
     createRoot(rootEl).render(<App />);
     releaseAfterPaint();
+    // The split chunks load while the window idles, before anyone opens a terminal or Settings.
+    void afterFirstPaint(() => Promise.allSettled([terminalViewModule.load(), settingsPanes.load()]));
   });
 }

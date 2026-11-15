@@ -15,17 +15,31 @@ import { useState } from "react";
 import { api } from "../api/client.js";
 import { isRemoteView } from "../lib/host.js";
 import { getFeatures } from "../state/featuresStore.js";
-import { AccountsSettings } from "./AccountsSettings.jsx";
-import { ProfileSettings } from "./ProfileSettings.jsx";
-import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
-import { PluginsSettings } from "./PluginsSettings.jsx";
-import { REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
-import { RemoteAccessSettings } from "./RemoteAccessSettings.jsx";
-import { MachinesSettings } from "./MachinesSettings.jsx";
-import { SyncSettings } from "./SyncSettings.jsx";
-import { UpdatesSettings } from "./UpdatesSettings.jsx";
 import { EditorSelect } from "./EditorSelect.jsx";
 import { modLabel, shortcutLabel } from "../lib/platform.js";
+import { preloadable } from "../lib/preloadable.js";
+
+// The custom section Components load as one chunk after the first paint (main.jsx);
+// the modal opens once it is in (SettingsModal), so a section never draws half.
+export const settingsPanes = preloadable(() => import("./panes.js"));
+
+function pane(name) {
+  const Pane = (props) => {
+    const Loaded = settingsPanes.value[name];
+    return <Loaded {...props} />;
+  };
+  Pane.displayName = name;
+  return Pane;
+}
+
+const AccountsSettings = pane("AccountsSettings");
+const ProfileSettings = pane("ProfileSettings");
+const UsageSettings = pane("UsageSettings");
+const PluginsSettings = pane("PluginsSettings");
+const RemoteAccessSettings = pane("RemoteAccessSettings");
+const MachinesSettings = pane("MachinesSettings");
+const SyncSettings = pane("SyncSettings");
+const UpdatesSettings = pane("UpdatesSettings");
 
 export const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -520,8 +534,4 @@ export const SETTING_DEFAULTS = {
   "onboarding.dismissed": false,
   // The first-run profile interview was skipped — don't offer it again.
   "onboarding.profileDismissed": false,
-  // The usage + remote sections are custom Components (they own no settings.json
-  // keys — their state lives in config.json).
-  ...USAGE_SETTING_DEFAULTS,
-  ...REMOTE_SETTING_DEFAULTS,
 };
