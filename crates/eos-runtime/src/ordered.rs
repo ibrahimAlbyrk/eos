@@ -15,7 +15,7 @@
 use std::collections::{BinaryHeap, VecDeque};
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{RecvTimeoutError, SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use std::thread::{self, ThreadId};
@@ -72,6 +72,28 @@ struct Core {
     local: Mutex<Local>,
     stopped: AtomicBool,
     capacity: usize,
+    /// Jobs handed over from other threads that the lane has not taken yet (callers waiting
+    /// for room included), and the most there ever were.
+    queued: AtomicUsize,
+    peak: AtomicUsize,
+    /// Jobs that held the lane for [`SLOW_JOB`] or longer, and the longest one.
+    slow: AtomicU64,
+    slowest_us: AtomicU64,
+}
+
+/// A job that holds the lane this long delays every bus delivery behind it.
+pub const SLOW_JOB: Duration = Duration::from_millis(5);
+/// Slow jobs are logged at most this often; the line counts the ones in between.
+const SLOW_LOG_EVERY: Duration = Duration::from_secs(1);
+
+/// What the lane has done, for diagnostics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaneStats {
+    pub queued: usize,
+    pub peak_queued: usize,
+    pub slow_jobs: u64,
+    pub slowest_micros: u64,
 }
 
 impl Core {
@@ -113,6 +135,10 @@ impl Ordered {
             local: Mutex::default(),
             stopped: AtomicBool::new(false),
             capacity,
+            queued: AtomicUsize::new(0),
+            peak: AtomicUsize::new(0),
+            slow: AtomicU64::new(0),
+            slowest_us: AtomicU64::new(0),
         });
         let lane = core.clone();
         let spawned = thread::Builder::new().name("eos-ordered".into()).spawn(move || {
@@ -149,7 +175,21 @@ impl Ordered {
             local.follow_ups.push_back(Box::new(job));
             return Ok(());
         }
-        self.tx.send(Item::Job(Box::new(job))).map_err(|_| Error::LaneStopped)
+        let queued = self.core.queued.fetch_add(1, Ordering::Relaxed) + 1;
+        self.core.peak.fetch_max(queued, Ordering::Relaxed);
+        self.tx.send(Item::Job(Box::new(job))).map_err(|_| {
+            self.core.queued.fetch_sub(1, Ordering::Relaxed);
+            Error::LaneStopped
+        })
+    }
+
+    pub fn stats(&self) -> LaneStats {
+        LaneStats {
+            queued: self.core.queued.load(Ordering::Relaxed),
+            peak_queued: self.core.peak.load(Ordering::Relaxed),
+            slow_jobs: self.core.slow.load(Ordering::Relaxed),
+            slowest_micros: self.core.slowest_us.load(Ordering::Relaxed),
+        }
     }
 
     /// Queues `job` (now, not when the future is first polled) and resolves
@@ -210,17 +250,39 @@ impl Default for Ordered {
     }
 }
 
-fn guarded(job: Job) {
+/// The lane thread's own record of its slow jobs, for the log.
+#[derive(Default)]
+struct SlowLog {
+    logged_at: Option<Instant>,
+    unlogged: u64,
+}
+
+fn guarded(core: &Core, slow: &mut SlowLog, job: Job) {
+    let began = Instant::now();
     if let Err(payload) = catch_unwind(AssertUnwindSafe(job)) {
         tracing::error!(panic = %panic_message(payload.as_ref()), "a job on the ordered lane panicked");
+    }
+    let took = began.elapsed();
+    if took < SLOW_JOB {
+        return;
+    }
+    let micros = u64::try_from(took.as_micros()).unwrap_or(u64::MAX);
+    core.slow.fetch_add(1, Ordering::Relaxed);
+    core.slowest_us.fetch_max(micros, Ordering::Relaxed);
+    slow.unlogged += 1;
+    if slow.logged_at.is_none_or(|at| at.elapsed() >= SLOW_LOG_EVERY) {
+        let queued = core.queued.load(Ordering::Relaxed);
+        tracing::warn!(micros, queued, slow_jobs = slow.unlogged, "the ordered lane was held by a slow job");
+        *slow = SlowLog { logged_at: Some(Instant::now()), unlogged: 0 };
     }
 }
 
 fn run_lane(core: &Core, rx: &std::sync::mpsc::Receiver<Item>) {
+    let mut slow = SlowLog::default();
     loop {
         let follow_up = core.local().follow_ups.pop_front();
         if let Some(job) = follow_up {
-            guarded(job);
+            guarded(core, &mut slow, job);
             continue;
         }
         let now = Instant::now();
@@ -233,7 +295,7 @@ fn run_lane(core: &Core, rx: &std::sync::mpsc::Receiver<Item>) {
             }
         };
         if let Some(timer) = due {
-            guarded(timer.job);
+            guarded(core, &mut slow, timer.job);
             continue;
         }
         let item = match next_at {
@@ -241,7 +303,10 @@ fn run_lane(core: &Core, rx: &std::sync::mpsc::Receiver<Item>) {
             None => rx.recv().map_err(|_| RecvTimeoutError::Disconnected),
         };
         match item {
-            Ok(Item::Job(job)) => guarded(job),
+            Ok(Item::Job(job)) => {
+                core.queued.fetch_sub(1, Ordering::Relaxed);
+                guarded(core, &mut slow, job);
+            }
             Ok(Item::Wake) | Err(RecvTimeoutError::Timeout) => {}
             Ok(Item::Stop(done)) => {
                 core.stopped.store(true, Ordering::SeqCst);
@@ -351,6 +416,35 @@ mod tests {
         }
         lane.run(|| ()).await.expect("drained");
         assert_eq!(count.load(Ordering::SeqCst), 200);
+    }
+
+    #[tokio::test]
+    async fn the_lane_counts_what_waits_and_what_held_it() {
+        let lane = Ordered::with_capacity(64);
+        let gate = Arc::new(std::sync::Barrier::new(2));
+        let held = gate.clone();
+        lane.post(move || {
+            held.wait();
+            thread::sleep(SLOW_JOB + Duration::from_millis(1));
+        })
+        .expect("queued");
+        // The first job is off the queue once it runs.
+        let waiting = Instant::now();
+        while lane.stats().queued > 0 && waiting.elapsed() < Duration::from_secs(10) {
+            thread::yield_now();
+        }
+        for _ in 0..3 {
+            lane.post(|| ()).expect("queued");
+        }
+        assert_eq!(lane.stats().queued, 3, "they wait behind it");
+        gate.wait();
+        let waiting = Instant::now();
+        while (lane.stats().queued, lane.stats().slow_jobs) != (0, 1) && waiting.elapsed() < Duration::from_secs(10) {
+            tokio::task::yield_now().await;
+        }
+        let stats = lane.stats();
+        assert_eq!((stats.queued, stats.peak_queued, stats.slow_jobs), (0, 3, 1));
+        assert!(stats.slowest_micros >= u64::try_from(SLOW_JOB.as_micros()).expect("fits"));
     }
 
     #[tokio::test]
