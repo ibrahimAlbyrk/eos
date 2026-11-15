@@ -1689,8 +1689,10 @@ dependencies = [
  "eos-accounts",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-runtime",
  "eos-testkit",
+ "serde",
  "serde_json",
  "tokio",
 ]

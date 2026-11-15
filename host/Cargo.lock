@@ -2218,7 +2218,9 @@ dependencies = [
  "eos-accounts",
  "eos-contracts",
  "eos-core",
+ "eos-domain",
  "eos-runtime",
+ "serde",
  "serde_json",
 ]
 
