@@ -140,8 +140,8 @@ impl FsModule {
         // A tab whose stream closed gives its watches back, even if it never asked to.
         let (files, git) = (file_leases.clone(), git_leases.clone());
         kernel.stream.on_client_gone(move |tab| {
-            files.drop_tab(tab);
-            git.drop_tab(tab);
+            files.tab_gone(tab);
+            git.tab_gone(tab);
         });
         let deps = Deps {
             files: ports.files,

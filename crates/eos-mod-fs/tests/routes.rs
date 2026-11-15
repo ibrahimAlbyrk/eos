@@ -35,6 +35,11 @@ struct App {
 }
 
 fn app() -> App {
+    app_with(None)
+}
+
+/// [`app`], whose folder watches go to `files` when given.
+fn app_with(files: Option<Arc<dyn FileWatcher>>) -> App {
     let keep = tempfile::tempdir().expect("a temporary folder");
     let root = fs::canonicalize(keep.path()).expect("its real path");
     let host = eos_platform::generic_host();
@@ -62,7 +67,7 @@ fn app() -> App {
             files: Arc::new(eos_fs::DiskFileSystem::new(host, root.join(".eos-trash"))),
             desktop: Arc::new(eos_fs::DesktopApps::new(host, clock, root.join("icon-cache"))),
             picker: None,
-            file_watcher: dirs.clone(),
+            file_watcher: files.unwrap_or_else(|| dirs.clone()),
             git: git.clone(),
             git_diffs: git.clone(),
             tree: git.clone(),
@@ -414,6 +419,29 @@ async fn a_tabs_watches_send_changes_and_end_with_its_stream() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn watches_change_in_the_order_asked_and_answer_once_done() {
+    let app = app();
+    app.write("p/a.txt", "a");
+    let dir = app.path("p");
+    let one = json!({ "root": dir, "dir": dir, "clientId": "tab-1" });
+    for _ in 0..3 {
+        let (watched, unwatched) =
+            tokio::join!(app.post("/fs/watch", one.clone()), app.post("/fs/unwatch", one.clone()));
+        assert_eq!((watched.0, unwatched.0), (200, 200));
+        assert_eq!(app.dirs.watched(), 0, "the unwatch asked for after the watch ends it");
+        assert_eq!(app.post("/fs/watch", one.clone()).await.0, 200);
+        assert_eq!(app.dirs.watched(), 1, "a watch has started when it answers");
+    }
+
+    // A tab whose stream closes: its watches end before a change asked for later answers.
+    let options = AttachOptions { client_id: Some("tab-1".into()), ..AttachOptions::default() };
+    let stream = app.runtime.kernel.stream.attach(options).expect("a stream");
+    drop(stream);
+    assert_eq!(app.post("/fs/unwatch", json!({ "clientId": "tab-2", "all": true })).await.0, 200);
+    assert_eq!(app.dirs.watched(), 0, "tab-1's watch went with its stream");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn changes_come_per_scope_with_the_base_named_only_when_it_resolves() {
     let app = app();
     let dir = repo(&app);
@@ -541,4 +569,27 @@ async fn symbols_are_found_through_the_routes() {
     // A new file is found once the project's list is stale: file search lists it anew.
     let list = format!("/fs/list?{}", query(&[("cwd", &root), ("query", "extra")]));
     assert_eq!(app.get(&list).await.1, json!({ "entries": [] }));
+}
+
+/// A folder watch that panics.
+struct Broken;
+
+impl FileWatcher for Broken {
+    fn watch(&self, _dir: &Path) -> eos_core::os::WatchLease {
+        panic!("the system watch broke")
+    }
+
+    fn close_all(&self) {}
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_watch_that_panics_fails_its_request_as_any_panic_does() {
+    let app = app_with(Some(Arc::new(Broken)));
+    app.write("a/x.txt", "x");
+    let watch = json!({ "root": app.path(""), "dir": "a", "clientId": "tab-1" });
+    let (status, body) = app.post("/fs/watch", watch).await;
+    assert_eq!(status, 500, "{body}");
+    // The next change still gets its turn.
+    let unwatch = json!({ "clientId": "tab-1", "all": true });
+    assert_eq!(app.post("/fs/unwatch", unwatch).await, (200, json!({ "ok": true })));
 }

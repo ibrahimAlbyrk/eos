@@ -50,7 +50,7 @@ use eos_kit_proc::Runner;
 use program::Program;
 
 pub use clone::PluginClones;
-pub use files::list_candidate_files;
+pub use files::{ignored_folders, list_candidate_files};
 pub use project_keys::{GitProjectKeys, KnownFolders};
 pub use scratch::ScratchRepos;
 pub use snapshots::{Limits as SnapshotLimits, Snapshots};

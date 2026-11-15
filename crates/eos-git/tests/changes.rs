@@ -217,3 +217,38 @@ async fn git_dirs_tell_a_worktree_from_the_shared_git_folder() {
     assert_eq!(linked.git_dir, src.join(".git/worktrees/eos-base-w1"));
     assert_eq!(linked.common_dir, src.join(".git"));
 }
+
+#[tokio::test]
+async fn ignored_folders_are_the_repositorys_own_and_hold_nothing_tracked() {
+    let (repo, git) = (init_repo("eos-ignored-"), adapter());
+    repo.write(".gitignore", "target/\nvendor/\n*.log\n.DS_Store\n/x/*\n!/x/keep\n");
+    repo.write("sub/.gitignore", "dist/\n");
+    repo.write("vendor/kept.txt", "tracked\n");
+    git_ok(&repo.path, &["add", ".gitignore", "sub/.gitignore"]);
+    git_ok(&repo.path, &["add", "-f", "vendor/kept.txt"]);
+    git_ok(&repo.path, &["commit", "-q", "-m", "rules"]);
+    for file in ["target/debug/out.o", "vendor/new.txt", "sub/dist/x.js", "build/b.o", "global/g.txt", "a.log"] {
+        repo.write(file, "x\n");
+    }
+    // Folders that hold only ignored files today but that no rule ignores: a file added
+    // there later is no one's to ignore (`x/keep` is let back in; `nest/` has its own rules).
+    for file in ["assets/.DS_Store", "logs/a.log", "x/other.o", "x/sub/s.o", "nest/n.tmp", "deep/node/logs/b.log"] {
+        repo.write(file, "x\n");
+    }
+    repo.write("nest/.gitignore", "*\n");
+    repo.write(".git/info/exclude", "build/\n");
+    // The user's own global rules are not the repository's: nothing watches them.
+    repo.write("global-rules", "global/\nlogs/\n");
+    git_ok(&repo.path, &["config", "core.excludesFile", &repo.join("global-rules").to_string_lossy()]);
+
+    let dirs = git.git_dirs(&repo.path).await.expect("a repository");
+    let mut folders = eos_git::ignored_folders(&git, &dirs).await.expect("git answers");
+    folders.sort();
+    let names: Vec<_> = folders.iter().map(|f| f.to_string_lossy().into_owned()).collect();
+    // `x/sub` is ignored by `/x/*` itself: nothing below it can be let back in.
+    assert_eq!(names, ["build", "sub/dist", "target", "x/sub"]);
+
+    fs::remove_file(repo.join(".git/info/exclude")).expect("remove");
+    let folders = eos_git::ignored_folders(&git, &dirs).await.expect("git answers");
+    assert!(!folders.iter().any(|f| f.ends_with("build")), "{folders:?}");
+}

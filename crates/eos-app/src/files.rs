@@ -9,7 +9,7 @@ use eos_mod_agents::WorkerGit;
 use eos_mod_fs::{CandidateCache, FsModule, Ports, fs_change_sink, git_change_sink};
 use eos_runtime::module::Module;
 use eos_runtime::router::RouteDef;
-use eos_watch::{DirWatcher, RepoWatcher, ResolveGitDirs};
+use eos_watch::{DirWatcher, ListIgnored, RepoWatcher, ResolveGitDirs};
 
 use crate::modules::Context;
 
@@ -64,9 +64,14 @@ pub(crate) fn git_watcher(
         let snapshots = snapshots.clone();
         Box::pin(async move { eos_core::git::GitInfo::git_dirs(snapshots.as_ref(), &dir).await })
     });
+    let git = repos.git.clone();
+    let ignored: ListIgnored = Arc::new(move |dirs| {
+        let git = git.clone();
+        Box::pin(async move { eos_git::ignored_folders(&git, &dirs).await })
+    });
     let recursive = eos_platform::host().native_recursive_watch();
     let sink = git_change_sink(bus.clone());
-    Arc::new(RepoWatcher::telling(resolve, clock.clone(), sink, recursive, repos.snapshots.clone()))
+    Arc::new(RepoWatcher::telling(resolve, clock.clone(), sink, recursive, repos.snapshots.clone()).ignoring(ignored))
 }
 
 /// What the routes over a worker's folder reach: git, Try and the desktop.

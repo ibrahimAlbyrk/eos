@@ -19,4 +19,4 @@ mod repos;
 mod source;
 
 pub use dirs::DirWatcher;
-pub use repos::{RepoWatcher, ResolveGitDirs};
+pub use repos::{ListIgnored, RepoWatcher, ResolveGitDirs};

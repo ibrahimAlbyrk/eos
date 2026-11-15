@@ -181,7 +181,7 @@ impl DirWatcher {
     /// `sink` receives each batch on the watcher's own thread and must not block.
     pub fn new(clock: Arc<dyn Clock>, sink: FsChangeSink) -> Self {
         let core = Arc::new(Core { state: Mutex::new(State::default()), clock, sink });
-        let source = match Source::start("eos-dir-watch", core.clone(), WINDOW) {
+        let source = match Source::start("eos-dir-watch", core.clone(), WINDOW, None) {
             Ok(source) => Some(source),
             Err(error) => {
                 tracing::error!(%error, "the folder watcher could not start; the Files panel will not update live");

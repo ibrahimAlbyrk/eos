@@ -11,7 +11,7 @@ use eos_contracts::{GitChangeEvent, GitChangeKind};
 use eos_core::SystemClock;
 use eos_core::git::{GitDirs, GitWatcher, RepoChange};
 use eos_testkit::{FakeRepoState, RepoStateCall};
-use eos_watch::{RepoWatcher, ResolveGitDirs};
+use eos_watch::{ListIgnored, RepoWatcher, ResolveGitDirs};
 use support::{Collected, Dir, PATIENCE, open_fds, text, thread_count};
 
 type Events = Arc<Collected<GitChangeEvent>>;
@@ -55,6 +55,47 @@ fn watcher(native_recursive: bool) -> (RepoWatcher, Events) {
     let watcher =
         RepoWatcher::new(resolve, Arc::new(SystemClock), Arc::new(move |event| sink.push(event)), native_recursive);
     (watcher, events)
+}
+
+/// The folders the repository's own rules ignore whole, as the app asks git
+/// (`eos_git::ignored_folders`).
+fn ls_ignored(dirs: &GitDirs) -> Option<Vec<PathBuf>> {
+    let mut command = Command::new("git");
+    command.arg("-C").arg(&dirs.toplevel).args(["ls-files", "-z", "--others", "--ignored", "--directory"]);
+    command.arg("--exclude-per-directory=.gitignore");
+    let exclude = dirs.common_dir.join("info/exclude");
+    if exclude.is_file() {
+        command.arg(format!("--exclude-from={}", exclude.display()));
+    }
+    let out = command.output().ok().filter(|out| out.status.success())?;
+    let listed = String::from_utf8(out.stdout).ok()?;
+    let listed: Vec<&str> = listed.split('\0').filter_map(|entry| entry.strip_suffix('/')).collect();
+    if listed.is_empty() {
+        return Some(Vec::new());
+    }
+    // Only the folders a rule ignores by their own name.
+    let mut check = Command::new("git");
+    check.arg("-C").arg(&dirs.toplevel).args(["-c", "core.excludesFile=/dev/null", "check-ignore", "--"]);
+    let out = check.args(&listed).output().ok()?;
+    let named = String::from_utf8(out.stdout).ok()?;
+    Some(named.lines().map(PathBuf::from).collect())
+}
+
+fn ignoring_watcher() -> (RepoWatcher, Events) {
+    let (watcher, events) = watcher(true);
+    let list: ListIgnored = Arc::new(|dirs| Box::pin(async move { ls_ignored(&dirs) }));
+    (watcher.ignoring(list), events)
+}
+
+/// Waits until what changes at `path` is dropped before the queue, or is not.
+/// Longer than for an event: an answer may wait on a restart of the system's
+/// stream, which takes seconds while the other tests restart theirs.
+async fn skipping(watcher: &RepoWatcher, path: &Path, skipped: bool) {
+    let deadline = Instant::now() + 3 * PATIENCE;
+    while watcher.skips(path) != skipped {
+        assert!(Instant::now() < deadline, "{} is still skipped: {}", path.display(), !skipped);
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
 }
 
 /// A watcher telling `state`; each event it publishes is noted there too, in order.
@@ -162,6 +203,95 @@ fn worktree_write(root: &Path, name: &str, content: &str) {
     let file = root.join(name);
     std::fs::create_dir_all(file.parent().expect("a parent")).expect("the folders");
     std::fs::write(file, content).expect("the file");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn folders_git_ignores_raise_nothing_and_follow_the_rules() {
+    const RULES: &str = "target/\nvendor/\n*.log\n.DS_Store\n/x/*\n!/x/keep\n";
+    let repo = init_repo();
+    repo.write(".gitignore", RULES);
+    repo.write("vendor/kept.txt", "1\n");
+    // Folders holding only what is ignored today, that no rule ignores by name.
+    for file in ["assets/.DS_Store", "logs/a.log", "x/other.o", "x/sub/s.o", "nest/n.tmp"] {
+        repo.write(file, "0\n");
+    }
+    repo.write("nest/.gitignore", "*\n");
+    git(&repo.path, &["add", ".gitignore"]);
+    git(&repo.path, &["add", "-f", "vendor/kept.txt"]);
+    git(&repo.path, &["commit", "-qm", "rules"]);
+    repo.write("target/debug/out.o", "0\n");
+    let (watcher, events) = ignoring_watcher();
+    let _lease = watcher.watch(&repo.path);
+    ready(&watcher, 4).await;
+    // `target/` only: `vendor/` holds a tracked file.
+    let (out, kept) = (repo.join("target/debug/out.o"), repo.join("vendor/kept.txt"));
+    skipping(&watcher, &out, true).await;
+    assert!(!watcher.skips(&kept) && !watcher.skips(&repo.join("a.txt")));
+    // `x/sub` is ignored by `/x/*` itself: nothing below it can be let back in.
+    skipping(&watcher, &repo.join("x/sub/s.o"), true).await;
+
+    // What is made later in a folder git listed only for what it held is seen.
+    for file in ["assets/logo.png", "logs/today.txt", "x/keep", "nest/.gitignore"] {
+        assert!(!watcher.skips(&repo.join(file)), "{file} is dropped");
+        let mark = events.len();
+        repo.write(file, "new\n");
+        assert!(saw_since(&events, mark, GitChangeKind::Worktree), "{file} is seen");
+    }
+
+    // A build's writes, then a commit: had the writes been seen, an event up to the
+    // commit's would name the working tree.
+    let mark = events.len();
+    for i in 0..200 {
+        repo.write(&format!("target/debug/deps/o{i}.o"), &format!("{i}\n"));
+    }
+    git(&repo.path, &["commit", "-q", "--allow-empty", "-m", "empty"]);
+    assert!(saw_since(&events, mark, GitChangeKind::Refs));
+    let kinds: Vec<_> = events.all().iter().skip(mark).flat_map(|e| e.kinds.clone()).collect();
+    assert!(!kinds.contains(&GitChangeKind::Worktree), "the build output was reported: {kinds:?}");
+
+    // A tracked file inside an otherwise ignored folder is a change.
+    let mark = events.len();
+    repo.write("vendor/kept.txt", "2\n");
+    assert!(saw_since(&events, mark, GitChangeKind::Worktree), "an edit of a tracked file is seen");
+
+    // Rules that stop ignoring the folder: it is watched again, and reported.
+    let mark = events.len();
+    repo.write(".gitignore", "vendor/\n");
+    skipping(&watcher, &out, false).await;
+    assert!(saw_since(&events, mark, GitChangeKind::Worktree));
+    repo.write(".gitignore", RULES);
+    skipping(&watcher, &out, true).await;
+
+    // A file of the ignored folder that becomes tracked: the index changed, so it is asked
+    // again; what is still ignored around it stays dropped.
+    git(&repo.path, &["add", "-f", "target/debug/out.o"]);
+    skipping(&watcher, &out, false).await;
+    skipping(&watcher, &repo.join("target/debug/deps/o1.o"), true).await;
+    assert!(!watcher.skips(&out));
+    let mark = events.len();
+    repo.write("target/debug/out.o", "1\n");
+    assert!(saw_since(&events, mark, GitChangeKind::Worktree), "a tracked file there is seen");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_rules_folder_made_after_the_watch_started_is_followed() {
+    let repo = init_repo();
+    std::fs::remove_dir_all(repo.join(".git/info")).expect("no rules folder");
+    repo.write("build/b.o", "0\n");
+    let (watcher, _events) = ignoring_watcher();
+    let _lease = watcher.watch(&repo.path);
+    // Its git folder, the refs, the working tree: no rules folder yet.
+    ready(&watcher, 3).await;
+    let built = repo.join("build/b.o");
+    assert!(!watcher.skips(&built));
+
+    repo.write(".git/info/exclude", "build/\n");
+    skipping(&watcher, &built, true).await;
+    // Each later edit of the new rules file is seen too.
+    repo.write(".git/info/exclude", "# nothing\n");
+    skipping(&watcher, &built, false).await;
+    repo.write(".git/info/exclude", "build/\n");
+    skipping(&watcher, &built, true).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use eos_contracts::{FsUnwatchRequest, FsWatchRequest, FsWatchResponse, GitWatchRequest};
 use eos_core::os::WatchLease;
@@ -28,6 +28,10 @@ const MAX_TABS: usize = 512;
 pub(crate) struct WatchLeases {
     /// Per tab, in the order the watches were taken.
     by_tab: Mutex<HashMap<String, Vec<(PathBuf, WatchLease)>>>,
+    /// Held by each change of these watches until the system's watch has started
+    /// or ended, taken in the order the changes were asked for: one never
+    /// overtakes another, and a route answers only once its change is done.
+    turn: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl WatchLeases {
@@ -58,10 +62,55 @@ impl WatchLeases {
         }
     }
 
-    /// The tab is gone: every watch it held is given back.
+    /// Every watch the tab holds is given back.
     pub(crate) fn drop_tab(&self, tab: &str) {
         let held = self.by_tab.lock().unwrap_or_else(|p| p.into_inner()).remove(tab);
         drop(held);
+    }
+
+    /// Runs `change` in its turn on a blocking thread (starting or ending a
+    /// system watch restarts the system's stream) and returns once it is done.
+    /// A request dropped meanwhile still lets a started change finish in its turn.
+    /// A change that panics fails its request, as one run on the request's own thread does.
+    async fn in_turn(self: &Arc<Self>, change: impl FnOnce(&Self) + Send + 'static) {
+        let turn = self.turn.clone().lock_owned().await;
+        let leases = self.clone();
+        let done = tokio::task::spawn_blocking(move || {
+            change(&leases);
+            drop(turn);
+        })
+        .await;
+        if let Err(failed) = done
+            && failed.is_panic()
+        {
+            std::panic::resume_unwind(failed.into_panic());
+        }
+    }
+
+    /// The tab's stream closed: every watch it held is given back. They leave
+    /// the list at once, so what the tab watches again after a reload is its
+    /// own, and end in a turn of their own: when no change is running, before
+    /// any change asked for after this; else after the changes already waiting.
+    pub(crate) fn tab_gone(&self, tab: &str) {
+        let Some(held) = self.by_tab.lock().unwrap_or_else(|p| p.into_inner()).remove(tab) else { return };
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else { return drop(held) };
+        match self.turn.clone().try_lock_owned() {
+            Ok(turn) => drop(runtime.spawn_blocking(move || {
+                drop(held);
+                drop(turn);
+            })),
+            Err(_) => {
+                let turn = self.turn.clone();
+                drop(runtime.spawn(async move {
+                    let turn = turn.lock_owned().await;
+                    let _ = tokio::task::spawn_blocking(move || {
+                        drop(held);
+                        drop(turn);
+                    })
+                    .await;
+                }));
+            }
+        }
     }
 
     #[cfg(test)]
@@ -78,19 +127,21 @@ async fn watch(deps: Deps, req: Request) -> Handled {
     let body: FsWatchRequest = req.parse()?;
     let root = guard_mutation(&req, &body.root)?;
     let dir = resolve_within_root(&root, &body.dir).ok_or_else(|| bad("dir escapes root"))?;
-    deps.file_leases.watch(&body.client_id, &dir, || deps.file_watcher.watch(&dir));
+    let (watcher, tab) = (deps.file_watcher.clone(), body.client_id);
+    deps.file_leases.in_turn(move |leases| leases.watch(&tab, &dir, || watcher.watch(&dir))).await;
     Ok(ok())
 }
 
 async fn unwatch(deps: Deps, req: Request) -> Handled {
     let body: FsUnwatchRequest = req.parse()?;
     require_user(&req)?;
+    let tab = body.client_id;
     if body.all.unwrap_or(false) {
-        deps.file_leases.drop_tab(&body.client_id);
+        deps.file_leases.in_turn(move |leases| leases.drop_tab(&tab)).await;
     } else if let (Some(root), Some(dir)) = (body.root.filter(|r| !r.is_empty()), body.dir.filter(|d| !d.is_empty()))
         && let Some(dir) = resolve_within_root(Path::new(&root), &dir)
     {
-        deps.file_leases.unwatch(&body.client_id, &dir);
+        deps.file_leases.in_turn(move |leases| leases.unwatch(&tab, &dir)).await;
     }
     Ok(ok())
 }
@@ -98,14 +149,16 @@ async fn unwatch(deps: Deps, req: Request) -> Handled {
 async fn git_watch(deps: Deps, req: Request) -> Handled {
     let body: GitWatchRequest = req.parse()?;
     let dir = guard_mutation(&req, &body.dir)?;
-    deps.git_leases.watch(&body.client_id, &dir, || deps.git_watcher.watch(&dir));
+    let (watcher, tab) = (deps.git_watcher.clone(), body.client_id);
+    deps.git_leases.in_turn(move |leases| leases.watch(&tab, &dir, || watcher.watch(&dir))).await;
     Ok(ok())
 }
 
 async fn git_unwatch(deps: Deps, req: Request) -> Handled {
     let body: GitWatchRequest = req.parse()?;
     require_user(&req)?;
-    deps.git_leases.unwatch(&body.client_id, Path::new(&body.dir));
+    let (tab, dir) = (body.client_id, PathBuf::from(body.dir));
+    deps.git_leases.in_turn(move |leases| leases.unwatch(&tab, &dir)).await;
     Ok(ok())
 }
 
