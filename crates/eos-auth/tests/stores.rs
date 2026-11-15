@@ -41,6 +41,67 @@ impl CredentialStore for NoKeychain {
     fn delete_secret(&self, _service: &str) {}
 }
 
+/// A secret store in memory that counts its reads.
+#[derive(Debug, Default)]
+struct CountingKeychain {
+    item: std::sync::Mutex<Option<String>>,
+    reads: AtomicUsize,
+}
+
+impl CredentialStore for CountingKeychain {
+    fn read_claude_store(&self, _store_dir: Option<&Path>) -> Option<String> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        self.item.lock().expect("item").clone()
+    }
+
+    fn write_claude_store(&self, _store_dir: &Path, json: &str) -> Result<(), eos_platform::Error> {
+        *self.item.lock().expect("item") = Some(json.to_owned());
+        Ok(())
+    }
+
+    fn clear_claude_store(&self, _store_dir: &Path) {
+        *self.item.lock().expect("item") = None;
+    }
+
+    fn read_secret(&self, _service: &str) -> Option<String> {
+        None
+    }
+
+    fn write_secret(&self, _service: &str, _secret: &str) -> Result<(), eos_platform::Error> {
+        Err(eos_platform::Error::Unsupported("secret storage"))
+    }
+
+    fn delete_secret(&self, _service: &str) {}
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_burst_of_reads_asks_the_secret_store_once_and_a_change_reads_it_again() {
+    let home = TempHome::new();
+    let dir = home.join("accounts/claude");
+    std::fs::create_dir_all(&dir).expect("the store folder");
+    let store = dir.to_string_lossy().into_owned();
+    let keychain = Arc::new(CountingKeychain::default());
+    *keychain.item.lock().expect("item") = Some(lapsed_login());
+    let (server, _renewals) = token_server().await;
+    let endpoints = Endpoints { claude_token_url: Some(format!("{}/token", server.url)), ..Endpoints::default() };
+    let stores = Stores::new(keychain.clone(), endpoints);
+    let asked = || keychain.reads.load(Ordering::SeqCst);
+
+    for _ in 0..5 {
+        assert!(stores.read("anthropic", &store).await.present);
+    }
+    assert_eq!(asked(), 1, "one new session after another reads the sign-in once");
+
+    // A renewal writes the item: the next read asks again.
+    assert_eq!(stores.access_token("anthropic", &store).await.as_deref(), Some("at-new"));
+    let before = asked();
+    assert!(stores.read("anthropic", &store).await.present);
+    assert_eq!(asked(), before + 1);
+
+    stores.sign_out("anthropic", &store).await.expect("signs out");
+    assert!(!stores.read("anthropic", &store).await.present, "a sign-out is seen at once");
+}
+
 fn far_future() -> u64 {
     4_102_444_800_000
 }
@@ -177,7 +238,8 @@ async fn a_store_the_typescript_app_signed_in_keeps_working_from_its_keychain_it
     assert!(!dir.join(".credentials.json").exists(), "nothing is copied into a file");
 
     ours.sign_out("anthropic", &store).await.expect("signs out");
-    assert!(!theirs.read("anthropic", &store).await.present);
+    // The app reads its stores through one `Stores`: the one that signed out.
+    assert!(!ours.read("anthropic", &store).await.present);
     assert_eq!(throwaway.items_of(&dir).0, 1, "the item stays for what else it holds");
 }
 

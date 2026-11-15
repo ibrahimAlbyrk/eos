@@ -62,7 +62,10 @@ impl SubscriptionProvider for ClaudeSignIn {
             let sign_in = SignIn::start(config).await.map_err(words)?;
             on_pages(SignInPages { open: sign_in.browser_url().to_owned(), shown: sign_in.manual_url().to_owned() });
             let login = stores.claude_login(Path::new(&store_dir));
-            let account = sign_in.finish(&login, code).await.map_err(words)?;
+            let account = sign_in.finish(&login, code).await;
+            // Whatever the sign-in wrote (the system's secret store or the file beside it) is read anew.
+            stores.forget_reads();
+            let account = account.map_err(words)?;
             Ok(SignedIn { email: account.email })
         })
     }

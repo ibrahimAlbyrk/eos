@@ -374,3 +374,38 @@ fn a_file_in_the_override_folder_replaces_or_adds_a_prompt() {
     home.write("prompts/mine/extra.prompt.md", "---\nid: custom/extra\ndpi: { layer: custom }\n---\nChanged.\n");
     assert!(assemble_system_prompt(&prompts, &ctx, Vec::new()).text.ends_with("Changed.\n"));
 }
+
+/// An override folder is read again exactly when it changed: an edit, a new
+/// file, a removed one or a rename reaches the very next reload, and an
+/// untouched folder keeps the parsed library.
+#[test]
+fn an_override_edit_reaches_the_next_reload_and_nothing_else_reparses() {
+    let home = TempHome::new();
+    let dir = home.join("prompts");
+    let registry = PromptRegistry::new(Arc::new(LibraryPromptSource::with_overrides(vec![dir.clone()])));
+    let body = |id: &str| registry.get(id).map(|p| p.body).ok();
+    registry.reload();
+    let first = registry.list();
+    assert_eq!(body("custom/one"), None);
+    registry.reload();
+    assert!(Arc::ptr_eq(&first, &registry.list()), "nothing changed: the parsed library is kept");
+
+    home.write("prompts/custom/one.prompt.md", "first\n");
+    registry.reload();
+    assert_eq!(body("custom/one").as_deref(), Some("first\n"), "a new file and its folder");
+    // Same size, written at once: the time tells.
+    home.write("prompts/custom/one.prompt.md", "again\n");
+    registry.reload();
+    assert_eq!(body("custom/one").as_deref(), Some("again\n"));
+    let kept = registry.list();
+    registry.reload();
+    assert!(Arc::ptr_eq(&kept, &registry.list()));
+
+    std::fs::rename(dir.join("custom/one.prompt.md"), dir.join("custom/two.prompt.md")).expect("rename");
+    registry.reload();
+    assert_eq!((body("custom/one"), body("custom/two").as_deref()), (None, Some("again\n")));
+    std::fs::remove_file(dir.join("custom/two.prompt.md")).expect("remove");
+    registry.reload();
+    assert_eq!(body("custom/two"), None);
+    assert_eq!(registry.list().len(), first.len());
+}

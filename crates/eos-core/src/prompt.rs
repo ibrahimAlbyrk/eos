@@ -70,7 +70,19 @@ pub struct RawPrompt {
 /// cannot be read is left out.
 pub trait PromptSource: Send + Sync + 'static {
     fn list(&self) -> Vec<RawPrompt>;
+
+    /// What [`list`](Self::list) would read, as it stands on disk: every
+    /// folder walked and every file with its size and modification time. Equal
+    /// stamps mean `list` gives the same prompts. `None` (the default): no way
+    /// to tell, every reader lists again.
+    fn stamp(&self) -> Option<SourceStamp> {
+        None
+    }
 }
+
+/// See [`PromptSource::stamp`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SourceStamp(pub Vec<(PathBuf, Option<(u64, std::time::SystemTime)>)>);
 
 /// The text of `{{USER_PROFILE}}` for one session.
 #[derive(Debug, Clone, PartialEq, Eq)]

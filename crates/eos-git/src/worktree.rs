@@ -169,7 +169,9 @@ impl Git {
         self.ok(&root, &["worktree", "prune"]).await;
         // The folder must be gone, but only a folder under `.eos/worktrees/` is removed by hand.
         if dir.exists() && is_managed_dir(&dir) {
-            let _ = fs::remove_dir_all(&dir);
+            // A whole checkout can take a while: a blocking thread's work.
+            let gone = dir.clone();
+            let _ = tokio::task::spawn_blocking(move || fs::remove_dir_all(&gone)).await;
             self.ok(&root, &["worktree", "prune"]).await;
         }
         // Commits only this branch holds stay reachable under a tag; in the

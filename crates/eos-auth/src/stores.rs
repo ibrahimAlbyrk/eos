@@ -4,7 +4,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use eos_agent_anthropic::auth::{ClaudeLogin, Credential, FallbackSecrets, SecretStore, TokenSource};
 use eos_agent_openai::ChatGptLogin;
@@ -48,12 +49,64 @@ fn chatgpt_left_behind(dir: &Path) -> bool {
 
 type IoFuture<'a, T> = Pin<Box<dyn Future<Output = std::io::Result<T>> + Send + 'a>>;
 
+/// How long what a Claude store says is kept: each read asks the system's
+/// secret store (a `security` process), and a new session reads every
+/// sign-in. Every sign-in, sign-out and write of a store through here
+/// forgets it at once.
+const READ_TTL: Duration = Duration::from_secs(2);
+/// Stores remembered at most; the entries past their time go first.
+const READ_CACHE_MAX: usize = 64;
+
+/// What each Claude store said lately.
+#[derive(Default)]
+struct ReadCache {
+    reads: HashMap<PathBuf, (Instant, StoreLogin)>,
+    /// Moves on every forget, so a read that began before one is not kept.
+    generation: u64,
+}
+
+#[derive(Clone, Default)]
+struct Reads(Arc<Mutex<ReadCache>>);
+
+impl Reads {
+    fn lock(&self) -> MutexGuard<'_, ReadCache> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn fresh(&self, dir: &Path) -> Option<StoreLogin> {
+        let cache = self.lock();
+        cache.reads.get(dir).filter(|(at, _)| at.elapsed() < READ_TTL).map(|(_, read)| read.clone())
+    }
+
+    fn generation(&self) -> u64 {
+        self.lock().generation
+    }
+
+    fn keep(&self, dir: &Path, generation: u64, read: &StoreLogin) {
+        let mut cache = self.lock();
+        if cache.generation != generation {
+            return;
+        }
+        cache.reads.retain(|_, (at, _)| at.elapsed() < READ_TTL);
+        if cache.reads.len() < READ_CACHE_MAX || cache.reads.contains_key(dir) {
+            cache.reads.insert(dir.to_owned(), (Instant::now(), read.clone()));
+        }
+    }
+
+    fn forget(&self) {
+        let mut cache = self.lock();
+        cache.generation += 1;
+        cache.reads.clear();
+    }
+}
+
 /// A Claude store's keychain item, as the engine's `ClaudeLogin` reads and
 /// writes it. The system's secret store is reached through `eos-platform`,
 /// the one place that knows how.
 struct StoreItem {
     credentials: Arc<dyn CredentialStore>,
     dir: PathBuf,
+    reads: Reads,
 }
 
 impl SecretStore for StoreItem {
@@ -69,7 +122,9 @@ impl SecretStore for StoreItem {
         let (credentials, dir, value) = (self.credentials.clone(), self.dir.clone(), value.to_owned());
         Box::pin(async move {
             let write = tokio::task::spawn_blocking(move || credentials.write_claude_store(&dir, &value));
-            write.await.map_err(std::io::Error::other)?.map_err(std::io::Error::other)
+            let written = write.await.map_err(std::io::Error::other)?.map_err(std::io::Error::other);
+            self.reads.forget();
+            written
         })
     }
 }
@@ -82,6 +137,7 @@ pub struct Stores {
     endpoints: Endpoints,
     claude: Mutex<HashMap<PathBuf, Arc<ClaudeLogin>>>,
     chatgpt: Mutex<HashMap<PathBuf, Arc<ChatGptLogin>>>,
+    reads: Reads,
 }
 
 impl std::fmt::Debug for Stores {
@@ -117,7 +173,23 @@ fn claude_email(dir: &Path) -> Option<String> {
 
 impl Stores {
     pub fn new(credentials: Arc<dyn CredentialStore>, endpoints: Endpoints) -> Self {
-        Self { credentials, endpoints, claude: Mutex::default(), chatgpt: Mutex::default() }
+        Self { credentials, endpoints, claude: Mutex::default(), chatgpt: Mutex::default(), reads: Reads::default() }
+    }
+
+    /// What a Claude store says, from the last few seconds' read when there is one.
+    async fn read_claude_store(&self, dir: &Path) -> StoreLogin {
+        if let Some(read) = self.reads.fresh(dir) {
+            return read;
+        }
+        let generation = self.reads.generation();
+        let read = read_claude(self.raw_claude(dir).await.as_deref(), dir);
+        self.reads.keep(dir, generation, &read);
+        read
+    }
+
+    /// A sign-in of a store began or ended: what any store said is read again.
+    pub(crate) fn forget_reads(&self) {
+        self.reads.forget();
     }
 
     /// The Claude sign-in kept for `dir`.
@@ -126,7 +198,11 @@ impl Stores {
         if let Some(login) = logins.get(dir) {
             return login.clone();
         }
-        let item = Arc::new(StoreItem { credentials: self.credentials.clone(), dir: dir.to_owned() });
+        let item = Arc::new(StoreItem {
+            credentials: self.credentials.clone(),
+            dir: dir.to_owned(),
+            reads: self.reads.clone(),
+        });
         let secrets = Arc::new(FallbackSecrets::new(item, dir.join(CLAUDE_FILE)));
         let mut login = ClaudeLogin::new(secrets, dir.to_owned());
         if let Some(url) = &self.endpoints.claude_token_url {
@@ -162,6 +238,7 @@ impl Stores {
     }
 
     async fn sign_out_claude(&self, dir: &Path) -> Result<(), Error> {
+        let _forget = Forget(&self.reads);
         // Under the store's refresh lock, so a renewal in flight cannot put
         // the sign-in back.
         self.claude_login(dir).sign_out().await.map_err(Error::storage)?;
@@ -177,6 +254,15 @@ impl Stores {
             clear.await.map_err(Error::storage)?;
         }
         Ok(())
+    }
+}
+
+/// Forgets every read when dropped: at the end of a change, whichever way it ends.
+struct Forget<'a>(&'a Reads);
+
+impl Drop for Forget<'_> {
+    fn drop(&mut self) {
+        self.0.forget();
     }
 }
 
@@ -196,7 +282,7 @@ impl PlanStores for Stores {
         Box::pin(async move {
             let dir = Path::new(store_dir);
             match provider {
-                "anthropic" => read_claude(self.raw_claude(dir).await.as_deref(), dir),
+                "anthropic" => self.read_claude_store(dir).await,
                 "openai" => match self.chatgpt_login(dir).account().await {
                     // A sign-in whose refresh token is spent stays on disk as
                     // a registration only: it cannot run.
@@ -232,6 +318,7 @@ impl PlanStores for Stores {
             let rejected = Credential::Bearer(rejected.to_owned());
             match provider {
                 "anthropic" if self.read(provider, store_dir).await.present => {
+                    let _forget = Forget(&self.reads);
                     self.claude_login(dir).refused(&rejected).await
                 }
                 "openai" if ChatGptLogin::exists(dir) => self.chatgpt_login(dir).refused(&rejected).await,

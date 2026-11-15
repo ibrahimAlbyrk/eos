@@ -1,12 +1,14 @@
 //! The prompt library: the prompts shipped in the binary, with override folders
 //! over them (`<data folder>/prompts`). A file is `<id>.prompt.md`: YAML
 //! frontmatter and a template body. An override of the same id replaces the
-//! shipped prompt; a new id adds one. Override folders are read on every call.
+//! shipped prompt; a new id adds one. Override folders are read on every call;
+//! their stamp (every folder and file, with sizes and times) tells a reader
+//! whether to read them again.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use eos_core::prompt::{PromptSource, RawPrompt};
+use eos_core::prompt::{PromptSource, RawPrompt, SourceStamp};
 use serde_json::{Map, Value};
 
 use crate::yaml_value;
@@ -65,14 +67,23 @@ fn read(relative: &str, text: &str, source_path: Option<String>) -> RawPrompt {
 }
 
 fn walk(dir: &Path, depth: usize, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(dir) else { return };
+    walk_seen(dir, depth, out, &mut Vec::new());
+}
+
+/// [`walk`], also noting each folder it lists (`None` for one it cannot).
+fn walk_seen(dir: &Path, depth: usize, out: &mut Vec<PathBuf>, folders: &mut Vec<(PathBuf, bool)>) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        folders.push((dir.to_owned(), false));
+        return;
+    };
+    folders.push((dir.to_owned(), true));
     let mut entries: Vec<_> = entries.flatten().collect();
     entries.sort_by_key(fs::DirEntry::file_name);
     for entry in entries {
         let Ok(kind) = entry.file_type() else { continue };
         if kind.is_dir() {
             if depth < MAX_DEPTH {
-                walk(&entry.path(), depth + 1, out);
+                walk_seen(&entry.path(), depth + 1, out, folders);
             }
         } else if kind.is_file() && entry.file_name().to_string_lossy().ends_with(EXT) {
             out.push(entry.path());
@@ -101,5 +112,28 @@ impl PromptSource for LibraryPromptSource {
             }
         }
         prompts
+    }
+
+    fn stamp(&self) -> Option<SourceStamp> {
+        let mut seen = Vec::new();
+        for dir in &self.overrides {
+            let (mut files, mut folders) = (Vec::new(), Vec::new());
+            walk_seen(dir, 0, &mut files, &mut folders);
+            // A folder's own time changes when an entry comes, goes or is renamed.
+            for (folder, listed) in folders {
+                let at = listed.then(|| fs::metadata(&folder).ok()).flatten();
+                seen.push((folder, at.and_then(|meta| Some((meta.len(), meta.modified().ok()?)))));
+            }
+            for file in files {
+                let meta = fs::metadata(&file).ok();
+                seen.push((file, meta.and_then(|meta| Some((meta.len(), meta.modified().ok()?)))));
+            }
+        }
+        // A time in whole seconds (a disk that keeps no finer one) cannot tell two
+        // edits within one second apart: such a library is read every time.
+        let coarse = seen.iter().filter_map(|(_, at)| at.as_ref()).any(|(_, modified)| {
+            modified.duration_since(std::time::UNIX_EPOCH).map_or(true, |since| since.subsec_nanos() == 0)
+        });
+        (!coarse).then_some(SourceStamp(seen))
     }
 }
