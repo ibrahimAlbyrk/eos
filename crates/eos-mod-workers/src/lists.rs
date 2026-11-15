@@ -81,15 +81,13 @@ async fn lists_of(store: &Arc<dyn Store>, derived: &Arc<Derived>, worker_id: &st
     let (id, derived) = (worker_id.to_owned(), derived.clone());
     let lists = store
         .read(move |tx| {
-            let key = match tx.conversation_lists().version(&id)? {
-                Some(version) => Some((version, boot_prompt_offset(tx, &id)?)),
-                None => None,
-            };
+            let offset = boot_prompt_offset(tx, &id)?;
+            let key = tx.conversation_lists().version(&id)?.map(|version| (version, offset));
             if let Some(hit) = key.and_then(|key| derived.get(&id, key)) {
                 return Ok(hit);
             }
             let rows = tx.conversation_lists().facts(&id)?;
-            let lists = ConversationLists::derive(&rows, boot_prompt_offset(tx, &id)?);
+            let lists = ConversationLists::derive(&rows, offset);
             let on = lists.activity_rows();
             let inputs = if on.is_empty() { HashMap::new() } else { inputs_of(tx.events().find_many(&id, &on)?) };
             let lists = Arc::new(Lists {

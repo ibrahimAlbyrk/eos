@@ -175,7 +175,7 @@ pub fn worker_permissions(workers: &dyn WorkerRepo, worker_id: &str) -> Result<W
         if seen.contains(&id) {
             break;
         }
-        let Some(worker) = workers.find(&id)? else { break };
+        let Some(worker) = workers.permission_facts(&id)? else { break };
         if seen.is_empty() {
             permissions.scope = worker.tool_scope.as_deref().and_then(parse_scope);
         }

@@ -290,18 +290,24 @@ impl WorkflowRuns {
         call_id: &str,
     ) -> Result<(Option<(WorkflowStartedEvent, i64)>, Option<(WorkflowCompletedEvent, i64)>), Error> {
         let (worker, call) = (worker_id.to_owned(), call_id.to_owned());
-        let rows =
-            self.0.parts.store.read(move |tx| tx.events().list_by_type(&worker, WorkerEventType::AgentEvent, None));
+        let rows = self.0.parts.store.read(move |tx| {
+            tx.events().list_by_type_containing(&worker, WorkerEventType::AgentEvent, &["\"workflow_", &call])
+        });
+        // Newest first: the first of each kind is the run's last.
         let (mut started, mut completed) = (None, None);
         for row in rows.await? {
-            let Some(payload) = row.payload.as_deref().filter(|p| p.contains("\"workflow_") && p.contains(&call))
-            else {
-                continue;
-            };
+            let Some(payload) = row.payload.as_deref() else { continue };
             match serde_json::from_str::<AgentEvent>(payload) {
-                Ok(AgentEvent::WorkflowStarted(e)) if e.call_id == call => started = Some((e, row.ts)),
-                Ok(AgentEvent::WorkflowCompleted(e)) if e.call_id == call => completed = Some((e, row.ts)),
+                Ok(AgentEvent::WorkflowStarted(e)) if e.call_id == call_id && started.is_none() => {
+                    started = Some((e, row.ts));
+                }
+                Ok(AgentEvent::WorkflowCompleted(e)) if e.call_id == call_id && completed.is_none() => {
+                    completed = Some((e, row.ts));
+                }
                 _ => {}
+            }
+            if started.is_some() && completed.is_some() {
+                break;
             }
         }
         Ok((started, completed))

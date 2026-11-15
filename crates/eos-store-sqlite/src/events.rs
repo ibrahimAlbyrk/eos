@@ -90,23 +90,30 @@ impl SqliteTx<'_> {
             let sql = format!("SELECT {columns} FROM events WHERE worker_id = ?1 AND id > ?2 ORDER BY id ASC LIMIT ?3");
             return self.rows(&sql, params![q.worker_id, after, q.limit], map);
         }
+        // The newest rows, read newest first and handed back oldest first:
+        // (ts, id) orders them wholly, so the reverse is (ts ASC, id ASC).
+        let newest_first = |rows: Result<Vec<T>, Error>| {
+            rows.map(|mut rows| {
+                rows.reverse();
+                rows
+            })
+        };
         match (q.order, q.before_id) {
-            (EventOrder::Desc, Some(before)) => self.rows(
+            (EventOrder::Desc, Some(before)) => newest_first(self.rows(
                 &format!(
-                    "SELECT * FROM (SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 AND id < ?3 \
-                     ORDER BY ts DESC, id DESC LIMIT ?4) ORDER BY ts ASC, id ASC"
+                    "SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 AND id < ?3 \
+                     ORDER BY ts DESC, id DESC LIMIT ?4"
                 ),
                 params![q.worker_id, q.since, before, q.limit],
                 map,
-            ),
-            (EventOrder::Desc, None) => self.rows(
+            )),
+            (EventOrder::Desc, None) => newest_first(self.rows(
                 &format!(
-                    "SELECT * FROM (SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 \
-                     ORDER BY ts DESC, id DESC LIMIT ?3) ORDER BY ts ASC, id ASC"
+                    "SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 ORDER BY ts DESC, id DESC LIMIT ?3"
                 ),
                 params![q.worker_id, q.since, q.limit],
                 map,
-            ),
+            )),
             (EventOrder::Asc, _) => self.rows(
                 &format!(
                     "SELECT {columns} FROM events WHERE worker_id = ?1 AND ts > ?2 ORDER BY ts ASC, id ASC LIMIT ?3"
@@ -146,9 +153,11 @@ impl EventRepo for SqliteTx<'_> {
 
     fn find_many(&self, worker_id: &str, ids: &[i64]) -> Result<Vec<EventRecord>, Error> {
         let ids = serde_json::to_string(ids).map_err(|e| Error::Storage(e.to_string()))?;
+        // `+worker_id`: the ids are looked up by rowid; without statistics the
+        // planner would walk the whole worker's index instead.
         self.rows(
             "SELECT id, worker_id, ts, type, payload FROM events \
-             WHERE worker_id = ?1 AND id IN (SELECT value FROM json_each(?2)) ORDER BY ts ASC, id ASC",
+             WHERE +worker_id = ?1 AND id IN (SELECT value FROM json_each(?2)) ORDER BY ts ASC, id ASC",
             params![worker_id, ids],
             record,
         )
@@ -175,6 +184,31 @@ impl EventRepo for SqliteTx<'_> {
             "SELECT id, worker_id, ts, type, payload FROM events WHERE worker_id = ?1 AND type = ?2 \
              ORDER BY id ASC LIMIT ?3",
             params![worker_id, kind_name(kind)?, limit.unwrap_or(-1)],
+            record,
+        )
+    }
+
+    fn last_id_by_type(&self, worker_id: &str, kind: WorkerEventType) -> Result<Option<i64>, Error> {
+        self.row(
+            "SELECT id FROM events WHERE worker_id = ?1 AND type = ?2 ORDER BY id DESC LIMIT 1",
+            params![worker_id, kind_name(kind)?],
+            |r| r.get(0).map_err(failed),
+        )
+    }
+
+    fn list_by_type_containing(
+        &self,
+        worker_id: &str,
+        kind: WorkerEventType,
+        texts: &[&str],
+    ) -> Result<Vec<EventRecord>, Error> {
+        let texts = serde_json::to_string(texts).map_err(|e| Error::Storage(e.to_string()))?;
+        self.rows(
+            "SELECT id, worker_id, ts, type, payload FROM events WHERE worker_id = ?1 AND type = ?2 \
+             AND payload IS NOT NULL \
+             AND NOT EXISTS (SELECT 1 FROM json_each(?3) WHERE instr(events.payload, value) = 0) \
+             ORDER BY id DESC",
+            params![worker_id, kind_name(kind)?, texts],
             record,
         )
     }

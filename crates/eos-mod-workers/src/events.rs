@@ -136,8 +136,12 @@ pub(crate) fn routes(store: Arc<dyn Store>) -> Vec<RouteDef> {
                         return Ok(stream::rows(store, query.worker_id, ids, wire_into));
                     }
                 }
-                let rows = store.read(move |tx| tx.events().list(&query)).await?;
-                Ok(Response::json(200, &wire(rows)))
+                // Cleaned and written on the reader's thread, beside the read.
+                let json = store.read(move |tx| Ok(serde_json::to_vec(&wire(tx.events().list(&query)?)))).await?;
+                Ok(match json {
+                    Ok(json) => Response::json_bytes(200, json.into()),
+                    Err(e) => Response::error(500, format!("response could not be serialized: {e}")),
+                })
             }
         }
     };

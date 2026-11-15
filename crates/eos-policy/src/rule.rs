@@ -59,7 +59,12 @@ impl Policy {
 
     /// Whether any rule matches the call.
     pub fn has_rule_for(&self, tool_name: &str, input: &UnknownRecord) -> bool {
-        self.rules.iter().any(|rule| rule.matches(tool_name, input))
+        self.first_rule_for(tool_name, input).is_some()
+    }
+
+    /// Where the first rule that matches the call is.
+    pub(crate) fn first_rule_for(&self, tool_name: &str, input: &UnknownRecord) -> Option<usize> {
+        self.rules.iter().position(|rule| rule.matches(tool_name, input))
     }
 }
 
@@ -160,7 +165,13 @@ fn deny(message: impl Into<String>) -> Decision {
 /// decides. With none, the policy's default. An allow carries the input to
 /// run with: the call's own, or the rewritten one.
 pub fn evaluate_policy(policy: &Policy, tool_name: &str, input: &UnknownRecord) -> Decision {
-    for rule in policy.rules.iter().filter(|rule| rule.matches(tool_name, input)) {
+    evaluate_policy_from(policy, 0, tool_name, input)
+}
+
+/// [`evaluate_policy`] for a call no rule before `first` matches.
+pub(crate) fn evaluate_policy_from(policy: &Policy, first: usize, tool_name: &str, input: &UnknownRecord) -> Decision {
+    let rules = policy.rules.get(first..).unwrap_or_default();
+    for rule in rules.iter().filter(|rule| rule.matches(tool_name, input)) {
         match &rule.action {
             Action::Allow => return allow(input.clone()),
             Action::Deny { reason } => return deny(reason.as_deref().unwrap_or("denied by policy")),
@@ -174,6 +185,11 @@ pub fn evaluate_policy(policy: &Policy, tool_name: &str, input: &UnknownRecord) 
             Action::Unknown => {}
         }
     }
+    default_decision(policy, input)
+}
+
+/// What the policy's default makes of a call no rule decided.
+pub(crate) fn default_decision(policy: &Policy, input: &UnknownRecord) -> Decision {
     match policy.default {
         PolicyBehavior::Allow => allow(input.clone()),
         PolicyBehavior::Deny => deny("no rule matched (default deny)"),

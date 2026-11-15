@@ -29,7 +29,7 @@ use serde_json::Value;
 use crate::glob::matches_any;
 use crate::js::JsRegex;
 use crate::mode::{ToolCategory, Verdict, classify_tool, edit_target, mode_verdict};
-use crate::rule::{Policy, evaluate_policy};
+use crate::rule::{Policy, default_decision, evaluate_policy_from};
 
 /// What a decision is made from, besides the policy.
 #[derive(Debug, Clone, Copy)]
@@ -114,8 +114,9 @@ pub fn evaluate(policy: &Policy, call: &Call<'_>) -> Decision {
 /// Rungs 5–7.
 fn decide(policy: &Policy, call: &Call<'_>) -> Decision {
     let tool = call.tool_name;
-    if policy.has_rule_for(tool, call.input) {
-        return evaluate_policy(policy, tool, call.input);
+    // The rules are walked once: none before the first match decides anything.
+    if let Some(first) = policy.first_rule_for(tool, call.input) {
+        return evaluate_policy_from(policy, first, tool, call.input);
     }
     let category = match classify_tool(tool, Some(call.input), call.plans_dir) {
         ToolCategory::FileEdit if call.writes_outside => ToolCategory::FileEditOutside,
@@ -123,7 +124,91 @@ fn decide(policy: &Policy, call: &Call<'_>) -> Decision {
     };
     match mode_verdict(call.mode, category) {
         Verdict::Allow => Decision::Allow(AllowVariant { updated_input: Some(call.input.clone()), message: None }),
-        Verdict::Ask => evaluate_policy(policy, tool, call.input),
+        // No rule matches: the default decides.
+        Verdict::Ask => default_decision(policy, call.input),
+    }
+}
+
+#[cfg(test)]
+mod walked_once {
+    use eos_contracts::PolicyBehavior;
+    use serde_json::json;
+
+    use super::*;
+    use crate::rule::{compile_rule, evaluate_policy};
+
+    #[test]
+    fn the_rules_walked_once_decide_as_the_rules_walked_twice() {
+        let rules = json!([
+            {"tool": "Bash", "command": "^git ", "action": "permit"},
+            {"tool": "Bash", "command": "rm", "action": "deny", "reason": "no"},
+            {"tool": "Bash", "command": "^git push", "action": "ask"},
+            {"tool": ["Bash", "Read"], "command": "^ls", "action": "rewrite", "rewriteFrom": "^ls", "rewriteTo": "ls -a"},
+            {"tool": "Write", "action": "allow"},
+        ]);
+        let calls: Vec<(&str, UnknownRecord)> = [
+            ("Bash", json!({"command": "git status"})),
+            ("Bash", json!({"command": "git push origin"})),
+            ("Bash", json!({"command": "rm -rf x"})),
+            ("Bash", json!({"command": "ls"})),
+            ("Bash", json!({"command": "echo"})),
+            ("Read", json!({"file_path": "/x", "command": "ls"})),
+            ("Read", json!({"file_path": "/x"})),
+            ("Write", json!({"file_path": "/x"})),
+            ("WebFetch", json!({})),
+        ]
+        .into_iter()
+        .map(|(tool, input)| (tool, serde_json::from_value(input).expect("an object")))
+        .collect();
+        let compiled: Vec<_> = rules
+            .as_array()
+            .expect("a list")
+            .iter()
+            .enumerate()
+            .filter_map(|(i, rule)| compile_rule(rule, i, "<test>", &mut |_| {}))
+            .collect();
+        for default in [PolicyBehavior::Allow, PolicyBehavior::Deny, PolicyBehavior::Ask] {
+            for rules in [Vec::new(), compiled.clone()] {
+                let policy = Policy { default, ttl_ms: 0, rules };
+                let modes = [
+                    AgentMode::Plan,
+                    AgentMode::DontAsk,
+                    AgentMode::Default,
+                    AgentMode::AcceptEdits,
+                    AgentMode::FullAccess,
+                ];
+                for (mode, writes_outside) in modes.into_iter().flat_map(|m| [(m, false), (m, true)]) {
+                    for (tool, input) in &calls {
+                        let call = Call {
+                            tool_name: tool,
+                            input,
+                            agent_id: None,
+                            full_surface: false,
+                            mode,
+                            looks_only: false,
+                            scope: None,
+                            plans_dir: None,
+                            writes_outside,
+                        };
+                        let twice = if policy.has_rule_for(tool, input) {
+                            evaluate_policy(&policy, tool, input)
+                        } else {
+                            let category = match classify_tool(tool, Some(input), None) {
+                                ToolCategory::FileEdit if writes_outside => ToolCategory::FileEditOutside,
+                                category => category,
+                            };
+                            match mode_verdict(mode, category) {
+                                Verdict::Allow => {
+                                    Decision::Allow(AllowVariant { updated_input: Some(input.clone()), message: None })
+                                }
+                                Verdict::Ask => evaluate_policy(&policy, tool, input),
+                            }
+                        };
+                        assert_eq!(decide(&policy, &call), twice, "{tool} {input:?} {mode:?} {default:?}");
+                    }
+                }
+            }
+        }
     }
 }
 

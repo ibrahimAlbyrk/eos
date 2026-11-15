@@ -54,6 +54,16 @@ pub trait EventRepo {
         kind: WorkerEventType,
         limit: Option<i64>,
     ) -> Result<Vec<EventRecord>, Error>;
+    /// The id of the worker's newest row of one kind.
+    fn last_id_by_type(&self, worker_id: &str, kind: WorkerEventType) -> Result<Option<i64>, Error>;
+    /// The worker's rows of one kind whose payload contains every one of
+    /// `texts`, newest first.
+    fn list_by_type_containing(
+        &self,
+        worker_id: &str,
+        kind: WorkerEventType,
+        texts: &[&str],
+    ) -> Result<Vec<EventRecord>, Error>;
     /// One row by id; `None` when it is gone or belongs to another worker.
     fn find(&self, worker_id: &str, row_id: i64) -> Result<Option<EventRecord>, Error>;
     fn delete_by_worker(&self, worker_id: &str) -> Result<(), Error>;

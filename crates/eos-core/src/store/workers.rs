@@ -38,9 +38,21 @@ pub struct NewWorker {
     pub scratch: bool,
 }
 
+/// What a permission decision reads of a worker row.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PermissionFacts {
+    pub permission_mode: Option<String>,
+    /// The tool scope as JSON text.
+    pub tool_scope: Option<String>,
+    pub parent_id: Option<String>,
+}
+
 pub trait WorkerRepo {
     fn insert(&self, worker: &NewWorker) -> Result<(), Error>;
     fn find(&self, id: &str) -> Result<Option<Worker>, Error>;
+    /// [`find`](WorkerRepo::find)'s mode, tool scope and parent alone; it fails where `find` does on
+    /// a state it cannot read.
+    fn permission_facts(&self, id: &str) -> Result<Option<PermissionFacts>, Error>;
     /// Every row, archived ones included, newest first.
     fn list_all(&self) -> Result<Vec<Worker>, Error>;
     /// Archived ones included, newest first.

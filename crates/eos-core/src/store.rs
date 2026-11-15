@@ -68,4 +68,4 @@ pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
-pub use workers::{NewWorker, WorkerRepo};
+pub use workers::{NewWorker, PermissionFacts, WorkerRepo};

@@ -185,8 +185,8 @@ fn outgoing(tx: &dyn Tx, input: &MessageInput, reply: Option<&str>) -> Result<(S
 fn context_boundary(tx: &dyn Tx, worker_id: &str) -> Result<i64, Error> {
     let mut boundary = 0;
     for kind in [WorkerEventType::CompactionCompleted, WorkerEventType::ConversationCleared] {
-        if let Some(last) = tx.events().list_by_type(worker_id, kind, None)?.last() {
-            boundary = boundary.max(last.id);
+        if let Some(last) = tx.events().last_id_by_type(worker_id, kind)? {
+            boundary = boundary.max(last);
         }
     }
     Ok(boundary)

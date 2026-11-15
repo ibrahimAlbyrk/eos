@@ -2,7 +2,7 @@
 
 use eos_contracts::{NameSource, WorkerState};
 use eos_core::Error;
-use eos_core::store::{NewWorker, WorkerRepo};
+use eos_core::store::{NewWorker, PermissionFacts, WorkerRepo};
 use eos_domain::worker::{name_source_name, parse_name_source, parse_state, state_name};
 use eos_domain::{Usage, Worker};
 use eos_kit_sqlite::rusqlite::{Row, params};
@@ -134,6 +134,22 @@ impl WorkerRepo for SqliteTx<'_> {
 
     fn find(&self, id: &str) -> Result<Option<Worker>, Error> {
         self.row(&format!("SELECT {COLUMNS} FROM workers WHERE id = ?1"), [id], worker)
+    }
+
+    fn permission_facts(&self, id: &str) -> Result<Option<PermissionFacts>, Error> {
+        let row =
+            self.row("SELECT state, permission_mode, tool_scope, parent_id FROM workers WHERE id = ?1", [id], |r| {
+                let read = || -> eos_kit_sqlite::rusqlite::Result<(String, PermissionFacts)> {
+                    let facts =
+                        PermissionFacts { permission_mode: r.get(1)?, tool_scope: r.get(2)?, parent_id: r.get(3)? };
+                    Ok((r.get(0)?, facts))
+                };
+                read().map_err(failed)
+            })?;
+        let Some((state, facts)) = row else { return Ok(None) };
+        parse_state(&state.to_ascii_uppercase())
+            .ok_or_else(|| Error::Storage(format!("worker {id} has an unknown state: {state}")))?;
+        Ok(Some(facts))
     }
 
     fn list_all(&self) -> Result<Vec<Worker>, Error> {

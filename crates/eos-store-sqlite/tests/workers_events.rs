@@ -362,3 +362,140 @@ async fn the_port_runs_jobs_from_async_code() {
     let missing: Result<(), Error> = store.write(|_, _| Err(Error::not_found("worker", "w-x"))).await;
     assert_eq!(missing, Err(Error::not_found("worker", "w-x")));
 }
+
+/// Two workers' rows, interleaved, with times that go back and repeat.
+fn tangled_log() -> TempStore {
+    let temp = TempStore::new();
+    temp.store
+        .write_blocking(|tx, _| {
+            let events = tx.events();
+            for n in 0..60_i64 {
+                let worker = if n % 3 == 0 { "w-2" } else { "w-1" };
+                let ts = 1_000 + (n * 7) % 11;
+                let kind = match n % 5 {
+                    0 => WorkerEventType::CompactionCompleted,
+                    1 => WorkerEventType::UserMessage,
+                    _ => WorkerEventType::AgentEvent,
+                };
+                let payload = match n % 4 {
+                    0 => None,
+                    1 => Some(format!(r#"{{"type":"workflow_started","callId":"c-{}","n":{n}}}"#, n % 2)),
+                    2 => Some(format!(r#"{{"type":"text","text":"ü \"workflow_ c-0","n":{n}}}"#)),
+                    _ => Some(format!(r#"{{"n":{n}}}"#)),
+                };
+                events.append(worker, ts, kind, payload.as_deref())?;
+            }
+            Ok(())
+        })
+        .expect("writes");
+    temp
+}
+
+fn all_rows(temp: &TempStore, worker: &str) -> Vec<eos_domain::EventRecord> {
+    let query = EventQuery { limit: 5000, order: EventOrder::Asc, ..query(worker) };
+    temp.store.read_blocking(move |tx| tx.events().list(&query)).expect("reads")
+}
+
+#[test]
+fn the_newest_rows_come_back_oldest_first_by_time_then_id() {
+    let temp = tangled_log();
+    let all = all_rows(&temp, "w-1");
+    assert!(all.windows(2).all(|w| (w[0].ts, w[0].id) < (w[1].ts, w[1].id)), "time, then id");
+    for (since, limit, before) in
+        [(0, 7, None), (1_003, 5, None), (0, 500, None), (0, 6, Some(30)), (1_002, 4, Some(45))]
+    {
+        let want: Vec<i64> = {
+            let kept: Vec<_> =
+                all.iter().filter(|r| r.ts > since && before.is_none_or(|b| r.id < b)).map(|r| r.id).collect();
+            kept[kept.len().saturating_sub(limit)..].to_vec()
+        };
+        let q = EventQuery { since, limit: limit as i64, before_id: before, ..query("w-1") };
+        let (rows, ids) =
+            temp.store.read_blocking(move |tx| Ok((tx.events().list(&q)?, tx.events().list_ids(&q)?))).expect("reads");
+        assert_eq!(
+            rows.iter().map(|r| r.id).collect::<Vec<_>>(),
+            want,
+            "since {since}, limit {limit}, before {before:?}"
+        );
+        assert_eq!(ids, rows.iter().map(|r| (r.id, r.ts)).collect::<Vec<_>>());
+    }
+}
+
+#[test]
+fn rows_by_id_are_the_workers_own_by_time_then_id() {
+    let temp = tangled_log();
+    let (mine, theirs) = (all_rows(&temp, "w-1"), all_rows(&temp, "w-2"));
+    let mut asked: Vec<i64> = mine.iter().step_by(2).map(|r| r.id).rev().collect();
+    asked.extend(theirs.iter().take(3).map(|r| r.id));
+    asked.extend([asked[0], 9_999]);
+    let found = temp.store.read_blocking(move |tx| tx.events().find_many("w-1", &asked)).expect("reads");
+    let want: Vec<_> = mine.iter().step_by(2).cloned().collect();
+    assert_eq!(found, want, "another worker's, unknown and repeated ids are left out");
+}
+
+#[test]
+fn the_newest_row_of_a_kind_and_rows_that_say_something() {
+    let temp = tangled_log();
+    for worker in ["w-1", "w-2", "w-none"] {
+        let (rows, kinds) = temp
+            .store
+            .read_blocking(move |tx| {
+                let mut kinds = Vec::new();
+                for kind in [WorkerEventType::CompactionCompleted, WorkerEventType::ConversationCleared] {
+                    let all = tx.events().list_by_type(worker, kind, None)?;
+                    kinds.push((all.last().map(|r| r.id), tx.events().last_id_by_type(worker, kind)?));
+                }
+                Ok((tx.events().list_by_type(worker, WorkerEventType::AgentEvent, None)?, kinds))
+            })
+            .expect("reads");
+        for (scanned, last) in kinds {
+            assert_eq!(scanned, last, "{worker}");
+        }
+        for texts in [vec!["\"workflow_", "c-0"], vec!["\"workflow_", "c-1"], vec!["ü"], vec![""], vec![]] {
+            let want: Vec<_> = rows
+                .iter()
+                .rev()
+                .filter(|r| r.payload.as_deref().is_some_and(|p| texts.iter().all(|t| p.contains(t))))
+                .cloned()
+                .collect();
+            let asked: Vec<String> = texts.iter().map(|t| (*t).to_owned()).collect();
+            let found = temp
+                .store
+                .read_blocking(move |tx| {
+                    let texts: Vec<&str> = asked.iter().map(String::as_str).collect();
+                    tx.events().list_by_type_containing(worker, WorkerEventType::AgentEvent, &texts)
+                })
+                .expect("reads");
+            assert_eq!(found, want, "{worker} {texts:?}");
+        }
+    }
+}
+
+#[test]
+fn a_permission_check_reads_what_the_whole_row_says() {
+    let temp = seeded();
+    temp.exec(
+        "UPDATE workers SET permission_mode = 'acceptEdits', tool_scope = '{\"deny\":[\"Bash\"]}' WHERE id = 'w-KID1'",
+    );
+    let workers = temp.store.read_blocking(|tx| tx.workers().list_all()).expect("reads");
+    assert!(workers.len() > 5);
+    for worker in workers {
+        let id = worker.id.clone();
+        let facts = temp.store.read_blocking(move |tx| tx.workers().permission_facts(&id)).expect("reads");
+        let want = eos_core::store::PermissionFacts {
+            permission_mode: worker.permission_mode,
+            tool_scope: worker.tool_scope,
+            parent_id: worker.parent_id,
+        };
+        assert_eq!(facts, Some(want), "{}", worker.id);
+    }
+    assert_eq!(temp.store.read_blocking(|tx| tx.workers().permission_facts("w-none")).expect("reads"), None);
+    temp.exec("UPDATE workers SET state = 'sleeping' WHERE id = 'w-KID2'");
+    let (whole, facts) = temp
+        .store
+        .read_blocking(|tx| {
+            Ok((tx.workers().find("w-KID2").is_err(), tx.workers().permission_facts("w-KID2").is_err()))
+        })
+        .expect("reads");
+    assert_eq!((whole, facts), (true, true), "an unreadable state fails both");
+}

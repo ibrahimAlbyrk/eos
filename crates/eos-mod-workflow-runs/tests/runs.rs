@@ -320,6 +320,16 @@ async fn rebuilds_a_finished_run_from_its_two_events() {
     assert_eq!(run["snapshot"]["agents"].as_array().map(Vec::len), Some(1), "the event's agents win over the record's");
     assert_eq!(run["snapshot"]["agents"][0]["state"], "done");
     assert_eq!(run["snapshot"]["logs"], json!(["done"]));
+
+    // The newest record of each kind is the run's; another run whose id holds this one's is not.
+    bench.record(12_000, &completed(WorkflowCompletedEventStatus::Failed, None));
+    let mut other = completed(WorkflowCompletedEventStatus::Stopped, None);
+    if let AgentEvent::WorkflowCompleted(e) = &mut other {
+        e.call_id = "call_10".into();
+    }
+    bench.record(13_000, &other);
+    let (_, run) = bench.get("/workers/w-CHAT/workflow-runs/call_1").await;
+    assert_eq!((&run["status"], &run["startedAt"], &run["endedAt"]), (&json!("failed"), &json!(5_000), &json!(12_000)));
 }
 
 #[tokio::test(flavor = "multi_thread")]
