@@ -74,8 +74,8 @@ pub use accounts::{
     FakeUsageSnapshots, NoKeychain, StartedSignIn,
 };
 pub use agent::{
-    COMPACT_AFTER_TOKENS, COMPACT_BEFORE_TOKENS, COMPACT_SUMMARY, PlainCompactionWords, RecordingSink, ScriptedRuntime,
-    Turn,
+    COMPACT_AFTER_TOKENS, COMPACT_BEFORE_TOKENS, COMPACT_SUMMARY, NoArtifactViewer, PlainCompactionWords,
+    RecordingSink, ScriptedRuntime, Turn,
 };
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use clock::FakeClock;

@@ -20,7 +20,7 @@
 //! leave to the user is denied instead.
 
 use eos_contracts::tool_scope::{
-    blocked_builtin_tool_message, is_blocked_builtin_tool, is_browser_tool, is_eos_control_tool,
+    blocked_builtin_tool_message, is_artifact_tool, is_blocked_builtin_tool, is_browser_tool, is_eos_control_tool,
 };
 use eos_contracts::{AllowVariant, Decision, DenyVariant, ToolScope, UnknownRecord};
 use eos_core::policy::AgentMode;
@@ -89,6 +89,11 @@ pub fn evaluate(policy: &Policy, call: &Call<'_>) -> Decision {
     if call.agent_id.is_some_and(|id| !id.is_empty()) && is_eos_control_tool(tool) {
         return deny(format!(
             "{tool} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them."
+        ));
+    }
+    if call.agent_id.is_some_and(|id| !id.is_empty()) && is_artifact_tool(tool) {
+        return deny(format!(
+            "{tool} is main-agent only — subagents cannot publish or change artifacts. Return the content; the main agent publishes it."
         ));
     }
     if let Some(scope) = call.scope

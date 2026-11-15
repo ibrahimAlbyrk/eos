@@ -9,24 +9,47 @@
 //! they list this computer's accounts' work. `artifacts:change` carries only
 //! `{refreshing}`. A tool result that holds an artifact link re-reads the
 //! sign-in its agent runs on (every sign-in when that is unknown).
+//!
+//! `artifacts:open` asks the dashboard to bring an artifact up beside the chat
+//! whose agent published or opened it ([`Viewer`]).
 
 mod catalog;
 mod rules;
 
 use std::sync::Arc;
 
-use eos_contracts::AgentEvent;
 use eos_contracts::builtin_plugins::ids::ARTIFACTS;
+use eos_contracts::{AgentEvent, ArtifactOpen};
 use eos_core::BoxFuture;
 use eos_core::accounts::PlanAccess;
+use eos_core::agent::ArtifactViewer;
 use eos_runtime::access::Access;
-use eos_runtime::bus::TopicDecl;
+use eos_runtime::bus::{Bus, Topic, TopicDecl};
 use eos_runtime::http::{ApiError, Request, Response};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::RouteDef;
 
 pub use catalog::{ARTIFACTS_CHANGE, Catalog, DEBOUNCE_MS, Parts, STALE_MS, Stopped};
 pub use rules::{announces_artifact, merge_artifacts};
+
+pub const ARTIFACT_OPEN: Topic<ArtifactOpen> = Topic::new(eos_contracts::ARTIFACT_OPEN_TOPIC);
+
+/// Opens an agent's artifact in the dashboard, through the bus.
+#[derive(Debug, Clone)]
+pub struct Viewer(pub Bus);
+
+impl ArtifactViewer for Viewer {
+    fn open(&self, worker_id: &str, slug: &str, url: &str, title: Option<&str>) -> bool {
+        let open = ArtifactOpen {
+            worker_id: worker_id.to_owned(),
+            slug: slug.to_owned(),
+            url: url.to_owned(),
+            title: title.map(str::to_owned),
+        };
+        self.0.publish(&ARTIFACT_OPEN, &open);
+        true
+    }
+}
 
 pub struct ArtifactsModule {
     catalog: Arc<Catalog>,
@@ -81,7 +104,7 @@ impl Module for ArtifactsModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![ARTIFACTS_CHANGE.decl()]
+        vec![ARTIFACTS_CHANGE.decl(), ARTIFACT_OPEN.decl()]
     }
 
     fn on_agent_event(&self, worker_id: &str, event: &AgentEvent) {

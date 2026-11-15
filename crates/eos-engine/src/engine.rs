@@ -6,7 +6,10 @@ use std::sync::Arc;
 use eos_agent_compat::{ClaudePaths, transcript_path};
 use eos_agent_core::{Extensions, TranscriptStore};
 use eos_agent_engine::JsonlStore;
-use eos_agent_sdk::{AgentOptions, CompleteRequest, Sdk, SystemPromptOverride};
+use eos_agent_sdk::{
+    AgentOptions, ArtifactAuth, ArtifactOpener, CompleteRequest, FrameConfig, OpenRequest, Sdk, SystemPromptOverride,
+    WatchConfig,
+};
 use eos_contracts::tool_scope::disallowed_builtin_tools_for;
 use eos_contracts::{
     AgentEvent, CommandItem, ProviderModel, ProviderModels, SessionEvent, SessionEventPhase, UiBackendDescriptor,
@@ -14,15 +17,15 @@ use eos_contracts::{
 };
 use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
-    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendCatalog, BackendDescriptor, CommandCatalog,
-    CompactionWords, LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink,
-    ToolSets, UserQuestions,
+    AgentCapabilities, AgentRuntime, AgentSession, ArtifactViewer, BackendAuth, BackendCatalog, BackendDescriptor,
+    CommandCatalog, CompactionWords, LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest,
+    SessionSink, ToolSets, UserQuestions,
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
 use tokio::sync::mpsc;
 
-use crate::accounts::{Accounts, Failover, NewSession, NotSignedIn};
+use crate::accounts::{Accounts, ArtifactLogin, Failover, NewSession, NotSignedIn};
 use crate::commands::{folder_commands, with_session_commands};
 use crate::compaction::{LastSummary, Words};
 use crate::gate::EosGate;
@@ -32,8 +35,8 @@ use crate::session::{self, Launch, Shared};
 use crate::tools::{Adapters, EosSession};
 use crate::{takeover, transcript};
 
-/// The provider one-shot answers run on.
-const PROVIDER: &str = "anthropic";
+/// The provider of Claude sign-ins: one-shot answers and the Artifact tools run on it.
+pub(crate) const PROVIDER: &str = "anthropic";
 /// The provider of ChatGPT sign-ins.
 const OPENAI: &str = "openai";
 /// The engine's name for its subagent tool; Eos's tool scope calls it `Task`.
@@ -94,6 +97,19 @@ pub struct EngineDeps {
     /// What a session's summary of its conversation is asked for with, and
     /// the message the conversation goes on from.
     pub compaction: Arc<dyn CompactionWords>,
+    /// Where an artifact an agent published or asked to show opens.
+    pub artifacts: Arc<dyn ArtifactViewer>,
+}
+
+/// The engine's "show this artifact" as Eos's: the agent is the worker (only
+/// a session's own agent opens one, never a subagent).
+struct Opener(Arc<dyn ArtifactViewer>);
+
+impl ArtifactOpener for Opener {
+    fn open<'a>(&'a self, request: &'a OpenRequest) -> eos_agent_core::BoxFuture<'a, bool> {
+        let OpenRequest { agent_id, slug, url, title, .. } = request;
+        Box::pin(std::future::ready(self.0.open(agent_id, slug, url, title.as_deref())))
+    }
 }
 
 impl std::fmt::Debug for EngineDeps {
@@ -173,7 +189,7 @@ impl Engine {
     /// Builds what every session shares: one HTTP client, the tools, the
     /// prompts, the MCP hub, the transcript store. Reads no credential.
     pub async fn build(options: EngineOptions, deps: EngineDeps) -> Result<Self, Error> {
-        let EngineDeps { policy, tools, credentials, questions, clock, secrets, compaction } = deps;
+        let EngineDeps { policy, tools, credentials, questions, clock, secrets, compaction, artifacts } = deps;
         let sessions = Arc::new(Registry::default());
         let accounts = Arc::new(Accounts::new(secrets));
         let store = JsonlStore::new(options.dir.join("transcripts"));
@@ -190,7 +206,9 @@ impl Engine {
             // Building reads nothing: the account's models are read when a
             // session needs them or the model menu lists them.
             .openai_models_later()
-            .artifacts(false)
+            // Each session publishes on its own Claude sign-in (`ArtifactLogin`).
+            .artifacts(true)
+            .artifact_opener(Arc::new(Opener(artifacts)))
             .auth_failover(Arc::new(failover))
             .permissions(Arc::new(EosGate { policy, sessions: sessions.clone() }))
             .prompter(Arc::new(Prompter { questions, sessions: sessions.clone() }))
@@ -206,7 +224,15 @@ impl Engine {
             builder = builder.model(model.clone());
         }
         if let Some(url) = &options.base_url {
-            builder = builder.base_url(url.clone()).openai_base_url(format!("{}/v1", url.trim_end_matches('/')));
+            let url = url.trim_end_matches('/');
+            builder = builder.base_url(url).openai_base_url(format!("{url}/v1")).artifact_api(
+                FrameConfig {
+                    base_url: url.to_owned(),
+                    content_host: format!("{url}/_host/{{slug}}"),
+                    ..FrameConfig::default()
+                },
+                WatchConfig { live_origin: url.to_owned(), ..WatchConfig::default() },
+            );
         }
         if let Some(paths) = &claude {
             builder = builder.claude_paths(paths.clone());
@@ -287,6 +313,13 @@ impl Engine {
         let focused = spec.is_focused();
         let seed = Extensions::default();
         seed.insert(EosSession { worker_id: spec.worker_id.as_str().into() });
+        let shared = &inner.shared;
+        seed.insert(ArtifactAuth(Arc::new(ArtifactLogin {
+            worker_id: spec.worker_id.clone(),
+            sessions: shared.sessions.clone(),
+            credentials: shared.credentials.clone(),
+            accounts: shared.accounts.clone(),
+        })));
         let mut options = AgentOptions::new(&spec.cwd)
             .id(&spec.worker_id)
             .model(&spec.model)

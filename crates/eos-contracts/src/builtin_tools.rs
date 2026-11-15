@@ -25,9 +25,14 @@ pub mod names {
     pub const TASK: &str = "Task";
     pub const EXIT_PLAN_MODE: &str = "ExitPlanMode";
     pub const SKILL: &str = "Skill";
+    pub const ARTIFACT: &str = "Artifact";
+    pub const ARTIFACT_COMMENTS: &str = "ArtifactComments";
+    pub const ARTIFACT_DATA: &str = "ArtifactData";
 }
 
 pub const FILE_EDIT_BUILTIN_TOOLS: &[&str] = &[names::EDIT, names::WRITE, names::MULTI_EDIT, names::NOTEBOOK_EDIT];
 pub const SHELL_BUILTIN_TOOLS: &[&str] = &[names::BASH, names::BASH_OUTPUT, names::KILL_BASH, names::KILL_SHELL];
 pub const READ_BUILTIN_TOOLS: &[&str] = &[names::READ, names::GLOB, names::GREP, names::LS];
 pub const NETWORK_BUILTIN_TOOLS: &[&str] = &[names::WEB_FETCH, names::WEB_SEARCH];
+/// The claude.ai Artifact tools: publish, comment threads, an artifact's database.
+pub const ARTIFACT_BUILTIN_TOOLS: &[&str] = &[names::ARTIFACT, names::ARTIFACT_COMMENTS, names::ARTIFACT_DATA];

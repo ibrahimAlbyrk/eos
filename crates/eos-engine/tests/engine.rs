@@ -91,6 +91,7 @@ impl Bench {
             clock: Arc::new(FakeClock::new()),
             secrets: Arc::new(eos_testkit::NoKeychain),
             compaction: Arc::new(eos_testkit::PlainCompactionWords),
+            artifacts: Arc::new(eos_testkit::NoArtifactViewer),
         };
         let setup = (options.clone(), deps.clone());
         let engine = Engine::build(options, deps).await.expect("the engine");
@@ -175,6 +176,7 @@ async fn a_turn_streams_is_recorded_and_billed() {
     assert!(tools.contains(&TOOL) && tools.contains(&"Bash"), "{tools:?}");
     assert!(!tools.contains(&"AskUserQuestion") && !tools.contains(&"Workflow"), "blocked for a worker: {tools:?}");
     assert!(!tools.contains(&"ToolSearch"), "a worker gets every tool in full");
+    assert!(!tools.contains(&"Artifact"), "a worker publishes nothing itself: {tools:?}");
     assert_eq!(key_of(&bench.mock.requests()[0]).as_deref(), Some("k-first"));
     assert_eq!(bench.credentials.launched.lock().expect("launched")[0].0, "w-1");
 
@@ -346,6 +348,29 @@ async fn the_apps_own_state_stays_unwritten_and_plugins_are_written() {
     let plugin_call = asked.iter().find(|c| c.tool_use_id.as_deref() == Some("tp")).expect("asked about the plugin");
     assert!(plugin_call.writes_outside, "a plugin is outside the chat's folder");
     assert_eq!(plugin_call.input.get("file_path").and_then(Value::as_str), plugin.to_str());
+}
+
+/// An orchestrator gets the Artifact tools, on a Claude sign-in only: the
+/// bench's session runs on an API key, so the call is told to sign in and
+/// nothing is sent.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_orchestrator_gets_the_artifact_tools_on_a_claude_sign_in() {
+    let bench = Bench::new([Reply::tool_use("t1", "Artifact", r#"{"action":"list"}"#), Reply::text("done")]).await;
+    let spec = LaunchSpec {
+        role: eos_contracts::SessionFactsRole::Orchestrator,
+        prompt: Some("list my artifacts".into()),
+        ..bench.spec("w-o")
+    };
+    bench.start(spec).await;
+    let events = bench.after_turns("w-o", 1).await;
+
+    let request = bench.mock.requests()[0].json();
+    let tools: Vec<&str> =
+        request["tools"].as_array().expect("tools").iter().filter_map(|t| t["name"].as_str()).collect();
+    assert!(tools.contains(&"Artifact"), "{tools:?}");
+    let result = events.iter().find(|e| e["role"] == "tool").map(|e| &e["blocks"][0]).expect("the tool's result");
+    assert_eq!(result["isError"], true, "{result}");
+    assert!(result.to_string().contains("needs a Claude sign-in"), "{result}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

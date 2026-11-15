@@ -183,6 +183,7 @@ fn category_name(category: ToolCategory) -> &'static str {
         ToolCategory::Mcp => "mcp",
         ToolCategory::Eos => "eos",
         ToolCategory::Network => "network",
+        ToolCategory::Artifact => "artifact",
         ToolCategory::Other => "other",
     }
 }

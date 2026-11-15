@@ -128,7 +128,7 @@ impl EngineSession {
         *self.credential.lock().unwrap_or_else(PoisonError::into_inner) = credential;
     }
 
-    fn credential(&self) -> Option<SessionCredential> {
+    pub(crate) fn credential(&self) -> Option<SessionCredential> {
         self.credential.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
 

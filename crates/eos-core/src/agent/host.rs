@@ -128,6 +128,13 @@ pub trait UserQuestions: Send + Sync + 'static {
     ) -> BoxFuture<'a, Option<UnknownRecord>>;
 }
 
+/// The user's view of claude.ai artifacts, for the Artifact tools.
+pub trait ArtifactViewer: Send + Sync + 'static {
+    /// Shows the artifact `slug` (its uuid), published at `url`, beside
+    /// `worker_id`'s chat. False when nothing can show it.
+    fn open(&self, worker_id: &str, slug: &str, url: &str, title: Option<&str>) -> bool;
+}
+
 /// A message sent to a worker in the user's name by a feature (a click in a
 /// visual answer).
 #[derive(Debug, Clone, PartialEq, Default)]

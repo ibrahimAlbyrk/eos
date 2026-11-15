@@ -1,7 +1,7 @@
 //! Which tools are Eos's control plane and which built-ins have no surface in
 //! Eos.
 
-use crate::builtin_tools::names;
+use crate::builtin_tools::{ARTIFACT_BUILTIN_TOOLS, names};
 
 /// Eos's own tools besides the `browser_*` verbs. They change orchestration
 /// state: only the main agent loop may call them, never a subagent.
@@ -78,12 +78,25 @@ pub fn is_blocked_builtin_tool(tool_name: &str) -> bool {
 /// subagents. Workers keep Task, so this stays apart from the blocked set.
 pub const ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS: &[&str] = &[names::TASK];
 
+/// Removed for workers only: what they make goes to their parent, and the
+/// orchestrator (or a focused chat) publishes for the user.
+pub const WORKER_DISALLOWED_BUILTIN_TOOLS: &[&str] = ARTIFACT_BUILTIN_TOOLS;
+
+/// The built-ins an orchestrator or a worker is started without.
 pub fn disallowed_builtin_tools_for(is_orchestrator: bool) -> Vec<&'static str> {
     let mut out = BLOCKED_BUILTIN_TOOLS.to_vec();
-    if is_orchestrator {
-        out.extend_from_slice(ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS);
-    }
+    out.extend_from_slice(if is_orchestrator {
+        ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS
+    } else {
+        WORKER_DISALLOWED_BUILTIN_TOOLS
+    });
     out
+}
+
+/// The Artifact tools publish as the session's user: only the main agent
+/// loop calls them, never a subagent.
+pub fn is_artifact_tool(tool_name: &str) -> bool {
+    ARTIFACT_BUILTIN_TOOLS.contains(&tool_name)
 }
 
 #[cfg(test)]
@@ -104,7 +117,11 @@ mod tests {
 
     #[test]
     fn disallowed_sets_by_role() {
-        assert_eq!(disallowed_builtin_tools_for(false), ["AskUserQuestion", "Workflow"]);
+        assert_eq!(
+            disallowed_builtin_tools_for(false),
+            ["AskUserQuestion", "Workflow", "Artifact", "ArtifactComments", "ArtifactData"]
+        );
+        assert!(is_artifact_tool("ArtifactData") && !is_artifact_tool("mcp__x__Artifact"));
         assert_eq!(disallowed_builtin_tools_for(true), ["AskUserQuestion", "Workflow", "Task"]);
         assert_eq!(blocked_builtin_tool_message("Foo"), "Foo is disabled in Eos.");
     }

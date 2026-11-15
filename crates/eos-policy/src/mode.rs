@@ -4,7 +4,7 @@
 use eos_contracts::builtin_tools::{
     FILE_EDIT_BUILTIN_TOOLS, NETWORK_BUILTIN_TOOLS, READ_BUILTIN_TOOLS, SHELL_BUILTIN_TOOLS,
 };
-use eos_contracts::tool_scope::{is_browser_tool, is_eos_control_tool};
+use eos_contracts::tool_scope::{is_artifact_tool, is_browser_tool, is_eos_control_tool};
 use eos_contracts::{PermissionMode, UnknownRecord};
 use eos_core::Error;
 use eos_core::policy::AgentMode;
@@ -32,6 +32,8 @@ pub enum ToolCategory {
     /// One of Eos's own tools that is no browser verb.
     Eos,
     Network,
+    /// A claude.ai Artifact tool.
+    Artifact,
     Other,
 }
 
@@ -119,13 +121,15 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
         ToolCategory::Read
     } else if NETWORK_BUILTIN_TOOLS.contains(&tool_name) {
         ToolCategory::Network
+    } else if is_artifact_tool(tool_name) {
+        ToolCategory::Artifact
     } else {
         ToolCategory::Other
     }
 }
 
-/// A mode's verdict. Reads, MCP tools, Eos's own tools and the plan file pass
-/// in every mode.
+/// A mode's verdict. Reads, MCP tools, Eos's own tools, the Artifact tools and
+/// the plan file pass in every mode.
 /// `acceptEdits` also lets file edits inside the working directories and
 /// browser reads through and leaves edits outside them, the shell, the
 /// network, browser actions and everything else to the policy's default;
@@ -133,15 +137,15 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
 /// only a subagent runs in (plan, dontAsk, default) also leave file edits to
 /// the policy; what plan and dontAsk deny besides is [`crate::evaluate`]'s.
 pub fn mode_verdict(mode: AgentMode, category: ToolCategory) -> Verdict {
-    use ToolCategory::{BrowserRead, Eos, FileEdit, Mcp, PlanFile, Read};
+    use ToolCategory::{Artifact, BrowserRead, Eos, FileEdit, Mcp, PlanFile, Read};
     match mode {
         AgentMode::FullAccess => Verdict::Allow,
         AgentMode::AcceptEdits => match category {
-            Mcp | Eos | Read | PlanFile | BrowserRead | FileEdit => Verdict::Allow,
+            Mcp | Eos | Read | PlanFile | BrowserRead | FileEdit | Artifact => Verdict::Allow,
             _ => Verdict::Ask,
         },
         AgentMode::Default | AgentMode::DontAsk | AgentMode::Plan => match category {
-            Mcp | Eos | Read | PlanFile | BrowserRead => Verdict::Allow,
+            Mcp | Eos | Read | PlanFile | BrowserRead | Artifact => Verdict::Allow,
             _ => Verdict::Ask,
         },
     }
@@ -212,6 +216,8 @@ mod tests {
         assert_eq!(classify_tool("LS", None, None), ToolCategory::Read);
         assert_eq!(classify_tool("WebSearch", None, None), ToolCategory::Network);
         assert_eq!(classify_tool("Task", None, None), ToolCategory::Other);
+        assert_eq!(classify_tool("ArtifactComments", None, None), ToolCategory::Artifact);
+        assert_eq!(mode_verdict(AgentMode::AcceptEdits, ToolCategory::Artifact), Verdict::Allow);
         assert_eq!(classify_tool("mcp__github__x", None, None), ToolCategory::Mcp);
         assert_eq!(classify_tool("browser_snapshot", None, None), ToolCategory::BrowserRead);
         assert_eq!(classify_tool("browser_navigate", None, None), ToolCategory::BrowserWrite);

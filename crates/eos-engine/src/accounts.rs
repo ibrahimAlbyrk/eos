@@ -11,6 +11,7 @@ use eos_agent_sdk::{Account, AuthFailover, AuthFailure, ChatGptLogin};
 use eos_core::accounts::{PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials};
 use eos_platform::CredentialStore;
 
+use crate::engine::PROVIDER;
 use crate::registry::Registry;
 
 /// What an agent with no credential runs on: nothing. Its first request
@@ -46,9 +47,53 @@ impl TokenSource for NewSession {
     }
 }
 
+/// The Claude sign-in a session's Artifact tools run on: the one the session
+/// itself is on, else (a ChatGPT model, an API key) the one a new Claude
+/// session would start on. Asked at every call, so it follows the session to
+/// another account.
+pub(crate) struct ArtifactLogin {
+    pub(crate) worker_id: String,
+    pub(crate) sessions: Arc<Registry>,
+    pub(crate) credentials: Arc<dyn SessionCredentials>,
+    pub(crate) accounts: Arc<Accounts>,
+}
+
+impl ArtifactLogin {
+    async fn account(&self) -> Option<Arc<Account>> {
+        let own = self.sessions.get(&self.worker_id).and_then(|session| session.credential());
+        let signed_in =
+            |c: &SessionCredential| c.provider() == PROVIDER && !matches!(c, SessionCredential::ApiKey { .. });
+        let credential = match own.filter(signed_in) {
+            Some(own) => own,
+            None => self.credentials.for_new_session(PROVIDER).await?,
+        };
+        Some(self.accounts.of(&credential))
+    }
+}
+
+impl TokenSource for ArtifactLogin {
+    fn credential(&self) -> BoxFuture<'_, Result<Credential, ModelError>> {
+        Box::pin(async move {
+            match self.account().await {
+                Some(account) => account.credential().await,
+                None => Err(ModelError::Auth(NOT_SIGNED_IN.into())),
+            }
+        })
+    }
+
+    fn refused<'a>(&'a self, rejected: &'a Credential) -> BoxFuture<'a, bool> {
+        Box::pin(async move {
+            match self.account().await {
+                Some(account) => account.refused(rejected).await,
+                None => false,
+            }
+        })
+    }
+}
+
 /// The file the claude binary keeps a login in where the store has no
 /// keychain item.
-const CLAUDE_FILE: &str = ".credentials.json";
+const PROVIDER_FILE: &str = ".credentials.json";
 
 /// A Claude store's keychain item, read and written through the system's
 /// secret store as the rest of Eos reaches it.
@@ -98,7 +143,7 @@ impl Accounts {
 
     fn claude_store(&self, dir: &Path) -> Account {
         let item = StoreItem { secrets: self.secrets.clone(), dir: dir.to_owned() };
-        let secrets = Arc::new(FallbackSecrets::new(Arc::new(item), dir.join(CLAUDE_FILE)));
+        let secrets = Arc::new(FallbackSecrets::new(Arc::new(item), dir.join(PROVIDER_FILE)));
         Account::new(Arc::new(ClaudeLogin::new(secrets, dir.to_owned())))
     }
 

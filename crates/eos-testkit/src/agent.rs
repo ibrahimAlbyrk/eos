@@ -798,6 +798,16 @@ impl AgentRuntime for ScriptedRuntime {
     }
 }
 
+/// No dashboard to show an artifact in.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct NoArtifactViewer;
+
+impl eos_core::agent::ArtifactViewer for NoArtifactViewer {
+    fn open(&self, _worker_id: &str, _slug: &str, _url: &str, _title: Option<&str>) -> bool {
+        false
+    }
+}
+
 /// Compaction words in a few plain lines: the summary in the tags that tell
 /// it from the user's prompts, then where the earlier conversation is kept.
 #[derive(Debug, Default, Clone, Copy)]

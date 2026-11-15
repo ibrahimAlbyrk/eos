@@ -427,6 +427,7 @@ impl App {
                 clock: clock.clone(),
                 secrets: secrets.clone(),
                 compaction: Arc::new(eos_mod_compaction::Words::new(prompts.clone())),
+                artifacts: Arc::new(eos_mod_artifacts::Viewer(kernel.bus.clone())),
             },
         );
         // "Resume at" and "Use API key" reach the live session through the engine.

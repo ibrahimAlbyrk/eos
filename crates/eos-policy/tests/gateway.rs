@@ -274,6 +274,8 @@ async fn the_session_gate_keeps_views_and_control_tools_for_the_main_agent() {
 
     let spawn = gate.decide(from_subagent("spawn_worker")).await.expect("decides");
     assert!(message(&spawn).contains("main-agent only — subagents cannot use Eos control tools"));
+    let publish = gate.decide(from_subagent("Artifact")).await.expect("decides");
+    assert!(message(&publish).contains("main-agent only — subagents cannot publish or change artifacts"));
     let user_tool = gate.decide(from_subagent("mcp__context7__query-docs")).await.expect("decides");
     assert_eq!(behavior(&user_tool), "allow");
     let main_agent = gate.decide(call("spawn_worker", json!({}))).await.expect("decides");
