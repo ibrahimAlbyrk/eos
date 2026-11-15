@@ -1923,6 +1923,7 @@ dependencies = [
  "eos-mod-projects",
  "eos-mod-prompts",
  "eos-mod-questions",
+ "eos-mod-reactions",
  "eos-mod-remote",
  "eos-mod-settings",
  "eos-mod-sync",
@@ -2492,6 +2493,15 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-reactions"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-runtime",
+ "eos-sessions",
 ]
 
 [[package]]
