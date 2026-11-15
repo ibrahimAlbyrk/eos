@@ -858,6 +858,37 @@ async fn a_model_change_is_checked_saved_and_applied_to_the_live_session() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_model_of_another_provider_is_a_focused_chats_only() {
+    let bench = Bench::new();
+    bench.agents.runs_other_model("gpt-5", 100_000);
+    let id = bench.chat("").await;
+
+    let set = bench.sessions.set_model(&id, "gpt-5", None).await.expect("a focused chat moves");
+    assert!(set.runtime_applied);
+    assert_eq!(bench.worker(&id).await.expect("the row").model.as_deref(), Some("gpt-5"));
+    let moved = bench.agents.calls().into_iter().find_map(|c| match c {
+        Call::SetModel { model, compact_at, .. } if model == "gpt-5" => Some(compact_at),
+        _ => None,
+    });
+    assert!(
+        matches!(moved, Some(Some(at)) if at > 0 && at <= 100_000),
+        "summarized by the new model's window from then on: {moved:?}"
+    );
+
+    // A chat can start there too; a worker cannot.
+    let start = |role: Option<&str>| SpawnRequest {
+        prompt: "hello".into(),
+        cwd: Some("/sandbox/alpha".into()),
+        model: Some("gpt-5".into()),
+        role: role.map(str::to_owned),
+        ..SpawnRequest::default()
+    };
+    bench.sessions.spawn(start(Some("focused"))).await.expect("a focused chat starts");
+    let refused = bench.sessions.spawn(start(None)).await.map(|s| s.id);
+    assert_eq!(refused, Err(Error::Validation("model \"gpt-5\" runs focused chats only".into())));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_thousand_workers_come_and_go_and_nothing_is_left() {
     let bench = Bench::new();
     for round in 0..10 {

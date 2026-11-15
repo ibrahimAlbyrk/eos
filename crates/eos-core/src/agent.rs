@@ -34,7 +34,7 @@ pub use session::{
 
 use std::path::Path;
 
-use eos_contracts::{CatalogModel, CommandItem, UiBackendDescriptor};
+use eos_contracts::{CatalogModel, CommandItem, ProviderModels, UiBackendDescriptor};
 use serde::{Deserialize, Serialize};
 
 /// The models the provider offers, as last fetched.
@@ -76,6 +76,12 @@ pub trait CommandCatalog: Send + Sync + 'static {
 /// model picker reads them.
 pub trait BackendCatalog: Send + Sync + 'static {
     fn descriptors(&self) -> Vec<UiBackendDescriptor>;
+
+    /// The providers a session can run on besides the [`ModelCatalog`]'s,
+    /// each with the models it offers the user.
+    fn providers(&self) -> crate::BoxFuture<'_, Vec<ProviderModels>> {
+        Box::pin(std::future::ready(Vec::new()))
+    }
 }
 
 /// A tool call's input while the model writes it, for a feature that follows

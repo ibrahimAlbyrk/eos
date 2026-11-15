@@ -264,6 +264,7 @@ pub const PLUGIN_INSTALL: Route = Route::new("pluginInstall", "/api/plugins/inst
 pub const PLUGIN_STAGED: Route =
     Route::new("pluginStaged", "/api/plugins/install/:stagingId", &[Post, Delete]).encoding(&["stagingId"]);
 pub const PLUGIN_UPDATE: Route = Route::new("pluginUpdate", "/api/plugins/:id/update", &[Post]).encoding(&["id"]);
+pub const API_PROVIDERS: Route = Route::new("apiProviders", "/api/providers", &[Get]).added();
 pub const API_BACKENDS: Route = Route::new("apiBackends", "/api/backends", &[Post]);
 pub const API_BACKEND_PRESETS: Route = Route::new("apiBackendPresets", "/api/backends/presets", &[Get]);
 pub const API_BACKEND_MODELS: Route = Route::new("apiBackendModels", "/api/backends/:name/models", &[Get]);
@@ -544,6 +545,7 @@ pub const ROUTES: &[Route] = &[
     PLUGIN_INSTALL,
     PLUGIN_STAGED,
     PLUGIN_UPDATE,
+    API_PROVIDERS,
     API_BACKENDS,
     API_BACKEND_PRESETS,
     API_BACKEND_MODELS,

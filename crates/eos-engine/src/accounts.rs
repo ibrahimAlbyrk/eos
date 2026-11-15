@@ -27,6 +27,25 @@ impl TokenSource for NotSignedIn {
     }
 }
 
+/// The credential a new session of `provider` would start on, asked for at
+/// every request: what the engine itself runs on for that provider.
+pub(crate) struct NewSession {
+    pub(crate) provider: &'static str,
+    pub(crate) credentials: Arc<dyn SessionCredentials>,
+    pub(crate) accounts: Arc<Accounts>,
+}
+
+impl TokenSource for NewSession {
+    fn credential(&self) -> BoxFuture<'_, Result<Credential, ModelError>> {
+        Box::pin(async move {
+            match self.credentials.for_new_session(self.provider).await {
+                Some(credential) => self.accounts.of(&credential).credential().await,
+                None => Err(ModelError::Auth(NOT_SIGNED_IN.into())),
+            }
+        })
+    }
+}
+
 /// The file the claude binary keeps a login in where the store has no
 /// keychain item.
 const CLAUDE_FILE: &str = ".credentials.json";

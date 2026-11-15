@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use eos_contracts::{
-    BackendModelsResponse, HealthFds, HealthResponse, UiBackendProfile, UiConfigResponse, UiConfigResponseFeatures,
-    UiConfigResponsePermissions, UiConfigResponseSse,
+    BackendModelsResponse, HealthFds, HealthResponse, ProvidersResponse, UiBackendProfile, UiConfigResponse,
+    UiConfigResponseFeatures, UiConfigResponsePermissions, UiConfigResponseSse,
 };
 use eos_core::Clock;
 use eos_core::agent::{BackendCatalog, CommandCatalog, ModelCatalog};
@@ -194,6 +194,11 @@ impl Module for SystemModule {
             let answer = backend_models(config.as_ref(), models.as_ref(), backends.as_ref(), &name);
             async move { Ok(Response::json(200, &answer?)) }
         };
+        let backends = self.backends.clone();
+        let providers = move |_req: Request| {
+            let backends = backends.clone();
+            async move { Ok(Response::json(200, &ProvidersResponse { providers: backends.providers().await })) }
+        };
         let catalog = self.models.clone();
         let refresh = move |_req: Request| {
             let catalog = catalog.clone();
@@ -212,6 +217,7 @@ impl Module for SystemModule {
         vec![
             RouteDef::get("/commands", commands).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/api/backends/{name}/models", backend_models).access(Access::open().phone(Tier::Read)),
+            RouteDef::get("/api/providers", providers).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/health", health).access(Access::open().phone(Tier::Read)),
             RouteDef::get("/api/ui-config", ui_config).access(Access::open().phone(Tier::Read)),
             RouteDef::post("/api/model-catalog/refresh", refresh).access(Access::open()),

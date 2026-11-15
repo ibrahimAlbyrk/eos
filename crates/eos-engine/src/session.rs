@@ -13,9 +13,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TurnError};
+use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TokenSource, TurnError};
 use eos_agent_engine::JsonlStore;
-use eos_agent_sdk::{InputError, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
+use eos_agent_sdk::{InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
 use eos_contracts::{
     AgentEvent, CommandItem, CommandItemSource, RewindMode, RewindTarget, SessionEvent, SessionEventOutcome,
     SessionEventPhase,
@@ -80,7 +80,7 @@ enum TurnDone {
 
 /// What an agent with no credential at all answers, in the form of Claude
 /// Code's "Not logged in · Please run /login", pointing where Eos signs in.
-const SIGN_IN_NOTICE: &str = "Not signed in · Sign in to Claude under Settings › Accounts";
+const SIGN_IN_NOTICE: &str = "Not signed in · Sign in under Settings › Accounts";
 
 pub(crate) struct EngineSession {
     worker_id: String,
@@ -104,6 +104,11 @@ pub(crate) struct EngineSession {
 
 fn not_on_branch() -> SessionError {
     SessionError::Failed("message not found on the active branch".into())
+}
+
+/// The provider `model` (an id or alias) runs on, as credentials name it.
+pub(crate) fn provider_of(model: &str) -> String {
+    eos_agent_sdk::Provider::of(model).id().as_str().to_owned()
 }
 
 fn failed(error: impl std::fmt::Display) -> SessionError {
@@ -269,7 +274,7 @@ fn turn_error(worker_id: &str, error: &TurnError) -> TurnDone {
         }
         TurnError::Model(ModelError::LimitReached { .. }) => failed("Usage limit reached.".to_owned(), true),
         TurnError::Model(ModelError::Auth(why)) => {
-            failed(format!("Claude did not accept the credentials: {why}. Check them under Settings › Accounts."), true)
+            failed(format!("The credentials were not accepted: {why}. Check them under Settings › Accounts."), true)
         }
         TurnError::Model(error) => failed(format!("The request failed: {error}."), false),
         other => failed(format!("The turn failed: {other}."), false),
@@ -574,10 +579,31 @@ impl AgentSession for EngineSession {
         })
     }
 
-    fn set_model<'a>(&'a self, model: &'a str, effort: Option<&'a str>) -> BoxFuture<'a, Result<(), SessionError>> {
+    fn set_model<'a>(
+        &'a self,
+        model: &'a str,
+        effort: Option<&'a str>,
+        compact_at: Option<u64>,
+    ) -> BoxFuture<'a, Result<(), SessionError>> {
         Box::pin(async move {
             let agent = self.agent()?;
-            agent.set_model(model).await.map_err(failed)?;
+            let provider = provider_of(model);
+            // Onto another provider: on what a new session there would start on.
+            let moved = agent.model().is_none_or(|current| provider_of(&current) != provider);
+            let credential = if moved {
+                let found = self.shared.credentials.for_new_session(&provider).await;
+                Some(found.ok_or_else(|| {
+                    failed(format!("no sign-in or key for \"{model}\" · add one under Settings › Accounts"))
+                })?)
+            } else {
+                None
+            };
+            let auth = credential.as_ref().map(|c| self.shared.accounts.of(c) as Arc<dyn TokenSource>);
+            agent.set_model_with(model, ModelChange { auth, compact_at }).await.map_err(failed)?;
+            if let Some(credential) = credential {
+                self.shared.credentials.launched(self.id(), Some(&credential));
+                self.set_credential(Some(credential));
+            }
             if effort.is_some() {
                 agent.set_effort(effort).await.map_err(|_| SessionError::Gone)?;
             }

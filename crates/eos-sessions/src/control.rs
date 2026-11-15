@@ -11,6 +11,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::service::{Changed, Sessions};
+use crate::spawn::role_of;
 use crate::transition::transition_state;
 
 /// How long a removed worker's worktree waits before it is deleted, so its
@@ -272,15 +273,17 @@ impl Sessions {
 
     /// Changes the worker's model (and effort) for its later turns.
     pub async fn set_model(&self, worker_id: &str, model: &str, effort: Option<&str>) -> Result<ModelSet, Error> {
-        self.find(worker_id).await?;
+        let row = self.find(worker_id).await?;
+        self.check_model(model, role_of(row.is_orchestrator, row.agent_role.as_deref()))?;
         let descriptor = self.0.deps.runtime.descriptor();
-        if descriptor.catalog == Some(UiBackendDescriptorCatalog::Claude) && !is_claude_model(model) {
+        let known = is_claude_model(model) || self.0.deps.runtime.other_provider_window(model).is_some();
+        if descriptor.catalog == Some(UiBackendDescriptorCatalog::Claude) && !known {
             return Err(Error::Validation(format!("model \"{model}\" is not valid for provider {}", descriptor.label)));
         }
         let effort = effort.and_then(|e| self.effort_for_model(model, e));
         let mut runtime_applied = false;
         if let Some(session) = self.session(worker_id).filter(|s| s.capabilities().runtime_model_switch) {
-            match session.set_model(model, effort.as_deref()).await {
+            match session.set_model(model, effort.as_deref(), self.compact_at(model)).await {
                 Ok(()) => runtime_applied = true,
                 Err(e) => tracing::warn!(worker_id, error = %e, "the live session did not take the model change"),
             }

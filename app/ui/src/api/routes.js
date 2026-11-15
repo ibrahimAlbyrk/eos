@@ -256,6 +256,9 @@ export const ROUTES = {
   pluginUpdate: (id) => `/api/plugins/${encodeURIComponent(id)}/update`,
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
+  // The providers a chat can run on besides Claude, each with its models
+  // (eos-contracts `providers.rs`).
+  apiProviders: "/api/providers",
   // A configured provider's available models (two-level composer picker).
   apiBackends: "/api/backends",
   apiBackendPresets: "/api/backends/presets",

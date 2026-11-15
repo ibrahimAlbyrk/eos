@@ -9,8 +9,8 @@ use std::time::Duration;
 use eos_agent_mock_api::{MockApi, Reply};
 use eos_core::Error;
 use eos_core::accounts::{PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
-use eos_core::agent::{AgentRuntime, AgentSession, CompactionNotice, LaunchSpec, SessionError};
-use eos_engine::{Engine, EngineDeps, EngineOptions};
+use eos_core::agent::{AgentRuntime, AgentSession, BackendCatalog, CompactionNotice, LaunchSpec, SessionError};
+use eos_engine::{Engine, EngineDeps, EngineOptions, LazyEngine};
 use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets, FakeUser, RecordingSink};
 use serde_json::Value;
 
@@ -47,6 +47,8 @@ fn quiet() -> Arc<dyn eos_core::agent::HostTool> {
 
 struct Bench {
     engine: Engine,
+    /// What a second engine over the same folder is built from.
+    setup: (EngineOptions, EngineDeps),
     mock: MockApi,
     sink: Arc<RecordingSink>,
     policy: Arc<FakePolicy>,
@@ -90,8 +92,14 @@ impl Bench {
             secrets: Arc::new(eos_testkit::NoKeychain),
             compaction: Arc::new(eos_testkit::PlainCompactionWords),
         };
+        let setup = (options.clone(), deps.clone());
         let engine = Engine::build(options, deps).await.expect("the engine");
-        Self { engine, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
+        Self { engine, setup, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
+    }
+
+    /// An engine that is built when it is first needed, as the app holds it.
+    fn lazy(&self) -> LazyEngine {
+        LazyEngine::new(self.setup.0.clone(), self.setup.1.clone())
     }
 
     fn project(&self) -> PathBuf {
@@ -172,6 +180,70 @@ async fn a_turn_streams_is_recorded_and_billed() {
 
     assert!(session.is_alive());
     assert_eq!(session.live_subagents(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_model_of_another_provider_moves_the_conversation_there_and_back() {
+    let bench = Bench::new([
+        Reply::thought("Greet.", "CLAUDE-SIG", "hello from Claude"),
+        Reply::responses_text("hello from GPT"),
+        Reply::text("Claude again"),
+    ])
+    .await;
+    let session = bench.start(LaunchSpec { prompt: Some("one".into()), ..bench.spec("w-1") }).await;
+    bench.after_turns("w-1", 1).await;
+
+    session.set_model("gpt-5", None, None).await.expect("onto OpenAI");
+    session.send("two".into()).await.expect("sent");
+    bench.after_turns("w-1", 2).await;
+    session.set_model("mock-model", None, None).await.expect("back onto Claude");
+    session.send("three".into()).await.expect("sent");
+    let events = bench.after_turns("w-1", 3).await;
+
+    let sent = bench.mock.requests();
+    let paths: Vec<&str> = sent.iter().map(|r| r.path.as_str()).collect();
+    assert_eq!(paths, ["/v1/messages", "/v1/responses", "/v1/messages"]);
+    let to_gpt = sent[1].json()["input"].to_string();
+    assert!(to_gpt.contains("hello from Claude") && !to_gpt.contains("CLAUDE-SIG"), "{to_gpt}");
+    let bearer = sent[1].headers.get("authorization").and_then(|v| v.to_str().ok());
+    assert_eq!(bearer, Some("Bearer k-first"), "on what a new session of that provider starts on");
+    let back = bench.request_text(2);
+    assert!(back.contains("CLAUDE-SIG") && back.contains("hello from GPT"), "Claude reads its own reasoning: {back}");
+    let said: Vec<&str> =
+        events.iter().filter(|e| e["type"] == "message").filter_map(|e| e["blocks"][0]["text"].as_str()).collect();
+    assert!(said.contains(&"hello from GPT") && said.contains(&"Claude again"), "{said:?}");
+    let launched: Vec<String> =
+        bench.credentials.launched.lock().expect("launched").iter().map(|l| l.0.clone()).collect();
+    assert_eq!(launched, ["w-1", "w-1", "w-1"], "the accounts feature hears each move");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_chatgpt_accounts_models_are_listed_with_their_windows() {
+    let bench = Bench::new([]).await;
+    bench.mock.set_models(serde_json::json!({"models": [
+        {"slug": "gpt-6-sol", "display_name": "GPT-6 Sol", "visibility": "list", "context_window": 400_000,
+         "default_reasoning_level": "medium", "supported_reasoning_levels": ["low", "medium", "high"]},
+        {"slug": "gpt-hidden", "visibility": "hide"},
+    ]}));
+    let providers = bench.lazy().providers().await;
+    assert_eq!(providers.len(), 1);
+    let chatgpt = &providers[0];
+    assert_eq!((chatgpt.id.as_str(), chatgpt.label.as_str(), chatgpt.ready), ("openai", "ChatGPT", true));
+    let ids: Vec<&str> = chatgpt.models.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, ["gpt-6-sol"], "only what the account offers");
+    assert_eq!(chatgpt.models[0].display_name, "GPT-6 Sol");
+    assert_eq!(chatgpt.models[0].context_window, Some(400_000));
+    assert_eq!(chatgpt.models[0].default_effort.as_deref(), Some("medium"));
+
+    assert_eq!(bench.engine.other_provider_window("claude-opus-5-5"), None, "the model catalog's own");
+    assert!(bench.engine.other_provider_window("gpt-5").is_some());
+
+    // Signed out, the list is empty and nothing is asked of OpenAI.
+    *bench.credentials.new_session.lock().expect("credential") = None;
+    let before = bench.mock.requests().len();
+    let signed_out = bench.lazy().providers().await;
+    assert!(!signed_out[0].ready && signed_out[0].models.is_empty());
+    assert_eq!(bench.mock.requests().len(), before);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -346,7 +418,7 @@ async fn a_session_without_any_credential_says_once_where_to_sign_in() {
     assert_eq!(tags(&events)[2..], ["turn:started", "msg:assistant:text", "usage", "turn:ended"]);
     let texts: Vec<&str> =
         events.iter().filter(|e| e["type"] == "message").filter_map(|e| e["blocks"][0]["text"].as_str()).collect();
-    assert_eq!(texts, ["Not signed in · Sign in to Claude under Settings › Accounts"]);
+    assert_eq!(texts, ["Not signed in · Sign in under Settings › Accounts"]);
     assert!(bench.mock.requests().is_empty(), "nothing went out");
 }
 

@@ -77,7 +77,7 @@ struct SpawnAnnounce<'a> {
     row_id: i64,
 }
 
-fn role_of(is_orchestrator: bool, role: Option<&str>) -> SessionFactsRole {
+pub(crate) fn role_of(is_orchestrator: bool, role: Option<&str>) -> SessionFactsRole {
     match (is_orchestrator, role) {
         (true, _) => SessionFactsRole::Orchestrator,
         (false, Some("git")) => SessionFactsRole::Git,
@@ -151,10 +151,22 @@ fn base36(mut n: i64) -> String {
 }
 
 impl Sessions {
+    /// A model of a provider outside the model catalog runs focused chats
+    /// only: orchestrators and workers stay on the catalog's.
+    pub(crate) fn check_model(&self, model: &str, role: SessionFactsRole) -> Result<(), Error> {
+        let other = self.0.deps.runtime.other_provider_window(model).is_some();
+        if other && role != SessionFactsRole::Focused {
+            return Err(Error::Validation(format!("model \"{model}\" runs focused chats only")));
+        }
+        Ok(())
+    }
+
     /// Where a session on `model` summarizes its conversation by itself.
-    fn compact_at(&self, model: &str) -> Option<u64> {
-        let compaction = &self.0.deps.config.current().compaction;
-        let window = self.0.deps.models.context_window_for(Some(model));
+    pub(crate) fn compact_at(&self, model: &str) -> Option<u64> {
+        let deps = &self.0.deps;
+        let compaction = &deps.config.current().compaction;
+        let other = deps.runtime.other_provider_window(model);
+        let window = other.unwrap_or_else(|| deps.models.context_window_for(Some(model)));
         compact_at(compaction.enabled, compaction.threshold, window)
     }
 
@@ -215,6 +227,7 @@ impl Sessions {
             .clone()
             .unwrap_or_else(|| if request.is_orchestrator { deps.ids.orchestrator_id() } else { deps.ids.worker_id() });
         let model = request.model.clone().unwrap_or_else(|| "opus".to_owned());
+        self.check_model(&model, role_of(request.is_orchestrator, request.role.as_deref()))?;
         let effort = self.effort_for(&model, Some(request.effort.as_deref().unwrap_or("xhigh")));
         // A worktree worker always has its branch on its row: that is what
         // lets a removal clean up. The id keeps two same-named workers apart.

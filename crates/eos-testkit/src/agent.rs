@@ -197,7 +197,7 @@ pub enum Call {
     Send { worker_id: String, text: String },
     Interrupt(String),
     Stop(String),
-    SetModel { worker_id: String, model: String, effort: Option<String> },
+    SetModel { worker_id: String, model: String, effort: Option<String>, compact_at: Option<u64> },
     ClearContext(String),
     Compact { worker_id: String, instructions: Option<String> },
     Rewind { worker_id: String, uuid: String },
@@ -226,6 +226,8 @@ struct Shared {
     forgotten: Mutex<Vec<String>>,
     /// Task ids `stop_task` answers as already ended.
     ended_tasks: Mutex<Vec<String>>,
+    /// Models of a provider outside the model catalog, with their context windows.
+    other_models: Mutex<HashMap<String, i64>>,
     /// Turns started and not yet ended.
     running: watch::Sender<usize>,
 }
@@ -307,6 +309,7 @@ impl ScriptedRuntime {
             compact_hold: Mutex::default(),
             forgotten: Mutex::default(),
             ended_tasks: Mutex::default(),
+            other_models: Mutex::default(),
             running: watch::Sender::new(0),
         }))
     }
@@ -317,6 +320,11 @@ impl ScriptedRuntime {
     }
 
     /// `stop_task` answers `task_id` as a task that has already ended.
+    /// From now on the runtime runs `model` on a provider of its own.
+    pub fn runs_other_model(&self, model: &str, context_window: i64) {
+        self.0.other_models.lock().expect("models").insert(model.to_owned(), context_window);
+    }
+
     pub fn end_task(&self, task_id: &str) {
         self.0.ended_tasks.lock().expect("ended").push(task_id.to_owned());
     }
@@ -602,13 +610,19 @@ impl AgentSession for ScriptedSession {
         })
     }
 
-    fn set_model<'a>(&'a self, model: &'a str, effort: Option<&'a str>) -> BoxFuture<'a, Result<(), SessionError>> {
+    fn set_model<'a>(
+        &'a self,
+        model: &'a str,
+        effort: Option<&'a str>,
+        compact_at: Option<u64>,
+    ) -> BoxFuture<'a, Result<(), SessionError>> {
         Box::pin(async move {
             self.gone()?;
             self.shared.record(Call::SetModel {
                 worker_id: self.worker_id.clone(),
                 model: model.to_owned(),
                 effort: effort.map(str::to_owned),
+                compact_at,
             });
             Ok(())
         })
@@ -770,6 +784,10 @@ impl AgentRuntime for ScriptedRuntime {
 
     fn live(&self) -> usize {
         self.0.sessions.lock().expect("sessions").len()
+    }
+
+    fn other_provider_window(&self, model: &str) -> Option<i64> {
+        self.0.other_models.lock().expect("models").get(model).copied()
     }
 
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {

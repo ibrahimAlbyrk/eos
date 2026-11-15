@@ -252,8 +252,17 @@ pub trait AgentSession: Send + Sync + 'static {
     /// Does nothing on a session that is already over.
     fn stop(&self) -> BoxFuture<'_, ()>;
 
-    /// Runs later turns on `model` (and `effort`, when given).
-    fn set_model<'a>(&'a self, model: &'a str, effort: Option<&'a str>) -> BoxFuture<'a, Result<(), SessionError>>;
+    /// Runs later turns on `model` (and `effort`, when given), summarizing
+    /// by itself at `compact_at` from then on. A model of another provider
+    /// moves the conversation there, on the credential a new session of
+    /// that provider would start on; a conversation too long for the model
+    /// is summarized first.
+    fn set_model<'a>(
+        &'a self,
+        model: &'a str,
+        effort: Option<&'a str>,
+        compact_at: Option<u64>,
+    ) -> BoxFuture<'a, Result<(), SessionError>>;
 
     /// Starts over with an empty conversation (`/clear`).
     fn clear_context(&self) -> BoxFuture<'_, Result<(), SessionError>>;
@@ -312,6 +321,13 @@ pub trait AgentRuntime: Send + Sync + 'static {
 
     /// How many sessions are live.
     fn live(&self) -> usize;
+
+    /// The context window, in tokens, of a model the runtime runs on a
+    /// provider of its own, outside the model catalog (`None`: it runs no
+    /// such model).
+    fn other_provider_window(&self, _model: &str) -> Option<i64> {
+        None
+    }
 
     /// Deletes the conversation recorded for a worker that is gone for good.
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;

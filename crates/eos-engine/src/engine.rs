@@ -9,8 +9,8 @@ use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{AgentOptions, CompleteRequest, Sdk, SystemPromptOverride};
 use eos_contracts::tool_scope::disallowed_builtin_tools_for;
 use eos_contracts::{
-    AgentEvent, CommandItem, SessionEvent, SessionEventPhase, UiBackendDescriptor, UiBackendDescriptorBilling,
-    UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
+    AgentEvent, CommandItem, ProviderModel, ProviderModels, SessionEvent, SessionEventPhase, UiBackendDescriptor,
+    UiBackendDescriptorBilling, UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
 };
 use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
@@ -22,7 +22,7 @@ use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
 use tokio::sync::mpsc;
 
-use crate::accounts::{Accounts, Failover, NotSignedIn};
+use crate::accounts::{Accounts, Failover, NewSession, NotSignedIn};
 use crate::commands::{folder_commands, with_session_commands};
 use crate::compaction::{LastSummary, Words};
 use crate::gate::EosGate;
@@ -32,8 +32,10 @@ use crate::session::{self, Launch, Shared};
 use crate::tools::{Adapters, EosSession};
 use crate::{takeover, transcript};
 
-/// The provider every session runs on today.
+/// The provider one-shot answers run on.
 const PROVIDER: &str = "anthropic";
+/// The provider of ChatGPT sign-ins.
+const OPENAI: &str = "openai";
 /// The engine's name for its subagent tool; Eos's tool scope calls it `Task`.
 const SUBAGENT_TOOL: &str = "Agent";
 /// Waiting subagent and task events per session; a session that falls
@@ -158,6 +160,11 @@ impl std::fmt::Debug for Engine {
     }
 }
 
+/// `window()` when `model` is one of a ChatGPT account.
+fn openai_window(model: &str, window: impl FnOnce() -> u64) -> Option<i64> {
+    (session::provider_of(model) == OPENAI).then(window).and_then(|w| i64::try_from(w).ok())
+}
+
 fn engine_error(error: impl std::fmt::Display) -> Error {
     Error::Rule(format!("the agent could not start: {error}"))
 }
@@ -173,9 +180,16 @@ impl Engine {
         let claude = options.claude_home.as_deref().map(ClaudePaths::for_home);
         let failover =
             Failover { credentials: credentials.clone(), accounts: accounts.clone(), sessions: sessions.clone() };
+        // What reads the ChatGPT account's models: the sign-in a new session would start on.
+        let chatgpt = NewSession { provider: OPENAI, credentials: credentials.clone(), accounts: accounts.clone() };
         let mut builder = Sdk::builder()
             // A session brings its own credential; one without any is told so.
             .auth(Arc::new(NotSignedIn))
+            .chatgpt_store(options.dir.join("data").join(OPENAI))
+            .openai(Arc::new(chatgpt))
+            // Building reads nothing: the account's models are read when a
+            // session needs them or the model menu lists them.
+            .openai_models_later()
             .artifacts(false)
             .auth_failover(Arc::new(failover))
             .permissions(Arc::new(EosGate { policy, sessions: sessions.clone() }))
@@ -192,7 +206,7 @@ impl Engine {
             builder = builder.model(model.clone());
         }
         if let Some(url) = &options.base_url {
-            builder = builder.base_url(url.clone());
+            builder = builder.base_url(url.clone()).openai_base_url(format!("{}/v1", url.trim_end_matches('/')));
         }
         if let Some(paths) = &claude {
             builder = builder.claude_paths(paths.clone());
@@ -332,7 +346,7 @@ impl AgentRuntime for Engine {
             }
             let credential = match spec.credential.clone() {
                 Some(credential) => Some(credential),
-                None => shared.credentials.for_new_session(PROVIDER).await,
+                None => shared.credentials.for_new_session(&session::provider_of(&spec.model)).await,
             };
             let history = self.history(&spec).await?;
             let prompts = history.iter().filter(|m| transcript::is_prompt(m)).count();
@@ -384,6 +398,10 @@ impl AgentRuntime for Engine {
 
     fn session(&self, worker_id: &str) -> Option<Arc<dyn AgentSession>> {
         self.0.shared.sessions.get(worker_id).map(|s| s as Arc<dyn AgentSession>)
+    }
+
+    fn other_provider_window(&self, model: &str) -> Option<i64> {
+        openai_window(model, || self.0.sdk.context_window(model))
     }
 
     fn live(&self) -> usize {
@@ -439,6 +457,23 @@ impl OneShot for Engine {
 impl BackendCatalog for Engine {
     fn descriptors(&self) -> Vec<UiBackendDescriptor> {
         vec![self.0.descriptor.to_ui()]
+    }
+}
+
+impl Engine {
+    /// The models the ChatGPT account offers, as its catalog lists them.
+    async fn chatgpt_models(&self) -> Vec<ProviderModel> {
+        let Some(catalog) = self.0.sdk.openai_models().await else { return Vec::new() };
+        let listed = catalog.models.iter().filter(|m| m.listed);
+        listed
+            .map(|m| ProviderModel {
+                id: m.slug.clone(),
+                display_name: m.display_name.clone().unwrap_or_else(|| m.slug.clone()),
+                context_window: m.context_window.and_then(|w| i64::try_from(w).ok()),
+                effort_levels: Some(m.efforts.clone()).filter(|levels| !levels.is_empty()),
+                default_effort: m.default_effort.clone(),
+            })
+            .collect()
     }
 }
 
@@ -512,6 +547,14 @@ impl AgentRuntime for LazyEngine {
         self.built.get().map_or(0, AgentRuntime::live)
     }
 
+    fn other_provider_window(&self, model: &str) -> Option<i64> {
+        match self.built.get() {
+            Some(engine) => engine.other_provider_window(model),
+            // The account's catalog is read once the engine runs; its default until then.
+            None => openai_window(model, || eos_agent_sdk::OPENAI_CONTEXT_WINDOW),
+        }
+    }
+
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
         Box::pin(async move {
             // Deleting a recorded conversation needs the store's folder, not a running engine.
@@ -564,6 +607,25 @@ impl CommandCatalog for LazyEngine {
 impl BackendCatalog for LazyEngine {
     fn descriptors(&self) -> Vec<UiBackendDescriptor> {
         vec![self.descriptor.to_ui()]
+    }
+
+    fn providers(&self) -> BoxFuture<'_, Vec<ProviderModels>> {
+        Box::pin(async move {
+            let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+            let ready = match setup {
+                Some((_, deps)) => deps.credentials.for_new_session(OPENAI).await.is_some(),
+                None => false,
+            };
+            // Signed out, nothing is read: the engine is not built for the list.
+            let models = match ready.then(|| self.engine()) {
+                Some(engine) => match engine.await {
+                    Ok(engine) => engine.chatgpt_models().await,
+                    Err(_) => Vec::new(),
+                },
+                None => Vec::new(),
+            };
+            vec![ProviderModels { id: OPENAI.into(), label: "ChatGPT".into(), ready, models }]
+        })
     }
 }
 
