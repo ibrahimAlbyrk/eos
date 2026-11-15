@@ -21,6 +21,9 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/message"),
     ("POST", "/workers/{id}/resume"),
     ("POST", "/workers/{id}/rewind"),
+    // A reaction the agent is told about in a turn of its own.
+    ("PUT", "/workers/{id}/reactions/{rowId}"),
+    ("DELETE", "/workers/{id}/reactions/{rowId}"),
     // Reach another agent: a report to the parent, a question to a peer and its answer, a
     // key sent to a session.
     ("POST", "/workers/{id}/report"),

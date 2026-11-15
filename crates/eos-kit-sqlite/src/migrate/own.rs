@@ -12,4 +12,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("066_conversation_list_facts"),
     // The session this app continues a chat in, apart from the one the TypeScript app resumes it by.
     embed!("067_engine_sessions"),
+    // The emoji the user and the agent leave on each other's messages, and what the agent was told of them.
+    embed!("068_message_reactions"),
 ];

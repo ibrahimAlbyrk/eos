@@ -269,8 +269,7 @@ mod tests {
     #[test]
     fn a_session_an_earlier_build_overwrote_is_put_back_from_the_log() {
         let conn = mem();
-        let before_067 = EMBEDDED.len() - 1;
-        assert_eq!(EMBEDDED[before_067].id, "067_engine_sessions");
+        let before_067 = EMBEDDED.iter().position(|m| m.id == "067_engine_sessions").expect("the migration");
         run(&conn, &EMBEDDED[..before_067], 1).expect("an earlier build");
         let (older, newer) = ("1d6c5b0e-2f43-4a8e-9c1d-5e7f8a9b0c12", "0b8f3c1e-7d2a-4c55-9a51-3e9d2f6a8b10");
         conn.execute_batch(&format!(
@@ -292,7 +291,7 @@ mod tests {
         ))
         .expect("rows");
 
-        let report = run(&conn, EMBEDDED, 2).expect("this build");
+        let report = run(&conn, &EMBEDDED[..=before_067], 2).expect("the build that added it");
         assert_eq!(report.applied, vec!["067_engine_sessions"]);
         let column = |id: &str| -> Option<String> {
             conn.query_row("SELECT session_id FROM workers WHERE id = ?1", [id], |r| r.get(0)).expect("the row")

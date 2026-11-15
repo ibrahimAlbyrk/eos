@@ -22,8 +22,9 @@ pub use control::{
 };
 pub use descriptor::{AgentCapabilities, BackendAuth, BackendDescriptor, ModelSource};
 pub use host::{
-    FileStamp, HostTool, PromptAssembler, ScratchFolders, SpawnFacts, ToolCaller, ToolDefinition, ToolImage, ToolReply,
-    ToolSets, UserMessage, UserMessages, UserNotifier, UserQuestions, WorkerSessions, WorkflowRunFiles,
+    AgentReactions, FileStamp, HostTool, PromptAssembler, ReactTarget, Reacted, ScratchFolders, SpawnFacts, ToolCaller,
+    ToolDefinition, ToolImage, ToolReply, ToolSets, UserMessage, UserMessages, UserNotifier, UserQuestions,
+    WorkerSessions, WorkflowRunFiles,
 };
 pub use oneshot::{OneShot, OneShotAnswer, OneShotError, OneShotRequest};
 pub use session::{

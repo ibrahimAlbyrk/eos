@@ -120,7 +120,7 @@ store.write(move |tx, out| {                                            // one j
   again, and never runs on the ordered lane.
 - Every table has its repository already (`tx.workers()`, `events()`,
   `pending()`, `message_queue()`, `message_ids()`, `context_marks()`, `worktree_removals()`,
-  `worker_definitions()`, `dreams()`, `transfers()`, `genui_views()`); `worker_loops` has none,
+  `worker_definitions()`, `dreams()`, `transfers()`, `genui_views()`, `reactions()`); `worker_loops` has none,
   since the app has no goal loops. A method that is missing is added to its trait in
   `eos-core/src/store/` and its SQL in `eos-store-sqlite/src/`.
 - A new table: `eos-kit-sqlite/migrations/NNN_name.sql` + its line in `migrate/embedded.rs` (new

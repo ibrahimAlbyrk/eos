@@ -50,6 +50,7 @@ eos-mod-profile = { path = "crates/eos-mod-profile" }
 eos-mod-projects = { path = "crates/eos-mod-projects" }
 eos-mod-prompts = { path = "crates/eos-mod-prompts" }
 eos-mod-questions = { path = "crates/eos-mod-questions" }
+eos-mod-reactions = { path = "crates/eos-mod-reactions" }
 eos-mod-remote = { path = "crates/eos-mod-remote" }
 eos-mod-settings = { path = "crates/eos-mod-settings" }
 eos-mod-sync = { path = "crates/eos-mod-sync" }

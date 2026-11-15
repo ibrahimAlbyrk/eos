@@ -59,6 +59,7 @@ pub(crate) fn bench_over(features: Arc<FakeFeatures>, store: TempStore) -> Bench
         visual: Some(Visual { answers: features.clone(), places: features.clone(), location: features.clone() }),
         peers: Some(features.clone()),
         transfers: Some(features.clone()),
+        reactions: Some(features.clone()),
     });
     Bench { tools, features, clock, store }
 }
@@ -68,7 +69,7 @@ fn session(role: SessionFactsRole, collaborate: bool) -> LaunchSpec {
 }
 
 /// The session kinds of the vectors.
-fn session_of(kind: &str) -> LaunchSpec {
+pub(crate) fn session_of(kind: &str) -> LaunchSpec {
     match kind {
         "orchestrator" => session(SessionFactsRole::Orchestrator, false),
         "worker" => session(SessionFactsRole::Worker, false),
@@ -201,6 +202,7 @@ fn a_feature_that_is_not_in_the_app_leaves_its_tools_out() {
         visual: None,
         peers: None,
         transfers: None,
+        reactions: None,
     });
     let names = |tools: &Tools, kind: &str| -> Vec<String> {
         tools.for_session(&session_of(kind)).iter().map(|tool| tool.definition().name.clone()).collect()

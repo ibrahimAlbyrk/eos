@@ -15,6 +15,35 @@ use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets
 use serde_json::Value;
 
 const TOOL: &str = "mcp__worker__whoami";
+const QUIET: &str = "mcp__worker__no_reply";
+
+/// A tool whose result ends the agent's turn.
+struct Quiet(eos_core::agent::ToolDefinition);
+
+impl eos_core::agent::HostTool for Quiet {
+    fn definition(&self) -> &eos_core::agent::ToolDefinition {
+        &self.0
+    }
+
+    fn call<'a>(
+        &'a self,
+        _caller: eos_core::agent::ToolCaller<'a>,
+        _input: Value,
+    ) -> eos_core::BoxFuture<'a, eos_core::agent::ToolReply> {
+        Box::pin(std::future::ready(eos_core::agent::ToolReply::text("Turn ended without a reply.").ending_turn()))
+    }
+}
+
+fn quiet() -> Arc<dyn eos_core::agent::HostTool> {
+    Arc::new(Quiet(eos_core::agent::ToolDefinition {
+        name: QUIET.to_owned(),
+        description: "Ends the turn.".to_owned(),
+        input_schema: serde_json::json!({"type": "object", "properties": {}}),
+        deferred: false,
+        search_hint: None,
+        main_agent_only: true,
+    }))
+}
 
 struct Bench {
     engine: Engine,
@@ -54,7 +83,7 @@ impl Bench {
         };
         let deps = EngineDeps {
             policy: policy.clone(),
-            tools: Arc::new(FakeToolSets(vec![EchoTool::named(TOOL)])),
+            tools: Arc::new(FakeToolSets(vec![EchoTool::named(TOOL), quiet()])),
             credentials: credentials.clone(),
             questions: user.clone(),
             clock: Arc::new(FakeClock::new()),
@@ -185,6 +214,26 @@ async fn a_tool_call_goes_through_the_policy_to_eos_and_back() {
         .collect();
     assert_eq!(seen, [("w-1", TOOL, false, false), ("w-1", "Read", false, false)]);
     assert_eq!(asked[0].tool_use_id.as_deref(), Some("t1"));
+}
+
+/// The agent chooses to say nothing: the tool that ends its turn is the last
+/// thing of it, and the model is not asked what to say next.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_tool_that_ends_the_turn_is_not_followed_by_another_request() {
+    let bench = Bench::new([Reply::tool_use("t1", QUIET, "{}"), Reply::text("filler nobody asked for")]).await;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("<reaction emoji=\"👌\" on=\"yours\">Done.</reaction>".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 1).await;
+    let seen = tags(&events);
+    assert_eq!(seen[2..5], ["turn:started", "msg:assistant:tool_call", "msg:tool:tool_result"], "{seen:?}");
+    assert_eq!(seen.last().map(String::as_str), Some("turn:ended"), "{seen:?}");
+    assert!(!seen.iter().any(|tag| tag == "msg:assistant:text"), "the agent wrote nothing: {seen:?}");
+    assert_eq!(bench.mock.requests().len(), 1, "one request: the turn ended with the tool");
+
+    // The session goes on: the next message is answered as usual.
+    session.send("and now?".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 2).await;
+    assert!(tags(&events).iter().any(|tag| tag == "msg:assistant:text"));
 }
 
 /// Full access (the fake policy allows every call): a file tool still never

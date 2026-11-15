@@ -1440,6 +1440,43 @@
    "alwaysLoad": false,
    "searchHint": null,
    "plugin": null
+  },
+  {
+   "name": "react",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "emoji": {
+      "type": "string",
+      "description": "One emoji, e.g. '👍'. Empty takes your reaction back."
+     },
+     "message_id": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "description": "The N of the <msg id=\"N\"/> the user's message came with. Omit ⇒ the user's latest message."
+     }
+    },
+    "required": [
+     "emoji"
+    ],
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
+  },
+  {
+   "name": "no_reply",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "additionalProperties": false,
+    "$schema": "http://json-schema.org/draft-07/schema#"
+   },
+   "alwaysLoad": true,
+   "searchHint": null,
+   "plugin": null
   }
  ],
  "sets": [
@@ -1492,7 +1529,9 @@
     "mcp__orchestrator__find_places",
     "mcp__orchestrator__current_location",
     "mcp__orchestrator__plugin_status",
-    "mcp__orchestrator__plugin_preview"
+    "mcp__orchestrator__plugin_preview",
+    "mcp__orchestrator__react",
+    "mcp__orchestrator__no_reply"
    ]
   },
   {
@@ -1530,7 +1569,9 @@
     "mcp__orchestrator__find_places",
     "mcp__orchestrator__current_location",
     "mcp__orchestrator__plugin_status",
-    "mcp__orchestrator__plugin_preview"
+    "mcp__orchestrator__plugin_preview",
+    "mcp__orchestrator__react",
+    "mcp__orchestrator__no_reply"
    ]
   },
   {
@@ -1578,7 +1619,9 @@
     "mcp__orchestrator__find_places",
     "mcp__orchestrator__current_location",
     "mcp__orchestrator__plugin_status",
-    "mcp__orchestrator__plugin_preview"
+    "mcp__orchestrator__plugin_preview",
+    "mcp__orchestrator__react",
+    "mcp__orchestrator__no_reply"
    ]
   },
   {
@@ -1616,7 +1659,9 @@
     "mcp__orchestrator__find_places",
     "mcp__orchestrator__current_location",
     "mcp__orchestrator__plugin_status",
-    "mcp__orchestrator__plugin_preview"
+    "mcp__orchestrator__plugin_preview",
+    "mcp__orchestrator__react",
+    "mcp__orchestrator__no_reply"
    ]
   },
   {
@@ -1665,7 +1710,9 @@
     "mcp__orchestrator__find_places",
     "mcp__orchestrator__current_location",
     "mcp__orchestrator__plugin_status",
-    "mcp__orchestrator__plugin_preview"
+    "mcp__orchestrator__plugin_preview",
+    "mcp__orchestrator__react",
+    "mcp__orchestrator__no_reply"
    ]
   },
   {
@@ -2022,7 +2069,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2050,7 +2099,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2088,7 +2139,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2116,7 +2169,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2155,7 +2210,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2200,7 +2257,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2231,7 +2290,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2272,7 +2333,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2303,7 +2366,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   },
   {
@@ -2345,7 +2410,9 @@
     "mcp__worker__present",
     "mcp__worker__present_app",
     "mcp__worker__find_places",
-    "mcp__worker__current_location"
+    "mcp__worker__current_location",
+    "mcp__worker__react",
+    "mcp__worker__no_reply"
    ]
   }
  ]

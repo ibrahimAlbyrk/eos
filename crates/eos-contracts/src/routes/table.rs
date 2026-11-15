@@ -22,6 +22,9 @@ pub const WORKER_SUBAGENT_ROWS: Route =
 pub const WORKER_SUBAGENT_STOP: Route =
     Route::new("workerSubagentStop", "/workers/:id/subagents/:callId/stop", &[Post]).added();
 pub const WORKER_ARTIFACTS: Route = Route::new("workerArtifacts", "/workers/:id/artifacts", &[Get]).added();
+pub const WORKER_REACTIONS: Route = Route::new("workerReactions", "/workers/:id/reactions", &[Get]).added();
+pub const WORKER_REACTION: Route =
+    Route::new("workerReaction", "/workers/:id/reactions/:rowId", &[Put, Delete]).added();
 pub const WORKER_WORKFLOW_RUNS: Route = Route::new("workerWorkflowRuns", "/workers/:id/workflow-runs", &[Get]);
 pub const WORKER_WORKFLOW_RUN: Route = Route::new("workerWorkflowRun", "/workers/:id/workflow-runs/:callId", &[Get]);
 pub const WORKER_WORKFLOW_RUN_STOP: Route =
@@ -310,6 +313,8 @@ pub const ROUTES: &[Route] = &[
     WORKER_SUBAGENT_ROWS,
     WORKER_SUBAGENT_STOP,
     WORKER_ARTIFACTS,
+    WORKER_REACTIONS,
+    WORKER_REACTION,
     WORKER_WORKFLOW_RUNS,
     WORKER_WORKFLOW_RUN,
     WORKER_WORKFLOW_RUN_STOP,

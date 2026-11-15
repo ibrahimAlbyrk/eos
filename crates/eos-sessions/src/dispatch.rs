@@ -23,6 +23,7 @@ use serde_json::{Map, Value, json};
 
 use crate::commands::CommandAnswer;
 use crate::commands::{self, SlashContext};
+use crate::reactions::{self, Telling};
 use crate::service::{Changed, Sessions};
 use crate::starts::Joined;
 use crate::transition::transition_state;
@@ -87,7 +88,7 @@ pub(crate) enum Drained {
 
 enum Plan {
     Done(Dispatched),
-    Send { outgoing: String, claim: Option<i64> },
+    Send { outgoing: String, claim: Option<i64>, telling: Option<Telling> },
 }
 
 fn plane(input: &MessageInput) -> MessagePlane {
@@ -165,7 +166,7 @@ fn chat_row(
 
 /// The message as the agent reads it: the operator's own words carry their
 /// message id; anyone else's are wrapped in the sender's tag.
-fn outgoing(tx: &dyn Tx, input: &MessageInput, reply: Option<&str>) -> Result<(String, Option<i64>), Error> {
+fn outgoing(tx: &dyn Tx, input: &MessageInput, head: Option<&str>) -> Result<(String, Option<i64>), Error> {
     match &input.envelope {
         Some(envelope) => {
             let msg_id = tx.message_ids().next_inbound(&input.worker_id)?;
@@ -177,13 +178,13 @@ fn outgoing(tx: &dyn Tx, input: &MessageInput, reply: Option<&str>) -> Result<(S
         None if starts_with_slash_command(&input.text) => Ok((input.text.clone(), None)),
         None => {
             let msg_id = tx.message_ids().next_inbound(&input.worker_id)?;
-            Ok((prefix_operator_turn(&input.text, Some(msg_id), reply), Some(msg_id)))
+            Ok((prefix_operator_turn(&input.text, Some(msg_id), head), Some(msg_id)))
         }
     }
 }
 
 /// The last row before which the agent no longer has the conversation.
-fn context_boundary(tx: &dyn Tx, worker_id: &str) -> Result<i64, Error> {
+pub(crate) fn context_boundary(tx: &dyn Tx, worker_id: &str) -> Result<i64, Error> {
     let mut boundary = 0;
     for kind in [WorkerEventType::CompactionCompleted, WorkerEventType::ConversationCleared] {
         if let Some(last) = tx.events().last_id_by_type(worker_id, kind)? {
@@ -270,7 +271,12 @@ fn plan(
         Some(target) => Some(build_reply_block(target, target.row_id > context_boundary(tx, id)?)),
         None => None,
     };
-    let (text, msg_id) = outgoing(tx, input, block.as_deref())?;
+    // The user's reactions the agent has not heard of go with their own turn.
+    let own_turn = input.envelope.is_none() && !starts_with_slash_command(&input.text);
+    let telling = if own_turn { reactions::tell(tx, out, id)? } else { None };
+    let head: Vec<&str> = block.as_deref().into_iter().chain(telling.as_ref().map(|t| t.lines.as_str())).collect();
+    let head = (!head.is_empty()).then(|| head.join("\n"));
+    let (text, msg_id) = outgoing(tx, input, head.as_deref())?;
     let client_ids = input.record_client_msg_ids.clone().or(input.client_msg_id.clone().map(|id| vec![id]));
     let row = chat_row(tx, now, input, msg_id, client_ids.as_deref(), reply.as_ref())?;
     sessions.0.turns.clear_settle(id);
@@ -281,7 +287,7 @@ fn plan(
     out.push(WORKER_CHANGE, &Changed { worker_id: id, queued: None });
     let reason = input.envelope.as_ref().map_or("user_message", Envelope::kind);
     transition_state(tx, out, now, id, WorkerState::Working, reason)?;
-    Ok(Plan::Send { outgoing: text, claim })
+    Ok(Plan::Send { outgoing: text, claim, telling })
 }
 
 impl Sessions {
@@ -361,7 +367,7 @@ impl Sessions {
         let must_queue = !drained && (input.queue_when_busy || self.0.deps.hooks.holds_worker(&id));
         let (sessions, message) = (self.clone(), input.clone());
         let planned = self.store().write(move |tx, out| plan(tx, out, &sessions, &message, must_queue)).await?;
-        let (outgoing, claim) = match planned {
+        let (outgoing, claim, telling) = match planned {
             Plan::Done(done) => {
                 drop(place);
                 if matches!(done, Dispatched::Queued { .. }) {
@@ -370,7 +376,7 @@ impl Sessions {
                 }
                 return Ok(done);
             }
-            Plan::Send { outgoing, claim } => (outgoing, claim),
+            Plan::Send { outgoing, claim, telling } => (outgoing, claim, telling),
         };
         let sent = match session {
             Some(session) => session.send(outgoing).await.map_err(|e| e.to_string()),
@@ -387,6 +393,9 @@ impl Sessions {
                 .write(move |tx, out| {
                     if let Some(claim) = claim {
                         tx.message_queue().remove_by_id(claim)?;
+                    }
+                    if let Some(telling) = &telling {
+                        reactions::untell(tx, out, &worker_id, telling)?;
                     }
                     tx.events().append_json(&worker_id, now, WorkerEventType::Lifecycle, &note)?;
                     transition_state(tx, out, now, &worker_id, WorkerState::Idle, "delivery_failed")?;

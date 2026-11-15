@@ -12,16 +12,16 @@
 //!
 //! | Session | Tools |
 //! |---|---|
-//! | orchestrator | control, pages, memory, browser, visual answers, plugins |
+//! | orchestrator | control, pages, memory, browser, visual answers, plugins, reactions |
 //! | worker (and its sub-workers, the git worker) | report, date, pages, memory, browser, plugins |
 //! | … started to collaborate | + the peer tools |
-//! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers |
+//! | … focused (the chat the user talks to) | + `send_to_machine`, visual answers, reactions |
 //!
 //! A tool of a built-in plugin that is switched off is left out of sessions
 //! started meanwhile. A feature that has not been handed over
 //! ([`Services`]' optional parts) leaves its tools out of every session.
-//! Under tool search (focused sessions) every tool but `present` waits
-//! behind the search. No subagent is offered an Eos tool: the permission
+//! Under tool search (focused sessions) every tool but `present`, `react`
+//! and `no_reply` waits behind the search. No subagent is offered an Eos tool: the permission
 //! gate refuses each such call anyway.
 
 mod browser;
@@ -32,6 +32,7 @@ mod messages;
 mod pages;
 mod peers;
 mod plugins;
+mod reactions;
 mod registry;
 mod schema;
 #[cfg(test)]

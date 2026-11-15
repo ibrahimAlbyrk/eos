@@ -56,6 +56,10 @@ export const ROUTES = {
   workerWorkflowAgent: (id, callId, agentId) => `/workers/${id}/workflow-runs/${callId}/agents/${agentId}`,
   // The /btw side question (eos-contracts `side_question.rs`), ui-token.
   workerSideQuestion: (id) => `/workers/${id}/btw`,
+  // Emoji reactions on a chat's messages (eos-contracts `reactions.rs`): the
+  // ones in a row range, and the user's own on one message (ui-token).
+  workerReactions: (id) => `/workers/${id}/reactions`,
+  workerReaction: (id, rowId) => `/workers/${id}/reactions/${rowId}`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerWarm: (id) => `/workers/${id}/warm`,
   workerQueue: (id) => `/workers/${id}/queue`,

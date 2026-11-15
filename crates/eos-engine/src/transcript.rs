@@ -8,6 +8,7 @@ use eos_agent_types::{ContentBlock, Role, ToolResultContent};
 use eos_contracts::RewindTarget;
 use eos_domain::compaction::SUMMARY_OPEN;
 use eos_domain::message_id::strip_turn_head;
+use eos_domain::reaction::is_reaction_turn;
 use eos_domain::time::iso_from_ms;
 
 /// Text the harness wrote into the conversation, not something anyone said.
@@ -53,7 +54,12 @@ fn prompt_text(message: &StoredMessage) -> Option<String> {
     if texts.is_empty() || texts.iter().any(|t| t.contains(SUMMARY_OPEN)) {
         return None;
     }
-    Some(strip_turn_head(&texts.join("\n")).to_owned())
+    let text = texts.join("\n");
+    // A turn of nothing but the user's reactions is not something they typed.
+    if is_reaction_turn(&text) {
+        return None;
+    }
+    Some(strip_turn_head(&text).to_owned())
 }
 
 /// Whether `message` is one of the user's prompts.
@@ -196,5 +202,17 @@ mod tests {
             ]
         );
         assert_eq!(found[1].target.uuid, "m4");
+    }
+
+    #[test]
+    fn a_turn_of_the_users_reactions_is_no_prompt_to_rewind_to() {
+        let reacted = "<reaction emoji=\"👍\" on=\"yours\">done</reaction>";
+        let mut conversation = conversation();
+        conversation.push(message(Role::User, &[text(reacted)]));
+        conversation.push(message(Role::User, &[text(&format!("<msg id=\"2\"/>\n{reacted}\nand next?"))]));
+        let found = prompts(&conversation);
+        let texts: Vec<&str> = found.iter().map(|p| p.target.text.as_str()).collect();
+        assert_eq!(texts[2..], ["and next?"], "the reactions a message came with are its head");
+        assert_eq!(found.len(), 3);
     }
 }

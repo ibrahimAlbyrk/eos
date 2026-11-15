@@ -46,5 +46,6 @@ pub(crate) fn build(
         }),
         peers: Some(control),
         transfers: Some(transfer.agent_transfers()),
+        reactions: Some(Arc::new(cx.sessions.clone())),
     })))
 }

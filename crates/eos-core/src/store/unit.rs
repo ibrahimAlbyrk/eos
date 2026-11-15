@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use super::{
     ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
-    PendingRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    PendingRepo, ReactionRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -20,6 +20,7 @@ pub trait Tx {
     fn message_ids(&self) -> &dyn MessageIdRepo;
     fn message_queue(&self) -> &dyn MessageQueueRepo;
     fn pending(&self) -> &dyn PendingRepo;
+    fn reactions(&self) -> &dyn ReactionRepo;
     fn transfers(&self) -> &dyn TransferRepo;
     fn worker_definitions(&self) -> &dyn WorkerDefinitionRepo;
     fn workers(&self) -> &dyn WorkerRepo;

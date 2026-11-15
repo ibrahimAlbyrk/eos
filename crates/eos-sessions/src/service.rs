@@ -22,6 +22,7 @@ use serde::Serialize;
 
 use crate::commands::{Clear, SlashCommand};
 use crate::peers::PeerRequests;
+use crate::reactions::Reactions;
 use crate::signal::{self, SignalCx};
 use crate::starts::Starts;
 use crate::transition::transition_state;
@@ -186,6 +187,8 @@ pub(crate) struct Inner {
     pub(crate) peers: PeerRequests,
     /// Workers whose session is being started, and who waits for it.
     pub(crate) starts: Starts,
+    /// The user's reactions that wait for their turn.
+    pub(crate) reactions: Reactions,
 }
 
 /// The lifecycle of agent sessions. Cheap to clone.
@@ -234,6 +237,7 @@ impl Sessions {
             _clear: clear,
             peers,
             starts: Starts::default(),
+            reactions: Reactions::default(),
         };
         Self(Arc::new(inner))
     }
@@ -496,13 +500,15 @@ impl Sessions {
         }
         tracing::info!(worker_id, ?code, expected, "session exited");
         self.0.turns.forget(worker_id);
+        self.0.reactions.forget(worker_id);
         self.0.deps.hooks.exited(worker_id);
         // Whoever waits on its answer hears that it is gone.
         self.0.peers.cancel_by_worker(worker_id);
     }
 
-    /// The worker reached IDLE: its queue gets its turn, and when that is
-    /// empty, whatever runs at a worker's idle edge.
+    /// The worker reached IDLE: its queue gets its turn, then the user's
+    /// reactions that are due one, and when neither starts a turn, whatever
+    /// runs at a worker's idle edge.
     pub(crate) fn settled<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()> {
         Box::pin(async move {
             // A peer's question starts a turn of its own; the queue waits for the next idle edge.
@@ -514,7 +520,7 @@ impl Sessions {
             let outcome = self.drain(worker_id).await;
             if claim.release() {
                 self.settled(worker_id).await;
-            } else if outcome == crate::dispatch::Drained::Empty {
+            } else if outcome == crate::dispatch::Drained::Empty && !self.reactions_at_idle(worker_id).await {
                 self.0.deps.hooks.idle(worker_id);
             }
         })

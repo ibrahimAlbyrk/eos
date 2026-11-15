@@ -83,15 +83,22 @@ pub struct ToolReply {
     pub text: String,
     pub is_error: bool,
     pub images: Vec<ToolImage>,
+    /// The agent's turn ends with this result: the model is not asked again.
+    pub ends_turn: bool,
 }
 
 impl ToolReply {
     pub fn text(text: impl Into<String>) -> Self {
-        Self { text: text.into(), is_error: false, images: Vec::new() }
+        Self { text: text.into(), ..Self::default() }
     }
 
     pub fn error(text: impl Into<String>) -> Self {
-        Self { text: text.into(), is_error: true, images: Vec::new() }
+        Self { text: text.into(), is_error: true, ..Self::default() }
+    }
+
+    pub fn ending_turn(mut self) -> Self {
+        self.ends_turn = true;
+        self
     }
 }
 
@@ -139,6 +146,34 @@ pub trait UserMessages: Send + Sync + 'static {
     /// Delivers `message`, or queues it while the worker is busy. Fails
     /// when there is no such worker or its session cannot be reached.
     fn send<'a>(&'a self, worker_id: &'a str, message: UserMessage) -> BoxFuture<'a, Result<(), crate::Error>>;
+}
+
+/// Which of the user's messages an agent reacts to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReactTarget {
+    /// The newest one.
+    Latest,
+    /// The one delivered with `<msg id="N"/>`.
+    Message(i64),
+}
+
+/// The message an agent's reaction landed on, in brief.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reacted {
+    pub excerpt: String,
+}
+
+/// An agent's own emoji on the user's messages. Implemented by the session service.
+pub trait AgentReactions: Send + Sync + 'static {
+    /// Puts `emoji` on the message in place of the agent's earlier one;
+    /// `None` takes it back. Fails when the chat takes no reactions, the
+    /// message is not one of the user's, or `emoji` is not one emoji.
+    fn react<'a>(
+        &'a self,
+        worker_id: &'a str,
+        target: ReactTarget,
+        emoji: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Reacted, crate::Error>>;
 }
 
 /// The folders of chats that were started without one: each gets a scratch

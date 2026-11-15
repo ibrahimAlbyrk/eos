@@ -13,14 +13,15 @@ pub fn starts_with_slash_command(text: &str) -> bool {
     chars.next() == Some('/') && chars.next().is_some_and(|c| !c.is_whitespace())
 }
 
-/// Head of an operator turn: the id marker, then the reply block (if any).
-pub fn prefix_operator_turn(body: &str, msg_id: Option<i64>, reply_block: Option<&str>) -> String {
+/// Head of an operator turn: the id marker, then the lines that come with
+/// it (the reply block, the user's reactions), one tag a line.
+pub fn prefix_operator_turn(body: &str, msg_id: Option<i64>, head: Option<&str>) -> String {
     let mut out = String::new();
     if let Some(id) = msg_id {
         out.push_str(&format!("<msg id=\"{id}\"/>\n"));
     }
-    if let Some(block) = reply_block.filter(|b| !b.is_empty()) {
-        out.push_str(block);
+    if let Some(lines) = head.filter(|b| !b.is_empty()) {
+        out.push_str(lines);
         out.push('\n');
     }
     out.push_str(body);
@@ -36,9 +37,10 @@ fn strip_msg_head(text: &str) -> &str {
     rest[digits..].strip_prefix("\"/>\n").unwrap_or(text)
 }
 
-fn strip_reply_head(text: &str) -> &str {
-    let Some(rest) = text.strip_prefix("<reply_to") else { return text };
-    // `<reply_to` must end the tag name: a space, `/` or `>` follows.
+/// `text` without a leading `<name …/>` or `<name …>…</name>` line.
+pub(crate) fn strip_tag_head<'a>(text: &'a str, name: &str) -> &'a str {
+    let Some(rest) = text.strip_prefix('<').and_then(|t| t.strip_prefix(name)) else { return text };
+    // The tag name must end here: a space, `/` or `>` follows.
     if !rest.starts_with([' ', '/', '>']) {
         return text;
     }
@@ -46,16 +48,25 @@ fn strip_reply_head(text: &str) -> &str {
     if rest[..close].ends_with('/') {
         return rest[close + 1..].strip_prefix('\n').unwrap_or(text);
     }
-    match rest[close + 1..].find("</reply_to>\n") {
-        Some(end) => &rest[close + 1 + end + "</reply_to>\n".len()..],
+    let end_tag = format!("</{name}>\n");
+    match rest[close + 1..].find(&end_tag) {
+        Some(end) => &rest[close + 1 + end + end_tag.len()..],
         None => text,
     }
 }
 
-/// Removes the head [`prefix_operator_turn`] added: what the operator typed,
-/// read back out of the agent's conversation.
+/// Removes the head [`prefix_operator_turn`] added (the id, the reply block,
+/// the reactions that came with the turn): what the operator typed, read
+/// back out of the agent's conversation.
 pub fn strip_turn_head(text: &str) -> &str {
-    strip_reply_head(strip_msg_head(text))
+    let mut rest = strip_tag_head(strip_msg_head(text), "reply_to");
+    loop {
+        let next = strip_tag_head(rest, crate::reaction::TAG);
+        if next.len() == rest.len() {
+            return rest;
+        }
+        rest = next;
+    }
 }
 
 /// How much of a message a reply quotes when the agent still has it in its
@@ -130,14 +141,9 @@ pub fn reply_target_from_row(row_id: i64, kind: &str, payload: Option<&str>) -> 
     }
 }
 
-/// What the agent reads of the message a turn replies to. A message it
-/// still has in context and knows by id is only named; anything else is
-/// quoted (whole when short or when it left the context, else an excerpt).
-pub fn build_reply_block(target: &ReplyTarget, in_context: bool) -> String {
-    let id = target.msg_id.as_deref().map(|id| format!(" id=\"{id}\"")).unwrap_or_default();
-    if in_context && target.msg_id.is_some() && target.role != ReplyRefRole::Assistant {
-        return format!("<reply_to{id}/>");
-    }
+/// A message as a tag of ours quotes it: whole when short or when it left
+/// the agent's context, else an excerpt.
+pub(crate) fn quoted(target: &ReplyTarget, in_context: bool) -> String {
     let body = if !in_context {
         if units(&target.text) <= FULL_TEXT_CAP_CHARS {
             target.text.clone()
@@ -149,7 +155,23 @@ pub fn build_reply_block(target: &ReplyTarget, in_context: bool) -> String {
     } else {
         excerpt(&target.text)
     };
-    format!("<reply_to{id}>{}</reply_to>", escape_tag_body(&body))
+    escape_tag_body(&body)
+}
+
+/// A message the agent still has in context and knows by id: named, not quoted.
+pub(crate) fn known_by_id(target: &ReplyTarget, in_context: bool) -> bool {
+    in_context && target.msg_id.is_some() && target.role != ReplyRefRole::Assistant
+}
+
+/// What the agent reads of the message a turn replies to. A message it
+/// still has in context and knows by id is only named; anything else is
+/// quoted.
+pub fn build_reply_block(target: &ReplyTarget, in_context: bool) -> String {
+    let id = target.msg_id.as_deref().map(|id| format!(" id=\"{id}\"")).unwrap_or_default();
+    if known_by_id(target, in_context) {
+        return format!("<reply_to{id}/>");
+    }
+    format!("<reply_to{id}>{}</reply_to>", quoted(target, in_context))
 }
 
 /// What the replying message's row keeps of its target, for the chat.
@@ -174,6 +196,8 @@ mod tests {
         assert_eq!(strip_turn_head("<msg id=\"x\"/>\nhello"), "<msg id=\"x\"/>\nhello", "not a head");
         assert_eq!(strip_turn_head("<reply_tox/>\nhello"), "<reply_tox/>\nhello");
         assert_eq!(strip_turn_head("plain"), "plain");
+        let reacted = "<msg id=\"4\"/>\n<reply_to id=\"2\"/>\n<reaction emoji=\"👍\" on=\"yours\">a\nplan</reaction>\n<reaction emoji=\"📌\" on=\"theirs\" id=\"2\"/>\ngo";
+        assert_eq!(strip_turn_head(reacted), "go", "the reactions that came with the turn are head too");
     }
 
     #[test]

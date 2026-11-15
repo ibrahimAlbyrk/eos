@@ -56,10 +56,12 @@ pub(crate) struct Call<'a> {
     pub(crate) self_id: &'a str,
 }
 
-/// What a handler hands back: text as it is, a value as indented JSON.
+/// What a handler hands back: text as it is, a value as indented JSON, or
+/// text that ends the agent's turn.
 pub(crate) enum Output {
     Text(String),
     Json(Value),
+    EndTurn(String),
 }
 
 impl Output {
@@ -162,6 +164,7 @@ impl HostTool for Bound {
                 Ok(Output::Json(value)) => {
                     ToolReply::text(serde_json::to_string_pretty(&value).unwrap_or_else(|_| "null".to_owned()))
                 }
+                Ok(Output::EndTurn(text)) => ToolReply::text(text).ending_turn(),
                 Err(Failure(text)) => ToolReply::error(text),
             }
         })

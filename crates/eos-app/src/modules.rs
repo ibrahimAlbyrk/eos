@@ -249,6 +249,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_projects::ProjectsModule::new(cx.projects.clone(), cx.recents.clone())),
         Arc::new(eos_mod_prompts::PromptsModule::new(cx.prompts.clone(), Some(cx.profile_prompt.clone()))),
         Arc::new(eos_mod_questions::QuestionsModule::new(cx.questions.clone())),
+        Arc::new(eos_mod_reactions::ReactionsModule::new(cx.sessions.clone())),
         cx.remote.clone(),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),

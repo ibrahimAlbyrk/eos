@@ -80,7 +80,7 @@ fn escape_attr(value: &str) -> String {
     value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-const RESERVED: [&str; 4] = ["agent_message", "system_message", "msg", "reply_to"];
+const RESERVED: [&str; 5] = ["agent_message", "system_message", "msg", "reply_to", "reaction"];
 
 /// A body can never close its wrapper or open a tag of ours: the `<` of
 /// every reserved tag in it is written `&lt;`.

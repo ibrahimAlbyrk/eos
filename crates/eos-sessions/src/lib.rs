@@ -18,6 +18,8 @@
 //! - [`report`](Sessions::report): a worker's report to its parent;
 //! - [`ask_peer`](Sessions::ask_peer), [`respond_to_peer`](Sessions::respond_to_peer):
 //!   workers of one orchestrator consulting each other, one question per turn;
+//! - [`react_as_user`](Sessions::react_as_user): an emoji on a message, told
+//!   to the agent with the user's next message or in a turn of its own;
 //! - it is the sink of every session it starts: each agent event is recorded
 //!   and applied to its worker in one write (`signal`), in the order the
 //!   session reported it, and announced in commit order.
@@ -42,6 +44,7 @@ mod control;
 mod dispatch;
 mod features;
 mod peers;
+mod reactions;
 mod report;
 mod revive;
 mod service;
@@ -57,6 +60,7 @@ pub use commands::{CommandAnswer, SlashCommand, SlashContext};
 pub use control::{KILL_GRACE_MS, ModeSet, ModelSet, Recalled, Removed};
 pub use dispatch::{Dispatched, MessageInput};
 pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
+pub use reactions::{REACTION_SETTLE_MS, UserReaction};
 pub use report::Reported;
 pub use service::{NoHooks, SessionDeps, SessionHooks, Sessions};
 pub use spawn::{SpawnRequest, Spawned};

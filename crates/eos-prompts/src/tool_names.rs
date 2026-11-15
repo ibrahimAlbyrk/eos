@@ -58,6 +58,8 @@ pub const TOOL_NAME_VARS: &[(&str, &str)] = &[
     ("PRESENT_APP_TOOL", "present_app"),
     ("FIND_PLACES_TOOL", "find_places"),
     ("CURRENT_LOCATION_TOOL", "current_location"),
+    ("REACT_TOOL", "react"),
+    ("NO_REPLY_TOOL", "no_reply"),
     ("LB", "{{"),
     ("RB", "}}"),
 ];

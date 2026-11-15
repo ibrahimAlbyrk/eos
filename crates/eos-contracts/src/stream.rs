@@ -117,6 +117,7 @@ pub mod topics {
     pub const PTY_CONVERSATION: &str = "pty:conversation";
     pub const AGENT_DELTA: &str = "agent:delta";
     pub const MESSAGE_RECALLED: &str = "message:recalled";
+    pub const REACTIONS_CHANGE: &str = "reactions:change";
     pub const FS_CHANGE: &str = "fs:change";
     pub const GIT_CHANGE: &str = "git:change";
     pub const PEER_PRESENCE: &str = "peer:presence";

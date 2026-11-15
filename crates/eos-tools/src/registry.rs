@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::SessionFactsRole;
 use eos_core::agent::{
-    HostTool, LaunchSpec, ModelCatalog, Peers, ToolSets, UserNotifier, UserQuestions, WorkerControl,
+    AgentReactions, HostTool, LaunchSpec, ModelCatalog, Peers, ToolSets, UserNotifier, UserQuestions, WorkerControl,
 };
 use eos_core::browser::BrowserTools;
 use eos_core::os::TimeZone;
@@ -22,7 +22,7 @@ use eos_workers::WorkerDefinitions;
 use crate::control::Control;
 use crate::tool::{Bound, Spec};
 use crate::visual::Visual;
-use crate::{browser, control, memory, pages, peers, plugins, time, transfer, user, visual};
+use crate::{browser, control, memory, pages, peers, plugins, reactions, time, transfer, user, visual};
 
 /// What the tools call. The optional parts belong to features that may not
 /// be in the app yet: without one, its tools are in no session.
@@ -46,6 +46,7 @@ pub struct Services {
     pub visual: Option<Visual>,
     pub peers: Option<Arc<dyn Peers>>,
     pub transfers: Option<Arc<dyn AgentTransfers>>,
+    pub reactions: Option<Arc<dyn AgentReactions>>,
 }
 
 impl std::fmt::Debug for Services {
@@ -115,6 +116,8 @@ impl Tools {
             list
         };
         let visual = || s.visual.as_ref().map(|v| visual::specs(v, &s.clock)).unwrap_or_default();
+        // The chats the user talks to: they react to each other's messages.
+        let reactions = || s.reactions.as_ref().map(reactions::specs).unwrap_or_default();
 
         // Registration order is what the model reads: keep it as it was.
         let mut orchestrator = vec![
@@ -135,6 +138,7 @@ impl Tools {
         orchestrator.extend(shared());
         orchestrator.extend(visual());
         orchestrator.extend(plugins::specs(&s.plugins));
+        orchestrator.extend(reactions());
 
         let mut worker = vec![control::send_message_to_parent(&c), time::spec(&s.clock, &s.zone)];
         worker.extend(shared());
@@ -147,6 +151,7 @@ impl Tools {
             focused.push(transfer::spec(transfers, &s.clock, &s.sleeper));
         }
         focused.extend(visual());
+        focused.extend(reactions());
 
         Self { prompts: s.prompts, plugins: s.plugins, orchestrator, worker, peer, focused, handed: Mutex::default() }
     }

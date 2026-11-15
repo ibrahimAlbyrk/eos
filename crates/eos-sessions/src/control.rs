@@ -254,6 +254,7 @@ impl Sessions {
                 .await;
             self.leaving(&id, false);
             self.0.turns.forget(&id);
+            self.0.reactions.forget(&id);
             self.0.peers.cancel_by_worker(&id);
             match removed {
                 Ok(Some(row)) => {

@@ -6,7 +6,7 @@ use std::sync::Mutex;
 use eos_core::Error;
 use eos_core::store::{
     ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
-    PendingRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    PendingRepo, ReactionRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 
@@ -55,6 +55,10 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn pending(&self) -> &dyn PendingRepo {
+        self
+    }
+
+    fn reactions(&self) -> &dyn ReactionRepo {
         self
     }
 

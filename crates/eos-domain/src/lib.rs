@@ -30,6 +30,7 @@ pub mod peer;
 pub mod pending;
 pub mod project;
 pub mod project_memory;
+pub mod reaction;
 pub mod sync;
 pub mod tasks;
 pub mod text;

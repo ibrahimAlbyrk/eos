@@ -51,6 +51,7 @@ impl SqliteTx<'_> {
         )?;
         if removed > 0 {
             self.unindex_pruned(worker_id)?;
+            self.unreact_pruned(worker_id)?;
         }
         Ok(removed)
     }
@@ -225,6 +226,7 @@ impl EventRepo for SqliteTx<'_> {
     fn delete_by_worker(&self, worker_id: &str) -> Result<(), Error> {
         self.exec("DELETE FROM events WHERE worker_id = ?1", [worker_id])?;
         self.unindex_worker(worker_id)?;
+        eos_core::store::ReactionRepo::delete_by_worker(self, worker_id)?;
         self.shared.appends_since_prune.lock().unwrap_or_else(|p| p.into_inner()).remove(worker_id);
         Ok(())
     }

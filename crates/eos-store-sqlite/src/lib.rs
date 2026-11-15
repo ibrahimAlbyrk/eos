@@ -14,6 +14,7 @@ mod documents;
 mod events;
 mod message_queue;
 mod pending;
+mod reactions;
 mod store;
 mod tx;
 mod workers;

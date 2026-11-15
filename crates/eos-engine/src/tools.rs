@@ -25,6 +25,12 @@ struct Adapter {
 }
 
 fn output(reply: ToolReply) -> ToolOutput {
+    let ends_turn = reply.ends_turn;
+    let out = content(reply);
+    if ends_turn { out.ending_turn() } else { out }
+}
+
+fn content(reply: ToolReply) -> ToolOutput {
     if reply.images.is_empty() {
         return if reply.is_error { ToolOutput::error(reply.text) } else { ToolOutput::text(reply.text) };
     }
@@ -108,4 +114,17 @@ fn adapt(tool: Arc<dyn HostTool>) -> EngineTool {
     let main_agent_only = def.main_agent_only;
     let adapted = EngineTool::new(Arc::new(Adapter { tool, spec }));
     if main_agent_only { adapted.main_agent_only() } else { adapted }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_reply_that_ends_the_turn_is_the_engines_turn_ending_output() {
+        assert!(output(ToolReply::text("Turn ended without a reply.").ending_turn()).ends_turn);
+        assert!(!output(ToolReply::text("done")).ends_turn);
+        let failed = output(ToolReply::error("no"));
+        assert!(failed.is_error && !failed.ends_turn);
+    }
 }

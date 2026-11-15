@@ -12,8 +12,8 @@ use eos_contracts::{
     UserMemorySuggestRequest, UserMemorySuggestResponse,
 };
 use eos_core::agent::{
-    DirectiveSent, KilledWorker, PeerAnswered, PeerConsult, Peers, Refused, SessionFolder, SpawnedWorker, UserNotifier,
-    UserQuestions, WorkerControl,
+    AgentReactions, DirectiveSent, KilledWorker, PeerAnswered, PeerConsult, Peers, ReactTarget, Reacted, Refused,
+    SessionFolder, SpawnedWorker, UserNotifier, UserQuestions, WorkerControl,
 };
 use eos_core::browser::{BrowserCall, BrowserError, BrowserTools};
 use eos_core::genui::{
@@ -154,6 +154,22 @@ impl WorkerControl for FakeFeatures {
     ) -> BoxFuture<'a, Result<IntegrateWorkersResponse, Refused>> {
         let asked = json!({"orchestratorId": orchestrator_id, "ids": ids});
         ready(self.next("integrate", asked).map(|body| typed("integrate", body)))
+    }
+}
+
+impl AgentReactions for FakeFeatures {
+    fn react<'a>(
+        &'a self,
+        worker_id: &'a str,
+        target: ReactTarget,
+        emoji: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Reacted, Error>> {
+        let message_id = match target {
+            ReactTarget::Latest => None,
+            ReactTarget::Message(id) => Some(id),
+        };
+        let asked = json!({"workerId": worker_id, "messageId": message_id, "emoji": emoji});
+        ready(self.core("react", asked).map(|body| Reacted { excerpt: typed("react", body["excerpt"].clone()) }))
     }
 }
 

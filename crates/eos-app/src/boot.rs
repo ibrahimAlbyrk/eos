@@ -47,6 +47,8 @@ pub(crate) fn settle(
     let (pruned, swept) = store.write_blocking(move |tx, _| {
         tx.message_queue().prune(now - DELIVERED_MESSAGES_KEPT_MS)?;
         let pruned = tx.events().prune_all(events_max_per_worker)?;
+        // Reactions whose message a build that does not know their table removed.
+        tx.reactions().sweep_orphans()?;
         Ok((pruned, tx.pending().sweep_expired(now, "daemon restart sweep")?))
     })?;
     if pruned > 0 {

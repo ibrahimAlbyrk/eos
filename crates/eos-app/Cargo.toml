@@ -47,6 +47,7 @@ eos-mod-profile.workspace = true
 eos-mod-projects.workspace = true
 eos-mod-prompts.workspace = true
 eos-mod-questions.workspace = true
+eos-mod-reactions.workspace = true
 eos-mod-remote.workspace = true
 eos-mod-settings.workspace = true
 eos-mod-sync.workspace = true
