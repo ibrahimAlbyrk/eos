@@ -461,22 +461,29 @@
 @keyframes sf-fade-in { from { opacity: 0; } }
 @keyframes sf-fade-out { to { opacity: 0; } }
 
-/* Right-click action bar (timestamp + rewind + copy + reply), opened at the
-   pointer. Nothing shows on hover, so the transcript's spacing never changes.
-   It lives inside the row (not portaled) so it scrolls with its message while
-   the transcript streams; the glass comes from .glass-pop. */
+/* Right-click action bar (timestamp + rewind + copy + reply; on a message that
+   takes an emoji, the emoji row above them), opened at the pointer. Nothing
+   shows on hover, so the transcript's spacing never changes. It lives inside
+   the row (not portaled) so it scrolls with its message while the transcript
+   streams; the glass comes from .glass-pop. */
 .msg-row { position: relative; }
 /* Two classes: must beat .glass-pop's position/radius (menus.css loads later). */
 .msg-row > .msg-actions {
   position: absolute;
   z-index: 5;
   display: flex;
-  align-items: center;
-  gap: 2px;
+  flex-direction: column;
   padding: 3px;
   border-radius: 12px;
   white-space: nowrap;
 }
+.msg-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+/* Under the emoji row the bar is wider than its buttons: they keep to the right. */
+.rx-sep + .msg-actions-row .msg-time { margin-right: auto; }
 /* The message the bar acts on: a soft tint around it, a ring around a user bubble. */
 .msg-row.ctx-open:not(.right) {
   border-radius: 4px;
@@ -502,6 +509,103 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   color: var(--fg-dim2);
+}
+
+/* ── reactions — the emoji row of the action bar, the chips under a message ─
+   Seven columns: six quick emoji and "+", the grid it opens below them. */
+.rx-quick, .rx-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 32px);
+  gap: 1px;
+}
+.rx-grid { margin-top: 1px; }
+.rx-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 18px;
+  line-height: 1;
+  transition: scale 180ms cubic-bezier(.3, 1.5, .5, 1), translate 180ms cubic-bezier(.3, 1.5, .5, 1), background 150ms ease;
+}
+.rx-pick:hover { scale: 1.22; translate: 0 -2px; }
+.rx-pick.is-on {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.rx-more { color: var(--fg-faint); }
+.rx-more:hover, .rx-more.is-open {
+  scale: 1;
+  translate: 0;
+  color: var(--fg);
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+}
+.rx-sep { height: 1px; margin: 3px 6px; background: var(--lg-sep); }
+
+.msg-rx {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+.msg-row.right .msg-rx { justify-content: flex-end; }
+.rx-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--lg-chip-bg);
+  box-shadow: var(--lg-chip-sh);
+  font-size: var(--text-base);
+  line-height: 1;
+  transition: background 200ms ease, box-shadow 200ms ease;
+}
+.rx-mine {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.rx-mine:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.rx-chip.is-new { animation: rx-pop 420ms cubic-bezier(.3, 1.5, .5, 1) both; }
+.rx-chip .al-star { width: 11px; height: 11px; }
+.rx-agent .al-star { --al-ray: var(--fg-dim2); --al-hi: var(--fg-dim); --al-core: var(--fg-dim); }
+/* The agent has been told: its star slides in after the emoji. */
+.rx-seen {
+  display: inline-flex;
+  width: 0;
+  margin-left: -4px;
+  opacity: 0;
+  transition: width 300ms var(--lg-ease), margin-left 300ms var(--lg-ease), opacity 300ms ease;
+}
+.rx-mine.is-seen .rx-seen { width: 11px; margin-left: 0; opacity: 1; }
+.rx-seen .al-star { --al-ray: var(--accent); --al-hi: var(--accent-hover); --al-core: var(--accent); }
+/* The wait before a reaction starts an agent turn; its duration is set inline. */
+.rx-drain {
+  position: absolute;
+  inset: auto 0 0;
+  height: 2px;
+  background: var(--accent);
+  transform-origin: left;
+  animation: rx-drain linear both;
+}
+@keyframes rx-pop {
+  0% { scale: 0.4; opacity: 0; }
+  60% { scale: 1.14; opacity: 1; }
+}
+@keyframes rx-drain { to { transform: scaleX(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .rx-chip.is-new { animation: none; }
+  .rx-pick, .rx-seen { transition: none; }
+  .rx-pick:hover { scale: 1; translate: 0; }
 }
 
 /* ── initial task — faint label + a block with border-left 2px --line ─── */

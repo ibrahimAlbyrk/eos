@@ -42,6 +42,8 @@ import { ProcessingLine } from "./ProcessingLine.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { replyTargetOf } from "../../../lib/replyTarget.js";
+import { isReactableChat } from "../../../lib/reactions.js";
+import { coverReactions, watchReactions } from "../../../state/reactionsStore.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { setReplyTarget } from "../../../state/replyStore.js";
 import { NewTaskHero } from "./NewTaskHero.jsx";
@@ -367,6 +369,13 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   }, [selectedId, isActive]);
 
   const selectedWorker = live.workers.find((w) => w.id === selectedId);
+  // Reactions belong to the chats the user talks to directly. Watched before
+  // covered: a first attach reads them once, a switch back reads them again.
+  const reactable = isReactableChat(selectedWorker);
+  useEffect(() => (selectedId && reactable ? watchReactions(selectedId) : undefined), [selectedId, reactable]);
+  useEffect(() => {
+    if (selectedId && reactable && owned) coverReactions(selectedId, oldestId);
+  }, [selectedId, reactable, owned, oldestId]);
   const selectedPrompt = useWorkerPrompt(selectedWorker);
   // A primitive on purpose: live.workers churns on every state ping, but the
   // parse only cares whether the boot prompt renders as a task card.
@@ -731,6 +740,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
         onToggleTool={b.kind === "toolGroup" ? ui.toggleToolExpanded : undefined}
         onJumpToRow={b.kind === "user" ? jumpToRow : undefined}
         onJumpToView={b.kind === "user" ? jumpToView : undefined}
+        reactable={REACTABLE_KINDS.has(b.kind) && reactable}
       />
     );
   };
@@ -745,7 +755,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     return (
       <div key={key} data-rowid={b.rowId}>
         <LocalBoundary name="transcript row" fallback={rowCrash}>
-          {renderBlock(b, key, selectedWorker?.cwd, toolGroupOpen(b, ui), ui.toggleToolExpanded, live.workers, parentWorker, null, agentBusy, selectedId, onReply, jumpToRow, jumpToView)}
+          {renderBlock(b, key, selectedWorker?.cwd, toolGroupOpen(b, ui), ui.toggleToolExpanded, live.workers, parentWorker, null, agentBusy, selectedId, onReply, jumpToRow, jumpToView, reactable)}
         </LocalBoundary>
       </div>
     );
@@ -811,7 +821,7 @@ const rowCrash = () => <RowCrash />;
 export const TranscriptRow = memo(function TranscriptRow({
   block: b, rowKey: key, interruptedWrap, divider, sessionId, cwd, workers, parent,
   canRewind, rewindOccurrence, rewindDisabled, onRewindMessage,
-  hasHistory, historyOpen, onToggleHistory, groupOpen, onToggleTool, onJumpToRow, onJumpToView,
+  hasHistory, historyOpen, onToggleHistory, groupOpen, onToggleTool, onJumpToRow, onJumpToView, reactable,
 }) {
   // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
   // realizes it via PTY choreography, claude via a native fork) — gated on the
@@ -831,7 +841,7 @@ export const TranscriptRow = memo(function TranscriptRow({
     )
     : b.kind === "compactionFailed"
       ? <CompactionFailedLine block={b} />
-      : renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView);
+      : renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView, reactable);
   if (!block) return null;
   // The wrapper carries the block's scroll-anchor identity
   // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -905,22 +915,27 @@ const DayDivider = memo(function DayDivider({ ts }) {
 // (copy/rewind/timestamp) absolutely positioned past the wrapper's edges.
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "assistant"]);
+// The messages that take an emoji: the user's own and the agent's words.
+const REACTABLE_KINDS = new Set(["user", "assistant"]);
+// The row a block's reactions live on; none for a message with no saved row yet.
+const reactionOf = (b, sessionId, reactable) =>
+  (reactable && b.rowId && !b.optimistic ? { workerId: sessionId, rowId: b.rowId } : null);
 // Views are the heaviest blocks (tables, carousels, charts, maps), so they keep
 // content-visibility; .cv-view widens the paint box for their drop shadow (see
 // transcript.css). Their selects are native, so nothing else reaches past it.
 
-function renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView) {
+function renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView, reactable) {
   switch (b.kind) {
     case "user": {
       const self = b.replyTo?.role === "assistant" ? workers.find((w) => w.id === sessionId) : null;
-      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} action={b.action} onJumpToView={onJumpToView} /></MessageRow>;
+      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled} onReply={onReply} reaction={reactionOf(b, sessionId, reactable)}><MessageUser text={b.text} cwd={cwd} replyTo={b.replyTo} agentName={self ? nameOf(self) : null} onJumpToReply={onJumpToRow} action={b.action} onJumpToView={onJumpToView} /></MessageRow>;
     }
     case "view":      return <ViewBlock key={key} block={b} />;
     case "workflow":  return <WorkflowCard key={key} block={b} workerId={sessionId} cwd={cwd} workers={workers} />;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply} reaction={reactionOf(b, sessionId, reactable)}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={b.startTs != null ? b.ts - b.startTs : undefined} />;
     case "toolGroup":
       return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd} workers={workers}

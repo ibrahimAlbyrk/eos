@@ -2,6 +2,7 @@ import { deriveToolLifecycle, parsePayload, rowPayload } from "./toolLifecycle.j
 import { parseSkillBody } from "./skillBody.js";
 import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
 import { isGenuiTool } from "../genui/runtime/toolCall.js";
+import { isReactionTool } from "./reactions.js";
 
 export { parsePayload };
 
@@ -449,6 +450,9 @@ export function buildBlocks(rawEvents) {
   };
 
   const pushTool = (tool) => {
+    // The agent's emoji and its choice to say nothing show as the chip on the
+    // message, never as a tool row.
+    if (isReactionTool(tool.name)) return;
     if (tool.name === "mcp__worker__respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
     if (tool.name === "mcp__worker__ask_peer") lastAskPeer = tool;
     // A present / present_app call is the agent's answer, shown as a view.
@@ -711,6 +715,12 @@ export function buildBlocks(rawEvents) {
           ts: ev.ts,
         });
       }
+      continue;
+    }
+    // A turn's end closes its last message: what the agent says in a turn that
+    // nothing visible started (a reaction woke it) is a message of its own.
+    if (ev.type === "hook") {
+      if (rowPayload(ev).event === "Stop") lastAsst = null;
       continue;
     }
     if (ev.type !== "jsonl") continue;

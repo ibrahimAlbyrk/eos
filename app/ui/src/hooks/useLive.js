@@ -55,6 +55,7 @@ import { applyFeatures } from "../state/featuresStore.js";
 import { applyGenuiDelta, endWorker as endGenuiStreams, resyncGenuiStreams } from "../genui/streamStore.js";
 import { applyWorkflowProgress, resyncWorkflowRuns } from "../state/workflowRunsStore.js";
 import { applyJobsChange, resyncJobs } from "../state/jobsStore.js";
+import { applyReactionChange, resyncReactions } from "../state/reactionsStore.js";
 import { applyUpdateChange, resyncUpdate } from "../state/updateStore.js";
 import { applyArtifactsChange, resyncArtifactCatalog } from "../state/artifactCatalogStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
@@ -256,6 +257,7 @@ export function useLive() {
         resyncGenuiStreams();
         resyncWorkflowRuns();
         resyncJobs();
+        resyncReactions();
         resyncUpdate();
         resyncArtifactCatalog();
         dispatchResync();
@@ -329,6 +331,9 @@ export function useLive() {
           if (data.reason === "workflow:progress") { applyWorkflowProgress(data.payload ?? {}); return; }
           // A background job started, moved on or ended — the beacon and the Jobs tab.
           if (data.reason === "jobs:change") { applyJobsChange(data.payload); return; }
+          // An emoji was put on a message or taken back, or the agent was told
+          // one — the chips of that message; not a worker delta.
+          if (data.reason === "reactions:change") { applyReactionChange(data.payload); return; }
           if (data.reason === "update:change") { applyUpdateChange(data.payload); return; }
           // The artifact catalog changed (a sign-in re-read, an agent published) —
           // a bare signal; the catalog itself is read from this Mac's route.

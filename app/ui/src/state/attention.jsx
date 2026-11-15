@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { needsAttention as policyNeedsAttention, syncViewed } from "../lib/agentAttention.js";
 import { useSettings } from "./settings.jsx";
+import { isQuietTurn, subscribeQuietTurns, syncQuietTurns } from "./quietTurns.js";
 
 // Attention state — tracks, per worker, the activity signature the user last
 // viewed. Whether the blue dot shows is DERIVED from (state, signature, last
@@ -34,6 +35,9 @@ export function AttentionProvider({ children }) {
     if (visible) setVersion((v) => v + 1);
   }, []);
 
+  // A turn found silent (or not) changes which dots show.
+  useEffect(() => subscribeQuietTurns(() => setVersion((v) => v + 1)), []);
+
   // Un-gated by the sidebar-attention setting: the same "stopped with unseen
   // output" policy, for consumers with their own enable switch (split panes).
   // Bookkeeping (syncWorkers) runs regardless of any setting, so the viewed
@@ -41,7 +45,7 @@ export function AttentionProvider({ children }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- a new identity per visible change
   const needsAttentionRaw = useCallback((worker) => {
     if (!worker || !worker.id) return false;
-    return policyNeedsAttention(viewedRef.current.get(worker.id), worker);
+    return policyNeedsAttention(viewedRef.current.get(worker.id), worker, isQuietTurn(worker.id));
   }, [version]);
 
   const needsAttention = useCallback((worker) => {
@@ -76,5 +80,6 @@ export function useAttentionSync(workers, selectedId) {
   useEffect(() => {
     if (workers.length === 0) return;
     syncWorkers(workers, selectedId);
+    syncQuietTurns(workers);
   }, [workers, selectedId, syncWorkers]);
 }

@@ -15,10 +15,11 @@ export function isStopped(state) {
 
 // lastViewedSig === undefined means the worker was never seeded (e.g. it
 // existed before the app launched) — never flag those, to avoid a wall of
-// false positives on startup.
-export function needsAttention(lastViewedSig, worker) {
+// false positives on startup. `quiet`: its latest turn left nothing to read (the
+// agent chose not to reply, state/quietTurns.js).
+export function needsAttention(lastViewedSig, worker, quiet = false) {
   if (!worker || !worker.id) return false;
-  if (!isStopped(worker.state)) return false;
+  if (!isStopped(worker.state) || quiet) return false;
   if (lastViewedSig === undefined) return false;
   return lastViewedSig !== sigOf(worker);
 }

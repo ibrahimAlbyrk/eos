@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { Ticking } from "../../../components/Ticking.jsx";
+import { setReaction, useReactions } from "../../../state/reactionsStore.js";
+import { ReactionChips } from "./reactions/ReactionChips.jsx";
+import { ReactionPicker } from "./reactions/ReactionPicker.jsx";
 
 const EDGE = 8; // closest the bar gets to the window edge
 
@@ -11,8 +14,13 @@ const EDGE = 8; // closest the bar gets to the window edge
 // renders only when it is provided. `rewindDisabled` keeps it visible but
 // inert (dimmed) — e.g. while the agent is mid-turn and the backend would
 // refuse the rewind anyway. `onReply` (when provided) sits at the bar's end.
-export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onReply, children }) {
+// `reaction` ({ workerId, rowId }) makes the message one that takes an emoji:
+// the bar opens with the emoji row on top, and the reactions on the message
+// show as chips under it (the only thing a row at rest adds, and only then).
+export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onReply, reaction, children }) {
   const [menuAt, setMenuAt] = useState(null); // pointer position in the row while the bar is open
+  const [moreEmoji, setMoreEmoji] = useState(false);
+  const reactions = useReactions(reaction?.workerId, reaction?.rowId);
   const [copied, setCopied] = useState(false);
   const [rewindState, setRewindState] = useState(null); // null | "busy" | "error"
   const rowRef = useRef(null);
@@ -22,7 +30,14 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
     const at = menuPoint(e, rowRef.current.getBoundingClientRect());
     if (!at) return;
     e.preventDefault();
+    setMoreEmoji(false);
     setMenuAt(at);
+  };
+
+  // The emoji the user already has on the message takes it back.
+  const react = (emoji) => {
+    setMenuAt(null);
+    void setReaction(reaction.workerId, reaction.rowId, reactions.user?.emoji === emoji ? null : emoji);
   };
 
   const copy = () => {
@@ -57,18 +72,31 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
       onContextMenu={openMenu}
     >
       {children}
+      {reaction && (reactions.user || reactions.agent) && (
+        <ReactionChips reactions={reactions} onRemove={() => void setReaction(reaction.workerId, reaction.rowId, null)} />
+      )}
       {menuAt && (
-        <ActionBar at={menuAt} onClose={closeMenu}>
-          <MessageActions
-            ts={ts}
-            canRewind={Boolean(onRewind)}
-            rewindDisabled={rewindDisabled}
-            rewindState={rewindState}
-            onRewind={rewind}
-            copied={copied}
-            onCopy={copy}
-            onReply={onReply ? reply : null}
-          />
+        <ActionBar at={menuAt} grown={moreEmoji} onClose={closeMenu}>
+          {reaction && (
+            <ReactionPicker
+              current={reactions.user?.emoji ?? null}
+              onPick={react}
+              more={moreEmoji}
+              onToggleMore={() => setMoreEmoji((open) => !open)}
+            />
+          )}
+          <div className="msg-actions-row">
+            <MessageActions
+              ts={ts}
+              canRewind={Boolean(onRewind)}
+              rewindDisabled={rewindDisabled}
+              rewindState={rewindState}
+              onRewind={rewind}
+              copied={copied}
+              onCopy={copy}
+              onReply={onReply ? reply : null}
+            />
+          </div>
         </ActionBar>
       )}
     </div>
@@ -130,8 +158,10 @@ export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onR
 
 // Top-left corner at the pointer, like a native context menu, then kept inside
 // the window: pulled left near the right edge, flipped above the pointer near
-// the bottom. Closes on an outside press, Escape, or the window losing focus.
-function ActionBar({ at, onClose, children }) {
+// the bottom. A bar that grows while open (`grown`: the emoji grid) moves up by
+// what would leave the window. Closes on an outside press, Escape, or the
+// window losing focus.
+function ActionBar({ at, grown, onClose, children }) {
   const ref = useRef(null);
   const [pos, setPos] = useState({ left: at.x, top: at.y });
 
@@ -144,6 +174,13 @@ function ActionBar({ at, onClose, children }) {
     if (row.top + top + bar.offsetHeight > window.innerHeight - EDGE) top = at.y - bar.offsetHeight;
     setPos({ left, top });
   }, [at]);
+
+  useLayoutEffect(() => {
+    if (!grown) return;
+    const bar = ref.current;
+    const over = bar.offsetParent.getBoundingClientRect().top + bar.offsetTop + bar.offsetHeight - (window.innerHeight - EDGE);
+    if (over > 0) setPos((p) => ({ ...p, top: p.top - over }));
+  }, [grown]);
 
   useEffect(() => {
     const onDown = (e) => { if (!ref.current?.contains(e.target)) onClose(); };

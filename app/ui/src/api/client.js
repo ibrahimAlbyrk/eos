@@ -335,6 +335,23 @@ export const api = {
   async stopSubagent(workerId, callId) {
     return postJson(ROUTES.workerSubagentStop(workerId, callId), {}, uiTokenHeader());
   },
+  // The reactions on a chat's messages whose rows lie in [fromId, toId].
+  async getWorkerReactions(id, { fromId, toId } = {}) {
+    const params = new URLSearchParams();
+    if (fromId != null) params.set("fromId", String(fromId));
+    if (toId != null) params.set("toId", String(toId));
+    const query = params.toString();
+    const r = await getJson(`${ROUTES.workerReactions(id)}${query ? `?${query}` : ""}`);
+    if (!r.ok || !Array.isArray(r.body?.reactions)) throw new Error(`getWorkerReactions → ${r.status}`);
+    return r.body.reactions;
+  },
+  // The user's emoji on one message, and taking it back.
+  async setReaction(workerId, rowId, emoji) {
+    return putJson(ROUTES.workerReaction(workerId, rowId), { emoji }, uiTokenHeader());
+  },
+  async clearReaction(workerId, rowId) {
+    return del(ROUTES.workerReaction(workerId, rowId), uiTokenHeader());
+  },
   // The /btw side question; aborting `signal` cancels the answer.
   async askSideQuestion(workerId, question, { signal } = {}) {
     return fetchJson(`${DAEMON}${ROUTES.workerSideQuestion(workerId)}`, {
