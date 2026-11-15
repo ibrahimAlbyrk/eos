@@ -134,6 +134,17 @@ export function addDispatched(workerId, { text, agentText }) {
   return item.id;
 }
 
+// A new chat's first message has no worker until the spawn answers: it is held
+// under the pane it was sent from, then handed to the worker.
+export const spawnKey = (paneId) => `spawn:${paneId}`;
+
+export function rekey(from, to) {
+  const moved = itemsFor(from);
+  if (moved.length === 0) return;
+  itemsByWorker.delete(from);
+  setItems(to, [...itemsFor(to), ...moved]);
+}
+
 export function dismissPill(workerId, itemId) {
   const list = itemsFor(workerId);
   const item = list.find((i) => i.id === itemId);

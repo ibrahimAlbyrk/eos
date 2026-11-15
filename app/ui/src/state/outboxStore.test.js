@@ -26,6 +26,15 @@ afterEach(() => {
 });
 
 describe("send lifecycle", () => {
+  it("a new chat's first message moves from its pane to the chat once it has an id", () => {
+    const key = outbox.spawnKey("leaf-1");
+    outbox.addDispatched(key, { text: "hi" });
+    expect(outbox.itemsFor(key)).toHaveLength(1);
+    outbox.rekey(key, W);
+    expect(outbox.itemsFor(key)).toHaveLength(0);
+    expect(bubbles().map((i) => i.text)).toEqual(["hi"]);
+  });
+
   it("busy send shows a pill immediately, before any response", () => {
     outbox.beginSend(W, { text: "hi", agentText: "hi", clientMsgId: "c1", busy: true });
     expect(pills()).toHaveLength(1);

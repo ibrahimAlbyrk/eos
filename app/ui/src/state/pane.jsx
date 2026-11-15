@@ -167,6 +167,18 @@ export function PaneProvider({ children }) {
     setSelectedId(id);
   }, [focusLeaf, setSelectedId]);
 
+  // A chat started from a pane lands in THAT pane, focused or not. Skipped when
+  // the pane closed or took another agent while the chat was starting.
+  const showInLeaf = useCallback((leafId, agentId) => {
+    const l = findLeaf(treeRef.current, leafId);
+    if (!l) return;
+    if (leafId === focusedRef.current) {
+      if (selectedIdRef.current == null) setSelectedId(agentId);
+    } else if (l.agentId == null) {
+      setTree((t) => setLeafAgent(t, leafId, agentId));
+    }
+  }, [setSelectedId]);
+
   // Browser session bridge for the activity rules — per pane now: a session may
   // be shown in several panes, each with its own browser panel. Stable ops +
   // live refs, so it registers once.
@@ -254,11 +266,11 @@ export function PaneProvider({ children }) {
     paneAgents,
     focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout,
+    setRatioFor, selectAgent, showInLeaf, togglePaneForAgent, prunePanes, resetToEmpty, setLayout,
   }), [
     tree, focusedLeafId, focusedRegion, paneCount, paneAgents, focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout,
+    setRatioFor, selectAgent, showInLeaf, togglePaneForAgent, prunePanes, resetToEmpty, setLayout,
   ]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;

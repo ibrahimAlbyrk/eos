@@ -358,6 +358,10 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   // way — they live in a module store, not React state.
   const [outboxTick, setOutboxTick] = useState(0);
   useEffect(() => outbox.subscribe(() => setOutboxTick((t) => t + 1)), []);
+  // An empty pane whose new chat is starting shows the sent message, held under
+  // the pane until the chat has an id.
+  const outboxKey = selectedId ?? outbox.spawnKey(ui.paneId);
+  const starting = !selectedId && outbox.itemsFor(outboxKey).length > 0;
 
   // Selecting an agent retires the no-selection workspace cards — the next
   // "new session" view starts clean. Still-running commands get killed.
@@ -425,7 +429,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     // states (sending/dispatching) join the sort so a drained message lands
     // exactly where its durable event will (see outboxStore.js). A failed send
     // reads as the transcript's own "not delivered" line.
-    for (const m of outbox.itemsFor(selectedId)) {
+    for (const m of outbox.itemsFor(outboxKey)) {
       if (m.state === "queued") continue;
       if (m.state === "failed") {
         base.push({ kind: "deliveryFailed", text: m.text, ts: m.ts });
@@ -469,7 +473,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     // subagents then folds into one line.
     sharedBlocksRef.current = shareBlocks(sharedBlocksRef.current, groupSubagentRuns(sortBlocksByTs(base), subagents), blockKey);
     return sharedBlocksRef.current;
-  }, [baseBlocks, subagents, selectedId, termTick, outboxTick, thinkTick, genuiTick]);
+  }, [baseBlocks, subagents, selectedId, outboxKey, termTick, outboxTick, thinkTick, genuiTick]);
 
   // With older pages unloaded the window starts mid-conversation, so the boot
   // turn comes from the whole-conversation index instead.
@@ -774,8 +778,8 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     <div className="messages-frame">
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
-      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef} {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
-        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer, live.recents, projects).project} />}
+      <div className={selectedId || starting ? "messages" : "messages messages-empty"} ref={contentRef} {...joinHandlers(pathLinks.handlers, artifactLinks.handlers)}>
+        {!selectedId && !starting && <NewTaskHero project={newSessionProject(ui.composer, live.recents, projects).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
@@ -797,6 +801,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
         {showAnchor && !compaction.pending && (
           <ProcessingAnchor worker={selectedWorker} />
         )}
+        {starting && <ProcessingLine busy elapsed={null} />}
       </div>
       <ScrollToBottom show={stick.showJumpBtn} onClick={scrollToBottom} />
     </div>

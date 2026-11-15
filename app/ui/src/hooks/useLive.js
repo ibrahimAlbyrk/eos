@@ -427,34 +427,33 @@ export function useLive() {
     refreshRecents();
   }, [refreshRecents]);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
-    // Refresh workers synchronously so the new id is visible before the
-    // caller sets it as selected — otherwise App.jsx's stale-selection
-    // cleanup races with the caller and immediately clears the selection.
+  // The new id must be in the list before the caller selects it — otherwise the
+  // stale-selection cleanup clears the selection right away. The daemon's row
+  // push usually has it there already; the list is fetched only when it has not.
+  const ensureListed = useCallback(async (id) => {
+    if (id && latestWorkersRef.current.some((w) => w.id === id)) return;
     try {
       const seq = ++workersSeqRef.current;
       const list = await api.listWorkers();
       if (Array.isArray(list)) applyWorkers(seq, list);
     } catch { /* fallback to scheduleRefetch */ }
+  }, [applyWorkers]);
+
+  const spawnOrchestrator = useCallback(async ({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, scratch, model, effort, prompt, permissionMode, backendKind, backendProfile, mode });
+    await ensureListed(r?.body?.id);
     refreshRecents();
     return r;
-  }, [refreshRecents, applyWorkers]);
+  }, [refreshRecents, ensureListed]);
 
   // workspaceOf attaches the git agent INSIDE an existing worker's worktree
   // (tree-level ops, direct file access); cwd is the checkout path otherwise.
   const spawnGitAgent = useCallback(async ({ cwd, prompt, name, workspaceOf, worktreeFrom, promptTemplate } = {}) => {
     const r = await api.spawnWorker({ role: "git", cwd, prompt, name: name ?? "git", workspaceOf, worktreeFrom, promptTemplate });
-    // Same sync refresh as spawnOrchestrator — keeps the new id visible
-    // before the caller selects it.
-    try {
-      const seq = ++workersSeqRef.current;
-      const list = await api.listWorkers();
-      if (Array.isArray(list)) applyWorkers(seq, list);
-    } catch { /* fallback to scheduleRefetch */ }
+    await ensureListed(r?.body?.id);
     refreshRecents();
     return r;
-  }, [refreshRecents, applyWorkers]);
+  }, [refreshRecents, ensureListed]);
 
   const workersRef = useRef(workers);
   workersRef.current = workers;

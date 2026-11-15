@@ -638,6 +638,9 @@ export function Composer({ live, worker, paneId, focused }) {
     // editor until it is done.
     if (compacting && !termMode && !gitMode) return;
 
+    // This pane's new chat is still starting: a second send would start another.
+    if (!selected && !termMode && outbox.itemsFor(outbox.spawnKey(paneId)).length) return;
+
     history.push({ text: t, mode });
 
     if (termMode) {
@@ -723,6 +726,10 @@ export function Composer({ live, worker, paneId, focused }) {
     // via backendKind. The operator-chosen model rides along as an OVERRIDE on a
     // profile lane (its pinned model is the default).
     const { backendKind, backendProfile } = providerSpawn(ui.composer.provider);
+    // The message shows in this pane at once, held under the pane until the
+    // spawn names the chat.
+    const spawnKey = outbox.spawnKey(paneId);
+    outbox.addDispatched(spawnKey, { text: displayText, agentText });
     const r = await live.spawnOrchestrator({
       ...(spawnCwd ? { cwd: spawnCwd } : { scratch: true }),
       model: ui.composer.model,
@@ -732,7 +739,7 @@ export function Composer({ live, worker, paneId, focused }) {
       backendKind: backendKind ?? undefined,
       backendProfile: backendProfile ?? undefined,
       mode: ui.composer.agentMode,
-    });
+    }).catch(() => null);
     if (r?.ok && r.body?.id) {
       try {
         localStorage.setItem("cm:lastLaunched", JSON.stringify({
@@ -742,9 +749,10 @@ export function Composer({ live, worker, paneId, focused }) {
         }));
       } catch {}
       const realId = r.body.id;
-      ui.setSelectedId(realId);
-      outbox.addDispatched(realId, { text: displayText, agentText });
-    } else if (!r?.ok) {
+      outbox.rekey(spawnKey, realId);
+      ui.showInLeaf(paneId, realId);
+    } else {
+      outbox.purgeAgent(spawnKey);
       alert(r?.body?.error ?? "Failed to start agent");
     }
   };
