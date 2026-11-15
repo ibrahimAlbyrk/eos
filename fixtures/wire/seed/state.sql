@@ -104,7 +104,7 @@ FROM n;
 INSERT INTO events (worker_id, ts, type, payload) VALUES
  ('o-ORCH', 1790000200000, 'spawn', '{"resumed":false,"sessionId":"33333333-3333-4333-8333-333333333333","pid":null}'),
  ('o-ORCH', 1790000200100, 'user_message', '{"text":"Add a --json flag and document it.","msgId":"m-0101","clientMsgIds":["c-0101"]}'),
- ('o-ORCH', 1790000200200, 'agent_event', '{"type":"message","role":"assistant","model":"claude-opus-5-5","blocks":[{"type":"tool_call","callId":"call_spawn_1","name":"mcp__orchestrator__spawn_worker","input":{"from":"general-purpose","prompt":"Implement the --json flag in cli.js.","name":"json flag impl"}}]}'),
+ ('o-ORCH', 1790000200200, 'agent_event', '{"type":"message","role":"assistant","model":"claude-opus-5-5","blocks":[{"type":"tool_call","callId":"call_spawn_1","name":"spawn_worker","input":{"from":"general-purpose","prompt":"Implement the --json flag in cli.js.","name":"json flag impl"}}]}'),
  ('o-ORCH', 1790000200300, 'agent_event', '{"type":"message","role":"tool","blocks":[{"type":"tool_result","callId":"call_spawn_1","isError":false,"content":"{\"id\":\"w-KID1\"}"}]}'),
  ('o-ORCH', 1790000291000, 'worker_report', '{"text":"Implemented --json in src/cli.js and added a test.","fromWorker":"w-KID1","workerName":"json flag impl"}'),
  ('o-ORCH', 1790000292000, 'agent_event', '{"type":"message","role":"assistant","model":"claude-opus-5-5","blocks":[{"type":"text","text":"The flag is in. The README still needs a line.","blockId":"b-o-1"}]}'),

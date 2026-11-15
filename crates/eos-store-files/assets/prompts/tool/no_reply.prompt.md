@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — no_reply"
+description: "Tool — no_reply"
 ---
 
 End your turn without writing anything. Call it alone, as the only thing in your response: the turn ends with it, and nothing written or called beside it is followed up.

@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — present"
+description: "Tool — present"
 variables:
   - GENUI_CATALOG
 ---

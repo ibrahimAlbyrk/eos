@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — spawn_worker"
+description: "Tool — spawn_worker"
 variables:
   - GET_WORKER_TOOL
   - KILL_WORKER_TOOL

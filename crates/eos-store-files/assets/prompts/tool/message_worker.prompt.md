@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — message_worker"
+description: "Tool — message_worker"
 variables:
   - GET_WORKER_TOOL
   - SEND_MESSAGE_TO_PARENT_TOOL

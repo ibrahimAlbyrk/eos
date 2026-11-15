@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — react"
+description: "Tool — react"
 variables:
   - NO_REPLY_TOOL
 ---

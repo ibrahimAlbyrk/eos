@@ -39,7 +39,7 @@ async fn a_focused_chat_turn_runs_from_the_route_to_the_stream() {
     let page = r#"{"title":"Smoke notes","body":"- [ ] check the tools"}"#;
     let mock = MockApi::start([
         Reply::text("hello from the scripted model"),
-        Reply::tool_use("toolu_page", "mcp__worker__create_page", page),
+        Reply::tool_use("toolu_page", "create_page", page),
         Reply::text("the page is made"),
     ])
     .await
@@ -136,10 +136,10 @@ async fn a_focused_chat_turn_runs_from_the_route_to_the_stream() {
     // instead of being sent with every request.
     let offered: Vec<&str> =
         sent["tools"].as_array().expect("tools").iter().filter_map(|t| t["name"].as_str()).collect();
-    assert!(offered.contains(&"ToolSearch") && !offered.contains(&"mcp__worker__create_page"), "{offered:?}");
+    assert!(offered.contains(&"ToolSearch") && !offered.contains(&"create_page"), "{offered:?}");
     // The one tool whose description is its manual is sent in full.
-    assert!(offered.contains(&"mcp__worker__present"), "{offered:?}");
-    assert!(sent["messages"].to_string().contains("mcp__worker__create_page"), "the tool is named to the model");
+    assert!(offered.contains(&"present"), "{offered:?}");
+    assert!(sent["messages"].to_string().contains("create_page"), "the tool is named to the model");
 
     // A second turn through the message route: the model calls a page tool.
     let (status, sent) =

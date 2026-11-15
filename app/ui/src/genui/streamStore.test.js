@@ -4,7 +4,7 @@ import {
 } from "./streamStore.js";
 
 const W = "w1";
-const NAME = "mcp__orchestrator__present";
+const NAME = "present";
 const delta = (phase, text = "", callId = "c1") => applyGenuiDelta({ workerId: W, callId, name: NAME, phase, text });
 
 describe("genui stream store", () => {

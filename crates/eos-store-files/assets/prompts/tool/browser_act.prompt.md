@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_act"
+description: "Tool — browser_act"
 variables:
   - BROWSER_SNAPSHOT_TOOL
   - BROWSER_FIND_TOOL

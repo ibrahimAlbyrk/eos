@@ -69,7 +69,7 @@ describe.each([
 describe("present_app fixture", () => {
   it("renders through AppFrame, linked back by its view id", () => {
     const tool = {
-      id: "toolu_app", name: "mcp__orchestrator__present_app", input: app,
+      id: "toolu_app", name: "present_app", input: app,
       result: { isError: false, text: `view ${VIEW} rendered · app` }, running: false, done: true, ts: 1,
     };
     const html = render(<ViewBlock block={{ kind: "view", tool, ts: 1 }} />);

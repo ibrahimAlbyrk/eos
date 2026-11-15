@@ -160,7 +160,7 @@ mod tests {
                     },
                     ContentBlock::ToolUse {
                         id: "t2".into(),
-                        name: "mcp__worker__present".into(),
+                        name: "present".into(),
                         input: input(r#"{"title":"Places","summary":"three cafes","ui":"<Card/>"}"#),
                     },
                 ],

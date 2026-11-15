@@ -210,9 +210,9 @@ async fn the_level_reaches_the_prompt() {
 async fn a_followed_tools_input_becomes_genui_delta_frames_for_its_worker() {
     let h = Harness::start(Fakes::default()).await;
     for (tool, followed) in [
-        ("mcp__orchestrator__present", true),
-        ("mcp__worker__present_app", true),
-        ("mcp__orchestrator__presentation", false),
+        ("present", true),
+        ("present_app", true),
+        ("presentation", false),
         ("mcp__slides__present", false),
         ("Bash", false),
     ] {
@@ -224,7 +224,7 @@ async fn a_followed_tools_input_becomes_genui_delta_frames_for_its_worker() {
     let _on = h.runtime.kernel.bus.on(Filter::from("genui:delta"), move |event| {
         sink.lock().expect("heard").push((event.scope.clone(), String::from_utf8_lossy(&event.payload).into_owned()));
     });
-    let name = "mcp__orchestrator__present";
+    let name = "present";
     for (phase, text) in
         [(ToolInputPhase::Start, ""), (ToolInputPhase::Append, "{\"title\":"), (ToolInputPhase::Stop, "")]
     {
@@ -236,9 +236,9 @@ async fn a_followed_tools_input_becomes_genui_delta_frames_for_its_worker() {
     assert_eq!(
         heard.iter().map(|(_, frame)| frame.as_str()).collect::<Vec<_>>(),
         [
-            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"mcp__orchestrator__present","phase":"start","text":""}"#,
-            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"mcp__orchestrator__present","phase":"append","text":"{\"title\":"}"#,
-            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"mcp__orchestrator__present","phase":"stop","text":""}"#,
+            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"present","phase":"start","text":""}"#,
+            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"present","phase":"append","text":"{\"title\":"}"#,
+            r#"{"workerId":"o-ORCH","callId":"toolu_1","name":"present","phase":"stop","text":""}"#,
         ]
     );
     assert!(heard.iter().all(|(scope, _)| scope.as_ref() == Some(&Scope::worker("o-ORCH"))));

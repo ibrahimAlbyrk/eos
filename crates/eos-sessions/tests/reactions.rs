@@ -116,7 +116,7 @@ impl Bench {
 /// A turn in which the agent says nothing: it only ends its turn.
 fn silent() -> Turn {
     Turn::of(vec![
-        events::tool_call("toolu_quiet", "mcp__worker__no_reply", UnknownRecord::default()),
+        events::tool_call("toolu_quiet", "no_reply", UnknownRecord::default()),
         events::tool_result("toolu_quiet", "Turn ended without a reply.", false),
     ])
 }

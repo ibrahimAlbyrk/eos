@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_type"
+description: "Tool — browser_type"
 variables:
   - BROWSER_FILL_FORM_TOOL
 ---

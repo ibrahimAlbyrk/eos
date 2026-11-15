@@ -30,7 +30,7 @@ function conversation() {
       { type: "tool_call", callId: "T1", name: "TodoWrite", input: { todos: [{ content: "b", status: "pending" }, { content: "a", status: "done" }] } },
       { type: "tool_call", callId: "AG", name: "Agent", spawnsSubagent: true, input: { description: "dig", prompt: "find it", model: "sonnet" } },
       { type: "tool_call", callId: "AR", name: "Artifact", input: { file_path: "/tmp/report.html", title: "Report" } },
-      { type: "tool_call", callId: "V1", name: "mcp__worker__present", input: { title: "Picks", data: { items: [{ n: 2 }, { n: 1 }] }, ui: "<List of=\"items\"/>", summary: "s" } },
+      { type: "tool_call", callId: "V1", name: "present", input: { title: "Picks", data: { items: [{ n: 2 }, { n: 1 }] }, ui: "<List of=\"items\"/>", summary: "s" } },
       { type: "tool_call", callId: "WF", name: "Workflow", input: { script: "x" } },
     ] }),
     agent(102, { type: "message", role: "tool", blocks: [

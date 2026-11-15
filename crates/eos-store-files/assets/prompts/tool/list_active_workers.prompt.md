@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — list_active_workers"
+description: "Tool — list_active_workers"
 variables:
   - LIST_AVAILABLE_WORKERS_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL

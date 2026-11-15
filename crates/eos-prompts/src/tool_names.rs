@@ -1,7 +1,6 @@
 //! The tool names prompts may show. A prompt never spells a tool's name: it
 //! writes `{{SPAWN_WORKER_TOOL}}`, so a renamed tool changes here and nowhere
-//! else. On the wire a name carries its server's prefix
-//! (`mcp__orchestrator__…`, `mcp__worker__…`).
+//! else.
 
 use serde_json::Value;
 

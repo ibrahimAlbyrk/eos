@@ -96,7 +96,7 @@ You talk to a persistent **orchestrator**. It breaks your instruction into piece
                       │       orchestrator         │   decomposes one
                       │   persistent · long-lived  │   instruction → many
                       ╰─────────────┬──────────────╯
-                                    │  spawn_worker (MCP)
+                                    │  spawn_worker
               ╭─────────────────────┼─────────────────────╮
               ▼                     ▼                     ▼
         ┌───────────┐         ┌───────────┐         ┌───────────┐

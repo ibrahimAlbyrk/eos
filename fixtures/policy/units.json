@@ -31,7 +31,7 @@
   "Edit",
   "MultiEdit",
   "mcp__github__create_issue",
-  "mcp__worker__report",
+  "mcp__demo__report",
   "a.b",
   "axb",
   "",
@@ -573,87 +573,87 @@
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    null
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    ""
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git push"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git push origin"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "  git push  "
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git pushx"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git status"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls -la"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "x"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "a(b) c"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "npm run build"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "npm run"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "﻿ls "
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "multi\nline"
   ],
   [
    "*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    ":*"
   ],
   [
@@ -1848,87 +1848,87 @@
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    null
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    ""
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git push"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git push origin"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "  git push  "
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git pushx"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "git status"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls -la"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "x"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "a(b) c"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "npm run build"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "npm run"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "﻿ls "
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "ls"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    "multi\nline"
   ],
   [
    "mcp__*",
-   "mcp__worker__report",
+   "mcp__demo__report",
    ":*"
   ],
   [
@@ -4938,70 +4938,70 @@
    "category": "mcp"
   },
   {
-   "tool": "mcp__worker__send_message_to_parent",
+   "tool": "send_message_to_parent",
    "input": {
     "text": "done"
    },
    "plansDir": null,
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__send_message_to_parent",
+   "tool": "send_message_to_parent",
    "input": {
     "text": "done"
    },
    "plansDir": "/home/u/.claude/plans",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__send_message_to_parent",
+   "tool": "send_message_to_parent",
    "input": {
     "text": "done"
    },
    "plansDir": "",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__ask_peer",
+   "tool": "ask_peer",
    "input": {},
    "plansDir": null,
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__ask_peer",
+   "tool": "ask_peer",
    "input": {},
    "plansDir": "/home/u/.claude/plans",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__ask_peer",
+   "tool": "ask_peer",
    "input": {},
    "plansDir": "",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__spawn_worker",
+   "tool": "spawn_worker",
    "input": {
     "from": "explorer"
    },
    "plansDir": null,
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__spawn_worker",
+   "tool": "spawn_worker",
    "input": {
     "from": "explorer"
    },
    "plansDir": "/home/u/.claude/plans",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__spawn_worker",
+   "tool": "spawn_worker",
    "input": {
     "from": "explorer"
    },
    "plansDir": "",
-   "category": "mcp"
+   "category": "eos"
   },
   {
    "tool": "mcp__gateway__decide",
@@ -5022,25 +5022,25 @@
    "category": "mcp"
   },
   {
-   "tool": "mcp__worker__browser_snapshot",
+   "tool": "browser_snapshot",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_snapshot",
+   "tool": "browser_snapshot",
    "input": {},
    "plansDir": "/home/u/.claude/plans",
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_snapshot",
+   "tool": "browser_snapshot",
    "input": {},
    "plansDir": "",
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_click",
+   "tool": "browser_click",
    "input": {
     "ref": "e1"
    },
@@ -5048,7 +5048,7 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__worker__browser_click",
+   "tool": "browser_click",
    "input": {
     "ref": "e1"
    },
@@ -5056,7 +5056,7 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__worker__browser_click",
+   "tool": "browser_click",
    "input": {
     "ref": "e1"
    },
@@ -5064,7 +5064,7 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__orchestrator__browser_navigate",
+   "tool": "browser_navigate",
    "input": {
     "url": "https://x"
    },
@@ -5072,7 +5072,7 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__orchestrator__browser_navigate",
+   "tool": "browser_navigate",
    "input": {
     "url": "https://x"
    },
@@ -5080,7 +5080,7 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__orchestrator__browser_navigate",
+   "tool": "browser_navigate",
    "input": {
     "url": "https://x"
    },
@@ -5088,64 +5088,64 @@
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__orchestrator__browser_tabs",
+   "tool": "browser_tabs",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__orchestrator__browser_tabs",
+   "tool": "browser_tabs",
    "input": {},
    "plansDir": "/home/u/.claude/plans",
    "category": "browserRead"
   },
   {
-   "tool": "mcp__orchestrator__browser_tabs",
+   "tool": "browser_tabs",
    "input": {},
    "plansDir": "",
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__present",
+   "tool": "present",
    "input": {
     "title": "t"
    },
    "plansDir": null,
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__present",
+   "tool": "present",
    "input": {
     "title": "t"
    },
    "plansDir": "/home/u/.claude/plans",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__worker__present",
+   "tool": "present",
    "input": {
     "title": "t"
    },
    "plansDir": "",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__present_app",
+   "tool": "present_app",
    "input": {},
    "plansDir": null,
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__present_app",
+   "tool": "present_app",
    "input": {},
    "plansDir": "/home/u/.claude/plans",
-   "category": "mcp"
+   "category": "eos"
   },
   {
-   "tool": "mcp__orchestrator__present_app",
+   "tool": "present_app",
    "input": {},
    "plansDir": "",
-   "category": "mcp"
+   "category": "eos"
   },
   {
    "tool": "SomethingElse",
@@ -5208,43 +5208,43 @@
    "category": "other"
   },
   {
-   "tool": "mcp__worker__browser_",
+   "tool": "browser_",
    "input": {},
    "plansDir": null,
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__worker__browser_find",
+   "tool": "browser_find",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__orchestrator__browser_get",
+   "tool": "browser_get",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_screenshot",
+   "tool": "browser_screenshot",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_show",
+   "tool": "browser_show",
    "input": {},
    "plansDir": null,
    "category": "browserRead"
   },
   {
-   "tool": "mcp__worker__browser_type",
+   "tool": "browser_type",
    "input": {},
    "plansDir": null,
    "category": "browserWrite"
   },
   {
-   "tool": "mcp__worker__browser_snapshot_x",
+   "tool": "browser_snapshot_x",
    "input": {},
    "plansDir": null,
    "category": "browserWrite"
@@ -5254,12 +5254,6 @@
    "input": {},
    "plansDir": null,
    "category": "mcp"
-  },
-  {
-   "tool": "browser_snapshot",
-   "input": {},
-   "plansDir": null,
-   "category": "other"
   }
  ],
  "paths": [

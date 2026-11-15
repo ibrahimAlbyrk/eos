@@ -24,13 +24,11 @@ export const STANDALONE_TOOLS = new Set([
   "Skill",
   "EnterPlanMode",
   "ExitPlanMode",
-  "mcp__orchestrator__notify_user",
-  "mcp__worker__send_message_to_parent",
+  "notify_user",
+  "send_message_to_parent",
   // Visual answers render as "view" blocks (content, not tool rows).
-  "mcp__orchestrator__present",
-  "mcp__worker__present",
-  "mcp__orchestrator__present_app",
-  "mcp__worker__present_app",
+  "present",
+  "present_app",
   // A Workflow run renders as a "workflow" block (its live run card).
   "Workflow",
 ]);
@@ -453,8 +451,8 @@ export function buildBlocks(rawEvents) {
     // The agent's emoji and its choice to say nothing show as the chip on the
     // message, never as a tool row.
     if (isReactionTool(tool.name)) return;
-    if (tool.name === "mcp__worker__respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
-    if (tool.name === "mcp__worker__ask_peer") lastAskPeer = tool;
+    if (tool.name === "respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
+    if (tool.name === "ask_peer") lastAskPeer = tool;
     // A present / present_app call is the agent's answer, shown as a view.
     if (isGenuiTool(tool.name)) {
       flushTools();
@@ -890,7 +888,7 @@ export function buildSummary(tools) {
     else if (t.name === "Skill") skills++;
     else if (t.name === "WebSearch") webSearches++;
     else if (t.name === "WebFetch") webFetches++;
-    else if (t.name === "mcp__orchestrator__notify_user") notifies++;
+    else if (t.name === "notify_user") notifies++;
     else if (t.name === "Bash") {
       const actions = gitActions(t);
       if (actions.length === 0) { shells++; continue; }

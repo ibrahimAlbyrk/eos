@@ -3,7 +3,7 @@ import { needsAttention, sigOf } from "../lib/agentAttention.js";
 import { _reset, isQuietTurn, noteReactionTold, subscribeQuietTurns, syncQuietTurns } from "./quietTurns.js";
 
 const row = (payload) => ({ id: 1, type: "agent_event", ts: 1, payload: JSON.stringify(payload) });
-const silentTail = [row({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "n", name: "mcp__worker__no_reply", input: {} }] })];
+const silentTail = [row({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "n", name: "no_reply", input: {} }] })];
 const spokenTail = [row({ type: "message", role: "assistant", blocks: [{ type: "text", text: "Deleted." }] })];
 const worker = (state, tokens = 0) => ({ id: "w1", state, tokens_in: tokens, tokens_out: 0, tool_calls: 0, cost_usd: 0 });
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));

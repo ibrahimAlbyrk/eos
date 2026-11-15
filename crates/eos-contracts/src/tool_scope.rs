@@ -3,20 +3,58 @@
 
 use crate::builtin_tools::names;
 
-/// MCP servers whose tools change orchestration state: only the main agent
-/// loop may call them, never a subagent.
-pub const EOS_BUILTIN_MCP_SERVERS: &[&str] = &["orchestrator", "worker", "gateway"];
+/// Eos's own tools besides the `browser_*` verbs. They change orchestration
+/// state: only the main agent loop may call them, never a subagent.
+pub const EOS_CONTROL_TOOLS: &[&str] = &[
+    "spawn_worker",
+    "list_active_workers",
+    "get_worker",
+    "kill_worker",
+    "message_worker",
+    "list_pending_permissions",
+    "notify_user",
+    "ask_user",
+    "list_available_workers",
+    "create_worker",
+    "integrate_workers",
+    "current_datetime",
+    "get_worker_messages",
+    "send_message_to_parent",
+    "list_peers",
+    "ask_peer",
+    "respond_to_peer",
+    "list_pages",
+    "read_page",
+    "create_page",
+    "append_to_page",
+    "edit_page",
+    "set_page_task",
+    "search_memory",
+    "suggest_memory",
+    "plugin_status",
+    "plugin_preview",
+    "present",
+    "present_app",
+    "find_places",
+    "current_location",
+    "send_to_machine",
+    "react",
+    "no_reply",
+];
 
 pub fn is_eos_control_tool(tool_name: &str) -> bool {
-    EOS_BUILTIN_MCP_SERVERS.iter().any(|server| {
-        tool_name.strip_prefix("mcp__").and_then(|r| r.strip_prefix(server)).is_some_and(|r| r.starts_with("__"))
-    })
+    is_browser_tool(tool_name) || EOS_CONTROL_TOOLS.contains(&tool_name)
 }
 
-/// The `browser_*` verbs sit on the control servers but drive a real browser,
+/// The `browser_*` verbs are Eos's own tools too but drive a real browser,
 /// so a worker definition's tool scope can fence them off.
 pub fn is_browser_tool(tool_name: &str) -> bool {
-    ["mcp__worker__browser_", "mcp__orchestrator__browser_"].iter().any(|p| tool_name.starts_with(p))
+    tool_name.starts_with("browser_")
+}
+
+/// The tools that put a visual answer in the chat.
+pub fn is_view_tool(tool_name: &str) -> bool {
+    matches!(tool_name, "present" | "present_app")
 }
 
 pub const BLOCKED_BUILTIN_TOOLS: &[&str] = &["AskUserQuestion", "Workflow"];
@@ -24,7 +62,7 @@ pub const BLOCKED_BUILTIN_TOOLS: &[&str] = &["AskUserQuestion", "Workflow"];
 pub fn blocked_builtin_tool_message(tool_name: &str) -> String {
     match tool_name {
         "AskUserQuestion" => "AskUserQuestion is disabled in Eos — its native menu has no answer surface here. \
-             Orchestrator: ask the operator via mcp__orchestrator__ask_user. \
+             Orchestrator: ask the operator via ask_user. \
              Worker: proceed on your best judgment or report `needs input: <ask>` to your parent."
             .to_owned(),
         "Workflow" => "The built-in Workflow tool is disabled in Eos.".to_owned(),
@@ -54,12 +92,14 @@ mod tests {
 
     #[test]
     fn control_and_browser_tools() {
-        assert!(is_eos_control_tool("mcp__orchestrator__spawn_worker"));
-        assert!(is_eos_control_tool("mcp__gateway__x"));
-        assert!(!is_eos_control_tool("mcp__orchestratorx__spawn"));
+        assert!(is_eos_control_tool("spawn_worker"));
+        assert!(is_eos_control_tool("browser_click"));
+        assert!(!is_eos_control_tool("mcp__github__spawn_worker"));
         assert!(!is_eos_control_tool("Bash"));
-        assert!(is_browser_tool("mcp__worker__browser_click"));
-        assert!(!is_browser_tool("mcp__gateway__browser_click"));
+        assert!(is_browser_tool("browser_click"));
+        assert!(!is_browser_tool("mcp__github__browser_click"));
+        assert!(is_view_tool("present_app"));
+        assert!(!is_view_tool("mcp__slides__present"));
     }
 
     #[test]

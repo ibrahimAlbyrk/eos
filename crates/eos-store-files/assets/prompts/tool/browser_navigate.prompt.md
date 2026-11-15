@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_navigate"
+description: "Tool — browser_navigate"
 variables:
   - BROWSER_SNAPSHOT_TOOL
   - BROWSER_NEW_TAB_TOOL

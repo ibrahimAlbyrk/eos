@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_screenshot"
+description: "Tool — browser_screenshot"
 variables:
   - BROWSER_SNAPSHOT_TOOL
 ---

@@ -201,7 +201,7 @@ export function AskUserQuestionDetail({ tool }) {
   );
 }
 
-// ask_user (orchestrator MCP) — input mirrors AskUserQuestion's shape, but the
+// ask_user (orchestrator tool) — input mirrors AskUserQuestion's shape, but the
 // result is the tool's own JSON ({answers: {question: label}}) or, when the
 // operator dismissed / the question went stale, a plain sentence.
 export function AskUserDetail({ tool }) {
@@ -324,7 +324,7 @@ export function NotifyDetail({ tool }) {
   );
 }
 
-// current_datetime (worker + orchestrator MCP) — the device's wall-clock time.
+// current_datetime — the device's wall-clock time.
 // The tool returns the full {epochMs,iso,utc,timeZone,utcOffsetMinutes,formatted}
 // object; only the ready-to-show `formatted` string is surfaced (the header shows
 // it too — this body only renders when opened on a failed call).
@@ -357,7 +357,7 @@ export function DatetimeDetail({ tool }) {
 
 const BODY_PREVIEW_LINES = 12;
 
-// create_worker (orchestrator MCP) — the new-worker blueprint: its axis
+// create_worker (orchestrator tool) — the new-worker blueprint: its axis
 // defaults (chips), tool capability boundary (allow/deny globs + editRegex) and
 // instructions body. The input IS the artifact, so this renders fully while the
 // call is still running; the result is only { name }.
@@ -432,7 +432,7 @@ export function CreateWorkerDetail({ tool }) {
   );
 }
 
-// list_available_workers (orchestrator MCP) — the spawnable catalog: each available-worker name,
+// list_available_workers (orchestrator tool) — the spawnable catalog: each available-worker name,
 // provenance badge (builtin/user/project/runtime) and routing signal (whenToUse).
 export function AvailableWorkersDetail({ tool }) {
   if (tool.result?.isError) {
@@ -871,7 +871,7 @@ export function MessageDetail({ tool }) {
   );
 }
 
-// ask_peer (worker MCP) — a consultation: the question asked + the peer's
+// ask_peer (worker tool) — a consultation: the question asked + the peer's
 // answer (the tool result). Same Q→A chrome as ask_user.
 export function PeerAskDetail({ tool }) {
   if (tool.result?.isError) {
@@ -893,7 +893,7 @@ export function PeerAskDetail({ tool }) {
   );
 }
 
-// respond_to_peer (worker MCP) — the answer this worker gave a peer, in the
+// respond_to_peer (worker tool) — the answer this worker gave a peer, in the
 // same report-detail body as send_message_to_parent.
 export function PeerRespondDetail({ tool }) {
   const answer = tool.input?.answer ?? "";
@@ -904,7 +904,7 @@ export function PeerRespondDetail({ tool }) {
   );
 }
 
-// list_peers (worker MCP) — the consultable peer roster (name · state, with the
+// list_peers (worker tool) — the consultable peer roster (name · state, with the
 // specialty summary), same plain-text rows as the worker-management tools.
 export function PeerListDetail({ tool }) {
   if (tool.result?.isError) {

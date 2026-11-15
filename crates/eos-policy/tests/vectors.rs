@@ -181,6 +181,7 @@ fn category_name(category: ToolCategory) -> &'static str {
         ToolCategory::BrowserRead => "browserRead",
         ToolCategory::BrowserWrite => "browserWrite",
         ToolCategory::Mcp => "mcp",
+        ToolCategory::Eos => "eos",
         ToolCategory::Network => "network",
         ToolCategory::Other => "other",
     }

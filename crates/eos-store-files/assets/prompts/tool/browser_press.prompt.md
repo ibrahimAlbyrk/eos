@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_press"
+description: "Tool — browser_press"
 variables:
   - BROWSER_TYPE_TOOL
 ---

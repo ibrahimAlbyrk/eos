@@ -12,12 +12,12 @@ import { AgentLink } from "./AgentLink.jsx";
 // `detail` → plain-text body. `rows` → a worker-keyed row list rendered with
 // clickable AgentLinks (and serialized to the same text for the expand gate).
 const BODIES = {
-  mcp__orchestrator__spawn_worker: { detail: (t) => t.input?.prompt ?? "" },
-  mcp__orchestrator__kill_worker: { detail: killWorkerDetail },
-  mcp__orchestrator__message_worker: { detail: (t) => t.input?.text ?? "" },
-  mcp__orchestrator__get_worker: { detail: getWorkerDetail },
-  mcp__orchestrator__list_active_workers: { rows: listWorkersRows, emptyText: "No workers." },
-  mcp__orchestrator__list_pending_permissions: { rows: pendingRows, emptyText: "No pending permissions." },
+  spawn_worker: { detail: (t) => t.input?.prompt ?? "" },
+  kill_worker: { detail: killWorkerDetail },
+  message_worker: { detail: (t) => t.input?.text ?? "" },
+  get_worker: { detail: getWorkerDetail },
+  list_active_workers: { rows: listWorkersRows, emptyText: "No workers." },
+  list_pending_permissions: { rows: pendingRows, emptyText: "No pending permissions." },
 };
 
 // The expanded body text for a worker tool — error text when the call failed,

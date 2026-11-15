@@ -1,10 +1,9 @@
 // What a present / present_app tool call says, read the same way by the
-// transcript parser, the ViewBlock and the side panel. Every lane names Eos
-// tools mcp__orchestrator__<tool> or mcp__worker__<tool>.
+// transcript parser, the ViewBlock and the side panel.
 
 import { parsePartialJson } from "../../shared/genui/partial-json.ts";
 
-const TOOL_RE = /^mcp__(?:orchestrator|worker)__(present|present_app)$/;
+const TOOL_RE = /^(present|present_app)$/;
 const VIEW_ID_IN_TEXT = /\bview (v_[A-Za-z0-9]{12})\b/;
 
 export const GENUI_OFF_TEXT = "Visual answers are off — answer in text";

@@ -16,7 +16,7 @@ describe("messageParser — view blocks", () => {
   it("a present call becomes a view block carrying its input and result", () => {
     const blocks = buildBlocks([
       ev("user_message", { text: "find a place" }, 1),
-      assistant([{ type: "tool_call", callId: "c1", name: "mcp__orchestrator__present", input: spec }], 2),
+      assistant([{ type: "tool_call", callId: "c1", name: "present", input: spec }], 2),
       toolMsg([{ type: "tool_result", callId: "c1", content: "view v_abcdefghijkl rendered · 6 places", isError: false }], 3),
       turnEnd(4),
     ]);
@@ -31,7 +31,7 @@ describe("messageParser — view blocks", () => {
     const blocks = buildBlocks([
       assistant([
         { type: "tool_call", callId: "r1", name: "Read", input: { file_path: "/a" } },
-        { type: "tool_call", callId: "a1", name: "mcp__worker__present_app", input: { title: "App", html: "<p>x</p>", summary: "s" } },
+        { type: "tool_call", callId: "a1", name: "present_app", input: { title: "App", html: "<p>x</p>", summary: "s" } },
         { type: "tool_call", callId: "r2", name: "Read", input: { file_path: "/b" } },
       ], 1),
     ]);
@@ -49,7 +49,7 @@ describe("messageParser — view blocks", () => {
 
 describe("turnFold — views stay pinned", () => {
   const key = (b, i) => `${b.kind}-${i}`;
-  const view = { kind: "view", tool: { id: "c1", name: "mcp__orchestrator__present" }, ts: 3 };
+  const view = { kind: "view", tool: { id: "c1", name: "present" }, ts: 3 };
   const ended = { starts: [0], lastEnd: 5 };
 
   it("a finished turn folds its tools; the view and the reply stay in view", () => {

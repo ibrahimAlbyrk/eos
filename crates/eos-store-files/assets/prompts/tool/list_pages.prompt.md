@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — list_pages"
+description: "Tool — list_pages"
 variables:
   - READ_PAGE_TOOL
 ---

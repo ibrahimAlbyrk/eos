@@ -6,7 +6,7 @@ const result = (v) => ({ result: { text: JSON.stringify(v) } });
 describe("workerToolDetailText", () => {
   it("lists workers with resolved name, state and prompt", () => {
     const tool = {
-      name: "mcp__orchestrator__list_active_workers",
+      name: "list_active_workers",
       ...result([
         { id: "w1", state: "idle", prompt: "Add billing tests" },
         { id: "w2", state: "running", prompt: "Fix the auth bug" },
@@ -20,7 +20,7 @@ describe("workerToolDetailText", () => {
 
   it("prefers the name carried in the result over live resolution", () => {
     const tool = {
-      name: "mcp__orchestrator__list_active_workers",
+      name: "list_active_workers",
       ...result([{ id: "w9", name: "refactor-auth", state: "completed", prompt: "Rotate tokens" }]),
     };
     // No live worker for w9 — the embedded name must still show (not the id).
@@ -30,15 +30,15 @@ describe("workerToolDetailText", () => {
   });
 
   it("renders informative empty states for the list tools", () => {
-    expect(workerToolDetailText({ name: "mcp__orchestrator__list_active_workers", ...result([]) }, [])).toBe("No workers.");
+    expect(workerToolDetailText({ name: "list_active_workers", ...result([]) }, [])).toBe("No workers.");
     expect(
-      workerToolDetailText({ name: "mcp__orchestrator__list_pending_permissions", ...result([]) }, []),
+      workerToolDetailText({ name: "list_pending_permissions", ...result([]) }, []),
     ).toBe("No pending permissions.");
   });
 
   it("summarizes get_worker state, cost, event count and prompt", () => {
     const tool = {
-      name: "mcp__orchestrator__get_worker",
+      name: "get_worker",
       ...result({ worker: { state: "idle", branch: "eos-x", cost_usd: 0.0421, prompt: "Do the thing" }, events: [1, 2, 3] }),
     };
     const out = workerToolDetailText(tool);
@@ -49,13 +49,13 @@ describe("workerToolDetailText", () => {
   });
 
   it("shows the final state for kill_worker", () => {
-    const tool = { name: "mcp__orchestrator__kill_worker", ...result({ state: "killed", branch: "eos-x" }) };
+    const tool = { name: "kill_worker", ...result({ state: "killed", branch: "eos-x" }) };
     expect(workerToolDetailText(tool)).toBe("killed · eos-x");
   });
 
   it("summarizes pending permissions with name, tool and input", () => {
     const tool = {
-      name: "mcp__orchestrator__list_pending_permissions",
+      name: "list_pending_permissions",
       ...result([{ worker_id: "w1", tool: "Bash", input: { command: "rm -rf node_modules" } }]),
     };
     const out = workerToolDetailText(tool, [{ id: "w1", name: "cleaner" }]);
@@ -64,7 +64,7 @@ describe("workerToolDetailText", () => {
   });
 
   it("returns the error text when the call failed", () => {
-    const tool = { name: "mcp__orchestrator__get_worker", result: { isError: true, text: "worker not found" } };
+    const tool = { name: "get_worker", result: { isError: true, text: "worker not found" } };
     expect(workerToolDetailText(tool)).toBe("worker not found");
   });
 });
@@ -74,7 +74,7 @@ describe("workerIdentity", () => {
   // name must come from the tool's durable result snapshot — never the raw id.
   it("resolves kill_worker name from the result after the worker is gone", () => {
     const tool = {
-      name: "mcp__orchestrator__kill_worker",
+      name: "kill_worker",
       input: { id: "w-dead" },
       ...result({ killed: [], removed: true, was_state: "WORKING", id: "w-dead", name: "refactor-auth" }),
     };
@@ -83,7 +83,7 @@ describe("workerIdentity", () => {
 
   it("resolves message_worker name from the result after the worker is gone", () => {
     const tool = {
-      name: "mcp__orchestrator__message_worker",
+      name: "message_worker",
       input: { id: "w-dead", text: "do more" },
       ...result({ ok: true, id: "w-dead", name: "add-tests" }),
     };
@@ -92,7 +92,7 @@ describe("workerIdentity", () => {
 
   it("resolves get_worker name from the nested worker in the result", () => {
     const tool = {
-      name: "mcp__orchestrator__get_worker",
+      name: "get_worker",
       input: { id: "w-dead" },
       ...result({ worker: { id: "w-dead", name: "fix-bug", state: "DONE" }, events: [] }),
     };
@@ -101,7 +101,7 @@ describe("workerIdentity", () => {
 
   it("prefers the live name (picks up renames) while the worker still exists", () => {
     const tool = {
-      name: "mcp__orchestrator__kill_worker",
+      name: "kill_worker",
       input: { id: "w1" },
       ...result({ id: "w1", name: "stale-name" }),
     };
@@ -109,7 +109,7 @@ describe("workerIdentity", () => {
   });
 
   it("falls back to the id only when no input, live, or result name exists", () => {
-    const tool = { name: "mcp__orchestrator__kill_worker", input: { id: "w-x" }, ...result({ killed: [], removed: true }) };
+    const tool = { name: "kill_worker", input: { id: "w-x" }, ...result({ killed: [], removed: true }) };
     expect(workerIdentity(tool, [])).toEqual({ id: "w-x", name: "w-x" });
   });
 });

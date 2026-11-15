@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — list_pending_permissions"
+description: "Tool — list_pending_permissions"
 ---
 
 List permission requests from your workers currently waiting for human approval — tool calls that hit a policy 'ask' rule.

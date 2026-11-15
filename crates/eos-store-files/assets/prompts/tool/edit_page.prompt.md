@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — edit_page"
+description: "Tool — edit_page"
 variables:
   - READ_PAGE_TOOL
   - APPEND_TO_PAGE_TOOL

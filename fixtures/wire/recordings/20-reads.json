@@ -1603,7 +1603,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — append_to_page",
+              "description": "Tool — append_to_page",
               "id": "tool/append_to_page",
               "layer": null,
               "priority": null,
@@ -1611,7 +1611,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — ask_peer",
+              "description": "Tool — ask_peer",
               "id": "tool/ask_peer",
               "layer": null,
               "priority": null,
@@ -1622,7 +1622,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — ask_user",
+              "description": "Tool — ask_user",
               "id": "tool/ask_user",
               "layer": null,
               "priority": null,
@@ -1632,7 +1632,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_act",
+              "description": "Tool — browser_act",
               "id": "tool/browser_act",
               "layer": null,
               "priority": null,
@@ -1643,7 +1643,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_close_tab",
+              "description": "Tool — browser_close_tab",
               "id": "tool/browser_close_tab",
               "layer": null,
               "priority": null,
@@ -1653,7 +1653,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_fill_form",
+              "description": "Tool — browser_fill_form",
               "id": "tool/browser_fill_form",
               "layer": null,
               "priority": null,
@@ -1663,7 +1663,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_find",
+              "description": "Tool — browser_find",
               "id": "tool/browser_find",
               "layer": null,
               "priority": null,
@@ -1674,7 +1674,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_get",
+              "description": "Tool — browser_get",
               "id": "tool/browser_get",
               "layer": null,
               "priority": null,
@@ -1682,7 +1682,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_mute",
+              "description": "Tool — browser_mute",
               "id": "tool/browser_mute",
               "layer": null,
               "priority": null,
@@ -1690,7 +1690,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_navigate",
+              "description": "Tool — browser_navigate",
               "id": "tool/browser_navigate",
               "layer": null,
               "priority": null,
@@ -1701,7 +1701,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_new_tab",
+              "description": "Tool — browser_new_tab",
               "id": "tool/browser_new_tab",
               "layer": null,
               "priority": null,
@@ -1709,7 +1709,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_press",
+              "description": "Tool — browser_press",
               "id": "tool/browser_press",
               "layer": null,
               "priority": null,
@@ -1719,7 +1719,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_screenshot",
+              "description": "Tool — browser_screenshot",
               "id": "tool/browser_screenshot",
               "layer": null,
               "priority": null,
@@ -1729,7 +1729,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_scroll",
+              "description": "Tool — browser_scroll",
               "id": "tool/browser_scroll",
               "layer": null,
               "priority": null,
@@ -1739,7 +1739,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_show",
+              "description": "Tool — browser_show",
               "id": "tool/browser_show",
               "layer": null,
               "priority": null,
@@ -1747,7 +1747,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_snapshot",
+              "description": "Tool — browser_snapshot",
               "id": "tool/browser_snapshot",
               "layer": null,
               "priority": null,
@@ -1758,7 +1758,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_tabs",
+              "description": "Tool — browser_tabs",
               "id": "tool/browser_tabs",
               "layer": null,
               "priority": null,
@@ -1766,7 +1766,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_type",
+              "description": "Tool — browser_type",
               "id": "tool/browser_type",
               "layer": null,
               "priority": null,
@@ -1776,7 +1776,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — browser_wait",
+              "description": "Tool — browser_wait",
               "id": "tool/browser_wait",
               "layer": null,
               "priority": null,
@@ -1784,7 +1784,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — create_page",
+              "description": "Tool — create_page",
               "id": "tool/create_page",
               "layer": null,
               "priority": null,
@@ -1800,7 +1800,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — current_datetime",
+              "description": "Tool — current_datetime",
               "id": "tool/current_datetime",
               "layer": null,
               "priority": null,
@@ -1808,7 +1808,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — current_location",
+              "description": "Tool — current_location",
               "id": "tool/current_location",
               "layer": null,
               "priority": null,
@@ -1818,7 +1818,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — dynamic_loop",
+              "description": "Tool — dynamic_loop",
               "id": "tool/dynamic_loop",
               "layer": null,
               "priority": null,
@@ -1829,7 +1829,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — edit_page",
+              "description": "Tool — edit_page",
               "id": "tool/edit_page",
               "layer": null,
               "priority": null,
@@ -1841,7 +1841,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — find_places",
+              "description": "Tool — find_places",
               "id": "tool/find_places",
               "layer": null,
               "priority": null,
@@ -1852,7 +1852,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — get_worker",
+              "description": "Tool — get_worker",
               "id": "tool/get_worker",
               "layer": null,
               "priority": null,
@@ -1864,7 +1864,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — get_worker_messages",
+              "description": "Tool — get_worker_messages",
               "id": "tool/get_worker_messages",
               "layer": null,
               "priority": null,
@@ -1874,7 +1874,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — integrate_workers",
+              "description": "Tool — integrate_workers",
               "id": "tool/integrate_workers",
               "layer": null,
               "priority": null,
@@ -1885,7 +1885,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — kill_worker",
+              "description": "Tool — kill_worker",
               "id": "tool/kill_worker",
               "layer": null,
               "priority": null,
@@ -1896,7 +1896,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — list_active_workers",
+              "description": "Tool — list_active_workers",
               "id": "tool/list_active_workers",
               "layer": null,
               "priority": null,
@@ -1918,7 +1918,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — list_pages",
+              "description": "Tool — list_pages",
               "id": "tool/list_pages",
               "layer": null,
               "priority": null,
@@ -1928,7 +1928,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — list_peers",
+              "description": "Tool — list_peers",
               "id": "tool/list_peers",
               "layer": null,
               "priority": null,
@@ -1938,7 +1938,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — list_pending_permissions",
+              "description": "Tool — list_pending_permissions",
               "id": "tool/list_pending_permissions",
               "layer": null,
               "priority": null,
@@ -1946,7 +1946,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — message_worker",
+              "description": "Tool — message_worker",
               "id": "tool/message_worker",
               "layer": null,
               "priority": null,
@@ -1958,7 +1958,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — notify_user",
+              "description": "Tool — notify_user",
               "id": "tool/notify_user",
               "layer": null,
               "priority": null,
@@ -1968,7 +1968,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — plugin_preview",
+              "description": "Tool — plugin_preview",
               "id": "tool/plugin_preview",
               "layer": null,
               "priority": null,
@@ -1976,7 +1976,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — plugin_status",
+              "description": "Tool — plugin_status",
               "id": "tool/plugin_status",
               "layer": null,
               "priority": null,
@@ -1984,7 +1984,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — present",
+              "description": "Tool — present",
               "id": "tool/present",
               "layer": null,
               "priority": null,
@@ -1994,7 +1994,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — present_app",
+              "description": "Tool — present_app",
               "id": "tool/present_app",
               "layer": null,
               "priority": null,
@@ -2004,7 +2004,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — read_page",
+              "description": "Tool — read_page",
               "id": "tool/read_page",
               "layer": null,
               "priority": null,
@@ -2012,7 +2012,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — respond_to_peer",
+              "description": "Tool — respond_to_peer",
               "id": "tool/respond_to_peer",
               "layer": null,
               "priority": null,
@@ -2022,7 +2022,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — search_memory",
+              "description": "Tool — search_memory",
               "id": "tool/search_memory",
               "layer": null,
               "priority": null,
@@ -2030,7 +2030,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — send_message_to_parent",
+              "description": "Tool — send_message_to_parent",
               "id": "tool/send_message_to_parent",
               "layer": null,
               "priority": null,
@@ -2038,7 +2038,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — send_to_machine",
+              "description": "Tool — send_to_machine",
               "id": "tool/send_to_machine",
               "layer": null,
               "priority": null,
@@ -2046,7 +2046,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — set_page_task",
+              "description": "Tool — set_page_task",
               "id": "tool/set_page_task",
               "layer": null,
               "priority": null,
@@ -2054,7 +2054,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — spawn_worker",
+              "description": "Tool — spawn_worker",
               "id": "tool/spawn_worker",
               "layer": null,
               "priority": null,
@@ -2071,7 +2071,7 @@
             },
             {
               "conditional": false,
-              "description": "MCP tool — suggest_memory",
+              "description": "Tool — suggest_memory",
               "id": "tool/suggest_memory",
               "layer": null,
               "priority": null,
@@ -3329,7 +3329,7 @@
           },
           {
             "id": 665,
-            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_spawn_1\",\"name\":\"mcp__orchestrator__spawn_worker\",\"input\":{\"from\":\"general-purpose\",\"prompt\":\"Implement the --json flag in cli.js.\",\"name\":\"json flag impl\"}}]}",
+            "payload": "{\"type\":\"message\",\"role\":\"assistant\",\"model\":\"claude-opus-5-5\",\"blocks\":[{\"type\":\"tool_call\",\"callId\":\"call_spawn_1\",\"name\":\"spawn_worker\",\"input\":{\"from\":\"general-purpose\",\"prompt\":\"Implement the --json flag in cli.js.\",\"name\":\"json flag impl\"}}]}",
             "ts": 1790000200200,
             "type": "agent_event",
             "worker_id": "o-ORCH"

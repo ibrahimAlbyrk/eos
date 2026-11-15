@@ -128,11 +128,10 @@ describe("the rest of the tab", () => {
 
 describe("send_to_machine in the chat", () => {
   it("says what went where, and finds the transfer to follow in the answer", () => {
-    const view = getToolView("mcp__worker__send_to_machine");
+    const view = getToolView("send_to_machine");
     expect(view.label({ input: { paths: ["/p/builds/web.zip", "notes.md"], machine: "MacBook Air" } })).toEqual({ verb: "Sent", file: "web.zip, notes.md → MacBook Air" });
     expect(view.runningLabel({ input: { paths: ["out"], machine: "Air" } }).verb).toBe("Sending");
     expect(transferIdOf("Sent web.zip (39 MB) to MacBook Air: /Users/me/Downloads/Eos/web.zip (tr-0000aaaa)")).toBe("tr-0000aaaa");
     expect(transferIdOf("Sending failed")).toBe(null);
-    expect(getToolView("mcp__orchestrator__send_to_machine").label({ name: "mcp__orchestrator__send_to_machine", input: {} }).verb).toBe("Used");
   });
 });

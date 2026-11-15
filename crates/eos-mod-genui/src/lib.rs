@@ -27,6 +27,7 @@ mod settings_routes;
 
 use std::sync::Arc;
 
+use eos_contracts::tool_scope::is_view_tool;
 use eos_contracts::{GenuiChange, GenuiDelta};
 use eos_core::agent::ToolInputDelta;
 use eos_core::genui::{Places, UserLocation, VisualAnswers};
@@ -51,14 +52,6 @@ pub const GENUI_CHANGE: Topic<GenuiChange> = Topic::new(eos_genui::wire::TOPIC_C
 /// Never stored; a tab hears it only for the workers it has on screen.
 pub const GENUI_DELTA: Topic<GenuiDelta> =
     Topic::scoped(eos_genui::wire::TOPIC_DELTA, ScopeKind::Worker, |delta| Some(delta.worker_id.as_str()));
-
-/// Only Eos's own servers: another MCP server's `present` is an ordinary tool.
-const FOLLOWED_TOOLS: [&str; 4] = [
-    "mcp__orchestrator__present",
-    "mcp__orchestrator__present_app",
-    "mcp__worker__present",
-    "mcp__worker__present_app",
-];
 
 /// What the feature is built from.
 #[derive(Clone)]
@@ -174,7 +167,7 @@ impl Module for GenuiModule {
     }
 
     fn follows_tool_input(&self, tool: &str) -> bool {
-        FOLLOWED_TOOLS.contains(&tool)
+        is_view_tool(tool)
     }
 
     fn on_tool_input_delta(&self, worker_id: &str, delta: &ToolInputDelta) {

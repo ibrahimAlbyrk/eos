@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — get_worker"
+description: "Tool — get_worker"
 variables:
   - GET_WORKER_TOOL
   - GET_WORKER_MESSAGES_TOOL

@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — kill_worker"
+description: "Tool — kill_worker"
 variables:
   - LIST_PENDING_PERMISSIONS_TOOL
   - INTEGRATE_WORKERS_TOOL

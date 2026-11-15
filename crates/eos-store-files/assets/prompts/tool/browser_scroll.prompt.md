@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_scroll"
+description: "Tool — browser_scroll"
 variables:
   - BROWSER_SNAPSHOT_TOOL
 ---

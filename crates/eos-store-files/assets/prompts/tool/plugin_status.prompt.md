@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — plugin_status"
+description: "Tool — plugin_status"
 ---
 
 Where an Eos plugin stands. Eos plugins change Eos's own interface (header widgets, sidebar tabs, side-panel tabs); load the `eos-plugin-authoring` skill before writing one.

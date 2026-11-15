@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — present_app"
+description: "Tool — present_app"
 variables:
   - PRESENT_TOOL
 ---

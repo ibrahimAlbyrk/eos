@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — browser_close_tab"
+description: "Tool — browser_close_tab"
 variables:
   - BROWSER_TABS_TOOL
 ---

@@ -89,7 +89,7 @@ function expectNoBrokenParts(html) {
 
 describe("Main board — restaurants", () => {
   const VIEW = "v_restaurants1";
-  const html = () => render(viewBlock("mcp__orchestrator__present", restaurants, VIEW));
+  const html = () => render(viewBlock("present", restaurants, VIEW));
 
   it("renders the view chrome: tone, icon tile, title, count meta, expand", () => {
     const h = html();
@@ -157,7 +157,7 @@ describe("Main board — restaurants", () => {
 
 describe("Trip board", () => {
   const VIEW = "v_tripizmir123";
-  const html = () => render(viewBlock("mcp__orchestrator__present", trip, VIEW));
+  const html = () => render(viewBlock("present", trip, VIEW));
 
   it("day tabs drive the route map and the timeline; budget, weather, checklist, callout", () => {
     const h = html();
@@ -188,7 +188,7 @@ describe("Trip board", () => {
 
 describe("Tests board", () => {
   const VIEW = "v_testrun12345";
-  const html = () => render(viewBlock("mcp__orchestrator__present", tests, VIEW));
+  const html = () => render(viewBlock("present", tests, VIEW));
 
   it("KPI stats, the failures disclosure with its trace and file, and the run actions", () => {
     const h = html();
@@ -226,7 +226,7 @@ describe("Tests board", () => {
 
 describe("Learn board", () => {
   const VIEW = "v_learnmerge12";
-  const html = () => render(viewBlock("mcp__orchestrator__present", learn, VIEW));
+  const html = () => render(viewBlock("present", learn, VIEW));
 
   it("a stepper per mode, the compare table and the quiz", () => {
     const h = html();
@@ -257,7 +257,7 @@ describe("App board — present_app", () => {
   const VIEW = "v_brewtimer123";
 
   it("frames the agent's app in Eos chrome, sandboxed with no network", () => {
-    const h = render(viewBlock("mcp__worker__present_app", app, VIEW));
+    const h = render(viewBlock("present_app", app, VIEW));
     expect(h).toContain(`data-genui-view="${VIEW}"`);
     expect(h).toContain("APP · SANDBOXED");
     expect(h).toContain(`<span class="gv-app-title" title="${app.title}">${app.title}</span>`);
@@ -283,10 +283,10 @@ describe("streaming and the action loop", () => {
     // Cut right after the Hero closes: Filters, Map and Hero are settled.
     const cut = full.indexOf("</Hero>") + "</Hero>".length;
     expect(cut).toBeGreaterThan(7);
-    applyGenuiDelta({ workerId: WORKER, callId, name: "mcp__orchestrator__present", phase: "start", text: "" });
-    applyGenuiDelta({ workerId: WORKER, callId, name: "mcp__orchestrator__present", phase: "append", text: full.slice(0, cut) });
+    applyGenuiDelta({ workerId: WORKER, callId, name: "present", phase: "start", text: "" });
+    applyGenuiDelta({ workerId: WORKER, callId, name: "present", phase: "append", text: full.slice(0, cut) });
     // What Messages overlays while the call has no durable row yet.
-    const live = { kind: "view", live: true, ts: 2, tool: { id: callId, name: "mcp__orchestrator__present", verb: "read", input: {}, result: null, running: true, done: false, ts: 2 } };
+    const live = { kind: "view", live: true, ts: 2, tool: { id: callId, name: "present", verb: "read", input: {}, result: null, running: true, done: false, ts: 2 } };
     const h = render(live);
     expect(h).toContain('aria-busy="true"');
     expect(h).toContain('class="gv-filters"');
@@ -294,7 +294,7 @@ describe("streaming and the action loop", () => {
     expect(h).not.toContain('class="gv-table"');
     expect(h).not.toContain('aria-label="Open in side panel"');
 
-    const done = render(viewBlock("mcp__orchestrator__present", restaurants, "v_streamedone1"));
+    const done = render(viewBlock("present", restaurants, "v_streamedone1"));
     expect(done).toContain('class="gv-table"');
     expect(done).toContain('aria-label="Open in side panel"');
   });

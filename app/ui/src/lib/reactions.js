@@ -20,7 +20,7 @@ export function isReactableChat(worker) {
   return Boolean(worker) && (worker.is_orchestrator === true || worker.agent_role === "focused");
 }
 
-const TOOL_RE = /^mcp__(?:worker|orchestrator)__(react|no_reply)$/;
+const TOOL_RE = /^(react|no_reply)$/;
 
 // "react" (the agent's emoji on a message), "no_reply" (it chose to say
 // nothing), or null for any other tool.

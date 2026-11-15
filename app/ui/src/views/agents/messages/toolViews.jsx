@@ -220,25 +220,25 @@ register("Skill", {
   Detail: SkillDetail,
 });
 
-register("mcp__orchestrator__ask_user", {
+register("ask_user", {
   label: () => ({ verb: "Asked", file: "user" }),
   runningLabel: () => ({ verb: "Asking", file: "user" }),
   Detail: AskUserDetail,
 });
 
-register("mcp__orchestrator__notify_user", {
+register("notify_user", {
   label: () => ({ verb: "Notified", file: "user" }),
   runningLabel: () => ({ verb: "Notifying", file: "user" }),
   Detail: NotifyDetail,
 });
 
-register("mcp__orchestrator__create_worker", {
+register("create_worker", {
   label: (t) => ({ verb: "Created worker", file: t.input?.name ?? "" }),
   runningLabel: (t) => ({ verb: "Creating worker", file: t.input?.name ?? "" }),
   Detail: CreateWorkerDetail,
 });
 
-register("mcp__orchestrator__list_available_workers", {
+register("list_available_workers", {
   label: (t) => {
     const n = availableWorkersCount(t);
     return { verb: "Listed", file: n != null ? `available workers (${n})` : "available workers" };
@@ -258,13 +258,13 @@ function availableWorkersCount(t) {
   }
 }
 
-register("mcp__worker__send_message_to_parent", {
+register("send_message_to_parent", {
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),
   agentRef: (t, ctx) => (ctx?.parent ? { id: ctx.parent.id, name: ctx.parent.name } : null),
   Detail: MessageDetail,
 });
 
-register("mcp__worker__list_peers", {
+register("list_peers", {
   label: () => ({ verb: "Listed", file: "peers" }),
   runningLabel: () => ({ verb: "Listing", file: "peers" }),
   Detail: PeerListDetail,
@@ -278,7 +278,7 @@ function peerAskTarget(t) {
   return (id !== null || name !== null) ? { id, name } : null;
 }
 
-register("mcp__worker__ask_peer", {
+register("ask_peer", {
   label: (t) => ({ verb: "Asked", file: peerAskTarget(t)?.name ?? "peer" }),
   runningLabel: (t) => ({ verb: "Asking", file: peerAskTarget(t)?.name ?? "peer" }),
   agentRef: (t) => peerAskTarget(t),
@@ -301,30 +301,24 @@ function peerReplyResult(t) {
 }
 const peerReplyTo = (t) => t.peerTo ?? peerReplyResult(t);
 
-register("mcp__worker__respond_to_peer", {
+register("respond_to_peer", {
   label: (t) => ({ verb: "Replied to", file: peerReplyTo(t)?.name ?? "peer" }),
   runningLabel: (t) => ({ verb: "Replying to", file: peerReplyTo(t)?.name ?? "peer" }),
   agentRef: (t) => peerReplyTo(t),
   Detail: PeerRespondDetail,
 });
 
-// current_datetime — same tool on both lanes (worker + orchestrator). The
-// result's ready-to-show `formatted` string IS the header object, so the row
-// never opens unless the call failed.
-for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current_datetime"]) {
-  register(name, {
-    label: (t) => ({ verb: "Checked", file: datetimeFormatted(t) || "date & time" }),
-    runningLabel: () => ({ verb: "Checking", file: "date & time" }),
-    expandable: failed,
-    Detail: DatetimeDetail,
-  });
-}
+// current_datetime — the result's ready-to-show `formatted` string IS the header
+// object, so the row never opens unless the call failed.
+register("current_datetime", {
+  label: (t) => ({ verb: "Checked", file: datetimeFormatted(t) || "date & time" }),
+  runningLabel: () => ({ verb: "Checking", file: "date & time" }),
+  expandable: failed,
+  Detail: DatetimeDetail,
+});
 
-// Page and memory tools — same tools on both lanes; views in ./PageToolViews.jsx
-// and ./MemoryToolViews.jsx.
-for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) {
-  for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, view);
-}
+// Page and memory tools — views in ./PageToolViews.jsx and ./MemoryToolViews.jsx.
+for (const [tool, view] of Object.entries({ ...PAGE_TOOL_VIEWS, ...MEMORY_TOOL_VIEWS })) register(tool, view);
 // Visual answers render as views in the transcript (genui/ViewBlock.jsx); this
 // row is only what a present call looks like where it is listed as a tool.
 const presentView = {
@@ -332,11 +326,9 @@ const presentView = {
   runningLabel: (t) => ({ verb: "Presenting", file: t.input?.title ?? "" }),
   expandable: (t) => failed(t) || Boolean(t.input?.summary),
 };
-for (const tool of ["present", "present_app"]) {
-  for (const server of ["orchestrator", "worker"]) register(`mcp__${server}__${tool}`, presentView);
-}
-// A focused session's send_to_machine — the worker server only; view in ./TransferToolViews.jsx.
-for (const [tool, view] of Object.entries(TRANSFER_TOOL_VIEWS)) register(`mcp__worker__${tool}`, view);
+for (const tool of ["present", "present_app"]) register(tool, presentView);
+// A focused session's send_to_machine — view in ./TransferToolViews.jsx.
+for (const [tool, view] of Object.entries(TRANSFER_TOOL_VIEWS)) register(tool, view);
 
 // Task-management tools (harness built-ins) — the collapsed row says what
 // happened at a glance (subject / #id / count) with a status badge; the bodies
@@ -438,7 +430,7 @@ register("Workflow", {
   runningLabel: (t) => ({ verb: "Starting workflow", file: workflowNameOf(t.input) }),
 });
 
-// Worker-management MCP tools — folded into this registry so every tool
+// Worker-management tools — folded into this registry so every tool
 // dispatches through getToolView. Verbs come from WORKER_TOOL_SPECS (shared with
 // the parser's lane grouping); the body is WorkerToolBody. The expand gate keeps
 // the prior behavior: a row with no detail text (e.g. a still-running call) is
@@ -446,17 +438,17 @@ register("Workflow", {
 // AgentLink (agentRef); the list tools show a count/label instead.
 const workerExpandable = (t, ctx) => workerToolDetailText(t, ctx?.workers).trim().length > 0;
 
-register("mcp__orchestrator__spawn_worker", {
-  label: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.verb, file: "" }),
-  runningLabel: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.running, file: "" }),
+register("spawn_worker", {
+  label: () => ({ verb: WORKER_TOOL_SPECS.spawn_worker.verb, file: "" }),
+  runningLabel: () => ({ verb: WORKER_TOOL_SPECS.spawn_worker.running, file: "" }),
   agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
   expandable: workerExpandable,
   Detail: WorkerToolBody,
 });
 
 for (const name of [
-  "mcp__orchestrator__message_worker",
-  "mcp__orchestrator__get_worker",
+  "message_worker",
+  "get_worker",
 ]) {
   register(name, {
     label: () => ({ verb: WORKER_TOOL_SPECS[name].verb, file: "" }),
@@ -469,16 +461,16 @@ for (const name of [
 
 // kill_worker's body was one "killed · <branch>" line — the header already says
 // Killed, so the branch rides along as the row's meta and the row never opens.
-register("mcp__orchestrator__kill_worker", {
-  label: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__kill_worker.verb, file: "" }),
-  runningLabel: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__kill_worker.running, file: "" }),
+register("kill_worker", {
+  label: () => ({ verb: WORKER_TOOL_SPECS.kill_worker.verb, file: "" }),
+  runningLabel: () => ({ verb: WORKER_TOOL_SPECS.kill_worker.running, file: "" }),
   agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
   summary: killedBranch,
   expandable: failed,
   Detail: WorkerToolBody,
 });
 
-register("mcp__orchestrator__list_active_workers", {
+register("list_active_workers", {
   label: (t) => {
     const n = workerListCount(t);
     return { verb: WORKER_TOOL_SPECS[t.name].verb, file: n != null ? `workers (${n})` : "workers" };
@@ -488,7 +480,7 @@ register("mcp__orchestrator__list_active_workers", {
   Detail: WorkerToolBody,
 });
 
-register("mcp__orchestrator__list_pending_permissions", {
+register("list_pending_permissions", {
   label: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].verb, file: "pending permissions" }),
   runningLabel: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].running, file: "pending permissions" }),
   expandable: workerExpandable,

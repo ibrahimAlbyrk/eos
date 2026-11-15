@@ -1,11 +1,10 @@
 //! The tools Eos gives its agents.
 //!
 //! Each tool is a native host tool over the service it calls: no server, no
-//! request to ourselves. What the model sees of a tool is what it saw
-//! before — the name behind its server's prefix (`mcp__orchestrator__…`,
-//! `mcp__worker__…`), the description rendered from the prompt library, the
-//! input schema, and the result and error texts — and is held to vectors
-//! made by the TypeScript registry (`fixtures/tools`).
+//! request to ourselves. What the model sees of a tool — its name
+//! (`read_page`), the description rendered from the prompt library, the
+//! input schema, and the result and error texts — is held to the vectors in
+//! `fixtures/tools`.
 //!
 //! [`Tools`] is the whole registry and answers which tools a session gets
 //! ([`eos_core::agent::ToolSets`]):

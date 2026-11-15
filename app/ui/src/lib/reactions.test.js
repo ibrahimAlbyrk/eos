@@ -30,10 +30,10 @@ describe("isReactableChat", () => {
 
 describe("the agent's reaction tools", () => {
   it("are told by name on either server", () => {
-    expect(reactionToolKind("mcp__worker__react")).toBe("react");
-    expect(reactionToolKind("mcp__orchestrator__no_reply")).toBe("no_reply");
-    expect(isReactionTool("mcp__orchestrator__react")).toBe(true);
-    expect(isReactionTool("mcp__worker__present")).toBe(false);
+    expect(reactionToolKind("react")).toBe("react");
+    expect(reactionToolKind("no_reply")).toBe("no_reply");
+    expect(isReactionTool("react")).toBe(true);
+    expect(isReactionTool("present")).toBe(false);
     expect(isReactionTool("mcp__other__react")).toBe(false);
     expect(isReactionTool(undefined)).toBe(false);
   });
@@ -41,7 +41,7 @@ describe("the agent's reaction tools", () => {
   it("never show in the transcript: the chip is their whole display", () => {
     const blocks = buildBlocks([
       ev("user_message", { text: "thanks!" }, 1),
-      assistant([call("r1", "mcp__worker__react", { emoji: "❤️" }), call("n1", "mcp__worker__no_reply")], 2),
+      assistant([call("r1", "react", { emoji: "❤️" }), call("n1", "no_reply")], 2),
       toolMsg("r1", 3),
       toolMsg("n1", 4),
       turnEnd(5),
@@ -51,7 +51,7 @@ describe("the agent's reaction tools", () => {
 
   it("leave the tools around them in their group", () => {
     const blocks = buildBlocks([
-      assistant([call("a", "Read", { file_path: "/a" }), call("r", "mcp__orchestrator__react", { emoji: "👍" }), call("b", "Read", { file_path: "/b" })], 1),
+      assistant([call("a", "Read", { file_path: "/a" }), call("r", "react", { emoji: "👍" }), call("b", "Read", { file_path: "/b" })], 1),
     ]);
     expect(blocks).toHaveLength(1);
     expect(blocks[0].tools.map((t) => t.id)).toEqual(["a", "b"]);
@@ -73,16 +73,16 @@ describe("a turn a reaction started", () => {
 
 describe("endedWithNoReply", () => {
   it("is a newest turn whose last act was no_reply", () => {
-    const silent = [assistant([text("Done.")], 1), turnEnd(2), assistant([call("n", "mcp__worker__no_reply")], 3), toolMsg("n", 4), turnEnd(5)];
+    const silent = [assistant([text("Done.")], 1), turnEnd(2), assistant([call("n", "no_reply")], 3), toolMsg("n", 4), turnEnd(5)];
     expect(endedWithNoReply(silent)).toBe(true);
-    const reactedThenSilent = [assistant([call("r", "mcp__worker__react", { emoji: "👍" }), call("n", "mcp__worker__no_reply")], 1), turnEnd(2)];
+    const reactedThenSilent = [assistant([call("r", "react", { emoji: "👍" }), call("n", "no_reply")], 1), turnEnd(2)];
     expect(endedWithNoReply(reactedThenSilent)).toBe(true);
   });
 
   it("is not a turn that said something, used another tool last, or an empty log", () => {
-    expect(endedWithNoReply([assistant([call("n", "mcp__worker__no_reply")], 1), turnEnd(2), assistant([text("On it.")], 3)])).toBe(false);
-    expect(endedWithNoReply([assistant([call("r", "mcp__worker__react", { emoji: "👍" })], 1)])).toBe(false);
-    expect(endedWithNoReply([assistant([call("n", "mcp__worker__no_reply"), text("Deleted.")], 1)])).toBe(false);
+    expect(endedWithNoReply([assistant([call("n", "no_reply")], 1), turnEnd(2), assistant([text("On it.")], 3)])).toBe(false);
+    expect(endedWithNoReply([assistant([call("r", "react", { emoji: "👍" })], 1)])).toBe(false);
+    expect(endedWithNoReply([assistant([call("n", "no_reply"), text("Deleted.")], 1)])).toBe(false);
     expect(endedWithNoReply([ev("user_message", { text: "hi" }, 1)])).toBe(false);
     expect(endedWithNoReply([])).toBe(false);
   });

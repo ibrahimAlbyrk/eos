@@ -105,11 +105,11 @@ describe("buildBlocks skill_body attachment", () => {
 describe("ask_peer peer name linking", () => {
   const askPeer = (toolUseId, peerId, ts) => ({
     type: "tool_running", ts,
-    payload: { toolName: "mcp__worker__ask_peer", toolUseId, input: { peerId, question: "help?" } },
+    payload: { toolName: "ask_peer", toolUseId, input: { peerId, question: "help?" } },
   });
   const askPeerByName = (toolUseId, peerName, ts) => ({
     type: "tool_running", ts,
-    payload: { toolName: "mcp__worker__ask_peer", toolUseId, input: { peerName, question: "help?" } },
+    payload: { toolName: "ask_peer", toolUseId, input: { peerName, question: "help?" } },
   });
   const peerConsult = (toWorker, toName, ts) => ({
     type: "peer_consult", ts, payload: { requestId: "r1", toWorker, toName, question: "help?" },
@@ -514,8 +514,8 @@ describe("buildBlocks standalone tools", () => {
 });
 
 describe("buildBlocks worker-tool lane", () => {
-  const kill = (id, ts) => mainToolUse(id, ts, "mcp__orchestrator__kill_worker");
-  const spawn = (id, ts) => mainToolUse(id, ts, "mcp__orchestrator__spawn_worker");
+  const kill = (id, ts) => mainToolUse(id, ts, "kill_worker");
+  const spawn = (id, ts) => mainToolUse(id, ts, "spawn_worker");
 
   it("collapses consecutive worker tools into one group with a worker summary", () => {
     const blocks = buildBlocks([kill("K1", 100), kill("K2", 101), kill("K3", 102)]);
@@ -549,15 +549,15 @@ describe("buildBlocks worker-tool lane", () => {
 
   it("phrases noun-less worker tools with ×n", () => {
     const t = (name) => ({ name });
-    expect(buildWorkerSummary([t("mcp__orchestrator__list_active_workers"), t("mcp__orchestrator__list_active_workers")])).toBe("Listed workers ×2");
-    expect(buildWorkerSummary([t("mcp__orchestrator__get_worker"), t("mcp__orchestrator__list_pending_permissions")]))
+    expect(buildWorkerSummary([t("list_active_workers"), t("list_active_workers")])).toBe("Listed workers ×2");
+    expect(buildWorkerSummary([t("get_worker"), t("list_pending_permissions")]))
       .toBe("Checked 1 worker, checked pending permissions");
   });
 
   it("groups worker tools arriving via tool_running events", () => {
     const events = [
-      { type: "tool_running", ts: 100, payload: { toolName: "mcp__orchestrator__kill_worker", toolUseId: "K1", input: {} } },
-      { type: "tool_running", ts: 101, payload: { toolName: "mcp__orchestrator__kill_worker", toolUseId: "K2", input: {} } },
+      { type: "tool_running", ts: 100, payload: { toolName: "kill_worker", toolUseId: "K1", input: {} } },
+      { type: "tool_running", ts: 101, payload: { toolName: "kill_worker", toolUseId: "K2", input: {} } },
     ];
     const blocks = buildBlocks(events);
     expect(blocks.map((b) => b.kind)).toEqual(["toolGroup"]);

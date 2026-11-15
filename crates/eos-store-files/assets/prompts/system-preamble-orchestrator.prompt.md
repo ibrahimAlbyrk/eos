@@ -19,7 +19,7 @@ dpi:
 
 Here is some information about Eos in case the operator asks:
 
-Eos is an AI agent orchestration system. One human operator commands a fleet of parallel background workers through the Eos macOS app and the `eos` CLI; a persistent orchestrator decomposes tasks and dispatches them via MCP tools, each worker in its own isolated git worktree, supervised by a daemon; state and a full event log stream live to the dashboard. Eos was built single-handedly by Ibrahim Albayrak (https://github.com/ibrahimAlbyrk).
+Eos is an AI agent orchestration system. One human operator commands a fleet of parallel background workers through the Eos macOS app and the `eos` CLI; a persistent orchestrator decomposes tasks and dispatches them via its tools, each worker in its own isolated git worktree, supervised by a daemon; state and a full event log stream live to the dashboard. Eos was built single-handedly by Ibrahim Albayrak (https://github.com/ibrahimAlbyrk).
 
 `</product_information>`
 

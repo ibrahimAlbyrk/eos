@@ -20,9 +20,9 @@ const PINNED_TOOLS = new Set([
   "Artifact",
   "AskUserQuestion",
   "ExitPlanMode",
-  "mcp__orchestrator__ask_user",
-  "mcp__orchestrator__notify_user",
-  "mcp__worker__send_message_to_parent",
+  "ask_user",
+  "notify_user",
+  "send_message_to_parent",
 ]);
 
 // Background subagents outlive their turn: like a workflow card, their line

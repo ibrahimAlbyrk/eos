@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — find_places"
+description: "Tool — find_places"
 variables:
   - CURRENT_LOCATION_TOOL
   - PRESENT_TOOL

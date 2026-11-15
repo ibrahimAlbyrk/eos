@@ -6,6 +6,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 
 use eos_contracts::stream::topics;
+use eos_contracts::tool_scope::is_view_tool;
 use eos_contracts::{
     AllowVariant, Decision, DenyVariant, ExternalDecision, PolicyBehavior, UnknownRecord, WorkerEventType,
 };
@@ -336,18 +337,11 @@ impl PolicyGateway {
     }
 }
 
-/// A view a subagent presents lands inside its collapsed run, where the user
-/// never sees it.
-fn is_view_tool(tool_name: &str) -> bool {
-    ["mcp__orchestrator__", "mcp__worker__"]
-        .iter()
-        .filter_map(|server| tool_name.strip_prefix(server))
-        .any(|tool| tool == "present" || tool == "present_app")
-}
-
 impl PolicyDecider for PolicyGateway {
     fn decide(&self, call: ToolCall) -> BoxFuture<'_, Result<ExternalDecision, Error>> {
         Box::pin(async move {
+            // A view a subagent presents lands inside its collapsed run,
+            // where the user never sees it.
             if call.agent_id.as_deref().is_some_and(|id| !id.is_empty()) && is_view_tool(&call.tool_name) {
                 return Ok(denied(format!(
                     "{} is main-agent only — return your findings; the main agent presents them.",

@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — send_message_to_parent"
+description: "Tool — send_message_to_parent"
 ---
 
 Send your final report for the current directive to the orchestrator. Call this exactly ONCE per directive cycle, at the end.

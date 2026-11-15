@@ -14,8 +14,8 @@ use eos_engine::{Engine, EngineDeps, EngineOptions};
 use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets, FakeUser, RecordingSink};
 use serde_json::Value;
 
-const TOOL: &str = "mcp__worker__whoami";
-const QUIET: &str = "mcp__worker__no_reply";
+const TOOL: &str = "whoami";
+const QUIET: &str = "no_reply";
 
 /// A tool whose result ends the agent's turn.
 struct Quiet(eos_core::agent::ToolDefinition);

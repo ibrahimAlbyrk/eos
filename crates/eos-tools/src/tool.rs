@@ -14,7 +14,7 @@ use crate::schema::{Schema, issues_text};
 
 /// A tool as the registry lists it.
 pub(crate) struct Spec {
-    /// The bare name (`read_page`); a session sees it behind its server's prefix.
+    /// The name the model calls it by (`read_page`).
     pub(crate) name: &'static str,
     /// The input, an object.
     pub(crate) input: Schema,
@@ -113,20 +113,18 @@ pub(crate) fn args<T: DeserializeOwned>(value: Value) -> Result<T, Failure> {
     serde_json::from_value(value).map_err(|e| Failure(format!("invalid input: {e}")))
 }
 
-/// A registry entry bound to one server's name and its description: what a
-/// session is handed.
+/// A registry entry bound to its description: what a session is handed.
 pub(crate) struct Bound {
     definition: ToolDefinition,
-    bare: &'static str,
     input: Schema,
     handler: Arc<dyn Handler>,
 }
 
 impl Bound {
-    pub(crate) fn new(server: &str, spec: &Spec, description: String) -> Self {
+    pub(crate) fn new(spec: &Spec, description: String) -> Self {
         Self {
             definition: ToolDefinition {
-                name: format!("mcp__{server}__{}", spec.name),
+                name: spec.name.to_owned(),
                 description,
                 input_schema: spec.input.input_schema(),
                 deferred: !spec.always_load,
@@ -135,7 +133,6 @@ impl Bound {
                 // refuses each call), so it is not offered them.
                 main_agent_only: true,
             },
-            bare: spec.name,
             input: spec.input.clone(),
             handler: spec.handler.clone(),
         }
@@ -153,8 +150,8 @@ impl HostTool for Bound {
                 Ok(args) => args,
                 Err(issues) => {
                     return ToolReply::error(format!(
-                        "MCP error -32602: Input validation error: Invalid arguments for tool {}: {}",
-                        self.bare,
+                        "Input validation error: Invalid arguments for tool {}: {}",
+                        self.definition.name,
                         issues_text(&issues)
                     ));
                 }

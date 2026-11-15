@@ -55,23 +55,7 @@ impl std::fmt::Debug for Services {
     }
 }
 
-/// The server a session's tools are named under.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum Server {
-    Orchestrator,
-    Worker,
-}
-
-impl Server {
-    fn name(self) -> &'static str {
-        match self {
-            Server::Orchestrator => "orchestrator",
-            Server::Worker => "worker",
-        }
-    }
-}
-
-/// A tool as one server hands it out, with the description it was built from.
+/// A tool as sessions are handed it, with the description it was built from.
 struct Handed {
     description: String,
     tool: Arc<dyn HostTool>,
@@ -88,8 +72,9 @@ pub struct Tools {
     pub(crate) focused: Vec<Spec>,
     /// The tools handed out so far. A description is rendered anew for each
     /// session (an edited prompt reaches the next one); the tool is rebuilt
-    /// only when its description changed. Bounded by the registry's size.
-    handed: Mutex<HashMap<(Server, &'static str), Handed>>,
+    /// only when its description changed. A name is one tool whichever list
+    /// holds it. Bounded by the registry's size.
+    handed: Mutex<HashMap<&'static str, Handed>>,
 }
 
 impl std::fmt::Debug for Tools {
@@ -157,11 +142,11 @@ impl Tools {
     }
 
     /// The registry entries a session of this kind gets, in order.
-    fn listed(&self, spec: &LaunchSpec) -> (Server, Vec<&Spec>) {
+    fn listed(&self, spec: &LaunchSpec) -> Vec<&Spec> {
         let off = self.plugins.disabled_builtins();
         let on = |tool: &&Spec| tool.plugin.is_none_or(|plugin| !off.iter().any(|id| id == plugin));
         if spec.role == SessionFactsRole::Orchestrator {
-            return (Server::Orchestrator, self.orchestrator.iter().filter(on).collect());
+            return self.orchestrator.iter().filter(on).collect();
         }
         let mut list: Vec<&Spec> = self.worker.iter().collect();
         if spec.collaborate {
@@ -171,13 +156,13 @@ impl Tools {
             list.extend(&self.focused);
         }
         list.retain(on);
-        (Server::Worker, list)
+        list
     }
 }
 
 impl ToolSets for Tools {
     fn for_session(&self, spec: &LaunchSpec) -> Vec<Arc<dyn HostTool>> {
-        let (server, list) = self.listed(spec);
+        let list = self.listed(spec);
         let names: Vec<&str> = list.iter().map(|tool| tool.name).collect();
         // An edited prompt file reaches the next session.
         self.prompts.reload();
@@ -186,20 +171,20 @@ impl ToolSets for Tools {
         list.into_iter()
             .zip(descriptions)
             .map(|(tool, (_, description))| {
-                let entry = handed.entry((server, tool.name));
+                let entry = handed.entry(tool.name);
                 let kept = entry
                     .and_modify(|had| {
                         if had.description != description {
-                            *had = hand(server, tool, description.clone());
+                            *had = hand(tool, description.clone());
                         }
                     })
-                    .or_insert_with(|| hand(server, tool, description.clone()));
+                    .or_insert_with(|| hand(tool, description.clone()));
                 kept.tool.clone()
             })
             .collect()
     }
 }
 
-fn hand(server: Server, tool: &Spec, description: String) -> Handed {
-    Handed { tool: Arc::new(Bound::new(server.name(), tool, description.clone())), description }
+fn hand(tool: &Spec, description: String) -> Handed {
+    Handed { tool: Arc::new(Bound::new(tool, description.clone())), description }
 }

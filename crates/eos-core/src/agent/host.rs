@@ -45,7 +45,7 @@ pub trait PromptAssembler: Send + Sync + 'static {
 /// One of Eos's own tools as the model sees it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolDefinition {
-    /// The name on the wire (`mcp__worker__read_page`).
+    /// The name the model calls it by (`read_page`).
     pub name: String,
     pub description: String,
     /// JSON Schema of the input.

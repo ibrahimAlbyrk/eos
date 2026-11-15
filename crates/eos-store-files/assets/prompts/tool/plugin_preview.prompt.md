@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — plugin_preview"
+description: "Tool — plugin_preview"
 ---
 
 A picture of an Eos plugin as the user will see it: the Eos app draws the plugin's current build, with Eos's real styles, in a hidden window of its own — the user's windows and stored values are never touched — and returns `{ path, surface, view, width, height, errors, available, build }`. Read `path` (a PNG) to look at it.

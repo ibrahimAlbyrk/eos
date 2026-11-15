@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — notify_user"
+description: "Tool — notify_user"
 variables:
   - ASK_USER_TOOL
 ---

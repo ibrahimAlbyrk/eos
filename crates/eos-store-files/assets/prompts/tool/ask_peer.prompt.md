@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — ask_peer"
+description: "Tool — ask_peer"
 variables:
   - LIST_PEERS_TOOL
   - RESPOND_TO_PEER_TOOL

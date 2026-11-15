@@ -4,7 +4,7 @@
 use eos_contracts::builtin_tools::{
     FILE_EDIT_BUILTIN_TOOLS, NETWORK_BUILTIN_TOOLS, READ_BUILTIN_TOOLS, SHELL_BUILTIN_TOOLS,
 };
-use eos_contracts::tool_scope::is_browser_tool;
+use eos_contracts::tool_scope::{is_browser_tool, is_eos_control_tool};
 use eos_contracts::{PermissionMode, UnknownRecord};
 use eos_core::Error;
 use eos_core::policy::AgentMode;
@@ -29,6 +29,8 @@ pub enum ToolCategory {
     BrowserWrite,
     /// Any `mcp__*` tool.
     Mcp,
+    /// One of Eos's own tools that is no browser verb.
+    Eos,
     Network,
     Other,
 }
@@ -90,8 +92,8 @@ pub(crate) fn edit_target(input: &UnknownRecord) -> Option<&str> {
     target.and_then(Value::as_str)
 }
 
-/// The kind of tool a call is. Browser verbs are checked ahead of the `mcp__`
-/// rule: they ride the control servers but drive a real browser.
+/// The kind of tool a call is. Browser verbs are checked ahead of Eos's other
+/// tools: they drive a real browser.
 pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: Option<&str>) -> ToolCategory {
     if is_browser_tool(tool_name) {
         let verb = tool_name.find("browser_").map_or("", |at| &tool_name[at + "browser_".len()..]);
@@ -99,6 +101,9 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
     }
     if tool_name.starts_with("mcp__") {
         return ToolCategory::Mcp;
+    }
+    if is_eos_control_tool(tool_name) {
+        return ToolCategory::Eos;
     }
     if FILE_EDIT_BUILTIN_TOOLS.contains(&tool_name) {
         // An empty plans folder is "not set", as in JavaScript.
@@ -119,7 +124,8 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
     }
 }
 
-/// A mode's verdict. Reads, MCP tools and the plan file pass in every mode.
+/// A mode's verdict. Reads, MCP tools, Eos's own tools and the plan file pass
+/// in every mode.
 /// `acceptEdits` also lets file edits inside the working directories and
 /// browser reads through and leaves edits outside them, the shell, the
 /// network, browser actions and everything else to the policy's default;
@@ -127,15 +133,15 @@ pub fn classify_tool(tool_name: &str, input: Option<&UnknownRecord>, plans_dir: 
 /// only a subagent runs in (plan, dontAsk, default) also leave file edits to
 /// the policy; what plan and dontAsk deny besides is [`crate::evaluate`]'s.
 pub fn mode_verdict(mode: AgentMode, category: ToolCategory) -> Verdict {
-    use ToolCategory::{BrowserRead, FileEdit, Mcp, PlanFile, Read};
+    use ToolCategory::{BrowserRead, Eos, FileEdit, Mcp, PlanFile, Read};
     match mode {
         AgentMode::FullAccess => Verdict::Allow,
         AgentMode::AcceptEdits => match category {
-            Mcp | Read | PlanFile | BrowserRead | FileEdit => Verdict::Allow,
+            Mcp | Eos | Read | PlanFile | BrowserRead | FileEdit => Verdict::Allow,
             _ => Verdict::Ask,
         },
         AgentMode::Default | AgentMode::DontAsk | AgentMode::Plan => match category {
-            Mcp | Read | PlanFile | BrowserRead => Verdict::Allow,
+            Mcp | Eos | Read | PlanFile | BrowserRead => Verdict::Allow,
             _ => Verdict::Ask,
         },
     }
@@ -207,9 +213,10 @@ mod tests {
         assert_eq!(classify_tool("WebSearch", None, None), ToolCategory::Network);
         assert_eq!(classify_tool("Task", None, None), ToolCategory::Other);
         assert_eq!(classify_tool("mcp__github__x", None, None), ToolCategory::Mcp);
-        assert_eq!(classify_tool("mcp__worker__browser_snapshot", None, None), ToolCategory::BrowserRead);
-        assert_eq!(classify_tool("mcp__orchestrator__browser_navigate", None, None), ToolCategory::BrowserWrite);
-        assert_eq!(classify_tool("mcp__gateway__browser_snapshot", None, None), ToolCategory::Mcp);
+        assert_eq!(classify_tool("browser_snapshot", None, None), ToolCategory::BrowserRead);
+        assert_eq!(classify_tool("browser_navigate", None, None), ToolCategory::BrowserWrite);
+        assert_eq!(classify_tool("mcp__github__browser_snapshot", None, None), ToolCategory::Mcp);
+        assert_eq!(classify_tool("read_page", None, None), ToolCategory::Eos);
     }
 
     #[test]
@@ -241,9 +248,9 @@ mod tests {
     fn what_each_mode_lets_through() {
         use AgentMode::{AcceptEdits, Default, DontAsk, FullAccess, Plan};
         use ToolCategory::{
-            BrowserRead, BrowserWrite, FileEdit, FileEditOutside, Mcp, Network, Other, PlanFile, Read, Shell,
+            BrowserRead, BrowserWrite, Eos, FileEdit, FileEditOutside, Mcp, Network, Other, PlanFile, Read, Shell,
         };
-        for category in [Mcp, Read, PlanFile, BrowserRead, FileEdit] {
+        for category in [Mcp, Eos, Read, PlanFile, BrowserRead, FileEdit] {
             assert_eq!(mode_verdict(AcceptEdits, category), Verdict::Allow);
         }
         for category in [Shell, Network, BrowserWrite, Other, FileEditOutside] {
@@ -252,7 +259,7 @@ mod tests {
         }
         // The narrower modes let through a subset of what accept edits does.
         for mode in [Default, DontAsk, Plan] {
-            for category in [Mcp, Read, PlanFile, BrowserRead] {
+            for category in [Mcp, Eos, Read, PlanFile, BrowserRead] {
                 assert_eq!(mode_verdict(mode, category), Verdict::Allow);
             }
             for category in [FileEdit, FileEditOutside, Shell, Network, BrowserWrite, Other] {

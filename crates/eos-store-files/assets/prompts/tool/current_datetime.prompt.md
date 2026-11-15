@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — current_datetime"
+description: "Tool — current_datetime"
 ---
 
 Get the current date and time on the device running Eos (the user's Mac), including its timezone. Use it whenever you need the real wall-clock now — to resolve "today"/"tomorrow", timestamp something, reason about how long ago an event was, or convert to/from another timezone — instead of guessing from your training cutoff.

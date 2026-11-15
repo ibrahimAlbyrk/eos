@@ -83,22 +83,16 @@ pub(crate) fn session_of(kind: &str) -> LaunchSpec {
 impl Bench {
     /// The tool as a session of `kind` gets it.
     pub(crate) fn tool(&self, kind: &str, bare: &str) -> Arc<dyn HostTool> {
-        let wanted = format!("__{bare}");
         self.tools
             .for_session(&session_of(kind))
             .into_iter()
-            .find(|tool| tool.definition().name.ends_with(&wanted))
+            .find(|tool| tool.definition().name == bare)
             .unwrap_or_else(|| panic!("a {kind} session has no {bare}"))
     }
 
     /// Any session kind that has the tool.
     pub(crate) fn any_tool(&self, bare: &str) -> Arc<dyn HostTool> {
-        let kind = if self
-            .tools
-            .for_session(&session_of("orchestrator"))
-            .iter()
-            .any(|t| t.definition().name.ends_with(&format!("__{bare}")))
-        {
+        let kind = if self.tools.for_session(&session_of("orchestrator")).iter().any(|t| t.definition().name == bare) {
             "orchestrator"
         } else {
             "focused-peer"
@@ -160,6 +154,24 @@ fn each_tool_is_described_to_the_model_as_today() {
 }
 
 #[test]
+fn every_tool_is_one_the_permission_gate_knows_as_eos_own() {
+    use eos_contracts::tool_scope::{EOS_CONTROL_TOOLS, is_browser_tool, is_eos_control_tool};
+    let bench = bench(FakeFeatures::new([]));
+    let mut names: Vec<String> = ["orchestrator", "focused-peer"]
+        .iter()
+        .flat_map(|kind| bench.tools.for_session(&session_of(kind)))
+        .map(|tool| tool.definition().name.clone())
+        .collect();
+    names.sort();
+    names.dedup();
+    for name in &names {
+        assert!(is_eos_control_tool(name), "{name} is not in eos-contracts' list");
+    }
+    let listed = names.iter().filter(|name| !is_browser_tool(name)).count();
+    assert_eq!(listed, EOS_CONTROL_TOOLS.len(), "eos-contracts lists a tool no session gets");
+}
+
+#[test]
 fn sessions_with_the_same_tools_share_them() {
     let bench = bench(FakeFeatures::new([]));
     let first = bench.tools.for_session(&session_of("worker"));
@@ -167,10 +179,8 @@ fn sessions_with_the_same_tools_share_them() {
     for (a, b) in first.iter().zip(&second) {
         assert!(Arc::ptr_eq(a, b), "{} is built once", a.definition().name);
     }
-    // The same tool under the other server's name is another tool.
-    let orchestrator = bench.tool("orchestrator", "read_page");
-    assert_eq!(orchestrator.definition().name, "mcp__orchestrator__read_page");
-    assert_eq!(bench.tool("worker", "read_page").definition().name, "mcp__worker__read_page");
+    // An orchestrator's tool is the worker's of the same name.
+    assert!(Arc::ptr_eq(&bench.tool("orchestrator", "read_page"), &bench.tool("worker", "read_page")));
 }
 
 #[test]

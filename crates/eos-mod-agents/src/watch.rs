@@ -19,6 +19,7 @@ use std::time::Duration;
 use eos_contracts::WorkerState;
 use eos_contracts::stream::WorkerChangeFields;
 use eos_contracts::stream::topics::{WORKER_CHANGE, WORKER_EXIT, WORKER_REMOVED, WORKER_REPORT, WORKER_SPAWN};
+use eos_contracts::tool_scope::is_view_tool;
 use eos_core::Error;
 use eos_core::agent::ModelCatalog;
 use eos_core::git::GitWatcher;
@@ -101,11 +102,6 @@ fn truncate(text: &str, max: usize) -> String {
     let mut cut = String::from_utf16_lossy(&units[..max.saturating_sub(1)]);
     cut.push('…');
     cut
-}
-
-fn is_view_tool(name: &str) -> bool {
-    let own = name.strip_prefix("mcp__orchestrator__").or_else(|| name.strip_prefix("mcp__worker__"));
-    matches!(own, Some("present" | "present_app"))
 }
 
 /// What one recorded assistant message says: its text, or what a visual
@@ -485,11 +481,9 @@ mod tests {
             said(&message(json!([{"type": "text", "text": "Done."}, {"type": "text", "text": " "}]))),
             Some("Done.".into())
         );
-        let view =
-            json!({"type": "tool_call", "name": "mcp__worker__present", "input": {"summary": "Three cafés nearby"}});
+        let view = json!({"type": "tool_call", "name": "present", "input": {"summary": "Three cafés nearby"}});
         assert_eq!(said(&message(json!([{"type": "text", "text": "Here:"}, view]))), Some("Three cafés nearby".into()));
-        let inner =
-            json!({"type": "tool_call", "name": "mcp__worker__present", "parentCallId": "c1", "input": {"title": "x"}});
+        let inner = json!({"type": "tool_call", "name": "present", "parentCallId": "c1", "input": {"title": "x"}});
         assert_eq!(said(&message(json!([inner]))), None, "a subagent's view is not the agent's answer");
         let other = json!({"type": "tool_call", "name": "Bash", "input": {"title": "x"}});
         assert_eq!(said(&message(json!([other]))), None);

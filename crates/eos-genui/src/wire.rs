@@ -162,7 +162,7 @@ pub enum GenuiPhase {
 pub struct GenuiDelta {
     pub worker_id: String,
     pub call_id: String,
-    /// The tool's full name, e.g. "mcp__orchestrator__present".
+    /// The tool's name, e.g. "present".
     pub name: String,
     pub phase: GenuiPhase,
     pub text: String,

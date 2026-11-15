@@ -71,7 +71,7 @@ const render = (el, c = conv()) => renderToStaticMarkup(
   <UiProvider><GenuiHostContext.Provider value={c}>{el}</GenuiHostContext.Provider></UiProvider>,
 );
 const tool = (input, over = {}) => ({
-  id: "toolu_1", name: "mcp__orchestrator__present", verb: "read", input,
+  id: "toolu_1", name: "present", verb: "read", input,
   result: { text: `view ${VIEW} rendered · 6 places`, isError: false }, running: false, done: true, ts: 1_760_000_000_000, ...over,
 });
 const count = (html, cls) => (html.match(new RegExp(`class="stub stub-${cls}"`, "g")) ?? []).length;
@@ -188,18 +188,18 @@ describe("ViewBlock states", () => {
 
   it("apps off: a quiet line, and the app never runs", () => {
     const app = { title: "Timer", html: "<p>x</p>", summary: "s" };
-    const html = render(<ViewBlock block={{ kind: "view", tool: tool(app, { name: "mcp__orchestrator__present_app", result: { isError: false, text: "Apps are turned off in Settings — use present or plain text" } }), ts: 1 }} />);
+    const html = render(<ViewBlock block={{ kind: "view", tool: tool(app, { name: "present_app", result: { isError: false, text: "Apps are turned off in Settings — use present or plain text" } }), ts: 1 }} />);
     expect(html).toContain("Apps are off — answered without one");
     expect(html).not.toContain("<iframe");
   });
 
   it("an app whose call hasn't been accepted yet never runs: pending until the result names the view", () => {
     const app = { title: "Timer", html: "<script>window.eos.openLink('https://x.example')</script>", summary: "s" };
-    const inflight = tool(app, { name: "mcp__orchestrator__present_app", result: null, running: true, done: false });
+    const inflight = tool(app, { name: "present_app", result: null, running: true, done: false });
     const html = render(<ViewBlock block={{ kind: "view", tool: inflight, ts: 1 }} />);
     expect(html).not.toContain("<iframe");
     expect(html).not.toContain("openLink");
-    const accepted = render(<ViewBlock block={{ kind: "view", tool: tool(app, { name: "mcp__orchestrator__present_app", result: { isError: false, text: `view ${VIEW} rendered · app` } }), ts: 1 }} />);
+    const accepted = render(<ViewBlock block={{ kind: "view", tool: tool(app, { name: "present_app", result: { isError: false, text: `view ${VIEW} rendered · app` } }), ts: 1 }} />);
     expect(accepted).toContain("<iframe");
   });
 
@@ -221,7 +221,7 @@ describe("ViewBlock states", () => {
 
   it("streaming: a skeleton before the title, then the settled part of a growing input", () => {
     const full = JSON.stringify(restaurants);
-    const block = { kind: "view", live: true, ts: 1, tool: { id: "toolu_s", name: "mcp__orchestrator__present", input: {}, result: null, running: true, done: false, ts: 1 } };
+    const block = { kind: "view", live: true, ts: 1, tool: { id: "toolu_s", name: "present", input: {}, result: null, running: true, done: false, ts: 1 } };
     applyGenuiDelta({ workerId: WORKER, callId: "toolu_s", name: block.tool.name, phase: "start", text: "" });
     expect(render(<ViewBlock block={block} />)).toContain("Composing a view…");
     let sent = 0;

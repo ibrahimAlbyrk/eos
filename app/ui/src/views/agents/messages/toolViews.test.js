@@ -91,7 +91,7 @@ describe("getToolView", () => {
   });
 
   it("resolves agentRef for send_message_to_parent from ctx.parent, null elsewhere", () => {
-    const v = getToolView("mcp__worker__send_message_to_parent");
+    const v = getToolView("send_message_to_parent");
     expect(v.agentRef({}, { parent: { id: "w1", name: "orch" } })).toEqual({ id: "w1", name: "orch" });
     expect(v.agentRef({}, {})).toBe(null);
     expect(getToolView("Read").agentRef({}, {})).toBe(null);
@@ -104,7 +104,7 @@ describe("getToolView", () => {
   });
 
   it("gives the peer tools bespoke views matching the worker-MCP design", () => {
-    const ask = getToolView("mcp__worker__ask_peer");
+    const ask = getToolView("ask_peer");
     expect(ask.Detail).not.toBe(GenericToolCard);
     expect(ask.label({ input: { peerId: "w-7" } })).toEqual({ verb: "Asked", file: "w-7" });
     expect(ask.runningLabel({ input: { peerId: "w-7" } })).toEqual({ verb: "Asking", file: "w-7" });
@@ -119,7 +119,7 @@ describe("getToolView", () => {
     expect(ask.label({ input: {} })).toEqual({ verb: "Asked", file: "peer" });
     expect(ask.agentRef({ input: {} })).toBe(null);
 
-    const respond = getToolView("mcp__worker__respond_to_peer");
+    const respond = getToolView("respond_to_peer");
     expect(respond.Detail).not.toBe(GenericToolCard);
     // No asker known → generic "peer".
     expect(respond.label({})).toEqual({ verb: "Replied to", file: "peer" });
@@ -133,19 +133,19 @@ describe("getToolView", () => {
     expect(respond.label(answered)).toEqual({ verb: "Replied to", file: "peer-bob" });
     expect(respond.agentRef(answered)).toEqual({ id: "w-b", name: "peer-bob" });
 
-    const list = getToolView("mcp__worker__list_peers");
+    const list = getToolView("list_peers");
     expect(list.Detail).not.toBe(GenericToolCard);
     expect(list.label({})).toEqual({ verb: "Listed", file: "peers" });
   });
 
   it("gives the worker-definition tools bespoke views", () => {
-    const create = getToolView("mcp__orchestrator__create_worker");
+    const create = getToolView("create_worker");
     expect(create.Detail).not.toBe(GenericToolCard);
     expect(create.label({ input: { name: "perf-profiler" } })).toEqual({ verb: "Created worker", file: "perf-profiler" });
     expect(create.runningLabel({ input: { name: "perf-profiler" } })).toEqual({ verb: "Creating worker", file: "perf-profiler" });
     expect(create.label({ input: {} })).toEqual({ verb: "Created worker", file: "" });
 
-    const list = getToolView("mcp__orchestrator__list_available_workers");
+    const list = getToolView("list_available_workers");
     expect(list.Detail).not.toBe(GenericToolCard);
     expect(list.runningLabel({})).toEqual({ verb: "Listing", file: "available workers" });
     // count parsed from the result JSON array
@@ -157,43 +157,41 @@ describe("getToolView", () => {
 
   it("resolves the worker-management tools through the one dispatcher", () => {
     // spawn/kill/message/get → AgentLink target + WorkerToolBody
-    const kill = getToolView("mcp__orchestrator__kill_worker");
+    const kill = getToolView("kill_worker");
     expect(kill.Detail).toBe(WorkerToolBody);
     expect(kill.label({}).verb).toBe("Killed");
     expect(kill.runningLabel({}).verb).toBe("Killing");
-    expect(kill.agentRef({ name: "mcp__orchestrator__kill_worker", input: { id: "w1", name: "alice" } }, { workers: [] }))
+    expect(kill.agentRef({ name: "kill_worker", input: { id: "w1", name: "alice" } }, { workers: [] }))
       .toEqual({ id: "w1", name: "alice" });
     // kill's one-line body moved into the header: branch as meta, row never opens unless it failed
     const ctx = { workers: [] };
-    const killed = { name: "mcp__orchestrator__kill_worker", result: { text: JSON.stringify({ state: "killed", branch: "eos-x" }) } };
+    const killed = { name: "kill_worker", result: { text: JSON.stringify({ state: "killed", branch: "eos-x" }) } };
     expect(kill.summary(killed)).toBe("eos-x");
     expect(kill.expandable(killed, ctx)).toBe(false);
-    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker", result: { isError: true, text: "no such worker" } }, ctx)).toBe(true);
+    expect(kill.expandable({ name: "kill_worker", result: { isError: true, text: "no such worker" } }, ctx)).toBe(true);
 
     // list tools → count/label target, no agentRef
-    const listActive = getToolView("mcp__orchestrator__list_active_workers");
+    const listActive = getToolView("list_active_workers");
     expect(listActive.Detail).toBe(WorkerToolBody);
     expect(listActive.agentRef({}, ctx)).toBe(null);
-    expect(listActive.label({ name: "mcp__orchestrator__list_active_workers", result: { text: JSON.stringify([{ id: "a" }, { id: "b" }, { id: "c" }]) } }))
+    expect(listActive.label({ name: "list_active_workers", result: { text: JSON.stringify([{ id: "a" }, { id: "b" }, { id: "c" }]) } }))
       .toEqual({ verb: "Listed", file: "workers (3)" });
-    expect(listActive.label({ name: "mcp__orchestrator__list_active_workers" })).toEqual({ verb: "Listed", file: "workers" });
+    expect(listActive.label({ name: "list_active_workers" })).toEqual({ verb: "Listed", file: "workers" });
 
-    const pending = getToolView("mcp__orchestrator__list_pending_permissions");
-    expect(pending.label({ name: "mcp__orchestrator__list_pending_permissions" })).toEqual({ verb: "Checked", file: "pending permissions" });
+    const pending = getToolView("list_pending_permissions");
+    expect(pending.label({ name: "list_pending_permissions" })).toEqual({ verb: "Checked", file: "pending permissions" });
   });
 
-  it("gives current_datetime a bespoke single-line view on both lanes", () => {
-    for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current_datetime"]) {
-      const v = getToolView(name);
-      expect(v.Detail).not.toBe(GenericToolCard);
-      expect(v.label({})).toEqual({ verb: "Checked", file: "date & time" });
-      expect(v.runningLabel({})).toEqual({ verb: "Checking", file: "date & time" });
-      // the formatted time is the header object; the row never opens unless it failed
-      const done = { result: { text: JSON.stringify({ formatted: "Thu 24 Sep 2026, 21:04" }) } };
-      expect(v.label(done)).toEqual({ verb: "Checked", file: "Thu 24 Sep 2026, 21:04" });
-      expect(v.expandable(done)).toBe(false);
-      expect(v.expandable({ result: { isError: true, text: "boom" } })).toBe(true);
-    }
+  it("gives current_datetime a bespoke single-line view", () => {
+    const v = getToolView("current_datetime");
+    expect(v.Detail).not.toBe(GenericToolCard);
+    expect(v.label({})).toEqual({ verb: "Checked", file: "date & time" });
+    expect(v.runningLabel({})).toEqual({ verb: "Checking", file: "date & time" });
+    // the formatted time is the header object; the row never opens unless it failed
+    const done = { result: { text: JSON.stringify({ formatted: "Thu 24 Sep 2026, 21:04" }) } };
+    expect(v.label(done)).toEqual({ verb: "Checked", file: "Thu 24 Sep 2026, 21:04" });
+    expect(v.expandable(done)).toBe(false);
+    expect(v.expandable({ result: { isError: true, text: "boom" } })).toBe(true);
   });
 
   it("gives the task tools bespoke views with header labels + badges", () => {
@@ -298,7 +296,7 @@ describe("getToolView", () => {
   });
 
   it("shows spawn_worker with the worker body and no badge", () => {
-    const spawn = getToolView("mcp__orchestrator__spawn_worker");
+    const spawn = getToolView("spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);
     expect(spawn.label({}).verb).toBe("Spawned");
     expect(spawn.headerBadge({ input: { name: "impl" } })).toBe(null);

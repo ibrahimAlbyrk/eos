@@ -7,7 +7,7 @@ describe("toolDisplayName", () => {
   });
 
   it("turns underscores in the action into spaces", () => {
-    expect(toolDisplayName("mcp__orchestrator__send_message_to_parent")).toBe("orchestrator · send message to parent");
+    expect(toolDisplayName("mcp__github__create_pull_request")).toBe("github · create pull request");
   });
 
   it("leaves the server token (with its own underscores) intact", () => {
@@ -17,6 +17,7 @@ describe("toolDisplayName", () => {
   it("passes non-mcp names through unchanged", () => {
     expect(toolDisplayName("Read")).toBe("Read");
     expect(toolDisplayName("TodoWrite")).toBe("TodoWrite");
+    expect(toolDisplayName("browser_navigate")).toBe("browser_navigate");
   });
 
   it("is safe for empty / nullish input", () => {

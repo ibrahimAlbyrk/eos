@@ -1,5 +1,5 @@
 ---
-description: "MCP tool — integrate_workers"
+description: "Tool — integrate_workers"
 variables:
   - SPAWN_WORKER_TOOL
   - MESSAGE_WORKER_TOOL

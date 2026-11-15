@@ -32,7 +32,7 @@ async fn sessions_that_ended_hold_no_memory() {
     };
     let deps = EngineDeps {
         policy: Arc::new(FakePolicy::default()),
-        tools: Arc::new(FakeToolSets(vec![EchoTool::named("mcp__worker__whoami")])),
+        tools: Arc::new(FakeToolSets(vec![EchoTool::named("whoami")])),
         credentials: Arc::new(FakeCredentials::default()),
         questions: Arc::new(FakeUser::default()),
         clock: Arc::new(FakeClock::new()),

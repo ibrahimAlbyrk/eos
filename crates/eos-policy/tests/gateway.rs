@@ -259,7 +259,7 @@ async fn a_worker_that_ends_releases_its_calls_and_stale_asks_are_swept() {
 async fn the_session_gate_keeps_views_and_control_tools_for_the_main_agent() {
     let f = fixture(
         "bypassPermissions",
-        json!({"default": "allow", "rules": [{"tool": "mcp__orchestrator__spawn_worker", "action": "allow"}]}),
+        json!({"default": "allow", "rules": [{"tool": "spawn_worker", "action": "allow"}]}),
     );
     let gate: Arc<dyn PolicyDecider> = f.gateway.clone();
     let from_subagent = |tool: &str| {
@@ -268,18 +268,15 @@ async fn the_session_gate_keeps_views_and_control_tools_for_the_main_agent() {
         c
     };
 
-    let view = gate.decide(from_subagent("mcp__worker__present")).await.expect("decides");
-    assert_eq!(
-        message(&view),
-        "mcp__worker__present is main-agent only — return your findings; the main agent presents them."
-    );
+    let view = gate.decide(from_subagent("present")).await.expect("decides");
+    assert_eq!(message(&view), "present is main-agent only — return your findings; the main agent presents them.");
     assert!(f.temp.announced.list().is_empty(), "the lane's own rule leaves no trail");
 
-    let spawn = gate.decide(from_subagent("mcp__orchestrator__spawn_worker")).await.expect("decides");
+    let spawn = gate.decide(from_subagent("spawn_worker")).await.expect("decides");
     assert!(message(&spawn).contains("main-agent only — subagents cannot use Eos control tools"));
     let user_tool = gate.decide(from_subagent("mcp__context7__query-docs")).await.expect("decides");
     assert_eq!(behavior(&user_tool), "allow");
-    let main_agent = gate.decide(call("mcp__orchestrator__spawn_worker", json!({}))).await.expect("decides");
+    let main_agent = gate.decide(call("spawn_worker", json!({}))).await.expect("decides");
     assert_eq!(behavior(&main_agent), "allow");
 
     // A built-in with no surface in Eos is refused even with full access, except in a focused session.
