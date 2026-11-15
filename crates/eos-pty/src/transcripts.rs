@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use eos_core::terminal::{ClaudeTranscripts, TranscriptFile};
@@ -70,7 +71,7 @@ pub struct TranscriptReader {
     offset: u64,
     guard: Vec<u8>,
     seen: Option<Seen>,
-    view: Option<TranscriptView>,
+    view: Option<Arc<TranscriptView>>,
 }
 
 impl TranscriptReader {
@@ -106,7 +107,7 @@ fn read_range(file: &mut File, start: u64, end: u64) -> std::io::Result<Vec<u8>>
 }
 
 impl TranscriptFile for TranscriptReader {
-    fn read(&mut self) -> Option<TranscriptView> {
+    fn read(&mut self) -> Option<Arc<TranscriptView>> {
         let mut file = File::open(&self.path).ok()?;
         let meta = file.metadata().ok()?;
         let now = Seen { file: file_id(&meta), size: meta.len(), modified: meta.modified().ok()? };
@@ -131,7 +132,7 @@ impl TranscriptFile for TranscriptReader {
         self.guard = buf[end.saturating_sub(GUARD_BYTES)..end].to_vec();
 
         self.rows.add(&lines);
-        self.view = Some(self.rows.view(&tail));
+        self.view = Some(Arc::new(self.rows.view(&tail)));
         self.seen = Some(now);
         self.view.clone()
     }

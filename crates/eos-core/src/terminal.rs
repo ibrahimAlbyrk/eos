@@ -129,8 +129,9 @@ pub trait ClaudeTranscripts: Send + Sync + 'static {
 pub trait TranscriptFile: Send + 'static {
     /// The conversation so far; `None` while the file cannot be read (it may
     /// not exist yet). A read parses only the lines completed since the one
-    /// before, and gives what a fresh parse of the whole file would.
-    fn read(&mut self) -> Option<TranscriptView>;
+    /// before, and gives what a fresh parse of the whole file would. Shared: an unchanged
+    /// file gives the same view again without a copy.
+    fn read(&mut self) -> Option<Arc<TranscriptView>>;
     /// The file's size and modification time (epoch milliseconds), to notice
     /// a change without reading; `None` while there is no file.
     fn stamp(&self) -> Option<(u64, i64)>;

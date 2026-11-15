@@ -90,6 +90,10 @@ pub struct JobOutput {
 pub const JOB_OUTPUT_MAX: usize = 64 * 1024;
 /// The most output kept in memory per job.
 const MEM_MAX: usize = 256 * 1024;
+/// How far the kept output may grow past [`MEM_MAX`] before its oldest part goes: one
+/// shift per this many bytes instead of one per append. A read gives at most
+/// [`JOB_OUTPUT_MAX`] of the newest, well inside `MEM_MAX`, so it reads the same.
+const MEM_SLACK: usize = 64 * 1024;
 
 /// Why a user's action on a job was refused: the status and message the
 /// route answers with.
@@ -617,7 +621,7 @@ impl JobHandle {
         let Some(entry) = state.entry(&self.id, self.generation) else { return };
         let mem = entry.mem.get_or_insert_with(String::new);
         mem.push_str(text);
-        if mem.len() > MEM_MAX {
+        if mem.len() > MEM_MAX + MEM_SLACK {
             let mut cut = mem.len() - MEM_MAX;
             while !mem.is_char_boundary(cut) {
                 cut += 1;

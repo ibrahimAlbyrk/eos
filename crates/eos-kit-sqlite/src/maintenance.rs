@@ -27,6 +27,8 @@ pub enum VacuumOutcome {
     Incremental { slices: u32 },
     /// The file was switched to incremental with one full VACUUM.
     Full,
+    /// Asked to stop between slices after this many; the next look starts again.
+    Stopped { slices: u32 },
 }
 
 fn pragma(conn: &Connection, name: &str) -> rusqlite::Result<i64> {
@@ -43,6 +45,12 @@ impl Db {
     /// Runs the weekly vacuum when it is due and no worker is live. Blocks
     /// until done; other writes keep running between the slices.
     pub fn maybe_vacuum(&self, now_ms: i64) -> Result<VacuumOutcome, Error> {
+        self.maybe_vacuum_while(now_ms, &|| true)
+    }
+
+    /// [`maybe_vacuum`](Self::maybe_vacuum), asking `go_on` before each slice: once it
+    /// says no, the rest is left for the next look and nothing is marked done.
+    pub fn maybe_vacuum_while(&self, now_ms: i64, go_on: &dyn Fn() -> bool) -> Result<VacuumOutcome, Error> {
         let plan = self.maintain(move |conn| -> Result<Plan, Error> {
             let live: i64 = conn.query_row(
                 "SELECT COUNT(*) FROM workers WHERE state NOT IN ('DONE','KILLING','SUSPENDED')",
@@ -65,7 +73,13 @@ impl Db {
             Plan::Skip(outcome) => return Ok(outcome),
             Plan::Incremental => {
                 let mut slices = 0;
-                while self.maintain(vacuum_slice)? > 0 {
+                loop {
+                    if !go_on() {
+                        return Ok(VacuumOutcome::Stopped { slices });
+                    }
+                    if self.maintain(vacuum_slice)? == 0 {
+                        break;
+                    }
                     slices += 1;
                 }
                 VacuumOutcome::Incremental { slices }

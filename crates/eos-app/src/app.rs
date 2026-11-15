@@ -224,6 +224,10 @@ pub struct App {
     brief_worker_rows: Arc<dyn eos_core::workers::ListedWorkers>,
     /// Eos's agent tools: the engine holds them weakly, the app keeps them.
     _tools: Arc<dyn eos_core::agent::ToolSets>,
+    clock: Arc<dyn Clock>,
+    sleeper: Arc<dyn Sleeper>,
+    /// The database's vacuum, from start to shutdown.
+    vacuum: crate::maintenance::Vacuum,
 }
 
 impl std::fmt::Debug for App {
@@ -472,7 +476,7 @@ impl App {
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
-            sleeper,
+            sleeper: sleeper.clone(),
             ids: ids.clone(),
             notes,
             run: RunInfo {
@@ -615,6 +619,9 @@ impl App {
             patches: std::sync::Mutex::new(None),
             brief_worker_rows: features.brief_worker_rows,
             _tools: features.tools,
+            clock,
+            sleeper,
+            vacuum: crate::maintenance::Vacuum::default(),
         })
     }
 
@@ -631,6 +638,7 @@ impl App {
         *self.patches.lock().unwrap_or_else(|p| p.into_inner()) = Some(patches);
         self.runtime.lifecycle.start().await?;
         self.runtime.lifecycle.ready().await?;
+        self.vacuum.start(Arc::downgrade(&self.store), self.clock.clone(), self.sleeper.clone());
         Ok(())
     }
 
@@ -741,6 +749,7 @@ impl App {
     /// waits for every write already queued and folds the WAL into the file.
     pub async fn shutdown(&self, deadline: Duration) -> ShutdownReport {
         drop(self.patches.lock().unwrap_or_else(|p| p.into_inner()).take());
+        self.vacuum.stop();
         let report = self.runtime.shutdown(deadline).await;
         let store = self.store.clone();
         match tokio::task::spawn_blocking(move || store.drain()).await {

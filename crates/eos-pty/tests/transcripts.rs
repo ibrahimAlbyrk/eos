@@ -69,7 +69,7 @@ fn append(path: &Path, bytes: &[u8]) {
 
 /// Reads through the reader and checks it against a parse of the whole file.
 fn same(reader: &mut TranscriptReader, path: &Path) -> TranscriptView {
-    let view = reader.read().expect("a readable file");
+    let view = TranscriptView::clone(&reader.read().expect("a readable file"));
     assert_eq!(view, transcript_view(&String::from_utf8_lossy(&fs::read(path).expect("the file")), false));
     view
 }
@@ -102,6 +102,21 @@ fn a_growing_transcript_reads_as_a_fresh_parse_of_the_whole_file_would() {
     }
     assert!(pending.iter().any(|p| p == "AskUserQuestion") && pending.iter().any(|p| p == "ExitPlanMode"));
     assert!(reader.stamp().is_some_and(|(size, _)| size > 10_000));
+}
+
+#[test]
+fn an_unchanged_file_gives_the_same_view_without_a_copy() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let path = dir.path().join("t.jsonl");
+    let lines = fixture();
+    fs::write(&path, format!("{}\n", lines[..4].join("\n"))).expect("written");
+    let mut reader = TranscriptReader::new(&path, false);
+    let first = reader.read().expect("a view");
+    let again = reader.read().expect("a view");
+    assert!(std::sync::Arc::ptr_eq(&first, &again));
+    append(&path, format!("{}\n", lines[4]).as_bytes());
+    let grown = same(&mut reader, &path);
+    assert_ne!(*first, grown);
 }
 
 #[test]

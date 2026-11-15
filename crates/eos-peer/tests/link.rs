@@ -365,6 +365,22 @@ async fn hosting_switched_off_is_said_in_the_refusal_and_comes_back_when_switche
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_network_is_watched_only_while_a_host_has_a_link() {
+    let host = Mac::new("Office iMac").await;
+    let device = Mac::new("Test MacBook").await;
+    assert!(!device.peering.watches_network());
+    assert!(!host.peering.watches_network());
+    device.peering.pair(&host.invite(), None, false).await.expect("pairs");
+    device.link_is(&host.id(), LinkState::Live).await;
+    assert!(device.peering.watches_network());
+    assert!(!host.peering.watches_network());
+    assert!(device.peering.forget(&host.id()));
+    eventually(|| !device.peering.watches_network()).await;
+    device.peering.stop();
+    assert!(!device.peering.watches_network());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn forgetting_a_host_drops_its_link_and_an_unknown_one_is_not_a_host() {
     let (host, device) = paired().await;
     assert!(device.peering.forget(&host.id()));

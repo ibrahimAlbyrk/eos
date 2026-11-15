@@ -59,6 +59,18 @@ impl Lines {
         trimmed
     }
 
+    /// [`push`](Self::push) of the row `make` gives, handed the row the push drops (to
+    /// reuse its memory).
+    pub(super) fn push_with(&mut self, make: impl FnOnce(Option<Line>) -> Line) -> bool {
+        let dropped = if self.is_full() { self.items.pop_front() } else { None };
+        let trimmed = dropped.is_some();
+        if trimmed {
+            self.start = (self.start + 1) % self.max.max(1);
+        }
+        self.items.push_back(make(dropped));
+        trimmed
+    }
+
     pub(super) fn pop(&mut self) -> Option<Line> {
         self.items.pop_back()
     }

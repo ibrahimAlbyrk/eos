@@ -27,7 +27,7 @@ const POLL: Duration = Duration::from_millis(500);
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Conversation {
     pub(crate) claude_session_id: Option<String>,
-    pub(crate) view: TranscriptView,
+    pub(crate) view: Arc<TranscriptView>,
 }
 
 type SharedFile = Arc<Mutex<Box<dyn TranscriptFile>>>;
@@ -102,18 +102,20 @@ impl Conversations {
     pub(crate) async fn get(&self, pty_id: &str) -> Option<Conversation> {
         let session = self.inner.sessions.get(pty_id).filter(|s| s.kind == PtyKind::Claude)?;
         let Some(claude_session_id) = session.claude_session_id.clone() else {
-            return Some(Conversation { claude_session_id: None, view: TranscriptView::default() });
+            return Some(Conversation { claude_session_id: None, view: Arc::default() });
         };
         let file = self.inner.watching(&session, &claude_session_id);
         let read = tokio::task::spawn_blocking(move || lock(&file).read()).await;
-        let mut view = read.ok().flatten().unwrap_or_default();
-        if view.pending.is_none() {
-            view.pending = self
+        let mut view: Arc<TranscriptView> = read.ok().flatten().unwrap_or_default();
+        if view.pending.is_none()
+            && let Some(pending) = self
                 .inner
                 .sessions
                 .dialog_call(pty_id)
                 .filter(|dialog| dialog.conversation.as_deref() == Some(claude_session_id.as_str()))
-                .and_then(|dialog| open_dialog(&dialog, &view.rows));
+                .and_then(|dialog| open_dialog(&dialog, &view.rows))
+        {
+            Arc::make_mut(&mut view).pending = Some(pending);
         }
         Some(Conversation { claude_session_id: Some(claude_session_id), view })
     }

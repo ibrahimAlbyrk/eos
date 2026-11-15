@@ -99,21 +99,28 @@ impl Buffer {
     /// Scrolls the scroll region up by one row; the new bottom row is erased
     /// with `erase`. A region that starts at the top feeds the scrollback.
     pub(super) fn scroll(&mut self, erase: Attr, wrapped: bool, term_cols: isize) {
-        let new_line = blank_line(term_cols, erase, wrapped);
+        // The row that leaves becomes the new one (xterm's `recycle`): no allocation per line.
+        let renewed = |line: Option<Line>| match line {
+            Some(mut line) => {
+                line.renew(usize::try_from(term_cols).unwrap_or(0), &blank(erase), wrapped);
+                line
+            }
+            None => blank_line(term_cols, erase, wrapped),
+        };
         let top = self.ybase + self.scroll_top;
         let bottom = self.ybase + self.scroll_bottom;
         if self.scroll_top == 0 {
             let will_trim = self.lines.is_full();
             if bottom == self.lines.len() - 1 {
-                self.lines.push(new_line);
+                self.lines.push_with(renewed);
             } else {
-                self.lines.insert(bottom + 1, new_line);
+                self.lines.insert(bottom + 1, renewed(None));
             }
             if !will_trim {
                 self.ybase += 1;
             }
-        } else if self.lines.remove(top).is_some() {
-            self.lines.insert(bottom, new_line);
+        } else if let Some(line) = self.lines.remove(top) {
+            self.lines.insert(bottom, renewed(Some(line)));
         }
     }
 

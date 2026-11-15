@@ -109,6 +109,16 @@ impl Dreams {
         }
     }
 
+    /// Whether a chat starting work can matter: it stops a scheduled dream, and it is when
+    /// the user was last here for the away schedule. Once a look at the schedule saw dreaming
+    /// off, activity before it is switched on again is older than the switch, so it counts
+    /// for nothing.
+    pub fn wants_user_activity(&self) -> bool {
+        let enabled = self.0.parts.profile.get().dreaming.enabled;
+        let state = self.state();
+        enabled || state.running.is_some() || state.was_enabled != Some(false)
+    }
+
     /// Asks the running dream to stop after its current chat; `false` when none runs.
     pub fn request_stop(&self) -> bool {
         self.state().running.as_mut().map(|running| running.stop = true).is_some()
@@ -147,7 +157,12 @@ impl Dreams {
 
     /// One look at the schedule; starts a dream when one is due.
     pub async fn tick(&self) {
-        let (settings, now, latest) = (self.settings(), self.now(), self.latest().await);
+        let settings = self.settings();
+        if !settings.enabled {
+            self.state().was_enabled = Some(false);
+            return;
+        }
+        let (now, latest) = (self.now(), self.latest().await);
         {
             let mut state = self.state();
             let switched_on = state.was_enabled == Some(false) || (state.was_enabled.is_none() && latest.is_none());

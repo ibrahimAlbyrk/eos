@@ -16,6 +16,7 @@ mod service;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::DreamChangeEvent;
+use eos_contracts::stream::WorkerChangeFields;
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_core::Sleeper;
 use eos_core::accounts::PlanAccess;
@@ -23,7 +24,6 @@ use eos_runtime::bus::{Bus, Subscription, Topic, TopicDecl};
 use eos_runtime::jobs::JobRegistry;
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::{BoxFuture, RouteDef};
-use serde_json::Value;
 use tokio::sync::Notify;
 
 pub use run::{DreamParts, dream_over_chats};
@@ -98,8 +98,12 @@ impl Module for DreamsModule {
             // starts counting again.
             let (dreams, store, spawner) = (self.dreams.clone(), self.store.clone(), tasks.clone());
             let activity = self.bus.on(WORKER_CHANGE, move |event| {
-                let Ok(change) = event.payload_as::<Value>() else { return };
-                let Some(worker) = change["workerId"].as_str().filter(|_| change["state"] == "WORKING") else { return };
+                let Some(change) = WorkerChangeFields::read(&event.payload) else { return };
+                let working = change.state.as_deref() == Some("WORKING");
+                let Some(worker) = change.worker_id.as_deref().filter(|_| working) else { return };
+                if !dreams.wants_user_activity() {
+                    return;
+                }
                 let (dreams, store, worker) = (dreams.clone(), store.clone(), worker.to_owned());
                 spawner.spawn(async move {
                     let row = store.read(move |tx| tx.workers().find(&worker)).await;

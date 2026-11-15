@@ -20,6 +20,7 @@ mod display;
 mod files;
 mod host;
 mod machines;
+mod maintenance;
 mod modules;
 mod notes;
 mod patches;

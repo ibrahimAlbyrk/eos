@@ -173,6 +173,34 @@ async fn keeps_memory_output_bounded_and_serves_it_by_offset() {
     assert!(h.reg.output("monitor:w1:m1", total).expect("output").text.is_empty());
 }
 
+/// The output as it read when exactly the newest 256 KiB were kept, appended to one piece
+/// at a time: every read from every offset is the same.
+#[tokio::test]
+async fn memory_output_reads_as_if_exactly_the_newest_part_were_kept() {
+    let h = harness(0, 50);
+    let job = h.reg.start(JobSpec { memory_output: true, ..JobSpec::new("monitor", Some("w1"), "m2", "watcher") });
+    let (mut kept, mut base) = (String::new(), 0u64);
+    let pieces = ["a", "é", "line of text\n", "ü€𝄞", &"x".repeat(5000), &"ж".repeat(3001)];
+    for n in 0..400usize {
+        let piece = pieces[n % pieces.len()];
+        job.append_output(piece);
+        kept.push_str(piece);
+        if kept.len() > MEM_MAX {
+            let mut cut = kept.len() - MEM_MAX;
+            while !kept.is_char_boundary(cut) {
+                cut += 1;
+            }
+            kept.drain(..cut);
+            base += cut as u64;
+        }
+        let end = base + kept.len() as u64;
+        for since in [0, base.saturating_sub(1), base, end.saturating_sub(70_000), end - 1, end, end + 5] {
+            let read = h.reg.output("monitor:w1:m2", since).expect("output");
+            assert_eq!(read, slice_output(&kept, base, since), "after {n} pieces, from {since}");
+        }
+    }
+}
+
 #[tokio::test]
 async fn stops_a_job_through_its_source_and_refuses_what_cannot_be_stopped() {
     let h = harness(0, 50);

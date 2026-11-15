@@ -115,6 +115,7 @@ impl PlanAccess for Plan {
 struct Bench {
     runtime: Runtime,
     module: Arc<DreamsModule>,
+    profile: Arc<Profile>,
     temp: TempStore,
     model: Arc<ScriptedOneShot>,
     memories: Arc<Memories>,
@@ -159,6 +160,7 @@ impl Bench {
         profile.dreaming = serde_json::from_value(dreaming).expect("dreaming settings");
         let (model, memories) = (Arc::new(ScriptedOneShot::default()), Arc::new(setup.memories));
         let sleeper = Arc::new(FakeSleeper::default());
+        let profile = Arc::new(Profile(Mutex::new(profile)));
         let library = Arc::new(LibraryPromptSource::embedded());
         let parts = DreamParts {
             store: temp.port(),
@@ -166,7 +168,7 @@ impl Bench {
             prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
             memories: memories.clone(),
             suggestions: memories.clone(),
-            profile: Arc::new(Profile(Mutex::new(profile))),
+            profile: profile.clone(),
             profile_text: Arc::new(FakeProfileRenderer::with_text("The user is a developer.")),
             config: Arc::new(FakeConfig::default()),
             clock: clock.clone(),
@@ -184,7 +186,7 @@ impl Bench {
         let runtime = Runtime::build(kernel, vec![module.clone()], Arc::new(AllPluginsOn)).expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());
         runtime.lifecycle.start().await.expect("starts");
-        Self { runtime, module, temp, model, memories, clock, sleeper, changes, said }
+        Self { runtime, module, profile, temp, model, memories, clock, sleeper, changes, said }
     }
 
     async fn call(&self, method: Method, caller: Caller, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -466,6 +468,46 @@ async fn switched_on_in_the_afternoon_it_waits_for_tonights_slot_then_dreams_onc
     dreams.tick().await;
     assert_eq!(bench.runs().await.len(), 1);
     assert!(!bench.sleeper.pending().is_empty(), "the schedule is looked at every minute");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn while_dreaming_is_off_a_chat_starting_work_is_not_looked_up() {
+    let bench = Bench::new(Setup::default()).await;
+    let dreams = bench.module.dreams().clone();
+    let switch = |on: bool| bench.profile.0.lock().expect("profile").dreaming.enabled = on;
+    assert!(dreams.wants_user_activity(), "until the schedule was looked at");
+    dreams.tick().await;
+    assert!(!dreams.wants_user_activity(), "off, and seen off");
+    assert!(bench.runs().await.is_empty());
+
+    // Switched on: counts at once, before the next look.
+    switch(true);
+    assert!(dreams.wants_user_activity());
+    dreams.tick().await;
+    // Switched off: counts until a look sees it off.
+    switch(false);
+    assert!(dreams.wants_user_activity());
+    dreams.tick().await;
+    assert!(!dreams.wants_user_activity());
+
+    // A scheduled dream that runs is stopped by the user coming back, whatever the switch says.
+    switch(true);
+    bench.clock.set(NOON + 15 * HOUR + 600_000);
+    dreams.tick().await;
+    bench.clock.set(NOON + 39 * HOUR + 600_000);
+    let gate = bench.model.hold();
+    bench.script_recall();
+    bench.model.data(json!({"groups": []}));
+    let running = {
+        let dreams = dreams.clone();
+        tokio::spawn(async move { dreams.tick().await })
+    };
+    bench.model.until_asked(1).await;
+    switch(false);
+    assert!(dreams.wants_user_activity(), "a dream runs");
+    gate.notify_one();
+    gate.notify_one();
+    running.await.expect("the tick");
 }
 
 #[tokio::test(flavor = "multi_thread")]

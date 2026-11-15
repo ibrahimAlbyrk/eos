@@ -168,9 +168,9 @@ pub(crate) fn pty(sessions: Sessions, conversations: Conversations) -> Vec<Route
                 let after = after_id(&req);
                 let body = PtyConversationResponse {
                     claude_session_id,
-                    rows: view.rows.into_iter().filter(|row| row.id as f64 > after).collect(),
+                    rows: view.rows.iter().filter(|row| row.id as f64 > after).cloned().collect(),
                     running: view.running,
-                    pending: view.pending,
+                    pending: view.pending.clone(),
                 };
                 Ok(Response::json(200, &body))
             }
@@ -185,7 +185,7 @@ pub(crate) fn pty(sessions: Sessions, conversations: Conversations) -> Vec<Route
                 let id = id_of(&req);
                 let conversation = claude_ready(&sessions, &conversations, &id).await?;
                 // Typed into an open dialog, the prompt would answer it with garbage.
-                if let Some(pending) = conversation.view.pending {
+                if let Some(pending) = &conversation.view.pending {
                     let refusal = json!({ "error": "Claude is waiting for an answer", "pending": pending.name });
                     return Ok(Response::json(409, &refusal));
                 }
@@ -208,6 +208,7 @@ pub(crate) fn pty(sessions: Sessions, conversations: Conversations) -> Vec<Route
                 let pending = conversation
                     .view
                     .pending
+                    .clone()
                     .filter(|p| p.tool_use_id == body.tool_use_id && !answered.has(&body.tool_use_id))
                     .ok_or_else(|| ApiError::Conflict("that question is no longer open".into()))?;
                 let steps = match pending.name {

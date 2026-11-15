@@ -206,6 +206,12 @@ impl Peering {
         self.host.stop();
     }
 
+    /// Whether the check for a change of network runs (only while a paired host has a link).
+    #[doc(hidden)]
+    pub fn watches_network(&self) -> bool {
+        self.links.watches_network()
+    }
+
     /// The port the direct listener is bound to, when it listens.
     pub fn listening_port(&self) -> Option<u16> {
         self.host.status().listening.then(|| self.host.bound_port()).flatten()

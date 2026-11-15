@@ -5,7 +5,7 @@
 //! is not open, and switching to one is instant.
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -46,7 +46,17 @@ pub(crate) struct HostLinkService {
     /// How this computer introduces itself to a host it pairs with.
     device_name: Arc<dyn Fn() -> String + Send + Sync>,
     links: Mutex<HashMap<String, Arc<HostLink>>>,
-    network_watch: Mutex<Option<AbortHandle>>,
+    network_watch: Mutex<NetworkWatch>,
+    me: Weak<Self>,
+}
+
+/// The check for a change of network, which kicks every link. It runs only while there is
+/// a link to kick, between `start` and `stop`.
+#[derive(Default)]
+struct NetworkWatch {
+    /// Where the check runs; set by `start`, cleared by `stop`.
+    rt: Option<tokio::runtime::Handle>,
+    task: Option<AbortHandle>,
 }
 
 impl std::fmt::Debug for HostLinkService {
@@ -57,23 +67,56 @@ impl std::fmt::Debug for HostLinkService {
 
 impl HostLinkService {
     pub(crate) fn new(deps: Arc<LinkDeps>, device_name: Arc<dyn Fn() -> String + Send + Sync>) -> Arc<Self> {
-        Arc::new(Self { deps, device_name, links: Mutex::new(HashMap::new()), network_watch: Mutex::new(None) })
+        Arc::new_cyclic(|me| Self {
+            deps,
+            device_name,
+            links: Mutex::new(HashMap::new()),
+            network_watch: Mutex::default(),
+            me: me.clone(),
+        })
     }
 
     fn links(&self) -> MutexGuard<'_, HashMap<String, Arc<HostLink>>> {
         self.links.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
+    fn network_watch(&self) -> MutexGuard<'_, NetworkWatch> {
+        self.network_watch.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     pub(crate) fn start(self: &Arc<Self>) {
+        {
+            let mut watch = self.network_watch();
+            watch.rt = Some(tokio::runtime::Handle::current());
+            if let Some(previous) = watch.task.take() {
+                previous.abort();
+            }
+        }
         for host in self.deps.hosts.list() {
             self.ensure_link(&host.id.0).start();
         }
-        let service = Arc::downgrade(self);
-        let watch = tokio::spawn(async move {
+        let links = self.links();
+        if !links.is_empty() {
+            self.watch_network(&links);
+        }
+    }
+
+    /// Starts the network check unless it runs. Called with the links held, at least one.
+    fn watch_network(&self, _links: &HashMap<String, Arc<HostLink>>) {
+        let mut watch = self.network_watch();
+        if watch.task.is_some() {
+            return;
+        }
+        let Some(rt) = &watch.rt else { return };
+        let service = self.me.clone();
+        let task = rt.spawn(async move {
             let mut last = network_fingerprint();
             loop {
                 tokio::time::sleep(NETWORK_POLL).await;
                 let Some(service) = service.upgrade() else { return };
+                if !service.still_linked() {
+                    return;
+                }
                 let now = network_fingerprint();
                 if now != last {
                     last = now;
@@ -82,16 +125,35 @@ impl HostLinkService {
                 }
             }
         });
-        if let Some(previous) =
-            self.network_watch.lock().unwrap_or_else(PoisonError::into_inner).replace(watch.abort_handle())
-        {
-            previous.abort();
+        watch.task = Some(task.abort_handle());
+    }
+
+    /// Whether the running network check goes on: with no link left it ends (the next link
+    /// starts it again).
+    fn still_linked(&self) -> bool {
+        let links = self.links();
+        if !links.is_empty() {
+            return true;
         }
+        let mut watch = self.network_watch();
+        if watch.task.as_ref().is_some_and(|task| tokio::task::try_id() == Some(task.id())) {
+            watch.task = None;
+        }
+        false
+    }
+
+    /// Whether the network check runs.
+    pub(crate) fn watches_network(&self) -> bool {
+        self.network_watch().task.is_some()
     }
 
     pub(crate) fn stop(&self) {
-        if let Some(watch) = self.network_watch.lock().unwrap_or_else(PoisonError::into_inner).take() {
-            watch.abort();
+        {
+            let mut watch = self.network_watch();
+            watch.rt = None;
+            if let Some(task) = watch.task.take() {
+                task.abort();
+            }
         }
         let links: Vec<Arc<HostLink>> = self.links().drain().map(|(_, link)| link).collect();
         for link in links {
@@ -116,7 +178,10 @@ impl HostLinkService {
     }
 
     fn ensure_link(&self, id: &str) -> Arc<HostLink> {
-        self.links().entry(id.to_owned()).or_insert_with(|| HostLink::new(id, self.deps.clone())).clone()
+        let mut links = self.links();
+        let link = links.entry(id.to_owned()).or_insert_with(|| HostLink::new(id, self.deps.clone())).clone();
+        self.watch_network(&links);
+        link
     }
 
     pub(crate) fn list(&self) -> Vec<HostView> {

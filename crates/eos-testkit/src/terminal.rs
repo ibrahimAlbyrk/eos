@@ -285,8 +285,8 @@ impl FakeTranscripts {
 struct FakeTranscriptFile(Transcript);
 
 impl TranscriptFile for FakeTranscriptFile {
-    fn read(&mut self) -> Option<TranscriptView> {
-        self.0.lock().expect("file").0.clone()
+    fn read(&mut self) -> Option<Arc<TranscriptView>> {
+        self.0.lock().expect("file").0.clone().map(Arc::new)
     }
     fn stamp(&self) -> Option<(u64, i64)> {
         let state = self.0.lock().expect("file");

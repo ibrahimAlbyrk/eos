@@ -70,6 +70,17 @@ impl Line {
         line
     }
 
+    /// This row made [`Line::new`] again, in the memory it has.
+    pub(super) fn renew(&mut self, cols: usize, fill: &CellData, wrapped: bool) {
+        self.cells.clear();
+        self.cells.resize(cols, Cell::default());
+        self.combined.clear();
+        self.wrapped = wrapped;
+        for i in 0..cols {
+            self.set_cell(i as isize, fill);
+        }
+    }
+
     pub(super) fn len(&self) -> isize {
         self.cells.len() as isize
     }
@@ -352,6 +363,20 @@ mod tests {
 
     fn text(line: &Line) -> String {
         (0..line.len()).map(|i| line.text(i)).map(|t| if t.is_empty() { "_".to_owned() } else { t }).collect()
+    }
+
+    #[test]
+    fn a_renewed_row_is_a_new_row() {
+        let mut used = line("abcdef", 8);
+        used.add_codepoint(2, 0x301, 0);
+        used.wrapped = true;
+        let mut fill = CellData::empty(Attr::default());
+        fill.cell.attr.bg = 3;
+        for cols in [8, 4, 12] {
+            let mut renewed = used.clone();
+            renewed.renew(cols, &fill, false);
+            assert_eq!(format!("{renewed:?}"), format!("{:?}", Line::new(cols, &fill, false)), "{cols}");
+        }
     }
 
     #[test]

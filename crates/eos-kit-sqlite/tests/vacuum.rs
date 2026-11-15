@@ -125,3 +125,26 @@ fn it_waits_while_a_worker_is_live_and_until_the_week_is_up() {
     assert!(matches!(db.maybe_vacuum(NOW + VACUUM_INTERVAL_MS).expect("vacuum"), VacuumOutcome::Incremental { .. }));
     assert_eq!(pragma(&db, "freelist_count"), 0);
 }
+
+#[test]
+fn a_vacuum_asked_to_stop_ends_between_slices_and_is_not_marked_done() {
+    let dir = tempfile::tempdir().expect("dir");
+    let (db, _) = Db::open(dir.path().join("state.db"), Options::default(), NOW).expect("open");
+    free_pages(&db, VACUUM_SLICE_PAGES * 4);
+    // Two slices, then the app is shutting down.
+    let asked = AtomicU32::new(0);
+    let go_on = || asked.fetch_add(1, Ordering::SeqCst) < 2;
+    assert_eq!(db.maybe_vacuum_while(NOW, &go_on).expect("vacuum"), VacuumOutcome::Stopped { slices: 2 });
+    assert!(pragma(&db, "freelist_count") > 0, "the rest is left");
+    let marked: i64 = db
+        .read(|c| {
+            Ok::<_, Error>(c.query_row(
+                "SELECT COUNT(*) FROM schema_migrations WHERE id = ?1",
+                [VACUUM_MARKER],
+                |r| r.get(0),
+            )?)
+        })
+        .expect("read");
+    assert_eq!(marked, 0, "the next look starts again");
+    assert!(matches!(db.maybe_vacuum(NOW).expect("vacuum"), VacuumOutcome::Incremental { .. }));
+}

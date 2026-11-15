@@ -434,7 +434,8 @@ async fn a_reported_question_shows_until_the_transcript_settles_it() {
     // Claude writes the call to its transcript only once it is answered.
     let mut jsonl = line("u1", None, "user", json!("ask me"), None);
     h.transcripts.set("/home/me", &conversation, transcript_view(&jsonl, false));
-    let pending = h.conversations.get(&id).await.expect("a claude pane").view.pending.expect("the reported question");
+    let pending =
+        h.conversations.get(&id).await.expect("a claude pane").view.pending.clone().expect("the reported question");
     assert_eq!((pending.tool_use_id.as_str(), pending.name), ("q1", PtyPendingName::AskUserQuestion));
 
     jsonl += &line(
