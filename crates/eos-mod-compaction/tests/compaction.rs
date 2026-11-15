@@ -57,6 +57,11 @@ const SUMMARY: &str = "<analysis>x</analysis><summary>the summary</summary>";
 
 impl Bench {
     fn new(config: Value) -> Self {
+        Self::summarizing_with(config, None)
+    }
+
+    /// `summarizer`: answers in place of the scripted one.
+    fn summarizing_with(config: Value, summarizer: Option<Arc<dyn eos_core::agent::OneShot>>) -> Self {
         let temp = TempStore::new();
         let agents = ScriptedRuntime::new();
         let hooks = Arc::new(Hooks::default());
@@ -93,7 +98,7 @@ impl Bench {
             sessions: Arc::new(sessions.clone()),
             config,
             models,
-            summarizer: model.clone(),
+            summarizer: summarizer.unwrap_or_else(|| model.clone()),
             prompts: Arc::new(PromptService::new(Arc::new(PromptRegistry::new(library)), tool_name_vars())),
             clock,
             jobs: kernel.jobs.clone(),
@@ -361,4 +366,32 @@ async fn does_not_revive_an_agent_stopped_while_the_summarizer_ran() {
     assert!(bench.seeds().is_empty());
     assert_ne!(bench.state(&id).await.0, WorkerState::Idle, "no IDLE over the stop");
     assert!(!bench.service.is_compacting(&id));
+}
+
+/// A summarizer that panics.
+struct Broken;
+
+impl eos_core::agent::OneShot for Broken {
+    fn complete(
+        &self,
+        _request: eos_core::agent::OneShotRequest,
+    ) -> eos_core::BoxFuture<'_, Result<eos_core::agent::OneShotAnswer, OneShotError>> {
+        Box::pin(async { panic!("the summarizer broke") })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_run_that_panics_lets_the_worker_go() {
+    let bench = Bench::summarizing_with(threshold(0.7), Some(Arc::new(Broken)));
+    let id = bench.chat(150_000).await;
+    assert!(bench.service.check_on_idle(&id).await);
+    for _ in 0..2000 {
+        if !bench.service.is_compacting(&id) {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+    }
+    assert!(!bench.service.is_compacting(&id), "messages to it no longer queue behind the run");
+    assert!(bench.kernel.jobs.list().is_empty(), "its job is gone");
+    assert!(!bench.service.check_on_idle(&id).await, "not tried again at the same occupancy");
 }

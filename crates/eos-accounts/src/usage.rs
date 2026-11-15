@@ -94,14 +94,15 @@ impl UsageService {
     }
 
     /// What is held now, without waiting on upstream: past the floor a
-    /// refresh starts in the background and arrives as `usage:change`. Only
+    /// refresh starts in the background and arrives as `usage:change`, unless
+    /// a round is under way already (its result arrives the same way). Only
     /// with nothing held yet (never fetched, no saved snapshot) does it wait
     /// for the fetch.
     pub async fn current(self: &Arc<Self>) -> UsageResponse {
         let cached = self.state().cache.clone();
         let held = cached.or_else(|| (!self.peek().is_empty()).then(|| self.response()));
         let Some(held) = held else { return self.get_usage().await };
-        if self.fresh().is_none() {
+        if self.fresh().is_none() && self.round.try_lock().is_ok() {
             let this = self.clone();
             tokio::spawn(async move { this.get_usage().await });
         }
@@ -335,6 +336,24 @@ mod tests {
         tokio::task::yield_now().await;
         let after = t.svc.get_usage().await;
         assert_eq!(after.providers[0].stale, Some(true), "the refresh ran behind it and failed");
+    }
+
+    #[tokio::test]
+    async fn reads_during_a_round_start_no_refresh_of_their_own() {
+        let claude = FakeUsageProvider::new("claude");
+        let t = fixture(vec![claude.clone()], vec![]);
+        t.svc.get_usage().await;
+        t.clock.advance(MIN_INTERVAL_MS);
+        let round = t.svc.round.lock().await;
+        for _ in 0..5 {
+            t.svc.current().await;
+        }
+        tokio::task::yield_now().await;
+        assert_eq!(Arc::strong_count(&t.svc), 1, "nothing waits behind the round");
+        drop(round);
+        t.svc.current().await;
+        tokio::task::yield_now().await;
+        assert_eq!(claude.calls(), 2, "past the round, a read refreshes again");
     }
 
     #[tokio::test]

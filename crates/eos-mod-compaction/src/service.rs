@@ -148,26 +148,54 @@ impl CompactionService {
     }
 
     async fn run(&self, begun: Begun, input: Input, used_at_start: i64) {
-        let (service, id) = (self.clone(), input.worker_id);
         let auto = input.trigger == CompactionTrigger::Auto;
+        let release = Release { service: self.clone(), id: input.worker_id, auto, used_at_start, armed: true };
         // The bookkeeping ends before the worker's idle edge runs the hooks again.
-        let done = move |replaced: bool| {
-            let mut state = service.state();
-            state.holding.remove(&id);
-            state.running.remove(&id);
-            if replaced {
-                state.failed_at.remove(&id);
-            } else if auto {
-                if state.failed_at.len() >= MAX_FAILED {
-                    state.failed_at.clear();
-                }
-                state.failed_at.insert(id.clone(), used_at_start);
+        run::finish(&self.0.parts, begun, move |replaced| release.finish(replaced)).await;
+    }
+}
+
+/// Lets go of a worker a run held. A run that ends before it reports (it panicked) lets go
+/// as a failed run: otherwise every message to the worker would queue for good.
+struct Release {
+    service: CompactionService,
+    id: String,
+    auto: bool,
+    used_at_start: i64,
+    armed: bool,
+}
+
+impl Release {
+    fn finish(mut self, replaced: bool) {
+        self.release(replaced);
+    }
+
+    fn release(&mut self, replaced: bool) {
+        self.armed = false;
+        let (service, id) = (&self.service, &self.id);
+        let mut state = service.state();
+        state.holding.remove(id);
+        state.running.remove(id);
+        if replaced {
+            state.failed_at.remove(id);
+        } else if self.auto {
+            if state.failed_at.len() >= MAX_FAILED {
+                state.failed_at.clear();
             }
-            drop(state);
-            if let Some(job) = service.0.parts.jobs.get(JOB_KIND, Some(&id), "context") {
-                job.drop_job();
-            }
-        };
-        run::finish(&self.0.parts, begun, done).await;
+            state.failed_at.insert(id.clone(), self.used_at_start);
+        }
+        drop(state);
+        if let Some(job) = service.0.parts.jobs.get(JOB_KIND, Some(id), "context") {
+            job.drop_job();
+        }
+    }
+}
+
+impl Drop for Release {
+    fn drop(&mut self) {
+        if self.armed {
+            tracing::error!(worker_id = %self.id, "a compaction ended without finishing; the worker is let go");
+            self.release(false);
+        }
     }
 }

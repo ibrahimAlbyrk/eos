@@ -16,6 +16,8 @@ const ANTHROPIC_API: &str = "https://api.anthropic.com";
 /// Eos names itself: it does not pose as another program.
 const USER_AGENT: &str = concat!("eos/", env!("CARGO_PKG_VERSION"));
 const PROBE_TIMEOUT: Duration = Duration::from_secs(8);
+/// The whole usage request, body included: a round waits on it, and every refresh behind it.
+const USAGE_TIMEOUT: Duration = Duration::from_secs(20);
 /// How much of an upstream error body is shown.
 const DETAIL_CHARS: usize = 300;
 
@@ -29,6 +31,7 @@ pub struct ClaudeUsageApi {
     http: reqwest::Client,
     base: String,
     clock: Arc<dyn Clock>,
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for ClaudeUsageApi {
@@ -44,7 +47,7 @@ impl ClaudeUsageApi {
 
     /// `base`: the API's origin (a local server in tests).
     pub fn at(base: impl Into<String>, clock: Arc<dyn Clock>) -> Self {
-        Self { http: client(), base: base.into(), clock }
+        Self { http: client(), base: base.into(), clock, timeout: USAGE_TIMEOUT }
     }
 }
 
@@ -127,7 +130,8 @@ impl PlanUsageApi for ClaudeUsageApi {
                 .get(format!("{}/api/oauth/usage", self.base))
                 .bearer_auth(token)
                 .header("anthropic-beta", "oauth-2025-04-20")
-                .header("content-type", "application/json");
+                .header("content-type", "application/json")
+                .timeout(self.timeout);
             let res = request.send().await.map_err(|e| format!("usage request failed: {e}"))?;
             let status = res.status();
             let body = res.text().await.unwrap_or_default();
@@ -260,6 +264,26 @@ mod tests {
             serde_json::to_value(&bare).expect("JSON"),
             serde_json::json!({ "provider": "claude", "windows": { "fiveHour": null, "sevenDay": null }, "fetchedAt": "t" })
         );
+    }
+
+    #[tokio::test]
+    async fn an_endpoint_that_never_answers_fails_the_fetch_in_time() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("a port");
+        let base = format!("http://{}", listener.local_addr().expect("its address"));
+        // Takes the connection and never answers.
+        let held = tokio::spawn(async move {
+            let mut open = Vec::new();
+            while let Ok((stream, _)) = listener.accept().await {
+                open.push(stream);
+            }
+        });
+        let api = ClaudeUsageApi {
+            timeout: Duration::from_millis(200),
+            ..ClaudeUsageApi::at(base, Arc::new(eos_testkit::FakeClock::new()))
+        };
+        let failed = tokio::time::timeout(Duration::from_secs(10), api.fetch("token")).await.expect("in time");
+        assert!(failed.is_err_and(|e| e.starts_with("usage request failed: ")));
+        held.abort();
     }
 
     #[test]
