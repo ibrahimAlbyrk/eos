@@ -40,7 +40,7 @@ export function useWorkerEvents(workerId, { onNewest, onBeforeChange } = {}) {
     return () => { release(); detach(); };
   }, [workerId]);
 
-  const loadOlder = useCallback((rows) => storeLoadOlder(workerId, rows), [workerId]);
+  const loadOlder = useCallback((rows, untilTs) => storeLoadOlder(workerId, rows, untilTs), [workerId]);
   const fetchDelta = useCallback(() => storeFetchDelta(workerId), [workerId]);
   const refetchNewest = useCallback(() => storeRefetchNewest(workerId), [workerId]);
   const setFollowing = useCallback(

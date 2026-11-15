@@ -89,6 +89,9 @@ const NO_EVENTS = [];
 
 // Where a turn-rail jump parks the prompt: just below the scroller's top edge.
 const TURN_JUMP_OFFSET = 24;
+// How much earlier than a turn's time a jump reads, so the page holding the
+// prompt's row is among those it shows.
+const TURN_ROW_SLACK_MS = 5000;
 // Rail/jump key of a dispatched worker's task card (not a block of its own).
 const TASK_BKEY = "task";
 
@@ -260,9 +263,9 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
 
   // "Load older" sentinel at the top of the list.
   const triggerLoadOlderRef = useRef(() => {});
-  triggerLoadOlderRef.current = (rows) => {
+  triggerLoadOlderRef.current = (rows, untilTs) => {
     if (!hasOlder || loadingOlder) return;
-    loadOlder(rows);
+    loadOlder(rows, untilTs);
   };
   const [sentinelEl, setSentinelEl] = useState(null);
   // Re-observed after every prepend and every finished load:
@@ -465,28 +468,35 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   const windowTurns = useMemo(() => deriveTurns(blocks, blockKey, hasOlder || folded ? null : bootTurn), [blocks, hasOlder, folded, bootTurn]);
   const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, bootTurn, keyOf: blockKey });
   // A block outside the loaded window pages older rows in until it renders
-  // (the effect below), then glides there. pendingJumpRef holds the selector.
-  const jumpTo = useCallback((selector) => {
+  // (the effect below), then glides there. pendingJumpRef holds the selector
+  // and, when the target's time is known, how far back to read in one go.
+  const jumpTo = useCallback((selector, untilTs = null) => {
     const el = contentRef.current?.querySelector(selector);
     if (el) {
       pendingJumpRef.current = null;
       revealBlock(el, TURN_JUMP_OFFSET);
       return;
     }
-    pendingJumpRef.current = selector;
+    pendingJumpRef.current = { selector, untilTs };
     // Stop tail trimming so the hunt's prepends aren't undone mid-way.
     setFollowing(false);
-    triggerLoadOlderRef.current(Infinity);
+    triggerLoadOlderRef.current(Infinity, untilTs);
   }, [contentRef, revealBlock, setFollowing]);
-  const jumpToTurn = useCallback((key) => jumpTo(`[data-bkey="${CSS.escape(key)}"]`), [jumpTo]);
+  const turnsRef = useRef(turns);
+  turnsRef.current = turns;
+  // A turn's time is its prompt's, stamped a little before its row was logged.
+  const jumpToTurn = useCallback((key) => {
+    const startTs = turnsRef.current.find((t) => t.key === key)?.startTs;
+    jumpTo(`[data-bkey="${CSS.escape(key)}"]`, startTs != null ? startTs - TURN_ROW_SLACK_MS : null);
+  }, [jumpTo]);
   // A reply quote jumps to the message it answers.
   const jumpToRow = useCallback((rowId) => jumpTo(`[data-rowid="${rowId}"]`), [jumpTo]);
   // A view action's reply chip jumps back to the view it came from.
   const jumpToView = useCallback((viewId) => jumpTo(`[data-genui-view="${CSS.escape(viewId)}"]`), [jumpTo]);
   useEffect(() => {
-    const selector = pendingJumpRef.current;
-    if (!selector) return;
-    const el = contentRef.current?.querySelector(selector);
+    const pending = pendingJumpRef.current;
+    if (!pending) return;
+    const el = contentRef.current?.querySelector(pending.selector);
     if (el) {
       pendingJumpRef.current = null;
       revealBlock(el, TURN_JUMP_OFFSET);
@@ -494,7 +504,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
       pendingJumpRef.current = null;
       setFollowing(!stick.showJumpBtn);
     } else if (!loadingOlder) {
-      triggerLoadOlderRef.current(Infinity);
+      triggerLoadOlderRef.current(Infinity, pending.untilTs);
     }
   }, [blocks, hasOlder, loadingOlder]);
 

@@ -10,11 +10,12 @@
 // Read-ahead: the rows just older than the window wait in `parked`, in memory
 // but not rendered, so the scroll-up sentinel's loadOlder prepends them
 // synchronously — no network wait on the user-visible path. A chat followed
-// from its tail parks one page. Once the reader scrolls up into history the
-// rest of the chat is read in the background and joins the window page by page
-// as it lands (the core keeps a bounded log per chat), so within moments the
-// top of the transcript is the start of the conversation. Rows the live window
-// trims go back to `parked`, so paging them in again costs no request either.
+// from its tail parks one page. Once the reader scrolls up into history, older
+// pages are read in the background and join the window as they land, until it
+// holds EAGER_HISTORY_ROWS: for all but the longest chats the top of the
+// transcript is then the start of the conversation. Past that, history pages in
+// as the reader reaches it, one parked page ahead. Rows the live window trims go
+// back to `parked`, so paging them in again costs no request either.
 //
 // Ownership invariant: every row lands in the entry keyed by the workerId it
 // was fetched for (plus the filterOwnRows defense), so one agent's transcript
@@ -34,11 +35,18 @@ export const PAGE_SIZE = 500;
 // keeps the small page: its rows cross a relay.
 export const OLDER_PAGE_SIZE = 2000;
 const olderPageSize = () => (isRemoteView() ? PAGE_SIZE : OLDER_PAGE_SIZE);
-// How many parked rows one loadOlder moves into a window that follows the tail
-// (a view whose newest rows do not fill its screen): enough to add something to
-// see, small enough that the commit rendering them stays short. The view asks
-// again while its sentinel is still in reach.
+// How much one step moves from `parked` into the window: enough to add
+// something to see, small enough that the commit rendering it stays short. A
+// turn is what the transcript draws a few blocks for, however many rows it
+// logged, so a step ends at whichever bound it meets first. The view asks for
+// the next step while its sentinel is still in reach.
 export const OLDER_STEP = 1000;
+export const OLDER_STEP_TURNS = 12;
+const PROMPT_TYPES = new Set(["user_message", "orchestrator_message"]);
+// How much history a reader gets without asking. A chat keeps its whole log, so
+// this bounds what scrolling up a little may bring into memory and into every
+// later parse of the window.
+export const EAGER_HISTORY_ROWS = 20_000;
 // A failed older page holds the next attempt back this long.
 export const OLDER_RETRY_MS = 1000;
 const POLL_MS = 5000;
@@ -120,9 +128,12 @@ function entryOf(workerId) {
       // (see capWindow). Defaults true so an unwired pane is still bounded.
       following: true,
       loadingOlder: false,
-      // Rows a waiting loadOlder takes from the next page that lands.
+      // Rows a waiting loadOlder takes once its pages have landed, and how far
+      // back it reads first (a row time; null = the next page is enough).
       wantRows: 0,
+      wantUntilTs: null,
       filling: false,
+      draining: false,
       fillScheduled: false,
       // Bumped when the oldest held row changes other than by a page landing:
       // a page asked for before that no longer joins what is held.
@@ -183,10 +194,23 @@ function dropParked(e) {
   e.fillGen++;
 }
 
-// The newest `rows` parked rows join the window.
-function unpark(e, rows) {
-  const cut = Math.max(0, e.parked.length - rows);
-  e.events = mergeEvents(e.events, e.parked.slice(cut));
+// The newest parked rows join the window: at most `rows` of them, and when
+// `turns` is given no more than that many turns.
+function unpark(e, rows, turns = Infinity) {
+  let cut = Math.max(0, e.parked.length - rows);
+  if (turns !== Infinity) {
+    let seen = 0;
+    for (let i = e.parked.length - 1; i >= cut; i--) {
+      if (PROMPT_TYPES.has(e.parked[i].type) && ++seen === turns) cut = i;
+    }
+  }
+  const taken = e.parked.slice(cut);
+  const last = taken[taken.length - 1];
+  const first = e.events[0];
+  // Parked rows are older than the window: they go in front of it as they are.
+  // A row logged out of step with its time is the rare case that needs the sort.
+  const inOrder = !last || !first || last.ts < first.ts || (last.ts === first.ts && last.id < first.id);
+  e.events = inOrder ? taken.concat(e.events) : mergeEvents(e.events, taken);
   e.parked = e.parked.slice(0, cut);
   if (e.following) e.keep = e.events.length;
 }
@@ -227,22 +251,35 @@ async function fetchNewest(e, signal) {
   }
 }
 
-// The reader is in history and the whole chat is cheap to read: a view of
-// another Mac pages instead.
-const readsAll = (e) => !e.following && !isRemoteView();
+// The reader is in history and has not been given EAGER_HISTORY_ROWS yet. A
+// view of another Mac pages instead: its rows cross a relay.
+const readsEagerly = (e) =>
+  !e.following && !isRemoteView() && e.events.length < EAGER_HISTORY_ROWS;
 
-// How far ahead to read: one page while the view follows the tail, everything
-// once the reader is in history. A waiting loadOlder always gets its page.
+// Whether to read another older page: while less than a page is parked, and
+// page after page while the reader is given history eagerly. A waiting
+// loadOlder always gets its page.
 function wantsFill(e) {
   if (e.attachers === 0 || !e.loaded || !e.serverMore) return false;
-  return e.loadingOlder || readsAll(e) || e.parked.length === 0;
+  return e.loadingOlder || readsEagerly(e) || e.parked.length < olderPageSize();
 }
 
-// The reader is in history: what is parked joins the window.
-function showParkedWhenRead(e) {
-  if (!readsAll(e) || e.parked.length === 0) return false;
-  unpark(e, Infinity);
-  return true;
+const nextFrame = typeof requestAnimationFrame === "function"
+  ? (fn) => requestAnimationFrame(fn)
+  : (fn) => setTimeout(fn, 16);
+
+// The reader is given history eagerly: what is parked joins the window a step
+// per frame, so no single commit renders a whole page.
+function drain(e) {
+  if (e.draining) return;
+  const step = () => {
+    e.draining = readsEagerly(e) && e.parked.length > 0 && e.attachers > 0;
+    if (!e.draining) return;
+    unpark(e, OLDER_STEP, OLDER_STEP_TURNS);
+    publish(e);
+    nextFrame(step);
+  };
+  step();
 }
 
 function scheduleFill(e) {
@@ -250,6 +287,12 @@ function scheduleFill(e) {
   e.fillScheduled = true;
   idle(() => { e.fillScheduled = false; void fill(e); });
 }
+
+const stepTurns = (rows) => (rows === Infinity ? Infinity : OLDER_STEP_TURNS);
+
+// Whether what is parked reaches as far back as the waiting loadOlder asked.
+const reachedWanted = (e) =>
+  e.wantUntilTs == null || !e.serverMore || (e.parked[0]?.ts ?? Infinity) <= e.wantUntilTs;
 
 // Reads older pages, one request after another, while wantsFill holds. A page
 // goes to the loadOlder waiting for it, into the window of a reader who is in
@@ -278,10 +321,14 @@ async function fill(e) {
       e.parked = mergeEvents(page.rows, e.parked);
       e.serverMore = page.rows.length === page.limit;
       if (e.loadingOlder) {
-        unpark(e, e.wantRows);
+        if (!reachedWanted(e)) continue;
+        unpark(e, e.wantRows, stepTurns(e.wantRows));
         e.loadingOlder = false;
         publish(e);
-      } else if (showParkedWhenRead(e) || (!e.serverMore && e.parked.length === 0)) {
+      } else if (readsEagerly(e)) {
+        drain(e);
+        if (!e.serverMore && e.parked.length === 0) publish(e);
+      } else if (!e.serverMore && e.parked.length === 0) {
         publish(e);
       }
     }
@@ -295,19 +342,24 @@ async function fill(e) {
 }
 
 // Moves older rows into the window: at once when they are parked, else as soon
-// as the next page lands (loadingOlder meanwhile). `rows` bounds how many; by
-// default a step while following the tail and everything held otherwise.
-export function loadOlder(workerId, rows) {
+// as the next page lands (loadingOlder meanwhile). By default one step;
+// `rows: Infinity` takes everything held (a jump to a row further back).
+// `untilTs` reads back to that row time first and shows it all in one go: a
+// jump far into history costs one render, not one per page.
+export function loadOlder(workerId, rows = OLDER_STEP, untilTs = null) {
   const e = entries.get(workerId);
   if (!e || !e.loaded || e.loadingOlder) return;
-  rows ??= e.following ? OLDER_STEP : Infinity;
-  if (e.parked.length > 0) {
-    unpark(e, rows);
+  e.wantUntilTs = untilTs;
+  if (e.parked.length > 0 && reachedWanted(e)) {
+    unpark(e, rows, stepTurns(rows));
     publish(e);
-    scheduleFill(e);
+    // A reader paging through history gets the next page read at once; a view
+    // filling its screen at the tail can wait for an idle moment.
+    if (e.following) scheduleFill(e);
+    else void fill(e);
     return;
   }
-  if (!e.serverMore || e.events.length === 0) return;
+  if (e.events.length === 0 || (!e.serverMore && e.parked.length === 0)) return;
   e.wantRows = rows;
   e.loadingOlder = true;
   publish(e);
@@ -475,7 +527,7 @@ export function setFollowing(workerId, following) {
     capWindow(e);
     publish(e);
   } else {
-    if (showParkedWhenRead(e)) publish(e);
+    drain(e);
     scheduleFill(e);
   }
 }

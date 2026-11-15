@@ -6,7 +6,7 @@ vi.mock("../api/client.js", () => ({
 
 import { api } from "../api/client.js";
 import {
-  PAGE_SIZE, OLDER_PAGE_SIZE, OLDER_STEP, OLDER_RETRY_MS, mergeEvents, filterOwnRows,
+  PAGE_SIZE, OLDER_PAGE_SIZE, OLDER_STEP, OLDER_STEP_TURNS, OLDER_RETRY_MS, EAGER_HISTORY_ROWS, mergeEvents, filterOwnRows,
   attach, fetchDelta, getSnapshot, loadOlder, refetchNewest, subscribe, setFollowing,
   notifyWorkerChanged, refreshAttached,
 } from "./eventsStore.js";
@@ -177,12 +177,56 @@ describe("eventsStore", () => {
     const detach = attach(id);
     await tick();
     setFollowing(id, false); // the reader scrolled up from the tail
-    await tick(250);
+    await tick(50);
+    // It joins a step per frame, never a whole page in one commit.
+    expect(getSnapshot(id).events.length).toBeLessThan(total);
+    await tick(1000);
     const snap = getSnapshot(id);
     expect(snap.events).toHaveLength(total);
     expect(snap.events[0].id).toBe(1);
     expect(snap.hasOlder).toBe(false);
     expect(snap.loadingOlder).toBe(false);
+    detach();
+  });
+
+  it("past the eager budget, history pages in as the reader asks, one page read ahead", async () => {
+    const id = freshId();
+    const total = EAGER_HISTORY_ROWS + 3 * OLDER_PAGE_SIZE;
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, total)));
+    const detach = attach(id);
+    await tick();
+    setFollowing(id, false);
+    await tick(1500);
+    const eager = getSnapshot(id);
+    expect(eager.events.length).toBeGreaterThanOrEqual(EAGER_HISTORY_ROWS);
+    expect(eager.events.length).toBeLessThan(EAGER_HISTORY_ROWS + OLDER_PAGE_SIZE);
+    expect(eager.hasOlder).toBe(true);
+    await tick(2000); // nothing more joins on its own
+    expect(getSnapshot(id).events).toHaveLength(eager.events.length);
+    loadOlder(id); // read ahead: the step lands at once
+    expect(getSnapshot(id).events).toHaveLength(eager.events.length + OLDER_STEP);
+    expect(getSnapshot(id).loadingOlder).toBe(false);
+    loadOlder(id);
+    loadOlder(id);
+    await tick(); // and more is read behind it, so the next steps do not wait either
+    loadOlder(id);
+    expect(getSnapshot(id).events).toHaveLength(eager.events.length + 4 * OLDER_STEP);
+    expect(getSnapshot(id).loadingOlder).toBe(false);
+    detach();
+  });
+
+  it("a step ends after a few turns, however few rows they are", async () => {
+    const id = freshId();
+    // Older history is all prompts: one row per turn.
+    const all = rows(id, 1, PAGE_SIZE + OLDER_PAGE_SIZE).map((r, i) => (i < OLDER_PAGE_SIZE ? { ...r, type: "user_message" } : r));
+    api.getWorkerEvents.mockImplementation(pageServer(all));
+    const detach = attach(id);
+    await tick();
+    await tick(250);
+    loadOlder(id);
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE + OLDER_STEP_TURNS);
+    loadOlder(id, Infinity); // a jump takes everything held
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE + OLDER_PAGE_SIZE);
     detach();
   });
 
