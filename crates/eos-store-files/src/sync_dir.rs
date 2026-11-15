@@ -51,6 +51,7 @@ fn is_asset_name(name: &str) -> bool {
         && name.encode_utf16().count() <= 201
 }
 
+#[derive(Clone)]
 pub struct FileDirDomain {
     name: SyncDomainName,
     dir: PathBuf,
@@ -206,7 +207,9 @@ impl SyncDomain for FileDirDomain {
     }
 
     fn list(&self) -> BoxFuture<'_, Result<Vec<SyncItem>, Error>> {
-        Box::pin(std::future::ready(self.list_now()))
+        // Every record and its files are read: a blocking thread's work.
+        let me = self.clone();
+        Box::pin(async move { tokio::task::spawn_blocking(move || me.list_now()).await.map_err(Error::storage)? })
     }
 
     fn get<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<SyncItem>, Error>> {

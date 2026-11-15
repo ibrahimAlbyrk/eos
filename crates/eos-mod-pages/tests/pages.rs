@@ -292,3 +292,34 @@ fn of_two_saves_from_one_revision_exactly_one_wins() {
         assert_eq!(f.service.get(&id).expect("page").rev, round + 1);
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn edits_sent_one_after_another_apply_in_that_order() {
+    use eos_contracts::PageEditRequestAppend;
+    let temp = TempStore::seeded("/sandbox");
+    let clock = Arc::new(FakeClock::new());
+    let ids = Arc::new(SeqIds::new());
+    let kernel = Kernel::new(KernelOptions { clock: clock.clone(), ids: ids.clone(), ..KernelOptions::default() });
+    let module = PagesModule::new(Arc::new(FakePageStore::default()), temp.port(), clock, ids, kernel.bus);
+    let pages = module.editor();
+    let page = pages.create("w-CHAT", "Log", "").await.expect("created");
+    let append = |text: String| {
+        let (pages, id) = (pages.clone(), page.id.0.clone());
+        async move {
+            let edit = PageEditRequest::Append(PageEditRequestAppend { text, heading: None });
+            pages.edit("w-CHAT", &id, &edit).await.expect("edited");
+        }
+    };
+    let mut expected = String::new();
+    for round in 0..10 {
+        let line = |i: usize| format!("{round}.{i}");
+        tokio::join!(append(line(0)), append(line(1)), append(line(2)), append(line(3)));
+        for i in 0..4 {
+            expected = if expected.is_empty() { line(i) } else { format!("{expected}\n{}", line(i)) };
+        }
+        let body = pages.read(&page.id.0).await.expect("read").body.clone();
+        let order: Vec<&str> = body.lines().filter(|l| !l.is_empty()).collect();
+        let wanted: Vec<&str> = expected.lines().collect();
+        assert_eq!(order, wanted, "round {round}");
+    }
+}

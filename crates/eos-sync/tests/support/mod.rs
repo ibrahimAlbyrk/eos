@@ -138,6 +138,7 @@ impl SyncDomain for MapDomain {
 #[derive(Default)]
 pub(crate) struct MemState {
     pub(crate) saved: Mutex<LocalState>,
+    pub(crate) saves: std::sync::atomic::AtomicUsize,
     pub(crate) conflicts: Mutex<Vec<(String, Value)>>,
     pub(crate) fail_conflicts: AtomicBool,
 }
@@ -147,6 +148,7 @@ impl SyncStateStore for MemState {
         self.saved.lock().unwrap().clone()
     }
     fn save(&self, state: &LocalState) -> Result<(), Error> {
+        self.saves.fetch_add(1, Ordering::SeqCst);
         *self.saved.lock().unwrap() = state.clone();
         Ok(())
     }

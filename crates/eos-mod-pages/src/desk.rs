@@ -38,6 +38,14 @@ impl PageCaller {
 pub struct PageDesk {
     pub(crate) pages: Arc<PageService>,
     store: Arc<dyn Store>,
+    /// Changes go one at a time, in the order they were asked (a FIFO lock).
+    turns: Arc<tokio::sync::Mutex<()>>,
+}
+
+/// A change's turn ([`PageDesk::turn`]), held until the change is done.
+#[derive(Debug)]
+pub struct Turn {
+    _held: tokio::sync::OwnedMutexGuard<()>,
 }
 
 impl std::fmt::Debug for PageDesk {
@@ -56,9 +64,29 @@ fn page_id(id: &str) -> Result<&str, Error> {
     Ok(id)
 }
 
+/// A change runs on a blocking thread: the page file is flushed to the disk while the
+/// service's change lock is held, which must not stall an async worker. It keeps its turn
+/// until done, also when the request is dropped meanwhile.
+async fn off_thread<T: Send + 'static>(
+    turn: Turn,
+    change: impl FnOnce() -> Result<T, Error> + Send + 'static,
+) -> Result<T, Error> {
+    let change = move || {
+        let _turn = turn;
+        change()
+    };
+    tokio::task::spawn_blocking(change).await.map_err(eos_core::Error::storage)?
+}
+
 impl PageDesk {
     pub fn new(pages: Arc<PageService>, store: Arc<dyn Store>) -> Self {
-        Self { pages, store }
+        Self { pages, store, turns: Arc::default() }
+    }
+
+    /// Taken first by every change, before anything else it waits for (who the caller is):
+    /// changes apply in the order they came.
+    pub async fn turn(&self) -> Turn {
+        Turn { _held: self.turns.clone().lock_owned().await }
     }
 
     /// The caller a request names with `x-eos-agent-id`: that agent when the
@@ -89,7 +117,12 @@ impl PageDesk {
     }
 
     /// What the request leaves out comes from the caller: its project, its chat.
-    pub fn create(&self, caller: &PageCaller, request: PageCreateRequest) -> Result<Arc<Page>, Error> {
+    pub async fn create(
+        &self,
+        turn: Turn,
+        caller: &PageCaller,
+        request: PageCreateRequest,
+    ) -> Result<Arc<Page>, Error> {
         let request = checked(request)?;
         let new = NewPage {
             title: request.title,
@@ -97,25 +130,42 @@ impl PageDesk {
             project: request.project.unwrap_or_else(|| caller.project.clone()),
             agent_id: request.agent_id.unwrap_or_else(|| caller.session.clone()),
         };
-        self.pages.create(new, caller.author.clone())
+        let (pages, by) = (self.pages.clone(), caller.author.clone());
+        off_thread(turn, move || pages.create(new, by)).await
     }
 
-    pub fn save(&self, caller: &PageCaller, id: &str, request: PageUpdateRequest) -> Result<Arc<Page>, Error> {
-        let id = page_id(id)?;
+    pub async fn save(
+        &self,
+        turn: Turn,
+        caller: &PageCaller,
+        id: &str,
+        request: PageUpdateRequest,
+    ) -> Result<Arc<Page>, Error> {
+        let id = page_id(id)?.to_owned();
         let request = checked(request)?;
         let save = PageSave { title: request.title, body: request.body, base_rev: request.base_rev };
-        self.pages.save(id, save, caller.author.clone())
+        let (pages, by) = (self.pages.clone(), caller.author.clone());
+        off_thread(turn, move || pages.save(&id, save, by)).await
     }
 
-    pub fn edit(&self, caller: &PageCaller, id: &str, edit: &PageEditRequest) -> Result<Arc<Page>, Error> {
-        let id = page_id(id)?;
+    pub async fn edit(
+        &self,
+        turn: Turn,
+        caller: &PageCaller,
+        id: &str,
+        edit: &PageEditRequest,
+    ) -> Result<Arc<Page>, Error> {
+        let id = page_id(id)?.to_owned();
         eos_contracts::check(edit).map_err(|e| eos_core::Error::Validation(e.message()))?;
-        self.pages.edit(id, edit, caller.author.clone())
+        let (pages, by, edit) = (self.pages.clone(), caller.author.clone(), edit.clone());
+        off_thread(turn, move || pages.edit(&id, &edit, by)).await
     }
 
     /// Deleting is the user's.
-    pub fn remove(&self, id: &str) -> Result<(), Error> {
-        self.pages.remove(page_id(id)?, PageCaller::user().author)
+    pub async fn remove(&self, id: &str) -> Result<(), Error> {
+        let (pages, id) = (self.pages.clone(), page_id(id)?.to_owned());
+        let turn = self.turn().await;
+        off_thread(turn, move || pages.remove(&id, PageCaller::user().author)).await
     }
 }
 
@@ -143,10 +193,11 @@ impl PageEditor for PageDesk {
         body: &'a str,
     ) -> BoxFuture<'a, Result<Arc<Page>, eos_core::Error>> {
         Box::pin(async move {
+            let turn = self.turn().await;
             let caller = self.caller(Some(agent_id)).await?;
             let request =
                 PageCreateRequest { title: title.to_owned(), body: body.to_owned(), project: None, agent_id: None };
-            Ok(PageDesk::create(self, &caller, request)?)
+            Ok(PageDesk::create(self, turn, &caller, request).await?)
         })
     }
 
@@ -157,8 +208,9 @@ impl PageEditor for PageDesk {
         edit: &'a PageEditRequest,
     ) -> BoxFuture<'a, Result<Arc<Page>, eos_core::Error>> {
         Box::pin(async move {
+            let turn = self.turn().await;
             let caller = self.caller(Some(agent_id)).await?;
-            Ok(PageDesk::edit(self, &caller, id, edit)?)
+            Ok(PageDesk::edit(self, turn, &caller, id, edit).await?)
         })
     }
 }

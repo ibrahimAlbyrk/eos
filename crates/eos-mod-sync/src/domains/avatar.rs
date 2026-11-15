@@ -65,7 +65,12 @@ impl SyncDomain for AvatarDomain {
     }
 
     fn list(&self) -> BoxFuture<'_, Result<Vec<SyncItem>, Error>> {
-        Box::pin(std::future::ready(self.item().map(|item| item.into_iter().collect())))
+        // The picture is read from disk and encoded: a blocking thread's work.
+        let me = Self { profile: self.profile.clone() };
+        Box::pin(async move {
+            let item = tokio::task::spawn_blocking(move || me.item()).await.map_err(Error::storage)?;
+            item.map(|item| item.into_iter().collect())
+        })
     }
 
     fn get<'a>(&'a self, id: &'a str) -> BoxFuture<'a, Result<Option<SyncItem>, Error>> {

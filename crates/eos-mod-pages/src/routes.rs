@@ -90,8 +90,9 @@ pub(crate) fn all(desk: &Arc<PageDesk>) -> Vec<RouteDef> {
             let desk = desk.clone();
             async move {
                 let body: PageCreateRequest = req.parse()?;
+                let turn = desk.turn().await;
                 let caller = caller(&desk, &req).await?;
-                desk.create(&caller, body).map_or_else(failed, |created| Ok(page(201, &created)))
+                desk.create(turn, &caller, body).await.map_or_else(failed, |created| Ok(page(201, &created)))
             }
         })
     };
@@ -102,8 +103,9 @@ pub(crate) fn all(desk: &Arc<PageDesk>) -> Vec<RouteDef> {
             async move {
                 let id = id(&req)?;
                 let body: PageUpdateRequest = req.parse()?;
+                let turn = desk.turn().await;
                 let caller = caller(&desk, &req).await?;
-                desk.save(&caller, id, body).map_or_else(failed, |saved| Ok(page(200, &saved)))
+                desk.save(turn, &caller, id, body).await.map_or_else(failed, |saved| Ok(page(200, &saved)))
             }
         })
     };
@@ -114,8 +116,9 @@ pub(crate) fn all(desk: &Arc<PageDesk>) -> Vec<RouteDef> {
             async move {
                 let id = id(&req)?;
                 let body: PageEditRequest = req.parse()?;
+                let turn = desk.turn().await;
                 let caller = caller(&desk, &req).await?;
-                desk.edit(&caller, id, &body).map_or_else(failed, |edited| Ok(page(200, &edited)))
+                desk.edit(turn, &caller, id, &body).await.map_or_else(failed, |edited| Ok(page(200, &edited)))
             }
         })
     };
@@ -123,7 +126,7 @@ pub(crate) fn all(desk: &Arc<PageDesk>) -> Vec<RouteDef> {
         let desk = desk.clone();
         RouteDef::delete("/api/pages/{id}", move |req: Request| {
             let desk = desk.clone();
-            async move { desk.remove(id(&req)?).map_or_else(failed, |()| Ok(Response::json(200, &Done { ok: true }))) }
+            async move { desk.remove(id(&req)?).await.map_or_else(failed, |()| Ok(Response::json(200, &Done { ok: true }))) }
         })
     };
     vec![

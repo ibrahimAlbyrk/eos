@@ -102,6 +102,24 @@ fn id(req: &Request) -> Result<String, ApiError> {
     param::<PluginId>(req, "id").map(|id| id.0)
 }
 
+/// Plugin data is changed in the order the requests came: each takes its turn first (a
+/// FIFO lock), before anything else waits.
+type Turn = Arc<tokio::sync::Mutex<()>>;
+
+/// A write of a plugin's data waits for the disk: it runs on a blocking thread, in its
+/// turn, which it keeps until done (also when the request is dropped meanwhile).
+async fn in_turn<T: Send + 'static>(
+    turn: &Turn,
+    work: impl FnOnce() -> Result<T, eos_core::Error> + Send + 'static,
+) -> Result<T, ApiError> {
+    let turn = turn.clone().lock_owned().await;
+    let work = move || {
+        let _turn = turn;
+        work()
+    };
+    Ok(tokio::task::spawn_blocking(work).await.map_err(eos_core::Error::storage)??)
+}
+
 /// JSON numbers as JavaScript keeps them: `2.0` is `2`. Stored values came
 /// through `JSON.parse` until now, so what is written back reads the same.
 fn js_numbers(value: &mut Value) {
@@ -134,6 +152,7 @@ pub(crate) fn all(deps: &Deps) -> Vec<RouteDef> {
     let user = Access::ui_token();
     let user_here = Access::ui_token().local_only();
     let mut routes = Vec::new();
+    let turn: Turn = Arc::default();
 
     let d = deps.clone();
     routes.push(
@@ -274,41 +293,45 @@ pub(crate) fn all(deps: &Deps) -> Vec<RouteDef> {
         .access(user),
     );
 
-    let d = deps.clone();
+    let (d, t) = (deps.clone(), turn.clone());
     routes.push(
         RouteDef::put("/api/plugins/{id}/settings", move |req: Request| {
-            let plugins = d.plugins.clone();
+            let (plugins, turn) = (d.plugins.clone(), t.clone());
             async move {
                 let body: PluginSettingsRequest = req.parse()?;
-                Ok(Response::json(200, &One { plugin: plugins.set_settings(&id(&req)?, &body.values)? }))
+                let id = id(&req)?;
+                let plugin = in_turn(&turn, move || plugins.set_settings(&id, &body.values)).await?;
+                Ok(Response::json(200, &One { plugin }))
             }
         })
         .access(user),
     );
 
-    let d = deps.clone();
+    let (d, t) = (deps.clone(), turn.clone());
     routes.push(
         RouteDef::get("/api/plugins/{id}/store/{key}", move |req: Request| {
-            let plugins = d.plugins.clone();
+            let (plugins, turn) = (d.plugins.clone(), t.clone());
             async move {
                 let (id, key) = (id(&req)?, param::<PluginStoreKey>(&req, "key")?);
+                // After the writes asked for before it.
+                let _turn = turn.lock().await;
                 Ok(Response::json(200, &Stored { value: plugins.store_value(&id, &key.0)? }))
             }
         })
         .access(Access::open()),
     );
 
-    let d = deps.clone();
+    let (d, t) = (deps.clone(), turn.clone());
     routes.push(
         RouteDef::put("/api/plugins/{id}/store/{key}", move |req: Request| {
-            let plugins = d.plugins.clone();
+            let (plugins, turn) = (d.plugins.clone(), t.clone());
             async move {
                 let mut body: PluginStoreRequest = req.parse()?;
                 if let Some(value) = &mut body.value {
                     js_numbers(value);
                 }
                 let (id, key) = (id(&req)?, param::<PluginStoreKey>(&req, "key")?);
-                plugins.set_store_value(&id, &key.0, body.value)?;
+                in_turn(&turn, move || plugins.set_store_value(&id, &key.0, body.value)).await?;
                 Ok(ok())
             }
         })

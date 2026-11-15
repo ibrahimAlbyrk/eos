@@ -132,7 +132,7 @@ impl JsonTtlStore {
                     state.dirty = false;
                     serde_json::to_vec(state.entries.as_ref().unwrap_or(&IndexMap::new())).unwrap_or_default()
                 };
-                if let Err(e) = atomic_write(&inner.file, &json, &WriteOptions::default()) {
+                if let Err(e) = atomic_write(&inner.file, &json, &WriteOptions::cache()) {
                     tracing::debug!(error = %e, "geo cache: not written");
                 }
             }

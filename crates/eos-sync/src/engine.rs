@@ -45,7 +45,12 @@ pub struct SyncEngine {
     /// The pass in flight, for callers that arrive while it runs.
     flight: Mutex<Option<Shared>>,
     again: AtomicBool,
-    stopped: AtomicBool,
+    stopped: Arc<AtomicBool>,
+    /// One state save at a time, in the order the passes made them; held until the
+    /// save is done, also when the pass that started it was dropped meanwhile.
+    saving: Arc<tokio::sync::Mutex<()>>,
+    /// What the last save wrote: a pass that changed nothing writes nothing.
+    saved: Arc<Mutex<Option<LocalState>>>,
 }
 
 impl std::fmt::Debug for SyncEngine {
@@ -88,7 +93,9 @@ impl SyncEngine {
             state: Mutex::new(state),
             flight: Mutex::new(None),
             again: AtomicBool::new(false),
-            stopped: AtomicBool::new(false),
+            stopped: Arc::new(AtomicBool::new(false)),
+            saving: Arc::new(tokio::sync::Mutex::new(())),
+            saved: Arc::default(),
         }
     }
 
@@ -182,8 +189,24 @@ impl SyncEngine {
         let saved = if self.stopped.load(Ordering::SeqCst) {
             Ok(())
         } else {
+            let one = self.saving.clone().lock_owned().await;
             let state = lock(&self.state).clone();
-            self.deps.state.save(&state)
+            if lock(&self.saved).as_ref() == Some(&state) {
+                Ok(())
+            } else {
+                let (store, stopped, saved) = (self.deps.state.clone(), self.stopped.clone(), self.saved.clone());
+                // The file is flushed to the disk: a blocking thread's work.
+                let save = move || {
+                    let _one = one;
+                    if stopped.load(Ordering::SeqCst) {
+                        return Ok(());
+                    }
+                    store.save(&state)?;
+                    *lock(&saved) = Some(state);
+                    Ok(())
+                };
+                tokio::task::spawn_blocking(save).await.map_err(Error::storage).and_then(|saved| saved)
+            }
         };
         exchanged.and(saved)
     }

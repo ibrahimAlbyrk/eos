@@ -61,13 +61,16 @@ pub struct FsPluginDataStore {
     /// The switches as last read, with the file's stamp. They are asked for
     /// on every request to a built-in plugin's routes and for every agent
     /// event, so the file is re-read only when it changed. Also the lock
-    /// that makes each read-modify-write one writer at a time.
+    /// that makes each change of the switches one writer at a time.
     switches: Mutex<Option<(Stamp, HashMap<String, bool>)>>,
+    /// One writer at a time of settings and stored values, apart from the
+    /// switches: a write waits for the disk, and asking for a switch must not.
+    values: Mutex<()>,
 }
 
 impl FsPluginDataStore {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into(), switches: Mutex::new(None) }
+        Self { root: root.into(), switches: Mutex::new(None), values: Mutex::new(()) }
     }
 
     fn enabled_file(&self) -> PathBuf {
@@ -76,6 +79,10 @@ impl FsPluginDataStore {
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Option<(Stamp, HashMap<String, bool>)>> {
         self.switches.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn one_value_writer(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.values.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 }
 
@@ -112,7 +119,7 @@ impl PluginDataStore for FsPluginDataStore {
     }
 
     fn set_settings(&self, id: &str, values: &Map<String, Value>) -> Result<(), Error> {
-        let _one_writer = self.lock();
+        let _one_writer = self.one_value_writer();
         write_json(&plugin_file(&self.root, id, "settings.json")?, values)
     }
 
@@ -123,7 +130,7 @@ impl PluginDataStore for FsPluginDataStore {
 
     fn set_store_value(&self, id: &str, key: &str, value: Option<Value>) -> Result<(), Error> {
         let file = plugin_file(&self.root, id, "store.json")?;
-        let _one_writer = self.lock();
+        let _one_writer = self.one_value_writer();
         let mut all = read_json(&file);
         match value {
             Some(value) if !value.is_null() => {
@@ -279,6 +286,20 @@ mod tests {
         }
         assert_eq!(read_json(&root.path().join("clock/store.json")).len(), 160);
         assert_eq!(read_json(&root.path().join("enabled.json")).len(), 160);
+    }
+
+    #[test]
+    fn a_switch_is_read_while_a_value_is_being_written() {
+        let root = tempfile::tempdir().expect("a folder");
+        let store = std::sync::Arc::new(FsPluginDataStore::new(root.path()));
+        store.set_enabled("clock", true).expect("writes");
+        let _writing = store.one_value_writer();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let reader = store.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(reader.enabled("clock"));
+        });
+        assert_eq!(rx.recv_timeout(std::time::Duration::from_secs(5)), Ok(Some(true)));
     }
 
     #[test]

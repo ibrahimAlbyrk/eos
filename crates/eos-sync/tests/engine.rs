@@ -28,6 +28,36 @@ async fn carries_a_new_record_from_one_computer_to_the_other() {
 }
 
 #[tokio::test]
+async fn a_pass_that_changes_nothing_writes_no_state() {
+    use std::sync::atomic::Ordering;
+    let vault = vault();
+    let (a, mut b) = (Mac::new(&vault, "air"), Mac::new(&vault, "pro"));
+    let saves = |mac: &Mac| mac.state.saves.load(Ordering::SeqCst);
+    assert_eq!(b.engine.sync().await.unwrap(), result(0, 0, 0));
+    assert_eq!(saves(&b), 1, "the first pass of a run always saves");
+    b.engine.sync().await.unwrap();
+    assert_eq!(saves(&b), 1);
+
+    a.domain.set("um-1", json!({ "text": "pnpm" }), Some(5.0));
+    a.engine.sync().await.unwrap();
+    assert_eq!(b.engine.sync().await.unwrap(), result(1, 0, 0));
+    assert_eq!(saves(&b), 2, "a pulled record moves the cursor and the index");
+    b.engine.sync().await.unwrap();
+    assert_eq!(saves(&b), 2);
+
+    b.domain.set("um-2", json!("x"), None);
+    b.engine.sync().await.unwrap();
+    assert_eq!(saves(&b), 3, "a pushed record");
+    assert_eq!(b.state.saved.lock().unwrap().index.len(), 2);
+
+    b.restart();
+    b.engine.sync().await.unwrap();
+    assert_eq!(saves(&b), 4);
+    b.engine.sync().await.unwrap();
+    assert_eq!(saves(&b), 4);
+}
+
+#[tokio::test]
 async fn the_envelope_is_todays() {
     let vault = vault();
     let a = Mac::new(&vault, "air");

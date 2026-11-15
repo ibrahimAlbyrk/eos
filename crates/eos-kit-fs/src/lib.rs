@@ -22,7 +22,7 @@ mod trash;
 mod walk;
 mod yaml;
 
-pub use atomic::{WriteOptions, atomic_write};
+pub use atomic::{Flush, WriteOptions, atomic_write};
 pub use doc_dir::DocDir;
 pub use error::Error;
 pub use lock::{PathGuard, PathLocks};

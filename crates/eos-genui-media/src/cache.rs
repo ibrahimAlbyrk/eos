@@ -233,9 +233,11 @@ impl MediaCache {
             return None;
         }
         let body = if meta.kind == Kind::Blob {
+            // Blobs are written without a full flush: one cut short by a power loss is a miss.
+            // Its meta names its length (`size`), as the 0.1.x app also wrote it.
             match fs::read(self.blob_path(key)) {
-                Ok(bytes) => Some(Bytes::from(bytes)),
-                Err(_) => {
+                Ok(bytes) if bytes.len() as u64 == meta.size => Some(Bytes::from(bytes)),
+                _ => {
                     self.drop_entry(&mut index, key);
                     return None;
                 }
@@ -265,12 +267,12 @@ impl MediaCache {
             return Ok(());
         }
         match body {
-            Some(body) => atomic_write(&self.blob_path(key), body, &WriteOptions::default())?,
+            Some(body) => atomic_write(&self.blob_path(key), body, &WriteOptions::cache())?,
             None => {
                 let _ = fs::remove_file(self.blob_path(key));
             }
         }
-        atomic_write(&self.meta_path(key), &meta_json, &WriteOptions::default())?;
+        atomic_write(&self.meta_path(key), &meta_json, &WriteOptions::cache())?;
         if let Some(previous) = index.entries.insert(key.to_owned(), Entry { size, last_used: self.clock.now_ms() }) {
             index.total -= previous.size;
         }
@@ -316,6 +318,33 @@ mod tests {
         assert_eq!(cache.get(&key), None);
         assert_eq!(cache.total_bytes(), 0);
         assert_eq!(files_of(&home, &key), 0);
+    }
+
+    #[test]
+    fn a_blob_cut_short_is_a_miss_and_one_the_typescript_app_wrote_is_a_hit() {
+        let (home, clock) = (TempHome::new(), Arc::new(FakeClock::new()));
+        let key = cache_key("img", "https://a.example/x.png");
+        {
+            let cache = cache(&home, &clock, Limits::default());
+            let meta = Meta::blob("https://a.example/x.png", "image/png", clock.now_ms());
+            cache.put(&key, &meta, Some(PNG)).expect("stored");
+        }
+        // A power loss left the file shorter than its meta says.
+        fs::write(home.path().join(format!("{key}.bin")), &PNG[..5]).expect("cut short");
+        let reopened = cache(&home, &clock, Limits::default());
+        assert_eq!(reopened.get(&key), None);
+        assert_eq!(files_of(&home, &key), 0, "dropped, to be fetched again");
+
+        // What the 0.1.x app wrote: `size` is the blob's length.
+        let other = cache_key("img", "https://a.example/y.png");
+        let meta = format!(
+            r#"{{"url":"https://a.example/y.png","kind":"blob","contentType":"image/png","size":12,"fetchedAt":{}}}"#,
+            clock.now_ms()
+        );
+        fs::write(home.path().join(format!("{other}.json")), meta).expect("meta");
+        fs::write(home.path().join(format!("{other}.bin")), PNG).expect("blob");
+        let again = cache(&home, &clock, Limits::default());
+        assert_eq!(again.get(&other).and_then(|hit| hit.body).as_deref(), Some(PNG));
     }
 
     #[test]

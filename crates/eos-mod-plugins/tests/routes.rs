@@ -425,3 +425,31 @@ async fn a_built_in_that_is_off_turns_its_features_routes_away() {
     assert_eq!((on.0, &on.1), (200, &recorded("builtin-on")["json"]));
     assert_eq!(world.call(Get, "/api/pages?all=1", None, true).await, (200, json!({ "pages": [] })));
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn plugin_data_changes_apply_in_the_order_asked_and_keep_every_setting() {
+    let world = World::seeded(Parts { builder: fake_build(), ..Parts::default() }).await;
+    let put = |target: String, body: Value| {
+        let world = &world;
+        async move { world.call(Put, &target, Some(body), true).await }
+    };
+    for round in 0..10 {
+        // Two settings at once: each merges into what the other wrote.
+        let greeting = format!("hi {round}");
+        let loud = round % 2 == 0;
+        let (a, b) = tokio::join!(
+            put("/api/plugins/hello/settings".into(), json!({ "values": { "greeting": greeting } })),
+            put("/api/plugins/hello/settings".into(), json!({ "values": { "loud": loud } })),
+        );
+        assert_eq!((a.0, b.0), (200, 200));
+        let (_, listed) = world.call(Get, "/api/plugins/hello", None, true).await;
+        assert_eq!(listed["plugin"]["settings"], json!({ "greeting": greeting, "loud": loud }), "round {round}");
+
+        // Values sent one after another without waiting land in that order; a read after them sees the last.
+        let write = |i: i64| put("/api/plugins/hello/store/k".into(), json!({ "value": round * 10 + i }));
+        let read = async { world.call(Get, "/api/plugins/hello/store/k", None, true).await };
+        let (w0, w1, w2, w3, (_, seen)) = tokio::join!(write(0), write(1), write(2), write(3), read);
+        assert!([w0, w1, w2, w3].iter().all(|(status, _)| *status == 200));
+        assert_eq!(seen["value"], json!(round * 10 + 3), "round {round}");
+    }
+}

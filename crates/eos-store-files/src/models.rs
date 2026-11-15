@@ -132,7 +132,7 @@ impl Inner {
         // The file is a cache: a failed write still serves this run.
         let text = serde_json::to_string_pretty(&json!({"fetchedAt": fetched_at, "models": models}));
         if let Ok(text) = text {
-            let _ = crate::json::write(&self.file, &format!("{text}\n"));
+            let _ = crate::json::write_cache(&self.file, &format!("{text}\n"));
         }
         *self.cache.write().unwrap_or_else(PoisonError::into_inner) = Some(Cache { fetched_at, models });
     }

@@ -9,6 +9,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::Error;
 
+/// How far the new content is flushed before it replaces the old.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Flush {
+    /// To the disk itself (on macOS `F_FULLFSYNC`, a few milliseconds): user data.
+    #[default]
+    Full,
+    /// Left to the system: only for a regenerable cache. The app crashing loses nothing; a
+    /// power loss may leave the old content, the new, or a damaged file, which the cache's
+    /// reader takes for a miss.
+    None,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct WriteOptions {
     /// Permissions of the new file, set before any content is written (keys
@@ -17,11 +29,17 @@ pub struct WriteOptions {
     pub permissions: Option<Permissions>,
     /// Also flush the folder, so the rename itself survives a power loss.
     pub durable: bool,
+    pub flush: Flush,
 }
 
 impl WriteOptions {
     pub fn with_permissions(permissions: Option<Permissions>) -> Self {
-        Self { permissions, durable: false }
+        Self { permissions, ..Self::default() }
+    }
+
+    /// A regenerable cache's file: not flushed to the disk ([`Flush::None`]).
+    pub fn cache() -> Self {
+        Self { flush: Flush::None, ..Self::default() }
     }
 }
 
@@ -67,7 +85,9 @@ pub fn atomic_write(path: &Path, data: &[u8], options: &WriteOptions) -> Result<
             file.set_permissions(permissions.clone())?;
         }
         file.write_all(data)?;
-        file.sync_data()?;
+        if options.flush == Flush::Full {
+            file.sync_data()?;
+        }
         drop(file);
         fs::rename(&temp, path)
     })();
@@ -106,6 +126,18 @@ mod tests {
             .expect("replace");
         assert_eq!(fs::read(&path).expect("read"), b"two, longer");
         assert_eq!(entries(path.parent().expect("parent")), ["page.md"]);
+    }
+
+    #[test]
+    fn a_cache_write_replaces_the_file_as_any_other() {
+        let dir = tempfile::tempdir().expect("dir");
+        let path = dir.path().join("cache/models.json");
+        atomic_write(&path, b"one", &WriteOptions::cache()).expect("write");
+        atomic_write(&path, b"two, longer", &WriteOptions::cache()).expect("replace");
+        assert_eq!(fs::read(&path).expect("read"), b"two, longer");
+        assert_eq!(entries(path.parent().expect("parent")), ["models.json"]);
+        assert_eq!(WriteOptions::default().flush, Flush::Full, "user data is flushed unless asked otherwise");
+        assert_eq!(WriteOptions::with_permissions(None).flush, Flush::Full);
     }
 
     #[test]

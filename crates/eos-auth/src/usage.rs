@@ -217,7 +217,7 @@ impl UsageSnapshotStore for FileUsageSnapshots {
 
     fn save(&self, snapshots: &[ProviderUsage]) -> Result<(), Error> {
         let text = serde_json::to_string(snapshots).map_err(Error::storage)?;
-        atomic_write(&self.file, text.as_bytes(), &WriteOptions::default()).map_err(Error::storage)
+        atomic_write(&self.file, text.as_bytes(), &WriteOptions::cache()).map_err(Error::storage)
     }
 }
 

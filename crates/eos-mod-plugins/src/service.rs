@@ -27,6 +27,9 @@ use tokio::task::AbortHandle;
 
 use crate::manifest::{parse_plugin_manifest, plugin_ui_entry};
 
+/// How many plugins are loaded and built at once when the app starts.
+const BUILDS_AT_START: usize = 3;
+
 /// `plugins:change {id}` — a plugin was added, removed, rebuilt, toggled or re-set.
 pub const PLUGINS_CHANGE: Topic<PluginChange> = Topic::new(PLUGINS_TOPIC);
 
@@ -98,6 +101,8 @@ pub struct PluginService {
     builtins: Vec<PluginManifest>,
     options: PluginServiceOptions,
     state: Mutex<State>,
+    /// One settings change at a time: each merges into what the one before it wrote.
+    settings_merge: Mutex<()>,
     /// Counts up whenever something [`settled`](Self::settled) looks at may have changed.
     moved: watch::Sender<u64>,
 }
@@ -197,6 +202,7 @@ impl PluginService {
                 next_rev: 1,
                 watch: None,
             }),
+            settings_merge: Mutex::new(()),
             moved: watch::Sender::new(0),
         })
     }
@@ -257,10 +263,18 @@ impl PluginService {
     pub async fn start(self: &Arc<Self>) {
         let workspace = self.workspace.clone();
         let folders = blocking(move || workspace.list()).await.unwrap_or_default();
-        let flights: Vec<_> = folders.iter().map(|folder| self.begin_refresh(&folder.id)).collect();
-        for mut flight in flights {
-            let _ = flight.wait_for(|done| *done).await;
+        // A few at a time: each build is an esbuild process of its own.
+        let mut flights = tokio::task::JoinSet::new();
+        for folder in &folders {
+            if flights.len() == BUILDS_AT_START {
+                flights.join_next().await;
+            }
+            let mut flight = self.begin_refresh(&folder.id);
+            flights.spawn(async move {
+                let _ = flight.wait_for(|done| *done).await;
+            });
         }
+        while flights.join_next().await.is_some() {}
 
         let service: Weak<Self> = Arc::downgrade(self);
         let runtime = Handle::current();
@@ -372,7 +386,8 @@ impl PluginService {
 
     pub async fn set_enabled(self: &Arc<Self>, id: &str, on: bool) -> Result<PluginInfo, Error> {
         self.get(id)?;
-        self.data.set_enabled(id, on)?;
+        let (data, plugin) = (self.data.clone(), id.to_owned());
+        blocking(move || data.set_enabled(&plugin, on)).await??;
         self.refresh(id).await;
         self.get(id)
     }
@@ -386,6 +401,7 @@ impl PluginService {
         if let Some(unknown) = values.keys().find(|key| !declared.is_some_and(|defs| defs.contains_key(*key))) {
             return Err(Error::Validation(format!("plugin \"{id}\" has no setting \"{unknown}\"")));
         }
+        let _one_merge = self.settings_merge.lock().unwrap_or_else(PoisonError::into_inner);
         let mut merged = self.data.settings(id);
         for (key, value) in values {
             merged.insert(key.clone(), serde_json::to_value(value).map_err(Error::storage)?);

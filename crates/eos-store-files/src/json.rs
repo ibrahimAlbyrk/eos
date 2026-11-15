@@ -16,3 +16,8 @@ pub(crate) fn read(path: &Path) -> Option<Value> {
 pub(crate) fn write(path: &Path, text: &str) -> Result<(), Error> {
     atomic_write(path, text.as_bytes(), &WriteOptions::default()).map_err(Error::storage)
 }
+
+/// [`write`] for a regenerable cache: not flushed to the disk.
+pub(crate) fn write_cache(path: &Path, text: &str) -> Result<(), Error> {
+    atomic_write(path, text.as_bytes(), &WriteOptions::cache()).map_err(Error::storage)
+}

@@ -125,6 +125,12 @@ impl GitProjectKeys {
         None
     }
 
+    /// The known folders, gathered on a blocking thread: files and a database read.
+    async fn known_folders(&self) -> Vec<String> {
+        let candidates = self.candidates.clone();
+        tokio::task::spawn_blocking(move || candidates()).await.unwrap_or_default()
+    }
+
     fn learn(&self, path: &str, key: &str) {
         let mut learned = self.learned.lock().unwrap_or_else(|p| p.into_inner());
         if learned.get(path).and_then(Value::as_str) == Some(key) {
@@ -157,7 +163,7 @@ impl ProjectKeys for GitProjectKeys {
                 return path.to_owned();
             }
             let mut folders = vec![hint.to_owned()];
-            folders.extend((self.candidates)());
+            folders.extend(self.known_folders().await);
             if let Some(found) = self.find(key, folders).await {
                 return found;
             }
@@ -167,6 +173,6 @@ impl ProjectKeys for GitProjectKeys {
     }
 
     fn find_path<'a>(&'a self, key: &'a str) -> BoxFuture<'a, Option<String>> {
-        Box::pin(async move { self.find(key, (self.candidates)()).await })
+        Box::pin(async move { self.find(key, self.known_folders().await).await })
     }
 }

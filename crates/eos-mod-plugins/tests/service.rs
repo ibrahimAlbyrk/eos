@@ -122,6 +122,47 @@ async fn builds_every_enabled_plugin_with_a_ui_entry_on_start() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn start_builds_every_plugin_a_few_at_a_time() {
+    let ids = ["one", "two", "three", "four", "five", "six", "seven"];
+    let folders: Vec<(&str, Option<String>, &[&str])> = ids.iter().map(|id| (*id, Some(plain(id)), UI)).collect();
+    let t = setup(&folders, &[]);
+    t.builder.hold();
+    let starting = {
+        let svc = t.svc.clone();
+        tokio::spawn(async move { svc.start().await })
+    };
+    let builder = t.builder.clone();
+    let asked = move |n: usize| {
+        let builder = builder.clone();
+        async move {
+            tokio::time::timeout(Duration::from_secs(10), async {
+                while builder.builds().len() < n {
+                    tokio::time::sleep(Duration::from_millis(5)).await;
+                }
+            })
+            .await
+            .unwrap_or_else(|_| panic!("asked for {:?}", builder.builds()));
+        }
+    };
+    asked(3).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(t.builder.builds().len(), 3, "three at a time");
+    t.builder.release(1);
+    asked(4).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(t.builder.builds().len(), 4);
+    t.builder.release(ids.len());
+    starting.await.expect("started");
+    let mut builds = t.builder.builds();
+    builds.sort();
+    let mut expected = ids.map(|id| format!("/p/{id}/ui.jsx"));
+    expected.sort();
+    assert_eq!(builds, expected);
+    assert!(t.svc.list().iter().all(|p| p.state == PluginState::Active));
+    assert!(t.workspace.is_watched());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn a_file_change_rebuilds_under_a_new_revision_and_the_old_one_is_gone() {
     let mut t = one("clock");
     t.svc.start().await;

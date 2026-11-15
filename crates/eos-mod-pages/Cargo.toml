@@ -14,6 +14,7 @@ eos-domain.workspace = true
 eos-runtime.workspace = true
 serde.workspace = true
 thiserror.workspace = true
+tokio.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
