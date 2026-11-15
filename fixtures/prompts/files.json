@@ -1,10 +1,9 @@
 {
- "about": "SHA-256 of each prompt file the Rust library embeds, as manager/prompts held it at 059c4b38: the library's raw text is that tree's, less accounts/continue, left out on purpose (the Rust app carries a turn on after an account switch with no new input, so it never sends that prompt).",
+ "about": "SHA-256 of each prompt file the Rust library embeds, as manager/prompts held it at 059c4b38: the library's raw text is that tree's, less accounts/continue, left out on purpose (the Rust app carries a turn on after an account switch with no new input, so it never sends that prompt); the compaction prompts are Eos's own (a session summarizes inside its own conversation and carries on from the summary).",
  "sha256": {
   "commit.prompt.md": "69a78ef629a3f761ffef01073162c10eae7af730bb2415823f418ff44a51272a",
-  "compaction/continuation.prompt.md": "84275eaff7237aadeefe10b8f585ea8a1b02552dcff224ce35ae0579df909342",
-  "compaction/summarize.prompt.md": "57385211af2d1ceb0bc80445c2e566ab1cf09a4ab7e37c5c65b5069b310595ad",
-  "compaction/summarizer-system.prompt.md": "0b48cd4e93ba1d088d96ccef24b3cde6cd21a65073af65dfd15028c261159b01",
+  "compaction/continuation.prompt.md": "6a7a02333e941746daa5bf47ef68e9bd98ab5e2a94b7f94c7bd1cf7fbc6dcb48",
+  "compaction/summarize.prompt.md": "7d83ea00a59b92e753278778966d330fefc7d3217264c1dd37da49414799e041",
   "create-pr.prompt.md": "9e8d693379574ce7eb935e85f12a89d13a42db05e6df328eaecbed3e729a0a9c",
   "dream/consolidate-system.prompt.md": "46c9c1e0b3efaed5b729bbdb49efc9e2a6cb6b306b38862754954cd1949aa61d",
   "dream/consolidate.prompt.md": "5305371b7508a51e2c3d0068f4c51813f829be52c68b924b088a485a192e976f",

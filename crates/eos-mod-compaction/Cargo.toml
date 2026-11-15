@@ -1,6 +1,6 @@
 [package]
 name = "eos-mod-compaction"
-description = "Context compaction: an idle agent's conversation is summarized and its session continues from the summary."
+description = "Context compaction: the words a session summarizes its conversation with, /compact, and the running summary in the Jobs tab."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

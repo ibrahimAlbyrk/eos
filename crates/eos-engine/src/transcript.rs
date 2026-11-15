@@ -1,12 +1,12 @@
-//! A session's conversation, read for Eos: what a summarizer gets, the
-//! prompts a rewind can go back to, and the recorded conversation a resumed
-//! session continues (the engine's own, or one Claude Code wrote).
+//! A session's conversation, read for Eos: the prompts a rewind can go back
+//! to, and the recorded conversation a resumed session continues (the
+//! engine's own, or one Claude Code wrote).
 
 use eos_agent_compat::ClaudeSession;
 use eos_agent_core::StoredMessage;
 use eos_agent_types::{ContentBlock, Role, ToolResultContent};
 use eos_contracts::RewindTarget;
-use eos_core::agent::TranscriptEntry;
+use eos_domain::compaction::SUMMARY_OPEN;
 use eos_domain::message_id::strip_turn_head;
 use eos_domain::time::iso_from_ms;
 
@@ -36,64 +36,6 @@ pub(crate) fn result_text(content: Option<&ToolResultContent>) -> String {
     }
 }
 
-/// A visual answer's input is a whole view (up to ~90 KB) a summarizer has
-/// no use for; what the user saw is its title and its summary.
-fn view_text(name: &str, input: &str) -> Option<String> {
-    let tool = name.strip_prefix("mcp__orchestrator__").or_else(|| name.strip_prefix("mcp__worker__"))?;
-    if tool != "present" && tool != "present_app" {
-        return None;
-    }
-    let input: serde_json::Value = serde_json::from_str(input).ok()?;
-    let words = |key: &str| input.get(key).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
-    if input.get("title").is_none_or(|t| !t.is_string()) && input.get("summary").is_none_or(|s| !s.is_string()) {
-        return None;
-    }
-    let head = words("title").unwrap_or("untitled");
-    Some(match words("summary") {
-        Some(summary) => format!("[view] {head} — {summary}"),
-        None => format!("[view] {head}"),
-    })
-}
-
-/// The conversation as a summarizer reads it (thinking dropped).
-pub(crate) fn entries(messages: &[StoredMessage]) -> Vec<TranscriptEntry> {
-    let mut out = Vec::new();
-    for message in messages {
-        let Ok(blocks) = message.blocks() else { continue };
-        match message.role() {
-            Role::User => {
-                for block in blocks {
-                    match block {
-                        ContentBlock::Text { text, .. } if !text.trim().is_empty() && !is_noise(&text) => {
-                            out.push(TranscriptEntry::User { text });
-                        }
-                        ContentBlock::ToolResult { content, is_error, .. } => {
-                            out.push(TranscriptEntry::ToolResult { text: result_text(content.as_ref()), is_error });
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Role::Assistant => {
-                for block in blocks {
-                    match block {
-                        ContentBlock::Text { text, .. } if !text.trim().is_empty() => {
-                            out.push(TranscriptEntry::Assistant { text });
-                        }
-                        ContentBlock::ToolUse { name, input, .. } => {
-                            let input = view_text(&name, input.get()).unwrap_or_else(|| input.get().to_owned());
-                            out.push(TranscriptEntry::ToolCall { name, input });
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            Role::System => {}
-        }
-    }
-    out
-}
-
 /// What the user typed in `message`, if it is one of their prompts: not a
 /// tool result, not a note of the harness, not a compaction's seed.
 fn prompt_text(message: &StoredMessage) -> Option<String> {
@@ -108,10 +50,15 @@ fn prompt_text(message: &StoredMessage) -> Option<String> {
             _ => None,
         })
         .collect();
-    if texts.is_empty() {
+    if texts.is_empty() || texts.iter().any(|t| t.contains(SUMMARY_OPEN)) {
         return None;
     }
     Some(strip_turn_head(&texts.join("\n")).to_owned())
+}
+
+/// Whether `message` is one of the user's prompts.
+pub(crate) fn is_prompt(message: &StoredMessage) -> bool {
+    prompt_text(message).is_some()
 }
 
 /// A typed command shows as the user typed it.
@@ -227,28 +174,6 @@ mod tests {
             message(Role::User, &[text("<command-name>/review</command-name><command-args>the parser</command-args>")]),
             message(Role::User, &[text("[Request interrupted by user]")]),
         ]
-    }
-
-    #[test]
-    fn a_conversation_reads_as_entries_without_thinking_or_harness_notes() {
-        assert_eq!(
-            entries(&conversation()),
-            [
-                TranscriptEntry::User { text: "<msg id=\"1\"/>\nfix the bug".into() },
-                TranscriptEntry::Assistant { text: "on it".into() },
-                TranscriptEntry::ToolCall { name: "Read".into(), input: r#"{"file_path":"/x"}"#.into() },
-                TranscriptEntry::ToolCall {
-                    name: "mcp__worker__present".into(),
-                    input: "[view] Places — three cafes".into()
-                },
-                TranscriptEntry::ToolResult { text: "data".into(), is_error: false },
-                TranscriptEntry::ToolResult { text: String::new(), is_error: true },
-                TranscriptEntry::Assistant { text: "done".into() },
-                TranscriptEntry::User {
-                    text: "<command-name>/review</command-name><command-args>the parser</command-args>".into()
-                },
-            ]
-        );
     }
 
     #[test]

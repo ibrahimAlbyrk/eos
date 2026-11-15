@@ -1,5 +1,5 @@
 //! `/compact [focus]`: summarize the conversation and continue from the
-//! summary. The summarizer can take minutes, so the command only starts the
+//! summary. A summary can take minutes, so the command only starts the
 //! run; its progress reaches the dashboard through the `compaction_*` rows. On
 //! a session that cannot be compacted the text goes to the agent as typed.
 

@@ -18,9 +18,13 @@
 //! - a background subagent whose run ends while commands or monitors of its
 //!   own still run is waiting, not done: it will be woken when they report
 //!   (the engine tells its caller the result may be interim). It stays open,
-//!   its wake continues the same run, and only its last run completes it.
+//!   its wake continues the same run, and only its last run completes it;
+//! - a summary of the conversation (`compaction`) is no part of it: what its
+//!   request streams is dropped, its usage billed with the turn, and its
+//!   start and end are [`CompactionNotice`]s for the sink.
 
 mod blocks;
+mod compaction;
 mod convert;
 mod tasks;
 #[cfg(test)]
@@ -37,9 +41,11 @@ use eos_contracts::{
     ActivityEvent, ActivityEventKind, AgentEvent, ContextEvent, SubagentCompletedEvent, SubagentCompletedEventStatus,
     SubagentProfileEvent, SubagentStartedEvent, SubagentUsage, TurnEventPhase,
 };
-use eos_core::agent::SessionSink;
+use eos_core::agent::{CompactionNotice, SessionSink};
 
+use crate::compaction::LastSummary;
 use blocks::OpenBlocks;
+use compaction::Compactions;
 use convert::{TurnUsage, object_of, result_text, turn};
 use tasks::Tasks;
 use tracked::{CallKind, Calls};
@@ -94,10 +100,13 @@ pub(crate) struct Mapper {
     /// The commands and monitors each subagent has running, by agent id; an
     /// entry goes with its last task.
     sub_shells: HashMap<Arc<str>, HashSet<String>>,
+    compactions: Compactions,
 }
 
 impl Mapper {
-    pub(crate) fn new(launch: String) -> Self {
+    /// `prompts`: the user's prompts in the conversation it resumes;
+    /// `last_summary`: where the session's words leave each summary.
+    pub(crate) fn new(launch: String, prompts: i64, last_summary: Arc<LastSummary>) -> Self {
         Self {
             launch,
             requests: 0,
@@ -114,6 +123,35 @@ impl Mapper {
             profiles: HashMap::new(),
             tasks: Tasks::default(),
             sub_shells: HashMap::new(),
+            compactions: Compactions::new(prompts, last_summary),
+        }
+    }
+
+    /// `/compact` was sent to the engine with `instructions`.
+    pub(crate) fn compact_asked(&mut self, instructions: Option<String>) {
+        self.compactions.ask(instructions);
+    }
+
+    /// The `/compact` returned (`Ok(false)`: stopped, or nothing to summarize).
+    /// It ran in no turn: its usage is recorded on its own.
+    pub(crate) fn compact_done(&mut self, outcome: Result<bool, String>) -> Vec<AgentEvent> {
+        self.compactions.asked_done(outcome);
+        let mut out = Vec::new();
+        if !self.turn_active {
+            self.flush_usage(&mut out);
+        }
+        out
+    }
+
+    /// What the sink hears about summaries since the last call.
+    pub(crate) fn take_compactions(&mut self) -> Vec<CompactionNotice> {
+        self.compactions.take_notices()
+    }
+
+    fn flush_usage(&mut self, out: &mut Vec<AgentEvent>) {
+        let usage = self.usage.take();
+        if usage != convert::TurnUsage::default() {
+            out.push(usage.event(None));
         }
     }
 
@@ -137,6 +175,9 @@ impl Mapper {
     /// The turn is over: what was still streaming is recorded, the turn's
     /// usage reported, the turn closed.
     fn end_turn(&mut self, phase: TurnEventPhase, reason: Option<&str>, side: &Side<'_>, out: &mut Vec<AgentEvent>) {
+        if phase != TurnEventPhase::Ended {
+            self.compactions.fail(reason.unwrap_or("the turn failed"));
+        }
         out.extend(self.open.cut(side));
         out.push(self.usage.take().event(None));
         for (model, usage) in self.other_usage.drain(..) {
@@ -149,6 +190,24 @@ impl Mapper {
     /// One event of the session's own agent.
     pub(crate) fn agent(&mut self, event: EngineEvent, side: &Side<'_>) -> Vec<AgentEvent> {
         let mut out = Vec::new();
+        if self.compactions.is_open() {
+            // A summary request calls no tool and ends no turn: one that did
+            // was never finished (a turn the engine woke the agent for failed
+            // without a word), and the conversation goes on as it was.
+            if !matches!(
+                event,
+                EngineEvent::ToolUse { .. }
+                    | EngineEvent::ToolResult { .. }
+                    | EngineEvent::TurnEnded { .. }
+                    | EngineEvent::Interrupted
+            ) {
+                self.summary_event(event, side, &mut out);
+                return out;
+            }
+            if !matches!(event, EngineEvent::Interrupted) {
+                self.compactions.fail("the summary did not finish");
+            }
+        }
         match event {
             EngineEvent::RequestStarted { .. } => {
                 self.start_turn(&mut out);
@@ -196,8 +255,10 @@ impl Mapper {
                 }
             }
             EngineEvent::Interrupted => self.end_turn(TurnEventPhase::Aborted, Some("interrupted"), side, &mut out),
+            EngineEvent::Compacting { before_tokens } => self.compactions.started(before_tokens, side.now_ms),
             // The conversation's own messages are recorded from their blocks
-            // and results; retries, limits and summaries are not events.
+            // and results; a prompt is counted for the next summary.
+            EngineEvent::Message(message) => self.compactions.message(&message),
             // A retry in the log by its attempt and wait: its error text may quote the API.
             EngineEvent::Retrying { attempt, delay, .. } => {
                 tracing::info!(
@@ -207,12 +268,29 @@ impl Mapper {
                     "the model request is retried"
                 );
             }
-            EngineEvent::Message(_)
-            | EngineEvent::RateLimit(_)
-            | EngineEvent::Compacting { .. }
-            | EngineEvent::Compacted { .. } => {}
+            EngineEvent::RateLimit(_) | EngineEvent::Compacted { .. } => {}
         }
         out
+    }
+
+    /// An event while a summary is being written. An automatic one runs
+    /// inside the turn (it may be what starts it); a `/compact` in none.
+    fn summary_event(&mut self, event: EngineEvent, side: &Side<'_>, out: &mut Vec<AgentEvent>) {
+        match event {
+            EngineEvent::RequestStarted { .. } => {
+                if !self.compactions.is_asked() {
+                    self.start_turn(out);
+                }
+                self.requests += 1;
+            }
+            // Its prompt is the whole conversation: no measure of the context.
+            EngineEvent::Usage(response) => self.usage.add(&response.usage),
+            EngineEvent::Message(message) => self.compactions.message(&message),
+            EngineEvent::Compacted { .. } => self.compactions.completed(side.now_ms),
+            EngineEvent::Compacting { before_tokens } => self.compactions.started(before_tokens, side.now_ms),
+            // The summary's own text, and what a retry abandons of it.
+            _ => {}
+        }
     }
 
     /// The turn failed with no event of its own. `notice` is what the user
@@ -235,6 +313,7 @@ impl Mapper {
         side: &Side<'_>,
     ) -> Vec<AgentEvent> {
         let mut out = Vec::new();
+        self.compactions.fail(notice.unwrap_or("the turn failed"));
         self.start_turn(&mut out);
         out.extend(self.open.cut(side));
         if let Some(text) = notice {

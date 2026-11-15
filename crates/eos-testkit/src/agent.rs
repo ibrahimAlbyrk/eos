@@ -20,15 +20,15 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use eos_contracts::{
-    AgentEvent, AgentMessageEvent, AgentMessageEventRole, CanonicalUsage, CommandItem, ContentBlock, RewindMode,
-    RewindTarget, SessionEvent, SessionEventPhase, TextBlock, ToolCallBlock, ToolResultBlock, TurnEvent,
+    AgentEvent, AgentMessageEvent, AgentMessageEventRole, CanonicalUsage, CommandItem, CompactionTrigger, ContentBlock,
+    RewindMode, RewindTarget, SessionEvent, SessionEventPhase, TextBlock, ToolCallBlock, ToolResultBlock, TurnEvent,
     TurnEventPhase, UiBackendDescriptorBilling, UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
     UnknownRecord, UsageEvent, WorkflowRunProgress,
 };
 use eos_core::accounts::SessionCredential;
 use eos_core::agent::{
-    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, BackgroundTaskUpdate, LaunchSpec,
-    ModelSource, Rewound, SessionError, SessionSink, SessionTranscript, ToolInputDelta, TranscriptEntry,
+    AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, BackgroundTaskUpdate,
+    CompactionNotice, CompactionWords, LaunchSpec, ModelSource, Rewound, SessionError, SessionSink, ToolInputDelta,
 };
 use eos_core::{BoxFuture, Error};
 use tokio::sync::{Notify, watch};
@@ -109,7 +109,15 @@ pub struct Turn {
 enum Effect {
     Background(BackgroundTaskUpdate),
     Workflow(WorkflowRunProgress),
+    /// The conversation is summarized mid-turn, as the engine does at its threshold.
+    Compaction,
 }
+
+/// What a scripted session's summaries say.
+pub const COMPACT_SUMMARY: &str = "Summary: the work so far, in a few lines.";
+/// The context a scripted session's summary starts from, and ends at.
+pub const COMPACT_BEFORE_TOKENS: i64 = 950_000;
+pub const COMPACT_AFTER_TOKENS: i64 = 4_000;
 
 impl Turn {
     /// The agent answers with `text`.
@@ -141,6 +149,13 @@ impl Turn {
     /// A workflow run of the session reports progress during the turn.
     pub fn with_workflow(mut self, progress: WorkflowRunProgress) -> Self {
         self.effects.push(Effect::Workflow(progress));
+        self
+    }
+
+    /// The session's context reaches its threshold during the turn: the
+    /// conversation is summarized and the turn goes on.
+    pub fn compacting(mut self) -> Self {
+        self.effects.push(Effect::Compaction);
         self
     }
 
@@ -184,7 +199,7 @@ pub enum Call {
     Stop(String),
     SetModel { worker_id: String, model: String, effort: Option<String> },
     ClearContext(String),
-    ReplaceContext { worker_id: String, seed: String },
+    Compact { worker_id: String, instructions: Option<String> },
     Rewind { worker_id: String, uuid: String },
     Recall(String),
     StopTask { worker_id: String, task_id: String },
@@ -206,6 +221,8 @@ struct Shared {
     start_error: Mutex<Option<Error>>,
     /// The next start waits here before it does anything.
     start_hold: Mutex<Option<Arc<Notify>>>,
+    /// The next summary waits here once it has started.
+    compact_hold: Mutex<Option<Arc<Notify>>>,
     forgotten: Mutex<Vec<String>>,
     /// Task ids `stop_task` answers as already ended.
     ended_tasks: Mutex<Vec<String>>,
@@ -287,6 +304,7 @@ impl ScriptedRuntime {
             calls: Mutex::default(),
             start_error: Mutex::default(),
             start_hold: Mutex::default(),
+            compact_hold: Mutex::default(),
             forgotten: Mutex::default(),
             ended_tasks: Mutex::default(),
             running: watch::Sender::new(0),
@@ -331,6 +349,13 @@ impl ScriptedRuntime {
     pub fn hold_next_start(&self) -> Release {
         let gate = Arc::new(Notify::new());
         *self.0.start_hold.lock().expect("start hold") = Some(gate.clone());
+        Release(gate)
+    }
+
+    /// The next summary of a conversation waits, once started, to be released.
+    pub fn hold_next_compaction(&self) -> Release {
+        let gate = Arc::new(Notify::new());
+        *self.0.compact_hold.lock().expect("compact hold") = Some(gate.clone());
         Release(gate)
     }
 
@@ -420,7 +445,8 @@ struct ScriptedSession {
     interrupt: watch::Sender<u64>,
     /// One turn at a time, in the order sent.
     order: tokio::sync::Mutex<()>,
-    said: Mutex<Vec<TranscriptEntry>>,
+    /// The user's prompts in the conversation.
+    said: Mutex<Vec<String>>,
 }
 
 /// Counts a turn as running until dropped.
@@ -442,6 +468,35 @@ impl Drop for Running {
 impl ScriptedSession {
     fn gone(&self) -> Result<(), SessionError> {
         if self.alive.load(Ordering::SeqCst) { Ok(()) } else { Err(SessionError::Gone) }
+    }
+
+    /// Replaces the conversation with [`COMPACT_SUMMARY`], telling the sink
+    /// as the engine does.
+    async fn summarize(&self, trigger: CompactionTrigger, instructions: Option<String>) {
+        let id = self.worker_id.as_str();
+        let turns = std::mem::take(&mut *self.said.lock().expect("said"));
+        if turns.is_empty() {
+            let error = "nothing to compact yet".to_owned();
+            self.sink.compaction(id, CompactionNotice::Failed { trigger, error }).await;
+            return;
+        }
+        let before_tokens = COMPACT_BEFORE_TOKENS;
+        let started = CompactionNotice::Started { trigger, before_tokens, instructions: instructions.clone() };
+        self.sink.compaction(id, started).await;
+        let hold = self.shared.compact_hold.lock().expect("compact hold").take();
+        if let Some(gate) = hold {
+            gate.notified().await;
+        }
+        let completed = CompactionNotice::Completed {
+            trigger,
+            before_tokens,
+            after_tokens: COMPACT_AFTER_TOKENS,
+            turns: i64::try_from(turns.len()).unwrap_or(0),
+            summary: COMPACT_SUMMARY.to_owned(),
+            instructions,
+            duration_ms: 0,
+        };
+        self.sink.compaction(id, completed).await;
     }
 
     fn begin(&self, text: String) {
@@ -471,7 +526,7 @@ impl ScriptedSession {
         }
         let mut interrupted = self.interrupt.subscribe();
         if let Some(text) = text {
-            self.said.lock().expect("said").push(TranscriptEntry::User { text });
+            self.said.lock().expect("said").push(text);
         }
         let id = self.worker_id.as_str();
         let mut batch = vec![events::turn(TurnEventPhase::Started, None)];
@@ -483,6 +538,7 @@ impl ScriptedSession {
             match effect {
                 Effect::Background(update) => self.sink.background_task(id, update),
                 Effect::Workflow(progress) => self.sink.workflow_progress(progress),
+                Effect::Compaction => self.summarize(CompactionTrigger::Auto, None).await,
             }
         }
         if turn.hold.is_some() || turn.takes.is_some() {
@@ -567,19 +623,13 @@ impl AgentSession for ScriptedSession {
         })
     }
 
-    fn read_transcript(&self) -> BoxFuture<'_, Result<Option<SessionTranscript>, SessionError>> {
+    fn compact(&self, instructions: Option<String>) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
             self.gone()?;
-            let entries = self.said.lock().expect("said").clone();
-            Ok((!entries.is_empty()).then_some(SessionTranscript { entries, path: None }))
-        })
-    }
-
-    fn replace_context(&self, seed: String) -> BoxFuture<'_, Result<(), SessionError>> {
-        Box::pin(async move {
-            self.gone()?;
-            *self.said.lock().expect("said") = vec![TranscriptEntry::User { text: seed.clone() }];
-            self.shared.record(Call::ReplaceContext { worker_id: self.worker_id.clone(), seed });
+            self.shared.record(Call::Compact { worker_id: self.worker_id.clone(), instructions: instructions.clone() });
+            // After the turn that is running, as the engine does.
+            let _order = self.order.lock().await;
+            self.summarize(CompactionTrigger::Manual, instructions).await;
             Ok(())
         })
     }
@@ -588,13 +638,7 @@ impl AgentSession for ScriptedSession {
         Box::pin(async move {
             self.gone()?;
             let said = self.said.lock().expect("said");
-            let prompts: Vec<&str> = said
-                .iter()
-                .filter_map(|e| match e {
-                    TranscriptEntry::User { text } => Some(text.as_str()),
-                    _ => None,
-                })
-                .collect();
+            let prompts: Vec<&str> = said.iter().map(String::as_str).collect();
             let count = prompts.len();
             Ok(prompts
                 .into_iter()
@@ -736,6 +780,27 @@ impl AgentRuntime for ScriptedRuntime {
     }
 }
 
+/// Compaction words in a few plain lines: the summary in the tags that tell
+/// it from the user's prompts, then where the earlier conversation is kept.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PlainCompactionWords;
+
+impl CompactionWords for PlainCompactionWords {
+    fn instruction(&self, focus: Option<&str>) -> String {
+        match focus {
+            Some(focus) => format!("Summarize the conversation. Focus: {focus}"),
+            None => "Summarize the conversation.".to_owned(),
+        }
+    }
+
+    fn seed(&self, summary: &str, transcript_archive: &str) -> String {
+        format!(
+            "<compaction_summary>\n{summary}\n</compaction_summary>\nEarlier: {transcript_archive}\nCarry on where you \
+             left off."
+        )
+    }
+}
+
 /// A sink that keeps everything it hears, for tests of a runtime itself.
 #[derive(Debug, Default)]
 pub struct RecordingSink {
@@ -748,6 +813,8 @@ pub struct RecordingSink {
     pub tool_inputs: Mutex<Vec<ToolInputDelta>>,
     pub workflow: Mutex<Vec<WorkflowRunProgress>>,
     pub tasks: Mutex<Vec<BackgroundTaskUpdate>>,
+    /// Each notice about a summary, with how many of the worker's events came before it.
+    pub compactions: Mutex<Vec<(String, usize, CompactionNotice)>>,
 }
 
 impl RecordingSink {
@@ -817,6 +884,13 @@ impl SessionSink for RecordingSink {
 
     fn background_task(&self, _worker_id: &str, update: BackgroundTaskUpdate) {
         self.tasks.lock().expect("tasks").push(update);
+    }
+
+    fn compaction<'a>(&'a self, worker_id: &'a str, notice: CompactionNotice) -> BoxFuture<'a, ()> {
+        let before = self.events.lock().expect("events").iter().filter(|(w, _)| w == worker_id).count();
+        self.compactions.lock().expect("compactions").push((worker_id.to_owned(), before, notice));
+        self.heard.send_modify(|n| *n += 1);
+        Box::pin(std::future::ready(()))
     }
 }
 

@@ -216,10 +216,6 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_compaction::CompactionModule::new(eos_mod_compaction::Parts {
             store: cx.store.clone(),
             sessions: Arc::new(cx.sessions.clone()),
-            config: cx.config.clone(),
-            models: cx.models.clone(),
-            summarizer: cx.one_shot.clone(),
-            prompts: cx.prompts.clone(),
             clock: cx.clock.clone(),
             jobs: cx.kernel.jobs.clone(),
         })),

@@ -11,8 +11,8 @@ use eos_contracts::{
     TurnEventPhase, WorkerEventType, WorkerState, WorkflowRunProgress,
 };
 use eos_core::agent::{
-    AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, ModelCatalog, PromptAssembler, SessionSink,
-    ToolInputDelta,
+    AgentRuntime, AgentSession, BackendDescriptor, BackgroundTaskUpdate, CompactionNotice, ModelCatalog,
+    PromptAssembler, SessionSink, ToolInputDelta,
 };
 use eos_core::git::WorktreeManager;
 use eos_core::store::{ConfigSource, RecentFolders, Store};
@@ -49,6 +49,9 @@ pub trait SessionHooks: Send + Sync + 'static {
     fn tool_input(&self, _worker_id: &str, _delta: ToolInputDelta) {}
     fn workflow_progress(&self, _progress: WorkflowRunProgress) {}
     fn background_task(&self, _worker_id: &str, _update: BackgroundTaskUpdate) {}
+    /// A session's summary of its conversation started, finished or failed
+    /// (its row is recorded).
+    fn compaction(&self, _worker_id: &str, _notice: &CompactionNotice) {}
     /// A worker was archived: its session is over, its data stays.
     fn archived(&self, _worker: &Worker) {}
     /// A worker's row is gone for good (its scratch folder, its browser, … go too).
@@ -547,6 +550,10 @@ impl SessionSink for Sessions {
 
     fn background_task(&self, worker_id: &str, update: BackgroundTaskUpdate) {
         self.0.deps.hooks.background_task(worker_id, update);
+    }
+
+    fn compaction<'a>(&'a self, worker_id: &'a str, notice: CompactionNotice) -> BoxFuture<'a, ()> {
+        Box::pin(self.on_compaction(worker_id, notice))
     }
 }
 

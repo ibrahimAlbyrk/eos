@@ -19,24 +19,16 @@ fn render(prompts: &PromptService, id: &str, pairs: &[(&str, &str)]) -> Result<S
 pub mod compaction {
     use super::{Error, PromptService, render};
 
-    /// The summarizer's system prompt.
-    pub fn summarizer_system(prompts: &PromptService) -> Result<String, Error> {
-        render(prompts, "compaction/summarizer-system", &[])
+    /// The request appended to the conversation for its summary, with what
+    /// the user typed after `/compact`.
+    pub fn summarize(prompts: &PromptService, instructions: Option<&str>) -> Result<String, Error> {
+        render(prompts, "compaction/summarize", &[("INSTRUCTIONS", instructions.unwrap_or_default())])
     }
 
-    /// The request: the rendered transcript, and what the user typed after `/compact`.
-    pub fn summarize(prompts: &PromptService, transcript: &str, instructions: Option<&str>) -> Result<String, Error> {
-        let pairs = [("TRANSCRIPT", transcript), ("INSTRUCTIONS", instructions.unwrap_or_default())];
-        render(prompts, "compaction/summarize", &pairs)
-    }
-
-    /// What the session that replaces the compacted one starts from.
-    pub fn continuation(
-        prompts: &PromptService,
-        summary: &str,
-        transcript_path: Option<&str>,
-    ) -> Result<String, Error> {
-        let pairs = [("SUMMARY", summary), ("TRANSCRIPT_PATH", transcript_path.unwrap_or_default())];
+    /// The message the conversation goes on from: the summary, and the files
+    /// the conversation before it is kept in (a glob).
+    pub fn continuation(prompts: &PromptService, summary: &str, transcript_archive: &str) -> Result<String, Error> {
+        let pairs = [("SUMMARY", summary), ("TRANSCRIPT_ARCHIVE", transcript_archive)];
         render(prompts, "compaction/continuation", &pairs)
     }
 }

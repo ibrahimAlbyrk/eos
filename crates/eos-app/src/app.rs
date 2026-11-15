@@ -426,6 +426,7 @@ impl App {
                 questions: Arc::new(questions.clone()),
                 clock: clock.clone(),
                 secrets: secrets.clone(),
+                compaction: Arc::new(eos_mod_compaction::Words::new(prompts.clone())),
             },
         );
         // "Resume at" and "Use API key" reach the live session through the engine.

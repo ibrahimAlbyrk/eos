@@ -19,8 +19,8 @@ use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
 use eos_core::agent::{
-    AgentRuntime, BackgroundTaskUpdate, HostTool, LaunchSpec, OneShot, PromptAssembler, ScratchFolders, SpawnFacts,
-    ToolInputDelta, ToolSets,
+    AgentRuntime, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, OneShot, PromptAssembler,
+    ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
 };
 use eos_core::git::{BranchIntegration, WorktreeManager};
 use eos_core::prompt::ProfileRenderer;
@@ -472,6 +472,12 @@ impl SessionHooks for AppHooks {
     fn background_task(&self, worker_id: &str, update: BackgroundTaskUpdate) {
         if let Some(runtime) = self.runtime() {
             runtime.modules.on_background_task(worker_id, &update);
+        }
+    }
+
+    fn compaction(&self, worker_id: &str, notice: &CompactionNotice) {
+        if let Some(runtime) = self.runtime() {
+            runtime.modules.on_compaction(worker_id, notice);
         }
     }
 

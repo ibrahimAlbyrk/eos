@@ -15,8 +15,8 @@ use eos_contracts::{
 use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendCatalog, BackendDescriptor, CommandCatalog,
-    LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink, ToolSets,
-    UserQuestions,
+    CompactionWords, LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest, SessionSink,
+    ToolSets, UserQuestions,
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
@@ -24,6 +24,7 @@ use tokio::sync::mpsc;
 
 use crate::accounts::{Accounts, Failover, NotSignedIn};
 use crate::commands::{folder_commands, with_session_commands};
+use crate::compaction::{LastSummary, Words};
 use crate::gate::EosGate;
 use crate::prompter::Prompter;
 use crate::registry::Registry;
@@ -88,6 +89,9 @@ pub struct EngineDeps {
     pub clock: Arc<dyn Clock>,
     /// The system's secret store: a Claude sign-in's login is read there.
     pub secrets: Arc<dyn eos_platform::CredentialStore>,
+    /// What a session's summary of its conversation is asked for with, and
+    /// the message the conversation goes on from.
+    pub compaction: Arc<dyn CompactionWords>,
 }
 
 impl std::fmt::Debug for EngineDeps {
@@ -141,6 +145,7 @@ struct Inner {
     tools: Arc<dyn ToolSets>,
     adapters: Adapters,
     shared: Arc<Shared>,
+    compaction: Arc<dyn CompactionWords>,
 }
 
 /// Agent sessions on `eos-agent-sdk`. Cheap to clone.
@@ -161,7 +166,7 @@ impl Engine {
     /// Builds what every session shares: one HTTP client, the tools, the
     /// prompts, the MCP hub, the transcript store. Reads no credential.
     pub async fn build(options: EngineOptions, deps: EngineDeps) -> Result<Self, Error> {
-        let EngineDeps { policy, tools, credentials, questions, clock, secrets } = deps;
+        let EngineDeps { policy, tools, credentials, questions, clock, secrets, compaction } = deps;
         let sessions = Arc::new(Registry::default());
         let accounts = Arc::new(Accounts::new(secrets));
         let store = JsonlStore::new(options.dir.join("transcripts"));
@@ -210,6 +215,7 @@ impl Engine {
             tools,
             adapters: Adapters::default(),
             shared,
+            compaction,
         };
         Ok(Self(Arc::new(inner)))
     }
@@ -257,7 +263,12 @@ impl Engine {
         Ok(messages)
     }
 
-    fn options(&self, spec: &LaunchSpec, history: Vec<eos_agent_core::StoredMessage>) -> AgentOptions {
+    fn options(
+        &self,
+        spec: &LaunchSpec,
+        history: Vec<eos_agent_core::StoredMessage>,
+        last_summary: Arc<LastSummary>,
+    ) -> AgentOptions {
         let inner = &self.0;
         let focused = spec.is_focused();
         let seed = Extensions::default();
@@ -273,9 +284,18 @@ impl Engine {
             // A focused session is a plain coding session with tool search;
             // orchestrators and workers get every tool in full, as today.
             .tool_search(focused)
-            // Eos summarizes a conversation itself, at a worker's idle edge.
-            .auto_compact(false)
+            // The conversation is summarized at Eos's threshold, before the
+            // request that would pass it, and the turn goes on.
+            .compaction_text(Arc::new(Words::new(
+                inner.compaction.clone(),
+                &inner.store.path(&spec.worker_id),
+                last_summary,
+            )))
+            .auto_compact(spec.compact_at.is_some())
             .plugin_dirs(inner.options.plugin_dirs.clone());
+        if let Some(at) = spec.compact_at {
+            options = options.compact_at(at);
+        }
         if let Some(effort) = &spec.effort {
             options = options.effort(effort);
         }
@@ -315,9 +335,14 @@ impl AgentRuntime for Engine {
                 None => shared.credentials.for_new_session(PROVIDER).await,
             };
             let history = self.history(&spec).await?;
+            let prompts = history.iter().filter(|m| transcript::is_prompt(m)).count();
+            let last_summary = Arc::new(LastSummary::default());
             let (subagent_events, subagents) = mpsc::channel(SUBAGENT_EVENTS);
             let (task_events, tasks) = mpsc::channel(TASK_EVENTS);
-            let mut options = self.options(&spec, history).subagent_events(subagent_events).task_events(task_events);
+            let mut options = self
+                .options(&spec, history, last_summary.clone())
+                .subagent_events(subagent_events)
+                .task_events(task_events);
             if let Some(credential) = &credential {
                 options = options.auth(shared.accounts.of(credential));
             }
@@ -333,6 +358,8 @@ impl AgentRuntime for Engine {
                 credential: credential.clone(),
                 sink: sink.clone(),
                 shared: shared.clone(),
+                prompts: i64::try_from(prompts).unwrap_or(i64::MAX),
+                last_summary,
             };
             // Before the pump can report anything: the session is up, and the
             // id its conversation is recorded under is the worker's.

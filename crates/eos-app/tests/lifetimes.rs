@@ -106,9 +106,7 @@ async fn every_kind_of_turn_runs_through_the_app_and_ends_idle() {
         assert!(frames.until(WAIT, |f| rig::went(f, &id, "IDLE")).await.is_some(), "{kind}: the turn ends");
     }
     agents.settled().await;
-    // The "big" turn's idle edge compacts the chat, and the IDLE that ends the
-    // compaction can be the one a later kind's wait took: that kind's turn,
-    // queued behind it, may still be running here.
+    // A turn queued behind another may still be running here.
     let deadline = tokio::time::Instant::now() + WAIT;
     let row = loop {
         let (_, row) = rig::call(&app, Method::Get, &format!("/workers/{id}"), None).await;

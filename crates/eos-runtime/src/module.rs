@@ -11,7 +11,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use eos_contracts::{AgentEvent, WorkflowRunProgress};
-use eos_core::agent::{BackgroundTaskUpdate, ToolInputDelta};
+use eos_core::agent::{BackgroundTaskUpdate, CompactionNotice, ToolInputDelta};
 
 use crate::bus::{Event, TopicDecl};
 use crate::error::{Conflict, Error, panic_message};
@@ -170,6 +170,10 @@ pub trait Module: Send + Sync + 'static {
     /// A background command or monitor of a session's own agent moved on.
     /// Never logged; must not block.
     fn on_background_task(&self, _worker_id: &str, _update: &BackgroundTaskUpdate) {}
+
+    /// A session's summary of its conversation started, finished or failed
+    /// (its row is recorded). Must not block.
+    fn on_compaction(&self, _worker_id: &str, _notice: &CompactionNotice) {}
 
     /// A session (a root worker and its subtree) was killed, archived or purged.
     fn on_session_ended(&self, _session_key: &str) {}
@@ -401,6 +405,12 @@ impl Modules {
     pub fn on_background_task(&self, worker_id: &str, update: &BackgroundTaskUpdate) {
         for module in self.running() {
             Self::guarded(module.as_ref(), "on_background_task", || module.on_background_task(worker_id, update));
+        }
+    }
+
+    pub fn on_compaction(&self, worker_id: &str, notice: &CompactionNotice) {
+        for module in self.running() {
+            Self::guarded(module.as_ref(), "on_compaction", || module.on_compaction(worker_id, notice));
         }
     }
 

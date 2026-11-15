@@ -15,6 +15,7 @@ use eos_core::agent::{LaunchSpec, PromptAssembler, SpawnFacts};
 use eos_core::git::{WorktreeCreate, WorktreeCreated};
 use eos_core::store::{NewWorker, WorktreeRemoval};
 use eos_domain::Worker;
+use eos_domain::compaction::compact_at;
 use eos_domain::effort::resolve_effort;
 use eos_domain::envelope::{SenderClass, apply_sender_tag};
 use eos_domain::message_id::{prefix_operator_turn, starts_with_slash_command};
@@ -116,7 +117,7 @@ async fn system_prompt(prompts: &Arc<dyn PromptAssembler>, facts: &SpawnFacts) -
     }
 }
 
-fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>) -> LaunchSpec {
+fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, compact_at: Option<u64>) -> LaunchSpec {
     LaunchSpec {
         worker_id: facts.worker_id.clone(),
         cwd,
@@ -131,6 +132,7 @@ fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>) -> 
         prompt: None,
         resume: None,
         credential: None,
+        compact_at,
     }
 }
 
@@ -149,6 +151,13 @@ fn base36(mut n: i64) -> String {
 }
 
 impl Sessions {
+    /// Where a session on `model` summarizes its conversation by itself.
+    fn compact_at(&self, model: &str) -> Option<u64> {
+        let compaction = &self.0.deps.config.current().compaction;
+        let window = self.0.deps.models.context_window_for(Some(model));
+        compact_at(compaction.enabled, compaction.threshold, window)
+    }
+
     /// The effort `model` can apply for what was asked.
     fn effort_for(&self, model: &str, requested: Option<&str>) -> Option<String> {
         let models = self.0.deps.models.models();
@@ -352,7 +361,7 @@ impl Sessions {
             backend_profile: request.backend_profile.clone(),
         };
         let system_prompt = system_prompt(&deps.prompts, &facts).await;
-        let mut launch = launch_of(&facts, cwd, system_prompt);
+        let mut launch = launch_of(&facts, cwd, system_prompt, self.compact_at(&facts.model));
         launch.prompt = Some(boot_prompt).filter(|p| !p.trim().is_empty());
         if let Err(e) = deps.runtime.start(launch, self.sink()).await {
             tracing::warn!(worker_id = %id, error = %e, "a worker's session did not start");
@@ -440,7 +449,8 @@ impl Sessions {
         // The row stays at rest while the session comes up: a start with no
         // input is no turn. A message accepted meanwhile moves it (`dispatch.rs`).
         let facts = facts_of(&row);
-        let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await);
+        let compact_at = self.compact_at(&facts.model);
+        let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await, compact_at);
         launch.resume = Some(session_id.clone());
         let started = deps.runtime.start(launch, self.sink()).await;
         let (id, now) = (worker_id.to_owned(), self.now());

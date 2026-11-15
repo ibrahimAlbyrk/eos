@@ -1,7 +1,7 @@
 //! A panic fails only the unit it happens in, in the composed app: a route
 //! handler (that request answers 500, the next ones are served), an idle hook
-//! (the hooks after it still run: a long chat is still compacted), an agent
-//! event handler on the pump (the turn is still recorded and ends). A feature
+//! (the chat still takes its next message), an agent event handler on the pump
+//! (the turn is still recorded and ends). A feature
 //! whose start fails or panics does not keep the app from opening: its routes
 //! answer 503 naming it, its hooks never run, and the user is told. What the
 //! app cannot run without (its database) still fails the start.
@@ -113,29 +113,17 @@ async fn a_panicking_route_hook_or_event_handler_fails_only_itself() {
 
     // The pump and the idle edge: every event reaches the panicking handler,
     // the first hook panics at every idle edge; turns still end, rows are
-    // still written, and compaction (a later hook) still runs.
+    // still written, and the chat still takes its next message.
     let mut frames = rig::Frames::new(rig::open_stream(&app, "").await.expect("a stream"));
     let chat = rig::focused_chat(&app, &cwd, "[tools] look").await;
     assert!(frames.until(WAIT, |f| rig::went(f, &chat, "IDLE")).await.is_some(), "the first turn ends");
     let big = json!({"text": "[big] keep going"});
     let (status, _) = rig::call(&app, Method::Post, &format!("/workers/{chat}/message"), Some(big)).await;
     assert!(status < 300);
-    // The turn ends, then the idle edge compacts the chat (it works again, then
-    // rests): each time the chat comes to rest, read what it recorded.
-    let deadline = tokio::time::Instant::now() + WAIT;
-    let recorded = loop {
-        assert!(frames.until(WAIT, |f| rig::went(f, &chat, "IDLE")).await.is_some(), "the chat comes to rest");
-        let (_, rows) =
-            rig::call(&app, Method::Get, &format!("/workers/{chat}/events?limit=500&order=asc"), None).await;
-        let rows = rows.as_array().cloned().unwrap_or_default();
-        if rows.iter().any(|r| r["type"] == "compaction_completed") || tokio::time::Instant::now() > deadline {
-            break rows;
-        }
-    };
-    assert!(
-        recorded.iter().any(|r| r["type"] == "compaction_completed"),
-        "the compaction hook ran after the panicking one"
-    );
+    assert!(frames.until(WAIT, |f| rig::went(f, &chat, "IDLE")).await.is_some(), "the second turn ends");
+    let (_, rows) = rig::call(&app, Method::Get, &format!("/workers/{chat}/events?limit=500&order=asc"), None).await;
+    let recorded = rows.as_array().cloned().unwrap_or_default();
+    assert!(recorded.iter().any(|r| r["type"] == "compaction_completed"), "its summary was recorded");
     let tools = recorded.iter().any(|r| r["payload"].as_str().is_some_and(|p| p.contains("tool_call")));
     assert!(tools, "the tool turn was recorded");
     app.shutdown(Duration::from_secs(5)).await;

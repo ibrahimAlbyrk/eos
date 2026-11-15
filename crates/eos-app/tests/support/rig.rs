@@ -23,8 +23,8 @@ use eos_testkit::ScriptedRuntime;
 use eos_testkit::agent::{Turn, events};
 use serde_json::{Value, json};
 
-/// Builds the app on `home` with `agents` for every session and a summarizer
-/// that always answers. Peers, the relay, launchd and the leftover sweep stay off.
+/// Builds the app on `home` with `agents` for every session and a one-shot
+/// model that always answers. Peers, the relay, launchd and the leftover sweep stay off.
 pub fn build(home: &Path, agents: &ScriptedRuntime) -> App {
     let options = Options {
         launchd: None,
@@ -78,8 +78,8 @@ pub async fn open_stream(app: &App, query: &str) -> Option<BodyStream> {
     }
 }
 
-/// A one-shot model that always answers: summaries for compaction, names
-/// for chats. Keeps nothing.
+/// A one-shot model that always answers: names for chats, plain text for
+/// the rest. Keeps nothing.
 pub struct Summarizer;
 
 impl OneShot for Summarizer {
@@ -104,7 +104,7 @@ fn event(value: Value) -> AgentEvent {
     }
 }
 
-/// The context a session reports filling: past the compaction threshold at 950,000.
+/// The context a session reports filling.
 pub fn context(tokens: u64) -> AgentEvent {
     event(json!({"type": "context", "tokens": tokens}))
 }
@@ -198,8 +198,8 @@ pub fn turn_for(worker_id: &str, text: &str) -> Turn {
         }
         "long" => Turn::of(vec![reasoning, answer("That took a while.")]).taking(Duration::from_millis(1500)),
         "big" => {
-            // Past the compaction threshold: the idle edge compacts the chat.
-            Turn::of(vec![answer("A long conversation by now."), context(950_000)])
+            // Past the compaction threshold: the conversation is summarized mid-turn.
+            Turn::of(vec![answer("A long conversation by now."), context(950_000)]).compacting()
         }
         "failing" => Turn::of(vec![answer("Something broke.")]).failing("overloaded"),
         _ => Turn::of(vec![reasoning, answer("Done.")]),

@@ -9,7 +9,7 @@ use std::time::Duration;
 use eos_agent_mock_api::{MockApi, Reply};
 use eos_core::Error;
 use eos_core::accounts::{PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
-use eos_core::agent::{AgentRuntime, AgentSession, LaunchSpec, SessionError, TranscriptEntry};
+use eos_core::agent::{AgentRuntime, AgentSession, CompactionNotice, LaunchSpec, SessionError};
 use eos_engine::{Engine, EngineDeps, EngineOptions};
 use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets, FakeUser, RecordingSink};
 use serde_json::Value;
@@ -59,6 +59,7 @@ impl Bench {
             questions: user.clone(),
             clock: Arc::new(FakeClock::new()),
             secrets: Arc::new(eos_testkit::NoKeychain),
+            compaction: Arc::new(eos_testkit::PlainCompactionWords),
         };
         let engine = Engine::build(options, deps).await.expect("the engine");
         Self { engine, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
@@ -142,9 +143,6 @@ async fn a_turn_streams_is_recorded_and_billed() {
 
     assert!(session.is_alive());
     assert_eq!(session.live_subagents(), 0);
-    let transcript = session.read_transcript().await.expect("reads").expect("a conversation");
-    assert_eq!(transcript.entries.last(), Some(&TranscriptEntry::Assistant { text: "hello there".into() }));
-    assert!(transcript.path.expect("a path").ends_with("engine/transcripts/w-1.jsonl"));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -315,7 +313,7 @@ async fn a_stopped_session_exits_and_its_conversation_resumes() {
     assert_eq!(bench.engine.live(), 0);
     assert!(bench.engine.session("w-1").is_none());
     assert_eq!(session.send("late".into()).await, Err(SessionError::Gone));
-    assert_eq!(session.read_transcript().await, Err(SessionError::Gone));
+    assert_eq!(session.compact(None).await, Err(SessionError::Gone));
     session.stop().await;
     assert_eq!(bench.sink.exits.lock().expect("exits").len(), 1, "stopping twice reports one exit");
     let launched = bench.credentials.launched.lock().expect("launched").clone();
@@ -516,8 +514,15 @@ async fn a_chat_the_typescript_app_went_on_with_is_taken_again() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn the_conversation_can_be_cut_back_cleared_and_replaced() {
-    let bench = Bench::new([Reply::text("one"), Reply::text("two"), Reply::text("three"), Reply::text("four")]).await;
+async fn the_conversation_can_be_cut_back_cleared_and_summarized() {
+    let bench = Bench::new([
+        Reply::text("one"),
+        Reply::text("two"),
+        Reply::text("three"),
+        Reply::text("<analysis>x</analysis><summary>SUMMARY OF THE WORK</summary>"),
+        Reply::text("four"),
+    ])
+    .await;
     let session = bench.start(bench.spec("w-1")).await;
     session.send("ALPHA-ONE".into()).await.expect("sends");
     bench.after_turns("w-1", 1).await;
@@ -538,18 +543,21 @@ async fn the_conversation_can_be_cut_back_cleared_and_replaced() {
     let sent = bench.request_text(2);
     assert!(sent.contains("ALPHA-ONE") && sent.contains("GAMMA-THREE") && !sent.contains("BETA-TWO"), "{sent}");
 
-    // Taking back the last prompt, then replacing everything with a summary.
+    // Taking back the last prompt, then summarizing everything.
     session.recall_last_user_turn().await.expect("recalls");
     let left: Vec<String> = session.rewind_targets().await.expect("targets").into_iter().map(|t| t.text).collect();
     assert_eq!(left, ["ALPHA-ONE"]);
-    session.replace_context("SUMMARY OF THE WORK".into()).await.expect("replaces");
+    session.compact(Some("keep the codes".into())).await.expect("summarizes");
+    let asked = bench.request_text(3);
+    assert!(asked.contains("Summarize the conversation. Focus: keep the codes") && asked.contains("ALPHA-ONE"));
     session.send("carry on".into()).await.expect("sends");
     bench.after_turns("w-1", 4).await;
-    let sent = bench.request_text(3);
+    let sent = bench.request_text(4);
     assert!(sent.contains("SUMMARY OF THE WORK") && sent.contains("carry on") && !sent.contains("ALPHA-ONE"), "{sent}");
+    assert!(!sent.contains("<analysis>"), "only the summary carries on: {sent}");
 
     session.clear_context().await.expect("clears");
-    assert_eq!(session.read_transcript().await.expect("reads"), None);
+    assert!(session.rewind_targets().await.expect("targets").is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -621,7 +629,6 @@ async fn a_running_turn_holds_up_neither_the_rewind_list_nor_a_clear() {
     tokio::time::timeout(soon, session.clear_context()).await.expect("clears at once").expect("clears");
     let events = bench.after_turns("w-1", 2).await;
     assert_eq!(events.iter().rev().find(|e| e["type"] == "turn").expect("the end")["phase"], "aborted");
-    assert_eq!(session.read_transcript().await.expect("reads"), None);
     assert!(session.rewind_targets().await.expect("targets").is_empty());
 }
 
@@ -716,20 +723,20 @@ async fn a_question_reaches_the_user_with_the_call_that_asks_it() {
 }
 
 /// The audit's sequence: a turn, a compaction, the next message, a rewind to
-/// that message, the message after it. As under TypeScript (the summary was
-/// the new session's seed, pushed with `shouldQuery: false`), the summary
-/// comes before the next message, a rewind to that message keeps it, and it
-/// is no rewind target of its own.
+/// that message, the message after it. The summary comes before the next
+/// message, a rewind to that message keeps it, and it is no rewind target of
+/// its own.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_rewind_to_the_first_message_after_a_compaction_keeps_the_summary() {
-    let bench = Bench::new([Reply::text("read it"), Reply::text("two"), Reply::text("three")]).await;
+    let summary = Reply::text("<summary>SUMMARY: a.py was read</summary>");
+    let bench = Bench::new([Reply::text("read it"), summary, Reply::text("two"), Reply::text("three")]).await;
     let session = bench.start(bench.spec("w-1")).await;
     session.send("read a.py".into()).await.expect("sends");
     bench.after_turns("w-1", 1).await;
-    session.replace_context("SUMMARY: a.py was read".into()).await.expect("replaces");
+    session.compact(None).await.expect("summarizes");
     session.send("NEXT-ONE".into()).await.expect("sends");
     bench.after_turns("w-1", 2).await;
-    let sent = bench.request_text(1);
+    let sent = bench.request_text(2);
     let at = |text: &str| sent.find(text).unwrap_or_else(|| panic!("{text} missing: {sent}"));
     assert!(at("SUMMARY: a.py was read") < at("NEXT-ONE") && !sent.contains("read a.py"), "{sent}");
 
@@ -740,11 +747,74 @@ async fn a_rewind_to_the_first_message_after_a_compaction_keeps_the_summary() {
     session.send("NEXT-TWO".into()).await.expect("sends");
     bench.after_turns("w-1", 3).await;
 
-    let sent = bench.request_text(2);
+    let sent = bench.request_text(3);
     let at = |text: &str| sent.find(text).unwrap_or_else(|| panic!("{text} missing: {sent}"));
     assert!(at("SUMMARY: a.py was read") < at("NEXT-TWO") && !sent.contains("NEXT-ONE"), "{sent}");
-    let transcript = session.read_transcript().await.expect("reads").expect("a conversation");
-    assert_eq!(transcript.entries[0], TranscriptEntry::User { text: "SUMMARY: a.py was read".into() });
+
+    // The sink heard the summary start and end, and none of its text became a message.
+    let notices: Vec<CompactionNotice> =
+        bench.sink.compactions.lock().expect("notices").iter().map(|(_, _, n)| n.clone()).collect();
+    assert!(matches!(&notices[0], CompactionNotice::Started { trigger: eos_contracts::CompactionTrigger::Manual, .. }));
+    let CompactionNotice::Completed { summary, turns, after_tokens, .. } = &notices[1] else {
+        panic!("completed: {notices:?}")
+    };
+    assert_eq!((summary.as_str(), *turns), ("SUMMARY: a.py was read", 1));
+    assert!(*after_tokens > 0);
+    let said = bench.sink.json("w-1").iter().filter(|e| e.to_string().contains("SUMMARY: a.py")).count();
+    assert_eq!(said, 0, "the summary is no event of the conversation");
+}
+
+/// A session that summarizes on its own does it inside the turn and the turn
+/// goes on from the summary: no turn ends for it, and the notices come
+/// inside the turn. (A request the provider finds too long is summarized the
+/// same way as one past the threshold, and is easier to script.)
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_turn_that_outgrows_the_context_summarizes_and_goes_on() {
+    let summary = Reply::text("<summary>SUMMARY: the codename is PELICAN</summary>");
+    let replies = [Reply::text("noted"), Reply::prompt_too_long(), summary, Reply::text("still PELICAN")];
+    let bench = Bench::new(replies).await;
+    let spec = LaunchSpec { compact_at: Some(10_000_000), ..bench.spec("w-1") };
+    let session = bench.start(spec).await;
+    session.send("the codename is PELICAN".into()).await.expect("sends");
+    bench.after_turns("w-1", 1).await;
+    session.send("what is it?".into()).await.expect("sends");
+    let events = bench.after_turns("w-1", 2).await;
+
+    assert_eq!(
+        tags(&events)[2..],
+        [
+            "turn:started",
+            "msg:assistant:text",
+            "usage",
+            "turn:ended",
+            "turn:started",
+            "msg:assistant:text",
+            "usage",
+            "turn:ended"
+        ],
+        "the summary's own text is no message"
+    );
+    let notices = bench.sink.compactions.lock().expect("notices").clone();
+    let kinds: Vec<(usize, &str)> = notices
+        .iter()
+        .map(|(_, at, n)| {
+            let kind = match n {
+                CompactionNotice::Started { .. } => "started",
+                CompactionNotice::Completed { .. } => "completed",
+                CompactionNotice::Failed { .. } => "failed",
+            };
+            (*at, kind)
+        })
+        .collect();
+    let second_turn = events.iter().rposition(|e| e["type"] == "turn" && e["phase"] == "started").expect("a start");
+    assert_eq!(kinds.len(), 2, "{kinds:?}");
+    assert!(kinds.iter().all(|(at, _)| *at > second_turn), "inside the second turn: {kinds:?} after {second_turn}");
+    assert!(matches!(
+        &notices[1].2,
+        CompactionNotice::Completed { trigger: eos_contracts::CompactionTrigger::Auto, .. }
+    ));
+    let sent = bench.request_text(3);
+    assert!(sent.contains("SUMMARY: the codename is PELICAN") && !sent.contains("noted"), "{sent}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

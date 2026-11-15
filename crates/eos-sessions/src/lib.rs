@@ -37,6 +37,7 @@ mod archive;
 pub mod boot;
 pub mod cleanup;
 mod commands;
+mod compaction;
 mod control;
 mod dispatch;
 mod features;

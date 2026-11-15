@@ -8,7 +8,9 @@
 
 use std::sync::Arc;
 
-use eos_contracts::{AgentEvent, CommandItem, RewindMode, RewindTarget, SessionFactsRole, WorkflowRunProgress};
+use eos_contracts::{
+    AgentEvent, CommandItem, CompactionTrigger, RewindMode, RewindTarget, SessionFactsRole, WorkflowRunProgress,
+};
 
 use super::descriptor::{AgentCapabilities, BackendDescriptor};
 use super::{ToolInputDelta, ToolInputPhase};
@@ -44,6 +46,10 @@ pub struct LaunchSpec {
     /// The credential it runs on; `None` leaves the choice to the runtime
     /// (the accounts feature's pick for a new session).
     pub credential: Option<SessionCredential>,
+    /// The context size, in tokens, at which the session summarizes its
+    /// conversation by itself and carries on from the summary. `None`: only
+    /// on `/compact`.
+    pub compact_at: Option<u64>,
 }
 
 impl LaunchSpec {
@@ -63,6 +69,7 @@ impl LaunchSpec {
             prompt: None,
             resume: None,
             credential: None,
+            compact_at: None,
         }
     }
 
@@ -147,21 +154,42 @@ pub enum BackgroundTaskUpdate {
     },
 }
 
-/// One entry of a conversation as a summarizer reads it.
+/// A session summarizing its conversation to free up context. One run is a
+/// `Started`, then a `Completed` or a `Failed`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TranscriptEntry {
-    User { text: String },
-    Assistant { text: String },
-    ToolCall { name: String, input: String },
-    ToolResult { text: String, is_error: bool },
+pub enum CompactionNotice {
+    Started {
+        trigger: CompactionTrigger,
+        /// The context in use when it started.
+        before_tokens: i64,
+        /// What the user typed after `/compact`.
+        instructions: Option<String>,
+    },
+    /// The conversation now goes on from `summary`.
+    Completed {
+        trigger: CompactionTrigger,
+        before_tokens: i64,
+        /// The size of what the conversation now opens with (an estimate).
+        after_tokens: i64,
+        /// How many of the user's prompts the summary condensed.
+        turns: i64,
+        summary: String,
+        instructions: Option<String>,
+        duration_ms: i64,
+    },
+    /// The conversation is as it was.
+    Failed { trigger: CompactionTrigger, error: String },
 }
 
-/// A session's live conversation, lane-neutral.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct SessionTranscript {
-    pub entries: Vec<TranscriptEntry>,
-    /// Where the full conversation stays readable on disk, if anywhere.
-    pub path: Option<String>,
+/// The words of a summary: the request the model writes it for, and the
+/// message the conversation goes on from.
+pub trait CompactionWords: Send + Sync + 'static {
+    /// The request; `focus` is what the user typed after `/compact`.
+    fn instruction(&self, focus: Option<&str>) -> String;
+
+    /// What the conversation continues from: the `summary`, and the files the
+    /// earlier conversation is kept in (`transcript_archive`, a glob).
+    fn seed(&self, summary: &str, transcript_archive: &str) -> String;
 }
 
 /// What a rewind went back to, for the composer to offer again.
@@ -199,6 +227,12 @@ pub trait SessionSink: Send + Sync + 'static {
 
     /// A background command or monitor moved on. Must not block.
     fn background_task(&self, _worker_id: &str, _update: BackgroundTaskUpdate) {}
+
+    /// The session summarized its conversation, or began or failed to.
+    /// Comes in order with [`events`](Self::events).
+    fn compaction<'a>(&'a self, _worker_id: &'a str, _notice: CompactionNotice) -> BoxFuture<'a, ()> {
+        Box::pin(std::future::ready(()))
+    }
 }
 
 /// One live session.
@@ -224,13 +258,10 @@ pub trait AgentSession: Send + Sync + 'static {
     /// Starts over with an empty conversation (`/clear`).
     fn clear_context(&self) -> BoxFuture<'_, Result<(), SessionError>>;
 
-    /// The conversation as a summarizer reads it; `None` before anything was said.
-    fn read_transcript(&self) -> BoxFuture<'_, Result<Option<SessionTranscript>, SessionError>>;
-
-    /// Replaces the conversation with `seed`, which runs no turn: the model
-    /// reads it ahead of the next message, a rewind to that message keeps
-    /// it, and it is no rewind target.
-    fn replace_context(&self, seed: String) -> BoxFuture<'_, Result<(), SessionError>>;
+    /// Summarizes the conversation now (`/compact`), after any running turn;
+    /// resolves once it is over. How it went reaches the sink as
+    /// [`CompactionNotice`]s.
+    fn compact(&self, instructions: Option<String>) -> BoxFuture<'_, Result<(), SessionError>>;
 
     /// The user's earlier prompts a rewind can go back to, oldest first.
     fn rewind_targets(&self) -> BoxFuture<'_, Result<Vec<RewindTarget>, SessionError>>;

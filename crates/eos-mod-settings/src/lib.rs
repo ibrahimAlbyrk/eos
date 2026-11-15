@@ -5,7 +5,7 @@
 //! |---|---|
 //! | `GET`/`PUT /api/settings` | the flat settings; a key a feature protects is refused, naming the route that sets it |
 //! | `GET`/`PUT /api/settings/archive` | `config.archive`: retention, purge at quit, what closing a tab does |
-//! | `GET`/`PUT /api/settings/compaction` | `config.compaction`: on/off, threshold, summarizer timeout |
+//! | `GET`/`PUT /api/settings/compaction` | `config.compaction`: on/off, threshold, timeout (kept, not read) |
 //!
 //! A configuration section is merged into the file and the configuration is
 //! read again, so what reads it next (the archive sweep, the compaction

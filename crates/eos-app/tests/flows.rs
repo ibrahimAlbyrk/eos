@@ -135,52 +135,66 @@ async fn a_click_on_a_visual_answer_reaches_the_model_and_shows_as_a_reply_chip(
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_long_chat_compacts_at_the_idle_edge_and_the_messages_queued_meanwhile_go_out_once_after() {
+async fn a_turn_that_fills_the_context_is_summarized_mid_turn_and_goes_on() {
     let mut b = Bench::new().await;
     let chat = b.chat("[reply] hi").await;
-    // A turn that fills the context past the threshold, and two messages sent while it runs.
-    let release = b.agents.script_held(Turn::of(vec![rig::context(950_000)]));
-    let (status, _) = b.call(Method::Post, &format!("/workers/{chat}/message"), Some(json!({"text": "go on"}))).await;
+    let (status, _) =
+        b.call(Method::Post, &format!("/workers/{chat}/message"), Some(json!({"text": "[big] go on"}))).await;
     assert!(status < 300);
-    b.until_state(&chat, "WORKING").await;
-    for (n, text) in ["first queued", "second queued"].iter().enumerate() {
-        let body = json!({"text": text, "clientMsgId": format!("q{n}"), "queueWhenBusy": true});
-        let (status, answer) = b.call(Method::Post, &format!("/workers/{chat}/message"), Some(body)).await;
-        assert!(status < 300, "{answer}");
-    }
-    release.release();
-    // Rest comes only when the queue is empty and the compaction is over.
+    b.until_state(&chat, "IDLE").await;
     let deadline = tokio::time::Instant::now() + WAIT;
     let rows = loop {
-        b.until_state(&chat, "IDLE").await;
         let rows = b.rows(&chat).await;
-        let delivered = of_type(&rows, "user_message").len();
-        if (delivered >= 4 && !of_type(&rows, "compaction_completed").is_empty())
-            || tokio::time::Instant::now() > deadline
-        {
+        let ended = rows.iter().filter(|r| r["type"] == "agent_event" && payload(r)["phase"] == "ended").count();
+        if ended >= 2 || tokio::time::Instant::now() > deadline {
             break rows;
         }
+        tokio::time::sleep(Duration::from_millis(20)).await;
     };
     let order: Vec<String> = rows
         .iter()
         .filter_map(|r| match r["type"].as_str()? {
-            "user_message" => Some(format!("message:{}", payload(r)["text"].as_str().unwrap_or_default())),
             kind @ ("compaction_started" | "compaction_completed") => Some(kind.to_owned()),
+            "agent_event" if payload(r)["type"] == "turn" => Some(format!("turn:{}", payload(r)["phase"].as_str()?)),
             _ => None,
         })
         .collect();
-    let sent = b.agents.sent(&chat);
-    println!("rows {order:?}\nsent {sent:?}");
-    assert_eq!(order.iter().filter(|o| o.as_str() == "message:first queued").count(), 1, "{order:?}");
-    assert_eq!(order.iter().filter(|o| o.as_str() == "message:second queued").count(), 1, "{order:?}");
-    let at = |what: &str| order.iter().position(|o| o == what).unwrap_or(usize::MAX);
-    assert!(at("compaction_completed") < usize::MAX, "the chat was compacted: {order:?}");
-    assert!(at("message:first queued") < at("message:second queued"), "queued messages keep their order");
-    assert_eq!(sent.iter().filter(|s| s.contains("first queued")).count(), 1, "the agent got each queued message once");
-    assert!(
-        b.agents.calls().iter().any(|c| matches!(c, eos_testkit::agent::Call::ReplaceContext { .. })),
-        "the session was reseeded"
+    assert_eq!(
+        order,
+        ["turn:started", "turn:ended", "turn:started", "compaction_started", "compaction_completed", "turn:ended"],
+        "the summary is part of the turn, which goes on to its end"
     );
+    let done = payload(of_type(&rows, "compaction_completed")[0]);
+    assert_eq!((&done["trigger"], &done["summary"]), (&json!("auto"), &json!(eos_testkit::COMPACT_SUMMARY)));
+    let (_, worker) = b.call(Method::Get, &format!("/workers/{chat}"), None).await;
+    assert_eq!(worker["state"], "IDLE", "{worker}");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn compact_summarizes_an_idle_chat_and_the_next_message_goes_out_after() {
+    let mut b = Bench::new().await;
+    let chat = b.chat("[reply] hi").await;
+    let body = json!({"text": "/compact keep the plan"});
+    let (status, answer) = b.call(Method::Post, &format!("/workers/{chat}/message"), Some(body)).await;
+    assert!(status < 300, "{answer}");
+    let deadline = tokio::time::Instant::now() + WAIT;
+    while of_type(&b.rows(&chat).await, "compaction_completed").is_empty() && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    b.until_state(&chat, "IDLE").await;
+    let calls = b.agents.calls();
+    let asked = calls.iter().find_map(|c| match c {
+        eos_testkit::agent::Call::Compact { instructions, .. } => Some(instructions.clone()),
+        _ => None,
+    });
+    assert_eq!(asked, Some(Some("keep the plan".to_owned())));
+    let (status, _) = b.call(Method::Post, &format!("/workers/{chat}/message"), Some(json!({"text": "next"}))).await;
+    assert!(status < 300);
+    b.until_state(&chat, "IDLE").await;
+    let rows = b.rows(&chat).await;
+    let done = payload(of_type(&rows, "compaction_completed")[0]);
+    assert_eq!((&done["trigger"], &done["instructions"]), (&json!("manual"), &json!("keep the plan")));
+    assert!(b.agents.sent(&chat).iter().any(|s| s.ends_with("next")), "the chat goes on after the summary");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

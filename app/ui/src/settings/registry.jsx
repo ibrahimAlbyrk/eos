@@ -236,22 +236,22 @@ export const SETTINGS_SECTIONS = [
         ],
       },
       {
-        // compaction.* persists to ~/.eos/config.json (the daemon's idle-edge
-        // trigger reads it live) — see CONFIG_BLOCKS in state/settings.jsx.
+        // compaction.* persists to ~/.eos/config.json (a session reads it when
+        // it starts) — see CONFIG_BLOCKS in state/settings.jsx.
         title: "Context",
         items: [
           {
             key: "compaction.enabled",
             label: "Auto-compact",
             description:
-              "When an agent finishes a turn with its context window at or above the threshold, summarize the conversation and continue in a fresh context. Type /compact to do it any time.",
+              "When an agent's context window reaches the threshold, summarize the conversation and carry on from the summary, mid-task too. Type /compact to do it any time.",
             control: { type: "toggle" },
             defaultValue: true,
           },
           {
             key: "compaction.threshold",
             label: "Compact at",
-            description: "How full the context window gets before an agent is compacted.",
+            description: "How full the context window gets before an agent is compacted. Applies to chats started or resumed after a change.",
             control: { type: "slider", min: 0.5, max: 0.95, step: 0.05, format: (v) => `${Math.round(v * 100)}%` },
             defaultValue: 0.7,
             visibleWhen: (s) => s["compaction.enabled"] !== false,

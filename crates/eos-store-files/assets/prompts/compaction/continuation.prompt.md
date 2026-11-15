@@ -1,22 +1,26 @@
 ---
-description: Seed of the session that replaces a compacted one — the summary the agent continues from; rides along with the next message (runs no turn by itself)
+description: The message a compacted conversation goes on from — the summary that replaces everything before it, and how to carry on; keep the <compaction_summary> tags (they tell this message from the user's prompts)
 variables:
   - SUMMARY
-  - TRANSCRIPT_PATH
+  - TRANSCRIPT_ARCHIVE
 ---
-This session continues an earlier conversation that was compacted to free up
-context. The summary below covers everything before this point; treat it as your
-own memory of that work.
+This session is being continued from a previous conversation that ran out of
+context. The summary below covers the earlier portion of the conversation; treat
+it as your own memory of that work.
 
 <compaction_summary>
 {{SUMMARY}}
 </compaction_summary>
-{{#if TRANSCRIPT_PATH}}
+{{#if TRANSCRIPT_ARCHIVE}}
 
-If you need exact details from before the compaction (code you wrote, error
-output, the user's exact words), the full earlier transcript is still on disk at
-{{TRANSCRIPT_PATH}} — search it instead of guessing.
+If you need exact details from before this point (code you wrote, error output,
+the user's exact words), the earlier conversation is kept on disk in the newest
+file matching {{TRANSCRIPT_ARCHIVE}} — search it instead of guessing.
 {{/if}}
 
-The next message follows. Continue from where the work left off, and do not
-recap this summary back to the user.
+Continue the conversation from where it left off without asking the user any
+further questions. Resume directly — do not acknowledge the summary, do not recap
+what was happening, do not preface with "I'll continue" or similar. Pick up the
+last task as if the break never happened. If you were waiting on background work
+(a command, a monitor, a subagent), its notification still comes to you: keep
+waiting for it rather than starting the work again.

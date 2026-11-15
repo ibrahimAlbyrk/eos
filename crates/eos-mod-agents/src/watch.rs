@@ -329,7 +329,7 @@ impl AgentsModule {
         self.sessions.dispatch(notice).await.map(|_| ())
     }
 
-    /// The idle-edge watchers, after compaction (10).
+    /// The idle-edge watchers.
     pub(crate) fn watch_hooks(&self) -> Vec<IdleHook> {
         if self.watch.is_none() {
             return Vec::new();

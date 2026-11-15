@@ -23,12 +23,13 @@ use eos_contracts::{
 use eos_core::BoxFuture;
 use eos_core::Clock;
 use eos_core::accounts::{SessionCredential, SessionCredentials};
-use eos_core::agent::{AgentCapabilities, AgentSession, Rewound, SessionError, SessionSink, SessionTranscript};
+use eos_core::agent::{AgentCapabilities, AgentSession, CompactionNotice, Rewound, SessionError, SessionSink};
 use futures_util::FutureExt;
 use futures_util::stream::{FuturesUnordered, StreamExt};
 use tokio::sync::{mpsc, oneshot};
 
 use crate::accounts::{Accounts, NOT_SIGNED_IN, limits};
+use crate::compaction::LastSummary;
 use crate::mapper::{Mapper, Side};
 use crate::registry::Registry;
 use crate::transcript;
@@ -55,6 +56,8 @@ enum Command {
     Turn(String),
     /// Run the turn the conversation stopped in again, with no new input.
     Rerun,
+    /// Summarize the conversation now (`/compact`), with what the user typed after it.
+    Compact(Option<String>, oneshot::Sender<()>),
     Stop(oneshot::Sender<()>),
 }
 
@@ -68,6 +71,9 @@ enum TurnDone {
     /// It could not start: `notice` says why and what to do, and is all the
     /// turn shows (no credential: the form of Claude Code's own "Not logged in").
     Declined { notice: &'static str },
+    /// A `/compact` returned (`Ok(false)`: stopped, or nothing to summarize);
+    /// `done` hears it once the sink has.
+    Compacted { outcome: Result<bool, String>, done: oneshot::Sender<()> },
     /// The agent is gone.
     Gone,
 }
@@ -161,12 +167,17 @@ pub(crate) struct Launch {
     pub(crate) credential: Option<SessionCredential>,
     pub(crate) sink: Arc<dyn SessionSink>,
     pub(crate) shared: Arc<Shared>,
+    /// The user's prompts in the conversation it resumes.
+    pub(crate) prompts: i64,
+    /// Where the session's compaction words leave each summary.
+    pub(crate) last_summary: Arc<LastSummary>,
 }
 
 /// Registers the session and starts its pump. `None` when the worker
 /// already has a live session.
 pub(crate) fn start(launch: Launch) -> Option<Arc<EngineSession>> {
-    let Launch { worker_id, focused, agent, events, subagents, tasks, credential, sink, shared } = launch;
+    let Launch { worker_id, focused, agent, events, subagents, tasks, credential, sink, shared, prompts, last_summary } =
+        launch;
     let (commands, inbox) = mpsc::channel(16);
     let agent = Arc::new(agent);
     let session = Arc::new(EngineSession {
@@ -196,7 +207,8 @@ pub(crate) fn start(launch: Launch) -> Option<Arc<EngineSession>> {
         tasks,
         inbox,
         turns: FuturesUnordered::new(),
-        mapper: Mapper::new(launch_tag),
+        mapper: Mapper::new(launch_tag, prompts, last_summary),
+        notices: Vec::new(),
         sink,
     };
     let pump = tokio::spawn(pump.guarded());
@@ -213,6 +225,9 @@ struct Pump {
     inbox: mpsc::Receiver<Command>,
     turns: FuturesUnordered<BoxFuture<'static, TurnDone>>,
     mapper: Mapper,
+    /// What the sink hears about summaries, each after the events before it
+    /// (by its position in the batch being built).
+    notices: Vec<(usize, CompactionNotice)>,
     sink: Arc<dyn SessionSink>,
 }
 
@@ -270,6 +285,15 @@ async fn run_turn(agent: Arc<SdkAgent>, text: String, worker_id: String) -> Turn
     }
 }
 
+async fn compact(agent: Arc<SdkAgent>, instructions: Option<String>, done: oneshot::Sender<()>) -> TurnDone {
+    let outcome = match agent.compact(instructions).await {
+        Ok(Ok(summarized)) => Ok(summarized),
+        Ok(Err(error)) => Err(error.to_string()),
+        Err(_) => return TurnDone::Gone,
+    };
+    TurnDone::Compacted { outcome, done }
+}
+
 async fn rerun_turn(agent: Arc<SdkAgent>, worker_id: String) -> TurnDone {
     match agent.resume().await {
         Ok(Ok(_)) => TurnDone::Reported,
@@ -283,9 +307,25 @@ fn side_of<'a>(sink: &'a Arc<dyn SessionSink>, session: &'a EngineSession) -> Si
 }
 
 /// Hands a batch to the sink and waits for it: a slow sink pauses the pump,
-/// and through the engine's bounded channels the agent.
-async fn emit(session: &EngineSession, sink: &dyn SessionSink, live: usize, events: Vec<AgentEvent>) {
+/// and through the engine's bounded channels the agent. A notice about a
+/// summary goes out after the events that came before it.
+async fn emit(
+    session: &EngineSession,
+    sink: &dyn SessionSink,
+    live: usize,
+    mut events: Vec<AgentEvent>,
+    notices: Vec<(usize, CompactionNotice)>,
+) {
     session.live.store(live, Ordering::SeqCst);
+    let mut sent = 0;
+    for (at, notice) in notices {
+        let before: Vec<AgentEvent> = events.drain(..at.saturating_sub(sent).min(events.len())).collect();
+        sent += before.len();
+        if !before.is_empty() {
+            sink.events(session.id(), before).await;
+        }
+        sink.compaction(session.id(), notice).await;
+    }
     if !events.is_empty() {
         sink.events(session.id(), events).await;
     }
@@ -320,6 +360,13 @@ impl Pump {
         }
         let side = side_of(&self.sink, &self.session);
         out.extend(self.mapper.agent(event, &side));
+        self.note_compactions(out);
+    }
+
+    /// The mapper's notices about summaries, placed after what `out` holds now.
+    fn note_compactions(&mut self, out: &[AgentEvent]) {
+        let at = out.len();
+        self.notices.extend(self.mapper.take_compactions().into_iter().map(|notice| (at, notice)));
     }
 
     /// Everything waiting on the subagent and task channels.
@@ -367,6 +414,10 @@ impl Pump {
                     Some(Command::Rerun) => {
                         self.turns.push(Box::pin(rerun_turn(self.agent.clone(), self.session.id().to_owned())));
                     }
+                    Some(Command::Compact(instructions, done)) => {
+                        self.mapper.compact_asked(instructions.clone());
+                        self.turns.push(Box::pin(compact(self.agent.clone(), instructions, done)));
+                    }
                     Some(Command::Stop(done)) => break End::Stopped(done),
                     // Every handle to the session is gone.
                     None => break End::Lost,
@@ -398,8 +449,16 @@ impl Pump {
                             let side = side_of(&self.sink, &self.session);
                             out.extend(self.mapper.turn_declined(notice, &side));
                         }
+                        TurnDone::Compacted { outcome, done } => {
+                            out.extend(self.mapper.compact_done(outcome));
+                            self.note_compactions(&out);
+                            let notices = std::mem::take(&mut self.notices);
+                            emit(&self.session, &*self.sink, self.mapper.live(), std::mem::take(&mut out), notices).await;
+                            let _ = done.send(());
+                        }
                         TurnDone::Gone => break End::Lost,
                     }
+                    self.note_compactions(&out);
                 },
                 Some(event) = self.subagents.recv() => self.subagent(event, &mut out),
                 Some(event) = self.tasks.recv() => {
@@ -408,7 +467,8 @@ impl Pump {
                     out.extend(mapped);
                 },
             }
-            emit(&self.session, &*self.sink, self.mapper.live(), out).await;
+            let notices = std::mem::take(&mut self.notices);
+            emit(&self.session, &*self.sink, self.mapper.live(), out, notices).await;
         };
 
         // The session is going away: what was still running in it is reported stopped.
@@ -418,7 +478,8 @@ impl Pump {
         }
         let side = side_of(&self.sink, &self.session);
         let closing = self.mapper.stop_live(&side);
-        emit(&self.session, &*self.sink, self.mapper.live(), closing).await;
+        let notices = std::mem::take(&mut self.notices);
+        emit(&self.session, &*self.sink, self.mapper.live(), closing, notices).await;
         let Pump { session, agent, turns, sink, .. } = self;
         drop(turns);
         drop(agent);
@@ -534,24 +595,11 @@ impl AgentSession for EngineSession {
         })
     }
 
-    fn read_transcript(&self) -> BoxFuture<'_, Result<Option<SessionTranscript>, SessionError>> {
+    fn compact(&self, instructions: Option<String>) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
-            let messages = self.agent()?.transcript().await.map_err(failed)?;
-            let entries = transcript::entries(&messages);
-            if entries.is_empty() {
-                return Ok(None);
-            }
-            let path = self.shared.store.path(&self.worker_id).to_string_lossy().into_owned();
-            Ok(Some(SessionTranscript { entries, path: Some(path) }))
-        })
-    }
-
-    fn replace_context(&self, seed: String) -> BoxFuture<'_, Result<(), SessionError>> {
-        // The seed opens the conversation ahead of the next message (a rewind
-        // to that message keeps it), as TypeScript's `shouldQuery: false` push.
-        Box::pin(async move {
-            let replaced = self.agent()?.replace_context(seed).await.map_err(|_| SessionError::Gone)?;
-            replaced.map_err(failed)
+            let (done, finished) = oneshot::channel();
+            self.command(Command::Compact(instructions, done)).await?;
+            finished.await.map_err(|_| SessionError::Gone)
         })
     }
 

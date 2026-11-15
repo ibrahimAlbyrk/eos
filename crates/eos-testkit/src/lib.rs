@@ -73,7 +73,10 @@ pub use accounts::{
     FakeSecrets, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe, FakeUsageProvider,
     FakeUsageSnapshots, NoKeychain, StartedSignIn,
 };
-pub use agent::{RecordingSink, ScriptedRuntime, Turn};
+pub use agent::{
+    COMPACT_AFTER_TOKENS, COMPACT_BEFORE_TOKENS, COMPACT_SUMMARY, PlainCompactionWords, RecordingSink, ScriptedRuntime,
+    Turn,
+};
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};

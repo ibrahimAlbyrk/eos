@@ -21,6 +21,7 @@ use serde_json::value::RawValue;
 use serde_json::{Value, json};
 
 use super::{Mapper, Side};
+use crate::compaction::LastSummary;
 
 const WORKER: &str = "w-1";
 
@@ -42,9 +43,14 @@ struct Run {
 
 impl Run {
     fn new(follows: &[&str]) -> Self {
+        Self::resuming(0, follows, Arc::default())
+    }
+
+    /// A mapper over a conversation with `prompts` of the user's already.
+    fn resuming(prompts: i64, follows: &[&str], last: Arc<LastSummary>) -> Self {
         let sink = RecordingSink::default();
         sink.follows.lock().expect("follows").extend(follows.iter().map(|f| (*f).to_owned()));
-        Self { mapper: Mapper::new("L".into()), sink, now_ms: 0, out: Vec::new() }
+        Self { mapper: Mapper::new("L".into(), prompts, last), sink, now_ms: 0, out: Vec::new() }
     }
 
     fn agent(&mut self, event: EngineEvent) {
@@ -960,4 +966,138 @@ fn a_turn_the_host_did_not_start_opens_and_closes_like_any_other() {
     assert_eq!(tags.first().map(String::as_str), Some("turn:started"));
     assert_eq!(tags.last().map(String::as_str), Some("turn:ended"));
     assert!(tags.contains(&"msg:assistant:text".to_owned()), "{tags:?}");
+}
+
+// ---- summaries of the conversation ------------------------------------------
+
+fn compaction_tags(notices: &[eos_core::agent::CompactionNotice]) -> Vec<String> {
+    use eos_core::agent::CompactionNotice as N;
+    notices
+        .iter()
+        .map(|n| match n {
+            N::Started { trigger, before_tokens, .. } => format!("started:{trigger:?}:{before_tokens}"),
+            N::Completed { trigger, turns, summary, .. } => format!("completed:{trigger:?}:{turns}:{summary}"),
+            N::Failed { trigger, error } => format!("failed:{trigger:?}:{error}"),
+        })
+        .collect()
+}
+
+fn user_message(text: &str) -> EngineEvent {
+    EngineEvent::Message(eos_agent_core::StoredMessage::user_text(text))
+}
+
+/// The summary's request, as the engine streams it, then its seed.
+fn summary_request(run: &mut Run, last: &LastSummary, summary: &str) {
+    run.agent(EngineEvent::Compacting { before_tokens: 700_000 });
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(EngineEvent::BlockStart { index: 0, block: BlockKind::Text });
+    run.agent(EngineEvent::TextDelta { text: format!("<summary>{summary}</summary>") });
+    run.agent(EngineEvent::BlockStop { index: 0 });
+    run.agent(usage(700_000, 2_000, ""));
+    last.put(summary.to_owned());
+    run.agent(user_message(&format!("<compaction_summary>\n{summary}\n</compaction_summary>")));
+    run.agent(EngineEvent::Compacted { before_tokens: 700_000 });
+}
+
+#[test]
+fn a_summary_mid_turn_is_no_part_of_the_conversation_and_the_turn_goes_on() {
+    let last = Arc::new(LastSummary::default());
+    let mut run = Run::resuming(1, &[], last.clone());
+    run.agent(user_message("<msg id=\"2\"/>\nfix the bug"));
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(tool_use("t1", "Read", json!({"file_path": "/x"})));
+    run.agent(tool_result("t1", "data"));
+    run.agent(usage(10, 5, ""));
+    summary_request(&mut run, &last, "1. Task: fix the bug");
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(EngineEvent::BlockStart { index: 0, block: BlockKind::Text });
+    run.agent(EngineEvent::TextDelta { text: "fixed".into() });
+    run.agent(EngineEvent::BlockStop { index: 0 });
+    run.agent(usage(5_000, 5, ""));
+    run.agent(turn_ended());
+
+    let tags: Vec<String> = run.tags().into_iter().filter(|t| !t.starts_with("delta")).collect();
+    assert_eq!(
+        tags,
+        [
+            "turn:started",
+            "msg:assistant:tool_call",
+            "msg:tool:tool_result",
+            "context",
+            "msg:assistant:text",
+            "context",
+            "usage",
+            "turn:ended"
+        ]
+    );
+    let text = serde_json::to_string(&run.json()).expect("json");
+    assert!(!text.contains("1. Task"), "the summary's own text is not recorded: {text}");
+    let contexts: Vec<Value> = run.json().into_iter().filter(|e| e["type"] == "context").collect();
+    assert_eq!(
+        (&contexts[0]["tokens"], &contexts[1]["tokens"]),
+        (&json!(10), &json!(5_000)),
+        "not the summary's prompt"
+    );
+    let billed = run.json().into_iter().find(|e| e["type"] == "usage").expect("usage");
+    assert_eq!(billed["usage"]["inputTokens"], json!(705_010), "the summary is billed with the turn: {billed}");
+    assert_eq!(
+        compaction_tags(&run.mapper.take_compactions()),
+        ["started:Auto:700000", "completed:Auto:2:1. Task: fix the bug"]
+    );
+}
+
+#[test]
+fn compact_runs_in_no_turn_and_reports_how_it_went() {
+    let last = Arc::new(LastSummary::default());
+    let mut run = Run::resuming(3, &[], last.clone());
+    run.mapper.compact_asked(Some("keep the plan".into()));
+    summary_request(&mut run, &last, "the plan");
+    run.out.extend(run.mapper.compact_done(Ok(true)));
+    assert_eq!(run.tags(), ["usage"], "its usage is billed on its own, no turn");
+    let notices = run.mapper.take_compactions();
+    assert_eq!(compaction_tags(&notices), ["started:Manual:700000", "completed:Manual:3:the plan"]);
+    assert!(
+        matches!(&notices[1], eos_core::agent::CompactionNotice::Completed { instructions: Some(i), after_tokens, .. }
+        if i == "keep the plan" && *after_tokens > 0)
+    );
+
+    // Nothing said since: nothing to summarize.
+    run.mapper.compact_asked(None);
+    run.out.extend(run.mapper.compact_done(Ok(false)));
+    assert_eq!(compaction_tags(&run.mapper.take_compactions()), ["failed:Manual:nothing to compact yet"]);
+    // Stopped while it wrote.
+    run.mapper.compact_asked(None);
+    run.agent(EngineEvent::Compacting { before_tokens: 10 });
+    run.out.extend(run.mapper.compact_done(Ok(false)));
+    assert_eq!(compaction_tags(&run.mapper.take_compactions()), ["started:Manual:10", "failed:Manual:stopped"]);
+}
+
+#[test]
+fn a_summary_that_never_finishes_fails_and_leaves_the_conversation_alone() {
+    let mut run = Run::new(&[]);
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(EngineEvent::Compacting { before_tokens: 900 });
+    run.agent(EngineEvent::Interrupted);
+    assert_eq!(compaction_tags(&run.mapper.take_compactions()), ["started:Auto:900", "failed:Auto:interrupted"]);
+
+    // A turn the engine woke the agent for failed in its summary without a
+    // word: the next turn's own events are the conversation again.
+    run.agent(EngineEvent::Compacting { before_tokens: 900 });
+    run.agent(EngineEvent::RequestStarted { attempt: 1 });
+    run.agent(tool_use("t2", "Read", json!({"file_path": "/y"})));
+    run.agent(tool_result("t2", "more"));
+    run.agent(turn_ended());
+    assert_eq!(
+        compaction_tags(&run.mapper.take_compactions()),
+        ["started:Auto:900", "failed:Auto:the summary did not finish"]
+    );
+    assert!(run.tags().contains(&"msg:assistant:tool_call".to_owned()), "{:?}", run.tags());
+
+    // A failed turn fails the summary it was writing.
+    run.agent(EngineEvent::Compacting { before_tokens: 900 });
+    run.failed(Some("The request failed: overloaded."));
+    assert_eq!(
+        compaction_tags(&run.mapper.take_compactions()),
+        ["started:Auto:900", "failed:Auto:The request failed: overloaded."]
+    );
 }

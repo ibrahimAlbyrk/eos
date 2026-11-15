@@ -40,12 +40,27 @@ fn recorded_profile(prompts: &PromptService) -> String {
 }
 
 /// A recorded answer as this app gives it: the catalog without the goal loop's
-/// prompts and the one sent after an account switch, which it does not ship
-/// (`fixtures/wire/rust-differences.toml`).
-fn shipped(mut recorded: Value) -> Value {
-    let gone = |id: &str| id.starts_with("loop/") || id == "tool/dynamic_loop" || id == "accounts/continue";
+/// prompts, the one sent after an account switch and the separate summarizer's,
+/// which it does not ship, and with compaction's own words (`ours`: a session
+/// summarizes inside its conversation) (`fixtures/wire/rust-differences.toml`).
+fn shipped(mut recorded: Value, ours: &Value) -> Value {
+    let gone = |id: &str| {
+        id.starts_with("loop/")
+            || id == "tool/dynamic_loop"
+            || id == "accounts/continue"
+            || id == "compaction/summarizer-system"
+    };
+    let own = |id: &str| {
+        let list = ours["prompts"].as_array().into_iter().flatten();
+        list.into_iter().find(|p| p["id"] == id).cloned().unwrap_or_else(|| panic!("{id} is shipped"))
+    };
     if let Some(list) = recorded.get_mut("prompts").and_then(Value::as_array_mut) {
         list.retain(|p| p["id"].as_str().is_some_and(|id| !gone(id)));
+        for prompt in list.iter_mut() {
+            if let Some(id) = prompt["id"].as_str().filter(|id| id.starts_with("compaction/")).map(str::to_owned) {
+                *prompt = own(&id);
+            }
+        }
     }
     recorded
 }
@@ -77,7 +92,7 @@ async fn the_catalog_and_the_preview_answer_as_recorded() {
         let recorded = fixtures::recorded_response("33-settings", step);
         let (status, json) = ask(&app, method, path, body).await;
         assert_eq!(Value::from(status), recorded["status"], "{step}");
-        assert_eq!(json, shipped(recorded["json"].clone()), "{step}");
+        assert_eq!(json, shipped(recorded["json"].clone(), &json), "{step}");
     }
     // No body at all is the default worker (`90-gates`).
     let recorded = fixtures::recorded_response("90-gates", "post-api-prompts-preview");
