@@ -4,10 +4,12 @@
 //! session comes up (a message, a side question, a report) waits in the
 //! worker's lane (`starts.rs`) instead of finding no session.
 
+use eos_contracts::WorkerState;
 use eos_core::Error;
 
 use crate::service::Sessions;
-use crate::starts::Place;
+use crate::starts::{Joined, Place};
+use crate::transition::{Transition, transition_state};
 
 /// How long anything waits for a session to come up before it gives up.
 pub(crate) const START_WAIT_MS: i64 = 30_000;
@@ -56,23 +58,68 @@ impl Sessions {
     /// it is being started; the place returned holds back whoever comes
     /// after. `None` when no start is in flight.
     pub(crate) async fn wait_for_start(&self, worker_id: &str) -> Result<Option<Place>, Error> {
-        if !self.0.starts.is_open(worker_id) {
-            return Ok(None);
+        match self.0.starts.join(worker_id) {
+            Some(joined) => self.wait_joined(worker_id, joined).await.map(Some),
+            None => Ok(None),
         }
+    }
+
+    /// [`wait_for_start`](Self::wait_for_start) for a lane already joined.
+    pub(crate) async fn wait_joined(&self, worker_id: &str, joined: Joined) -> Result<Place, Error> {
         let gave_up = self.0.deps.sleeper.sleep(START_WAIT_MS);
         let entered = tokio::select! {
-            entered = self.0.starts.enter(worker_id) => entered,
+            entered = joined.enter() => entered,
             () = gave_up => {
                 tracing::warn!(worker_id, "a chat's session did not come up in time");
                 return Err(Error::Unreachable("worker".into()));
             }
         };
         match entered {
-            None => Ok(None),
-            Some((place, Some(Ok(())))) => Ok(Some(place)),
-            Some((_, Some(Err(e)))) => Err(e),
+            (place, Some(Ok(()))) => Ok(place),
+            (_, Some(Err(e))) => Err(e),
             // The start ended half way.
-            Some((_, None)) => Err(Error::Unreachable("worker".into())),
+            (_, None) => Err(Error::Unreachable("worker".into())),
+        }
+    }
+
+    /// A message for a chat whose session is coming up: from now on the chat
+    /// is busy with it, as a message to a live chat is. `true` when this
+    /// moved the row (it was at rest), so the caller hands it back with
+    /// [`release_accepted`](Self::release_accepted).
+    pub(crate) async fn accept_during_start(&self, worker_id: &str) -> Result<bool, Error> {
+        let (id, now) = (worker_id.to_owned(), self.now());
+        self.store()
+            .write(move |tx, out| {
+                let at_rest = tx
+                    .workers()
+                    .find(&id)?
+                    .is_some_and(|w| matches!(w.state, WorkerState::Suspended | WorkerState::Done));
+                Ok(at_rest
+                    && transition_state(tx, out, now, &id, WorkerState::Spawning, "resume")? == Transition::Applied)
+            })
+            .await
+    }
+
+    /// The message accepted during a start went no further (it was queued,
+    /// a repeat, a command, or the start failed): a row still starting goes
+    /// idle when its session is up, else back to rest.
+    pub(crate) async fn release_accepted(&self, worker_id: &str) {
+        let (id, now, live) = (worker_id.to_owned(), self.now(), self.is_live(worker_id));
+        let released = self
+            .store()
+            .write(move |tx, out| {
+                if tx.workers().find(&id)?.is_none_or(|w| w.state != WorkerState::Spawning) {
+                    return Ok(false);
+                }
+                let (next, reason) =
+                    if live { (WorkerState::Idle, "resume_ready") } else { (WorkerState::Suspended, "resume_failed") };
+                Ok(transition_state(tx, out, now, &id, next, reason)? == Transition::Applied && live)
+            })
+            .await;
+        match released {
+            Ok(true) => self.settled(worker_id).await,
+            Ok(false) => {}
+            Err(e) => tracing::warn!(worker_id, error = %e, "a chat's start could not be settled"),
         }
     }
 

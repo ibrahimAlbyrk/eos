@@ -24,6 +24,7 @@ use serde_json::{Map, Value, json};
 use crate::commands::CommandAnswer;
 use crate::commands::{self, SlashContext};
 use crate::service::{Changed, Sessions};
+use crate::starts::Joined;
 use crate::transition::transition_state;
 
 /// The same text again inside this window is noted as a likely duplicate.
@@ -292,7 +293,8 @@ impl Sessions {
     /// Delivers `input` to its worker, or queues it.
     ///
     /// A message for a worker whose session is coming up waits for it, behind
-    /// the messages that came before, and fails as the start failed. The chat
+    /// the messages that came before, and fails as the start failed; the
+    /// worker is busy (SPAWNING) from the moment the message is accepted. The chat
     /// row and the move to WORKING are saved before the session gets the
     /// message, so the agent's first events never land ahead of the prompt
     /// they answer. A session that turns out to be gone gives the worker its
@@ -310,7 +312,24 @@ impl Sessions {
         // A message taken from the queue is never put back in it, and is
         // drained only from a live, idle worker: it never waits for a start.
         let drained = input.origin.as_deref() == Some("queue-drain");
-        let place = if drained { None } else { self.wait_for_start(&id).await? };
+        // Joined first: the lane stays open while the row says it is busy with this message.
+        let Some(joined) = (!drained).then(|| self.0.starts.join(&id)).flatten() else {
+            return self.deliver(input, None, drained).await;
+        };
+        let accepted = self.accept_during_start(&id).await?;
+        let delivered = self.deliver(input, Some(joined), drained).await;
+        if accepted {
+            self.release_accepted(&id).await;
+        }
+        delivered
+    }
+
+    async fn deliver(&self, input: MessageInput, joined: Option<Joined>, drained: bool) -> Result<Dispatched, Error> {
+        let id = input.worker_id.clone();
+        let place = match joined {
+            Some(joined) => Some(self.wait_joined(&id, joined).await?),
+            None => None,
+        };
         let worker = self.worker(&id).await?.ok_or_else(|| Error::not_found("worker", &id))?;
         if input.require_orchestrator && !worker.is_orchestrator {
             return Err(Error::not_found("orchestrator", &id));

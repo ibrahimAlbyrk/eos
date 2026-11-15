@@ -259,12 +259,13 @@ async fn a_message_sent_while_a_chat_comes_back_is_delivered_once_it_is_up() {
     let start = bench.agents.hold_next_start();
     assert_eq!(bench.post("/workers/w-CHAT/warm", json!({})).await, (202, json!({"ok": true})));
     for _ in 0..5_000 {
-        if bench.state("w-CHAT").await.as_deref() == Some("SPAWNING") {
+        if bench.agents.held_start_began() {
             break;
         }
         tokio::time::sleep(std::time::Duration::from_millis(1)).await;
     }
-    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SPAWNING"));
+    assert!(bench.agents.held_start_began());
+    assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SUSPENDED"), "a warm-up is no turn");
 
     let body = json!({"text": "are you there?", "clientMsgId": "c-1", "queueWhenBusy": true});
     let message = bench.post("/workers/w-CHAT/message", body);
@@ -277,6 +278,7 @@ async fn a_message_sent_while_a_chat_comes_back_is_delivered_once_it_is_up() {
         }
         assert_eq!(bench.sleeper.pending(), [30_000], "the message waits for the session, for a while at most");
         assert!(bench.agents.sent("w-CHAT").is_empty());
+        assert_eq!(bench.state("w-CHAT").await.as_deref(), Some("SPAWNING"), "busy once the message is accepted");
         start.release();
     };
     let (sent, ()) = tokio::join!(message, up);

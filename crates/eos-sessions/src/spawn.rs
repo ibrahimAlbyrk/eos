@@ -24,7 +24,7 @@ use serde::Serialize;
 use serde_json::json;
 
 use crate::service::Sessions;
-use crate::transition::transition_state;
+use crate::transition::{park_if_accepted, rest_to_idle};
 
 /// What to start.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -401,12 +401,20 @@ impl Sessions {
     /// else is refused when `strict` (an explicit resume), else left as it is
     /// (`None`: a chat that is live, or never had a session).
     pub(crate) async fn resumable(&self, worker_id: &str, strict: bool) -> Result<Option<Worker>, Error> {
+        self.resumable_in(worker_id, strict, false).await
+    }
+
+    /// [`resumable`](Self::resumable); `in_lane` for the start of a lane, where
+    /// a row a waiting message made busy (`SPAWNING`) is still at rest.
+    async fn resumable_in(&self, worker_id: &str, strict: bool, in_lane: bool) -> Result<Option<Worker>, Error> {
         let id = worker_id.to_owned();
         let row = self.store().read(move |tx| tx.workers().find(&id)).await?;
         let Some(row) = row else {
             return if strict { Err(Error::not_found("worker", worker_id)) } else { Ok(None) };
         };
-        let refused = if !matches!(row.state, WorkerState::Suspended | WorkerState::Done) {
+        let at_rest = matches!(row.state, WorkerState::Suspended | WorkerState::Done)
+            || (in_lane && row.state == WorkerState::Spawning);
+        let refused = if !at_rest {
             format!("worker is not resumable (state {})", state_name(row.state))
         } else if row.session_id.as_deref().is_none_or(str::is_empty) {
             "worker has no recorded session to resume".to_owned()
@@ -424,14 +432,13 @@ impl Sessions {
     /// lane (`revive.rs`).
     pub(crate) async fn start_resumed(&self, worker_id: &str, strict: bool) -> Result<bool, Error> {
         let deps = &self.0.deps;
-        let Some(row) = self.resumable(worker_id, strict).await? else { return Ok(false) };
+        let Some(row) = self.resumable_in(worker_id, strict, true).await? else { return Ok(false) };
         let session_id = row.session_id.clone().unwrap_or_default();
         let Some(cwd) = row.work_dir().map(str::to_owned).filter(|dir| deps.hooks.folder_exists(dir)) else {
             return Err(Error::Conflict("workspace directory no longer exists".into()));
         };
-        let (id, now) = (worker_id.to_owned(), self.now());
-        self.store().write(move |tx, out| transition_state(tx, out, now, &id, WorkerState::Spawning, "resume")).await?;
-
+        // The row stays at rest while the session comes up: a start with no
+        // input is no turn. A message accepted meanwhile moves it (`dispatch.rs`).
         let facts = facts_of(&row);
         let mut launch = launch_of(&facts, cwd, system_prompt(&deps.prompts, &facts).await);
         launch.resume = Some(session_id.clone());
@@ -439,9 +446,7 @@ impl Sessions {
         let (id, now) = (worker_id.to_owned(), self.now());
         if let Err(e) = started {
             tracing::warn!(worker_id, error = %e, "a session could not be resumed");
-            self.store()
-                .write(move |tx, out| transition_state(tx, out, now, &id, WorkerState::Suspended, "resume_failed"))
-                .await?;
+            self.store().write(move |tx, out| park_if_accepted(tx, out, now, &id)).await?;
             return Err(e);
         }
         self.store()
@@ -450,8 +455,9 @@ impl Sessions {
                 let payload = json!({"resumed": true, "sessionId": session_id, "pid": null});
                 let row_id = tx.events().append_json(&id, now, WorkerEventType::Spawn, &payload)?;
                 out.push(WORKER_SPAWN, &SpawnAnnounce { worker_id: &id, row_id });
-                // The session is up and waits for a message.
-                transition_state(tx, out, now, &id, WorkerState::Idle, "resume_ready")?;
+                // The session is up and waits for a message; one accepted during
+                // the start keeps the row starting until it is delivered.
+                rest_to_idle(tx, out, now, &id, "resume_ready")?;
                 Ok(())
             })
             .await?;

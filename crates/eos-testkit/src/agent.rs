@@ -334,6 +334,11 @@ impl ScriptedRuntime {
         Release(gate)
     }
 
+    /// Whether the start [`hold_next_start`](Self::hold_next_start) holds has begun.
+    pub fn held_start_began(&self) -> bool {
+        self.0.start_hold.lock().expect("start hold").is_none()
+    }
+
     /// Resolves once no turn is running.
     pub async fn settled(&self) {
         let mut running = self.0.running.subscribe();

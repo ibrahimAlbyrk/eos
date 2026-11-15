@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createWarmer } from "./warmOnType.js";
+import { deriveActivity, isRunning } from "./agentActivity.js";
+import { statusFromState } from "./format.js";
+import { turnBounds } from "./turnFold.js";
 
 describe("createWarmer", () => {
   it("warms a resting chat once the user types", () => {
@@ -54,5 +57,21 @@ describe("createWarmer", () => {
     createWarmer(warm)("w1", "SUSPENDED", "x");
     await Promise.resolve();
     expect(warm).toHaveBeenCalledTimes(1);
+  });
+});
+
+// What the core sends for a warm-up with nothing sent: the row stays at rest
+// while the session comes up, then goes straight to IDLE (no SPAWNING, no
+// turn clock). None of it reads as a working chat.
+describe("a warming chat", () => {
+  it("shows no working indicator while its session comes up or once it is up", () => {
+    for (const state of ["SUSPENDED", "DONE", "IDLE"]) {
+      const worker = { state, turn_started_at: 1 };
+      expect(isRunning(worker)).toBe(false);
+      expect(deriveActivity(worker, 10)).toEqual({ busy: false, elapsedMs: null });
+      expect(statusFromState(state).dot).not.toBe("run");
+    }
+    const ready = { type: "state", payload: JSON.stringify({ state: "IDLE", from: "SUSPENDED", reason: "resume_ready" }), ts: 5 };
+    expect(turnBounds([ready]).starts).toEqual([]);
   });
 });

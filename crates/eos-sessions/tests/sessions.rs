@@ -235,7 +235,7 @@ impl Bench {
         self.agents.crash(id).await;
         let start = self.agents.hold_next_start();
         self.sessions.wake(id).await.expect("wakes");
-        until(|| async { self.worker(id).await.is_some_and(|w| w.state == WorkerState::Spawning) }).await;
+        until(|| async { self.agents.held_start_began() }).await;
         start
     }
 
@@ -506,7 +506,8 @@ async fn a_session_that_dies_parks_its_worker_and_resume_brings_it_back() {
     let spawn = rows.iter().rev().find(|(kind, _)| kind == "spawn").expect("the row");
     assert_eq!(spawn.1, serde_json::json!({"resumed": true, "sessionId": id, "pid": null}));
     let tags = bench.tags(&id).await;
-    assert!(tags.contains(&"state:SPAWNING:resume".to_owned()) && tags.contains(&"state:IDLE:resume_ready".to_owned()));
+    assert!(tags.contains(&"state:IDLE:resume_ready".to_owned()), "{tags:?}");
+    assert!(!tags.contains(&"state:SPAWNING:resume".to_owned()), "a resume with no input is no turn: {tags:?}");
 
     let again = bench.sessions.resume(&id).await;
     assert_eq!(again, Err(Error::Conflict("worker is not resumable (state IDLE)".into())));
@@ -625,6 +626,94 @@ async fn messages_sent_while_a_chat_comes_back_wait_for_it_and_go_out_once_in_or
     assert_eq!(said, ["first", "second"]);
     assert!(!bench.tags(&id).await.iter().any(|t| t.ends_with(":delivery_failed")));
     assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Idle);
+}
+
+/// A chat at rest the composer wakes on the first keystroke: while its session
+/// comes up and after, nothing says it works. The row stays at rest, then goes
+/// straight to IDLE; no turn clock, no busy state on the stream, no turn end.
+#[tokio::test]
+async fn a_chat_woken_with_no_input_never_looks_busy() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    bench.agents.crash(&id).await;
+    let before = bench.worker(&id).await.expect("the row");
+    let (rows, frames) = (bench.rows(&id).await.len(), bench.temp.announced.list().len());
+
+    let start = bench.coming_back(&id).await;
+    let starting = bench.worker(&id).await.expect("the row");
+    assert_eq!(starting.state, WorkerState::Suspended, "at rest while the session comes up");
+    start.release();
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+    assert!(bench.sessions.is_live(&id));
+
+    let after = bench.worker(&id).await.expect("the row");
+    assert_eq!(after.turn_started_at, before.turn_started_at, "no turn clock");
+    let tags: Vec<String> = bench.tags(&id).await.split_off(rows);
+    assert_eq!(tags, ["agent:session:started", "agent:session:ready", "spawn", "state:IDLE:resume_ready"]);
+    let state = bench.rows(&id).await.pop().expect("a row").1;
+    assert_eq!(state, serde_json::json!({"state": "IDLE", "from": "SUSPENDED", "reason": "resume_ready"}));
+    let announced = bench.temp.announced.list().split_off(frames);
+    assert!(
+        announced.iter().all(|(_, p)| !p.contains("SPAWNING") && !p.contains("WORKING")),
+        "nothing on the stream says it works: {announced:?}"
+    );
+    assert!(bench.agents.sent(&id).is_empty());
+
+    // A worker that had finished comes back the same way.
+    bench.agents.crash(&id).await;
+    let done = id.clone();
+    bench.store().write(move |tx, _| tx.workers().update_state(&done, WorkerState::Done)).await.expect("writes");
+    bench.sessions.resume(&id).await.expect("resumes");
+    let state = bench.rows(&id).await.pop().expect("a row").1;
+    assert_eq!(state, serde_json::json!({"state": "IDLE", "from": "DONE", "reason": "resume_ready"}));
+}
+
+/// A message sent while the chat comes back makes it busy from the moment it
+/// is accepted, and the turn ends once: no idle edge between start and turn.
+#[tokio::test]
+async fn a_message_sent_during_the_start_is_one_turn_from_acceptance() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    let rows = {
+        bench.agents.crash(&id).await;
+        bench.rows(&id).await.len()
+    };
+    let start = bench.coming_back(&id).await;
+    let accepted_at = bench.clock.advance(1_000);
+    let sent = bench.send_waiting(bench.composed(&id, "hello", "c-1")).await;
+    let row = bench.worker(&id).await.expect("the row");
+    assert_eq!(row.state, WorkerState::Spawning, "busy with the message from the moment it is accepted");
+    assert_eq!(row.turn_started_at, Some(accepted_at));
+
+    bench.agents.script(Turn::reply("hi"));
+    start.release();
+    assert_eq!(sent.await.expect("joins"), Ok(Dispatched::Sent));
+    bench.agents.settled().await;
+    until(|| async { bench.worker(&id).await.is_some_and(|w| w.state == WorkerState::Idle) }).await;
+
+    let states: Vec<String> =
+        bench.tags(&id).await.split_off(rows).into_iter().filter(|t| t.starts_with("state:")).collect();
+    assert_eq!(states, ["state:SPAWNING:resume", "state:WORKING:user_message", "state:IDLE:agent:turn_ended"]);
+    assert_eq!(bench.worker(&id).await.expect("the row").turn_started_at, Some(accepted_at), "one turn clock");
+}
+
+/// A message accepted during the start that goes no further (a repeat of one
+/// already delivered) hands the row back: idle once the session is up.
+#[tokio::test]
+async fn a_message_accepted_during_the_start_that_is_not_sent_leaves_the_chat_idle() {
+    let bench = Bench::new();
+    let id = bench.chat("").await;
+    bench.agents.script(Turn::reply("hi"));
+    assert_eq!(bench.sessions.dispatch(bench.composed(&id, "hello", "c-1")).await, Ok(Dispatched::Sent));
+    bench.agents.settled().await;
+    let start = bench.coming_back(&id).await;
+    let repeated = bench.send_waiting(bench.composed(&id, "hello", "c-1")).await;
+    assert_eq!(bench.worker(&id).await.expect("the row").state, WorkerState::Spawning);
+    start.release();
+    assert_eq!(repeated.await.expect("joins"), Ok(Dispatched::Deduped));
+    let row = bench.worker(&id).await.expect("the row");
+    assert_eq!(row.state, WorkerState::Idle);
+    assert!(bench.sessions.is_live(&id));
 }
 
 #[tokio::test]

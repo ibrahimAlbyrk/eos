@@ -60,13 +60,54 @@ pub fn transition_state(
     if from == next {
         return Ok(Transition::Noop);
     }
-    let (from_name, next_name) = (state_name(from), state_name(next));
     if !can_transition(from, next) {
-        let payload = RejectEvent { from: from_name, to: next_name, reason };
+        let payload = RejectEvent { from: state_name(from), to: state_name(next), reason };
         let row_id = tx.events().append_json(worker_id, now, WorkerEventType::StateReject, &payload)?;
         out.push(WORKER_CHANGE, &WorkerChange { worker_id, row_id, from: None, state: None });
         return Ok(Transition::Rejected);
     }
+    apply(tx, out, now, worker_id, from, next, reason)?;
+    Ok(Transition::Applied)
+}
+
+/// A chat at rest whose session came back with no input: it goes straight
+/// from SUSPENDED or DONE to IDLE, so no client sees a turn that never was.
+/// Only a resume takes this way; the state machine refuses it to everything
+/// else (a late turn end, a failed delivery). A row not at rest is left as it
+/// is: a message accepted during the start has moved it already.
+pub(crate) fn rest_to_idle(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    now: i64,
+    worker_id: &str,
+    reason: &str,
+) -> Result<Transition, Error> {
+    let Some(current) = tx.workers().find(worker_id)? else { return Ok(Transition::Noop) };
+    if !matches!(current.state, WorkerState::Suspended | WorkerState::Done) {
+        return Ok(Transition::Noop);
+    }
+    apply(tx, out, now, worker_id, current.state, WorkerState::Idle, reason)?;
+    Ok(Transition::Applied)
+}
+
+/// A start failed after a message was accepted for it: the row goes back to rest.
+pub(crate) fn park_if_accepted(tx: &dyn Tx, out: &mut Outbox, now: i64, worker_id: &str) -> Result<(), Error> {
+    if tx.workers().find(worker_id)?.is_some_and(|w| w.state == WorkerState::Spawning) {
+        transition_state(tx, out, now, worker_id, WorkerState::Suspended, "resume_failed")?;
+    }
+    Ok(())
+}
+
+fn apply(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    now: i64,
+    worker_id: &str,
+    from: WorkerState,
+    next: WorkerState,
+    reason: &str,
+) -> Result<(), Error> {
+    let (from_name, next_name) = (state_name(from), state_name(next));
     tx.workers().update_state(worker_id, next)?;
     // A move inside a turn (starting → working) keeps the first stamp, so the
     // elapsed time covers the whole turn.
@@ -76,7 +117,7 @@ pub fn transition_state(
     let payload = StateEvent { state: next_name, from: from_name, reason };
     let row_id = tx.events().append_json(worker_id, now, WorkerEventType::State, &payload)?;
     out.push(WORKER_CHANGE, &WorkerChange { worker_id, row_id, from: Some(from_name), state: Some(next_name) });
-    Ok(Transition::Applied)
+    Ok(())
 }
 
 #[cfg(test)]

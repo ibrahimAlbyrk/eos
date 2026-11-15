@@ -70,22 +70,37 @@ impl Starts {
 
     /// Waits behind everyone already in the worker's lane, then answers how
     /// its start went. `None` at once when the worker has no lane.
-    pub(crate) async fn enter(&self, worker_id: &str) -> Option<(Place, Outcome)> {
-        let ticket = {
-            let mut lanes = self.lanes();
-            let entry = lanes.get_mut(worker_id)?;
-            entry.users += 1;
-            Ticket { starts: self.clone(), worker_id: worker_id.to_owned(), lane: entry.lane.clone() }
-        };
-        let guard = ticket.lane.clone().lock_owned().await;
-        let outcome = guard.clone();
-        Some((Place { guard: Some(guard), _ticket: ticket }, outcome))
+    #[cfg(test)]
+    async fn enter(&self, worker_id: &str) -> Option<(Place, Outcome)> {
+        Some(self.join(worker_id)?.enter().await)
+    }
+
+    /// Takes a ticket for the worker's lane, which stays open while it is
+    /// held; `None` when the worker has no lane.
+    pub(crate) fn join(&self, worker_id: &str) -> Option<Joined> {
+        let mut lanes = self.lanes();
+        let entry = lanes.get_mut(worker_id)?;
+        entry.users += 1;
+        Some(Joined(Ticket { starts: self.clone(), worker_id: worker_id.to_owned(), lane: entry.lane.clone() }))
     }
 
     /// How many workers have a lane open.
     #[cfg(test)]
     fn len(&self) -> usize {
         self.lanes().len()
+    }
+}
+
+/// A user of a lane that has not taken its place yet.
+pub(crate) struct Joined(Ticket);
+
+impl Joined {
+    /// Waits behind everyone already in the lane, then answers how its start went.
+    pub(crate) async fn enter(self) -> (Place, Outcome) {
+        let ticket = self.0;
+        let guard = ticket.lane.clone().lock_owned().await;
+        let outcome = guard.clone();
+        (Place { guard: Some(guard), _ticket: ticket }, outcome)
     }
 }
 
