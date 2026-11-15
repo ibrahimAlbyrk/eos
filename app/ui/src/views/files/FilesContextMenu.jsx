@@ -6,6 +6,7 @@ import { notify } from "../../lib/notify.js";
 import { explorer } from "../../state/explorerStore.js";
 import { parentDir } from "../../lib/explorerApi.js";
 import { fileManagerName } from "../../lib/platform.js";
+import { useNow } from "../../hooks/useNow.js";
 
 // Right-click menu for tree rows. Reads ui.popoverData.paths (the selection at
 // click time). Mirrors AgentContextMenu: a positioned .ctx-menu with
@@ -14,6 +15,8 @@ import { fileManagerName } from "../../lib/platform.js";
 // which would otherwise clip the fixed menu (GitDiffFileMenu idiom).
 export function FilesContextMenu() {
   const ui = useUi();
+  // Open, it re-reads the explorer's state (during render) on the clock's beat.
+  useNow(ui.openPopover === "fx-ctx");
   if (ui.openPopover !== "fx-ctx") return null;
   const paths = ui.popoverData?.paths ?? [];
   const files = ui.popoverData?.files ?? [];

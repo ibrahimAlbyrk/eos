@@ -11,6 +11,7 @@ import { useUsage } from "../state/usageStore.js";
 import { useTweenedNumber } from "../hooks/useTweenedNumber.js";
 import { ProfileMenuHeader, MemoryReviewRow, DreamReviewRow, MemoryIcon } from "./profile/ProfileMenuHeader.jsx";
 import { shortcutLabel } from "../lib/platform.js";
+import { useNow } from "../hooks/useNow.js";
 
 const RING_R = 18;
 const RING_C = 2 * Math.PI * RING_R;
@@ -66,6 +67,7 @@ function planLabel(account, section) {
 // the menu is a glance surface, not an error one.
 // A provider holding several sign-ins gets a labelled block of rings per sign-in.
 export function PlanCards({ accounts, usage, now }) {
+  useNow();
   const sections = planUsageSections(usage, now);
   return (accounts ?? []).filter(isSignedIn).map((a) => {
     const own = sections.filter((s) => USAGE_PROVIDER_ACCOUNTS[s.provider] === a.id);

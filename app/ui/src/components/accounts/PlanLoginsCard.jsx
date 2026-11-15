@@ -14,6 +14,7 @@ import { SignInHelp } from "./SignInHelp.jsx";
 import { ApiKeyField } from "./ApiKeyField.jsx";
 import { metaFor, planLabel, keyHint } from "./providerMeta.js";
 import { KeyIcon, PlusIcon, Spinner } from "./icons.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 const AVATAR_TINTS = 4;
 
@@ -154,6 +155,7 @@ function ApiKeyRow({ account, onResult }) {
 export function PlanLoginsCard({ account }) {
   const { signIns } = useAccounts();
   const { usage, now } = useUsage();
+  useNow();
   const usageRowOf = (loginId) => {
     const rows = planUsageSections(usage, now).find((s) => s.loginId === loginId)?.rows ?? [];
     return rows.find((r) => r.kind === "session") ?? rows.find((r) => r.key === "sevenDay") ?? null;

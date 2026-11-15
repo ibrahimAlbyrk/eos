@@ -7,6 +7,7 @@ const COLLAPSE_MS = 620;
 // Children mount on open and unmount only once the collapse has played out, so
 // closed content costs nothing. Content that is already open on first render
 // (default-expanded, remount on scroll) appears without the enter motion.
+// `children` may be a function, called only while the body is mounted.
 export function Collapse({ open, children }) {
   const [mounted, setMounted] = useState(open);
   const [animateEnter, setAnimateEnter] = useState(false);
@@ -24,7 +25,7 @@ export function Collapse({ open, children }) {
   const cls = "collapse" + (open ? "" : " is-collapsed") + (animateEnter ? " is-entering" : "");
   return (
     <div className={cls}>
-      <div className="collapse-in"><div className="collapse-body">{children}</div></div>
+      <div className="collapse-in"><div className="collapse-body">{typeof children === "function" ? children() : children}</div></div>
     </div>
   );
 }

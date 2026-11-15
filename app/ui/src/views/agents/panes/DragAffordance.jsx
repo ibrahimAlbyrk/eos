@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Cursor-tracking drag affordance: a neutral glass label trailing the pointer +
 // an accent pill snapped to the target region's centroid. Presentational — it
@@ -29,6 +30,8 @@ function regionCentroid(rect, zone) {
 const clamp = (v, max) => Math.max(EDGE_MARGIN, Math.min(max - EDGE_MARGIN, v));
 
 export function DragAffordance({ pointer, zone }) {
+  // Shown, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(Boolean(pointer && zone));
   if (!pointer || !zone) return null;
   const c = regionCentroid(pointer.rect, zone);
   const px = clamp(c.x, window.innerWidth);

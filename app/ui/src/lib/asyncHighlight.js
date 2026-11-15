@@ -3,8 +3,10 @@
 // re-renders and panel reopens resolve instantly. Environments without Worker
 // (tests) fall back to a synchronous parse.
 
-const MAX_CACHE = 400;
-const cache = new Map();
+import { boundedCache } from "./boundedCache.js";
+
+// Bounded by entries and by the size of the code they hold.
+const cache = boundedCache({ maxEntries: 400, maxChars: 8_000_000, sizeOf: (key) => key.length });
 const pending = new Map();
 let worker;
 let seq = 0;
@@ -19,7 +21,6 @@ function syncTokens() {
 }
 
 function cachePut(key, lines) {
-  if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value);
   cache.set(key, lines);
 }
 

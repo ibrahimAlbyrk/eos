@@ -4,6 +4,7 @@ import { useProfile } from "../../state/profileStore.js";
 import { setMemoryPage } from "../../state/memoryViewStore.js";
 import { dreamStatusLine, fmtDreamTime, runSummary } from "../../lib/dreamProposals.js";
 import { MoonIcon } from "./DreamProposal.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 // While a dream runs: which chat it's reading, what it noticed so far, Stop.
 export function DreamingNow() {
@@ -37,6 +38,7 @@ export function DreamingCard({ onOpenSettings }) {
   const { status, error } = useDreams();
   const { profile } = useProfile();
   useEffect(() => { ensureDreamStatusLoaded(); }, []);
+  useNow();
   const s = profile?.dreaming;
   const last = status?.lastRun;
   const canDream = !status?.running && status?.blocked !== "sign-in";

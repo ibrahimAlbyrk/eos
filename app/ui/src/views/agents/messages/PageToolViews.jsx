@@ -7,6 +7,7 @@ import { countTasks } from "../../../lib/pageTasks.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { ClampedMarkdown } from "./WebToolCards.jsx";
 import { FailureBanner } from "./ToolDetail.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Views for the page tools (both MCP servers). Quick actions read as one rich
 // line: a tick names the task and the page as chips with the page's progress;
@@ -104,6 +105,7 @@ function TaskLine({ tool }) {
 // list_pages: compact rows that open the page.
 function ListDetail({ tool }) {
   const ui = useUi();
+  useNow();
   if (failed(tool)) return <div className="tool-detail"><FailureBanner tool={tool} /></div>;
   const pages = resultJson(tool)?.pages ?? [];
   return (
@@ -160,6 +162,7 @@ function Failed({ tool, children }) {
 
 function ReadDetail({ tool }) {
   const read = useMemo(() => parseRead(tool.result?.text), [tool.result?.text]);
+  useNow();
   if (failed(tool)) return <Failed tool={tool} />;
   if (!read) return null;
   const meta = `rev ${read.rev} · edited ${Number.isFinite(read.editedAt) ? fmtTimeAgo(read.editedAt) : ""} by ${byForUser(read.by)}`;

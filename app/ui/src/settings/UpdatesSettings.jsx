@@ -13,6 +13,7 @@ import { shortcutLabel } from "../lib/platform.js";
 import { ToggleControl } from "./controls.jsx";
 import { UpdateMark } from "../views/update/UpdateMark.jsx";
 import { useOpenReleaseNotes } from "../views/update/useOpenReleaseNotes.js";
+import { useNow } from "../hooks/useNow.js";
 
 const ACTIONS = {
   check: { label: "Check now", run: () => updateActions.check() },
@@ -25,6 +26,7 @@ export function UpdatesSettings() {
   const { closeSettings } = useSettings();
   const openNotes = useOpenReleaseNotes();
   useEffect(() => { if (!isRemoteView()) ensureUpdateLoaded(); }, []);
+  useNow();
 
   if (isRemoteView()) {
     return (

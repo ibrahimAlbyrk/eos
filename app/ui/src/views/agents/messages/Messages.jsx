@@ -10,7 +10,8 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
 import { fmtElapsedShort, fmtDayStamp } from "../../../lib/format.js";
-import { deriveActivity } from "../../../lib/agentActivity.js";
+import { deriveActivity, isRunning } from "../../../lib/agentActivity.js";
+import { useNow, useToday } from "../../../hooks/useNow.js";
 import { buildBlocks, applyRewinds, applyClears, applyRecalls, splitAtCompaction, compactionStatus, sortBlocksByTs } from "../../../lib/messageParser.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
 import { normRewindText } from "../../../lib/rewindMatch.js";
@@ -73,6 +74,8 @@ import { NewestArtifactContext } from "../../artifacts/ArtifactCard.jsx";
 import { joinHandlers } from "../../../lib/joinHandlers.js";
 import { AccountSwitchLine } from "./AccountSwitchLine.jsx";
 import { AccountsExhaustedRow } from "./AccountsExhaustedRow.jsx";
+import { LocalBoundary, RowCrash } from "../../../components/LocalBoundary.jsx";
+import { shareBlocks } from "../../../lib/shareBlocks.js";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
@@ -319,9 +322,11 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   }, [verdict, childVerdicts, selectedId, live.workers, eventsFor, isActive]);
 
   // Live terminal runs (composer `!` mode) stream outside the event store —
-  // a tick subscription re-renders on every chunk.
+  // a tick subscription re-renders on every change to THIS view's runs.
   const [termTick, setTermTick] = useState(0);
-  useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
+  useEffect(() => subscribeTerminal((wid) => {
+    if (wid === selectedId) setTermTick((t) => t + 1);
+  }), [selectedId]);
   // Thinking flushes are keyed and classed: text growth (structural=false) is
   // consumed by the streaming ThinkingLine's own subscription — the transcript
   // re-renders only when THIS worker's live block list changes.
@@ -390,6 +395,9 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     if (owned) publishArtifacts(selectedId, artifacts);
   }, [owned, selectedId, artifacts]);
 
+  // Unchanged blocks keep the previous parse's objects (lib/shareBlocks.js), so
+  // their memoized rows skip the render.
+  const sharedBlocksRef = useRef(null);
   const blocks = useMemo(() => {
     const base = baseBlocks.slice();
     // Queued items render as pills above the input bar, not here; the bubble
@@ -438,7 +446,8 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale. A launch batch of
     // subagents then folds into one line.
-    return groupSubagentRuns(sortBlocksByTs(base), subagents);
+    sharedBlocksRef.current = shareBlocks(sharedBlocksRef.current, groupSubagentRuns(sortBlocksByTs(base), subagents), blockKey);
+    return sharedBlocksRef.current;
   }, [baseBlocks, subagents, selectedId, termTick, outboxTick, thinkTick, genuiTick]);
 
   // With older pages unloaded the window starts mid-conversation, so the boot
@@ -555,9 +564,21 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)
     : null;
-  // live.workers already maps an interrupted agent to IDLE, so deriveActivity
-  // sees the effective state.
-  const { busy: agentBusy, elapsedMs: turnElapsedMs } = deriveActivity(selectedWorker, live.now);
+  // Rows read only who a worker is (id, name, is_orchestrator, worker_definition):
+  // the list they get keeps its identity until one of those changes, so a state
+  // ping re-renders no row.
+  const rowWorkersRef = useRef(null);
+  const rowWorkers = useMemo(() => {
+    if (!sameWorkerIdentities(rowWorkersRef.current, live.workers)) rowWorkersRef.current = live.workers;
+    return rowWorkersRef.current;
+  }, [live.workers]);
+  const rowParent = selectedWorker?.parent_id ? rowWorkers.find((w) => w.id === selectedWorker.parent_id) : null;
+  const toggleHistory = useCallback((id, open) => setOpenHistoryAt(open ? null : id), []);
+  // live.workers already maps an interrupted agent to IDLE, so isRunning sees
+  // the effective state.
+  const agentBusy = isRunning(selectedWorker);
+  // The first user message is compared to today (renderRow): a new day redraws.
+  useToday();
   const interrupted = live.interruptedId === selectedWorker?.id;
 
   const lastBlock = blocks[blocks.length - 1];
@@ -659,46 +680,37 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     return () => center?.classList.remove("msgs-at-top");
   }, []);
 
+  // Everything a row draws from outside its block reaches it as a prop, each one
+  // only for the kinds that read it, so the memoized row re-renders exactly when
+  // what it shows changes.
+  const canRewind = backendCaps(selectedWorker?.backend_kind).rewind;
   const renderRow = (b, i) => {
-    const isLast = i === blocks.length - 1;
     const key = blockKey(b, i);
-    // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
-    // realizes it via PTY choreography, claude via a native fork) — gate
-    // it on the backend's `rewind` flag, never on keystroke or kind.
-    const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
-      ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
-      : null;
-    const replyTarget = selectedId ? replyTargetOf(b) : null;
-    const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
-    const block = b.kind === "compacted"
-      ? (
-        <CompactionCard
-          block={b}
-          workerId={selectedId}
-          hasHistory={b.id === boundaryId && compactionSplit.history.length > 0}
-          historyOpen={historyOpen}
-          onToggleHistory={() => setOpenHistoryAt(historyOpen ? null : b.id)}
-        />
-      )
-      : b.kind === "compactionFailed"
-        ? <CompactionFailedLine block={b} />
-        : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, onReply, jumpToRow, jumpToView);
-    if (!block) return null;
-    // The wrapper carries the block's scroll-anchor identity
-    // (lib/scrollAnchor.js) so every block kind is anchorable without
-    // threading a prop through each component.
-    // `cv` opts a block into content-visibility (perf). MessageRow text
-    // blocks are excluded: paint containment (implied by content-visibility)
-    // would clip their right-click action bar, which overflows the
-    // wrapper. See styles.css.
-    const cls = [
-      isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
-      MESSAGE_ROW_KINDS.has(b.kind) ? null : b.kind === "view" ? "cv cv-view" : "cv",
-    ].filter(Boolean).join(" ") || undefined;
-    const row = <div key={key} data-bkey={key} data-rowid={b.rowId} className={cls}>{block}</div>;
     const prevTs = blocks[i - 1]?.ts;
-    if (b.kind !== "user" || sameDay(b.ts, prevTs ?? Date.now())) return row;
-    return <Fragment key={key}><DayDivider ts={b.ts} />{row}</Fragment>;
+    return (
+      <TranscriptRow
+        key={key}
+        block={b}
+        rowKey={key}
+        interruptedWrap={i === blocks.length - 1 && interrupted && b.kind !== "user"}
+        divider={b.kind === "user" && !sameDay(b.ts, prevTs ?? Date.now())}
+        sessionId={selectedId}
+        cwd={selectedWorker?.cwd}
+        workers={ROW_WORKER_KINDS.has(b.kind) ? rowWorkers : undefined}
+        parent={b.kind === "tool" ? rowParent : undefined}
+        canRewind={b.kind === "user" && !b.optimistic && canRewind}
+        rewindOccurrence={b.kind === "user" ? rewindOccurrence.get(b) ?? 0 : 0}
+        rewindDisabled={b.kind === "user" ? agentBusy : undefined}
+        onRewindMessage={b.kind === "user" ? rewindToMessage : undefined}
+        hasHistory={b.kind === "compacted" && b.id === boundaryId && compactionSplit.history.length > 0}
+        historyOpen={b.kind === "compacted" ? historyOpen : undefined}
+        onToggleHistory={b.kind === "compacted" ? toggleHistory : undefined}
+        groupOpen={b.kind === "toolGroup" ? toolGroupOpen(b, ui) : undefined}
+        onToggleTool={b.kind === "toolGroup" ? ui.toggleToolExpanded : undefined}
+        onJumpToRow={b.kind === "user" ? jumpToRow : undefined}
+        onJumpToView={b.kind === "user" ? jumpToView : undefined}
+      />
+    );
   };
 
   // A step inside a fold renders exactly as it would in the stream. No `cv`: a
@@ -710,7 +722,9 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
     return (
       <div key={key} data-rowid={b.rowId}>
-        {renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, null, agentBusy, selectedId, onReply, jumpToRow, jumpToView)}
+        <LocalBoundary name="transcript row" fallback={rowCrash}>
+          {renderBlock(b, key, selectedWorker?.cwd, toolGroupOpen(b, ui), ui.toggleToolExpanded, live.workers, parentWorker, null, agentBusy, selectedId, onReply, jumpToRow, jumpToView)}
+        </LocalBoundary>
       </div>
     );
   };
@@ -749,10 +763,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
         {pathLinks.layer}
         {artifactLinks.layer}
         {showAnchor && !compaction.pending && (
-          <ProcessingLine
-            busy={agentBusy}
-            elapsed={turnElapsedMs >= 1000 ? fmtElapsedShort(turnElapsedMs) : null}
-          />
+          <ProcessingAnchor worker={selectedWorker} />
         )}
       </div>
       <ScrollToBottom show={stick.showJumpBtn} onClick={scrollToBottom} />
@@ -768,6 +779,81 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     </GenuiHostContext.Provider>
     </ScrollHoldContext.Provider>
   );
+}
+
+const rowCrash = () => <RowCrash />;
+
+// One top-level transcript row (renderRow), memoized: its props are the block
+// (shared across parses while unchanged, lib/shareBlocks.js) and primitives or
+// stable references, so an append re-renders only the new and changed rows.
+export const TranscriptRow = memo(function TranscriptRow({
+  block: b, rowKey: key, interruptedWrap, divider, sessionId, cwd, workers, parent,
+  canRewind, rewindOccurrence, rewindDisabled, onRewindMessage,
+  hasHistory, historyOpen, onToggleHistory, groupOpen, onToggleTool, onJumpToRow, onJumpToView,
+}) {
+  // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
+  // realizes it via PTY choreography, claude via a native fork) — gated on the
+  // backend's `rewind` flag (canRewind), never on keystroke or kind.
+  const onRewind = canRewind ? () => onRewindMessage(b.text, rewindOccurrence) : null;
+  const replyTarget = sessionId ? replyTargetOf(b) : null;
+  const onReply = replyTarget ? () => setReplyTarget(sessionId, replyTarget) : null;
+  const block = b.kind === "compacted"
+    ? (
+      <CompactionCard
+        block={b}
+        workerId={sessionId}
+        hasHistory={hasHistory}
+        historyOpen={historyOpen}
+        onToggleHistory={() => onToggleHistory(b.id, historyOpen)}
+      />
+    )
+    : b.kind === "compactionFailed"
+      ? <CompactionFailedLine block={b} />
+      : renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView);
+  if (!block) return null;
+  // The wrapper carries the block's scroll-anchor identity
+  // (lib/scrollAnchor.js) so every block kind is anchorable without
+  // threading a prop through each component.
+  // `cv` opts a block into content-visibility (perf). MessageRow text
+  // blocks are excluded: paint containment (implied by content-visibility)
+  // would clip their right-click action bar, which overflows the
+  // wrapper. See styles.css.
+  const cls = [
+    interruptedWrap ? "msg-interrupted-wrap" : null,
+    MESSAGE_ROW_KINDS.has(b.kind) ? null : b.kind === "view" ? "cv cv-view" : "cv",
+  ].filter(Boolean).join(" ") || undefined;
+  const row = <div data-bkey={key} data-rowid={b.rowId} className={cls}><LocalBoundary name="transcript row" fallback={rowCrash}>{block}</LocalBoundary></div>;
+  if (!divider) return row;
+  return <Fragment><DayDivider ts={b.ts} />{row}</Fragment>;
+});
+
+// The kinds whose rows read the worker list (names and links of other agents).
+const ROW_WORKER_KINDS = new Set(["user", "report", "directive", "peer-request", "workflow", "toolGroup", "tool"]);
+
+// Same workers, in the same order, with the same id, name, is_orchestrator and
+// worker_definition — all a row reads of them.
+export function sameWorkerIdentities(a, b) {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x === y) continue;
+    if (x.id !== y.id || x.name !== y.name || x.is_orchestrator !== y.is_orchestrator || x.worker_definition !== y.worker_definition) return false;
+  }
+  return true;
+}
+
+// expandedTools holds toggles against the settings-driven default (XOR).
+const toolGroupKey = (b) => "g:" + (b.tools[0]?.id ?? b.ts);
+const toolGroupOpen = (b, ui) => b.kind === "toolGroup" && defaultGroupOpen(b.tools, ui.settings) !== ui.expandedTools.has(toolGroupKey(b));
+
+// The activity line under the latest message; its elapsed counter ticks here,
+// not in the whole transcript.
+function ProcessingAnchor({ worker }) {
+  const now = useNow();
+  const { busy, elapsedMs } = deriveActivity(worker, now);
+  return <ProcessingLine busy={busy} elapsed={elapsedMs >= 1000 ? fmtElapsedShort(elapsedMs) : null} />;
 }
 
 function blockKey(b, i) {
@@ -801,7 +887,7 @@ const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request"
 // content-visibility; .cv-view widens the paint box for their drop shadow (see
 // transcript.css). Their selects are native, so nothing else reaches past it.
 
-function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView) {
+function renderBlock(b, key, cwd, groupOpen, onToggleTool, workers, parent, onRewind, rewindDisabled, sessionId, onReply, onJumpToRow, onJumpToView) {
   switch (b.kind) {
     case "user": {
       const self = b.replyTo?.role === "assistant" ? workers.find((w) => w.id === sessionId) : null;
@@ -814,13 +900,9 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text} onReply={onReply}><MessageAssistant text={b.text} cwd={cwd} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={b.startTs != null ? b.ts - b.startTs : undefined} />;
-    case "toolGroup": {
-      const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
-      // expandedTools holds toggles against the settings-driven default (XOR)
-      const open = defaultGroupOpen(b.tools, ui.settings) !== ui.expandedTools.has(groupKey);
+    case "toolGroup":
       return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd} workers={workers}
-        open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
-    }
+        open={groupOpen} onToggle={() => onToggleTool(toolGroupKey(b))} />;
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
     case "terminal":  return <TerminalCard key={key} block={b} />;
     case "subagents": return <SubagentBatch key={key} runs={b.runs} workerId={sessionId} />;

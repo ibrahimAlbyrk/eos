@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { SidePanelVisibleContext } from "../../../state/paneScope.js";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import { mountedTabs, tabType } from "../../../lib/panelTabs.js";
+import { LocalBoundary, AreaCrash } from "../../../components/LocalBoundary.jsx";
 
 // The side panel's tab contents. A tab stays mounted from the first time it's
 // shown until its pill closes — hidden while another tab is shown — so it keeps
@@ -12,10 +13,16 @@ import { mountedTabs, tabType } from "../../../lib/panelTabs.js";
 // Off screen, a tab skips the parent's re-renders (live updates) until shown again.
 const TabContent = memo(
   function TabContent({ Component, offScreen: _offScreen, ...props }) {
-    return <Component {...props} />;
+    return (
+      <LocalBoundary name={`side panel tab ${props.tabId}`} resetKey={Component} fallback={tabCrash}>
+        <Component {...props} />
+      </LocalBoundary>
+    );
   },
   (_prev, next) => next.offScreen,
 );
+
+const tabCrash = (reset) => <AreaCrash what="This tab" onReset={reset} />;
 
 export function SidePanelTabs({ openTabs, activeTab, shown, live, tools }) {
   const [seen, setSeen] = useState(() => new Set());

@@ -5,6 +5,7 @@ import { PanelShell } from "../panes/PanelShell.jsx";
 import { SubagentList } from "./SubagentList.jsx";
 import { SubagentDetail } from "./SubagentDetail.jsx";
 import { openSubagents } from "./openSubagents.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Side-panel tab: this pane's agent's subagents — the list, or one subagent's
 // detail when one was opened (from the list, the transcript line or the
@@ -21,6 +22,7 @@ export function SubagentsPanel({ live }) {
     ? runs.find((r) => r.runs.some((own) => own.toolUseId === opened.toolUseId))
     : null;
   const worker = live.workers.find((w) => w.id === workerId);
+  const now = useNow();
 
   return (
     <PanelShell type="subagents">
@@ -29,13 +31,13 @@ export function SubagentsPanel({ live }) {
           key={run.toolUseId}
           workerId={workerId}
           run={run}
-          now={live.now}
+          now={now}
           cwd={worker?.cwd}
           workers={live.workers}
           onBack={() => openSubagents(ui, workerId)}
         />
       ) : (
-        <SubagentList workerId={workerId} runs={runs} now={live.now} onOpen={(id) => openSubagents(ui, workerId, id)} />
+        <SubagentList workerId={workerId} runs={runs} now={now} onOpen={(id) => openSubagents(ui, workerId, id)} />
       )}
     </PanelShell>
   );

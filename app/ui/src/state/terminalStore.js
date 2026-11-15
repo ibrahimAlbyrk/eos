@@ -11,10 +11,41 @@ const runs = new Map(); // runId -> {workerId, command, output, done, exitCode, 
 // can't grow one UUID per dismissed run for the tab's lifetime.
 const cleared = new Set();
 const CLEARED_CAP = 200;
-const subs = new Set();
+const subs = new Set(); // cb(workerId) — the worker whose runs changed (null = workspace)
 
-function emit() {
-  for (const cb of subs) cb();
+// Output chunks notify at most once per animation frame (a 50 ms timer when
+// hidden or headless), so a chatty command costs one subscriber pass per frame,
+// not per chunk. Every other change notifies at once.
+const TIMER_FLUSH_MS = 50;
+const pending = new Set(); // workerIds with chunks not yet notified
+let flushScheduled = false;
+let rafId = 0;
+let timerId = 0;
+
+function flush() {
+  flushScheduled = false;
+  if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  if (timerId) { clearTimeout(timerId); timerId = 0; }
+  const batch = [...pending];
+  pending.clear();
+  for (const workerId of batch) {
+    for (const cb of subs) cb(workerId);
+  }
+}
+
+function scheduleEmit(workerId) {
+  pending.add(workerId);
+  if (flushScheduled) return;
+  flushScheduled = true;
+  timerId = setTimeout(flush, TIMER_FLUSH_MS);
+  if (typeof requestAnimationFrame === "function" && typeof document !== "undefined" && !document.hidden) {
+    rafId = requestAnimationFrame(flush);
+  }
+}
+
+function emit(workerId) {
+  pending.delete(workerId);
+  for (const cb of subs) cb(workerId);
 }
 
 export function subscribe(cb) {
@@ -24,7 +55,7 @@ export function subscribe(cb) {
 
 export function startRun(workerId, runId, command) {
   runs.set(runId, { workerId, command, output: "", done: false, exitCode: null, note: null, ts: Date.now() });
-  emit();
+  emit(workerId);
 }
 
 export function applyChunk({ workerId, runId, command, data }) {
@@ -36,7 +67,7 @@ export function applyChunk({ workerId, runId, command, data }) {
     runs.set(runId, r);
   }
   r.output += data ?? "";
-  emit();
+  scheduleEmit(r.workerId);
 }
 
 export function applyDone({ runId, exitCode, note }) {
@@ -46,11 +77,14 @@ export function applyDone({ runId, exitCode, note }) {
   r.done = true;
   r.exitCode = exitCode ?? 0;
   r.note = note ?? null;
-  emit();
+  emit(r.workerId);
 }
 
 export function removeRun(runId) {
-  if (runs.delete(runId)) emit();
+  const r = runs.get(runId);
+  if (!r) return;
+  runs.delete(runId);
+  emit(r.workerId);
 }
 
 // Selecting an agent dismisses the no-selection view's workspace cards for
@@ -64,7 +98,7 @@ export function clearWorkspaceRuns() {
     cleared.add(runId);
     if (cleared.size > CLEARED_CAP) cleared.delete(cleared.values().next().value);
   }
-  if (dropped.length > 0) emit();
+  if (dropped.length > 0) emit(null);
   return dropped;
 }
 
@@ -75,7 +109,7 @@ export function purge(workerId) {
   for (const [runId, r] of [...runs]) {
     if (r.workerId === workerId) { runs.delete(runId); changed = true; }
   }
-  if (changed) emit();
+  if (changed) emit(workerId);
 }
 
 // Drop runs for workers no longer in the live list — auto-shutdown / cascade

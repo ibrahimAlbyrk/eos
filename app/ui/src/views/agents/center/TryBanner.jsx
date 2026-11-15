@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../api/client.js";
 import { AgentName } from "../../../lib/agentName.js";
+import { useChangeTick } from "../../../state/eventSignalStore.js";
 
 // Active-try deck — one card per worker whose changes are applied as unstaged
 // edits in the user's checkout, stacked newest-on-top. Keep/Discard act on the
@@ -9,7 +10,7 @@ import { AgentName } from "../../../lib/agentName.js";
 // restore from /try/state rather than trusting the event window.
 export function TryDeck({ live, selected }) {
   const selectedId = selected?.id ?? null;
-  const changeTick = live.eventSignal.changeTick;
+  const changeTick = useChangeTick();
   const [tries, setTries] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);

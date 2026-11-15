@@ -3,8 +3,19 @@ import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer, replaceTab as replaceTabReducer, newTabId, activateTab, fileTabId } from "../lib/panelTabs.js";
 import { EMPTY_DOCK, peekFile, restoreDock } from "../lib/fileDock.js";
+import { sameJson } from "../lib/sameJson.js";
 
 const SelectionContext = createContext(null);
+
+// State updaters that keep the current value when the next one carries the same
+// data, so a republished verdict/question or a close with nothing open does not
+// re-render every useUi() consumer.
+export function keepIfSame(prev, next) {
+  return sameJson(prev, next) ? prev : next;
+}
+export function clearPopoverData(data) {
+  return Object.keys(data).length ? {} : data;
+}
 
 // One pane's side-panel: an open flag, an ordered set of open tabs + the active
 // one, a width, a fullscreen flag, per-tab data, and the file dock under the
@@ -254,11 +265,13 @@ export function SelectionProvider({ children }) {
     });
   }, []);
   const [renamingId, setRenamingId] = useState(null);
-  const [pendingQuestion, setPendingQuestion] = useState(null);
+  const [pendingQuestion, setPendingQuestionState] = useState(null);
+  const setPendingQuestion = useCallback((q) => setPendingQuestionState((prev) => keepIfSame(prev, q)), []);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
   // event window (same publish pattern as pendingQuestion); read by the
   // diff row / diff viewer verdict chips. Advisory only.
-  const [verdict, setVerdict] = useState(null);
+  const [verdict, setVerdictState] = useState(null);
+  const setVerdict = useCallback((v) => setVerdictState((prev) => keepIfSame(prev, v)), []);
   const [dismissedQuestions, setDismissedQuestions] = useState(() => new Set());
   const dismissQuestion = useCallback((toolUseId) => {
     setDismissedQuestions((prev) => new Set(prev).add(toolUseId));
@@ -292,12 +305,12 @@ export function SelectionProvider({ children }) {
       delete next[paneId];
       return next;
     });
-    setPopoverData({});
+    setPopoverData(clearPopoverData);
   }, []);
   // Close every pane's popover at once — Escape and any global dismissal.
   const closeAllPopsEverywhere = useCallback(() => {
     setOpenPopoverByPane((m) => (Object.keys(m).length ? {} : m));
-    setPopoverData({});
+    setPopoverData(clearPopoverData);
   }, []);
 
   // (Clear-on-select is now per pane: PaneProvider clears a pane's stack when
@@ -385,7 +398,7 @@ export function SelectionProvider({ children }) {
     sideCollapsed, setSideCollapsed, sidebarMode,
     collapseSidebar, expandSidebar, hoverSidebarIn, hoverSidebarKeep, hoverSidebarOut,
     openPopoverByPane, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, setPendingQuestion, dismissedQuestions, verdict, setVerdict,
     panelsByPane,
     openPanelIn, openNewTabIn, replaceTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, openFileTabIn, updateDockIn,
     rewindPanel, openRewindPanel, closeRewindPanel,

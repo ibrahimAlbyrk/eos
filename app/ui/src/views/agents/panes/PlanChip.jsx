@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { RollingLabel } from "../../../components/RollingLabel.jsx";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Plan chip — the agent's TodoWrite list as a progress ring + "done/total"
 // beside the breadcrumb, so the plan costs no vertical space. Hover peeks the
@@ -22,6 +23,8 @@ export function PlanChip({ worker }) {
   const ui = useUi();
   const ref = useRef(null);
   const [hover, setHover] = useState(false);
+  // Open, it follows its anchor (measured during render) on the clock's beat.
+  useNow(ui.openPopover === "plan" || hover);
 
   const tasks = parseWorkerTasks(worker);
   if (tasks.length === 0) return null;

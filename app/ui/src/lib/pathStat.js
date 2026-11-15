@@ -18,6 +18,25 @@ const known = new Map(); // abs → { at, stat: FsStat | null, pending?: Promise
 let gathering = null; // abs → resolve, for the asks of this frame
 let batchRoute = true;
 
+// Readers of knownStat during render hear when answers change (once per tick of
+// answers), so a chip appears wherever its path is drawn.
+const subs = new Set();
+let emitQueued = false;
+
+function emit() {
+  if (emitQueued) return;
+  emitQueued = true;
+  queueMicrotask(() => {
+    emitQueued = false;
+    for (const cb of subs) cb();
+  });
+}
+
+export function subscribeStats(cb) {
+  subs.add(cb);
+  return () => subs.delete(cb);
+}
+
 // The last answer for `abs`: its stat, null (does not exist) or undefined
 // (never asked).
 export function knownStat(abs) {
@@ -35,11 +54,12 @@ export function statPath(abs) {
   const hit = known.get(abs);
   if (hit?.pending) return hit.pending;
   if (hit && isFresh(abs)) return Promise.resolve(hit.stat);
-  if (known.size > MAX_ENTRIES) known.clear();
+  if (known.size > MAX_ENTRIES) { known.clear(); emit(); }
   const pending = ask(abs).then((stat) => {
     if (stat !== undefined) known.set(abs, { at: Date.now(), stat });
     else if (hit?.stat !== undefined) known.set(abs, { at: hit.at, stat: hit.stat });
     else known.delete(abs);
+    emit();
     return stat === undefined ? hit?.stat : stat;
   });
   known.set(abs, { at: hit?.at ?? 0, stat: hit?.stat, pending });

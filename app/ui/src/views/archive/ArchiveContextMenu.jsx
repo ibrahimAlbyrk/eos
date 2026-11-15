@@ -8,6 +8,7 @@ import { nameOf } from "../../lib/agentName.js";
 import { permanentDeleteMessage } from "../../lib/archive.js";
 import { PURGE_CONFIRM_KEY, shouldConfirmPurge } from "../../lib/deleteConfirm.js";
 import { api } from "../../api/client.js";
+import { useNow } from "../../hooks/useNow.js";
 
 // Right-click menu for an archived sidebar row: Restore (no confirm — it only
 // clears the archived flag), Export (conversation download) and Delete
@@ -24,6 +25,8 @@ export function ArchiveContextMenu({ live }) {
 
   const open = ui.openPopover === "archive-ctx";
   const doomed = confirmId ? rows.find((w) => w.id === confirmId) ?? null : null;
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(open);
   if (!open && !doomed) return null;
 
   const runRestore = async (id) => {

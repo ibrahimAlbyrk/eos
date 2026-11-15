@@ -33,6 +33,24 @@ describe("conversationListsStore", () => {
     expect(api.getWorkerSubagents).toHaveBeenCalledTimes(1);
   });
 
+  it("an unchanged answer keeps the lists object its readers hold", async () => {
+    api.getWorkerSubagents.mockImplementation(async () => [{ same: true }]);
+    requestLists("w1", 10);
+    await flush();
+    const first = getLists("w1");
+    requestLists("w1", 11);
+    vi.advanceTimersByTime(REFRESH_MS);
+    await flush();
+    expect(api.getWorkerSubagents).toHaveBeenCalledTimes(2);
+    expect(getLists("w1")).toBe(first);
+    api.getWorkerSubagents.mockImplementation(async () => [{ same: false }]);
+    requestLists("w1", 12);
+    vi.advanceTimersByTime(REFRESH_MS);
+    await flush();
+    expect(getLists("w1")).not.toBe(first);
+    expect(getLists("w1").subagents).toEqual([{ same: false }]);
+  });
+
   it("asks once more for a burst of new rows, after a pause", async () => {
     requestLists("w1", 10);
     await flush();

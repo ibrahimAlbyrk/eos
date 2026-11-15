@@ -7,6 +7,7 @@ import { Sheen } from "../messages/Sheen.jsx";
 import { SubagentGlyph } from "./SubagentGlyph.jsx";
 import { SubagentMeta, subagentActivity } from "./SubagentStatus.jsx";
 import { openSubagents } from "./openSubagents.js";
+import { Ticking } from "../../../components/Ticking.jsx";
 
 const GLYPH_CAP = 6;
 
@@ -27,7 +28,7 @@ export function SubagentGroup({ runs, workerId }) {
           {hidden > 0 && <span className="sa-group__more">+{hidden}</span>}
         </span>
         <span>{runs.length} subagents {launchVerb(runs)}</span>
-        <span className="sa-group__summary">{batchSummary(runs, Date.now())}</span>
+        <span className="sa-group__summary"><Ticking>{() => batchSummary(runs, Date.now())}</Ticking></span>
       </DisclosureRow>
       <Collapse open={open}>
         <SubagentRail runs={runs} workerId={workerId} />

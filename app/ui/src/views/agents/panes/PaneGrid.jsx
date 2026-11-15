@@ -11,6 +11,7 @@ import { PaneHeader } from "./PaneHeader.jsx";
 import { SidePanel } from "./SidePanel.jsx";
 import { EnvDock } from "./EnvironmentPanel.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
+import { LocalBoundary, AreaCrash } from "../../../components/LocalBoundary.jsx";
 
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
 
@@ -180,12 +181,14 @@ export function SinglePane({ live }) {
             topLeft
             topRight
           />
-          <EnvDock live={live} worker={selected}>
-            <div className="pane-tx">
-              <TranscriptHost live={live} activeId={ui.selectedId} />
-            </div>
-            <Composer live={live} worker={selected} paneId={leafId} focused />
-          </EnvDock>
+          <LocalBoundary name="pane" resetKey={ui.selectedId} fallback={paneCrash}>
+            <EnvDock live={live} worker={selected}>
+              <div className="pane-tx">
+                <TranscriptHost live={live} activeId={ui.selectedId} />
+              </div>
+              <Composer live={live} worker={selected} paneId={leafId} focused />
+            </EnvDock>
+          </LocalBoundary>
         </div>
         <SidePanel live={live} />
       </PaneScopeContext.Provider>
@@ -221,6 +224,8 @@ export function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
     />
   );
 }
+
+const paneCrash = (reset) => <AreaCrash what="This chat" onReset={reset} />;
 
 function Pane({ id, agentId, worker, live, focused, topLeft, topRow, topRight, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
@@ -273,10 +278,12 @@ function Pane({ id, agentId, worker, live, focused, topLeft, topRow, topRight, a
               as the single-pane new-session state: agentId/worker are null, so the
               composer drops into its no-agent spawn flow — type a prompt and it spawns
               an orchestrator into this (focused) pane. No separate agent picker. */}
-          <EnvDock live={live} worker={worker}>
-            <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-            <Composer live={live} worker={worker} paneId={id} focused={focused} />
-          </EnvDock>
+          <LocalBoundary name="pane" resetKey={agentId} fallback={paneCrash}>
+            <EnvDock live={live} worker={worker}>
+              <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+              <Composer live={live} worker={worker} paneId={id} focused={focused} />
+            </EnvDock>
+          </LocalBoundary>
         </div>
         <SidePanel live={live} />
       </PaneScopeContext.Provider>

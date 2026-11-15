@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { deriveVerdict } from "../lib/verdict.js";
 import { startPolling } from "../lib/pollInterval.js";
+import { useEventSignal } from "../state/eventSignalStore.js";
 
 const POLL_MS = 10000;
 
@@ -11,8 +12,9 @@ const POLL_MS = 10000;
 // chip matches what the worker's own screen shows, including a user-clicked
 // /verify that never produced a parent report. SSE-debounced on the worker's
 // own activity; light poll as fallback.
-export function useWorkerVerdict(workerId, live, { enabled = true } = {}) {
+export function useWorkerVerdict(workerId, { enabled = true } = {}) {
   const [verdict, setVerdict] = useState(null);
+  const eventSignal = useEventSignal();
   const fetchRef = useRef(null);
 
   useEffect(() => {
@@ -31,10 +33,10 @@ export function useWorkerVerdict(workerId, live, { enabled = true } = {}) {
   }, [workerId, enabled]);
 
   useEffect(() => {
-    if (!enabled || live.eventSignal.workerId !== workerId) return;
+    if (!enabled || eventSignal.workerId !== workerId) return;
     const t = setTimeout(() => fetchRef.current?.(), 700);
     return () => clearTimeout(t);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, workerId, enabled]);
+  }, [eventSignal.tick, eventSignal.workerId, workerId, enabled]);
 
   return verdict;
 }

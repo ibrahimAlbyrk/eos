@@ -12,6 +12,7 @@ import { workflowTabId } from "../../../lib/panelTabs.js";
 import { ToolItem } from "../messages/ToolItem.jsx";
 import { AgentGlyph, StatusChip, StopButton, WorkflowIcon, fmtTime, totalsLine } from "./parts.jsx";
 import { fmtTokens } from "../../../lib/format.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // A call the daemon never reported on (made before live runs existed) shows as
 // the plain tool row once it's clearly not just about to start.
@@ -26,6 +27,8 @@ export function WorkflowCard({ block, workerId, cwd, workers }) {
   const status = runStatusOf(block, entry);
   const known = Boolean(block.started || block.completed || entry?.live || entry?.detail);
   const unknown = !known && entry?.fetched === true && Date.now() - (tool.ts ?? 0) > UNKNOWN_AFTER_MS;
+  // `unknown` turns true with the time alone.
+  useNow(!known && entry?.fetched === true && !unknown);
   const now = useClockTick(isRunActive(status) && !unknown);
   const model = useMemo(() => workflowRunModel(block, entry, now), [block, entry, now]);
 

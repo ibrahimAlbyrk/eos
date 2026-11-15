@@ -9,7 +9,7 @@ import { DisclosureRow } from "./DisclosureRow.jsx";
 //
 // The content span is managed imperatively — React declares no children for it,
 // so it never reconciles inside. While the block streams (live), each store
-// flush appends ONLY the new tail as plain text nodes (reasoning is plain text,
+// flush appends ONLY the new tail to its text node (reasoning is plain text,
 // and text nodes need no escaping). Per-flush cost is O(tail) — never an
 // innerHTML reset of the accumulated text. The durable block reuses this same
 // instance by blockId; when the streamed DOM already equals the durable text
@@ -68,6 +68,9 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
       if (known === 0) {
         // Mount catch-up (first flush, or a remount mid-stream): one-time full set.
         el.textContent = full;
+      } else if (el.lastChild?.nodeType === Node.TEXT_NODE) {
+        // One growing text node, not one more node per flush.
+        el.lastChild.appendData(full.slice(known));
       } else {
         el.appendChild(document.createTextNode(full.slice(known)));
       }

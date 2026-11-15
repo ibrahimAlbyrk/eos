@@ -2,12 +2,14 @@ import { useState } from "react";
 import { fmtTimeAgoShort } from "../../lib/format.js";
 import { ChevronRightIcon, IntoIcon, OutIcon } from "./icons.jsx";
 import { namesOf } from "./text.js";
+import { useNow } from "../../hooks/useNow.js";
 
 const NOTE = { failed: "failed", cancelled: "cancelled" };
 
 // Finished transfers: one quiet row until it's opened.
 export function RecentTransfers({ items, label, onClear }) {
   const [open, setOpen] = useState(false);
+  useNow();
   if (!items.length) return null;
   return (
     <div className="tx-recent">

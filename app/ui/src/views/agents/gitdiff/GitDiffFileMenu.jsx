@@ -5,6 +5,7 @@ import { hasLocalScreen } from "../../../lib/host.js";
 import { notify } from "../../../lib/notify.js";
 import { MenuList } from "../popovers/MenuList.jsx";
 import { fileManagerName } from "../../../lib/platform.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Right-click menu shared by the file-tree rows and the diff-card headers:
 // Copy path + an "Open in →" flyout (VS Code / Finder). Uses the shared popover
@@ -15,6 +16,8 @@ import { fileManagerName } from "../../../lib/platform.js";
 // repo-relative); the copied/opened path is the absolute join.
 export function GitDiffFileMenu() {
   const ui = useUi();
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(ui.openPopover === "gitdiff-file-ctx");
   if (ui.openPopover !== "gitdiff-file-ctx") return null;
   const { cwd, path } = ui.popoverData ?? {};
   if (!cwd || !path) return null;

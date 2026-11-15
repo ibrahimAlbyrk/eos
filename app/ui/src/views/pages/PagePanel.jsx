@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useOriginPane } from "../../state/paneScope.js";
 import { pushTextHandoff } from "../../state/browserComposerHandoff.js";
@@ -201,7 +201,8 @@ async function flushPage(id, draft, base) {
 
 function PageMeta({ page, agent, status, body }) {
   useClockTick();
-  const tasks = countTasks(body);
+  // The clock re-renders this every second; the body changes far less often.
+  const tasks = useMemo(() => countTasks(body), [body]);
   const by = page.updatedBy.kind === "agent" ? page.updatedBy.name ?? "an agent" : "you";
   return (
     <div className="pg-meta">

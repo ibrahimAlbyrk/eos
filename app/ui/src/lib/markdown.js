@@ -1,5 +1,6 @@
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
+import { boundedCache } from "./boundedCache.js";
 
 export function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -40,16 +41,14 @@ export function markdownToHtml(text) {
 // Bounded parse cache: a stable message renders to the same HTML every time, so
 // re-mounting a transcript (first view of an agent) reuses the sanitized output
 // instead of re-running marked + DOMPurify per block. Keyed by raw text; LRU by
-// insertion order (mirrors lib/asyncHighlight.js).
-const MAX_CACHE = 400;
-const cache = new Map();
+// insertion order (mirrors lib/asyncHighlight.js), and by total size.
+const cache = boundedCache({ maxEntries: 400, maxChars: 8_000_000, sizeOf: (text, html) => text.length + html.length });
 
 export function renderMarkdown(text) {
   const key = String(text || "");
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   const html = DOMPurify.sanitize(markdownToHtml(key));
-  if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value);
   cache.set(key, html);
   return html;
 }

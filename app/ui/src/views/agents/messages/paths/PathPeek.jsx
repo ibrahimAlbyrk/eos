@@ -10,6 +10,7 @@ import { displayParts } from "../../../../lib/pathLinks.js";
 import { statPath } from "../../../../lib/pathStat.js";
 import { FileIcon } from "../../../files/FileIcon.jsx";
 import { modLabel, fileManagerName } from "../../../../lib/platform.js";
+import { useNow } from "../../../../hooks/useNow.js";
 
 const PEEK_W = 380;
 const PEEK_H = 280;
@@ -81,6 +82,7 @@ function PeekBody({ target, body }) {
 export function PathPeek({ anchor, target, cwd, editor, onEnter, onLeave, onClose, onOpen, onEditor, onReveal, onMore }) {
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
+  useNow();
   useEffect(() => {
     const close = () => closeRef.current();
     window.addEventListener("scroll", close, true);

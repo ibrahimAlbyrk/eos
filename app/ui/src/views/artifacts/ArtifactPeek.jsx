@@ -8,6 +8,7 @@ import { artifactAccountLine, artifactInfo, artifactRef, artifactViewStatus, pla
 import { useClockTick } from "../../hooks/useClockTick.js";
 import { hostOS } from "../../lib/platform.js";
 import { WindowGlyph } from "./ArtifactParts.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 const ALT = hostOS() === "mac" ? "⌥" : "Alt";
 
@@ -19,6 +20,8 @@ const ALT = hostOS() === "mac" ? "⌥" : "Alt";
 export function ArtifactPeek({ anchor, link, onEnter, onLeave, onClose, onOpen }) {
   const catalog = useArtifactCatalog();
   const now = useClockTick(true, 30_000);
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow();
   const info = artifactInfo(link.slug, link, catalog);
   const refKey = `${info.slug}|${info.loginId}|${info.url}|${info.version}|${info.title}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps

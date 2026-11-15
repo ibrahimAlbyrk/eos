@@ -8,6 +8,7 @@
 
 import { useCallback, useSyncExternalStore } from "react";
 import { api } from "../api/client.js";
+import { sameJson } from "../lib/sameJson.js";
 
 export const MAX_CHATS = 20;
 export const REFRESH_MS = 1000;
@@ -43,9 +44,13 @@ async function load(workerId, e) {
     // One after the other: the core derives both from one pass, kept for the second.
     const subagents = await api.getWorkerSubagents(workerId);
     const artifacts = await api.getWorkerArtifacts(workerId);
-    e.lists = { subagents, artifacts };
     e.coveredTo = Math.max(e.coveredTo, covered);
-    emit(workerId);
+    // An unchanged answer keeps the lists its readers hold: nothing re-renders.
+    const lists = { subagents, artifacts };
+    if (!sameJson(e.lists, lists)) {
+      e.lists = lists;
+      emit(workerId);
+    }
   } catch {
     // Kept as it was: the window's own lists stand in meanwhile.
   } finally {

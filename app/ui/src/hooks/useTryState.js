@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { subscribeGitChange, TRY_KINDS } from "../state/gitChangeBus.js";
 import { workerGitDir } from "../lib/workerGitDir.js";
+import { useEventSignal } from "../state/eventSignalStore.js";
 
 const REFRESH_DEBOUNCE_MS = 800;
 
@@ -16,6 +17,7 @@ const REFRESH_DEBOUNCE_MS = 800;
 export function useTryState(workerId, isolated, live) {
   const [tryState, setTryState] = useState({ phase: "idle" });
   const [tryInfo, setTryInfo] = useState(null);
+  const eventSignal = useEventSignal();
   useEffect(() => { setTryState({ phase: "idle" }); setTryInfo(null); }, [workerId]);
 
   const refreshTry = useCallback(async () => {
@@ -37,10 +39,10 @@ export function useTryState(workerId, isolated, live) {
   useEffect(() => () => clearTimeout(timerRef.current), []);
 
   useEffect(() => {
-    if (live.eventSignal.workerId !== workerId) return;
+    if (eventSignal.workerId !== workerId) return;
     debouncedRefresh();
     return () => clearTimeout(timerRef.current);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, workerId, debouncedRefresh]);
+  }, [eventSignal.tick, eventSignal.workerId, workerId, debouncedRefresh]);
 
   useEffect(() => {
     if (!isolated || !gitDir) return;

@@ -10,6 +10,9 @@ import { notify } from "../lib/notify.js";
 import { getPlugin, subscribePlugins } from "./pluginsStore.js";
 import { usePluginValue } from "./pluginValues.js";
 import { reportPlugin } from "./report.js";
+import { useNow } from "../hooks/useNow.js";
+import { useEventSignal } from "../state/eventSignalStore.js";
+import { useSidePanelVisible } from "../state/paneScope.js";
 
 // A plugin's component that throws while rendering shows nothing instead of
 // taking its surroundings down with it.
@@ -35,9 +38,17 @@ class PluginBoundary extends Component {
   }
 }
 
+// A plugin's `live` carries the clock (`now`, every second) and the worker event
+// signal (`eventSignal`) the rest of the app reads from their own stores; a
+// plugin re-renders on both, as it always has — except a side-panel tab off
+// screen, which waits until it is shown again.
 function guarded(pluginId, rev, Inner) {
   function Guarded(props) {
-    return createElement(PluginBoundary, { plugin: pluginId, rev }, createElement(Inner, props));
+    const onScreen = useSidePanelVisible();
+    const now = useNow(onScreen);
+    const eventSignal = useEventSignal(onScreen);
+    const inner = props.live ? { ...props, live: { ...props.live, now, eventSignal } } : props;
+    return createElement(PluginBoundary, { plugin: pluginId, rev }, createElement(Inner, inner));
   }
   Guarded.displayName = `Plugin(${pluginId})`;
   return Guarded;

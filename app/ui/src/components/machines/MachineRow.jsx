@@ -12,6 +12,7 @@ import { MachineGlyph } from "./MachineGlyph.jsx";
 import { MachinesMenu } from "./MachinesMenu.jsx";
 import { UpDownIcon } from "./icons.jsx";
 import { shortcutLabel } from "../../lib/platform.js";
+import { useNow } from "../../hooks/useNow.js";
 
 // The sidebar footer's machine row — which computer this window is driving, and
 // the way to every other one (like VS Code's remote indicator, bottom-left).
@@ -24,6 +25,8 @@ export function MachineRow({ live }) {
   useEffect(() => { ensureHostsLoaded(); }, []);
 
   const open = ui.openPopover === "machines-menu";
+  // Open, it follows its anchor (measured during render) on the clock's beat.
+  useNow(open);
   const toggle = (e) => {
     e?.stopPropagation();
     if (open) ui.closeAllPops();

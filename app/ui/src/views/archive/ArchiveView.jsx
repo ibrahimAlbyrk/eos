@@ -5,7 +5,9 @@ import { breadcrumbFor } from "../../lib/breadcrumb.js";
 import { nameOf } from "../../lib/agentName.js";
 import { fmtTimeAgo } from "../../lib/format.js";
 import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../state/archiveStore.js";
+import { getEventSignal, subscribe as subscribeEventSignal } from "../../state/eventSignalStore.js";
 import { shortcutLabel } from "../../lib/platform.js";
+import { Ticking } from "../../components/Ticking.jsx";
 
 // The archive title bar: same .pane-head strip the live single pane uses (32px
 // inset, native drag strip, bottom rule). Shows the archived agent's name + a
@@ -38,7 +40,7 @@ function TrayIcon() {
 // (title bar + TranscriptHost + per-pane Composer). Those components resolve the
 // worker row and its subtree from `live.workers`, which excludes archived rows —
 // so a shim `{ ...live, workers: rows }` feeds them the archived subtree instead;
-// everything else (event fetches, SSE signal, clock) passes through unchanged.
+// everything else (event fetches, actions) passes through unchanged.
 // The composer is rendered inert + dimmed: archived agents are read-only until
 // restored (restore/purge live in the sidebar row's context menu).
 export function ArchiveView({ live }) {
@@ -49,7 +51,10 @@ export function ArchiveView({ live }) {
   // refetch in useLive. Archive, restore, and purge all emit a ping, so the
   // list self-heals after every mutation.
   useEffect(() => { refreshArchived(); }, []);
-  useEffect(() => { if (live.eventSignal.tick) scheduleArchivedRefresh(); }, [live.eventSignal.tick]);
+  useEffect(() => {
+    if (getEventSignal().tick) scheduleArchivedRefresh();
+    return subscribeEventSignal(scheduleArchivedRefresh);
+  }, []);
 
   const archLive = useMemo(() => ({ ...live, workers: rows }), [live, rows]);
   const selected = rows.find((w) => w.id === selectedId) ?? null;
@@ -74,7 +79,7 @@ export function ArchiveView({ live }) {
   }
 
   const { project } = breadcrumbFor(rows, selected.id);
-  const meta = `${project} · archived ${selected.archived_at ? fmtTimeAgo(selected.archived_at) : "just now"}`;
+  const meta = <Ticking>{() => `${project} · archived ${selected.archived_at ? fmtTimeAgo(selected.archived_at) : "just now"}`}</Ticking>;
 
   return (
     <>

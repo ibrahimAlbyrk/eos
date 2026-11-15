@@ -14,6 +14,7 @@ import { openProfileInterview } from "../state/interviewStore.js";
 import { openDreamReview } from "../state/dreamReviewStore.js";
 import { isDreamProposal } from "../lib/dreamProposals.js";
 import { displayName } from "../lib/profileText.js";
+import { useNow } from "../hooks/useNow.js";
 
 // The plans you're signed in to, for the avatar's tooltip, and whether any
 // sign-in expired (the avatar then wears a red dot; the menu has the detail).
@@ -48,6 +49,8 @@ export function SettingsFooter({ live }) {
     pending ? `${pending} ${pending === 1 ? "memory" : "memories"} to review` : null,
   ].filter(Boolean).join(" — ");
   const open = ui.openPopover === "account-menu";
+  // Open, it follows its anchor (measured during render) on the clock's beat.
+  useNow(open);
 
   const toggle = (e) => {
     e.stopPropagation();

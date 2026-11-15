@@ -6,6 +6,7 @@ import {
   useLayoutGroups, addGroup, updateGroup, renameGroup, deleteGroup, setActiveGroup,
 } from "../../../state/layoutGroupsStore.js";
 import { NewGroupModal } from "../popovers/NewGroupModal.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 function PlusIcon() {
   return (
@@ -39,6 +40,8 @@ export function LayoutGroups({ aliveIds }) {
   const [creating, setCreating] = useState(false);
   const [renameFor, setRenameFor] = useState(null); // group being renamed | null
   const [menu, setMenu] = useState(null); // { id, x, y } | null
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(menu != null);
 
   const activeGroup = groups.find((g) => g.id === activeGroupId) ?? null;
   const dirty = activeGroup ? !sameLayout(ui.tree, activeGroup.tree, aliveIds) : false;

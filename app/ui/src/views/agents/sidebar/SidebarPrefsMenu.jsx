@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { useSidebarPrefs, setPref } from "../../../state/sidebarPrefsStore.js";
 import { setArchiveViewing } from "../../../state/archiveStore.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // The sidebar settings popover: Group by / Sort by / Status, each a parent row
 // with a right flyout carrying a checkmark on the active option. Opened from the
@@ -34,6 +35,8 @@ export function SidebarPrefsMenu() {
   const prefs = useSidebarPrefs();
   const [sub, setSub] = useState(null); // { key, rect } of the open flyout's parent row
   const isOpen = ui.openPopover === "sidebar-prefs";
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(isOpen);
 
   useEffect(() => { if (!isOpen) setSub(null); }, [isOpen]);
   if (!isOpen) return null;

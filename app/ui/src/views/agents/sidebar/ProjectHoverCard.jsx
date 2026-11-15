@@ -4,6 +4,7 @@ import { api } from "../../../api/client.js";
 import { remoteSlug, tildePath } from "../../../lib/projects.js";
 import { saveProject, openProjectModal } from "../../../state/projectsStore.js";
 import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 const svg = (children) => (
   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">{children}</svg>
@@ -20,6 +21,8 @@ const PinIcon = () => svg(<path d="M9.5 2.5 13.5 6.5 11 7.5 8.5 10l.5 3-6-6 3 .5
 export function ProjectHoverCard({ group, anchor, onEnter, onLeave, onDone }) {
   const [slug, setSlug] = useState(null);
   const project = group.project ?? null;
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow();
 
   useEffect(() => {
     let alive = true;

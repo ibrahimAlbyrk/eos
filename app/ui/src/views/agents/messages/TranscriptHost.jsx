@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { Messages } from "./Messages.jsx";
 
 // Keep-alive transcript multiplexer. Instead of remounting <Messages> on every
@@ -18,6 +18,10 @@ import { Messages } from "./Messages.jsx";
 const KEEP_ALIVE = 4;
 
 const keyOf = (id) => (id == null ? "__empty__" : String(id));
+
+// A parked pane skips the host's re-renders (live updates) until it is shown
+// again; its own subscriptions (events, live overlays, ui) still reach it.
+const PaneMessages = memo(Messages, (prev, next) => !prev.isActive && !next.isActive);
 
 export function TranscriptHost({ live, activeId }) {
   // LRU of agent ids to keep mounted, most-recent last; always includes active.
@@ -41,7 +45,7 @@ export function TranscriptHost({ live, activeId }) {
         const on = id === activeId;
         return (
           <div key={keyOf(id)} className={on ? "tx-pane on" : "tx-pane"} aria-hidden={!on}>
-            <Messages live={live} agentId={id} isActive={on} />
+            <PaneMessages live={live} agentId={id} isActive={on} />
           </div>
         );
       })}

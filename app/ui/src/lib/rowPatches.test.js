@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mergeRowChanges } from "./rowPatches.js";
+import { keepUnchangedRows, mergeRowChanges } from "./rowPatches.js";
 
 describe("mergeRowChanges", () => {
   const rows = [{ id: "a", state: "IDLE" }, { id: "b", state: "IDLE" }];
@@ -37,5 +37,30 @@ describe("mergeRowChanges", () => {
     const out = mergeRowChanges(list, [{ resource: "workers", op: "upsert", data: { id: "a", state: "IDLE" } }], "workers");
     expect(out).toBe(list);
     expect(mergeRowChanges(list, [{ resource: "pending", op: "upsert", data: { id: "p" } }], "workers")).toBe(list);
+  });
+});
+
+describe("keepUnchangedRows", () => {
+  const a = { id: "a", state: "IDLE", meta: { n: 1 } };
+  const b = { id: "b", state: "WORKING" };
+
+  it("an equal list keeps the held array", () => {
+    const rows = [a, b];
+    expect(keepUnchangedRows(rows, [{ ...a, meta: { n: 1 } }, { ...b }])).toBe(rows);
+  });
+
+  it("keeps each equal row's object and takes the changed ones", () => {
+    const changed = { ...b, state: "IDLE" };
+    const out = keepUnchangedRows([a, b], [{ ...a, meta: { n: 1 } }, changed]);
+    expect(out[0]).toBe(a);
+    expect(out[1]).toBe(changed);
+  });
+
+  it("follows the fetched order, additions and removals", () => {
+    const c = { id: "c" };
+    const out = keepUnchangedRows([a, b], [{ ...b }, c]);
+    expect(out).toEqual([b, c]);
+    expect(out[0]).toBe(b);
+    expect(keepUnchangedRows([a, b], [{ ...b }, { ...a, meta: { n: 1 } }])).toEqual([b, a]);
   });
 });

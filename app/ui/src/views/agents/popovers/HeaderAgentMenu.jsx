@@ -12,6 +12,7 @@ import { api } from "../../../api/client.js";
 import { hasLocalScreen } from "../../../lib/host.js";
 import { MenuList } from "./MenuList.jsx";
 import { shortcutLabel, fileManagerName } from "../../../lib/platform.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Breadcrumb chevron dropdown — acts on the pane's agent (passed in by the
 // PaneHeader that owns it), scoped to that pane's popover state.
@@ -30,6 +31,8 @@ export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const open = ui.openPopover === "head-menu";
+  // Open, it follows its anchor (measured during render) on the clock's beat.
+  useNow(open || confirming);
   if (!agent || (!open && !confirming)) return null;
 
   const openIn = (target) => {

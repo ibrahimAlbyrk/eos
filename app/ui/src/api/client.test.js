@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { api } from "./client.js";
+import { api, READ_TIMEOUT_MS, isReadTimeout } from "./client.js";
 import { ROUTES } from "./routes.js";
 
 afterEach(() => {
@@ -224,6 +224,67 @@ describe("workers snapshot GETs are never dedup-shared", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(a).toEqual(preSpawn);
     expect(b).toEqual(postSpawn);
+  });
+});
+
+// A read the core never answers must fail into the caller's retry path: the
+// worker list, the pending asks and transcript events carry a timeout; other
+// GETs (a native folder picker waits on the user) do not.
+describe("live-view reads time out", () => {
+  // A fetch that never answers, rejecting only when its signal aborts.
+  const hanging = () => vi.fn().mockImplementation((_url, opts) => new Promise((_resolve, reject) => {
+    opts?.signal?.addEventListener("abort", () => reject(opts.signal.reason));
+  }));
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("listWorkers, listPending and getWorkerEvents reject once the timeout passes", async () => {
+    vi.stubGlobal("fetch", hanging());
+    const calls = [
+      api.listWorkers(),
+      api.listPending(),
+      api.getWorkerEvents("w-timeout", { afterId: 5, limit: 10 }),
+    ].map((p) => p.then(() => "resolved", () => "rejected"));
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS + 1);
+    expect(await Promise.all(calls)).toEqual(["rejected", "rejected", "rejected"]);
+  });
+
+  it("a caller's own signal still aborts a timed read", async () => {
+    vi.stubGlobal("fetch", hanging());
+    const ctl = new AbortController();
+    const p = api.getWorkerEvents("w-own", { signal: ctl.signal }).then(() => "resolved", () => "rejected");
+    ctl.abort();
+    expect(await p).toBe("rejected");
+  });
+
+  it("a timed-out read is told apart from a failed one", async () => {
+    vi.stubGlobal("fetch", hanging());
+    const timedOut = api.listPending().catch((err) => err);
+    await vi.advanceTimersByTimeAsync(READ_TIMEOUT_MS + 1);
+    expect(isReadTimeout(await timedOut)).toBe(true);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({}) }));
+    expect(isReadTimeout(await api.listPending().catch((err) => err))).toBe(false);
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+    expect(isReadTimeout(await api.listPending().catch((err) => err))).toBe(false);
+  });
+
+  it("a view of another Mac carries no timeout on these reads", async () => {
+    vi.stubGlobal("window", { __EOS_HOST: { id: "h1", remote: true } });
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    vi.stubGlobal("fetch", fetchMock);
+    await api.listWorkers();
+    await api.listPending();
+    await api.getWorkerEvents("w-remote", { afterId: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [, opts] of fetchMock.mock.calls) expect(opts?.signal).toBeUndefined();
+  });
+
+  it("other GETs carry no timeout", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) });
+    vi.stubGlobal("fetch", fetchMock);
+    await api.listArchivedWorkers();
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeUndefined();
   });
 });
 

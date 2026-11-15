@@ -14,6 +14,7 @@ import {
   USAGE_PROVIDER_NAMES, formatCredits, formatRowReset, friendlyUsageError, isSignedOutReason, isUsageWarn, outdatedNote,
   planUsageSections,
 } from "../lib/usageFormat.js";
+import { useNow } from "../hooks/useNow.js";
 
 export const USAGE_SETTING_DEFAULTS = {};
 
@@ -64,6 +65,7 @@ function UsageRow({ label, subtitle, pct, warn }) {
 export function UsageSettings() {
   // data: undefined = loading, null = transport fail with nothing to show
   const { usage: data, loading: busy, unreachable, now } = useUsage();
+  useNow();
 
   const sections = planUsageSections(data, now);
   // A plan you aren't signed in to is simply absent — only real failures (an

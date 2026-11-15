@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fmtTimeAgo } from "../../../lib/format.js";
+import { Ticking } from "../../../components/Ticking.jsx";
 
 const EDGE = 8; // closest the bar gets to the window edge
 
@@ -88,7 +89,7 @@ export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onR
   return (
     <>
       {ts != null && (
-        <span className="msg-time" title={new Date(ts).toLocaleString()}>{fmtTimeAgo(ts)}</span>
+        <span className="msg-time" title={new Date(ts).toLocaleString()}><Ticking>{() => fmtTimeAgo(ts)}</Ticking></span>
       )}
       {canRewind && (
         <button

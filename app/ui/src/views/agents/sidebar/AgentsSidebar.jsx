@@ -8,6 +8,7 @@ import { buildAgentTree, keepUnchangedNodes } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { subscribe, getArchive, refreshArchived, scheduleArchivedRefresh } from "../../../state/archiveStore.js";
+import { getEventSignal, subscribe as subscribeEventSignal } from "../../../state/eventSignalStore.js";
 import { useProjects } from "../../../state/projectsStore.js";
 import { hostOS } from "../../../lib/platform.js";
 
@@ -79,8 +80,10 @@ export function AgentsSidebar({ live, variant = "full" }) {
     if (showArchived) refreshArchived();
   }, [showArchived]);
   useEffect(() => {
-    if (showArchived && live.eventSignal.tick) scheduleArchivedRefresh();
-  }, [showArchived, live.eventSignal.tick]);
+    if (!showArchived) return;
+    if (getEventSignal().tick) scheduleArchivedRefresh();
+    return subscribeEventSignal(scheduleArchivedRefresh);
+  }, [showArchived]);
 
   const sectionLabel = status === "archived"
     ? "Archived"

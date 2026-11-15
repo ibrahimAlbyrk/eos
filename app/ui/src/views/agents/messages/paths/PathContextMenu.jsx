@@ -11,6 +11,7 @@ import {
   attachAsContext, copyText, openInEditor, openInPanel, openWithDefaultApp, revealInFinder, sendToMac,
 } from "./pathActions.js";
 import { fileManagerName } from "../../../../lib/platform.js";
+import { useNow } from "../../../../hooks/useNow.js";
 
 export const PATH_MENU = "path-ctx";
 
@@ -38,6 +39,8 @@ export function PathContextMenu({ owner, cwd }) {
   const editors = useEditors();
   const machines = useMachines();
   const remote = useFeature("remote");
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(ui.openPopover === PATH_MENU && ui.popoverData?.owner === owner);
   if (ui.openPopover !== PATH_MENU || ui.popoverData?.owner !== owner) return null;
   const ref = ui.popoverData.ref;
   if (!ref?.path) return null;

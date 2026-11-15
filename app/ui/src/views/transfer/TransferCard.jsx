@@ -8,6 +8,7 @@ import { CheckIcon, CloseIcon, WarnIcon } from "../../components/machines/icons.
 import { IntoIcon, OutIcon, PauseIcon, PlayIcon } from "./icons.jsx";
 import { etaLabel, folderName, namesOf, percentOf, rateLabel, routeWord, tildify } from "./text.js";
 import { fileManagerName } from "../../lib/platform.js";
+import { useNow } from "../../hooks/useNow.js";
 
 const act = (p) => p.then(noteTransfer).catch(() => {});
 
@@ -114,6 +115,7 @@ export function TransferCard({ t, label, onDismiss }) {
 // choice. Replacing is never final: the old one goes to the Trash.
 function Conflict({ t, pending, destLabel }) {
   const [all, setAll] = useState(false);
+  useNow();
   const c = pending[0];
   const decide = (d) => {
     const names = all ? pending.map((p) => p.name) : [c.name];

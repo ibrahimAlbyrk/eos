@@ -2,6 +2,7 @@ import { useGitLog, useGitStashes } from "../../../hooks/useGitHistory.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { AnchoredMenu } from "./AnchoredMenu.jsx";
 import { BranchGlyph, CheckGlyph, EditGlyph, CommitGlyph, StashGlyph } from "./glyphs.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 const shortSha = (sha) => sha.slice(0, 7);
 
@@ -11,6 +12,7 @@ const shortSha = (sha) => sha.slice(0, 7);
 export function ScopeMenu({ anchorRef, cwd, scope, baseLabel, onScope, onStash, onClose }) {
   const { commits, hasMore, paging, showMore } = useGitLog(cwd, true);
   const { stashes } = useGitStashes(cwd, true);
+  useNow();
   const pick = (next) => { onScope(next); onClose(); };
   const isSha = (sha) => scope.kind === "commit" && scope.sha === sha;
 

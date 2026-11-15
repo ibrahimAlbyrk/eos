@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Right-click menu for a branch row. Portal'd to <body> so its glass isn't
 // nested inside the branch panel's glass (WebKit renders nested backdrop-filter
@@ -11,6 +12,8 @@ import { createPortal } from "react-dom";
 // "sep" for a divider.
 export function BranchContextMenu({ x, y, items, onClose, popover = "branch-dd" }) {
   const ref = useRef(null);
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow();
 
   useEffect(() => {
     const onDown = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };

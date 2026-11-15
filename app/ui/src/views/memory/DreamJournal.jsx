@@ -7,6 +7,7 @@ import {
 } from "../../lib/dreamProposals.js";
 import { projectLabel } from "../../lib/memoryGroups.js";
 import { ConfidenceBars, EvidenceQuote, KindTag, MoonIcon, ProposalText } from "./DreamProposal.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 const PenIcon = () => (
   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -69,6 +70,7 @@ function ProposalRow({ memory, memories }) {
 // story of the night in a few sentences, and every pending proposal to keep, edit
 // or dismiss in place. "Review one by one" opens the focused review.
 export function DreamJournal({ proposals, memories, lastRun }) {
+  useNow();
   if (!proposals.length) return null;
   const counts = kindCounts(proposals);
   const fromRun = lastRun && proposals.some((p) => p.source.dreamId === lastRun.id) ? lastRun : null;

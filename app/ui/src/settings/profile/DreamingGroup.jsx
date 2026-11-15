@@ -8,6 +8,7 @@ import { setMemoryPage } from "../../state/memoryViewStore.js";
 import { MODEL_OPTIONS, dreamStatusLine, fmtDreamTime, runSummary } from "../../lib/dreamProposals.js";
 import { projectLabel } from "../../lib/memoryGroups.js";
 import { MoonIcon } from "../../views/memory/DreamProposal.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 const Toggle = CONTROLS.toggle;
 const Segmented = CONTROLS.segmented;
@@ -31,6 +32,7 @@ export function DreamingGroup({ profile, onSave }) {
   const { status } = useDreams();
   const openMemory = useOpenMemory();
   useEffect(() => { if (!loaded) void refreshProjects(); ensureDreamStatusLoaded(); }, [loaded]);
+  useNow();
 
   const folders = useMemo(() => [...new Set([...projects.map((p) => p.folders?.[0]).filter(Boolean), ...s.excludedProjects])].sort(), [projects, s.excludedProjects]);
   const toggleProject = (folder) => set({

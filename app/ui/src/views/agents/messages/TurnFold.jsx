@@ -31,7 +31,8 @@ export function TurnFold({ fold, settle, renderStep }) {
 
   const openKey = "f:" + fold.key;
   const open = ui.expandedTools.has(openKey);
-  const steps = <div className="turn-fold-steps">{fold.work.map((b) => renderStep(b))}</div>;
+  // Built only when drawn: a folded turn's steps cost nothing while closed.
+  const steps = () => <div className="turn-fold-steps">{fold.work.map((b) => renderStep(b))}</div>;
   return (
     <div className={"turn-fold is-" + stage}>
       <div className="turn-fold-head">
@@ -44,7 +45,7 @@ export function TurnFold({ fold, settle, renderStep }) {
       </div>
       {stage === "rest"
         ? <Collapse open={open}>{steps}</Collapse>
-        : <div className="turn-fold-flat"><div className="turn-fold-flat-in">{steps}</div></div>}
+        : <div className="turn-fold-flat"><div className="turn-fold-flat-in">{steps()}</div></div>}
     </div>
   );
 }

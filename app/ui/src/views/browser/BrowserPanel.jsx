@@ -18,6 +18,7 @@ import { BrowserModeButtons } from "./BrowserModeButtons.jsx";
 import { AnnotationLayer } from "./AnnotationLayer.jsx";
 import { PickerLayer } from "./PickerLayer.jsx";
 import { useOcclusion } from "./useOcclusion.js";
+import { useNow } from "../../hooks/useNow.js";
 
 // Browser docked panel. The page renders in a REAL embedded WebContentsView owned
 // by the Electron main process — window.eosBrowserView is the narrow geometry/
@@ -210,6 +211,8 @@ function BrowserPanelInner({ paneId, sessionKey, composerPane, closing }) {
 // The captured page, drawn exactly where the native view sat (main reports its
 // window rect; the body is the positioned ancestor).
 function StillFrame({ still, bodyRef }) {
+  // Follows the body (measured during render) on the clock's beat.
+  useNow();
   const body = bodyRef.current?.getBoundingClientRect();
   if (!body) return null;
   const { x, y, width, height } = still.rect;

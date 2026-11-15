@@ -14,6 +14,7 @@ import { nameOf } from "../../../lib/agentName.js";
 import { permanentDeleteMessage } from "../../../lib/archive.js";
 import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConfirm.js";
 import { api } from "../../../api/client.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
@@ -35,6 +36,8 @@ export function AgentContextMenu({ live }) {
   const open = ui.openPopover === "ctx-menu";
   const doomed = confirmId ? live.workers.find((w) => w.id === confirmId) ?? null : null;
   useEffect(() => { if (!open) setMoveAnchor(null); }, [open]);
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(open);
   if (!open && !doomed && !newGroupFor && !saveLayoutOpen) return null;
 
   const confirmKill = async (dontAskAgain) => {

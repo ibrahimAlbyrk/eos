@@ -17,6 +17,7 @@ import { useProjects } from "../../../state/projectsStore.js";
 import { useHoverCard } from "../../../hooks/useHoverCard.js";
 import { api } from "../../../api/client.js";
 import { modDown } from "../../../lib/platform.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 // A fully transparent 1×1 image to suppress the browser's native drag ghost — the
 // custom DragAffordance (PaneGrid) is what the user sees during a drag instead.
@@ -91,6 +92,7 @@ function GroupRows({ group, capped, onRename, variant, archivedSelectedId, signa
   const moreKey = `more:${group.key}`;
   const showAll = !capped || ui.collapsedNodes.has(moreKey);
   const sel = ui.selectedId;
+  useNow();
   const recentSince = Date.now() - RECENT_WINDOW_MS;
   const preview = new Set(group.roots
     .filter((n, i) => i < PREVIEW_ROWS || (lastActiveAt(n) ?? 0) >= recentSince)

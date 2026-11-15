@@ -6,6 +6,7 @@ import { useDismiss } from "../../../hooks/useDismiss.js";
 import { paneTitle } from "../TermGrid.jsx";
 import { historyBuckets } from "./historyBuckets.js";
 import { KindGlyph, CloseGlyph, MoreGlyph, ChevronGlyph, SearchGlyph } from "../icons.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Older buckets start folded so the recent ones stay in reach.
 const FOLDED_AT_START = ["week", "older"];
@@ -20,6 +21,7 @@ export function HistoryList() {
   const [query, setQuery] = useState(null); // null: filter closed
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+  useNow();
   if (!entries.length) return null;
 
   const buckets = historyBuckets(entries, Date.now(), query ?? "");

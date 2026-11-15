@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { collectPathRefs, resolvePath, withPathChips } from "../lib/pathLinks.js";
-import { isFresh, knownStat, statPath } from "../lib/pathStat.js";
+import { isFresh, knownStat, statPath, subscribeStats } from "../lib/pathStat.js";
 
 // One letter per target: what is known about it on disk ("?" never asked, "-"
 // missing, "f"/"d" file/folder) — changes exactly when the drawn chips would.
@@ -34,7 +34,9 @@ export function usePathChips(html, cwd, { plainText = true, shorten = true, titl
     return () => { live = false; };
   }, [targets]);
 
-  const known = signature(targets);
+  // Re-renders when an answer for one of these paths changes, whoever asked.
+  const snapshot = () => signature(targets);
+  const known = useSyncExternalStore(subscribeStats, snapshot, snapshot);
   return useMemo(() => {
     if (targets.length === 0) return html;
     const absOf = new Map(targets.map((t) => [t.written, t.abs]));

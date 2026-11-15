@@ -9,6 +9,7 @@ import { isRemoteView } from "../lib/host.js";
 import { timeAgo } from "../lib/timeAgo.js";
 import { CopyIcon } from "../components/machines/icons.jsx";
 import { shortcutLabel } from "../lib/platform.js";
+import { useNow } from "../hooks/useNow.js";
 
 const LABELS = { memory: ["memory", "memories"], page: ["page", "pages"], template: ["template", "templates"], worker: ["worker", "workers"] };
 
@@ -20,6 +21,7 @@ function countsLine(counts) {
 }
 
 function StatusPill({ status }) {
+  useNow();
   if (status.phase === "syncing") return <span className="m-pill">Syncing…</span>;
   if (status.phase === "error") return <span className="m-pill m-pill--warn">Can't reach the relay</span>;
   return <span className="m-pill m-pill--ok">Synced {timeAgo(status.lastSyncAt)}</span>;

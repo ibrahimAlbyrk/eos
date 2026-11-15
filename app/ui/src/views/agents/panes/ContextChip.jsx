@@ -6,6 +6,7 @@ import { fmtCost, fmtTokens } from "../../../lib/format.js";
 import { backendBilled } from "../../../lib/backendCaps.js";
 import { WARN_THRESHOLD } from "../../../lib/usageFormat.js";
 import { useSettingOr } from "../../../state/settings.jsx";
+import { useNow } from "../../../hooks/useNow.js";
 
 // Context chip — the agent's context-window fill as a hairline meter + "38%"
 // beside the breadcrumb: quiet until asked. Click opens a small card with the
@@ -16,6 +17,8 @@ export function ContextChip({ worker }) {
   const ui = useUi();
   const ref = useRef(null);
   const open = ui.openPopover === "ctx";
+  // Open, it follows its anchor (measured during render) on the clock's beat.
+  useNow(open);
 
   const { used, total, pct } = contextUsage(worker, worker.model);
   // Where auto-compaction kicks in — a tick on the meter.

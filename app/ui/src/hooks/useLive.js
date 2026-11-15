@@ -5,15 +5,14 @@
 //
 // Polling is the safety net (every 4s, 30s while the stream is up).
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api } from "../api/client.js";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { api, isReadTimeout } from "../api/client.js";
 import { createReconnectingStream } from "../api/sse.js";
 import { endBoot, peekBootPart, takeBootHello } from "../api/boot.js";
 import { ROUTES } from "../api/routes.js";
 import { afterFirstPaint } from "../lib/firstPaint.js";
-import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
-import { applyCatalog } from "../lib/models.js";
+import { applyCatalog, getCatalogVersion, subscribeCatalog } from "../lib/models.js";
 import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit, emitPtyResync } from "../state/ptyBus.js";
@@ -38,10 +37,11 @@ import { startPolling } from "../lib/pollInterval.js";
 import { isViewHidden, onViewVisibilityChange } from "../lib/viewVisibility.js";
 import { isRemoteView } from "../lib/host.js";
 import { focusQuery } from "../state/streamFocus.js";
-import { mergeRowChanges } from "../lib/rowPatches.js";
+import { keepUnchangedRows, mergeRowChanges } from "../lib/rowPatches.js";
 import { refreshArchived } from "../state/archiveStore.js";
 import { setStreamLive } from "../state/streamStatus.js";
 import { notifyWorkerChanged, refreshAttached as refreshAttachedTranscripts } from "../state/eventsStore.js";
+import { noteWorkerEvent, noteResync as noteEventResync } from "../state/eventSignalStore.js";
 import { refreshHosts } from "../state/hostsStore.js";
 import { applyPresence } from "../state/peerStore.js";
 import { applyChange as applyPageChange, resyncPages } from "../state/pagesStore.js";
@@ -89,10 +89,9 @@ export function useLive() {
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState(() => peekBootPart(ROUTES.fsRecents)?.paths ?? []);
   const [uiConfig, setUiConfig] = useState(() => peekBootPart(ROUTES.uiConfig) ?? null);
-  // tick: every event naming a worker (workerId: the last one). changeTick: only
-  // the worker changes that are not an agent's own output (lib/workerChange.js).
-  const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null, changeTick: 0 });
-  const now = useClockTick();
+  // The model catalog is a module list read during render across the app (model
+  // names, context sizes, effort rails): a refreshed catalog redraws the app.
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion, getCatalogVersion);
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
   // The interrupted turn's turn_started_at rides along so the refetch clear can
   // detect a restart (queue drain) that skipped the observable IDLE window.
@@ -117,9 +116,12 @@ export function useLive() {
   const appliedWorkersSeqRef = useRef(0);
   // The last applied list, synchronously — patches landing in one tick build on each other.
   const latestWorkersRef = useRef(workers);
-  const applyWorkers = useCallback((seq, list) => {
+  const applyWorkers = useCallback((seq, fetched) => {
     if (seq < appliedWorkersSeqRef.current) return false;
     appliedWorkersSeqRef.current = seq;
+    // Rows the answer did not change keep their objects (memoized rows skip them),
+    // and an unchanged list keeps its array (nothing re-renders).
+    const list = keepUnchangedRows(latestWorkersRef.current, fetched);
     latestWorkersRef.current = list;
     // Keep the id -> parent_id session index (and id -> name, for session labels
     // like the present-fallback toast) in step with the snapshot, for non-React
@@ -162,7 +164,7 @@ export function useLive() {
       lastRefetchAtRef.current = Date.now();
       const seq = ++workersSeqRef.current;
       try {
-        const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch(() => [])]);
+        const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch((err) => (isReadTimeout(err) ? null : []))]);
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         if (Array.isArray(list) && applyWorkers(seq, list)) settleInterrupted(list);
       } catch { setHealth(false); }
@@ -241,7 +243,7 @@ export function useLive() {
         noteCaps(d);
         scheduleRefetch();
         refreshAttachedTranscripts();
-        setEventSignal((prev) => ({ tick: prev.tick + 1, workerId: null, changeTick: prev.changeTick + 1 }));
+        noteEventResync();
         emitPtyResync();
         resyncPages();
         resyncProfile();
@@ -349,13 +351,13 @@ export function useLive() {
           }
           if (!(patchesRef.current && PATCHED_TOPICS.has(data.reason))) scheduleRefetch();
           if (data.payload?.workerId) {
-            // Straight to the transcript and queue stores: the signal below is React state,
-            // and two workers' events in one render batch keep only the last.
+            // Straight to the transcript and queue stores: the signal below keeps
+            // only the last worker, and two workers' events in one render batch
+            // reach its readers as the last.
             notifyWorkerChanged(data.payload.workerId);
             noteQueueChange(data.reason, data.payload);
             noteGitActivity(data.payload.workerId);
-            const change = isWorkerStateChange(data.reason, data.payload) ? 1 : 0;
-            setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId, changeTick: prev.changeTick + change }));
+            noteWorkerEvent(data.payload.workerId, isWorkerStateChange(data.reason, data.payload));
           }
         } catch {
           scheduleRefetch();
@@ -569,14 +571,13 @@ export function useLive() {
 
   const orchestrators = useMemo(() => effectiveWorkers.filter((w) => !!w.is_orchestrator), [effectiveWorkers]);
 
-  return {
+  return useMemo(() => ({
     workers: effectiveWorkers,
     orchestrators,
     loaded,
     health,
     recents,
     uiConfig,
-    now,
     spawnOrchestrator,
     spawnGitAgent,
     sendToAgent,
@@ -596,6 +597,10 @@ export function useLive() {
     approvePending,
     alwaysAllowPending,
     denyPending,
-    eventSignal,
-  };
+  }), [
+    effectiveWorkers, orchestrators, loaded, health, recents, uiConfig,
+    spawnOrchestrator, spawnGitAgent, sendToAgent, interruptAgent, archiveAgent, restoreAgent, purgeAgent, killAgent,
+    renameAgent, setPermissionMode, setModel, switchBackend, refreshRecents, removeRecent,
+    interruptedId, pendingPermissions, approvePending, alwaysAllowPending, denyPending,
+  ]);
 }

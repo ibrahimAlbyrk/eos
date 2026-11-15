@@ -16,3 +16,14 @@ export function mergeRowChanges(rows, changes, resource) {
   const out = [...byId.values()];
   return out.length === rows.length && out.every((r, i) => r === rows[i]) ? rows : out;
 }
+
+// A full list fetched again: every row equal to the one held keeps its object,
+// and a list equal throughout stays the same array.
+export function keepUnchangedRows(rows, next) {
+  const byId = new Map(rows.map((r) => [r?.id, r]));
+  const out = next.map((r) => {
+    const held = byId.get(r?.id);
+    return held !== undefined && sameJson(held, r) ? held : r;
+  });
+  return out.length === rows.length && out.every((r, i) => r === rows[i]) ? rows : out;
+}

@@ -4,6 +4,7 @@ import { toggleMode } from "../../state/browserPanelStore.js";
 import { pushHandoff } from "../../state/browserComposerHandoff.js";
 import { makeLabel } from "../../lib/attachmentTokens.js";
 import { ElementPopover } from "./ElementPopover.jsx";
+import { useNow } from "../../hooks/useNow.js";
 
 // PickerLayer — the cursor-mode overlay, reimplemented for the embedded
 // WebContentsView. The human's mouse is over the NATIVE view, not this DOM, so
@@ -39,6 +40,8 @@ export function elementAttachment(el) {
 export function PickerLayer({ paneId, composerPane, tabId }) {
   const rootRef = useRef(null);
   const [result, setResult] = useState(null); // the picked element, once resolved
+  // The result card is centred from the layer's size, measured during render.
+  useNow(result != null);
 
   // Start Chromium's inspect mode on the live view; resolve when the human clicks
   // (element) or cancels (null). On unmount, abandon any in-flight pick.

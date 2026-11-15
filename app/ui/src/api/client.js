@@ -85,6 +85,25 @@ function encodeRawPath(p) {
 
 const inflight = new Map();
 
+// The reads a live view waits on before it asks again (the worker list, the
+// pending asks, a transcript's events) give up after this long, so a request
+// the core never answers fails into the caller's retry path instead of holding
+// every later refresh behind it. A view of another Mac carries none: over a
+// slow relay a page of events can take longer than that and still arrive.
+export const READ_TIMEOUT_MS = 30_000;
+
+export function readSignal(signal, ms = READ_TIMEOUT_MS) {
+  if (isRemoteView()) return signal;
+  const ctl = new AbortController();
+  setTimeout(() => ctl.abort(new DOMException("the request timed out", "TimeoutError")), ms);
+  return signal ? AbortSignal.any([signal, ctl.signal]) : ctl.signal;
+}
+
+// A timed read that gave up: no answer, which says nothing about the data.
+export function isReadTimeout(err) {
+  return err?.name === "TimeoutError";
+}
+
 async function fetchJson(url, opts) {
   const r = await fetch(url, opts);
   let parsed = null;
@@ -96,22 +115,22 @@ async function fetchJson(url, opts) {
 // Response — a Response body is single-read, so a shared Response hands every
 // caller after the first `body: null`, and the newest caller (the only one a
 // seq guard applies) silently drops the refetch (stale archive list on restore).
-function deduplicatedFetchJson(url) {
+function deduplicatedFetchJson(url, opts) {
   if (inflight.has(url)) return inflight.get(url);
-  const p = fetchJson(url).finally(() => inflight.delete(url));
+  const p = fetchJson(url, opts).finally(() => inflight.delete(url));
   inflight.set(url, p);
   return p;
 }
 
-async function getJson(path, { signal, headers } = {}) {
+async function getJson(path, { signal, headers, timed = false } = {}) {
   // At start-up the boot snapshot holds this answer already.
   const seeded = takeBootPart(path);
   if (seeded) return seeded;
   const url = `${DAEMON}${path}`;
   // headers (e.g. a UI token on a gated GET) vary per caller, so they can't ride
   // the shared-URL dedup cache — go straight to fetchJson like the signal path.
-  if (signal || headers) return fetchJson(url, { signal, headers });
-  return deduplicatedFetchJson(url);
+  if (signal || headers) return fetchJson(url, { signal: timed ? readSignal(signal) : signal, headers });
+  return deduplicatedFetchJson(url, timed ? { signal: readSignal() } : undefined);
 }
 
 async function postJson(path, body, extraHeaders) {
@@ -228,7 +247,7 @@ export const api = {
   // prompts (prompt_clipped) — getWorker has the full text.
   async listWorkers() {
     const path = `${ROUTES.workers}?brief=1`;
-    const r = takeBootPart(path) ?? await fetchJson(`${DAEMON}${path}`);
+    const r = takeBootPart(path) ?? await fetchJson(`${DAEMON}${path}`, { signal: readSignal() });
     if (!r.ok) throw new Error(`listWorkers → ${r.status}`);
     return r.body;
   },
@@ -258,7 +277,7 @@ export const api = {
     if (limit != null) params.set("limit", String(limit));
     if (beforeId != null) params.set("beforeId", String(beforeId));
     if (afterId != null) params.set("afterId", String(afterId));
-    const r = await getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal });
+    const r = await getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal, timed: true });
     if (!r.ok) throw new Error(`getWorkerEvents → ${r.status}`);
     return r.body;
   },
@@ -469,7 +488,7 @@ export const api = {
 
   // Pending
   async listPending() {
-    const r = await getJson(ROUTES.pending);
+    const r = await getJson(ROUTES.pending, { timed: true });
     if (!r.ok) throw new Error(`listPending → ${r.status}`);
     return r.body;
   },

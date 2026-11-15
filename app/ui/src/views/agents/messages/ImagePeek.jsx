@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../../api/client.js";
 import { useHoverCard } from "../../../hooks/useHoverCard.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 const OPEN_MS = 300;
 const MAX_H = 240;
@@ -16,6 +17,8 @@ const EDGE = 8;
 // nothing to click in it, and it must not steal hover from the rows it covers.
 function ImagePeek({ anchor, path, onClose }) {
   const [loaded, setLoaded] = useState(false);
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
   useEffect(() => {

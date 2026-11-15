@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNow } from "../../hooks/useNow.js";
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
@@ -10,6 +11,8 @@ export function ImageLightbox({ src, alt, gallery, index = 0, children }) {
   const thumbRef = useRef(null);
   const imgRef = useRef(null);
   const [origin, setOrigin] = useState(null);
+  // Open, the entry transform follows the window size (read during render).
+  useNow(open);
 
   const items = gallery?.length ? gallery : [{ src, alt }];
   const current = items[idx] ?? items[0];

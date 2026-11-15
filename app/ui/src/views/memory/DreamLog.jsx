@@ -4,11 +4,13 @@ import { useUserMemories } from "../../state/userMemoryStore.js";
 import { CONTROLS } from "../../settings/controls.jsx";
 import { DROPPED_LABELS, droppedTotal, fmtDreamTime, isDreamProposal, modelLabel, runSummary } from "../../lib/dreamProposals.js";
 import { projectLabel } from "../../lib/memoryGroups.js";
+import { useNow } from "../../hooks/useNow.js";
 
 const Toggle = CONTROLS.toggle;
 const TRIGGER = { nightly: "Every night", away: "While you were away", manual: "Dream now" };
 
 function RunDetail({ run, excluded, waiting }) {
+  useNow();
   return (
     <div className="dr-log__detail">
       <header className="dr-log__head">
@@ -69,6 +71,7 @@ export function DreamLog() {
   const { memories } = useUserMemories();
   const [selected, setSelected] = useState(null);
   useEffect(() => { void refreshDreamLog(); }, []);
+  useNow();
 
   if (!runs) return <div className="stg-empty">Loading the dream log…</div>;
   if (!runs.length) {

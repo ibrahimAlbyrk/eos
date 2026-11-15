@@ -81,3 +81,21 @@ describe("statPath", () => {
     expect(api.statPaths.mock.calls.map(([batch]) => batch.length)).toEqual([200, 200, 50]);
   });
 });
+
+describe("subscribeStats", () => {
+  it("tells readers once per batch of answers, and not after they leave", async () => {
+    let calls = 0;
+    const off = pathStat.subscribeStats(() => { calls++; });
+    const answers = Promise.all([pathStat.statPath("/p/a.txt"), pathStat.statPath("/p/missing.md")]);
+    await frame();
+    await answers;
+    expect(calls).toBe(1);
+    expect(pathStat.knownStat("/p/missing.md")).toBe(null);
+    off();
+    vi.advanceTimersByTime(10_000);
+    const again = pathStat.statPath("/p/a.txt");
+    await frame();
+    await again;
+    expect(calls).toBe(1);
+  });
+});

@@ -7,6 +7,7 @@ import { CheckIcon } from "../../../lib/gitIconKit.jsx";
 import { FolderGlyph } from "../../code/icons.jsx";
 import { projectFolders } from "../../code/FolderMenu.jsx";
 import { shortcutLabel } from "../../../lib/platform.js";
+import { useNow } from "../../../hooks/useNow.js";
 
 const MAX_RECENTS = 5;
 
@@ -16,6 +17,8 @@ const MAX_RECENTS = 5;
 export function FolderPicker({ live, agentDir }) {
   const ui = useUi();
   const root = useExplorerRoot();
+  // Open, it re-clamps to the window (read during render) on the clock's beat.
+  useNow(ui.openPopover === "fx-folder");
   if (ui.openPopover !== "fx-folder") return null;
   const { x, y } = ui.popoverPos;
 
