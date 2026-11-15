@@ -167,7 +167,8 @@
   text-overflow: ellipsis;
 }
 .wr-group__count { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); white-space: nowrap; }
-.wr-rows { display: flex; flex-direction: column; padding-bottom: 4px; }
+/* Ten rows show; a longer phase scrolls inside the card. */
+.wr-rows { display: flex; flex-direction: column; padding-bottom: 4px; max-height: calc(10 * 30px + 4px); overflow-y: auto; }
 .wr-row {
   display: grid;
   grid-template-columns: 14px minmax(0, 170px) minmax(0, 1fr) auto auto;
