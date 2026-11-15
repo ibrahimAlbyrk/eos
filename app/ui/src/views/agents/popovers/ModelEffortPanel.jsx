@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import {
@@ -75,7 +75,7 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   // A setting's model (`config`) is every agent's: Claude's only.
   const focused = selected ? selected.agent_role === "focused" : !config && ui.composer.agentMode === "focused";
   useSyncExternalStore(subscribeCatalog, getCatalogVersion);
-  const models = modelsFor(focused);
+  const models = modelsFor(focused, currentModel);
   // A worker's effort only comes back after the save + refetch; hold the picked
   // level until then so the thumb doesn't slide back to the old stop meanwhile.
   const effort = pendingEffort ?? currentEffort;
@@ -208,12 +208,8 @@ function RailPanel({ live, ui, worker, config, onPick }) {
         <div className="me-models">
           {models.map((m, i) => {
             const on = currentModel === m.id || m.aliases?.includes(currentModel);
-            // A provider's models follow under its name once there is more than Claude.
-            const group = m.provider && m.provider !== models[i - 1]?.provider ? m.provider : null;
             return (
-              <Fragment key={m.id}>
-              {group && <div className="mp-group">{group}</div>}
-              <button className={"me-model-row" + (on ? " on" : "")} onClick={() => pickModel(m)}>
+              <button key={m.id} className={"me-model-row" + (on ? " on" : "")} onClick={() => pickModel(m)}>
                 <span className="me-model-name">{m.name}</span>
                 {on && (
                   <svg className="me-model-check" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -222,7 +218,6 @@ function RailPanel({ live, ui, worker, config, onPick }) {
                 )}
                 <span className="me-model-num">{i + 1}</span>
               </button>
-              </Fragment>
             );
           })}
         </div>

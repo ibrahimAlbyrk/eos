@@ -107,9 +107,21 @@ export function applyProviders(providers) {
   publish();
 }
 
-// The models a chat of this kind can run on: another provider's only in a
-// focused chat.
-export const modelsFor = (focused) => (focused ? MODELS : MODELS.filter((m) => !m.provider));
+// What the provider picker calls the Claude catalog.
+export const CLAUDE_PROVIDER = "Claude";
+
+// The provider a model belongs to, as the provider picker names it.
+export const providerOf = (raw) => resolveModel(raw)?.provider ?? CLAUDE_PROVIDER;
+
+// The providers a focused chat can run on: Claude, then each one that is ready.
+export const providerNames = () => [CLAUDE_PROVIDER, ...new Set(providerModels.map((m) => m.provider))];
+
+export const modelsOfProvider = (name) =>
+  MODELS.filter((m) => (name === CLAUDE_PROVIDER ? !m.provider : m.provider === name));
+
+// The models a chat's model menu lists: those of the provider `current` is on.
+// Another provider than Claude runs focused chats only.
+export const modelsFor = (focused, current) => modelsOfProvider(focused ? providerOf(current) : CLAUDE_PROVIDER);
 
 // For useSyncExternalStore: a view listing MODELS re-renders when a fresh
 // catalog lands while it is open.
@@ -158,11 +170,6 @@ export function modelName(raw) {
 
 export function isKnownModel(raw) {
   return resolveModel(raw) !== null;
-}
-
-// The provider label of a model that is not Claude's (null for Claude's).
-export function modelProvider(raw) {
-  return resolveModel(raw)?.provider ?? null;
 }
 
 export function modelCtx(raw) {

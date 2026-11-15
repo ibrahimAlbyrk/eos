@@ -8,7 +8,7 @@ import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { subscribeGitChange, BRANCH_KINDS } from "../../../state/gitChangeBus.js";
 import { FolderDropdown } from "../popovers/FolderDropdown.jsx";
 import { BranchManager } from "../popovers/BranchManager.jsx";
-import { isKnownModel, modelProvider } from "../../../lib/models.js";
+import { CLAUDE_PROVIDER, isKnownModel, providerOf } from "../../../lib/models.js";
 
 const AGENT_MODES = [
   { id: "orchestrator", label: "Orchestrator", hint: "Plans the task and runs workers for it" },
@@ -86,7 +86,7 @@ export function ContextStrip({ live }) {
   }, [agentMode, provider, model]);
   // Another provider's model runs focused chats only.
   useEffect(() => {
-    if (agentMode !== "focused" && modelProvider(model)) ui.updateComposer({ model: "opus" });
+    if (agentMode !== "focused" && providerOf(model) !== CLAUDE_PROVIDER) ui.updateComposer({ model: "opus" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agentMode, model]);
 

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import {
@@ -22,7 +22,7 @@ function ModelMenu({ live, ui, worker }) {
   const currentModel = selected?.model ?? ui.composer.model;
   const focused = selected ? selected.agent_role === "focused" : ui.composer.agentMode === "focused";
   useSyncExternalStore(subscribeCatalog, getCatalogVersion);
-  const models = modelsFor(focused);
+  const models = modelsFor(focused, currentModel);
   const [active, setActive] = useState(() =>
     Math.max(0, models.findIndex((m) => matchesModel(currentModel, m))));
 
@@ -63,12 +63,9 @@ function ModelMenu({ live, ui, worker }) {
       <div className="mp-scroll">
         {models.map((m, i) => {
           const on = matchesModel(currentModel, m);
-          // A provider's models follow under its name once there is more than Claude.
-          const group = m.provider && m.provider !== models[i - 1]?.provider ? m.provider : null;
           return (
-            <Fragment key={m.id}>
-            {group && <div className="mp-group">{group}</div>}
             <button
+              key={m.id}
               className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
               onMouseEnter={() => setActive(i)}
               onClick={() => pick(m)}
@@ -81,7 +78,6 @@ function ModelMenu({ live, ui, worker }) {
               )}
               {i < 9 && <span className="mp-num">{i + 1}</span>}
             </button>
-            </Fragment>
           );
         })}
       </div>

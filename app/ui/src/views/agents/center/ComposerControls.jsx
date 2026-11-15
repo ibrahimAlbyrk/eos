@@ -1,5 +1,9 @@
+import { useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { modelName, modelCtx, effortChoicesFor } from "../../../lib/models.js";
+import {
+  effortChoicesFor, getCatalogVersion, modelCtx, modelName, providerOf, subscribeCatalog,
+} from "../../../lib/models.js";
+import { ProviderPopover } from "../popovers/ProviderPopover.jsx";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
@@ -73,7 +77,11 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // resumes under the new backend (keeping the conversation) and rejects a busy
   // worker — so gate the pill on an at-rest state to keep that rejection off the
   // happy path.
-  const showProvider = !!selected && providerChoices().length > 1;
+  // A focused chat picks its provider among Claude and the other signed-in
+  // ones (ProviderPopover); the lanes below are an orchestrator's or a worker's.
+  const focused = selected ? selected.agent_role === "focused" : ui.composer.agentMode === "focused";
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion);
+  const showProvider = !!selected && !focused && providerChoices().length > 1;
   const providerBusy = workerBusy(selected);
   // Mid-conversation the pill no longer blanket-locks: a live switch is allowed to
   // any provider on the SAME backend infrastructure (shared conversation store +
@@ -190,6 +198,20 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
               <span>{runningProviderLabel(selected)}</span>
             </button>
             <BackendPopover live={live} worker={selected} />
+          </div>
+        )}
+        {focused && (
+          <div className="provider-wrap" style={{ position: "relative" }}>
+            <button
+              className={"model-pill" + (ui.openPopover === "provider" ? " open" : "")}
+              disabled={modelLocked}
+              title={modelLocked ? "Provider switch needs the worker idle" : (selected ? "Switch provider — keeps the conversation" : "Provider for the next chat")}
+              onClick={(e) => toggle("provider", e)}
+              data-popover-trigger="provider"
+            >
+              <span>{providerOf(model)}</span>
+            </button>
+            <ProviderPopover live={live} worker={selected} />
           </div>
         )}
         {showSpawnProvider && (
