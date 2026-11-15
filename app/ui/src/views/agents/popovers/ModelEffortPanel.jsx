@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { api } from "../../../api/client.js";
 import {
-  effortChoicesFor, getCatalogVersion, modelCommitId, modelName, modelsFor, subscribeCatalog,
+  applyProviders, effortChoicesFor, getCatalogVersion, modelCommitId, modelName, modelsFor, subscribeCatalog,
 } from "../../../lib/models.js";
 
 // The combined Model & Effort popover (charcoal-aurora "rail" variant): one
@@ -91,7 +92,11 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   const count = levels.length || RAIL_ORDER.length;
   const railIds = levels.length ? levels : RAIL_ORDER;
 
-  useEffect(() => { paneRef.current?.focus(); }, []);
+  useEffect(() => {
+    paneRef.current?.focus();
+    // A sign-in made since the app opened brings its provider's models.
+    api.listProviders().then(applyProviders).catch(() => {});
+  }, []);
 
   const fracFromIdx = (i) => (count > 1 ? i / (count - 1) : 0);
   const idxFromFrac = (f) => (count > 1 ? Math.round(clamp01(f) * (count - 1)) : 0);

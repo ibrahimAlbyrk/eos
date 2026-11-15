@@ -463,7 +463,15 @@ impl BackendCatalog for Engine {
 impl Engine {
     /// The models the ChatGPT account offers, as its catalog lists them.
     async fn chatgpt_models(&self) -> Vec<ProviderModel> {
+        // Where the engine keeps the list between runs.
+        let kept = self.0.options.dir.join("data").join(OPENAI);
+        if let Err(e) = tokio::fs::create_dir_all(&kept).await {
+            tracing::warn!(error = %e, "the folder for the ChatGPT model list could not be made");
+        }
         let Some(catalog) = self.0.sdk.openai_models().await else { return Vec::new() };
+        if catalog.models.is_empty() {
+            tracing::warn!("the ChatGPT account's model list could not be read");
+        }
         let listed = catalog.models.iter().filter(|m| m.listed);
         listed
             .map(|m| ProviderModel {
