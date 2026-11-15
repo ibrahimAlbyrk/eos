@@ -57,6 +57,19 @@ impl Callers {
         Self::with(ui_token)
     }
 
+    /// [`load`](Self::load) with a random new token: what the app itself reads, for a host
+    /// that needs the token before the app is built (`Options::callers`). First what the
+    /// build does first, with the defaults of `Options::new`: the folder is made, and the
+    /// previous Eos's daemon stopped, before anything in it is read or written.
+    pub fn open(home: &Path) -> Self {
+        let paths = eos_platform::DataPaths::new(home);
+        let _ = fs::create_dir_all(paths.home());
+        let launchd = eos_update::legacy::Launchctl::for_this_user();
+        let launchd = launchd.as_ref().map(|launchd| launchd as &(dyn eos_update::legacy::Launchd + Send + Sync));
+        crate::updates::Install::resolve(std::env::current_exe().ok().as_deref(), &paths).retire_legacy_daemon(launchd);
+        Self::load(home, &eos_core::RandomIds)
+    }
+
     fn with(ui_token: String) -> Self {
         Self { view_tokens: Arc::new(ViewTokens::new(ui_token.clone())), ui_token }
     }

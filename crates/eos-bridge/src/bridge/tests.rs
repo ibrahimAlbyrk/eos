@@ -5,6 +5,7 @@ use eos_core::BoxFuture;
 use eos_core::shell::{BrowserViews, Image, ViewError, ViewListener, ViewSpec};
 
 use super::*;
+use crate::core::LateCore;
 use crate::testdir::Dir;
 use crate::transport::{Body, Initiator, Read, channel};
 
@@ -138,6 +139,11 @@ struct World {
 }
 
 fn world_with(seed: Option<Seed>) -> World {
+    world_over(seed, |core| core)
+}
+
+/// `wrap`: what the bridge is given in place of the fake core.
+fn world_over(seed: Option<Seed>, wrap: impl FnOnce(Arc<FakeCore>) -> Arc<dyn Core>) -> World {
     let dir = Dir::new("bridge");
     let dist = dir.path().join("dist");
     std::fs::create_dir_all(dist.join("assets")).unwrap();
@@ -153,7 +159,7 @@ fn world_with(seed: Option<Seed>) -> World {
     let bridge = Bridge::new(Parts {
         assets: dist,
         data_dir: data.clone(),
-        core: core.clone(),
+        core: wrap(core.clone()),
         host: host.clone(),
         panel: Panel::new(views.clone(), &tokio::runtime::Handle::current()),
         capture: Arc::new(FakeCapture),
@@ -296,6 +302,50 @@ async fn only_the_top_level_document_gets_the_bridge_script() {
         assert_eq!(other.status, 200);
         assert!(!other.text().contains(TOKEN), "{initiator:?}");
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn while_the_core_starts_files_are_served_and_the_entry_document_and_core_requests_wait() {
+    let late = Arc::new(LateCore::new(TOKEN.into()));
+    let w = world_over(None, |_| late.clone());
+    let entry = {
+        let bridge = w.bridge.clone();
+        tokio::spawn(async move {
+            call_from(&bridge, Initiator::TopLevel, "GET", "http://eos.localhost/index.html", &[], b"").await
+        })
+    };
+    let health = {
+        let bridge = w.bridge.clone();
+        tokio::spawn(async move { call(&bridge, "GET", "http://eos.localhost/_core/health", &[], b"").await })
+    };
+    let file = call(&w.bridge, "GET", "http://eos.localhost/assets/app.js", &[], b"").await;
+    assert_eq!((file.status, file.text().as_str()), (200, "console.log(1)"));
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert!(!entry.is_finished() && !health.is_finished());
+    assert!(w.core.seen.lock().unwrap().is_empty());
+
+    late.settle(Some(w.core.clone()));
+    let entry = entry.await.unwrap();
+    assert_eq!(entry.status, 200);
+    assert!(entry.text().contains(TOKEN), "the token the core checks");
+    let health = health.await.unwrap();
+    assert_eq!((health.status, health.text().as_str()), (200, "Api GET /health"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_core_that_did_not_start_leaves_the_dashboard_as_without_a_core() {
+    let late = Arc::new(LateCore::new(TOKEN.into()));
+    let w = world_over(None, |_| late.clone());
+    let health = {
+        let bridge = w.bridge.clone();
+        tokio::spawn(async move { call(&bridge, "GET", "http://eos.localhost/_core/health", &[], b"").await })
+    };
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    late.settle(None);
+    assert_eq!(health.await.unwrap().status, 503);
+    let entry = call_from(&w.bridge, Initiator::TopLevel, "GET", "http://eos.localhost/index.html", &[], b"").await;
+    assert!(!entry.text().contains(TOKEN));
+    assert_eq!(bridge_call(&w, "window/startDragging", Value::Null).await.status, 403);
 }
 
 #[tokio::test]

@@ -218,7 +218,12 @@ router in process (`eos_bridge::RouterCore`): each page request becomes a runtim
 tagged with its caller (`eos-app`'s `callers().classify` on the ui-token; the raw origin is
 never the dashboard), whole bodies are sent at once and streams chunk by chunk at the
 reader's pace, a route's own 206 passes through, a request the page drops cancels the handler
-or its stream, and a request is always answered, also when its task dies. A release build
+or its stream, and a request is always answered, also when its task dies. The core is built
+and started on a thread of its own pool while the window opens and the dashboard's page
+loads (`eos_bridge::LateCore`): its static files are served at once, the entry document
+(which carries the ui-token, read from the data folder first) and every request for the
+core wait until it is up, and a core that does not start leaves them answered as without
+one (503). Quitting meanwhile lets it finish starting, then stops it. A release build
 opens `~/.eos` when `EOS_HOME` is not set; a dev run (a build with the `dev-run` feature:
 `bundle.sh test` or `debug`) has no default: without it the Rust core does not start, so
 nothing opens the real `~/.eos` by accident (`eos_bridge::launch`). Only a release build on the

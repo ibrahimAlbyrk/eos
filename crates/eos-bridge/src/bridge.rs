@@ -523,10 +523,17 @@ impl Service for Bridge {
             Route::Shell { path, query } => self.shell(&path, &query, req, sink),
             Route::Asset(rel) => {
                 // Only the dashboard's own top-level load gets the bridge script, which
-                // holds the ui-token: a frame showing this document gets it as built.
-                let script = token::is_top_level_document(&req).then(|| self.entry_script());
+                // holds the ui-token: a frame showing this document gets it as built. It
+                // waits for a core still starting, so the token is the one the core checks.
+                let entry = token::is_top_level_document(&req).then(|| self.me.clone());
                 let assets = self.assets.clone();
-                self.rt.spawn_blocking(move || send(&sink, assets.serve(&rel, &req, script.as_deref())));
+                self.rt.spawn_blocking(move || {
+                    let script = entry.and_then(|me| me.upgrade()).map(|me| {
+                        me.core.wait_ready();
+                        me.entry_script()
+                    });
+                    send(&sink, assets.serve(&rel, &req, script.as_deref()));
+                });
             }
             Route::Unknown => send(&sink, Response::not_found()),
         }

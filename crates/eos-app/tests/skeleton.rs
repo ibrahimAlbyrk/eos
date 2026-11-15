@@ -43,6 +43,23 @@ async fn a_data_folder_becomes_a_router_that_answers() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_ui_token_read_before_the_build_is_the_one_the_app_checks() {
+    let home = TempHome::new();
+    let early = eos_app::Callers::open(home.path());
+    let token = early.ui_token().to_owned();
+    assert_eq!(home.read("ui-token"), token, "kept for the next start");
+    let app = App::build(Options { callers: Some(early), ..options(&home) }).expect("builds");
+    assert_eq!(app.callers().ui_token(), token);
+    assert_eq!(eos_app::Callers::open(home.path()).ui_token(), token, "what the app reads itself next time");
+
+    // A first start: the folder is made before the token is kept in it.
+    let fresh = home.path().join("new-home");
+    let early = eos_app::Callers::open(&fresh);
+    let kept = std::fs::read_to_string(fresh.join("ui-token")).expect("kept in the new folder");
+    assert_eq!(kept.trim(), early.ui_token());
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn writes_reach_the_bus_in_the_order_they_were_saved() {
     let home = TempHome::new();
     let app = App::build(options(&home)).expect("builds");

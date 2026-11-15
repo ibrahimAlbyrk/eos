@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eos_accounts::{Accounts, TokioSleeper};
 use eos_auth::{
@@ -132,6 +132,9 @@ pub struct Options {
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
     /// Modules a run adds after the app's own (a test of the composed app).
     pub extra_modules: Vec<Arc<dyn eos_runtime::module::Module>>,
+    /// The folder's ui-token, read by the host before the app is built
+    /// ([`Callers::open`], which also stops the previous Eos's daemon); read here when `None`.
+    pub callers: Option<Callers>,
 }
 
 /// The window shell as the core uses it.
@@ -178,6 +181,7 @@ impl Options {
             relay: None,
             keep_awake: None,
             extra_modules: Vec::new(),
+            callers: None,
         }
     }
 }
@@ -264,6 +268,7 @@ impl App {
             relay,
             keep_awake,
             extra_modules,
+            callers,
         } = options;
         let reach = Reach::new(reaches_network);
         let relay = reach.relay(relay);
@@ -272,13 +277,18 @@ impl App {
         // Before anything in the data folder is read: the previous Eos's
         // daemon must not be working on it too.
         let install = Install::resolve(exec_path.as_deref(), &paths);
-        install.retire_legacy_daemon(launchd.as_deref());
+        // A host that read the token first ([`Callers::open`]) did this already.
+        if callers.is_none() {
+            install.retire_legacy_daemon(launchd.as_deref());
+        }
         let config = Arc::new(ConfigFile::load(paths.home(), env, eos_platform::host().features().remote));
         let current = config.current();
-        let callers = Callers::load(paths.home(), ids.as_ref());
+        let callers = callers.unwrap_or_else(|| Callers::load(paths.home(), ids.as_ref()));
 
         // Before the database opens: a migration must not run ahead of the copy.
+        let began = Instant::now();
         let snapshot = boot::snapshot(&paths, clock.as_ref());
+        let snapshot_at = began.elapsed();
         // A reader per async worker: a burst of transcript reads (a chat switch, several
         // panes) does not queue behind a few connections.
         let db_options = eos_kit_sqlite::Options {
@@ -287,6 +297,7 @@ impl App {
             ..eos_kit_sqlite::Options::default()
         };
         let (db, migrations) = Db::open(paths.state_db(), db_options, clock.now_ms())?;
+        let opened_at = began.elapsed();
         if migrations.applied.is_empty() && migrations.adopted.is_empty() {
             tracing::info!("the database is up to date");
         } else {
@@ -312,6 +323,7 @@ impl App {
         let store_options = StoreOptions { events_max_per_worker: current.events.max_per_worker };
         let store = Arc::new(SqliteStore::new(db, announcer.clone(), store_options));
         let reconciled = boot::settle(&store, clock.clone(), current.events.max_per_worker)?;
+        let settled_at = began.elapsed();
 
         let plugins = crate::plugins::host(crate::plugins::Parts {
             paths: &paths,
@@ -599,6 +611,13 @@ impl App {
             })?;
         }
         let nudges = std::sync::Mutex::new(None);
+        tracing::info!(
+            snapshot_ms = snapshot_at.as_millis() as u64,
+            database_ms = (opened_at - snapshot_at).as_millis() as u64,
+            settle_ms = (settled_at - opened_at).as_millis() as u64,
+            modules_ms = (began.elapsed() - settled_at).as_millis() as u64,
+            "start-up: app built"
+        );
         Ok(Self {
             runtime,
             raw_router,

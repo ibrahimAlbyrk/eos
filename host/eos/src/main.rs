@@ -8,13 +8,13 @@
 mod dev;
 mod follow;
 
-use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use eos_bridge::launch::{data_folder, logs_folder, reaches_network};
 use eos_bridge::splash::update_caption;
-use eos_bridge::{Bridge, Classify, Core, RouterCore};
+use eos_bridge::{Bridge, Classify, Core, LateCore, NoCore, RouterCore};
 use eos_contracts::update::UpdateApply;
 use eos_core::BoxFuture;
 use eos_core::net::updates::UpdateApplier;
@@ -55,7 +55,7 @@ const BUILD: &str = if RELEASE {
     "test"
 };
 
-fn options(core_home: Option<&std::path::Path>) -> Options {
+fn options(core_home: Option<&Path>) -> Options {
     let named = env("EOS_SHELL_DATA");
     let data_dir =
         named.clone().map_or_else(|| home().join("Library/Application Support/com.ibrahimalbyrk.eos"), PathBuf::from);
@@ -132,6 +132,8 @@ impl UpdateApplier for WithSplash {
 
 /// How long quitting waits for the modules to stop before it gives up on them.
 const SHUTDOWN: Duration = Duration::from_secs(5);
+/// How long quitting waits for a core that is still starting.
+const SHUTDOWN_START: Duration = Duration::from_secs(10);
 /// How long after a wake the updater is told (as today).
 const AFTER_WAKE: Duration = Duration::from_secs(10);
 
@@ -140,89 +142,43 @@ struct Eos {
     home: Option<PathBuf>,
     /// The built dashboard, which a computer controlling this one loads too.
     dist: PathBuf,
-    app: OnceLock<(Arc<eos_app::App>, tokio::runtime::Handle)>,
     /// The core's own runtime (`eos_app::runtime`): the shell's small one stays free for
     /// the window's bridges whatever the core is doing.
     rt: tokio::runtime::Runtime,
+    core: Arc<CoreState>,
 }
 
-impl Eos {
-    /// Builds and starts the core; `None` when there is no data folder or it did not start.
-    fn start_core(&self, ports: &Ports) -> Option<Arc<RouterCore>> {
-        let Some(home) = &self.home else {
-            tracing::warn!(target: "eos", "EOS_HOME is not set (a development build has no default): running without the Rust core");
-            return None;
-        };
-        // Building the app spawns its own tasks.
-        let _runtime = self.rt.enter();
-        let resources = bundled_resources();
-        let real_data = *home == crate::home().join(".eos");
-        // The data folder's kind, never its path.
-        let data = if real_data { "own" } else { "other" };
-        tracing::info!(target: "eos", version = env!("CARGO_PKG_VERSION"), build = BUILD, data, "the core is starting");
-        let began = std::time::Instant::now();
-        let network = reaches_network(home, &crate::home(), RELEASE);
-        // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
-        // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
-        let mut options = eos_app::Options {
-            // The PDF viewer ships beside the program, for the raw-content origin.
-            pdfjs_root: resources.as_ref().map(|dir| dir.join("pdfjs")).filter(|dir| dir.is_dir()),
-            resources,
-            plugin_previewer: ports.previewer.clone(),
-            shell: Some(eos_app::Shell {
-                views: ports.views.clone(),
-                panel: ports.panel.clone(),
-                picker: ports.picker.clone(),
-                opener: ports.opener.clone(),
-            }),
-            sweep_leftovers: real_data,
-            relay: Some(eos_app::relay()),
-            reaches_network: network,
-            dashboard: Some(self.dist.clone()).filter(|dist| dist.join("index.html").is_file()),
-            ..eos_app::Options::new(home)
-        };
-        // Restarting into an update: show the splash, leave the applier what it needs, start
-        // it, quit.
-        if let Some(exe) = &options.exec_path {
-            let handover = Handover::beside(exe, home);
-            let launcher = ApplierLauncher::new(handover, ports.quit.clone());
-            options.update_applier = Some(Arc::new(WithSplash { launcher, splash: ports.splash.clone() }));
-        }
-        let app = match eos_app::App::build(options) {
-            Ok(app) => Arc::new(app),
-            Err(e) => {
-                tracing::error!(target: "eos", error = %e, "the core could not be built");
-                return None;
-            }
-        };
-        if let Err(e) = self.rt.block_on(app.start()) {
-            tracing::error!(target: "eos", error = %e, "the core did not start");
-            return None;
-        }
-        tracing::info!(target: "eos", ms = began.elapsed().as_millis() as u64, network = network, "the core is ready");
-        let callers = app.callers().clone();
-        let ui_token = callers.ui_token().to_owned();
-        let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
-        let core = Arc::new(
-            RouterCore::new(app.router(), ui_token, classify, self.rt.handle().clone()).with_raw(app.raw_router()),
-        );
-        let _ = self.app.set((app, self.rt.handle().clone()));
-        Some(core)
-    }
+/// The core as the hooks see it, shared with the thread that builds and starts it: the
+/// window and the dashboard's page load go on meanwhile (`eos_bridge::LateCore`).
+#[derive(Default)]
+struct CoreState {
+    app: OnceLock<(Arc<eos_app::App>, tokio::runtime::Handle)>,
+    /// The core while it starts; unset when there is none to start.
+    late: OnceLock<Arc<LateCore>>,
+    started: Mutex<Started>,
 }
 
-impl Hooks for Eos {
-    fn core(&self, ports: &Ports) -> Arc<dyn Core> {
-        match self.start_core(ports) {
-            #[cfg(feature = "dev-run")]
-            Some(core) => dev::guarded(core),
-            #[cfg(not(feature = "dev-run"))]
-            Some(core) => core,
-            None => Arc::new(eos_bridge::NoCore::default()),
-        }
+/// What `started` was handed before the core was up, and whether it is up (or failed).
+#[derive(Default)]
+struct Started {
+    waiting: Option<(Arc<Bridge>, Ports)>,
+    settled: bool,
+}
+
+impl CoreState {
+    fn started(&self) -> std::sync::MutexGuard<'_, Started> {
+        self.started.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    fn started(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
+    /// The core is up or did not start: what `started` was handed meanwhile, to run now.
+    fn settled(&self) -> Option<(Arc<Bridge>, Ports)> {
+        let mut started = self.started();
+        started.settled = true;
+        started.waiting.take()
+    }
+
+    /// The dashboard is loading and the core is up (or will never be).
+    fn on_started(&self, bridge: &Arc<Bridge>, _ports: &Ports) {
         if let Some((app, rt)) = self.app.get() {
             follow::events(&app.runtime().kernel.bus, bridge, rt);
             // The panel's "pick an element" mode is the browser feature's.
@@ -236,16 +192,159 @@ impl Hooks for Eos {
         #[cfg(feature = "dev-run")]
         dev::started(bridge, _ports, self.app.get().map(|(app, _)| app.router()));
     }
+}
+
+/// Settles the late core when dropped, also by a panic: with `core` once it is set.
+struct Settle {
+    late: Arc<LateCore>,
+    core: Option<Arc<dyn Core>>,
+}
+
+impl Drop for Settle {
+    fn drop(&mut self) {
+        self.late.settle(self.core.take());
+    }
+}
+
+/// Builds and starts the core; `None` when it did not start.
+fn start_core(
+    home: &Path,
+    dist: &Path,
+    rt: &tokio::runtime::Handle,
+    ports: &Ports,
+    callers: eos_app::Callers,
+) -> Option<(Arc<eos_app::App>, Arc<RouterCore>)> {
+    // Building the app spawns its own tasks.
+    let _runtime = rt.enter();
+    let resources = bundled_resources();
+    let real_data = *home == crate::home().join(".eos");
+    // The data folder's kind, never its path.
+    let data = if real_data { "own" } else { "other" };
+    tracing::info!(target: "eos", version = env!("CARGO_PKG_VERSION"), build = BUILD, data, "the core is starting");
+    let network = reaches_network(home, &crate::home(), RELEASE);
+    // Only the user's own data folder knows every chat: a copy of it (a development run) lacks the
+    // chats made since, so it must not judge which worktrees in the user's repositories are orphans.
+    let mut options = eos_app::Options {
+        // The PDF viewer ships beside the program, for the raw-content origin.
+        pdfjs_root: resources.as_ref().map(|dir| dir.join("pdfjs")).filter(|dir| dir.is_dir()),
+        resources,
+        plugin_previewer: ports.previewer.clone(),
+        shell: Some(eos_app::Shell {
+            views: ports.views.clone(),
+            panel: ports.panel.clone(),
+            picker: ports.picker.clone(),
+            opener: ports.opener.clone(),
+        }),
+        sweep_leftovers: real_data,
+        relay: Some(eos_app::relay()),
+        reaches_network: network,
+        dashboard: Some(dist.to_path_buf()).filter(|dist| dist.join("index.html").is_file()),
+        callers: Some(callers),
+        ..eos_app::Options::new(home)
+    };
+    // Restarting into an update: show the splash, leave the applier what it needs, start
+    // it, quit.
+    if let Some(exe) = &options.exec_path {
+        let handover = Handover::beside(exe, home);
+        let launcher = ApplierLauncher::new(handover, ports.quit.clone());
+        options.update_applier = Some(Arc::new(WithSplash { launcher, splash: ports.splash.clone() }));
+    }
+    let began = Instant::now();
+    let app = match eos_app::App::build(options) {
+        Ok(app) => Arc::new(app),
+        Err(e) => {
+            tracing::error!(target: "eos", error = %e, "the core could not be built");
+            return None;
+        }
+    };
+    let built = began.elapsed();
+    if let Err(e) = rt.block_on(app.start()) {
+        tracing::error!(target: "eos", error = %e, "the core did not start");
+        return None;
+    }
+    tracing::info!(
+        target: "eos",
+        ms = began.elapsed().as_millis() as u64,
+        build_ms = built.as_millis() as u64,
+        start_ms = (began.elapsed() - built).as_millis() as u64,
+        network,
+        "the core is ready"
+    );
+    let callers = app.callers().clone();
+    let ui_token = callers.ui_token().to_owned();
+    let classify: Classify = Arc::new(move |token, target| callers.classify_for(token, target));
+    let core = Arc::new(
+        RouterCore::new(app.router(), ui_token, classify, rt.clone())
+            .with_raw(app.raw_router())
+            .with_lane(app.runtime().kernel.ordered.clone()),
+    );
+    Some((app, core))
+}
+
+impl Hooks for Eos {
+    fn core(&self, ports: &Ports) -> Arc<dyn Core> {
+        let Some(home) = self.home.clone() else {
+            tracing::warn!(target: "eos", "EOS_HOME is not set (a development build has no default): running without the Rust core");
+            self.core.settled();
+            return Arc::new(NoCore::default());
+        };
+        // The token first: the dashboard's document carries it while the core still starts.
+        let callers = eos_app::Callers::open(&home);
+        let late = Arc::new(LateCore::new(callers.ui_token().to_owned()));
+        let _ = self.core.late.set(late.clone());
+        let (state, dist, rt, ports) = (self.core.clone(), self.dist.clone(), self.rt.handle().clone(), ports.clone());
+        let settling = late.clone();
+        // On a thread of the core's own pool, at the core's thread class.
+        drop(self.rt.spawn_blocking(move || {
+            // Settled however this ends, a panic below included: with the core once it is up.
+            let mut settle = Settle { late: settling, core: None };
+            let up = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                start_core(&home, &dist, &rt, &ports, callers)
+            }));
+            match up {
+                Ok(Some((app, core))) => {
+                    let _ = state.app.set((app, rt.clone()));
+                    #[cfg(feature = "dev-run")]
+                    let core = dev::guarded(core);
+                    settle.core = Some(core);
+                }
+                Ok(None) => {}
+                // A core that panicked while it was built or started ends the app, as when it
+                // started before the window: half-started, its tasks would go on beside a
+                // dashboard told it has no core.
+                Err(_) => {
+                    tracing::error!(target: "eos", "the core panicked while it started");
+                    eos_kit_log::flush(Duration::from_millis(500));
+                    std::process::abort();
+                }
+            }
+            if let Some((bridge, ports)) = state.settled() {
+                state.on_started(&bridge, &ports);
+            }
+        }));
+        late
+    }
+
+    fn started(&self, bridge: &Arc<Bridge>, ports: &Ports) {
+        {
+            let mut started = self.core.started();
+            if !started.settled {
+                started.waiting = Some((bridge.clone(), ports.clone()));
+                return;
+            }
+        }
+        self.core.on_started(bridge, ports);
+    }
 
     fn window_shown(&self) {
         tracing::debug!(target: "eos", "the window was shown");
-        if let Some((app, _)) = self.app.get() {
+        if let Some((app, _)) = self.core.app.get() {
             app.update_signals().window_shown();
         }
     }
 
     fn woke(&self, _away: Duration) {
-        if let Some((app, rt)) = self.app.get() {
+        if let Some((app, rt)) = self.core.app.get() {
             // A link that died in the computer's sleep is probed at once.
             app.peering().kick();
             let signals = app.update_signals();
@@ -258,7 +357,13 @@ impl Hooks for Eos {
     }
 
     fn shutdown(&self) {
-        if let Some((app, rt)) = self.app.get() {
+        // A core still starting is let finish first (for a while), then stopped like any other.
+        if let Some(late) = self.core.late.get()
+            && !late.wait_settled(SHUTDOWN_START)
+        {
+            tracing::warn!(target: "eos", "quitting while the core still starts");
+        }
+        if let Some((app, rt)) = self.core.app.get() {
             let report = rt.block_on(app.shutdown(SHUTDOWN));
             tracing::info!(target: "eos", ms = report.took.as_millis() as u64, clean = report.clean(), "the core stopped");
         }
@@ -285,6 +390,6 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let hooks = Eos { home: core_home, dist: options.ui_dist.clone(), app: OnceLock::new(), rt };
+    let hooks = Eos { home: core_home, dist: options.ui_dist.clone(), rt, core: Arc::default() };
     std::process::exit(eos_shell::run(options, Arc::new(hooks)));
 }
