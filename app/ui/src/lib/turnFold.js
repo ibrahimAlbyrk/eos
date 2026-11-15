@@ -6,7 +6,7 @@
 // the agent does later (woken by a background subagent's report, a Monitor, …)
 // is a new turn below it.
 
-import { parsePayload, isTurnBarrier, isExitBarrier } from "./toolLifecycle.js";
+import { rowPayload, isTurnBarrier, isExitBarrier } from "./toolLifecycle.js";
 
 // The agent's own output between two prompts. Anything else (a prompt, a
 // worker report, a terminal run, an error line) ends the run and stays visible.
@@ -41,7 +41,7 @@ const BUSY_STATES = new Set(["SPAWNING", "WORKING"]);
 // entering the busy set (or the lane's own turn start); an end is any turn
 // barrier (turn end, IDLE/DONE, interrupt, exit).
 function turnEdge(ev) {
-  const p = ev.type === "state" || ev.type === "agent_event" ? parsePayload(ev.payload) : null;
+  const p = ev.type === "state" || ev.type === "agent_event" ? rowPayload(ev) : null;
   if (ev.type === "state" && BUSY_STATES.has(p.state)) return BUSY_STATES.has(p.from) ? null : "start";
   if (ev.type === "agent_event") {
     if (p.type === "turn") return p.phase === "started" ? "start" : "end";
