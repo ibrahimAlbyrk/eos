@@ -94,6 +94,7 @@ impl Mac {
             },
         );
         let awake = Arc::new(FakeKeepAwake::new());
+        let workers = Arc::new(WorkersModule::new(temp.port(), models, clock.clone()));
         let remote = Arc::new(RemoteModule::new(RemoteParts {
             config: config.clone(),
             store: Arc::new(FakeRemoteStore::default()),
@@ -127,10 +128,11 @@ impl Mac {
                     ids,
                 },
             )),
-            Arc::new(WorkersModule::new(temp.port(), models, clock.clone())),
+            workers.clone(),
         ];
         let runtime = Runtime::build(kernel, modules, Arc::new(AllPluginsOn)).expect("composes");
         remote.attach_router(&runtime.router);
+        remote.attach_worker_rows(workers.listed_rows(false));
         runtime.lifecycle.start().await.expect("starts");
         // Armed: the room is registered before any phone tries to join it.
         for _ in 0..500 {

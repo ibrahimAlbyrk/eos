@@ -19,6 +19,8 @@
 //! [`UpdateState`](crate::UpdateState), `update:apply` [`UpdateApply`](crate::UpdateApply).
 //! The other topics carry shapes their publisher owns.
 
+use std::borrow::Cow;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -45,6 +47,52 @@ pub struct StreamChange {
     /// Absent when the publisher sent none.
     #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "de::some")]
     pub payload: Option<Value>,
+}
+
+/// What a subscriber reads of a `worker:change` payload, whose publishers
+/// each write fields of their own. A field that is absent or not a string
+/// reads as `None`, as `payload["field"].as_str()` reads it; text is borrowed
+/// from the payload where it can be.
+#[derive(Debug, Default, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerChangeFields<'a> {
+    #[serde(borrow, default, deserialize_with = "text")]
+    pub worker_id: Option<Cow<'a, str>>,
+    /// Set with `from` when the worker moved between states.
+    #[serde(borrow, default, deserialize_with = "text")]
+    pub state: Option<Cow<'a, str>>,
+    #[serde(borrow, default, deserialize_with = "text")]
+    pub from: Option<Cow<'a, str>>,
+    /// `archived` or `restored`.
+    #[serde(borrow, default, deserialize_with = "text")]
+    pub reason: Option<Cow<'a, str>>,
+    /// `user` when the user renamed the worker.
+    #[serde(borrow, default, deserialize_with = "text")]
+    pub renamed_by: Option<Cow<'a, str>>,
+}
+
+impl<'a> WorkerChangeFields<'a> {
+    /// `None` when the payload is not a JSON object.
+    pub fn read(payload: &'a [u8]) -> Option<Self> {
+        if payload.iter().find(|b| !b.is_ascii_whitespace()) != Some(&b'{') {
+            return None;
+        }
+        serde_json::from_slice(payload).ok()
+    }
+}
+
+/// A string, or `None` for any other value.
+fn text<'de: 'a, 'a, D: serde::Deserializer<'de>>(de: D) -> Result<Option<Cow<'a, str>>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Field<'a> {
+        Text(#[serde(borrow)] Cow<'a, str>),
+        Other(serde::de::IgnoredAny),
+    }
+    Ok(match Field::deserialize(de)? {
+        Field::Text(text) => Some(text),
+        Field::Other(_) => None,
+    })
 }
 
 /// The kernel's bus topics; a feature names its own.
@@ -85,6 +133,34 @@ pub mod topics {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn a_worker_change_reads_as_its_fields_say() {
+        let read = |payload: Value| {
+            let bytes = payload.to_string();
+            WorkerChangeFields::read(bytes.as_bytes()).map(|f| {
+                let own = |f: Option<Cow<'_, str>>| f.map(Cow::into_owned);
+                (own(f.worker_id), own(f.state), own(f.from), own(f.reason), own(f.renamed_by))
+            })
+        };
+        let s = |text: &str| Some(text.to_owned());
+        assert_eq!(
+            read(json!({"workerId": "w-1", "rowId": 8, "from": "WORKING", "state": "IDLE"})),
+            Some((s("w-1"), s("IDLE"), s("WORKING"), None, None))
+        );
+        assert_eq!(
+            read(json!({"workerId": "w-1", "renamedBy": "user", "x": {"state": "IDLE"}})),
+            Some((s("w-1"), None, None, None, s("user")))
+        );
+        assert_eq!(
+            read(json!({"workerId": "w-\"1", "reason": "archived"})),
+            Some((s("w-\"1"), None, None, s("archived"), None))
+        );
+        assert_eq!(read(json!({"workerId": 5, "state": null, "from": ["IDLE"]})), Some((None, None, None, None, None)));
+        assert_eq!(read(json!(["w-1"])), None, "only an object has fields");
+        assert_eq!(read(json!("w-1")), None);
+        assert_eq!(WorkerChangeFields::read(b" {"), None);
+    }
 
     #[test]
     fn frames_round_trip() {

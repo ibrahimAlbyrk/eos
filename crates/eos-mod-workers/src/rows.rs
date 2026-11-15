@@ -1,11 +1,13 @@
 //! Worker rows: the lists and one row.
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use eos_contracts::{WorkerContext, WorkerRow};
-use eos_core::Error;
 use eos_core::agent::{ModelCatalog, OpenQuestions};
 use eos_core::store::{Store, Tx};
+use eos_core::workers::ListedWorkers;
+use eos_core::{BoxFuture, Error};
 use eos_domain::Worker;
 use eos_domain::context::context_pct;
 use eos_domain::worker::{Ownership, ownership};
@@ -98,6 +100,44 @@ fn listed(tx: &dyn Tx, parent_id: Option<&str>) -> Result<Vec<Worker>, Error> {
     match parent_id {
         Some(parent) => Ok(tx.workers().list_by_parent(parent)?.into_iter().filter(|w| !w.is_archived()).collect()),
         None => tx.workers().list_active(),
+    }
+}
+
+/// The rows of `GET /workers` (`brief`: `?brief=1`) for some ids, each as the list serializes it.
+pub(crate) struct Listed {
+    pub(crate) store: Arc<dyn Store>,
+    pub(crate) models: Arc<dyn ModelCatalog>,
+    pub(crate) questions: Option<Arc<dyn OpenQuestions>>,
+    pub(crate) brief: bool,
+}
+
+impl ListedWorkers for Listed {
+    fn rows<'a>(&'a self, ids: &'a [String]) -> BoxFuture<'a, Result<HashMap<String, Vec<u8>>, Error>> {
+        Box::pin(async move {
+            let wanted = ids.to_vec();
+            let workers = self
+                .store
+                .read(move |tx| {
+                    let mut found = Vec::with_capacity(wanted.len());
+                    for id in &wanted {
+                        // `listed`: never an archived one.
+                        found.extend(tx.workers().find(id)?.filter(|w| !w.is_archived()));
+                    }
+                    Ok(found)
+                })
+                .await?;
+            let rows = Rows::of(&workers)
+                .with_context(self.models.as_ref())
+                .with_questions(self.questions.as_deref())
+                .brief(self.brief);
+            rows.rows
+                .iter()
+                .map(|row| {
+                    let json = serde_json::to_vec(row).map_err(|e| Error::Storage(e.to_string()))?;
+                    Ok((row.id.clone(), json))
+                })
+                .collect()
+        })
     }
 }
 

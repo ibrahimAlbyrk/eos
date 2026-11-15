@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use eos_contracts::WorkerState;
+use eos_contracts::stream::WorkerChangeFields;
 use eos_contracts::stream::topics::{WORKER_CHANGE, WORKER_EXIT, WORKER_REMOVED, WORKER_REPORT, WORKER_SPAWN};
 use eos_core::Error;
 use eos_core::agent::ModelCatalog;
@@ -80,6 +81,15 @@ pub(crate) struct Watching {
 
 fn locked<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Takes a worker's idle timer off the list when it is the task `own`: a newer timer of
+/// the worker stays.
+fn forget_timer(timers: &Mutex<HashMap<String, JoinHandle<()>>>, worker: &str, own: tokio::task::Id) {
+    let mut timers = locked(timers);
+    if timers.get(worker).is_some_and(|timer| timer.id() == own) {
+        timers.remove(worker);
+    }
 }
 
 /// Cuts `text` to `max` UTF-16 units, the last one an ellipsis.
@@ -186,11 +196,15 @@ impl AgentsModule {
         }
         let (m, worker) = (self.clone(), id.to_owned());
         let timer = tokio::spawn(async move {
+            let own = tokio::task::id();
             loop {
                 tokio::time::sleep(IDLE_SUSPEND).await;
                 match m.idle_keep_reason(&worker).await {
                     Ok(Some(_)) => continue,
                     Ok(None) => {
+                        // Off the list first: the suspend's own state change and exit stop
+                        // the timer listed for the worker, and must not stop this suspend.
+                        forget_timer(&m.watching.idle_timers, &worker, own);
                         if let Err(e) = m.sessions.suspend(&worker, "idle").await {
                             tracing::warn!(worker_id = %worker, error = %e, "an idle chat could not be suspended");
                         }
@@ -199,7 +213,7 @@ impl AgentsModule {
                 }
                 break;
             }
-            locked(&m.watching.idle_timers).remove(&worker);
+            forget_timer(&m.watching.idle_timers, &worker, own);
         });
         timers.insert(id.to_owned(), timer);
     }
@@ -350,10 +364,17 @@ impl AgentsModule {
             active().filter_map(|w| git_dir(w).map(|dir| (w.id.clone(), PathBuf::from(dir)))).collect();
         let desired: HashSet<String> = active().filter_map(git_dir).map(str::to_owned).collect();
         let mut watched = locked(&self.watching.watched);
-        watched.retain(|dir, _| desired.contains(dir));
+        let gone: Vec<String> = watched.keys().filter(|dir| !desired.contains(*dir)).cloned().collect();
+        let released: Vec<WatchLease> = gone.iter().filter_map(|dir| watched.remove(dir)).collect();
         for dir in desired {
             let folder = Path::new(&dir).to_owned();
             watched.entry(dir).or_insert_with(|| watch.git_watcher.watch(&folder));
+        }
+        drop(watched);
+        // Ending a system watch restarts the system's stream: a blocking thread's work. A
+        // watch of the same folder meanwhile is safe, the watcher counts its holders.
+        if !released.is_empty() {
+            drop(tokio::task::spawn_blocking(move || drop(released)));
         }
     }
 
@@ -393,13 +414,18 @@ impl AgentsModule {
 
         let (m, runtime) = (self.clone(), tasks.clone());
         listening.push(watch.bus.on(WORKER_CHANGE, move |event| {
-            let Ok(change) = event.payload_as::<Value>() else { return };
-            let Some(id) = change["workerId"].as_str() else { return };
+            let Some(change) = WorkerChangeFields::read(&event.payload) else { return };
+            let Some(id) = change.worker_id.as_deref() else { return };
             let _in_runtime = runtime.enter();
-            m.schedule_reconcile();
-            let Some(state) = change["state"].as_str() else { return };
+            // A move between states, or an archive or restore (an archive ends a worker
+            // without one), may change which workers are active; spawns, exits and
+            // removals have topics of their own.
+            if change.state.is_some() || change.reason.is_some() {
+                m.schedule_reconcile();
+            }
+            let Some(state) = change.state.as_deref() else { return };
             m.track_idle(id, state == "IDLE");
-            if state == "IDLE" && change["from"] == "WORKING" {
+            if state == "IDLE" && change.from.as_deref() == Some("WORKING") {
                 let (m, id) = (m.clone(), id.to_owned());
                 runtime.spawn(async move {
                     tokio::time::sleep(TURN_END_DEFER).await;
@@ -469,5 +495,19 @@ mod tests {
         assert_eq!(said(&message(json!([other]))), None);
         assert_eq!(said(&json!({"type": "message", "role": "user", "blocks": [{"type": "text", "text": "hi"}]})), None);
         assert_eq!(truncate("héllo wörld", 6), "héllo…");
+    }
+
+    #[tokio::test]
+    async fn a_timer_takes_only_itself_off_the_list() {
+        let timers = Mutex::new(HashMap::new());
+        let older = tokio::spawn(std::future::pending::<()>());
+        let newer = tokio::spawn(std::future::pending::<()>());
+        let (older_id, newer_id) = (older.id(), newer.id());
+        older.abort();
+        locked(&timers).insert("w-1".to_owned(), newer);
+        forget_timer(&timers, "w-1", older_id);
+        assert!(locked(&timers).contains_key("w-1"), "the newer timer stays");
+        forget_timer(&timers, "w-1", newer_id);
+        assert!(locked(&timers).is_empty());
     }
 }

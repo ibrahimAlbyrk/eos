@@ -29,6 +29,7 @@ use bytes::Bytes;
 use eos_contracts::{ClientFrame, ControlFrame, FocusFrame, HelloFrame};
 use eos_core::net::relay::{RelayClientId, RelayError, RoomEvent, RoomHosting};
 use eos_core::store::RemoteStore;
+use eos_core::workers::ListedWorkers;
 use eos_core::{Clock, Ids};
 use eos_runtime::Kernel;
 use eos_runtime::bus::{Event, Filter, Subscription};
@@ -667,6 +668,7 @@ pub(crate) struct GatewayParts {
     pub(crate) ids: Arc<dyn Ids>,
     pub(crate) store: Arc<dyn RemoteStore>,
     pub(crate) options: GatewayOptions,
+    pub(crate) worker_rows: Option<Arc<dyn ListedWorkers>>,
 }
 
 /// The armed gateway. Dropping it gives the room up and ends every session.
@@ -680,7 +682,7 @@ pub(crate) struct Gateway {
 impl Gateway {
     /// Starts serving the room. Call inside the async runtime.
     pub(crate) fn start(parts: GatewayParts) -> Self {
-        let GatewayParts { room, router, kernel, clock, ids, store, options } = parts;
+        let GatewayParts { room, router, kernel, clock, ids, store, options, worker_rows } = parts;
         let state =
             State { seq: 0, patch_seq: 0, epoch: ids.token(eos_core::Alphabet::Hex, 16), devices: IndexMap::new() };
         let inner = Arc::new(Inner {
@@ -696,7 +698,8 @@ impl Gateway {
         });
         let fan_out = inner.clone();
         let events = kernel.bus.on(Filter::All, move |event| fan_out.on_event(event));
-        let patch_options = PatchOptions { debounce: options.patch_debounce, ..PatchOptions::full_rows(PHONE) };
+        let patch_options =
+            PatchOptions { debounce: options.patch_debounce, worker_rows, ..PatchOptions::full_rows(PHONE) };
         let patcher = StatePatcher::start(&kernel.bus, router, patch_options, Arc::new(Patches(inner.clone())));
         let tasks = vec![tokio::spawn(inner.clone().read_room()), tokio::spawn(inner.clone().sweep())];
         Self { inner, tasks, _events: events, _patcher: patcher }

@@ -535,6 +535,40 @@ async fn eventually(done: impl Fn() -> bool) {
 }
 
 #[tokio::test(start_paused = true)]
+async fn the_watches_follow_moves_between_states_not_every_change() {
+    let bench = Bench::new(TempStore::seeded("/"));
+    bench.runtime.lifecycle.start().await.expect("starts");
+    let announce = |payload: Value| {
+        bench.runtime.kernel.bus.publish_raw("worker:change", None, payload.to_string().into());
+    };
+    let watches_chat = || bench.watcher.watched().iter().any(|dir| dir.ends_with("alpha"));
+    let settle = || async {
+        bench.runtime.kernel.bus.flush().await;
+        for _ in 0..20 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+    };
+
+    bench.temp.exec("UPDATE workers SET state = 'IDLE' WHERE id = 'w-CHAT'");
+    announce(json!({"workerId": "w-CHAT", "rowId": 1, "from": "SUSPENDED", "state": "IDLE"}));
+    eventually(watches_chat).await;
+    assert!(watches_chat(), "{:?}", bench.watcher.watched());
+
+    // Rows recorded while it works change nothing the watches follow.
+    bench.temp.exec("UPDATE workers SET state = 'DONE' WHERE id = 'w-CHAT'");
+    announce(json!({"workerId": "w-CHAT", "rowId": 2, "type": "agent_event"}));
+    announce(json!({"workerId": "w-CHAT", "queued": true}));
+    settle().await;
+    assert!(watches_chat(), "not looked at again: {:?}", bench.watcher.watched());
+
+    // An archive ends a worker without a transition.
+    announce(json!({"workerId": "w-CHAT", "reason": "archived"}));
+    eventually(|| !watches_chat()).await;
+    assert!(!watches_chat(), "{:?}", bench.watcher.watched());
+}
+
+#[tokio::test(start_paused = true)]
 async fn what_happens_around_agents_without_anybody_asking() {
     use std::time::Duration;
 

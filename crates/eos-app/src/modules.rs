@@ -10,6 +10,7 @@ use eos_core::prompt::ProfileRenderer;
 use eos_core::shell::Location;
 use eos_core::store::{ConfigSource, ProjectStore, RecentFolders, Store, TemplateStore, UserSettingsStore};
 use eos_core::terminal::{ClaudeLaunchEnv, ClaudeProgram, ClaudeTranscripts, ShellCommands, Terminals};
+use eos_core::workers::ListedWorkers;
 use eos_core::{Clock, Ids, Sleeper};
 use eos_mod_plugins::PluginHost;
 use eos_mod_profile::PendingCaps;
@@ -114,6 +115,9 @@ pub(crate) struct Features {
     pub(crate) modules: Vec<Arc<dyn Module>>,
     /// Eos's agent tools, which the engine holds weakly.
     pub(crate) tools: Arc<dyn ToolSets>,
+    /// The rows of `GET /workers` by id, full and brief: what the row patches read.
+    pub(crate) worker_rows: Arc<dyn ListedWorkers>,
+    pub(crate) brief_worker_rows: Arc<dyn ListedWorkers>,
 }
 
 /// The modules and the agent tools over them. A feature crate adds its line
@@ -176,6 +180,12 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     let transfer = crate::machines::transfer(cx);
     let tools: Arc<dyn ToolSets> = crate::tools::build(cx, &agents, &genui, &pages, &profile, &transfer)?;
     cx.tools.attach(&tools);
+    let workers = Arc::new(
+        eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
+            .with_open_questions(Arc::new(cx.questions.clone()))
+            .with_project_memory(cx.project_memory.clone()),
+    );
+    let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
@@ -280,11 +290,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         transfer,
         cx.updates.module(cx.config.clone(), &cx.kernel),
         Arc::new(eos_mod_worker_definitions::WorkerDefinitionsModule::new(cx.worker_definitions.clone())),
-        Arc::new(
-            eos_mod_workers::WorkersModule::new(cx.store.clone(), cx.models.clone(), cx.clock.clone())
-                .with_open_questions(Arc::new(cx.questions.clone()))
-                .with_project_memory(cx.project_memory.clone()),
-        ),
+        workers,
         Arc::new(eos_mod_workflow_runs::WorkflowRunsModule::new(eos_mod_workflow_runs::Parts {
             store: cx.store.clone(),
             sessions: Arc::new(cx.sessions.clone()),
@@ -301,5 +307,5 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);
-    Ok(Features { modules, tools })
+    Ok(Features { modules, tools, worker_rows, brief_worker_rows })
 }

@@ -5,6 +5,7 @@
 use std::sync::Arc;
 
 use eos_contracts::stream::topics;
+use eos_core::workers::ListedWorkers;
 use eos_runtime::Runtime;
 use eos_runtime::access::Caller;
 use eos_runtime::bus::Bus;
@@ -50,10 +51,12 @@ impl PatchSink for Stream {
 }
 
 /// Starts the patcher behind the stream's `state:patch`. Call inside the async runtime.
-pub(crate) fn for_dashboard(runtime: &Runtime) -> StatePatcher {
+/// `brief_rows` are the rows `GET /workers?brief=1` lists, by id.
+pub(crate) fn for_dashboard(runtime: &Runtime, brief_rows: Arc<dyn ListedWorkers>) -> StatePatcher {
     let (bus, hub) = (runtime.kernel.bus.clone(), runtime.kernel.stream.clone());
     let options = PatchOptions {
         workers: "/workers?brief=1".to_owned(),
+        worker_rows: Some(brief_rows),
         // Read as any page of the window reads them: no token, as today.
         ..PatchOptions::full_rows(Caller::UNTRUSTED)
     };

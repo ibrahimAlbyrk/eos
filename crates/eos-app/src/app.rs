@@ -220,6 +220,8 @@ pub struct App {
     remote: Arc<eos_mod_remote::RemoteModule>,
     /// The dashboard's row patches, from start to shutdown.
     patches: std::sync::Mutex<Option<StatePatcher>>,
+    /// The brief rows the dashboard's patches carry, by id.
+    brief_worker_rows: Arc<dyn eos_core::workers::ListedWorkers>,
     /// Eos's agent tools: the engine holds them weakly, the app keeps them.
     _tools: Arc<dyn eos_core::agent::ToolSets>,
 }
@@ -558,6 +560,7 @@ impl App {
         hooks.attach(&runtime);
         // The phone's requests go to the same routes the dashboard calls.
         remote.attach_router(&runtime.router);
+        remote.attach_worker_rows(features.worker_rows);
         // The boot snapshot's parts are the routes themselves.
         context.boot.attach_router(&runtime.router);
         // The commands features run themselves (`/compact`, …), beside the session service's own.
@@ -610,6 +613,7 @@ impl App {
             browser,
             remote,
             patches: std::sync::Mutex::new(None),
+            brief_worker_rows: features.brief_worker_rows,
             _tools: features.tools,
         })
     }
@@ -623,7 +627,7 @@ impl App {
             tokio::runtime::Handle::current(),
         );
         *self.nudges.lock().unwrap_or_else(|p| p.into_inner()) = Some(nudges);
-        let patches = crate::patches::for_dashboard(&self.runtime);
+        let patches = crate::patches::for_dashboard(&self.runtime, self.brief_worker_rows.clone());
         *self.patches.lock().unwrap_or_else(|p| p.into_inner()) = Some(patches);
         self.runtime.lifecycle.start().await?;
         self.runtime.lifecycle.ready().await?;

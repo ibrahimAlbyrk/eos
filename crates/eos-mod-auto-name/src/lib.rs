@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_contracts::RenameIntentRequest;
 use eos_contracts::builtin_plugins::ids::AUTO_NAME;
+use eos_contracts::stream::WorkerChangeFields;
 use eos_contracts::stream::topics::WORKER_CHANGE;
 use eos_core::store::Store;
 use eos_runtime::access::{Access, Tier};
@@ -20,7 +21,7 @@ use eos_runtime::bus::Subscription;
 use eos_runtime::http::{Request, Response};
 use eos_runtime::module::{Module, ModuleError};
 use eos_runtime::router::{BoxFuture, RouteDef};
-use serde_json::{Value, json};
+use serde_json::json;
 
 pub use runner::{MicroTask, MicroTasks, PromptValues, RunnerParts};
 pub use task::{AUTO_NAME_TASK, AutoName};
@@ -87,8 +88,8 @@ impl Module for AutoNameModule {
             // spend a model request whose answer is thrown away.
             let runner = self.runner.clone();
             let renames = self.bus.on(WORKER_CHANGE, move |event| {
-                let Ok(payload) = event.payload_as::<Value>() else { return };
-                if let (Some("user"), Some(worker)) = (payload["renamedBy"].as_str(), payload["workerId"].as_str()) {
+                let Some(change) = WorkerChangeFields::read(&event.payload) else { return };
+                if let (Some("user"), Some(worker)) = (change.renamed_by.as_deref(), change.worker_id.as_deref()) {
                     runner.cancel(AUTO_NAME_TASK, worker, "user-renamed");
                 }
             });

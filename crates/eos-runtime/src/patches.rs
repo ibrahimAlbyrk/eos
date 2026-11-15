@@ -9,12 +9,14 @@
 //! serves one kind of client: the phone's reads `/workers` and sends `patch`
 //! frames, the dashboard's reads the brief rows and publishes `state:patch`.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use bytes::Bytes;
 use eos_contracts::stream::topics;
+use eos_core::workers::ListedWorkers;
 use serde::Deserialize;
 use serde_json::value::RawValue;
 use tokio::runtime::Handle;
@@ -76,11 +78,15 @@ pub trait PatchSink: Send + Sync + 'static {
     fn push(&self, changes: Vec<RowChange>) -> BoxFuture<'_, ()>;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PatchOptions {
     /// The list routes the rows are read from.
     pub workers: String,
     pub pending: String,
+    /// The `workers` route's rows by id: when set, a burst reads only its
+    /// workers' rows instead of the whole list. It must serve exactly what
+    /// that route lists.
+    pub worker_rows: Option<Arc<dyn ListedWorkers>>,
     /// Who the reads are made as.
     pub caller: Caller,
     /// How long a burst is collected before the lists are read (today: 150 ms).
@@ -90,7 +96,25 @@ pub struct PatchOptions {
 impl PatchOptions {
     /// The full rows of `/workers` and `/pending`, read as `caller`.
     pub fn full_rows(caller: Caller) -> Self {
-        Self { workers: "/workers".into(), pending: "/pending".into(), caller, debounce: Duration::from_millis(150) }
+        Self {
+            workers: "/workers".into(),
+            pending: "/pending".into(),
+            worker_rows: None,
+            caller,
+            debounce: Duration::from_millis(150),
+        }
+    }
+}
+
+impl std::fmt::Debug for PatchOptions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PatchOptions")
+            .field("workers", &self.workers)
+            .field("pending", &self.pending)
+            .field("worker_rows", &self.worker_rows.is_some())
+            .field("caller", &self.caller)
+            .field("debounce", &self.debounce)
+            .finish()
     }
 }
 
@@ -119,15 +143,14 @@ impl Shared {
     }
 
     fn mark(self: &Arc<Self>, resource: RowResource, event: &Event, key: &str) {
-        let Ok(serde_json::Value::Object(payload)) = event.payload_as::<serde_json::Value>() else { return };
-        let Some(id) = payload.get(key).and_then(|v| v.as_str()).filter(|id| !id.is_empty()) else { return };
+        let Some(id) = id_of(&event.payload, key) else { return };
         let mut dirty = self.dirty();
         let ids = match resource {
             RowResource::Workers => &mut dirty.workers,
             RowResource::Pending => &mut dirty.pending,
         };
-        if !ids.iter().any(|known| known == id) {
-            ids.push(id.to_owned());
+        if !ids.contains(&id) {
+            ids.push(id);
         }
         self.arm(&mut dirty);
     }
@@ -160,7 +183,7 @@ impl Shared {
         if self.sink.active() {
             let mut changes = Vec::new();
             if !workers.is_empty() {
-                changes.extend(self.read(RowResource::Workers, &self.options.workers, &workers).await);
+                changes.extend(self.read_workers(&workers).await);
             }
             if !pending.is_empty() {
                 changes.extend(self.read(RowResource::Pending, &self.options.pending, &pending).await);
@@ -176,24 +199,45 @@ impl Shared {
         }
     }
 
+    async fn read_workers(&self, ids: &[String]) -> Vec<RowChange> {
+        let Some(source) = &self.options.worker_rows else {
+            return self.read(RowResource::Workers, &self.options.workers, ids).await;
+        };
+        // A failed read is an empty list, as the route's error answer reads; so is a route that
+        // would not have answered (its feature did not start, the caller is refused).
+        let admitted = self.router.admits(Method::Get, &self.options.workers, &self.options.caller);
+        let mut rows = if admitted { source.rows(ids).await.unwrap_or_default() } else { HashMap::new() };
+        changes(RowResource::Workers, ids, |id| rows.remove(id).map(Bytes::from))
+    }
+
     async fn read(&self, resource: RowResource, list: &str, ids: &[String]) -> Vec<RowChange> {
         let request = Request::new(Method::Get, list, self.options.caller.clone());
         let body = self.router.handle(request).await.body.collect().await.unwrap_or_default();
         // Anything but a list of rows reads as an empty list, as today.
         let rows: Vec<&RawValue> = serde_json::from_slice(&body).unwrap_or_default();
         let by_id: HashMap<String, &RawValue> = rows.into_iter().filter_map(|row| Some((row_id(row)?, row))).collect();
-        ids.iter()
-            .map(|id| match by_id.get(id) {
-                Some(row) => {
-                    RowChange { resource, op: RowOp::Upsert, data: Bytes::copy_from_slice(row.get().as_bytes()) }
-                }
-                None => {
-                    let data = serde_json::to_vec(&serde_json::json!({ "id": id })).unwrap_or_default();
-                    RowChange { resource, op: RowOp::Remove, data: data.into() }
-                }
-            })
-            .collect()
+        changes(resource, ids, |id| by_id.get(id).map(|row| Bytes::copy_from_slice(row.get().as_bytes())))
     }
+}
+
+/// One change per id: an upsert with the row found for it, else a remove.
+fn changes(resource: RowResource, ids: &[String], mut row: impl FnMut(&str) -> Option<Bytes>) -> Vec<RowChange> {
+    ids.iter()
+        .map(|id| match row(id) {
+            Some(data) => RowChange { resource, op: RowOp::Upsert, data },
+            None => {
+                let data = serde_json::to_vec(&serde_json::json!({ "id": id })).unwrap_or_default();
+                RowChange { resource, op: RowOp::Remove, data: data.into() }
+            }
+        })
+        .collect()
+}
+
+/// The payload's `key` when the payload is an object and that is a string other than "".
+fn id_of(payload: &[u8], key: &str) -> Option<String> {
+    let fields: HashMap<Cow<'_, str>, &RawValue> = serde_json::from_slice(payload).ok()?;
+    let id: String = serde_json::from_str(fields.get(key)?.get()).ok()?;
+    Some(id).filter(|id| !id.is_empty())
 }
 
 /// The row's `id`, when it is a string.
@@ -274,14 +318,46 @@ mod tests {
         workers: Arc<Mutex<serde_json::Value>>,
         reads: Arc<AtomicUsize>,
         _patcher: StatePatcher,
+        failed: Arc<crate::module::FailedModules>,
+    }
+
+    /// Rows by id from the same list the route serves; `None`: the read fails.
+    struct ById {
+        workers: Arc<Mutex<serde_json::Value>>,
+        fails: AtomicBool,
+    }
+
+    impl ListedWorkers for ById {
+        fn rows<'a>(&'a self, ids: &'a [String]) -> BoxFuture<'a, Result<HashMap<String, Vec<u8>>, eos_core::Error>> {
+            let rows = self.workers.lock().expect("lock").clone();
+            let fails = self.fails.load(Ordering::SeqCst);
+            Box::pin(async move {
+                if fails {
+                    return Err(eos_core::Error::Storage("the database is busy".into()));
+                }
+                Ok(rows
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|row| Some((row["id"].as_str()?.to_owned(), serde_json::to_vec(row).ok()?)))
+                    .filter(|(id, _)| ids.contains(id))
+                    .collect())
+            })
+        }
     }
 
     fn harness() -> Harness {
+        harness_with(None)
+    }
+
+    fn harness_with(by_id: Option<Arc<ById>>) -> Harness {
         let bus = Bus::new(Ordered::new(), Arc::new(SystemClock), BusOptions { delta_window: None });
         let workers = Arc::new(Mutex::new(json!([])));
         let reads = Arc::new(AtomicUsize::new(0));
         let (list, count) = (workers.clone(), reads.clone());
+        let failed = Arc::new(crate::module::FailedModules::default());
         let router = Router::builder()
+            .failed(failed.clone())
             .route(
                 RouteDef::get("/workers", move |_req: Request| {
                     count.fetch_add(1, Ordering::SeqCst);
@@ -300,9 +376,14 @@ mod tests {
             .expect("a router");
         let (tx, pushed) = mpsc::unbounded_channel();
         let sink = Arc::new(Sink { active: AtomicBool::new(true), pushed: tx });
-        let options = PatchOptions { debounce: Duration::from_millis(5), ..PatchOptions::full_rows(Caller::Internal) };
+        let worker_rows = by_id.map(|by_id| by_id as Arc<dyn ListedWorkers>);
+        let options = PatchOptions {
+            debounce: Duration::from_millis(5),
+            worker_rows,
+            ..PatchOptions::full_rows(Caller::Internal)
+        };
         let patcher = StatePatcher::start(&bus, Arc::new(router), options, sink.clone());
-        Harness { bus, sink, pushed, workers, reads, _patcher: patcher }
+        Harness { bus, sink, pushed, workers, reads, _patcher: patcher, failed }
     }
 
     fn publish(bus: &Bus, topic: &'static str, payload: serde_json::Value) {
@@ -358,6 +439,49 @@ mod tests {
         publish(&h.bus, "worker:change", json!({ "workerId": "w2" }));
         assert_eq!(next(&mut h).await, [change(RowResource::Workers, RowOp::Remove, json!({ "id": "w2" }))]);
         assert_eq!(h.reads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn rows_by_id_patch_as_the_list_does_without_reading_it() {
+        let rows = json!([{ "id": "w1", "state": "IDLE", "cost": 0.5, "prompt": "é \" 😀" }, { "id": "w2" }]);
+        let burst = |h: &Harness| {
+            publish(&h.bus, "worker:change", json!({ "workerId": "w1" }));
+            publish(&h.bus, "worker:removed", json!({ "workerId": "gone" }));
+            publish(&h.bus, "usage:recorded", json!({ "workerId": "w2" }));
+        };
+        let mut listed = harness();
+        *listed.workers.lock().expect("lock") = rows.clone();
+        burst(&listed);
+        let from_list = next(&mut listed).await;
+
+        let by_id = Arc::new(ById { workers: Arc::new(Mutex::new(rows)), fails: AtomicBool::new(false) });
+        let mut h = harness_with(Some(by_id.clone()));
+        burst(&h);
+        assert_eq!(next(&mut h).await, from_list, "the same changes, the same bytes");
+        assert_eq!(h.reads.load(Ordering::SeqCst), 0, "the list route is not read");
+
+        // A read that fails reads as an empty list, as the route's error answer did.
+        by_id.fails.store(true, Ordering::SeqCst);
+        publish(&h.bus, "worker:change", json!({ "workerId": "w1" }));
+        assert_eq!(next(&mut h).await, [change(RowResource::Workers, RowOp::Remove, json!({ "id": "w1" }))]);
+
+        // So does a list whose feature did not start (it answers 503), as the route read did.
+        by_id.fails.store(false, Ordering::SeqCst);
+        publish(&h.bus, "worker:change", json!({ "workerId": "w1" }));
+        assert_eq!(next(&mut h).await[0].op, RowOp::Upsert);
+        h.failed.fail("kernel", "a broken database");
+        publish(&h.bus, "worker:change", json!({ "workerId": "w1" }));
+        assert_eq!(next(&mut h).await, [change(RowResource::Workers, RowOp::Remove, json!({ "id": "w1" }))]);
+    }
+
+    #[test]
+    fn an_id_is_a_non_empty_string_of_an_object() {
+        assert_eq!(id_of(br#"{"workerId":"w-1","rowId":3,"x":{"y":[1]}}"#, "workerId").as_deref(), Some("w-1"));
+        assert_eq!(id_of(br#"{"workerId":"w-\u0031"}"#, "workerId").as_deref(), Some("w-1"));
+        assert_eq!(id_of(br#"{"workerId":"a","workerId":"b"}"#, "workerId").as_deref(), Some("b"), "the last wins");
+        for payload in [&br#"{"workerId":""}"#[..], br#"{"workerId":7}"#, br#"{"id":"p"}"#, br#"["w"]"#, b"", b"{"] {
+            assert_eq!(id_of(payload, "workerId"), None, "{}", String::from_utf8_lossy(payload));
+        }
     }
 
     #[tokio::test(flavor = "multi_thread")]

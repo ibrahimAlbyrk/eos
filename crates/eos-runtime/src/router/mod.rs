@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 /// A request whose answer took longer is logged (at info) with its route and time.
 const SLOW_REQUEST: Duration = Duration::from_secs(2);
 
-use crate::access::{Access, PeerRule, check_plane, check_user, speaks_for_user};
+use crate::access::{Access, Caller, PeerRule, check_plane, check_user, speaks_for_user};
 use crate::error::{Conflict, Error, panic_message};
 use crate::http::error::refusal_response;
 use crate::http::request::Matched;
@@ -283,21 +283,8 @@ impl Router {
         let rule = meta.access.as_ref();
         let done = |res: Response| (res, Some(meta.clone()), None);
 
-        if let Err(refusal) = check_plane(rule, &req.caller) {
-            return done(refusal_response(refusal, req.path()));
-        }
-        if let Some(plugin) = meta.plugin.as_deref()
-            && !self.plugins.is_on(plugin)
-        {
-            let message = format!("{} is turned off (Settings › Plugins)", self.plugins.name(plugin));
-            return done(ApiError::coded(404, message, "plugin_off").into_response());
-        }
-        if let Some(reason) = self.failed.reason(&meta.owner) {
-            let message = format!("the {} feature could not start: {reason}", meta.owner);
-            return done(ApiError::coded(503, message, "feature_failed").into_response());
-        }
-        if let Err(refusal) = check_user(rule, &req.caller) {
-            return done(refusal_response(refusal, req.path()));
+        if let Some(refused) = self.refusal(meta, &req.caller, req.path()) {
+            return done(refused);
         }
         if req.body.len() > meta.max_body {
             self.counters.body_too_large.fetch_add(1, Ordering::Relaxed);
@@ -331,6 +318,38 @@ impl Router {
                 (Response::error(500, message), Some(meta.clone()), Some(failure))
             }
         }
+    }
+
+    /// What a route answers `caller` before its handler runs: refused by its access rule,
+    /// its plugin is off, or its feature did not start.
+    fn refusal(&self, meta: &RouteMeta, caller: &Caller, path: &str) -> Option<Response> {
+        let rule = meta.access.as_ref();
+        if let Err(refusal) = check_plane(rule, caller) {
+            return Some(refusal_response(refusal, path));
+        }
+        if let Some(plugin) = meta.plugin.as_deref()
+            && !self.plugins.is_on(plugin)
+        {
+            let message = format!("{} is turned off (Settings › Plugins)", self.plugins.name(plugin));
+            return Some(ApiError::coded(404, message, "plugin_off").into_response());
+        }
+        if let Some(reason) = self.failed.reason(&meta.owner) {
+            let message = format!("the {} feature could not start: {reason}", meta.owner);
+            return Some(ApiError::coded(503, message, "feature_failed").into_response());
+        }
+        if let Err(refusal) = check_user(rule, caller) {
+            return Some(refusal_response(refusal, path));
+        }
+        None
+    }
+
+    /// Whether a bodiless request for `target` as `caller` reaches its route's handler: it
+    /// exists, and nothing [`refusal`](Self::refusal) checks turns it away. For a reader that
+    /// goes around the route and must answer as the route would.
+    pub fn admits(&self, method: Method, target: &str, caller: &Caller) -> bool {
+        let (path, _) = split_target(target);
+        self.lookup(method, target)
+            .is_some_and(|(route, _)| self.refusal(&route.meta, caller, &normalize_path(path)).is_none())
     }
 
     fn lookup(&self, method: Method, target: &str) -> Option<(&Route, Spans)> {

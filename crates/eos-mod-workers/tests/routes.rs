@@ -130,3 +130,47 @@ async fn the_queue_shows_the_users_waiting_messages_as_typed() {
         serde_json::json!({ "messages": [] })
     );
 }
+
+/// A worker the questions feature says waits on the user.
+struct Asking(&'static str);
+
+impl eos_core::agent::OpenQuestions for Asking {
+    fn has_open(&self, worker_id: &str) -> bool {
+        worker_id == self.0
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn rows_by_id_are_the_list_routes_rows_byte_for_byte() {
+    let temp = TempStore::seeded("/sandbox");
+    let long = "wörd 😀 ".repeat(60);
+    temp.exec(&format!("UPDATE workers SET prompt = '{long}' WHERE id = 'w-LONG'"));
+    let module =
+        WorkersModule::new(temp.port(), Arc::new(FakeModelCatalog::default()), Arc::new(eos_testkit::FakeClock::new()))
+            .with_open_questions(Arc::new(Asking("w-CHAT")));
+    let (full, brief) = (module.listed_rows(false), module.listed_rows(true));
+    let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![Arc::new(module)], Arc::new(AllPluginsOn))
+        .expect("composes");
+
+    for (target, source) in [("/workers", &full), ("/workers?brief=1", &brief)] {
+        let res = runtime.router.handle(Request::new(Method::Get, target, Caller::UNTRUSTED)).await;
+        let body = res.body.collect().await.expect("a body");
+        let listed: Vec<&serde_json::value::RawValue> = serde_json::from_slice(&body).expect("rows");
+        let listed: std::collections::HashMap<String, Vec<u8>> = listed
+            .into_iter()
+            .map(|row| {
+                let id =
+                    serde_json::from_str::<Value>(row.get()).expect("a row")["id"].as_str().expect("id").to_owned();
+                (id, row.get().as_bytes().to_vec())
+            })
+            .collect();
+        assert_eq!(listed.len(), 7, "{target}");
+        let mut ids: Vec<String> = listed.keys().cloned().collect();
+        ids.extend(["w-ARCH".to_owned(), "w-NONE".to_owned()]);
+        let by_id = source.rows(&ids).await.expect("reads");
+        assert_eq!(by_id, listed, "{target}: the same rows, the same bytes; archived and unknown ids have none");
+    }
+    let chat = full.rows(&["w-CHAT".to_owned()]).await.expect("reads");
+    let chat: Value = serde_json::from_slice(&chat["w-CHAT"]).expect("a row");
+    assert_eq!(chat["awaiting_question"], true, "{chat}");
+}

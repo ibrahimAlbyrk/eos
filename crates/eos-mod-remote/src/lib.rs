@@ -26,6 +26,7 @@ use eos_contracts::{EosPairLit, PairingQr};
 use eos_core::net::relay::{Relay, RoomClaim};
 use eos_core::os::{AwakeHold, KeepAwake};
 use eos_core::store::{ConfigSource, RemoteStore, RoomSecrets};
+use eos_core::workers::ListedWorkers;
 use eos_core::{Clock, Ids};
 use eos_runtime::Kernel;
 use eos_runtime::module::{Module, ModuleError};
@@ -84,6 +85,9 @@ struct Shared {
     /// holds this module's routes; only an armed gateway holds it, until
     /// `stop` disarms.
     router: OnceLock<Weak<Router>>,
+    /// The phone's worker rows by id, once handed over: a patch then reads
+    /// only the changed rows.
+    worker_rows: OnceLock<Arc<dyn ListedWorkers>>,
     armed: Mutex<Option<Armed>>,
 }
 
@@ -145,6 +149,7 @@ impl Shared {
             ids: self.parts.ids.clone(),
             store: self.parts.store.clone(),
             options: self.parts.options,
+            worker_rows: self.worker_rows.get().cloned(),
         });
         tracing::info!(relay = %relay_url, "remote gateway armed");
         Some(Armed { relay_url, secrets, gateway, _awake: self.parts.keep_awake.hold() })
@@ -179,13 +184,26 @@ impl std::fmt::Debug for RemoteModule {
 
 impl RemoteModule {
     pub fn new(parts: RemoteParts) -> Self {
-        Self { shared: Arc::new(Shared { parts, router: OnceLock::new(), armed: Mutex::new(None) }) }
+        Self {
+            shared: Arc::new(Shared {
+                parts,
+                router: OnceLock::new(),
+                worker_rows: OnceLock::new(),
+                armed: Mutex::new(None),
+            }),
+        }
     }
 
     /// Hands over the app's router, once, after it was built and before the
     /// modules start. Until then nothing can be armed.
     pub fn attach_router(&self, router: &Arc<Router>) {
         let _ = self.shared.router.set(Arc::downgrade(router));
+    }
+
+    /// Hands over, once and before the modules start, the rows `GET /workers`
+    /// lists, by id. Without it a patch reads the whole list.
+    pub fn attach_worker_rows(&self, rows: Arc<dyn ListedWorkers>) {
+        let _ = self.shared.worker_rows.set(rows);
     }
 
     /// Arms or disarms for the configuration as it is now. Call inside the

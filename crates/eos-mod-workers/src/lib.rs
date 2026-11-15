@@ -19,6 +19,7 @@ use std::sync::Arc;
 use eos_core::Clock;
 use eos_core::agent::{ModelCatalog, OpenQuestions};
 use eos_core::store::{ProjectMemoryStore, Store};
+use eos_core::workers::ListedWorkers;
 use eos_runtime::module::Module;
 use eos_runtime::router::RouteDef;
 
@@ -46,6 +47,17 @@ impl WorkersModule {
     pub fn with_open_questions(mut self, questions: Arc<dyn OpenQuestions>) -> Self {
         self.questions = Some(questions);
         self
+    }
+
+    /// The rows `GET /workers` lists (`brief`: `?brief=1`) for some ids, each
+    /// serialized as the list serializes it.
+    pub fn listed_rows(&self, brief: bool) -> Arc<dyn ListedWorkers> {
+        Arc::new(rows::Listed {
+            store: self.store.clone(),
+            models: self.models.clone(),
+            questions: self.questions.clone(),
+            brief,
+        })
     }
 
     /// Serves `/workers/{id}/memory`: Claude Code's memory of the worker's project.
