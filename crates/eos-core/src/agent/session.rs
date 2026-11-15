@@ -329,6 +329,12 @@ pub trait AgentRuntime: Send + Sync + 'static {
         None
     }
 
+    /// A session can be put on `model` now, a model of a provider outside
+    /// the model catalog.
+    fn runs_other_model(&self, model: &str) -> bool {
+        self.other_provider_window(model).is_some()
+    }
+
     /// Deletes the conversation recorded for a worker that is gone for good.
     fn forget<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;
 }

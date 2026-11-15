@@ -39,6 +39,8 @@ pub(crate) struct Context {
     pub(crate) config: Arc<dyn ConfigSource>,
     pub(crate) models: Arc<dyn ModelCatalog>,
     pub(crate) backends: Arc<dyn BackendCatalog>,
+    /// The keys of the providers reached with an API key.
+    pub(crate) provider_keys: Arc<dyn eos_core::agent::ProviderKeys>,
     /// The skills and slash commands of a folder, as the engine finds them.
     pub(crate) commands: Arc<dyn eos_core::agent::CommandCatalog>,
     /// The model, asked once outside any conversation (summaries, titles, dreams).
@@ -188,7 +190,11 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
-        Arc::new(eos_mod_accounts::AccountsModule::new(cx.accounts.clone(), cx.config.clone())),
+        Arc::new(eos_mod_accounts::AccountsModule::new(
+            cx.accounts.clone(),
+            cx.config.clone(),
+            cx.provider_keys.clone(),
+        )),
         Arc::new(eos_mod_agent_jobs::AgentJobsModule::new(cx.kernel.jobs.clone(), Arc::new(cx.sessions.clone()))),
         agents,
         Arc::new(eos_mod_artifacts::ArtifactsModule::new(eos_mod_artifacts::Parts {

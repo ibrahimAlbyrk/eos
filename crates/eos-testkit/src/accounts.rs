@@ -612,3 +612,77 @@ impl eos_platform::CredentialStore for NoKeychain {
 
     fn delete_secret(&self, _service: &str) {}
 }
+
+/// A secret store in memory: provider keys only, no Claude login.
+#[derive(Debug, Default)]
+pub struct MemoryKeychain(Mutex<std::collections::BTreeMap<String, String>>);
+
+impl MemoryKeychain {
+    pub fn with(service: &str, secret: &str) -> Self {
+        let keychain = Self::default();
+        locked(&keychain.0).insert(service.to_owned(), secret.to_owned());
+        keychain
+    }
+}
+
+impl eos_platform::CredentialStore for MemoryKeychain {
+    fn read_claude_store(&self, _store_dir: Option<&std::path::Path>) -> Option<String> {
+        None
+    }
+
+    fn write_claude_store(&self, _store_dir: &std::path::Path, _json: &str) -> Result<(), eos_platform::Error> {
+        Err(eos_platform::Error::Unsupported("secret storage"))
+    }
+
+    fn clear_claude_store(&self, _store_dir: &std::path::Path) {}
+
+    fn read_secret(&self, service: &str) -> Option<String> {
+        locked(&self.0).get(service).cloned()
+    }
+
+    fn write_secret(&self, service: &str, secret: &str) -> Result<(), eos_platform::Error> {
+        locked(&self.0).insert(service.to_owned(), secret.to_owned());
+        Ok(())
+    }
+
+    fn delete_secret(&self, service: &str) {
+        locked(&self.0).remove(service);
+    }
+}
+
+/// Provider keys in memory, and a check that answers what the test set.
+#[derive(Debug)]
+pub struct FakeProviderKeys {
+    /// service → key.
+    pub saved: Mutex<std::collections::BTreeMap<String, String>>,
+    /// What a check answers.
+    pub probe: Mutex<Result<Vec<String>, String>>,
+    /// The (provider id, base URL, key) of every check.
+    pub probed: Mutex<Vec<(String, String, String)>>,
+}
+
+impl Default for FakeProviderKeys {
+    fn default() -> Self {
+        Self { saved: Mutex::default(), probe: Mutex::new(Ok(vec!["model-1".to_owned()])), probed: Mutex::default() }
+    }
+}
+
+impl eos_core::agent::ProviderKeys for FakeProviderKeys {
+    fn probe<'a>(
+        &'a self,
+        endpoint: &'a eos_domain::provider::ProviderEndpoint,
+        key: &'a str,
+    ) -> BoxFuture<'a, Result<Vec<String>, String>> {
+        locked(&self.probed).push((endpoint.id.clone(), endpoint.base_url.clone(), key.to_owned()));
+        Box::pin(std::future::ready(locked(&self.probe).clone()))
+    }
+
+    fn save(&self, service: &str, key: &str) -> Result<(), String> {
+        locked(&self.saved).insert(service.to_owned(), key.to_owned());
+        Ok(())
+    }
+
+    fn forget(&self, service: &str) {
+        locked(&self.saved).remove(service);
+    }
+}

@@ -43,6 +43,8 @@ const STOP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// What a session shares with the runtime that started it.
 pub(crate) struct Shared {
+    /// The providers reached with an API key.
+    pub(crate) endpoints: crate::endpoints::Endpoints,
     pub(crate) sessions: Arc<Registry>,
     pub(crate) accounts: Arc<Accounts>,
     pub(crate) credentials: Arc<dyn SessionCredentials>,
@@ -106,9 +108,14 @@ fn not_on_branch() -> SessionError {
     SessionError::Failed("message not found on the active branch".into())
 }
 
+/// `model` is one of a provider reached with an API key, whose key the engine reads itself.
+pub(crate) fn keyed(model: &str) -> bool {
+    eos_agent_sdk::Provider::of(model) == eos_agent_sdk::Provider::Other
+}
+
 /// The provider `model` (an id or alias) runs on, as credentials name it.
 pub(crate) fn provider_of(model: &str) -> String {
-    eos_agent_sdk::Provider::of(model).id().as_str().to_owned()
+    eos_agent_sdk::Provider::id_of(model).as_str().to_owned()
 }
 
 fn failed(error: impl std::fmt::Display) -> SessionError {
@@ -590,7 +597,12 @@ impl AgentSession for EngineSession {
             let provider = provider_of(model);
             // Onto another provider: on what a new session there would start on.
             let moved = agent.model().is_none_or(|current| provider_of(&current) != provider);
-            let credential = if moved {
+            if keyed(model)
+                && let Some(why) = self.shared.endpoints.unusable(model)
+            {
+                return Err(failed(why));
+            }
+            let credential = if moved && !keyed(model) {
                 let found = self.shared.credentials.for_new_session(&provider).await;
                 Some(found.ok_or_else(|| {
                     failed(format!("no sign-in or key for \"{model}\" · add one under Settings › Accounts"))
@@ -600,9 +612,9 @@ impl AgentSession for EngineSession {
             };
             let auth = credential.as_ref().map(|c| self.shared.accounts.of(c) as Arc<dyn TokenSource>);
             agent.set_model_with(model, ModelChange { auth, compact_at }).await.map_err(failed)?;
-            if let Some(credential) = credential {
-                self.shared.credentials.launched(self.id(), Some(&credential));
-                self.set_credential(Some(credential));
+            if moved {
+                self.shared.credentials.launched(self.id(), credential.as_ref());
+                self.set_credential(credential);
             }
             if effort.is_some() {
                 agent.set_effort(effort).await.map_err(|_| SessionError::Gone)?;

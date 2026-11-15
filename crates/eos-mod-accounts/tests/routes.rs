@@ -14,8 +14,8 @@ use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
 use eos_testkit::{
     FakeBrowser, FakeClock, FakeConfig, FakeLocalTime, FakePlanLoginDirs, FakePlanLoginStore, FakePlanStores,
-    FakePlanUsageApi, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe, FakeUsageSnapshots,
-    SeqIds, TempStore,
+    FakePlanUsageApi, FakeProviderKeys, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe,
+    FakeUsageSnapshots, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -30,6 +30,7 @@ struct Fixture {
     config: Arc<FakeConfig>,
     sessions: Arc<FakeSessionSwitch>,
     sleeper: Arc<FakeSleeper>,
+    keys: Arc<FakeProviderKeys>,
 }
 
 fn fixture(config: Value) -> Fixture {
@@ -58,10 +59,11 @@ fn fixture(config: Value) -> Fixture {
         sleeper: sleeper.clone(),
         sessions: sessions.clone(),
     });
-    let module = Arc::new(AccountsModule::new(accounts.clone(), config.clone()));
+    let keys = Arc::new(FakeProviderKeys::default());
+    let module = Arc::new(AccountsModule::new(accounts.clone(), config.clone(), keys.clone()));
     let runtime =
         Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn)).expect("composes");
-    Fixture { runtime, accounts, temp, stores, claude, config, sessions, sleeper }
+    Fixture { runtime, accounts, temp, stores, claude, config, sessions, sleeper, keys }
 }
 
 impl Fixture {
@@ -293,4 +295,80 @@ async fn an_exhausted_rows_actions_schedule_a_resume_or_move_to_the_api_key() {
     assert_eq!(t.put("/api/anthropic/config", json!({ "apiKeys": "x" })).await.0, 400);
     assert_eq!(t.get("/api/anthropic/config").await, (200, json!({ "apiKeySet": false, "authTokenSet": false })));
     let _ = login;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_providers_key_is_checked_saved_behind_a_backend_and_removed() {
+    let t = fixture(json!({}));
+    let (status, presets) = t.get("/api/backends/presets").await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        presets["presets"][0],
+        json!({"id": "openai", "label": "OpenAI", "kind": "openai",
+        "baseUrl": "https://api.openai.com", "defaultModel": "gpt-5.5"})
+    );
+    assert_eq!(presets["presets"].as_array().map(Vec::len), Some(7));
+
+    // The check answers as recorded for what it cannot run.
+    let refusal = |error: &str| (400, json!({"ok": false, "error": error}));
+    assert_eq!(
+        t.post("/api/backends/test", json!({"apiKey": "k", "preset": "nope"})).await,
+        refusal("unknown preset \"nope\"")
+    );
+    assert_eq!(t.post("/api/backends/test", json!({"preset": "openai"})).await, refusal("apiKey is required"));
+    assert_eq!(
+        t.post("/api/backends/test", json!({})).await,
+        refusal("kind and model are required (or supply a known preset)")
+    );
+    let checked = t.post("/api/backends/test", json!({"preset": "deepseek", "apiKey": " sk-deep "})).await;
+    assert_eq!(checked, (200, json!({"ok": true, "models": ["model-1"]})));
+    let probed = t.keys.probed.lock().expect("probed").clone();
+    assert_eq!(probed, [("test".to_owned(), "https://api.deepseek.com".to_owned(), "sk-deep".to_owned())]);
+    *t.keys.probe.lock().expect("probe") = Err("401: bad key".into());
+    let failed = t.post("/api/backends/test", json!({"preset": "deepseek", "apiKey": "bad"})).await;
+    assert_eq!(failed, (200, json!({"ok": false, "error": "401: bad key"})));
+    assert_eq!(t.config.file(), json!({}), "a check saves nothing");
+
+    // Saving: the key in the secret store, the backend in config.json.
+    assert_eq!(
+        t.post("/api/backends", json!({"apiKey": "k", "name": "mine", "preset": "nope"})).await,
+        (400, json!({"error": "unknown preset \"nope\""}))
+    );
+    let added = t.post("/api/backends", json!({"name": "deepseek", "preset": "deepseek", "apiKey": "sk-deep"})).await;
+    assert_eq!(added.0, 200, "{}", added.1);
+    assert_eq!(
+        added.1,
+        json!({"name": "deepseek", "kind": "openai", "model": "deepseek-v4-flash",
+        "baseUrl": "https://api.deepseek.com"})
+    );
+    assert_eq!(t.keys.saved.lock().expect("saved").get("eos-deepseek").map(String::as_str), Some("sk-deep"));
+    let file = t.config.file();
+    assert_eq!(file["backends"]["deepseek"]["auth"], json!({"kind": "keychain", "ref": "eos-deepseek"}));
+    assert!(!file.to_string().contains("sk-deep"), "the key is never in the file");
+    let (_, list) = t.get("/api/accounts").await;
+    let account = list["accounts"].as_array().expect("accounts").iter().find(|a| a["id"] == "deepseek").expect("it");
+    assert_eq!((&account["apiKey"]["set"], &account["route"]), (&json!(true), &json!("api_key")), "{account}");
+
+    // The user's own endpoint: its key under its own name.
+    let own = json!({"name": "local", "kind": "openai", "model": "llama", "baseUrl": "http://localhost:11434",
+        "apiKey": "k-local"});
+    assert_eq!(t.post("/api/backends", own).await.0, 200);
+    assert_eq!(t.config.file()["backends"]["local"]["auth"], json!({"kind": "keychain", "ref": "eos-local"}));
+
+    // Removing takes the backend and its key.
+    assert_eq!(t.delete("/api/backends/nope").await, (404, json!({"error": "backend \"nope\" not found"})));
+    assert_eq!(t.delete("/api/backends/deepseek").await, (200, json!({"ok": true})));
+    assert!(t.config.file()["backends"].get("deepseek").is_none());
+    assert!(!t.keys.saved.lock().expect("saved").contains_key("eos-deepseek"));
+
+    // Only the user's own dashboard reaches a key.
+    let untrusted = t
+        .call(
+            Method::Post,
+            "/api/backends",
+            Some(json!({"name": "x", "preset": "xai", "apiKey": "k"})),
+            Caller::UNTRUSTED,
+        )
+        .await;
+    assert_ne!(untrusted.0, 200, "{untrusted:?}");
 }

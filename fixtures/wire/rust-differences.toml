@@ -384,3 +384,45 @@ scenario = "*"
 step = "*events-5000*"
 at = "/headers/cache-control"
 reason = "Sent with the weak etag only; a transcript page of more than 1,000 rows leaves in slices without either."
+
+[[known]]
+scenario = "90-gates"
+step = "get-api-ui-config"
+at = "/json/backends/**"
+reason = "One engine runs every session: its Claude backend is listed as today; the providers reached with a key and a ChatGPT sign-in are a focused chat's (GET /api/providers), not lanes of their own."
+
+[[known]]
+scenario = "90-gates"
+step = "post-api-backends"
+at = "/**"
+reason = "A provider's key is saved by the user's own dashboard only: a caller without the dashboard's token is refused before the request is read."
+
+[[known]]
+scenario = "90-gates"
+step = "post-api-backends-test"
+at = "/**"
+reason = "A provider's key is checked by the user's own dashboard only: a caller without the dashboard's token is refused before the request is read."
+
+[[known]]
+scenario = "90-gates"
+step = "delete-api-backends-name"
+at = "/**"
+reason = "A provider's key is removed by the user's own dashboard only: a caller without the dashboard's token is refused before the request is read."
+
+[[known]]
+scenario = "90-gates"
+step = "post-stream-focus"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "90-gates"
+step = "post-workers-fromworker-peer-request"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."
+
+[[known]]
+scenario = "90-gates"
+step = "post-workers-id-notify"
+at = "/json/error"
+reason = "eos-contracts names the first field of a body that has the wrong type or is missing; Zod named them all (crates/eos-contracts/README.md)."

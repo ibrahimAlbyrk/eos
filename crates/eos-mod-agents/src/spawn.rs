@@ -92,12 +92,14 @@ fn orchestrator(m: AgentsModule) -> RouteDef {
                 .clone()
                 .or_else(|| prompt_name(&prompt))
                 .unwrap_or_else(|| format!("agent-{}", m.ids.token(Alphabet::Base36, 3)));
-            // A focused session always runs on the engine; the operator's provider pick is an orchestrator's.
+            // A focused session always runs on the engine, its provider named by its model
+            // (`<provider>/<model>`); the operator's provider pick is an orchestrator's.
             let config = m.spawning.config.current();
             let is_backend = |name: &str| config.backends.contains_key(name);
-            let pinned = body.backend_profile.as_deref().filter(|_| !focused);
-            let (model, profile) = resolve_combined_model(body.model.as_deref(), pinned, is_backend);
-            let profile = profile.filter(|_| !focused);
+            let (model, profile) = match focused {
+                true => (body.model.clone(), None),
+                false => resolve_combined_model(body.model.as_deref(), body.backend_profile.as_deref(), is_backend),
+            };
             if let Some(kind) = body.backend_kind.as_deref().filter(|_| !focused && profile.is_none()) {
                 engine_runs(&m, kind)?;
             }

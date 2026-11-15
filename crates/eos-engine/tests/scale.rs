@@ -39,6 +39,7 @@ async fn sessions_that_ended_hold_no_memory() {
         secrets: Arc::new(eos_testkit::NoKeychain),
         compaction: Arc::new(eos_testkit::PlainCompactionWords),
         artifacts: Arc::new(eos_testkit::NoArtifactViewer),
+        config: Arc::new(eos_testkit::FakeConfig::default()),
     };
     let engine = Engine::build(options, deps).await.expect("the engine");
     let project = dir.path().join("project").canonicalize().expect("the project");

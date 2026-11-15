@@ -428,6 +428,7 @@ impl App {
                 secrets: secrets.clone(),
                 compaction: Arc::new(eos_mod_compaction::Words::new(prompts.clone())),
                 artifacts: Arc::new(eos_mod_artifacts::Viewer(kernel.bus.clone())),
+                config: config.clone(),
             },
         );
         // "Resume at" and "Use API key" reach the live session through the engine.
@@ -504,6 +505,7 @@ impl App {
             config: config.clone(),
             models,
             backends: engine.clone(),
+            provider_keys: engine.clone(),
             commands: engine.clone(),
             one_shot,
             workflow_files,

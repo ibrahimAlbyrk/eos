@@ -70,8 +70,8 @@ pub mod wire;
 
 pub use accounts::{
     FakeBrowser, FakeConfig, FakeLocalTime, FakePlanLoginDirs, FakePlanLoginStore, FakePlanStores, FakePlanUsageApi,
-    FakeSecrets, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe, FakeUsageProvider,
-    FakeUsageSnapshots, NoKeychain, StartedSignIn,
+    FakeProviderKeys, FakeSecrets, FakeSessionSwitch, FakeSleeper, FakeSubscriptionProvider, FakeTokenProbe,
+    FakeUsageProvider, FakeUsageSnapshots, MemoryKeychain, NoKeychain, StartedSignIn,
 };
 pub use agent::{
     COMPACT_AFTER_TOKENS, COMPACT_BEFORE_TOKENS, COMPACT_SUMMARY, NoArtifactViewer, PlainCompactionWords,

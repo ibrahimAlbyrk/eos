@@ -19,7 +19,7 @@ use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredent
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, ArtifactViewer, BackendAuth, BackendCatalog, BackendDescriptor,
     CommandCatalog, CompactionWords, LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest,
-    SessionSink, ToolSets, UserQuestions,
+    ProviderKeys, SessionSink, ToolSets, UserQuestions,
 };
 use eos_core::policy::PolicyDecider;
 use eos_core::{BoxFuture, Clock, Error};
@@ -28,12 +28,14 @@ use tokio::sync::mpsc;
 use crate::accounts::{Accounts, ArtifactLogin, Failover, NewSession, NotSignedIn};
 use crate::commands::{folder_commands, with_session_commands};
 use crate::compaction::{LastSummary, Words};
+use crate::endpoints::{self, Endpoints};
 use crate::gate::EosGate;
 use crate::prompter::Prompter;
 use crate::registry::Registry;
 use crate::session::{self, Launch, Shared};
 use crate::tools::{Adapters, EosSession};
 use crate::{takeover, transcript};
+use eos_domain::provider::ProviderEndpoint;
 
 /// The provider of Claude sign-ins: one-shot answers and the Artifact tools run on it.
 pub(crate) const PROVIDER: &str = "anthropic";
@@ -99,6 +101,8 @@ pub struct EngineDeps {
     pub compaction: Arc<dyn CompactionWords>,
     /// Where an artifact an agent published or asked to show opens.
     pub artifacts: Arc<dyn ArtifactViewer>,
+    /// `config.json`: the providers reached with an API key are its backends.
+    pub config: Arc<dyn eos_core::store::ConfigSource>,
 }
 
 /// The engine's "show this artifact" as Eos's: the agent is the worker (only
@@ -156,6 +160,7 @@ fn descriptor() -> BackendDescriptor {
 
 struct Inner {
     sdk: Sdk,
+    config: Arc<dyn eos_core::store::ConfigSource>,
     store: JsonlStore,
     claude: Option<ClaudePaths>,
     options: EngineOptions,
@@ -189,9 +194,9 @@ impl Engine {
     /// Builds what every session shares: one HTTP client, the tools, the
     /// prompts, the MCP hub, the transcript store. Reads no credential.
     pub async fn build(options: EngineOptions, deps: EngineDeps) -> Result<Self, Error> {
-        let EngineDeps { policy, tools, credentials, questions, clock, secrets, compaction, artifacts } = deps;
+        let EngineDeps { policy, tools, credentials, questions, clock, secrets, compaction, artifacts, config } = deps;
         let sessions = Arc::new(Registry::default());
-        let accounts = Arc::new(Accounts::new(secrets));
+        let accounts = Arc::new(Accounts::new(secrets.clone()));
         let store = JsonlStore::new(options.dir.join("transcripts"));
         let claude = options.claude_home.as_deref().map(ClaudePaths::for_home);
         let failover =
@@ -238,7 +243,10 @@ impl Engine {
             builder = builder.claude_paths(paths.clone());
         }
         let sdk = builder.build().await.map_err(engine_error)?;
+        let config_kept = config.clone();
+        let endpoints = Endpoints::new(config, secrets, clock.clone(), sdk.clone());
         let shared = Arc::new(Shared {
+            endpoints,
             sessions,
             accounts,
             credentials,
@@ -248,6 +256,7 @@ impl Engine {
         });
         let inner = Inner {
             sdk,
+            config: config_kept,
             store,
             claude,
             options,
@@ -379,6 +388,11 @@ impl AgentRuntime for Engine {
             }
             let credential = match spec.credential.clone() {
                 Some(credential) => Some(credential),
+                // A key-based provider's key is the engine's own for it.
+                None if session::keyed(&spec.model) => {
+                    shared.endpoints.sync();
+                    None
+                }
                 None => shared.credentials.for_new_session(&session::provider_of(&spec.model)).await,
             };
             let history = self.history(&spec).await?;
@@ -435,6 +449,7 @@ impl AgentRuntime for Engine {
 
     fn other_provider_window(&self, model: &str) -> Option<i64> {
         openai_window(model, || self.0.sdk.context_window(model))
+            .or_else(|| endpoints::window_of(self.0.config.as_ref(), model))
     }
 
     fn live(&self) -> usize {
@@ -572,6 +587,13 @@ impl AgentRuntime for LazyEngine {
         &self.descriptor
     }
 
+    fn runs_other_model(&self, model: &str) -> bool {
+        // A ChatGPT model runs once the engine is up, which listing the
+        // account's models (or any session) brings about; a key-based
+        // provider's as soon as config.json names it.
+        (session::keyed(model) || self.built.initialized()) && self.other_provider_window(model).is_some()
+    }
+
     fn start(
         &self,
         spec: LaunchSpec,
@@ -592,7 +614,10 @@ impl AgentRuntime for LazyEngine {
         match self.built.get() {
             Some(engine) => engine.other_provider_window(model),
             // The account's catalog is read once the engine runs; its default until then.
-            None => openai_window(model, || eos_agent_sdk::OPENAI_CONTEXT_WINDOW),
+            None => openai_window(model, || eos_agent_sdk::OPENAI_CONTEXT_WINDOW).or_else(|| {
+                let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                setup.as_ref().and_then(|(_, deps)| endpoints::window_of(deps.config.as_ref(), model))
+            }),
         }
     }
 
@@ -653,20 +678,48 @@ impl BackendCatalog for LazyEngine {
     fn providers(&self) -> BoxFuture<'_, Vec<ProviderModels>> {
         Box::pin(async move {
             let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-            let ready = match setup {
-                Some((_, deps)) => deps.credentials.for_new_session(OPENAI).await.is_some(),
-                None => false,
+            let Some((_, deps)) = setup else { return Vec::new() };
+            let ready = deps.credentials.for_new_session(OPENAI).await.is_some();
+            let keyed = eos_domain::provider::endpoints(&deps.config.current());
+            let with_key = |e: &ProviderEndpoint| endpoints::key_of(deps.secrets.as_ref(), e).is_some();
+            // With no sign-in and no key, nothing is read: the engine is not built for the list.
+            let engine = match ready || keyed.iter().any(with_key) {
+                true => self.engine().await.ok(),
+                false => None,
             };
-            // Signed out, nothing is read: the engine is not built for the list.
-            let models = match ready.then(|| self.engine()) {
-                Some(engine) => match engine.await {
-                    Ok(engine) => engine.chatgpt_models().await,
-                    Err(_) => Vec::new(),
-                },
+            let models = match engine.filter(|_| ready) {
+                Some(engine) => engine.chatgpt_models().await,
                 None => Vec::new(),
             };
-            vec![ProviderModels { id: OPENAI.into(), label: "ChatGPT".into(), ready, models }]
+            let mut all = vec![ProviderModels { id: OPENAI.into(), label: "ChatGPT".into(), ready, models }];
+            match engine {
+                Some(engine) => all.extend(engine.0.shared.endpoints.listing().await),
+                None => all.extend(keyed.iter().map(|e| endpoints::listed(e, false, &[]))),
+            }
+            all
         })
+    }
+}
+
+impl ProviderKeys for LazyEngine {
+    fn probe<'a>(&'a self, endpoint: &'a ProviderEndpoint, key: &'a str) -> BoxFuture<'a, Result<Vec<String>, String>> {
+        Box::pin(async move {
+            let engine = self.engine().await.map_err(|e| e.to_string())?;
+            engine.0.shared.endpoints.probe(endpoint, key.to_owned()).await
+        })
+    }
+
+    fn save(&self, service: &str, key: &str) -> Result<(), String> {
+        let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some((_, deps)) = setup.as_ref() else { return Err("the engine has no configuration".into()) };
+        deps.secrets.write_secret(service, key).map_err(|e| e.to_string())
+    }
+
+    fn forget(&self, service: &str) {
+        let setup = self.setup.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((_, deps)) = setup.as_ref() {
+            deps.secrets.delete_secret(service);
+        }
     }
 }
 

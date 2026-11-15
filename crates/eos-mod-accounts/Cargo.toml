@@ -11,7 +11,9 @@ publish.workspace = true
 eos-accounts.workspace = true
 eos-contracts.workspace = true
 eos-core.workspace = true
+eos-domain.workspace = true
 eos-runtime.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

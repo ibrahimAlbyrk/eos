@@ -5,8 +5,9 @@
 //! answer is redacted: no token, key or store path leaves the app. Usage is
 //! an open read (percentages and reset times only).
 //!
-//! Not here: the provider presets' keys (`/api/backends`), which arrive with
-//! the metered providers.
+//! The keys of the other providers are in [`backends`].
+
+mod backends;
 
 use std::sync::Arc;
 
@@ -16,6 +17,7 @@ use eos_contracts::{
     DefaultLoginRequest, PlanLoginRenameRequest, PlanResumeRequest, SignInCodeRequest, SignInStartRequest,
     UsageResponse,
 };
+use eos_core::agent::ProviderKeys;
 use eos_core::store::ConfigSource;
 use eos_runtime::access::Access;
 use eos_runtime::bus::{Topic, TopicDecl};
@@ -30,6 +32,7 @@ pub const USAGE_CHANGE: Topic<UsageResponse> = Topic::new("usage:change");
 pub struct AccountsModule {
     accounts: Arc<Accounts>,
     config: Arc<dyn ConfigSource>,
+    keys: Arc<dyn ProviderKeys>,
 }
 
 impl std::fmt::Debug for AccountsModule {
@@ -39,8 +42,8 @@ impl std::fmt::Debug for AccountsModule {
 }
 
 impl AccountsModule {
-    pub fn new(accounts: Arc<Accounts>, config: Arc<dyn ConfigSource>) -> Self {
-        Self { accounts, config }
+    pub fn new(accounts: Arc<Accounts>, config: Arc<dyn ConfigSource>, keys: Arc<dyn ProviderKeys>) -> Self {
+        Self { accounts, config, keys }
     }
 }
 
@@ -283,6 +286,11 @@ impl Module for AccountsModule {
         let mut routes = account_routes(&self.accounts);
         routes.push(usage_route(&self.accounts));
         routes.extend(anthropic_routes(&self.accounts, &self.config));
+        routes.extend(backends::routes(backends::Backends {
+            accounts: self.accounts.clone(),
+            config: self.config.clone(),
+            keys: self.keys.clone(),
+        }));
         routes
     }
 

@@ -84,6 +84,21 @@ pub trait BackendCatalog: Send + Sync + 'static {
     }
 }
 
+/// The keys of the providers reached with an API key, and a key's check
+/// before it is saved.
+pub trait ProviderKeys: Send + Sync + 'static {
+    /// The models `endpoint` lists with `key`: a key that does not work is an `Err` with why.
+    fn probe<'a>(
+        &'a self,
+        endpoint: &'a eos_domain::provider::ProviderEndpoint,
+        key: &'a str,
+    ) -> crate::BoxFuture<'a, Result<Vec<String>, String>>;
+    /// Saves `key` in the system's secret store under `service`.
+    fn save(&self, service: &str, key: &str) -> Result<(), String>;
+    /// Removes the key under `service`.
+    fn forget(&self, service: &str);
+}
+
 /// A tool call's input while the model writes it, for a feature that follows
 /// that tool live (a visual answer). Not an agent event: it never reaches the
 /// event log or the worker state machine.

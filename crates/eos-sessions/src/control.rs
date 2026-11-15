@@ -276,7 +276,7 @@ impl Sessions {
         let row = self.find(worker_id).await?;
         self.check_model(model, role_of(row.is_orchestrator, row.agent_role.as_deref()))?;
         let descriptor = self.0.deps.runtime.descriptor();
-        let known = is_claude_model(model) || self.0.deps.runtime.other_provider_window(model).is_some();
+        let known = is_claude_model(model) || self.0.deps.runtime.runs_other_model(model);
         if descriptor.catalog == Some(UiBackendDescriptorCatalog::Claude) && !known {
             return Err(Error::Validation(format!("model \"{model}\" is not valid for provider {}", descriptor.label)));
         }

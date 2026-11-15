@@ -49,6 +49,7 @@ struct Bench {
     engine: Engine,
     /// What a second engine over the same folder is built from.
     setup: (EngineOptions, EngineDeps),
+    keychain: Arc<eos_testkit::MemoryKeychain>,
     mock: MockApi,
     sink: Arc<RecordingSink>,
     policy: Arc<FakePolicy>,
@@ -83,19 +84,27 @@ impl Bench {
             protected: eos_platform::DataPaths::new(dir.path()).agent_protected(),
             ..EngineOptions::new(dir.path().join("engine"))
         };
+        // One provider reached with a key: the mock, as `deep`.
+        let config = serde_json::json!({"backends": {"deep": {
+            "kind": "openai", "model": "chat-1", "baseUrl": mock.base_url(),
+            "auth": {"kind": "keychain", "ref": "eos-deep"},
+            "capabilities": {"wire": "openai-chat", "contextWindow": 64_000},
+        }}});
+        let keychain = Arc::new(eos_testkit::MemoryKeychain::with("eos-deep", "k-deep"));
         let deps = EngineDeps {
             policy: policy.clone(),
             tools: Arc::new(FakeToolSets(vec![EchoTool::named(TOOL), quiet()])),
             credentials: credentials.clone(),
             questions: user.clone(),
             clock: Arc::new(FakeClock::new()),
-            secrets: Arc::new(eos_testkit::NoKeychain),
+            secrets: keychain.clone(),
             compaction: Arc::new(eos_testkit::PlainCompactionWords),
             artifacts: Arc::new(eos_testkit::NoArtifactViewer),
+            config: Arc::new(eos_testkit::FakeConfig::new(config)),
         };
         let setup = (options.clone(), deps.clone());
         let engine = Engine::build(options, deps).await.expect("the engine");
-        Self { engine, setup, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
+        Self { engine, setup, keychain, mock, sink: Arc::new(RecordingSink::default()), policy, credentials, user, dir }
     }
 
     /// An engine that is built when it is first needed, as the app holds it.
@@ -221,14 +230,15 @@ async fn a_model_of_another_provider_moves_the_conversation_there_and_back() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_chatgpt_accounts_models_are_listed_with_their_windows() {
+    use eos_platform::CredentialStore;
     let bench = Bench::new([]).await;
+    bench.keychain.delete_secret("eos-deep");
     bench.mock.set_models(serde_json::json!({"models": [
         {"slug": "gpt-6-sol", "display_name": "GPT-6 Sol", "visibility": "list", "context_window": 400_000,
          "default_reasoning_level": "medium", "supported_reasoning_levels": ["low", "medium", "high"]},
         {"slug": "gpt-hidden", "visibility": "hide"},
     ]}));
     let providers = bench.lazy().providers().await;
-    assert_eq!(providers.len(), 1);
     let chatgpt = &providers[0];
     assert_eq!((chatgpt.id.as_str(), chatgpt.label.as_str(), chatgpt.ready), ("openai", "ChatGPT", true));
     let ids: Vec<&str> = chatgpt.models.iter().map(|m| m.id.as_str()).collect();
@@ -246,6 +256,61 @@ async fn the_chatgpt_accounts_models_are_listed_with_their_windows() {
     let signed_out = bench.lazy().providers().await;
     assert!(!signed_out[0].ready && signed_out[0].models.is_empty());
     assert_eq!(bench.mock.requests().len(), before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_runs_on_a_provider_reached_with_a_key() {
+    use eos_platform::CredentialStore;
+    let bench = Bench::new([
+        Reply::chat_text("", "hello from deep"),
+        Reply::text("hello from Claude"),
+        Reply::chat_text("", "deep again"),
+    ])
+    .await;
+    assert_eq!(bench.engine.other_provider_window("deep/chat-1"), Some(64_000));
+    assert_eq!(bench.engine.other_provider_window("nobody/chat-1"), None);
+
+    // A chat starts there: on the provider's key, the model as the provider names it.
+    let spec = LaunchSpec { prompt: Some("one".into()), ..bench.spec("w-1") };
+    bench.start(LaunchSpec { model: "deep/chat-1".into(), ..spec }).await;
+    bench.after_turns("w-1", 1).await;
+    let first = &bench.mock.requests()[0];
+    assert_eq!(first.path, "/v1/chat/completions");
+    assert_eq!(first.headers.get("authorization").and_then(|v| v.to_str().ok()), Some("Bearer k-deep"));
+    assert_eq!(first.json()["model"], "chat-1");
+
+    // A Claude chat moves there, and is told when the key is gone.
+    let session = bench.start(LaunchSpec { prompt: Some("two".into()), ..bench.spec("w-2") }).await;
+    bench.after_turns("w-2", 1).await;
+    session.set_model("deep/chat-1", None, None).await.expect("onto the provider");
+    session.send("three".into()).await.expect("sent");
+    let events = bench.after_turns("w-2", 2).await;
+    assert!(events.iter().any(|e| e["blocks"][0]["text"] == "deep again"), "{:?}", tags(&events));
+    assert!(bench.request_text(2).contains("hello from Claude"), "the conversation went along");
+
+    session.set_model("mock-model", None, None).await.expect("back onto Claude");
+    bench.keychain.delete_secret("eos-deep");
+    let refused = session.set_model("deep/chat-1", None, None).await;
+    assert_eq!(refused, Err(SessionError::Failed("no key for deep · add one under Settings › Accounts".into())));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn providers_reached_with_a_key_are_listed_with_their_models() {
+    use eos_platform::CredentialStore;
+    let bench = Bench::new([]).await;
+    bench.mock.set_models(serde_json::json!({"data": [{"id": "reasoner-1"}, {"id": "chat-1"}]}));
+    let providers = bench.lazy().providers().await;
+    let deep = providers.iter().find(|p| p.id == "deep").expect("the provider");
+    assert!(deep.ready);
+    let ids: Vec<&str> = deep.models.iter().map(|m| m.id.as_str()).collect();
+    assert_eq!(ids, ["deep/chat-1", "deep/reasoner-1"], "the backend's own model first");
+    assert_eq!(deep.models[0].display_name, "chat-1");
+    assert_eq!(deep.models[0].context_window, Some(64_000));
+
+    bench.keychain.delete_secret("eos-deep");
+    let without = bench.lazy().providers().await;
+    let deep = without.iter().find(|p| p.id == "deep").expect("still listed");
+    assert!(!deep.ready && deep.models.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

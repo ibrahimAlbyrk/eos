@@ -18,6 +18,7 @@
 mod accounts;
 mod commands;
 mod compaction;
+mod endpoints;
 mod engine;
 mod gate;
 mod mapper;

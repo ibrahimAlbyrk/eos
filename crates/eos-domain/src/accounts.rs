@@ -17,25 +17,124 @@ pub fn resolve_billing_route(subscription: SubscriptionState, api_key_set: bool)
     }
 }
 
-/// A provider Eos ships ready to add: what the Accounts list needs of it.
-/// The connection details of the metered presets are not ported.
+/// A provider Eos ships ready to add: what the Accounts list needs of it and
+/// how its API is reached (a server that speaks the Chat Completions API).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderPreset {
     pub id: &'static str,
     pub label: &'static str,
     /// The Keychain service its API key is saved under.
     pub auth_ref: &'static str,
+    pub base_url: &'static str,
+    pub default_model: &'static str,
+    /// Where chat completions are under `base_url`, when not `/v1/chat/completions`.
+    pub chat_path: Option<&'static str>,
+    /// `capabilities.reasoning` and `capabilities.reasoningRoundTrip`.
+    pub reasoning: (&'static str, &'static str),
+    pub context_window: i64,
+    pub max_tokens: Option<i64>,
+    /// `capabilities.maxTokensParam` and `dropReasoningEffortWithTools`, when the profile states them.
+    pub max_tokens_param: Option<&'static str>,
+    pub drop_effort_with_tools: Option<bool>,
 }
+
+const fn preset(
+    id: &'static str,
+    label: &'static str,
+    auth_ref: &'static str,
+    base_url: &'static str,
+    default_model: &'static str,
+    reasoning: (&'static str, &'static str),
+    (context_window, max_tokens): (i64, Option<i64>),
+) -> ProviderPreset {
+    ProviderPreset {
+        id,
+        label,
+        auth_ref,
+        base_url,
+        default_model,
+        chat_path: None,
+        reasoning,
+        context_window,
+        max_tokens,
+        max_tokens_param: None,
+        drop_effort_with_tools: None,
+    }
+}
+
+const SENDS_REASONING: (&str, &str) = ("reasoning_content", "drop");
 
 /// The metered provider presets, in the order Settings lists them.
 pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
-    ProviderPreset { id: "openai", label: "OpenAI", auth_ref: "eos-openai" },
-    ProviderPreset { id: "gemini", label: "Google Gemini", auth_ref: "eos-gemini" },
-    ProviderPreset { id: "xai", label: "xAI Grok", auth_ref: "eos-xai" },
-    ProviderPreset { id: "qwen", label: "Alibaba Qwen", auth_ref: "eos-qwen" },
-    ProviderPreset { id: "moonshot", label: "Moonshot Kimi", auth_ref: "eos-moonshot" },
-    ProviderPreset { id: "zhipu", label: "Zhipu GLM (Z.ai)", auth_ref: "eos-zhipu" },
-    ProviderPreset { id: "deepseek", label: "DeepSeek", auth_ref: "eos-deepseek" },
+    ProviderPreset {
+        max_tokens_param: Some("max_completion_tokens"),
+        drop_effort_with_tools: Some(true),
+        ..preset(
+            "openai",
+            "OpenAI",
+            "eos-openai",
+            "https://api.openai.com",
+            "gpt-5.5",
+            ("openai-effort", "none"),
+            (1_050_000, Some(128_000)),
+        )
+    },
+    ProviderPreset {
+        chat_path: Some("/chat/completions"),
+        ..preset(
+            "gemini",
+            "Google Gemini",
+            "eos-gemini",
+            "https://generativelanguage.googleapis.com/v1beta/openai",
+            "gemini-3.1-pro-preview",
+            ("none", "none"),
+            (1_000_000, Some(64_000)),
+        )
+    },
+    ProviderPreset {
+        max_tokens_param: Some("max_tokens"),
+        drop_effort_with_tools: Some(false),
+        ..preset("xai", "xAI Grok", "eos-xai", "https://api.x.ai", "grok-4.3", SENDS_REASONING, (1_000_000, None))
+    },
+    preset(
+        "qwen",
+        "Alibaba Qwen",
+        "eos-qwen",
+        "https://dashscope-intl.aliyuncs.com/compatible-mode",
+        "qwen3.7-max",
+        SENDS_REASONING,
+        (1_000_000, Some(65_536)),
+    ),
+    preset(
+        "moonshot",
+        "Moonshot Kimi",
+        "eos-moonshot",
+        "https://api.moonshot.ai",
+        "kimi-k2.6",
+        SENDS_REASONING,
+        (262_144, None),
+    ),
+    ProviderPreset {
+        chat_path: Some("/api/paas/v4/chat/completions"),
+        ..preset(
+            "zhipu",
+            "Zhipu GLM (Z.ai)",
+            "eos-zhipu",
+            "https://api.z.ai",
+            "glm-5.2",
+            SENDS_REASONING,
+            (200_000, Some(128_000)),
+        )
+    },
+    preset(
+        "deepseek",
+        "DeepSeek",
+        "eos-deepseek",
+        "https://api.deepseek.com",
+        "deepseek-v4-flash",
+        ("none", "drop"),
+        (65_536, None),
+    ),
 ];
 
 /// Providers that sell a subscription; the rest are API-key-only.

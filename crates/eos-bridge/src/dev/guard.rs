@@ -94,8 +94,12 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/artifacts/refresh"),
     // Fetches the model list from Anthropic with the token of a sign-in, renewed the same way.
     ("POST", "/api/model-catalog/refresh"),
-    // Reads a ChatGPT account's model list from OpenAI on its sign-in, renewed the same way.
+    // Reads each provider's model list from it, on the user's sign-in or key.
     ("GET", "/api/providers"),
+    // A provider's key: checked against the provider, kept in the system's secret store.
+    ("POST", "/api/backends"),
+    ("POST", "/api/backends/test"),
+    ("DELETE", "/api/backends/{name}"),
     // Sync: talks to the relay's vault.
     ("POST", "/api/sync/create"),
     ("POST", "/api/sync/join"),
