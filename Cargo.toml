@@ -87,17 +87,17 @@ eos-workers = { path = "crates/eos-workers" }
 # The agent engine (eos-agent-sdk), from its repository at one commit: change every `rev`
 # together. To build against a local checkout instead, see DEVELOPMENT.md ("The agent engine").
 # Only `eos-engine` (sessions) and `eos-auth` (sign-in) may depend on these.
-eos-agent-anthropic = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-compat = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-core = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-engine = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-mock-api = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-openai = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-sdk = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-skills = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-testkit = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-tools-session = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
-eos-agent-types = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "98e1f92089e85bb7bf110690760590b39e74da6e" }
+eos-agent-anthropic = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-compat = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-core = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-engine = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-mock-api = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-openai = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-sdk = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-skills = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-testkit = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-tools-session = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
+eos-agent-types = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "3e0e33b975f613d132ffc146b9a7b5d0b12ccefc" }
 
 aes-gcm = "0.11"
 anyhow = "1"
