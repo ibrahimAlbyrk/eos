@@ -20,7 +20,7 @@ fn the_defaults_are_todays() {
     assert_eq!(rejected, None);
     assert_eq!(config.daemon.db_file, "/Users/me/.eos/state.db");
     assert_eq!(config.daemon.sse_keepalive_ms, 25_000);
-    assert_eq!(config.events.max_per_worker, 20_000);
+    assert_eq!(config.events.max_per_worker, 0, "a chat keeps its whole log");
     assert_eq!(config.permissions.default_ttl_ms, 0);
     assert_eq!(config.defaults.orchestrator.backend, "claude-opus");
     assert_eq!(config.compaction.threshold, 0.7);
@@ -67,7 +67,7 @@ fn the_environment_overrides_a_default_and_the_file_overrides_both() {
     let (config, _) = resolve(&host(&env), None);
     assert_eq!(config.daemon.sse_keepalive_ms, 1000);
     assert!(!config.remote.enabled);
-    assert_eq!(config.events.max_per_worker, 20_000, "not a number: the default stays");
+    assert_eq!(config.events.max_per_worker, 0, "not a number: the default stays");
     assert_eq!(config.peer.port, 0, "an empty value reads as 0, as Number(\"\") does");
 
     let (config, rejected) =

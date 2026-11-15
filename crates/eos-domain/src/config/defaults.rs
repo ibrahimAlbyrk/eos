@@ -114,7 +114,7 @@ pub(super) fn defaults(host: &Host) -> Value {
             "hydrateEnvFiles": env.text("EOS_HYDRATE_ENV_FILES", "") == "1",
         }),
     );
-    put("events", json!({ "maxPerWorker": env.int("EOS_EVENTS_MAX_PER_WORKER", 20_000) }));
+    put("events", json!({ "maxPerWorker": env.int("EOS_EVENTS_MAX_PER_WORKER", 0) }));
     put("permissions", json!({ "defaultTtlMs": env.int("EOS_PERMISSION_TTL_MS", 0) }));
     put("prices", prices());
     put("mcp", json!({ "orchestrator": agent_mcp(), "worker": agent_mcp() }));

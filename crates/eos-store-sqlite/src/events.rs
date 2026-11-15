@@ -1,9 +1,10 @@
 //! `events`.
 //!
-//! Retention: each worker keeps its newest `events_max_per_worker` rows. The
-//! check runs every [`PRUNE_CHECK_EVERY`] appends per worker, so a log
-//! oscillates between the bound and the bound plus that slack; start-up
-//! sweeps every worker once (`prune_all`).
+//! Retention: a worker keeps its whole log unless `events_max_per_worker` sets
+//! a bound; then it keeps its newest that-many rows. The check runs every
+//! [`PRUNE_CHECK_EVERY`] appends per worker, so a bounded log oscillates
+//! between the bound and the bound plus that slack; start-up sweeps every
+//! worker once (`prune_all`).
 
 use eos_contracts::WorkerEventType;
 use eos_core::Error;

@@ -10,17 +10,11 @@ use eos_kit_sqlite::{Db, Receipt, Stats};
 
 use crate::tx::{Shared, SqliteTx};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Default)]
 pub struct StoreOptions {
     /// Each worker keeps its newest this-many events (`events.maxPerWorker`);
-    /// 0 keeps them all.
+    /// 0, the default, keeps them all.
     pub events_max_per_worker: i64,
-}
-
-impl Default for StoreOptions {
-    fn default() -> Self {
-        Self { events_max_per_worker: 20_000 }
-    }
 }
 
 /// A job's failure on its way through the kit, which wants its own error convertible.

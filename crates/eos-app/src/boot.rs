@@ -35,7 +35,7 @@ pub(crate) fn finish_snapshot(backup: &StartupBackup, snapshot: &std::path::Path
 const DELIVERED_MESSAGES_KEPT_MS: i64 = 24 * 60 * 60 * 1000;
 
 /// The data work of start-up, before anything can read or announce: delivered messages older than a day are
-/// forgotten, each worker's event log is cut to its bound, permission asks
+/// forgotten, each worker's event log is cut to its bound when one is set, permission asks
 /// that expired while the app was down are denied, and rows whose process
 /// died with the last run are parked or closed (no agent is alive yet).
 pub(crate) fn settle(
