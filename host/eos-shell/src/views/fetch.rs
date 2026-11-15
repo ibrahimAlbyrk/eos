@@ -10,6 +10,7 @@ use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{self, *};
 use tokio::sync::oneshot;
 
+use crate::catch::guarded;
 use crate::native::buffer::received;
 
 /// The largest answer kept: an account document is a few kilobytes.
@@ -32,25 +33,29 @@ wrap_urlrequest_client! {
 
     impl UrlrequestClient {
         fn on_download_data(&self, _request: Option<&mut Urlrequest>, data: *const u8, data_length: usize) {
-            let bytes = received(data, data_length);
-            let mut st = self.state.borrow_mut();
-            if st.body.len() + bytes.len() > MAX_BODY {
-                st.too_big = true;
-            } else {
-                st.body.extend_from_slice(&bytes);
-            }
+            guarded("a fetch's data", || {
+                let bytes = received(data, data_length);
+                let mut st = self.state.borrow_mut();
+                if st.body.len() + bytes.len() > MAX_BODY {
+                    st.too_big = true;
+                } else {
+                    st.body.extend_from_slice(&bytes);
+                }
+            }, || ());
         }
 
         fn on_request_complete(&self, request: Option<&mut Urlrequest>) {
-            let ok = request.is_some_and(|r| {
-                r.request_status() == UrlrequestStatus::SUCCESS && r.response().is_some_and(|resp| resp.status() == 200)
-            });
-            let mut st = self.state.borrow_mut();
-            let body = (ok && !st.too_big).then(|| std::mem::take(&mut st.body));
-            st.request = None;
-            if let Some(done) = st.done.take() {
-                let _ = done.send(body);
-            }
+            guarded("a fetch's end", || {
+                let ok = request.is_some_and(|r| {
+                    r.request_status() == UrlrequestStatus::SUCCESS && r.response().is_some_and(|resp| resp.status() == 200)
+                });
+                let mut st = self.state.borrow_mut();
+                let body = (ok && !st.too_big).then(|| std::mem::take(&mut st.body));
+                st.request = None;
+                if let Some(done) = st.done.take() {
+                    let _ = done.send(body);
+                }
+            }, || ());
         }
     }
 }

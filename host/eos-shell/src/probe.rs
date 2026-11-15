@@ -23,6 +23,11 @@ const KEPT: usize = 512;
 static EVENTS: OnceLock<Mutex<VecDeque<(String, Value)>>> = OnceLock::new();
 const EVENTS_KEPT: usize = 64;
 
+/// Whether the dashboard's DevTools events are read at all: only while a probe runs.
+pub(crate) fn wants_dashboard_events(_method: &str) -> bool {
+    EVENTS.get().is_some()
+}
+
 /// The dashboard's DevTools event handler (main thread): kept for the probe, else dropped.
 pub(crate) fn dashboard_event(method: &str, params: Value) {
     if let Some(events) = EVENTS.get() {

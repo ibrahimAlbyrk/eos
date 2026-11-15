@@ -88,14 +88,36 @@ pub fn inject_script(html: &str, script: &str) -> String {
     }
 }
 
+/// The bundler's file names in `assets/`: `<name>-<8 characters of the content's hash>.<ext>`.
+/// Such a file never changes under its name; a source map (`….js.map`) is not one of them.
+fn content_hashed(rel: &str) -> bool {
+    let Some(name) = rel.strip_prefix("assets/") else { return false };
+    let Some((stem, ext)) = name.rsplit_once('.') else { return false };
+    let Some(hash) = stem.len().checked_sub(8).and_then(|at| stem.get(at..)) else { return false };
+    !name.contains('/')
+        && !ext.is_empty()
+        && stem.len() > 9
+        && stem.as_bytes()[stem.len() - 9] == b'-'
+        && hash.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+}
+
+/// What names one version of a file: its size and modification time.
+fn etag(meta: &std::fs::Metadata) -> String {
+    let modified =
+        meta.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_nanos());
+    format!("\"{modified:x}-{:x}\"", meta.len())
+}
+
 #[derive(Debug, Clone)]
 pub struct Assets {
     root: PathBuf,
+    /// The root with its links resolved, once that succeeded.
+    canonical: std::sync::Arc<std::sync::OnceLock<PathBuf>>,
 }
 
 impl Assets {
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Assets { root: root.into() }
+        Assets { root: root.into(), canonical: Default::default() }
     }
 
     pub fn root(&self) -> &Path {
@@ -111,6 +133,15 @@ impl Assets {
         let rel = percent_decode(rel);
         let rel = if rel.is_empty() { "index.html".to_string() } else { rel };
         let Some(full) = self.contained(&rel) else { return Response::not_found() };
+        let tag = content_hashed(&rel).then(|| std::fs::metadata(&full).ok().map(|m| etag(&m))).flatten();
+        if let Some(tag) = &tag
+            && req.header("range").is_none()
+            && req.header("if-none-match").is_some_and(|asked| matches_etag(asked, tag))
+        {
+            return Response { status: 304, headers: Vec::new(), body: Vec::new() }
+                .with("etag", tag)
+                .with("cache-control", IMMUTABLE);
+        }
         let Ok(bytes) = std::fs::read(&full) else { return Response::not_found() };
         if rel == "index.html" {
             let html = String::from_utf8_lossy(&bytes);
@@ -123,23 +154,40 @@ impl Assets {
                 .with("cache-control", "no-store");
         }
         let len = bytes.len() as u64;
-        let base = |status: u16, body: Vec<u8>| {
-            Response::new(status, mime(&rel), body).with("accept-ranges", "bytes").with("cache-control", "no-cache")
+        let base = |status: u16, body: Vec<u8>, kept: bool| {
+            let r = Response::new(status, mime(&rel), body).with("accept-ranges", "bytes");
+            match tag.as_deref().filter(|_| kept) {
+                Some(tag) => r.with("cache-control", IMMUTABLE).with("etag", tag),
+                None => r.with("cache-control", "no-cache"),
+            }
         };
         match range::slice(req.header("range"), len) {
-            Slice::Whole => base(200, bytes),
-            Slice::Part { first, last } => base(206, bytes[first as usize..=last as usize].to_vec())
+            Slice::Whole => base(200, bytes, true),
+            Slice::Part { first, last } => base(206, bytes[first as usize..=last as usize].to_vec(), true)
                 .with("content-range", &range::content_range(first, last, len)),
-            Slice::Unsatisfiable => base(416, Vec::new()).with("content-range", &format!("bytes */{len}")),
+            Slice::Unsatisfiable => base(416, Vec::new(), false).with("content-range", &format!("bytes */{len}")),
         }
     }
 
     /// The file for `rel`, only when it really lies in the bundle root (links resolved).
     fn contained(&self, rel: &str) -> Option<PathBuf> {
-        let root = self.root.canonicalize().ok()?;
+        let root = match self.canonical.get() {
+            Some(root) => root,
+            None => {
+                let root = self.root.canonicalize().ok()?;
+                self.canonical.get_or_init(|| root)
+            }
+        };
         let full = root.join(rel).canonicalize().ok()?;
-        (full.starts_with(&root) && full.is_file()).then_some(full)
+        (full.starts_with(root) && full.is_file()).then_some(full)
     }
+}
+
+const IMMUTABLE: &str = "public, max-age=31536000, immutable";
+
+/// Whether an `If-None-Match` list names `tag` (weak or strong, or `*`).
+fn matches_etag(asked: &str, tag: &str) -> bool {
+    asked.split(',').map(str::trim).any(|t| t == "*" || t.strip_prefix("W/").unwrap_or(t) == tag)
 }
 
 #[cfg(test)]
@@ -218,6 +266,78 @@ mod tests {
         let past = assets.serve("assets/app.js", &get(&[("range", "bytes=10-")]), None);
         assert_eq!(past.status, 416);
         assert_eq!(past.header("content-range"), Some("bytes */10"));
+    }
+
+    #[test]
+    fn only_content_hashed_names_are_kept() {
+        for rel in ["assets/index-bbbBqeQQ.css", "assets/TerminalView-Ab_9-xYz.js", "assets/geist-Q1w2E3r4.woff2"] {
+            assert!(content_hashed(rel), "{rel}");
+        }
+        for rel in [
+            "index.html",
+            "logo.png",
+            "assets/app.js",
+            "assets/index-bbbBqeQQ.js.map",
+            "assets/index-bbbBqeQ.js",
+            "assets/index-bbbBqeQQ9.js",
+            "assets/index-bbb.qeQQ.js",
+            "assets/sub/index-bbbBqeQQ.js",
+            "other/index-bbbBqeQQ.js",
+            "assets/index-bbbBqeQQ.",
+        ] {
+            assert!(!content_hashed(rel), "{rel}");
+        }
+    }
+
+    #[test]
+    fn a_content_hashed_file_is_kept_and_asked_again_by_its_tag() {
+        let (dir, assets) = bundle();
+        std::fs::write(dir.path().join("dist/assets/index-bbbBqeQQ.js"), "0123456789").unwrap();
+        std::fs::write(dir.path().join("dist/assets/index-bbbBqeQQ.js.map"), "{}").unwrap();
+        let rel = "assets/index-bbbBqeQQ.js";
+
+        let whole = assets.serve(rel, &get(&[]), None);
+        assert_eq!((whole.status, whole.body.as_slice()), (200, b"0123456789".as_slice()));
+        assert_eq!(whole.header("cache-control"), Some(IMMUTABLE));
+        assert_eq!(whole.header("content-type"), Some("text/javascript"));
+        assert_eq!(whole.header("accept-ranges"), Some("bytes"));
+        let tag = whole.header("etag").unwrap().to_owned();
+        assert!(tag.starts_with('"') && tag.ends_with('"'), "{tag}");
+
+        for asked in [tag.clone(), format!("W/{tag}"), format!("\"x\", {tag}"), "*".into()] {
+            let again = assets.serve(rel, &get(&[("If-None-Match", &asked)]), None);
+            assert_eq!((again.status, again.body.len()), (304, 0), "{asked}");
+            assert_eq!(again.header("etag"), Some(tag.as_str()));
+            assert_eq!(again.header("cache-control"), Some(IMMUTABLE));
+        }
+        let other = assets.serve(rel, &get(&[("if-none-match", "\"other\"")]), None);
+        assert_eq!((other.status, other.body.as_slice()), (200, b"0123456789".as_slice()));
+
+        // A range is always answered with its bytes.
+        let part = assets.serve(rel, &get(&[("range", "bytes=2-5"), ("if-none-match", &tag)]), None);
+        assert_eq!((part.status, part.body.as_slice()), (206, b"2345".as_slice()));
+        assert_eq!(part.header("cache-control"), Some(IMMUTABLE));
+        let past = assets.serve(rel, &get(&[("range", "bytes=10-")]), None);
+        assert_eq!((past.status, past.header("cache-control"), past.header("etag")), (416, Some("no-cache"), None));
+
+        // What is not content-hashed is answered as before.
+        for rel in ["assets/index-bbbBqeQQ.js.map", "assets/app.js", "logo.png"] {
+            std::fs::write(dir.path().join("dist/logo.png"), "png").unwrap();
+            let r = assets.serve(rel, &get(&[("if-none-match", "*")]), None);
+            assert_eq!((r.status, r.header("cache-control"), r.header("etag")), (200, Some("no-cache"), None), "{rel}");
+        }
+        let entry = assets.serve("index.html", &get(&[("if-none-match", "*")]), None);
+        assert_eq!((entry.status, entry.header("cache-control"), entry.header("etag")), (200, Some("no-store"), None));
+    }
+
+    #[test]
+    fn a_bundle_that_appears_later_is_served() {
+        let dir = Dir::new("assets-later");
+        let assets = Assets::new(dir.path().join("dist"));
+        assert_eq!(assets.serve("index.html", &get(&[]), None).status, 404);
+        std::fs::create_dir_all(dir.path().join("dist")).unwrap();
+        std::fs::write(dir.path().join("dist/index.html"), "<head></head>").unwrap();
+        assert_eq!(assets.clone().serve("index.html", &get(&[]), None).status, 200);
     }
 
     #[test]

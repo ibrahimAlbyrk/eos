@@ -1,0 +1,175 @@
+No panic out of the message pump's callbacks.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7 (crates.io) + 0001, 0003, 0004, applied in
+vendor/tauri-runtime-cef. Not offered upstream.
+
+Why: the pump's NSTimer target (`scheduleWork:`, `timerTimeout:`) is called from AppKit and
+the browser process handler (the pump's `OnScheduleMessagePumpWork`, and the three other
+callbacks of that handler) from CEF's C code; a panic unwinding out of one aborts the app
+with every agent in it. Each is caught and logged: the pump clears its lock's poison and
+starts over from its 33 ms timer, the handler answers CEF as if it had done nothing
+(`on_already_running_app_relaunch`: handled, as it answers today for a link it does not
+know). A panic inside a callback CEF makes from `CefDoMessageLoopWork` still aborts in
+CEF's own frame before it reaches the timer: those callbacks are guarded where they reach
+the app (`eos-shell/src/catch.rs`).
+
+Not here: a slower pump while the window is hidden or covered. Tried with a 250 ms
+safety-net timer while the app was inactive and no window visible: requests through the
+in-process scheme handler then waited up to a timer's length (`responsiveness.py`: whole
+trips of 240-285 ms, frame gaps of 300-570 ms while covered), so CEF relies on the timer
+for some of its work and the 33 ms cap stays.
+
+diff --git a/src/cef_impl/client/process.rs b/src/cef_impl/client/process.rs
+index 705a097..9769430 100644
+--- a/src/cef_impl/client/process.rs
++++ b/src/cef_impl/client/process.rs
+@@ -12,6 +12,15 @@ use tauri_runtime::UserEvent;
+ 
+ use crate::runtime::{Message, RuntimeContext};
+ 
++/// Runs one callback CEF makes into the app. A panic would unwind into CEF's C code, which
++/// aborts the app: it is caught, logged, and CEF gets `fallback`.
++fn guarded<T>(what: &str, fallback: T, f: impl FnOnce() -> T) -> T {
++  std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or_else(|_| {
++    log::error!("the browser process handler panicked in {what}; answered without it");
++    fallback
++  })
++}
++
+ wrap_browser_process_handler! {
+   pub(crate) struct TauriCefBrowserProcessHandler<T: UserEvent> {
+     context: RuntimeContext<T>,
+@@ -23,26 +32,32 @@ wrap_browser_process_handler! {
+ 
+   impl BrowserProcessHandler {
+     fn on_context_initialized(&self) {
+-      self.context_initialized.store(true, Ordering::SeqCst);
+-      self.context.wake_event_loop();
++      guarded("on_context_initialized", (), || {
++        self.context_initialized.store(true, Ordering::SeqCst);
++        self.context.wake_event_loop();
++      })
+     }
+ 
+     fn on_schedule_message_pump_work(&self, delay_ms: i64) {
+-      self.context.cef_pump.on_schedule_message_pump_work(delay_ms);
+-      self.context.wake_event_loop();
++      guarded("on_schedule_message_pump_work", (), || {
++        self.context.cef_pump.on_schedule_message_pump_work(delay_ms);
++        self.context.wake_event_loop();
++      })
+     }
+ 
+     fn on_before_child_process_launch(&self, command_line: Option<&mut CommandLine>) {
+-      // Pass an overridden CEF API version to the child on its command line.
+-      // See `API_VERSION_SWITCH`.
+-      if let Some(command_line) = command_line
+-        && let Some(version) = self.api_version
+-      {
+-        command_line.append_switch_with_value(
+-          Some(&CefString::from(crate::runtime::API_VERSION_SWITCH)),
+-          Some(&CefString::from(version.to_string().as_str())),
+-        );
+-      }
++      guarded("on_before_child_process_launch", (), || {
++        // Pass an overridden CEF API version to the child on its command line.
++        // See `API_VERSION_SWITCH`.
++        if let Some(command_line) = command_line
++          && let Some(version) = self.api_version
++        {
++          command_line.append_switch_with_value(
++            Some(&CefString::from(crate::runtime::API_VERSION_SWITCH)),
++            Some(&CefString::from(version.to_string().as_str())),
++          );
++        }
++      })
+     }
+ 
+     fn on_already_running_app_relaunch(
+@@ -50,23 +65,25 @@ wrap_browser_process_handler! {
+       command_line: Option<&mut CommandLine>,
+       _current_directory: Option<&CefString>,
+     ) -> std::os::raw::c_int {
+-      let Some(command_line) = command_line else {
+-        return 0;
+-      };
+-      let mut list = CefStringList::new();
+-      command_line.arguments(Some(&mut list));
+-      let args: Vec<String> = list.into_iter().collect();
+-      if let Some(first_arg) = args.first()
+-        && let Ok(url) = url::Url::parse(first_arg)
+-      {
+-        let scheme = url.scheme().to_string();
+-        if self.deep_link_schemes.iter().any(|s| s == &scheme) {
+-          let _ = self.context.send_message(Message::Opened(vec![url]));
+-          return 1;
++      guarded("on_already_running_app_relaunch", 1, || {
++        let Some(command_line) = command_line else {
++          return 0;
++        };
++        let mut list = CefStringList::new();
++        command_line.arguments(Some(&mut list));
++        let args: Vec<String> = list.into_iter().collect();
++        if let Some(first_arg) = args.first()
++          && let Ok(url) = url::Url::parse(first_arg)
++        {
++          let scheme = url.scheme().to_string();
++          if self.deep_link_schemes.iter().any(|s| s == &scheme) {
++            let _ = self.context.send_message(Message::Opened(vec![url]));
++            return 1;
++          }
+         }
+-      }
+-      // TODO: add event
+-      1
++        // TODO: add event
++        1
++      })
+     }
+   }
+ }
+diff --git a/src/external_message_pump/macos.rs b/src/external_message_pump/macos.rs
+index 546a828..5ef6832 100644
+--- a/src/external_message_pump/macos.rs
++++ b/src/external_message_pump/macos.rs
+@@ -36,7 +36,8 @@ define_class! {
+       let Some(state) = self.ivars().upgrade() else {
+         return;
+       };
+-      state.on_schedule_work(delay_ms.as_i64());
++      let delay_ms = delay_ms.as_i64();
++      super::guarded(&state, "scheduleWork", || state.on_schedule_work(delay_ms));
+     }
+ 
+     #[unsafe(method(timerTimeout:))]
+@@ -44,7 +45,7 @@ define_class! {
+       let Some(state) = self.ivars().upgrade() else {
+         return;
+       };
+-      state.on_timer_timeout();
++      super::guarded(&state, "timerTimeout", || state.on_timer_timeout());
+     }
+   }
+ 
+diff --git a/src/external_message_pump/mod.rs b/src/external_message_pump/mod.rs
+index 51fe332..29181c0 100644
+--- a/src/external_message_pump/mod.rs
++++ b/src/external_message_pump/mod.rs
+@@ -67,6 +67,17 @@ const K_TIMER_DELAY_PLACEHOLDER: i64 = i32::MAX as i64;
+ // DoWork().
+ const K_MAX_TIMER_DELAY: i64 = 1000 / 30; // 30fps
+ 
++/// Runs one callback of the pump. A panic would unwind into the native loop, which
++/// aborts the app: it is caught, logged, and the pump starts over from its timer.
++fn guarded(state: &PumpState, what: &str, f: impl FnOnce()) {
++  if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
++    log::error!("the CEF message pump panicked in {what}; it carries on");
++    state.platform.clear_poison();
++    state.is_active.store(false, Ordering::SeqCst);
++    state.on_schedule_message_pump_work(K_MAX_TIMER_DELAY);
++  }
++}
++
+ /// Handle to the external message pump. Cloning shares the same underlying
+ /// state; the backing platform resources are released when the last clone drops.
+ #[derive(Clone)]

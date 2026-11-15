@@ -179,11 +179,14 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
             return 1;
         }
     };
+    // A program of the system's: it runs while the main thread gets on with the rest.
+    let reading_proxy = std::thread::Builder::new().name("eos-proxy".into()).spawn(SystemProxy::read);
     crate::log::init(options.logs.as_deref());
     log("shell", &format!("started: version {}, pid {}", options.version, std::process::id()));
     let rt = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(2)
         .thread_name("eos-shell")
+        .on_thread_start(|| eos_platform::set_thread_class(eos_platform::ThreadClass::UserInitiated))
         .enable_all()
         .build()
     {
@@ -193,14 +196,17 @@ pub(crate) fn run(options: Options, hooks: Arc<dyn Hooks>) -> i32 {
             return 1;
         }
     };
-    let system_proxy = SystemProxy::read();
+    crate::views::remove_throwaway_profiles(&options.data_dir.join("profile"));
+    let system_proxy = match reading_proxy {
+        Ok(reading) => reading.join().unwrap_or_default(),
+        Err(_) => SystemProxy::read(),
+    };
     if system_proxy.automatic {
         log(
             "lan",
             "the system uses a proxy script or auto-discovery, which the app cannot follow: it connects directly",
         );
     }
-    crate::views::remove_throwaway_profiles(&options.data_dir.join("profile"));
     let Some(cef) = engine(&options, &system_proxy) else { return 1 };
     let shell = Arc::new(Shell {
         options,
@@ -476,7 +482,7 @@ impl Shell {
                 return;
             }
         }
-        match Cdp::attach(&dashboard, crate::probe::dashboard_event) {
+        match Cdp::attach(&dashboard, crate::probe::wants_dashboard_events, crate::probe::dashboard_event) {
             Ok(cdp) => {
                 if let Some(views) = self.views.get() {
                     views.set_dashboard(dashboard.clone(), cdp);
@@ -495,7 +501,7 @@ impl Shell {
 
     fn on_main(&self, f: impl FnOnce() + Send + 'static) {
         if let Some(app) = self.app.get() {
-            let _ = app.run_on_main_thread(f);
+            let _ = app.run_on_main_thread(move || crate::catch::guarded("a main-thread task", f, || ()));
         }
     }
 

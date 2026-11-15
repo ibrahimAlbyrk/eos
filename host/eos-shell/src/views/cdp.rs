@@ -16,6 +16,11 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 
 type Pending = Arc<Mutex<HashMap<i32, oneshot::Sender<(bool, Vec<u8>)>>>>;
 
+/// For a view whose events nobody reads.
+pub(crate) fn no_events(_method: &str) -> bool {
+    false
+}
+
 #[derive(Clone)]
 pub(crate) struct Cdp {
     webview: tauri::Webview,
@@ -23,10 +28,11 @@ pub(crate) struct Cdp {
 }
 
 impl Cdp {
-    /// Attaches to the view; `on_event` gets every protocol event (on the main thread: it
-    /// must return quickly).
+    /// Attaches to the view; `on_event` gets every protocol event `wants` names (on the main
+    /// thread: it must return quickly). Any other event is dropped unread.
     pub(crate) fn attach(
         webview: &tauri::Webview,
+        wants: fn(&str) -> bool,
         on_event: impl Fn(&str, Value) + Send + Sync + 'static,
     ) -> Result<Self, ViewError> {
         let pending: Pending = Arc::default();
@@ -39,9 +45,12 @@ impl Cdp {
                         let _ = waiter.send((success, result));
                     }
                 }
-                DevToolsProtocol::Event { method, params } => {
-                    on_event(&method, serde_json::from_slice(&params).unwrap_or(Value::Null))
-                }
+                DevToolsProtocol::Event { method, .. } if !wants(&method) => {}
+                DevToolsProtocol::Event { method, params } => crate::catch::guarded(
+                    "a DevTools event",
+                    || on_event(&method, serde_json::from_slice(&params).unwrap_or(Value::Null)),
+                    || (),
+                ),
                 DevToolsProtocol::Message(_) => {}
             })
             .map_err(|e| ViewError::Shell(e.to_string()))?;

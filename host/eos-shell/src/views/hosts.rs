@@ -84,7 +84,7 @@ impl HostShell {
             })
             .map_err(|e| e.to_string())?;
         rx.recv_timeout(Duration::from_secs(10)).map_err(|e| e.to_string())??;
-        let cdp = Cdp::attach(&webview, |_, _| {}).map_err(|e| e.to_string())?;
+        let cdp = Cdp::attach(&webview, super::cdp::no_events, |_, _| {}).map_err(|e| e.to_string())?;
         let entry = tauri::Url::parse(&format!("http://{APP_HOST}/index.html")).map_err(|e| e.to_string())?;
         webview.navigate(entry).map_err(|e| e.to_string())?;
         Ok(View::new(webview, cdp, false, folder.to_string_lossy().into_owned()))

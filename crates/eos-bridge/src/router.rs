@@ -10,11 +10,16 @@
 //! - **the panic boundary**: the runtime turns a handler's panic into a 500; should the
 //!   mapping task itself die, the request is still answered instead of left hanging.
 
+use std::future::{Future, poll_fn};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::task::Poll;
+
+use bytes::Bytes;
 
 use eos_runtime::access::{Caller, LocalCaller};
-use eos_runtime::http::{Body, Method, Request, Response};
+use eos_runtime::http::{Body, BodyError, BodyStream, Method, Request, Response};
+use eos_runtime::ordered::Ordered;
 use eos_runtime::router::Router;
 
 use crate::core::{Core, Plane};
@@ -34,6 +39,8 @@ pub struct RouterCore {
     classify: Classify,
     rt: tokio::runtime::Handle,
     served: AtomicU64,
+    /// The core's ordered lane, whose counters the status shows.
+    lane: Option<Ordered>,
 }
 
 impl std::fmt::Debug for RouterCore {
@@ -73,7 +80,7 @@ impl RouterCore {
         classify: Classify,
         rt: tokio::runtime::Handle,
     ) -> Self {
-        RouterCore { router, raw: None, ui_token: ui_token.into(), classify, rt, served: AtomicU64::new(0) }
+        RouterCore { router, raw: None, ui_token: ui_token.into(), classify, rt, served: AtomicU64::new(0), lane: None }
     }
 
     /// The router that answers the raw-content origin (`http://raw.eos.localhost`): files as
@@ -81,6 +88,13 @@ impl RouterCore {
     #[must_use]
     pub fn with_raw(mut self, raw: Arc<Router>) -> Self {
         self.raw = Some(raw);
+        self
+    }
+
+    /// The core's ordered lane: the status shows how far behind it is.
+    #[must_use]
+    pub fn with_lane(mut self, lane: Ordered) -> Self {
+        self.lane = Some(lane);
         self
     }
 
@@ -100,6 +114,16 @@ impl RouterCore {
     }
 }
 
+/// Chunks of a streamed body that are ready together are handed to the page together, up
+/// to about this many bytes: one wake of its reader instead of one per event.
+const READY_BATCH: usize = 64 * 1024;
+
+/// What else the stream has ready now, without waiting.
+async fn ready_now(stream: &mut BodyStream) -> Poll<Option<Result<Bytes, BodyError>>> {
+    let mut next = std::pin::pin!(stream.next());
+    poll_fn(|cx| Poll::Ready(next.as_mut().poll(cx))).await
+}
+
 /// Sends the response to the page: its head, then its body as it comes.
 async fn pump(response: Response, sink: &Sink) {
     let Response { status, headers, body, .. } = response;
@@ -107,15 +131,37 @@ async fn pump(response: Response, sink: &Sink) {
         headers.into_iter().map(|(name, value)| (name.into_owned(), value.into_owned())).collect();
     match body {
         Body::Empty => sink.respond(status, headers, b""),
-        Body::Bytes(bytes) => sink.respond(status, headers, &bytes),
+        Body::Bytes(bytes) => sink.respond_bytes(status, headers, bytes),
         Body::Stream(mut stream) => {
             sink.head(Head { status, headers });
             loop {
                 tokio::select! {
                     next = stream.next() => match next {
                         Some(Ok(chunk)) => {
-                            if !sink.chunk_async(&chunk).await {
+                            // Whole chunks, in order: never split, never reordered.
+                            let (mut size, mut batch, mut after) = (chunk.len(), vec![chunk], Poll::Pending);
+                            while size < READY_BATCH {
+                                match ready_now(&mut stream).await {
+                                    Poll::Ready(Some(Ok(more))) => {
+                                        size += more.len();
+                                        batch.push(more);
+                                    }
+                                    other => {
+                                        after = other;
+                                        break;
+                                    }
+                                }
+                            }
+                            if !sink.chunks_async(batch).await {
                                 break;
+                            }
+                            match after {
+                                Poll::Ready(Some(Err(error))) => {
+                                    tracing::warn!(target: "eos::bridge", %error, "a response body failed midway");
+                                    break;
+                                }
+                                Poll::Ready(None) => break,
+                                _ => {}
                             }
                         }
                         Some(Err(error)) => {
@@ -140,7 +186,10 @@ impl Core for RouterCore {
     }
 
     fn status(&self) -> serde_json::Value {
-        serde_json::json!({ "rust": self.served() })
+        match &self.lane {
+            Some(lane) => serde_json::json!({ "rust": self.served(), "lane": lane.stats() }),
+            None => serde_json::json!({ "rust": self.served() }),
+        }
     }
 
     fn call(&self, plane: Plane, req: Req, sink: Sink) {
@@ -430,6 +479,37 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(5)).await;
         }
         panic!("the producer kept running after the page closed the stream");
+    }
+
+    /// Frames ready together reach the page together, every byte in its place: a burst
+    /// larger than one hand-off, frames of every size, then a failure that ends the body.
+    #[tokio::test]
+    async fn ready_frames_go_out_together_whole_and_in_order() {
+        let (tx, stream) = Body::channel(1024);
+        let mut expected = Vec::new();
+        for i in 0..700u32 {
+            let frame = format!("id: {i}\ndata: {}\n\n", "x".repeat((i as usize * 37) % 900));
+            expected.extend_from_slice(frame.as_bytes());
+            tx.send(frame).await.expect("queued");
+        }
+        let (sink, body) = channel();
+        let pumping = tokio::spawn(async move {
+            pump(Response::new(200).body(stream), &sink).await;
+        });
+        let all = read_to_end_after(&body, async move {
+            tx.send("data: last\n\n").await.expect("queued");
+            tx.fail("broke").await;
+        })
+        .await;
+        pumping.await.expect("pumped");
+        expected.extend_from_slice(b"data: last\n\n");
+        assert_eq!(all.len(), expected.len());
+        assert!(all == expected, "the bytes went out as they came");
+    }
+
+    async fn read_to_end_after(body: &PageBody, then: impl std::future::Future<Output = ()>) -> Vec<u8> {
+        then.await;
+        read_to_end(body).await
     }
 
     #[tokio::test]

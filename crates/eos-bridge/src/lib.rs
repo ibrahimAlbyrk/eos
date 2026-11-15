@@ -17,6 +17,7 @@ pub mod dev;
 pub mod events;
 pub mod host;
 pub mod hosts;
+pub mod in_order;
 pub mod instance;
 pub mod lan_guard;
 pub mod launch;

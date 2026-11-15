@@ -101,6 +101,11 @@ pub(crate) fn remove_throwaway_profiles(root_cache: &std::path::Path) {
     }
 }
 
+/// The DevTools events a browser tab's listeners read (`ViewEvent::Cdp`).
+fn read_by_the_browser(method: &str) -> bool {
+    method.starts_with("Page.") || method.starts_with("Overlay.")
+}
+
 fn profile_dir(name: &str) -> String {
     name.chars().map(|c| if c.is_ascii_alphanumeric() || "._-".contains(c) { c } else { '_' }).collect()
 }
@@ -213,7 +218,7 @@ impl Views {
         let loaded = self.load_profile(std::path::Path::new(&profile));
         let webview = self.window.add_child(builder).map_err(shell_error)?;
         drop(loaded);
-        let cdp = Cdp::attach(&webview, {
+        let cdp = Cdp::attach(&webview, read_by_the_browser, {
             let (listeners, id, me) = (self.listeners.clone(), id.clone(), self.me.clone());
             move |method, params| {
                 if method == "Page.frameNavigated"

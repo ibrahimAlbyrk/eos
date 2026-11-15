@@ -172,7 +172,7 @@ impl Views {
         };
         let builder = create::builder(&format!("app-{n:04x}"), (0.0, 0.0), size, None, policy);
         let webview = self.window.add_child(builder).map_err(shell_error)?;
-        let cdp = Cdp::attach(&webview, |_method, _params| {})?;
+        let cdp = Cdp::attach(&webview, super::cdp::no_events, |_method, _params| {})?;
         let view = View::new(webview, cdp, false, String::new());
         view.webview.hide().map_err(shell_error)?;
         Ok(view)

@@ -8,6 +8,7 @@ use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
+use bytes::Bytes;
 use tokio::sync::Notify;
 
 /// Who in the view made a request. The shell reads it from the browser itself (the frame
@@ -78,7 +79,7 @@ struct State {
     /// `Sink::time_head`: a `Server-Timing` entry to add to the head, timed from then.
     timed: Option<(&'static str, std::time::Instant)>,
     head_waker: Option<Waker>,
-    queue: VecDeque<Vec<u8>>,
+    queue: VecDeque<Bytes>,
     front_off: usize,
     queued: usize,
     done: bool,
@@ -163,17 +164,29 @@ impl Sink {
     /// the request. A stream uses [`Sink::chunk_async`] or [`Sink::offer`] instead, which
     /// respect the reader's pace.
     pub fn chunk(&self, bytes: &[u8]) -> bool {
+        if bytes.is_empty() {
+            return !self.is_cancelled();
+        }
+        self.chunk_all(vec![Bytes::copy_from_slice(bytes)])
+    }
+
+    /// [`Sink::chunk`] of shared bytes: queued as they are, not copied.
+    pub fn chunk_bytes(&self, bytes: Bytes) -> bool {
+        self.chunk_all(vec![bytes])
+    }
+
+    /// Queues `chunks` in order, waking the reader once for all of them.
+    fn chunk_all(&self, chunks: Vec<Bytes>) -> bool {
         if self.is_cancelled() {
             return false;
         }
-        if bytes.is_empty() {
-            return true;
-        }
         let waker = {
             let mut st = self.shared.lock();
-            st.queued += bytes.len();
-            st.queue.push_back(bytes.to_vec());
-            st.read_waker.take()
+            for chunk in chunks.into_iter().filter(|chunk| !chunk.is_empty()) {
+                st.queued += chunk.len();
+                st.queue.push_back(chunk);
+            }
+            if st.queue.is_empty() { None } else { st.read_waker.take() }
         };
         if let Some(waker) = waker {
             waker();
@@ -194,13 +207,18 @@ impl Sink {
 
     /// [`Sink::chunk`] with back-pressure: waits while [`HIGH_WATER`] bytes are unread.
     pub async fn chunk_async(&self, bytes: &[u8]) -> bool {
+        self.chunks_async(vec![Bytes::copy_from_slice(bytes)]).await
+    }
+
+    /// [`Sink::chunk_async`] of several chunks at once, in order, with one wake of the reader.
+    pub async fn chunks_async(&self, chunks: Vec<Bytes>) -> bool {
         loop {
             let room = self.shared.room.notified();
             if self.is_cancelled() {
                 return false;
             }
             if self.shared.lock().queued < HIGH_WATER {
-                return self.chunk(bytes);
+                return self.chunk_all(chunks);
             }
             tokio::select! {
                 _ = room => {}
@@ -222,12 +240,17 @@ impl Sink {
     }
 
     /// A whole response at once.
-    pub fn respond(&self, status: u16, mut headers: Vec<(String, String)>, body: &[u8]) {
+    pub fn respond(&self, status: u16, headers: Vec<(String, String)>, body: &[u8]) {
+        self.respond_bytes(status, headers, Bytes::copy_from_slice(body));
+    }
+
+    /// [`Sink::respond`] with shared bytes: the body is queued as it is, not copied.
+    pub fn respond_bytes(&self, status: u16, mut headers: Vec<(String, String)>, body: Bytes) {
         if !headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-length")) {
             headers.push(("content-length".into(), body.len().to_string()));
         }
         self.head(Head { status, headers });
-        self.chunk(body);
+        self.chunk_bytes(body);
         self.end();
     }
 

@@ -78,6 +78,18 @@ fn label(view: ViewKey) -> String {
     format!("art-{:08x}{view:04x}", std::process::id())
 }
 
+/// The DevTools events `on_cdp` and `surface_event` read.
+fn read_by_artifacts(method: &str) -> bool {
+    method.starts_with("Page.")
+        || matches!(
+            method,
+            "Runtime.bindingCalled"
+                | "Runtime.executionContextCreated"
+                | "Runtime.executionContextsCleared"
+                | "Runtime.executionContextDestroyed"
+        )
+}
+
 /// Reads one main-frame DevTools event of an artifact view as what the pool wants to know.
 fn surface_event(art: &ArtView, method: &str, params: &Value) -> Option<SurfaceEvent> {
     let main = |frame: &str| lock(&art.frame).as_deref() == Some(frame);
@@ -210,7 +222,7 @@ impl ArtifactShell {
         let webview = self.views.window.add_child(builder).map_err(|e| e.to_string())?;
         drop(loaded);
         let me = self.me.clone();
-        let cdp = Cdp::attach(&webview, move |method, params| {
+        let cdp = Cdp::attach(&webview, read_by_artifacts, move |method, params| {
             if let Some(shell) = me.upgrade() {
                 shell.on_cdp(key, method, &params);
             }
@@ -301,7 +313,7 @@ impl ArtifactShell {
                 }
             });
         }
-        let cdp = Cdp::attach(&webview, |_, _| {}).map_err(|e| e.to_string())?;
+        let cdp = Cdp::attach(&webview, super::cdp::no_events, |_, _| {}).map_err(|e| e.to_string())?;
         let url = tauri::Url::parse(&self.viewer.login_url()).map_err(|e| e.to_string())?;
         webview.navigate(url).map_err(|e| e.to_string())?;
         Ok((window, View::new(webview, cdp, true, folder.to_string_lossy().into_owned())))

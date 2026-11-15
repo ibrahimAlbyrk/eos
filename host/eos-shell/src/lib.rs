@@ -6,6 +6,7 @@
 //! in-process handler of the app's own origin, child views for the core, and quitting.
 
 mod app;
+mod catch;
 mod host;
 mod log;
 mod menu;

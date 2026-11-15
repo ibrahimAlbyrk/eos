@@ -15,6 +15,8 @@ use std::time::Duration;
 use tauri::Manager;
 use tauri_runtime_cef::cef::{self, *};
 
+use crate::catch::guarded;
+
 /// Longer than a profile ever takes to open; past it the view is made anyway.
 const PATIENCE: Duration = Duration::from_secs(10);
 
@@ -25,9 +27,11 @@ wrap_request_context_handler! {
 
     impl RequestContextHandler {
         fn on_request_context_initialized(&self, _request_context: Option<&mut RequestContext>) {
-            if let Some(done) = self.done.lock().ok().and_then(|mut done| done.take()) {
-                let _ = done.send(());
-            }
+            guarded("a profile's ready call", || {
+                if let Some(done) = self.done.lock().ok().and_then(|mut done| done.take()) {
+                    let _ = done.send(());
+                }
+            }, || ());
         }
     }
 }

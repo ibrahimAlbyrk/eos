@@ -100,6 +100,7 @@ impl Core for Guarded {
             "rust": self.rust.served(),
             "refused": self.refused.load(Ordering::Relaxed),
             "agentsAllowed": self.allow_agents,
+            "lane": self.rust.status().get("lane").cloned(),
             "routes": self.served_routes.lock().map(|routes| routes.iter().cloned().collect::<Vec<_>>()).unwrap_or_default(),
         })
     }

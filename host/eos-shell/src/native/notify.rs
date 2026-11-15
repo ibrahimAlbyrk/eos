@@ -47,7 +47,7 @@ define_class!(
                 msg_send![request, identifier]
             };
             if let (Some(identifier), Some(clicked)) = (identifier, CLICKED.get()) {
-                clicked(identifier.to_string());
+                crate::catch::guarded("a banner's click", || clicked(identifier.to_string()), || ());
             }
             done.call(());
         }

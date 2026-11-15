@@ -67,6 +67,17 @@ const K_TIMER_DELAY_PLACEHOLDER: i64 = i32::MAX as i64;
 // DoWork().
 const K_MAX_TIMER_DELAY: i64 = 1000 / 30; // 30fps
 
+/// Runs one callback of the pump. A panic would unwind into the native loop, which
+/// aborts the app: it is caught, logged, and the pump starts over from its timer.
+fn guarded(state: &PumpState, what: &str, f: impl FnOnce()) {
+  if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
+    log::error!("the CEF message pump panicked in {what}; it carries on");
+    state.platform.clear_poison();
+    state.is_active.store(false, Ordering::SeqCst);
+    state.on_schedule_message_pump_work(K_MAX_TIMER_DELAY);
+  }
+}
+
 /// Handle to the external message pump. Cloning shares the same underlying
 /// state; the backing platform resources are released when the last clone drops.
 #[derive(Clone)]

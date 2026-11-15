@@ -36,7 +36,8 @@ define_class! {
       let Some(state) = self.ivars().upgrade() else {
         return;
       };
-      state.on_schedule_work(delay_ms.as_i64());
+      let delay_ms = delay_ms.as_i64();
+      super::guarded(&state, "scheduleWork", || state.on_schedule_work(delay_ms));
     }
 
     #[unsafe(method(timerTimeout:))]
@@ -44,7 +45,7 @@ define_class! {
       let Some(state) = self.ivars().upgrade() else {
         return;
       };
-      state.on_timer_timeout();
+      super::guarded(&state, "timerTimeout", || state.on_timer_timeout());
     }
   }
 

@@ -54,7 +54,8 @@ pub struct ViewSpec {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ViewEvent {
-    /// A DevTools protocol event of the view (`Page.frameNavigated`, …).
+    /// A DevTools protocol event of the view: the `Page` and `Overlay` domains
+    /// (`Page.frameNavigated`, …), the ones the browser reads.
     Cdp { method: String, params: Value },
     /// The view asked for a new window (`window.open`, a `target=_blank` link). The shell
     /// opened nothing.
