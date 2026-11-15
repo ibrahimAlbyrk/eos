@@ -520,7 +520,7 @@ impl Sessions {
             let outcome = self.drain(worker_id).await;
             if claim.release() {
                 self.settled(worker_id).await;
-            } else if outcome == crate::dispatch::Drained::Empty && !self.reactions_at_idle(worker_id).await {
+            } else if outcome == crate::dispatch::Drained::Empty && !self.deliver_reactions(worker_id).await {
                 self.0.deps.hooks.idle(worker_id);
             }
         })

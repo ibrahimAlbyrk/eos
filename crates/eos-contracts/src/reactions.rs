@@ -52,7 +52,8 @@ pub struct ReactionsResponse {
 
 impl Validate for ReactionsResponse {}
 
-/// `PUT /workers/:id/reactions/:rowId`: the user's reaction on that message.
+/// `PUT /workers/:id/reactions/:rowId`: the user's reaction on that message;
+/// the answer is the [`Reaction`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SetReactionRequest {
     pub emoji: String,
@@ -68,20 +69,6 @@ impl Validate for SetReactionRequest {
         });
     }
 }
-
-/// The answer to a reaction the user set.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SetReactionResponse {
-    #[serde(flatten)]
-    pub reaction: Reaction,
-    /// Set when the reaction starts a turn of the agent after this long,
-    /// unless it changes first; otherwise it goes with the user's next message.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub wakes_in_ms: Option<i64>,
-}
-
-impl Validate for SetReactionResponse {}
 
 /// `DELETE /workers/:id/reactions/:rowId`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -115,10 +102,9 @@ mod tests {
     #[test]
     fn a_reaction_reads_as_the_dashboard_expects() {
         let mine = Reaction { row_id: 812, actor: ReactionActor::User, emoji: "👍".into(), at: 5, seen: Some(false) };
-        let set = SetReactionResponse { reaction: mine.clone(), wakes_in_ms: Some(2000) };
         assert_eq!(
-            serde_json::to_value(&set).unwrap(),
-            json!({"rowId": 812, "actor": "user", "emoji": "👍", "at": 5, "seen": false, "wakesInMs": 2000})
+            serde_json::to_value(&mine).unwrap(),
+            json!({"rowId": 812, "actor": "user", "emoji": "👍", "at": 5, "seen": false})
         );
         let theirs = Reaction { row_id: 7, actor: ReactionActor::Agent, emoji: "❤️".into(), at: 6, seen: None };
         assert_eq!(

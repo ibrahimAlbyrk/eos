@@ -67,18 +67,15 @@ describe("reactionsStore", () => {
     expect(request).toHaveBeenCalledTimes(3);
   });
 
-  it("shows a click at once, keeps the core's countdown, and replaces the emoji on the next click", async () => {
-    const put = vi.fn(ok({ rowId: 7, actor: "user", emoji: "👍", at: 5, seen: false, wakesInMs: 2000 }));
+  it("shows a click at once and replaces the emoji on the next click", async () => {
+    const put = vi.fn(ok({ rowId: 7, actor: "user", emoji: "👍", at: 5, seen: false }));
     const done = setReaction("w1", 7, "👍", { put });
     expect(getReactions("w1", 7).user).toMatchObject({ emoji: "👍", seen: false });
     expect(await done).toBe(true);
     expect(put).toHaveBeenCalledWith("w1", 7, "👍");
-    expect(getReactions("w1", 7).user.wakesUntil).toBeGreaterThan(Date.now());
 
     await setReaction("w1", 7, "👎", { put: ok({ rowId: 7, actor: "user", emoji: "👎", at: 6, seen: false }) });
-    const user = getReactions("w1", 7).user;
-    expect(user.emoji).toBe("👎");
-    expect(user.wakesUntil).toBeUndefined();
+    expect(getReactions("w1", 7).user.emoji).toBe("👎");
   });
 
   it("takes a reaction back", async () => {
@@ -119,11 +116,11 @@ describe("reactionsStore", () => {
     applyReactionChange({ workerId: "w1", rowId: 4, actor: "agent", emoji: null, at: 2 });
     expect(emojiOf("w1", 4)).toEqual([null, null]);
 
-    await setReaction("w1", 9, "👌", { put: ok({ wakesInMs: 2000 }) });
+    await setReaction("w1", 9, "👌", { put: ok({}) });
     applyReactionChange({ workerId: "w1", rowId: 9, actor: "user", emoji: "👌", at: 3, seen: false });
-    expect(getReactions("w1", 9).user.wakesUntil).toBeGreaterThan(Date.now());
+    expect(getReactions("w1", 9).user).toMatchObject({ emoji: "👌", seen: false });
     applyReactionChange({ workerId: "w1", rowId: 9, actor: "user", emoji: "👌", at: 3, seen: true });
-    expect(getReactions("w1", 9).user).toMatchObject({ emoji: "👌", seen: true, wakesUntil: undefined });
+    expect(getReactions("w1", 9).user).toMatchObject({ emoji: "👌", seen: true });
 
     // A chat this window holds nothing of takes no rows.
     applyReactionChange({ workerId: "w9", rowId: 1, actor: "agent", emoji: "👍", at: 1 });

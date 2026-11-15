@@ -8,7 +8,7 @@ use eos_contracts::{Reaction, ReactionActor, UnknownRecord, WorkerState};
 use eos_core::Error;
 use eos_core::agent::{AgentReactions, ReactTarget};
 use eos_core::store::{EventOrder, EventQuery};
-use eos_sessions::{MessageInput, NoHooks, REACTION_SETTLE_MS, SessionDeps, Sessions, SpawnRequest};
+use eos_sessions::{MessageInput, NoHooks, SessionDeps, Sessions, SpawnRequest};
 use eos_testkit::agent::events;
 use eos_testkit::{
     FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeSleeper, FakeWorktrees, ScriptedRuntime,
@@ -20,14 +20,12 @@ struct Bench {
     sessions: Sessions,
     agents: ScriptedRuntime,
     temp: TempStore,
-    sleeper: Arc<FakeSleeper>,
 }
 
 impl Bench {
     fn new() -> Self {
         let temp = TempStore::new();
         let agents = ScriptedRuntime::new();
-        let sleeper = Arc::new(FakeSleeper::default());
         let sessions = Sessions::new(SessionDeps {
             store: temp.port(),
             runtime: agents.port(),
@@ -39,9 +37,9 @@ impl Bench {
             worktrees: Arc::new(FakeWorktrees::default()),
             recents: Arc::new(FakeRecents::default()),
             hooks: Arc::new(NoHooks),
-            sleeper: sleeper.clone(),
+            sleeper: Arc::new(FakeSleeper::default()),
         });
-        Self { sessions, agents, temp, sleeper }
+        Self { sessions, agents, temp }
     }
 
     /// A chat of the given role whose agent answered its first prompt with `answer`.
@@ -109,16 +107,6 @@ impl Bench {
         self.sessions.reactions(id, 0, i64::MAX, 100).await.expect("lists")
     }
 
-    /// Ends the wait of the `timers` reaction timers that are running: one per change the user made.
-    async fn settle_reactions(&self, timers: usize) {
-        let running = || self.sleeper.pending().iter().filter(|ms| **ms == REACTION_SETTLE_MS).count();
-        until(|| async { running() == timers }).await;
-        for left in (0..timers).rev() {
-            assert!(self.sleeper.wake());
-            until(|| async { running() == left }).await;
-        }
-    }
-
     /// The reaction turns the agent was sent so far.
     fn reaction_turns(&self, id: &str) -> Vec<String> {
         self.agents.sent(id).into_iter().filter(|text| text.starts_with("<reaction")).collect()
@@ -150,20 +138,11 @@ async fn a_reaction_on_the_agents_question_starts_a_turn_the_agent_may_end_in_si
     let asked = bench.row_saying(&id, "Delete the old branch too?").await;
     let before = bench.rows(&id).await.len();
 
-    let set = bench.sessions.react_as_user(&id, asked, " 👍 ").await.expect("reacts");
-    assert_eq!(set.wakes_in_ms, Some(REACTION_SETTLE_MS), "the agent waits for exactly this answer");
-    let mine = Reaction {
-        row_id: asked,
-        actor: ReactionActor::User,
-        emoji: "👍".into(),
-        at: set.reaction.at,
-        seen: Some(false),
-    };
-    assert_eq!(set.reaction, mine);
-    assert!(bench.reaction_turns(&id).is_empty(), "the user may still change their mind");
-
     bench.agents.script(silent());
-    bench.settle_reactions(1).await;
+    let set = bench.sessions.react_as_user(&id, asked, " 👍 ").await.expect("reacts");
+    let mine =
+        Reaction { row_id: asked, actor: ReactionActor::User, emoji: "👍".into(), at: set.at, seen: Some(false) };
+    assert_eq!(set, mine);
     until(|| async { bench.reaction_turns(&id).len() == 1 }).await;
     assert_eq!(
         bench.reaction_turns(&id),
@@ -195,29 +174,20 @@ async fn a_reaction_on_the_agents_question_starts_a_turn_the_agent_may_end_in_si
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn only_the_last_state_of_a_reaction_is_told_and_one_taken_back_in_time_is_never_told() {
+async fn a_reaction_taken_back_before_the_agent_heard_of_it_is_never_told() {
     let bench = Bench::new();
-    let id = bench.chat("Ship it today?").await;
-    let asked = bench.row_saying(&id, "Ship it today?").await;
+    let id = bench.chat("First answer.").await;
+    bench.exchange(&id, "next", "Second answer.").await;
+    let old = bench.row_saying(&id, "First answer.").await;
 
-    bench.sessions.react_as_user(&id, asked, "👍").await.expect("reacts");
-    bench.sessions.react_as_user(&id, asked, "👎").await.expect("changes it");
-    bench.agents.script(Turn::reply("Then tomorrow."));
-    bench.settle_reactions(2).await;
-    until(|| async { bench.reaction_turns(&id).len() == 1 }).await;
-    assert_eq!(bench.reaction_turns(&id), ["<reaction emoji=\"👎\" on=\"yours\">Ship it today?</reaction>"]);
-    bench.agents.settled().await;
-    bench.idle(&id).await;
+    bench.sessions.react_as_user(&id, old, "👌").await.expect("reacts");
+    assert!(bench.sessions.unreact_as_user(&id, old).await.expect("takes it back"));
+    assert!(!bench.sessions.unreact_as_user(&id, old).await.expect("nothing left"), "there was none");
+    assert_eq!(bench.temp.count("SELECT COUNT(*) FROM message_reactions"), 0);
 
-    // On the agent's new latest message: set and taken back before the timer ends.
-    let said = bench.row_saying(&id, "Then tomorrow.").await;
-    bench.sessions.react_as_user(&id, said, "👌").await.expect("reacts");
-    assert!(bench.sessions.unreact_as_user(&id, said).await.expect("takes it back"));
-    assert!(!bench.sessions.unreact_as_user(&id, said).await.expect("nothing left"), "there was none");
-    bench.settle_reactions(2).await;
-    assert_eq!(bench.reaction_turns(&id).len(), 1, "nothing was sent for it");
-    assert_eq!(bench.reactions(&id).await.len(), 1, "only the 👎 is left");
-    assert_eq!(bench.temp.count("SELECT COUNT(*) FROM message_reactions"), 1);
+    bench.exchange(&id, "go on", "Going on.").await;
+    assert_eq!(bench.agents.sent(&id).last().map(String::as_str), Some("<msg id=\"3\"/>\ngo on"));
+    assert!(bench.reaction_turns(&id).is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -227,13 +197,12 @@ async fn a_reaction_anywhere_else_goes_with_the_users_next_message() {
     bench.exchange(&id, "note this", "Noted.").await;
     let (old, own) = (bench.row_saying(&id, "First answer.").await, bench.row_saying(&id, "note this").await);
 
-    let on_old = bench.sessions.react_as_user(&id, old, "❤️").await.expect("reacts");
-    let on_own = bench.sessions.react_as_user(&id, own, "📌").await.expect("reacts");
-    assert_eq!((on_old.wakes_in_ms, on_own.wakes_in_ms), (None, None), "neither is on the agent's latest message");
-    bench.settle_reactions(2).await;
-    assert!(bench.reaction_turns(&id).is_empty());
+    // Neither is on the agent's latest message: no turn starts for them.
+    bench.sessions.react_as_user(&id, old, "❤️").await.expect("reacts");
+    bench.sessions.react_as_user(&id, own, "📌").await.expect("reacts");
 
     bench.exchange(&id, "go on", "Going on.").await;
+    assert!(bench.reaction_turns(&id).is_empty());
     assert_eq!(
         bench.agents.sent(&id).last().map(String::as_str),
         Some(
@@ -267,9 +236,8 @@ async fn a_busy_agent_is_never_interrupted_and_hears_of_it_when_it_goes_idle() {
     .await;
     let asked = bench.row_saying(&id, "Run the migration as well?").await;
 
-    let set = bench.sessions.react_as_user(&id, asked, "👍").await.expect("reacts");
-    assert_eq!(set.wakes_in_ms, None, "the agent is in a turn");
-    bench.settle_reactions(1).await;
+    bench.sessions.react_as_user(&id, asked, "👍").await.expect("reacts");
+    assert_eq!(bench.state(&id).await, WorkerState::Working);
     assert!(bench.reaction_turns(&id).is_empty(), "a turn is never interrupted for a reaction");
 
     bench.agents.script(silent());
@@ -299,10 +267,21 @@ async fn the_agents_latest_message_is_what_it_said_last_however_many_pieces() {
     let (before_tool, first_piece) =
         (bench.row_saying(&id, "Let me look.").await, bench.row_saying(&id, "Found it.").await);
 
-    let earlier = bench.sessions.react_as_user(&id, before_tool, "👀").await.expect("reacts");
-    assert_eq!(earlier.wakes_in_ms, None, "what it said before the tool is not its latest message");
-    let latest = bench.sessions.react_as_user(&id, first_piece, "👍").await.expect("reacts");
-    assert_eq!(latest.wakes_in_ms, Some(REACTION_SETTLE_MS), "the first piece is the row the chat reacts on");
+    // What it said before the tool is not its latest message: that reaction waits.
+    bench.agents.script(silent());
+    bench.sessions.react_as_user(&id, before_tool, "👀").await.expect("reacts");
+    // The first piece is the row the chat reacts on: this one starts the turn, and takes the other along.
+    bench.sessions.react_as_user(&id, first_piece, "👍").await.expect("reacts");
+    until(|| async { bench.reaction_turns(&id).len() == 1 }).await;
+    assert_eq!(
+        bench.reaction_turns(&id),
+        [
+            "<reaction emoji=\"👀\" on=\"yours\">Let me look.</reaction>\n<reaction emoji=\"👍\" on=\"yours\">Found it.</reaction>"
+        ]
+    );
+    bench.agents.settled().await;
+    bench.idle(&id).await;
+    assert_eq!(bench.reaction_turns(&id).len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -313,10 +292,8 @@ async fn a_chat_at_rest_comes_back_for_a_reaction_as_for_a_message() {
     bench.agents.crash(&id).await;
     until(|| async { bench.state(&id).await == WorkerState::Suspended }).await;
 
-    let set = bench.sessions.react_as_user(&id, asked, "👍").await.expect("reacts");
-    assert_eq!(set.wakes_in_ms, Some(REACTION_SETTLE_MS));
     bench.agents.script(Turn::reply("Merged."));
-    bench.settle_reactions(1).await;
+    bench.sessions.react_as_user(&id, asked, "👍").await.expect("reacts");
     until(|| async { bench.reaction_turns(&id).len() == 1 }).await;
     assert_eq!(bench.agents.started().len(), 2, "its session was brought back");
     bench.agents.settled().await;
@@ -329,18 +306,21 @@ async fn toggling_one_message_stops_starting_turns() {
     let bench = Bench::new();
     let id = bench.chat("Okay?").await;
     let asked = bench.row_saying(&id, "Okay?").await;
-    for (n, emoji) in ["👍", "👎", "👍", "👎"].into_iter().enumerate() {
-        let set = bench.sessions.react_as_user(&id, asked, emoji).await.expect("reacts");
-        assert_eq!(set.wakes_in_ms.is_some(), n < 3, "change {n}");
+    for (n, emoji) in ["👍", "👎", "👍"].into_iter().enumerate() {
         bench.agents.script(silent());
-        bench.settle_reactions(1).await;
-        if n < 3 {
-            until(|| async { bench.reaction_turns(&id).len() == n + 1 }).await;
-            bench.agents.settled().await;
-            bench.idle(&id).await;
-        }
+        bench.sessions.react_as_user(&id, asked, emoji).await.expect("reacts");
+        until(|| async { bench.reaction_turns(&id).len() == n + 1 }).await;
+        bench.agents.settled().await;
+        bench.idle(&id).await;
     }
-    assert_eq!(bench.reaction_turns(&id).len(), 3, "the fourth waits for the user's next message");
+    // The fourth change starts no turn: it goes with the user's next message.
+    bench.sessions.react_as_user(&id, asked, "👎").await.expect("reacts");
+    bench.exchange(&id, "so?", "So.").await;
+    assert_eq!(bench.reaction_turns(&id).len(), 3);
+    assert_eq!(
+        bench.agents.sent(&id).last().map(String::as_str),
+        Some("<msg id=\"2\"/>\n<reaction emoji=\"👎\" was=\"👍\" on=\"yours\">Okay?</reaction>\nso?")
+    );
     assert_eq!(bench.reaction_turns(&id)[1], "<reaction emoji=\"👎\" was=\"👍\" on=\"yours\">Okay?</reaction>");
 }
 
@@ -362,7 +342,7 @@ async fn only_messages_of_a_chat_the_user_talks_to_take_a_reaction() {
     let done = bench.row_saying(&worker, "Done.").await;
     let refused = bench.sessions.react_as_user(&worker, done, "👍").await;
     assert!(matches!(refused, Err(Error::Conflict(_))), "a worker answers to its orchestrator: {refused:?}");
-    assert!(bench.reactions(&id).await.is_empty() && bench.sleeper.pending().is_empty());
+    assert!(bench.reactions(&id).await.is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -383,7 +363,7 @@ async fn the_agent_reacts_to_the_users_messages_only() {
         |row_id, emoji: &str, at| Reaction { row_id, actor: ReactionActor::Agent, emoji: emoji.into(), at, seen: None };
     let listed = bench.reactions(&id).await;
     assert_eq!(listed, [theirs(first, "🎉", listed[0].at), theirs(latest, "👀", listed[1].at)]);
-    assert!(bench.sleeper.pending().is_empty(), "the agent's own reactions start nothing");
+    assert!(bench.reaction_turns(&id).is_empty(), "the agent's own reactions start nothing");
 
     assert!(matches!(
         bench.sessions.react(&id, ReactTarget::Message(77), Some("👍")).await,

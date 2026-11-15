@@ -9,8 +9,8 @@
 //! - `GET /workers/:id/reactions?fromId=&toId=`: the reactions on the
 //!   messages of a row range, for the part of the transcript a client holds;
 //! - `PUT /workers/:id/reactions/:rowId` `{emoji}`: the user's reaction on
-//!   that message. `wakesInMs` says it starts a turn of the agent after that
-//!   long unless it changes first; without it, it goes with the user's next
+//!   that message. One on the agent's latest message, while the agent waits,
+//!   starts a turn of the agent at once; any other goes with the user's next
 //!   message;
 //! - `DELETE /workers/:id/reactions/:rowId`: takes it back.
 //!
@@ -18,7 +18,7 @@
 //! agent was told (`seen`).
 
 use eos_contracts::stream::topics;
-use eos_contracts::{ReactionChange, ReactionRemoved, ReactionsResponse, SetReactionRequest, SetReactionResponse};
+use eos_contracts::{ReactionChange, ReactionRemoved, ReactionsResponse, SetReactionRequest};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::bus::{Topic, TopicDecl};
 use eos_runtime::http::{ApiError, Request, Response};
@@ -92,7 +92,7 @@ impl Module for ReactionsModule {
             async move {
                 let body: SetReactionRequest = req.parse()?;
                 let set = sessions.react_as_user(&worker_of(&req), row_of(&req)?, &body.emoji).await?;
-                Ok(Response::json(200, &SetReactionResponse { reaction: set.reaction, wakes_in_ms: set.wakes_in_ms }))
+                Ok(Response::json(200, &set))
             }
         });
         let sessions = self.sessions.clone();

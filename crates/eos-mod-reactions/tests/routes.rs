@@ -131,22 +131,15 @@ async fn the_user_reacts_changes_their_mind_and_takes_it_back() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_reaction_on_the_agents_last_words_says_when_it_wakes_the_agent() {
+async fn a_reaction_on_the_agents_last_words_wakes_the_agent_at_once() {
     let bench = Bench::new();
     // The agent's latest message of the seeded chat, with nothing of the user's after it.
     let last = bench.row("w-CHAT", "agent_event", true);
     bench.temp.exec(&format!("DELETE FROM events WHERE worker_id = 'w-CHAT' AND id > {last}"));
-    let (status, set) = bench.put("w-CHAT", last, "👍").await;
-    assert_eq!((status, &set["wakesInMs"]), (200, &json!(2000)), "{set}");
-
     bench.agents.script(Turn::reply("On it."));
-    for _ in 0..5_000 {
-        if bench.sleeper.pending().contains(&2000) {
-            break;
-        }
-        tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-    }
-    assert!(bench.sleeper.wake(), "the reaction's timer");
+    let (status, set) = bench.put("w-CHAT", last, "👍").await;
+    assert_eq!((status, &set["emoji"], &set["seen"]), (200, &json!("👍"), &json!(false)), "{set}");
+
     for _ in 0..5_000 {
         if !bench.agents.sent("w-CHAT").is_empty() {
             break;

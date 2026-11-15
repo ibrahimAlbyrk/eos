@@ -5,9 +5,8 @@
 //! user's reactions as `<reaction>` lines:
 //!
 //! - a reaction on the agent's latest message, while the agent waits for the
-//!   user, starts a turn of nothing but those lines once the reactions have
-//!   been left alone for [`REACTION_SETTLE_MS`] (the user may still change
-//!   their mind). The agent may end that turn without a word;
+//!   user, starts a turn of nothing but those lines at once. The agent may
+//!   end that turn without a word;
 //! - any other reaction goes with the next message the user sends.
 //!
 //! What the agent was told is kept with the reaction, so nothing is told
@@ -30,8 +29,6 @@ use crate::dispatch::context_boundary;
 use crate::service::{Changed, Sessions};
 use crate::transition::transition_state;
 
-/// How long the user's reactions are left alone before they start a turn.
-pub const REACTION_SETTLE_MS: i64 = 2000;
 /// The most turns the reactions on one message start: a user toggling an
 /// emoji does not spend a turn each time.
 const WAKES_PER_MESSAGE: u32 = 3;
@@ -40,50 +37,24 @@ const TOLD_PER_TURN: i64 = 12;
 /// How far back the agent's latest message is looked for.
 const LATEST_WINDOW: i64 = 60;
 
-/// The user's reaction as set, and whether it starts a turn.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserReaction {
-    pub reaction: Reaction,
-    /// Set when the reaction starts a turn after this long unless it changes first.
-    pub wakes_in_ms: Option<i64>,
-}
-
-#[derive(Default, Clone, Copy)]
-struct Pending {
-    /// Counts the user's changes: a timer acts only if none came after it.
-    generation: u64,
-    /// A timer is running.
-    timed: bool,
-    /// The message whose reactions started turns, and how many.
-    woke: Option<(i64, u32)>,
-}
-
-/// What is remembered about each worker's reactions, in memory; dropped with
-/// the worker's session.
+/// The message of each worker whose reactions started turns, and how many;
+/// in memory, dropped with the worker's session.
 #[derive(Default)]
-pub(crate) struct Reactions(Mutex<HashMap<String, Pending>>);
+pub(crate) struct Reactions(Mutex<HashMap<String, (i64, u32)>>);
 
 impl Reactions {
-    fn with<T>(&self, worker_id: &str, change: impl FnOnce(&mut Pending) -> T) -> T {
-        let mut all = self.0.lock().unwrap_or_else(PoisonError::into_inner);
-        change(all.entry(worker_id.to_owned()).or_default())
-    }
-
-    fn peek(&self, worker_id: &str) -> Pending {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner).get(worker_id).copied().unwrap_or_default()
-    }
-
     fn may_wake(&self, worker_id: &str, row_id: i64) -> bool {
-        !matches!(self.peek(worker_id).woke, Some((row, count)) if row == row_id && count >= WAKES_PER_MESSAGE)
+        let woke = self.0.lock().unwrap_or_else(PoisonError::into_inner).get(worker_id).copied();
+        !matches!(woke, Some((row, count)) if row == row_id && count >= WAKES_PER_MESSAGE)
     }
 
     fn woke(&self, worker_id: &str, row_id: i64) {
-        self.with(worker_id, |p| {
-            p.woke = Some(match p.woke {
-                Some((row, count)) if row == row_id => (row, count + 1),
-                _ => (row_id, 1),
-            });
-        });
+        let mut all = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let count = match all.get(worker_id) {
+            Some((row, count)) if *row == row_id => count + 1,
+            _ => 1,
+        };
+        all.insert(worker_id.to_owned(), (row_id, count));
     }
 
     pub(crate) fn forget(&self, worker_id: &str) {
@@ -276,25 +247,26 @@ pub(crate) fn untell(tx: &dyn Tx, out: &mut Outbox, worker_id: &str, telling: &T
 
 impl Sessions {
     /// Puts the user's emoji on a message of a chat, in place of their
-    /// earlier one. A reaction that will start a turn says in how long.
-    pub async fn react_as_user(&self, worker_id: &str, row_id: i64, emoji: &str) -> Result<UserReaction, Error> {
+    /// earlier one. One the agent should act on starts a turn at once.
+    pub async fn react_as_user(&self, worker_id: &str, row_id: i64, emoji: &str) -> Result<Reaction, Error> {
         let emoji = parse_emoji(emoji).map_err(|why| Error::Validation(why.into()))?;
-        let (sessions, id, now) = (self.clone(), worker_id.to_owned(), self.now());
+        let (id, now) = (worker_id.to_owned(), self.now());
         let set = self
             .store()
             .write(move |tx, out| {
-                let worker = chat(tx, &id)?;
+                chat(tx, &id)?;
                 message(tx, &id, row_id, ReactionActor::User)?;
                 tx.reactions().set(&id, row_id, ReactionActor::User, Some(&emoji), now)?;
                 let row = changed(tx, out, &id, row_id, ReactionActor::User, now)?;
-                let wakes =
-                    waits_for_user(&worker) && row.emoji != row.told && wake_row(tx, &sessions, &worker)?.is_some();
-                let reaction = wire(row).ok_or_else(|| Error::Storage("the reaction was not saved".into()))?;
-                Ok(UserReaction { reaction, wakes_in_ms: wakes.then_some(REACTION_SETTLE_MS) })
+                wire(row).ok_or_else(|| Error::Storage("the reaction was not saved".into()))
             })
             .await?;
         tracing::info!(worker_id, row_id, actor = "user", "reaction set");
-        self.reactions_changed(worker_id);
+        // Not tied to the caller: a request that goes away leaves no turn half started.
+        let (this, id) = (self.clone(), worker_id.to_owned());
+        tokio::spawn(async move {
+            this.deliver_reactions(&id).await;
+        });
         Ok(set)
     }
 
@@ -315,7 +287,6 @@ impl Sessions {
             .await?;
         if removed {
             tracing::info!(worker_id, row_id, actor = "user", "reaction cleared");
-            self.reactions_changed(worker_id);
         }
         Ok(removed)
     }
@@ -337,37 +308,9 @@ impl Sessions {
             .await
     }
 
-    /// The user changed a reaction: once they have left them alone for
-    /// [`REACTION_SETTLE_MS`], the ones the agent should act on start a turn.
-    fn reactions_changed(&self, worker_id: &str) {
-        let generation = self.0.reactions.with(worker_id, |p| {
-            p.generation += 1;
-            p.timed = true;
-            p.generation
-        });
-        let (this, id) = (self.clone(), worker_id.to_owned());
-        tokio::spawn(async move {
-            this.0.deps.sleeper.sleep(REACTION_SETTLE_MS).await;
-            let last = this.0.reactions.with(&id, |p| {
-                let last = p.generation == generation;
-                p.timed &= !last;
-                last
-            });
-            if last {
-                this.deliver_reactions(&id).await;
-            }
-        });
-    }
-
-    /// At a worker's idle edge: the reactions that came while it worked.
-    /// `true` when they started a turn. The user's latest changes wait for
-    /// their timer.
-    pub(crate) async fn reactions_at_idle(&self, worker_id: &str) -> bool {
-        !self.0.reactions.peek(worker_id).timed && self.deliver_reactions(worker_id).await
-    }
-
-    /// Starts a turn of the user's reactions when one is due; `true` when it did.
-    async fn deliver_reactions(&self, worker_id: &str) -> bool {
+    /// Starts a turn of the user's reactions when one is due (the user just
+    /// reacted, or the worker went idle with some waiting); `true` when it did.
+    pub(crate) async fn deliver_reactions(&self, worker_id: &str) -> bool {
         let (sessions, id) = (self.clone(), worker_id.to_owned());
         let due = self
             .store()

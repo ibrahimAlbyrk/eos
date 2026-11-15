@@ -58,11 +58,11 @@ function touch(c, rowId) {
 const fromWire = (r) => (r.actor === "user" ? { emoji: r.emoji, at: r.at, seen: r.seen === true } : { emoji: r.emoji, at: r.at });
 
 // A reaction read again keeps what only this window knows of it: when it
-// appeared here, and a countdown still running on it.
+// appeared here.
 function carry(held, read) {
   if (!read) return null;
   if (held?.emoji !== read.emoji) return read;
-  return { ...read, born: held.born, wakesUntil: read.seen ? undefined : held.wakesUntil };
+  return { ...read, born: held.born };
 }
 
 async function load(c, fromId, toId, request) {
@@ -138,9 +138,7 @@ export function applyReactionChange(p) {
   const held = mine ? c.rows.get(p.rowId)?.user : c.rows.get(p.rowId)?.agent;
   const born = held?.emoji === p.emoji ? held.born : Date.now();
   if (!mine) return write(c, p.rowId, { agent: { emoji: p.emoji, at: p.at, born } });
-  const seen = p.seen === true;
-  const wakesUntil = !seen && held?.emoji === p.emoji ? held.wakesUntil : undefined;
-  write(c, p.rowId, { user: { emoji: p.emoji, at: p.at, seen, born, wakesUntil } });
+  write(c, p.rowId, { user: { emoji: p.emoji, at: p.at, seen: p.seen === true, born } });
 }
 
 // Puts the user's `emoji` on a message, or takes their reaction back (`null`).
@@ -155,10 +153,6 @@ export async function setReaction(workerId, rowId, emoji, { put = api.setReactio
   try {
     const r = emoji ? await put(workerId, rowId, emoji) : await remove(workerId, rowId);
     if (!r.ok) failure = r.body?.error ?? `status ${r.status}`;
-    else if (emoji && r.body?.wakesInMs > 0) {
-      const held = c.rows.get(rowId)?.user;
-      if (held?.emoji === emoji && !held.seen) write(c, rowId, { user: { ...held, wakesUntil: Date.now() + r.body.wakesInMs } });
-    }
   } catch (e) {
     failure = e instanceof Error ? e.message : String(e);
   }

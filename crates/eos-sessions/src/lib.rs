@@ -60,7 +60,6 @@ pub use commands::{CommandAnswer, SlashCommand, SlashContext};
 pub use control::{KILL_GRACE_MS, ModeSet, ModelSet, Recalled, Removed};
 pub use dispatch::{Dispatched, MessageInput};
 pub use peers::{PeerAnswer, PeerAnswered, PeerAsk};
-pub use reactions::{REACTION_SETTLE_MS, UserReaction};
 pub use report::Reported;
 pub use service::{NoHooks, SessionDeps, SessionHooks, Sessions};
 pub use spawn::{SpawnRequest, Spawned};

@@ -76,13 +76,9 @@ describe("MessageRow reactions", () => {
 
   const chip = (user) => renderToStaticMarkup(<ReactionChips reactions={{ user, agent: null }} onRemove={() => {}} />);
 
-  it("says what becomes of the user's reaction: sending, seen, or with the next message", () => {
-    expect(chip({ emoji: "👍", at: 1, seen: false, wakesUntil: Date.now() + 2000 })).toMatch(/title="Sending… click to undo".*class="rx-drain"/);
+  it("says what becomes of the user's reaction: seen, or with the next message", () => {
     expect(chip({ emoji: "👍", at: 1, seen: false })).toContain('title="Goes with your next message"');
-    expect(chip({ emoji: "👍", at: 1, seen: false, wakesUntil: Date.now() - 1 })).not.toContain("rx-drain");
-    const seen = chip({ emoji: "👍", at: 1, seen: true, wakesUntil: Date.now() + 2000 });
-    expect(seen).toContain('title="Seen by the agent"');
-    expect(seen).not.toContain("rx-drain");
+    expect(chip({ emoji: "👍", at: 1, seen: true })).toContain('title="Seen by the agent"');
   });
 
   it("pops in only a reaction that just appeared here", () => {

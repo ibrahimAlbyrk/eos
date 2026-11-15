@@ -431,7 +431,6 @@ bundle![
     SetPermissionRequest,
     SetPermissionResponse,
     SetReactionRequest,
-    SetReactionResponse,
     SettingValue,
     SettingsPatchRequest,
     SettingsResponse,

@@ -588,20 +588,10 @@
 }
 .rx-mine.is-seen .rx-seen { width: 11px; margin-left: 0; opacity: 1; }
 .rx-seen .al-star { --al-ray: var(--accent); --al-hi: var(--accent-hover); --al-core: var(--accent); }
-/* The wait before a reaction starts an agent turn; its duration is set inline. */
-.rx-drain {
-  position: absolute;
-  inset: auto 0 0;
-  height: 2px;
-  background: var(--accent);
-  transform-origin: left;
-  animation: rx-drain linear both;
-}
 @keyframes rx-pop {
   0% { scale: 0.4; opacity: 0; }
   60% { scale: 1.14; opacity: 1; }
 }
-@keyframes rx-drain { to { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
   .rx-chip.is-new { animation: none; }
   .rx-pick, .rx-seen { transition: none; }
