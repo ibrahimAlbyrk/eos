@@ -11,7 +11,11 @@ const BASELINE = [
   { id: "fable-5.2",  aliases: ["fable"],  label: "fable-5.2",  name: "Fable 5.2",  ctxTokens: 1_000_000, tag: "most powerful" },
 ];
 
+// Every model a picker lists: the Claude catalog, then the models of the other
+// providers a chat can run on (each with its provider's `provider` label).
 export const MODELS = [...BASELINE];
+let claudeModels = BASELINE;
+let providerModels = [];
 
 const FAMILIES = [
   { key: "haiku",  tag: "fastest" },
@@ -33,7 +37,7 @@ function resolveModel(raw) {
   }
   const lower = String(raw).toLowerCase();
   const family = FAMILIES.find(({ key }) => lower.includes(key));
-  return family ? MODELS.find((m) => m.id.startsWith(`${family.key}-`)) ?? null : null;
+  return family ? claudeModels.find((m) => m.id.startsWith(`${family.key}-`)) ?? null : null;
 }
 
 export function curateCatalog(catalog) {
@@ -72,14 +76,40 @@ const catalogListeners = new Set();
 // (no catalog yet) has only the family alias.
 export const modelCommitId = (m) => m.apiId ?? m.aliases?.[0] ?? m.id;
 
-export function applyCatalog(catalog) {
-  const curated = curateCatalog(catalog);
-  if (!curated.length) return;
+function publish() {
   MODELS.length = 0;
-  MODELS.push(...curated);
+  MODELS.push(...claudeModels, ...providerModels);
   catalogVersion += 1;
   for (const fn of catalogListeners) fn();
 }
+
+export function applyCatalog(catalog) {
+  const curated = curateCatalog(catalog);
+  if (!curated.length) return;
+  claudeModels = curated;
+  publish();
+}
+
+// The models of the providers besides Claude (GET /api/providers); a provider
+// with no sign-in or key offers none.
+export function applyProviders(providers) {
+  if (!Array.isArray(providers)) return;
+  providerModels = providers.filter((p) => p?.ready).flatMap((p) => (p.models ?? []).map((m) => ({
+    id: m.id,
+    aliases: [],
+    apiId: m.id,
+    label: m.id,
+    name: m.displayName || m.id,
+    ctxTokens: Number.isFinite(m.contextWindow) && m.contextWindow > 0 ? m.contextWindow : null,
+    efforts: Array.isArray(m.effortLevels) ? m.effortLevels : null,
+    provider: p.label,
+  })));
+  publish();
+}
+
+// The models a chat of this kind can run on: another provider's only in a
+// focused chat.
+export const modelsFor = (focused) => (focused ? MODELS : MODELS.filter((m) => !m.provider));
 
 // For useSyncExternalStore: a view listing MODELS re-renders when a fresh
 // catalog lands while it is open.
@@ -126,8 +156,13 @@ export function modelName(raw) {
   return raw;
 }
 
-export function isClaudeModel(raw) {
+export function isKnownModel(raw) {
   return resolveModel(raw) !== null;
+}
+
+// The provider label of a model that is not Claude's (null for Claude's).
+export function modelProvider(raw) {
+  return resolveModel(raw)?.provider ?? null;
 }
 
 export function modelCtx(raw) {

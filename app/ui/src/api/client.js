@@ -203,6 +203,11 @@ export const api = {
     const r = await postJson(ROUTES.modelCatalogRefresh);
     return r.ok ? r.body?.modelCatalog ?? null : null;
   },
+  // The providers besides Claude with their models; null when it could not be read.
+  async listProviders() {
+    const r = await getJson(ROUTES.apiProviders);
+    return r.ok ? r.body?.providers ?? null : null;
+  },
   // A configured provider's available models for the two-level composer picker.
   // Fail-soft: never throws — returns { models, error? } so the popover can fall
   // back to the profile's pinned model.

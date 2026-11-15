@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { MODELS, modelCommitId, modelName, effortChoicesFor } from "../../../lib/models.js";
+import {
+  effortChoicesFor, getCatalogVersion, modelCommitId, modelName, modelsFor, subscribeCatalog,
+} from "../../../lib/models.js";
 
 // The combined Model & Effort popover (charcoal-aurora "rail" variant): one
 // panel, opened from a single composer trigger, that replaces the separate
@@ -69,6 +71,10 @@ function RailPanel({ live, ui, worker, config, onPick }) {
   const selected = worker ?? null;
   const currentModel = selected?.model ?? config?.model ?? ui.composer.model;
   const currentEffort = selected?.effort ?? config?.effort ?? ui.composer.effort;
+  // A setting's model (`config`) is every agent's: Claude's only.
+  const focused = selected ? selected.agent_role === "focused" : !config && ui.composer.agentMode === "focused";
+  useSyncExternalStore(subscribeCatalog, getCatalogVersion);
+  const models = modelsFor(focused);
   // A worker's effort only comes back after the save + refetch; hold the picked
   // level until then so the thumb doesn't slide back to the old stop meanwhile.
   const effort = pendingEffort ?? currentEffort;
@@ -195,10 +201,14 @@ function RailPanel({ live, ui, worker, config, onPick }) {
     >
       {showList ? (
         <div className="me-models">
-          {MODELS.map((m, i) => {
+          {models.map((m, i) => {
             const on = currentModel === m.id || m.aliases?.includes(currentModel);
+            // A provider's models follow under its name once there is more than Claude.
+            const group = m.provider && m.provider !== models[i - 1]?.provider ? m.provider : null;
             return (
-              <button key={m.id} className={"me-model-row" + (on ? " on" : "")} onClick={() => pickModel(m)}>
+              <Fragment key={m.id}>
+              {group && <div className="mp-group">{group}</div>}
+              <button className={"me-model-row" + (on ? " on" : "")} onClick={() => pickModel(m)}>
                 <span className="me-model-name">{m.name}</span>
                 {on && (
                   <svg className="me-model-check" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -207,6 +217,7 @@ function RailPanel({ live, ui, worker, config, onPick }) {
                 )}
                 <span className="me-model-num">{i + 1}</span>
               </button>
+              </Fragment>
             );
           })}
         </div>

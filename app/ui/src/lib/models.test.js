@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens, subscribeCatalog, getCatalogVersion, modelCommitId } from "./models.js";
+import {
+  curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens, subscribeCatalog, getCatalogVersion, modelCommitId, applyProviders, modelsFor, modelProvider,
+} from "./models.js";
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
@@ -135,5 +137,34 @@ describe("catalog subscription", () => {
     unsubscribe();
     applyCatalog(CATALOG);
     expect(calls).toBe(1);
+  });
+});
+
+describe("other providers' models", () => {
+  const PROVIDERS = [
+    { id: "openai", label: "ChatGPT", ready: true, models: [
+      { id: "gpt-6-sol", displayName: "GPT-6 Sol", contextWindow: 272000, effortLevels: ["low", "medium", "high"] },
+    ] },
+    { id: "other", label: "Other", ready: false, models: [{ id: "x-1", displayName: "X 1" }] },
+  ];
+
+  it("follow Claude's, for focused chats only, and only from a provider that is ready", () => {
+    applyProviders(PROVIDERS);
+    const all = modelsFor(true);
+    expect(all.at(-1)).toMatchObject({ id: "gpt-6-sol", name: "GPT-6 Sol", provider: "ChatGPT" });
+    expect(all.some((m) => m.id === "x-1")).toBe(false);
+    expect(modelsFor(false).some((m) => m.provider)).toBe(false);
+    expect(modelName("gpt-6-sol")).toBe("GPT-6 Sol");
+    expect(modelProvider("gpt-6-sol")).toBe("ChatGPT");
+    expect(modelProvider("opus")).toBe(null);
+    expect(modelCtxTokens("gpt-6-sol")).toBe(272000);
+    expect(effortChoicesFor("gpt-6-sol").map((e) => e.id)).toEqual(["low", "medium", "high", "ultracode"]);
+  });
+
+  it("stay when a fresh Claude catalog lands, and go when their provider is signed out", () => {
+    applyCatalog(CATALOG);
+    expect(modelsFor(true).some((m) => m.id === "gpt-6-sol")).toBe(true);
+    applyProviders([{ ...PROVIDERS[0], ready: false }]);
+    expect(modelsFor(true).some((m) => m.provider)).toBe(false);
   });
 });

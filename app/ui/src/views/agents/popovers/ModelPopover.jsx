@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
-import { MODELS, applyCatalog, getCatalogVersion, modelCommitId, subscribeCatalog } from "../../../lib/models.js";
+import {
+  applyCatalog, applyProviders, getCatalogVersion, modelCommitId, modelsFor, subscribeCatalog,
+} from "../../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
@@ -18,13 +20,16 @@ function ModelMenu({ live, ui, worker }) {
   // setModel action must target THIS pane's agent, not the selected one.
   const selected = worker ?? null;
   const currentModel = selected?.model ?? ui.composer.model;
-  const [active, setActive] = useState(() =>
-    Math.max(0, MODELS.findIndex((m) => matchesModel(currentModel, m))));
-
+  const focused = selected ? selected.agent_role === "focused" : ui.composer.agentMode === "focused";
   useSyncExternalStore(subscribeCatalog, getCatalogVersion);
+  const models = modelsFor(focused);
+  const [active, setActive] = useState(() =>
+    Math.max(0, models.findIndex((m) => matchesModel(currentModel, m))));
+
   useEffect(() => {
     paneRef.current?.focus();
     api.refreshModelCatalog().then(applyCatalog).catch(() => {});
+    api.listProviders().then(applyProviders).catch(() => {});
   }, []);
 
   const pick = async (m) => {
@@ -36,10 +41,10 @@ function ModelMenu({ live, ui, worker }) {
 
   const onKeyDown = (e) => {
     let handled = true;
-    if (e.key === "ArrowDown") setActive((i) => (i + 1) % MODELS.length);
-    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + MODELS.length) % MODELS.length);
-    else if (e.key === "Enter" && MODELS[active]) pick(MODELS[active]);
-    else if (/^[1-9]$/.test(e.key) && MODELS[Number(e.key) - 1]) pick(MODELS[Number(e.key) - 1]);
+    if (e.key === "ArrowDown") setActive((i) => (i + 1) % models.length);
+    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + models.length) % models.length);
+    else if (e.key === "Enter" && models[active]) pick(models[active]);
+    else if (/^[1-9]$/.test(e.key) && models[Number(e.key) - 1]) pick(models[Number(e.key) - 1]);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
@@ -56,11 +61,14 @@ function ModelMenu({ live, ui, worker }) {
     >
       <div className="mp-head">Models</div>
       <div className="mp-scroll">
-        {MODELS.map((m, i) => {
+        {models.map((m, i) => {
           const on = matchesModel(currentModel, m);
+          // A provider's models follow under its name once there is more than Claude.
+          const group = m.provider && m.provider !== models[i - 1]?.provider ? m.provider : null;
           return (
+            <Fragment key={m.id}>
+            {group && <div className="mp-group">{group}</div>}
             <button
-              key={m.id}
               className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
               onMouseEnter={() => setActive(i)}
               onClick={() => pick(m)}
@@ -71,8 +79,9 @@ function ModelMenu({ live, ui, worker }) {
                   <path d="m2.5 8.5 3.5 3.5 7.5-8" />
                 </svg>
               )}
-              <span className="mp-num">{i + 1}</span>
+              {i < 9 && <span className="mp-num">{i + 1}</span>}
             </button>
+            </Fragment>
           );
         })}
       </div>

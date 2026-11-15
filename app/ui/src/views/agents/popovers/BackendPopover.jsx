@@ -10,7 +10,7 @@ import { openConnectSheet } from "../../../state/connectSheetStore.js";
 import { metaFor, accountMatchesChoice, choiceReady } from "../../../components/accounts/providerMeta.js";
 
 const DEFAULT_CLAUDE_MODEL = "opus";
-const isClaudeModel = (m) => Boolean(m) && (MODELS.some((e) => e.id === m || e.aliases.includes(m)) || /^(claude-|opus|sonnet|haiku|fable)/.test(m));
+const isClaudeModel = (m) => Boolean(m) && (MODELS.some((e) => !e.provider && (e.id === m || e.aliases.includes(m))) || /^(claude-|opus|sonnet|haiku|fable)/.test(m));
 
 // Provider switcher. Two distinct modes:
 //   • a selected worker → live provider switch (the daemon stops + resumes the

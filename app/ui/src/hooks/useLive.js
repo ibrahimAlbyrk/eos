@@ -12,7 +12,7 @@ import { endBoot, peekBootPart, takeBootHello } from "../api/boot.js";
 import { ROUTES } from "../api/routes.js";
 import { afterFirstPaint } from "../lib/firstPaint.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
-import { applyCatalog, getCatalogVersion, subscribeCatalog } from "../lib/models.js";
+import { applyCatalog, applyProviders, getCatalogVersion, subscribeCatalog } from "../lib/models.js";
 import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit, emitPtyResync } from "../state/ptyBus.js";
@@ -210,6 +210,7 @@ export function useLive() {
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         afterFirstPaint(() => api.refreshModelCatalog()).then(applyCatalog).catch(() => {});
+        afterFirstPaint(() => api.listProviders()).then(applyProviders).catch(() => {});
         applyDescriptors(cfg?.backends);
         applyProfiles(cfg?.backendProfiles);
         applyFeatures(cfg?.features);
