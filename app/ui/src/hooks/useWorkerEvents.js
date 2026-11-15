@@ -1,5 +1,5 @@
 // useWorkerEvents — thin adapter over state/eventsStore.js. The window cache,
-// pagination, polling and read-ahead prefetch all live in the store (module
+// pagination, polling and read-ahead all live in the store (module
 // scope), so a loaded transcript survives unmounts and agent switches; this
 // hook only subscribes the component to its agent's snapshot.
 
@@ -12,9 +12,13 @@ import { retainWorker } from "../state/streamFocus.js";
 
 const noopSubscribe = () => () => {};
 
-export function useWorkerEvents(workerId, { onNewest } = {}) {
+// onBeforeChange(snapshot) runs as the store publishes a new window, before
+// React renders it: the last moment the DOM still shows the previous one.
+export function useWorkerEvents(workerId, { onNewest, onBeforeChange } = {}) {
   const onNewestRef = useRef(onNewest);
   onNewestRef.current = onNewest;
+  const onBeforeChangeRef = useRef(onBeforeChange);
+  onBeforeChangeRef.current = onBeforeChange;
 
   const sub = useCallback(
     (cb) => (workerId ? subscribe(workerId, cb) : noopSubscribe()),
@@ -25,13 +29,18 @@ export function useWorkerEvents(workerId, { onNewest } = {}) {
 
   useEffect(() => {
     if (!workerId) return;
+    return subscribe(workerId, () => onBeforeChangeRef.current?.(getSnapshot(workerId)));
+  }, [workerId]);
+
+  useEffect(() => {
+    if (!workerId) return;
     const detach = attach(workerId, { onNewest: (id, rows) => onNewestRef.current?.(id, rows) });
     // On screen: its live tokens stream to this tab.
     const release = retainWorker(workerId);
     return () => { release(); detach(); };
   }, [workerId]);
 
-  const loadOlder = useCallback(() => storeLoadOlder(workerId), [workerId]);
+  const loadOlder = useCallback((rows) => storeLoadOlder(workerId, rows), [workerId]);
   const fetchDelta = useCallback(() => storeFetchDelta(workerId), [workerId]);
   const refetchNewest = useCallback(() => storeRefetchNewest(workerId), [workerId]);
   const setFollowing = useCallback(

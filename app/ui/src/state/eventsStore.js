@@ -1,5 +1,5 @@
 // eventsStore — per-agent event window cache with backward pagination and
-// read-ahead prefetch. Windows live here (module scope), not in the hook, so
+// read-ahead. Windows live here (module scope), not in the hook, so
 // a loaded transcript survives agent switches: switching back renders the
 // cached window synchronously and a tail fetch catches it up.
 //
@@ -7,11 +7,14 @@
 // pulls the rows after the newest one held. The poll only stands in while the
 // stream is down.
 //
-// Read-ahead: once the reader scrolls up from the tail (and after each older
-// page lands), the next older page is fetched during idle and parked in
-// `prefetched`. The scroll-up sentinel's loadOlder then prepends synchronously
-// — no network wait on the user-visible path. A chat only looked at from its
-// tail never fetches a page it does not show.
+// Read-ahead: the rows just older than the window wait in `parked`, in memory
+// but not rendered, so the scroll-up sentinel's loadOlder prepends them
+// synchronously — no network wait on the user-visible path. A chat followed
+// from its tail parks one page. Once the reader scrolls up into history the
+// rest of the chat is read in the background and joins the window page by page
+// as it lands (the core keeps a bounded log per chat), so within moments the
+// top of the transcript is the start of the conversation. Rows the live window
+// trims go back to `parked`, so paging them in again costs no request either.
 //
 // Ownership invariant: every row lands in the entry keyed by the workerId it
 // was fetched for (plus the filterOwnRows defense), so one agent's transcript
@@ -20,24 +23,40 @@
 import { api } from "../api/client.js";
 import { bootActive } from "../api/boot.js";
 import { startPolling } from "../lib/pollInterval.js";
+import { isRemoteView } from "../lib/host.js";
+import { rowPayload } from "../lib/toolLifecycle.js";
 import { isStreamLive } from "./streamStatus.js";
 
 export const PAGE_SIZE = 500;
+// An older page is several times the newest one: a working turn is hundreds of
+// rows that render as a handful of blocks, and history is read in the
+// background, where the round trips are what costs. A view of another Mac
+// keeps the small page: its rows cross a relay.
+export const OLDER_PAGE_SIZE = 2000;
+const olderPageSize = () => (isRemoteView() ? PAGE_SIZE : OLDER_PAGE_SIZE);
+// How many parked rows one loadOlder moves into a window that follows the tail
+// (a view whose newest rows do not fill its screen): enough to add something to
+// see, small enough that the commit rendering them stays short. The view asks
+// again while its sentinel is still in reach.
+export const OLDER_STEP = 1000;
+// A failed older page holds the next attempt back this long.
+export const OLDER_RETRY_MS = 1000;
 const POLL_MS = 5000;
 // Cache bounds: windows of detached (switched-away) agents survive for
 // instant switch-back — at most MAX_CACHED_WORKERS of them, each trimmed to
 // its newest MAX_DETACHED_EVENTS rows (a trim re-opens hasOlder).
 const MAX_CACHED_WORKERS = 5;
 const MAX_DETACHED_EVENTS = 3 * PAGE_SIZE;
-// Live-window bounds. While a pane follows the tail, keep only the newest
+// Live-window bound. While a pane follows the tail, keep only the newest
 // MAX_ATTACHED_EVENTS materialized — without this an actively-watched,
 // long-running agent grows the window (and the rendered DOM) without limit,
-// the web UI's unbounded-memory leak. HARD_MAX_EVENTS bounds the scrolled-up
-// case too (fast stream while reading history). Dropped history re-pages on
-// scroll-up via the existing hasOlder/loadOlder path.
+// the web UI's unbounded-memory leak. A view that needed more than that to
+// fill its screen (it paged older rows in while following) keeps that many.
+// A reader scrolled up into history keeps everything they paged in: the rows a
+// trim drops are the oldest ones, the very rows they are reading. Returning to
+// the tail trims again.
 const MAX_ATTACHED_EVENTS = 4 * PAGE_SIZE;
-const HARD_MAX_EVENTS = 12 * PAGE_SIZE;
-const PREFETCH_IDLE_MS = 200;
+const FILL_IDLE_MS = 200;
 // Rows of one turn land in bursts; one tail fetch per burst.
 const CHANGE_DEBOUNCE_MS = 50;
 
@@ -45,7 +64,7 @@ const CHANGE_DEBOUNCE_MS = 50;
 // the current interaction settles".
 const idle = typeof requestIdleCallback === "function"
   ? (fn) => requestIdleCallback(fn, { timeout: 1000 })
-  : (fn) => setTimeout(fn, PREFETCH_IDLE_MS);
+  : (fn) => setTimeout(fn, FILL_IDLE_MS);
 
 // Union by id; incoming rows win (payloads get patched in place server-side,
 // e.g. usage delta-cost back-fill). Sorted by (ts, id) — id is the same-ms
@@ -85,10 +104,15 @@ function entryOf(workerId) {
     e = {
       workerId,
       events: [],
-      // hasOlder is decided by the FIRST page for a worker and by loadOlder
-      // results only — newest refetches always return a full page on long
-      // transcripts and must not resurrect an exhausted cursor.
-      hasOlder: false,
+      // Rows older than the window, contiguous with it, oldest first.
+      parked: [],
+      // Whether the core holds rows older than everything held here. Decided by
+      // the FIRST page for a worker and by older pages only — newest refetches
+      // always return a full page on long transcripts and must not resurrect an
+      // exhausted cursor.
+      serverMore: false,
+      // The window size a following view paged up to (see capWindow).
+      keep: 0,
       loaded: false,
       // The newest page came from the boot snapshot (primeNewest), not yet attached.
       primed: false,
@@ -96,8 +120,13 @@ function entryOf(workerId) {
       // (see capWindow). Defaults true so an unwired pane is still bounded.
       following: true,
       loadingOlder: false,
-      prefetched: null,
-      prefetching: false,
+      // Rows a waiting loadOlder takes from the next page that lands.
+      wantRows: 0,
+      filling: false,
+      fillScheduled: false,
+      // Bumped when the oldest held row changes other than by a page landing:
+      // a page asked for before that no longer joins what is held.
+      fillGen: 0,
       attachers: 0,
       subs: new Set(),
       newestListeners: new Set(),
@@ -119,7 +148,7 @@ function publish(e) {
   e.snapshot = {
     events: e.events,
     eventsFor: e.loaded ? e.workerId : null,
-    hasOlder: e.hasOlder,
+    hasOlder: e.parked.length > 0 || e.serverMore,
     loadingOlder: e.loadingOlder,
   };
   for (const cb of e.subs) cb();
@@ -138,7 +167,7 @@ export function subscribe(workerId, cb) {
 function applyNewest(e, rows) {
   if (!e.loaded) {
     e.events = mergeEvents([], rows);
-    e.hasOlder = rows.length === PAGE_SIZE;
+    e.serverMore = rows.length === PAGE_SIZE;
     e.loaded = true;
   } else {
     e.events = mergeEvents(e.events, rows);
@@ -147,10 +176,32 @@ function applyNewest(e, rows) {
   publish(e);
 }
 
-function applyOlder(e, rows) {
-  e.events = mergeEvents(e.events, rows);
-  e.hasOlder = rows.length === PAGE_SIZE;
-  publish(e);
+// Nothing older is held any more: what the core has is asked for again.
+function dropParked(e) {
+  if (e.parked.length > 0) e.serverMore = true;
+  e.parked = [];
+  e.fillGen++;
+}
+
+// The newest `rows` parked rows join the window.
+function unpark(e, rows) {
+  const cut = Math.max(0, e.parked.length - rows);
+  e.events = mergeEvents(e.events, e.parked.slice(cut));
+  e.parked = e.parked.slice(0, cut);
+  if (e.following) e.keep = e.events.length;
+}
+
+// One older page before `cursor`, with the limit it was asked at (a full page
+// means there is more).
+async function fetchOlderPage(e, cursor) {
+  const limit = olderPageSize();
+  const rows = await api.getWorkerEvents(e.workerId, { limit, order: "desc", beforeId: cursor });
+  if (!Array.isArray(rows)) return null;
+  const own = filterOwnRows(e.workerId, rows);
+  // Parsed here, a page at a time: left to the commit that shows the history,
+  // every payload of the chat would be parsed in that one frame.
+  for (const row of own) rowPayload(row);
+  return { rows: own, limit };
 }
 
 async function fetchNewest(e, signal) {
@@ -160,74 +211,107 @@ async function fetchNewest(e, signal) {
       // A non-array body is an error, not a no-op: keeping the window would
       // leave possibly-wrong rows renderable until a poll finally succeeds.
       e.events = [];
-      e.hasOlder = false;
+      e.parked = [];
+      e.serverMore = false;
+      e.fillGen++;
       e.loaded = false;
-      e.prefetched = null;
       publish(e);
       return;
     }
     const own = filterOwnRows(e.workerId, rows);
     applyNewest(e, own);
     for (const cb of e.newestListeners) cb(e.workerId, own);
-    if (!e.following) schedulePrefetch(e);
+    scheduleFill(e);
   } catch {
     // Abort or network blip — keep the cached window (stale beats empty).
   }
 }
 
-function schedulePrefetch(e) {
-  if (!e.hasOlder || e.prefetched || e.prefetching || e.attachers === 0) return;
-  e.prefetching = true; // reserved before the idle gap so double-schedules no-op
-  idle(() => { void prefetchOlder(e); });
+// The reader is in history and the whole chat is cheap to read: a view of
+// another Mac pages instead.
+const readsAll = (e) => !e.following && !isRemoteView();
+
+// How far ahead to read: one page while the view follows the tail, everything
+// once the reader is in history. A waiting loadOlder always gets its page.
+function wantsFill(e) {
+  if (e.attachers === 0 || !e.loaded || !e.serverMore) return false;
+  return e.loadingOlder || readsAll(e) || e.parked.length === 0;
 }
 
-async function prefetchOlder(e) {
-  const cursor = e.events[0]?.id;
-  if (!e.hasOlder || e.prefetched || e.attachers === 0 || cursor == null) {
-    e.prefetching = false;
-    return;
-  }
+// The reader is in history: what is parked joins the window.
+function showParkedWhenRead(e) {
+  if (!readsAll(e) || e.parked.length === 0) return false;
+  unpark(e, Infinity);
+  return true;
+}
+
+function scheduleFill(e) {
+  if (e.filling || e.fillScheduled || !wantsFill(e)) return;
+  e.fillScheduled = true;
+  idle(() => { e.fillScheduled = false; void fill(e); });
+}
+
+// Reads older pages, one request after another, while wantsFill holds. A page
+// goes to the loadOlder waiting for it, into the window of a reader who is in
+// history, and is parked otherwise.
+async function fill(e) {
+  if (e.filling) return;
+  e.filling = true;
   try {
-    const rows = await api.getWorkerEvents(e.workerId, { limit: PAGE_SIZE, order: "desc", beforeId: cursor });
-    // Park only if the cursor is still current — a concurrent loadOlder (its
-    // own network fetch) may have moved it; merge would still dedup, but a
-    // stale page must not satisfy the NEXT loadOlder.
-    if (Array.isArray(rows) && e.attachers > 0 && e.events[0]?.id === cursor) {
-      e.prefetched = filterOwnRows(e.workerId, rows);
+    while (wantsFill(e)) {
+      const gen = e.fillGen;
+      const cursor = (e.parked[0] ?? e.events[0])?.id;
+      if (cursor == null) break;
+      let page = null;
+      try {
+        page = await fetchOlderPage(e, cursor);
+      } catch {
+        // transient; retried below
+      }
+      if (gen !== e.fillGen) continue;
+      if (!page) {
+        // The view asks again once loadingOlder falls; a background read waits
+        // for the next thing that schedules one.
+        await new Promise((resolve) => setTimeout(resolve, OLDER_RETRY_MS));
+        break;
+      }
+      e.parked = mergeEvents(page.rows, e.parked);
+      e.serverMore = page.rows.length === page.limit;
+      if (e.loadingOlder) {
+        unpark(e, e.wantRows);
+        e.loadingOlder = false;
+        publish(e);
+      } else if (showParkedWhenRead(e) || (!e.serverMore && e.parked.length === 0)) {
+        publish(e);
+      }
     }
-  } catch {
-    // Best-effort; loadOlder falls back to its own fetch.
   } finally {
-    e.prefetching = false;
-  }
-}
-
-export function loadOlder(workerId) {
-  const e = entries.get(workerId);
-  if (!e || !e.loaded || !e.hasOlder || e.loadingOlder) return;
-  if (e.prefetched) {
-    const rows = e.prefetched;
-    e.prefetched = null;
-    applyOlder(e, rows); // synchronous prepend — the sentinel hit costs no network wait
-    schedulePrefetch(e);
-    return;
-  }
-  const oldestId = e.events[0]?.id;
-  if (oldestId == null) return;
-  e.loadingOlder = true;
-  publish(e);
-  void (async () => {
-    try {
-      const rows = await api.getWorkerEvents(workerId, { limit: PAGE_SIZE, order: "desc", beforeId: oldestId });
-      if (Array.isArray(rows)) applyOlder(e, filterOwnRows(workerId, rows));
-    } catch {
-      // transient; sentinel re-triggers on next intersection
-    } finally {
+    e.filling = false;
+    if (e.loadingOlder) {
       e.loadingOlder = false;
       publish(e);
-      schedulePrefetch(e);
     }
-  })();
+  }
+}
+
+// Moves older rows into the window: at once when they are parked, else as soon
+// as the next page lands (loadingOlder meanwhile). `rows` bounds how many; by
+// default a step while following the tail and everything held otherwise.
+export function loadOlder(workerId, rows) {
+  const e = entries.get(workerId);
+  if (!e || !e.loaded || e.loadingOlder) return;
+  rows ??= e.following ? OLDER_STEP : Infinity;
+  if (e.parked.length > 0) {
+    unpark(e, rows);
+    publish(e);
+    scheduleFill(e);
+    return;
+  }
+  if (!e.serverMore || e.events.length === 0) return;
+  e.wantRows = rows;
+  e.loadingOlder = true;
+  publish(e);
+  void fill(e);
 }
 
 // Fetch only the rows appended after the highest loaded id and merge them in.
@@ -307,9 +391,11 @@ function startPoll(e) {
   if (e.primed && bootActive()) {
     // The window is the boot snapshot's and the stream resumes from where it was read.
     for (const cb of e.newestListeners) cb(e.workerId, e.events);
-    if (!e.following) schedulePrefetch(e);
-  } else if (e.loaded && e.events.length > 0) void fetchAfter(e, e.pollAbort.signal);
-  else void fetchNewest(e, e.pollAbort.signal);
+    scheduleFill(e);
+  } else if (e.loaded && e.events.length > 0) {
+    void fetchAfter(e, e.pollAbort.signal);
+    scheduleFill(e);
+  } else void fetchNewest(e, e.pollAbort.signal);
   e.primed = false;
   e.pollStop = startPolling(() => { if (!isStreamLive()) pollNewer(e); }, POLL_MS);
 }
@@ -335,28 +421,34 @@ function stopPoll(e) {
   e.changeTimer = null;
 }
 
-// Live-window bound (attached panes). Mirrors trimDetached but runs while the
-// pane is live: cap to MAX_ATTACHED_EVENTS while following the tail, else the
-// looser HARD_MAX safety net (so a fast stream while the user reads history
-// can't grow unbounded either). Trimming the oldest re-opens the cursor so
-// loadOlder re-pages the dropped history; the parked prefetch is invalidated.
+// Live-window bound (attached panes), while the view follows the tail: the
+// oldest rows past the cap move to `parked`, which itself keeps one page, so
+// loadOlder brings them back without a request.
 function capWindow(e) {
-  const cap = e.following ? MAX_ATTACHED_EVENTS : HARD_MAX_EVENTS;
-  if (e.events.length <= cap) return;
-  e.events = e.events.slice(e.events.length - cap);
-  e.hasOlder = true;
-  e.prefetched = null;
+  if (!e.following) return;
+  const over = e.events.length - Math.max(MAX_ATTACHED_EVENTS, e.keep);
+  if (over > 0) {
+    e.parked = e.parked.concat(e.events.slice(0, over));
+    e.events = e.events.slice(over);
+  }
+  const spare = e.parked.length - olderPageSize();
+  if (spare > 0) {
+    e.parked = e.parked.slice(spare);
+    e.serverMore = true;
+    e.fillGen++;
+  }
 }
 
 // Detached windows are kept but bounded: trim to the newest rows (the part a
 // switch-back renders first); deeper history re-pages on demand, and a trim
-// re-opens the cursor. The parked prefetch page is dropped — it re-arms on
-// the next attach.
+// re-opens the cursor. Parked rows are dropped — the read-ahead re-arms on the
+// next attach.
 function trimDetached(e) {
-  e.prefetched = null;
+  dropParked(e);
+  e.keep = 0;
   if (e.events.length > MAX_DETACHED_EVENTS) {
     e.events = e.events.slice(e.events.length - MAX_DETACHED_EVENTS);
-    e.hasOlder = true;
+    e.serverMore = true;
     publish(e);
   }
 }
@@ -370,16 +462,22 @@ function evictDetached() {
 }
 
 // The view reports whether it is following the tail (pinned to bottom). While
-// following, the live window is trimmed to MAX_ATTACHED_EVENTS; when the user
-// scrolls up to read history we stop trimming (only HARD_MAX applies) so
-// loadOlder's prepends aren't immediately undone, and read ahead the older
-// page. Returning to the bottom re-caps right away.
+// following, the live window is trimmed (capWindow); when the user scrolls up
+// to read history we stop trimming so loadOlder's prepends aren't undone, and
+// read the rest of the history ahead. Returning to the bottom re-caps right
+// away.
 export function setFollowing(workerId, following) {
   const e = entries.get(workerId);
   if (!e || e.following === following) return;
   e.following = following;
-  if (following) { capWindow(e); publish(e); }
-  else schedulePrefetch(e);
+  if (following) {
+    e.keep = 0;
+    capWindow(e);
+    publish(e);
+  } else {
+    if (showParkedWhenRead(e)) publish(e);
+    scheduleFill(e);
+  }
 }
 
 // Start-up: the chat on screen takes its newest page from the boot snapshot before
@@ -392,7 +490,7 @@ export async function primeNewest(workerId) {
   e.primed = e.loaded;
 }
 
-// Lifecycle: polling and prefetch run only while at least one component is
+// Lifecycle: polling and read-ahead run only while at least one component is
 // attached. The last detach stops the poll and trims the cached window.
 export function attach(workerId, { onNewest } = {}) {
   const e = entryOf(workerId);

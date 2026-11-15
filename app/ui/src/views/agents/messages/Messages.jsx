@@ -210,10 +210,26 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
   // regression upstream) renders as empty — never as the wrong transcript.
   // The initial scroll likewise waits for the new agent's content before
   // restoring a saved position.
+  // Rows landing above the view (older rows paged in, the folded history
+  // opening) or leaving it (a trim, the history folding) move everything below
+  // them. The scroll geometry is read while the DOM still shows the old top —
+  // as the store publishes the new window, or in the click that folds — so the
+  // correction after the commit starts from where the reader is at that
+  // moment, not from where they were when the rows were asked for.
+  const topAnchorRef = useRef(null);
+  const shownFirstIdRef = useRef(null);
+  const shownTopRef = useRef(null);
+  const captureTopAnchor = useCallback(() => {
+    const el = wrapRef.current;
+    if (el) topAnchorRef.current = { scrollTop: el.scrollTop, scrollHeight: el.scrollHeight };
+  }, [wrapRef]);
+  const captureBeforeChange = useCallback((snap) => {
+    if ((snap.events[0]?.id ?? null) !== shownFirstIdRef.current) captureTopAnchor();
+  }, [captureTopAnchor]);
   const {
     events: windowEvents, eventsFor, hasOlder: windowHasOlder,
     loadingOlder, loadOlder, setFollowing,
-  } = useWorkerEvents(selectedId, { onNewest: reconcileFromNewest });
+  } = useWorkerEvents(selectedId, { onNewest: reconcileFromNewest, onBeforeChange: captureBeforeChange });
   const owned = eventsFor === selectedId;
   const events = owned ? windowEvents : NO_EVENTS;
 
@@ -242,30 +258,18 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     setFollowing(!stick.showJumpBtn);
   }, [stick.showJumpBtn, setFollowing]);
 
-  // "Load older" sentinel at the top of the list. Before each load, anchor the
-  // current scroll geometry; once older rows land, shift scrollTop by the
-  // height delta so the viewport keeps showing the same content. (A bottom
-  // append racing the in-flight fetch would skew the delta slightly — rare
-  // enough to accept over per-block DOM anchoring.)
-  const prependAnchorRef = useRef(null);
+  // "Load older" sentinel at the top of the list.
   const triggerLoadOlderRef = useRef(() => {});
-  triggerLoadOlderRef.current = () => {
+  triggerLoadOlderRef.current = (rows) => {
     if (!hasOlder || loadingOlder) return;
-    const el = wrapRef.current;
-    if (el) {
-      prependAnchorRef.current = {
-        firstId: events[0]?.id ?? null,
-        scrollTop: el.scrollTop,
-        scrollHeight: el.scrollHeight,
-      };
-    }
-    loadOlder();
+    loadOlder(rows);
   };
   const [sentinelEl, setSentinelEl] = useState(null);
-  // Re-observed after every prepend: IntersectionObserver reports crossings
-  // only, so a page too short to push the sentinel out of the look-ahead zone
-  // (a folded turn renders hundreds of rows as one line) would never trip it
-  // again. observe() always reports the current state once.
+  // Re-observed after every prepend and every finished load:
+  // IntersectionObserver reports crossings only, so a page too short to push
+  // the sentinel out of the look-ahead zone (a folded turn renders hundreds of
+  // rows as one line), or a load that failed, would never trip it again.
+  // observe() always reports the current state once.
   const oldestId = events[0]?.id ?? null;
   useEffect(() => {
     if (!sentinelEl || !wrapRef.current) return;
@@ -277,16 +281,21 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
-  }, [sentinelEl, oldestId]);
+  }, [sentinelEl, oldestId, loadingOlder]);
 
+  // Shift scrollTop by the height the transcript's top gained or lost, so the
+  // viewport keeps showing the same content.
   useLayoutEffect(() => {
-    const anchor = prependAnchorRef.current;
+    const anchor = topAnchorRef.current;
+    topAnchorRef.current = null;
+    const top = `${oldestId}:${folded}`;
+    const moved = top !== shownTopRef.current;
+    shownTopRef.current = top;
+    shownFirstIdRef.current = oldestId;
     const el = wrapRef.current;
-    if (!anchor || !el) return;
-    if ((events[0]?.id ?? null) === anchor.firstId) return; // nothing prepended yet
-    prependAnchorRef.current = null;
+    if (!anchor || !moved || !el || !initialScrollDone.current) return;
     stick.write(anchor.scrollTop + (el.scrollHeight - anchor.scrollHeight), { pin: "keep" });
-  }, [events]);
+  }, [events, folded]);
 
   const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
 
@@ -467,7 +476,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     pendingJumpRef.current = selector;
     // Stop tail trimming so the hunt's prepends aren't undone mid-way.
     setFollowing(false);
-    triggerLoadOlderRef.current();
+    triggerLoadOlderRef.current(Infinity);
   }, [contentRef, revealBlock, setFollowing]);
   const jumpToTurn = useCallback((key) => jumpTo(`[data-bkey="${CSS.escape(key)}"]`), [jumpTo]);
   // A reply quote jumps to the message it answers.
@@ -485,7 +494,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
       pendingJumpRef.current = null;
       setFollowing(!stick.showJumpBtn);
     } else if (!loadingOlder) {
-      triggerLoadOlderRef.current();
+      triggerLoadOlderRef.current(Infinity);
     }
   }, [blocks, hasOlder, loadingOlder]);
 
@@ -573,7 +582,10 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     return rowWorkersRef.current;
   }, [live.workers]);
   const rowParent = selectedWorker?.parent_id ? rowWorkers.find((w) => w.id === selectedWorker.parent_id) : null;
-  const toggleHistory = useCallback((id, open) => setOpenHistoryAt(open ? null : id), []);
+  const toggleHistory = useCallback((id, open) => {
+    captureTopAnchor();
+    setOpenHistoryAt(open ? null : id);
+  }, [captureTopAnchor]);
   // live.workers already maps an interrupted agent to IDLE, so isRunning sees
   // the effective state.
   const agentBusy = isRunning(selectedWorker);
@@ -645,7 +657,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
         // resolve above snaps to the anchor once its page lands (write() is
         // instant, never a glide).
         stick.write(Infinity, { pin: true });
-        loadOlder();
+        loadOlder(Infinity);
         return;
       }
       if (loadingOlder) return;

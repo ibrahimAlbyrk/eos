@@ -6,7 +6,7 @@ vi.mock("../api/client.js", () => ({
 
 import { api } from "../api/client.js";
 import {
-  PAGE_SIZE, mergeEvents, filterOwnRows,
+  PAGE_SIZE, OLDER_PAGE_SIZE, OLDER_STEP, OLDER_RETRY_MS, mergeEvents, filterOwnRows,
   attach, fetchDelta, getSnapshot, loadOlder, refetchNewest, subscribe, setFollowing,
   notifyWorkerChanged, refreshAttached,
 } from "./eventsStore.js";
@@ -134,32 +134,81 @@ describe("eventsStore", () => {
     detach();
   });
 
-  it("fetches no older page while the reader stays at the tail", async () => {
+  it("parks one older page while the reader stays at the tail, and shows none of it", async () => {
     const id = freshId();
-    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3 * PAGE_SIZE)));
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, PAGE_SIZE + 3 * OLDER_PAGE_SIZE)));
     const detach = attach(id);
     await tick();
     await tick(2000);
-    expect(api.getWorkerEvents).toHaveBeenCalledTimes(1);
+    expect(api.getWorkerEvents).toHaveBeenCalledTimes(2);
+    expect(api.getWorkerEvents).toHaveBeenLastCalledWith(
+      id, expect.objectContaining({ order: "desc", limit: OLDER_PAGE_SIZE, beforeId: 3 * OLDER_PAGE_SIZE + 1 }),
+    );
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE);
     detach();
   });
 
-  it("read-ahead prefetch makes the next loadOlder a synchronous prepend", async () => {
+  it("loadOlder moves parked rows into the window at once, a step at a time", async () => {
     const id = freshId();
-    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3 * PAGE_SIZE)));
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, PAGE_SIZE + 2 * OLDER_PAGE_SIZE)));
+    const detach = attach(id);
+    await tick();
+    await tick(250); // idle gap → the next older page is parked
+    const callsBefore = api.getWorkerEvents.mock.calls.length;
+    loadOlder(id);
+    // No await: the parked rows must land synchronously, with no loading state.
+    const snap = getSnapshot(id);
+    expect(snap.events).toHaveLength(PAGE_SIZE + OLDER_STEP);
+    expect(snap.events[0].id).toBe(2 * OLDER_PAGE_SIZE - OLDER_STEP + 1); // the rows next to the window
+    expect(snap.hasOlder).toBe(true);
+    expect(snap.loadingOlder).toBe(false);
+    expect(api.getWorkerEvents.mock.calls.length).toBe(callsBefore);
+    loadOlder(id);
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE + OLDER_PAGE_SIZE);
+    await tick(250); // nothing left parked → the next page is read ahead
+    expect(api.getWorkerEvents.mock.calls.length).toBe(callsBefore + 1);
+    detach();
+  });
+
+  it("a reader in history gets the whole chat without asking for it", async () => {
+    const id = freshId();
+    const total = PAGE_SIZE + 2 * OLDER_PAGE_SIZE + 70;
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, total)));
     const detach = attach(id);
     await tick();
     setFollowing(id, false); // the reader scrolled up from the tail
-    await tick(250); // idle gap → prefetch fetches the next older page
+    await tick(250);
+    const snap = getSnapshot(id);
+    expect(snap.events).toHaveLength(total);
+    expect(snap.events[0].id).toBe(1);
+    expect(snap.hasOlder).toBe(false);
+    expect(snap.loadingOlder).toBe(false);
+    detach();
+  });
+
+  it("rows the live window trims are parked: paging them back in asks for nothing", async () => {
+    const id = freshId();
+    const all = rows(id, 1, PAGE_SIZE);
+    api.getWorkerEvents.mockImplementation(pageServer(all));
+    const detach = attach(id); // following
+    await tick();
+    let nextRowId = PAGE_SIZE + 1;
+    for (let i = 0; i < 5; i++) {
+      for (let k = 0; k < PAGE_SIZE; k++) all.push(row(nextRowId++, id));
+      fetchDelta(id);
+      await tick();
+    }
+    expect(getSnapshot(id).events).toHaveLength(4 * PAGE_SIZE);
+    expect(getSnapshot(id).hasOlder).toBe(true);
     const callsBefore = api.getWorkerEvents.mock.calls.length;
     loadOlder(id);
-    // No await: the parked page must land synchronously, with no loading state.
-    const snap = getSnapshot(id);
-    expect(snap.events).toHaveLength(2 * PAGE_SIZE);
-    expect(snap.loadingOlder).toBe(false);
+    expect(getSnapshot(id).events).toHaveLength(4 * PAGE_SIZE + OLDER_STEP);
     expect(api.getWorkerEvents.mock.calls.length).toBe(callsBefore);
-    await tick(250); // the consume re-arms the next prefetch
-    expect(api.getWorkerEvents.mock.calls.length).toBeGreaterThan(callsBefore);
+    // The view paged up to this size, so the stream no longer trims below it.
+    for (let k = 0; k < PAGE_SIZE; k++) all.push(row(nextRowId++, id));
+    fetchDelta(id);
+    await tick();
+    expect(getSnapshot(id).events).toHaveLength(4 * PAGE_SIZE + OLDER_STEP);
     detach();
   });
 
@@ -309,7 +358,31 @@ describe("eventsStore", () => {
     detach();
   });
 
-  it("a scrolled-up (not following) window is bounded only by the looser HARD_MAX", async () => {
+  it("a failed older page keeps loading until the retry delay, then can be asked again", async () => {
+    const id = freshId();
+    const serve = pageServer(rows(id, 1, PAGE_SIZE + 50));
+    let fail = true;
+    api.getWorkerEvents.mockImplementation(async (workerId, opts = {}) => {
+      if (opts.beforeId != null && fail) throw new Error("blip");
+      return serve(workerId, opts);
+    });
+    const detach = attach(id);
+    await tick();
+    loadOlder(id);
+    await tick();
+    expect(getSnapshot(id).loadingOlder).toBe(true); // held back, not spinning
+    fail = false;
+    await tick(OLDER_RETRY_MS);
+    const failed = getSnapshot(id);
+    expect(failed.loadingOlder).toBe(false);
+    expect(failed.hasOlder).toBe(true);
+    loadOlder(id);
+    await tick();
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE + 50);
+    detach();
+  });
+
+  it("a scrolled-up (not following) window keeps every row while the tail streams", async () => {
     const id = freshId();
     const all = rows(id, 1, PAGE_SIZE);
     api.getWorkerEvents.mockImplementation(pageServer(all));
@@ -317,14 +390,18 @@ describe("eventsStore", () => {
     await tick();
     setFollowing(id, false); // user scrolled up to read history
     let nextRowId = PAGE_SIZE + 1;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 14; i++) {
       for (let k = 0; k < PAGE_SIZE; k++) all.push(row(nextRowId++, id));
       fetchDelta(id);
       await tick();
     }
-    // 7*PAGE_SIZE (3500) is above MAX_ATTACHED (2000) but below HARD_MAX (6000)
-    // → kept untrimmed so loadOlder's prepends aren't immediately undone.
-    expect(getSnapshot(id).events).toHaveLength(7 * PAGE_SIZE);
+    // Far above MAX_ATTACHED (2000): a trim would drop the oldest rows, the
+    // ones the reader is on.
+    expect(getSnapshot(id).events).toHaveLength(15 * PAGE_SIZE);
+    expect(getSnapshot(id).events[0].id).toBe(1);
+    // Back at the tail the window is capped again.
+    setFollowing(id, true);
+    expect(getSnapshot(id).events).toHaveLength(4 * PAGE_SIZE);
     detach();
   });
 
