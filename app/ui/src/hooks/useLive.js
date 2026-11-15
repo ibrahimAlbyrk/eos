@@ -58,6 +58,7 @@ import { applyJobsChange, resyncJobs } from "../state/jobsStore.js";
 import { applyReactionChange, resyncReactions } from "../state/reactionsStore.js";
 import { applyUpdateChange, resyncUpdate } from "../state/updateStore.js";
 import { applyArtifactsChange, resyncArtifactCatalog } from "../state/artifactCatalogStore.js";
+import { applyArtifactOpen } from "../state/artifactViewStore.js";
 import { applyViewStateChange, resyncViewStates } from "../genui/runtime/viewStateStore.js";
 import { dispatchResync, dispatchTopic } from "../lib/liveTopics.js";
 
@@ -339,6 +340,8 @@ export function useLive() {
           // The artifact catalog changed (a sign-in re-read, an agent published) —
           // a bare signal; the catalog itself is read from this Mac's route.
           if (data.reason === "artifacts:change") { applyArtifactsChange(); return; }
+          // An agent published a new artifact or asked to show one — its tab, not a worker delta.
+          if (data.reason === "artifacts:open") { applyArtifactOpen(data.payload); return; }
           // The `!` command's start feeds only the jobs registry; its run arrives as terminal:chunk.
           if (data.reason === "terminal:start") return;
           // Recall (interrupt before the agent responded): drop the optimistic

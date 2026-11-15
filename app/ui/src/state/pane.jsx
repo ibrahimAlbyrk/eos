@@ -9,6 +9,7 @@ import {
   stashBrowserSession, shouldRestoreBrowserLive, registerBrowserSessionUi,
 } from "./browserSessionState.js";
 import { setMainView } from "../slots/mainView.js";
+import { registerArtifactPanes } from "./artifactViewStore.js";
 
 // Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
 // each), splits divide a region in two. The provider owns the tree + the focused
@@ -205,6 +206,13 @@ export function PaneProvider({ children }) {
       },
     });
   }, [openPanelIn, selectAgent]);
+
+  // An agent's artifact opens in every pane that shows its chat.
+  useEffect(() => {
+    registerArtifactPanes((workerId, tabId, seed) => {
+      for (const l of leaves(treeRef.current)) if (l.agentId === workerId) openPanelIn(l.id, tabId, seed);
+    });
+  }, [openPanelIn]);
 
   // Cmd-click toggles an agent as a pane: remove it if shown (never the last),
   // else split the focused pane to add it (capped in splitLeaf).

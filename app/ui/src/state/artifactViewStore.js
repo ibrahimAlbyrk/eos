@@ -6,6 +6,9 @@
 // which tab last took each artifact's view.
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { artifactTabId } from "../lib/panelTabs.js";
+import { isBuiltinOn } from "../plugins/pluginsStore.js";
+import { BUILTIN_PLUGINS } from "../shared/builtin-plugins.ts";
 
 export const artifactBridge = () => (typeof window !== "undefined" ? window.eosArtifacts ?? null : null);
 
@@ -188,4 +191,21 @@ export function detachArtifact(tabKey, slug) {
 // The tab that holds an artifact's view.
 export function artifactHolder(slug) {
   return holders.get(slug) ?? null;
+}
+
+// ── an agent's artifact, opened beside its chat ──────────────────────────────
+
+// Registered by PaneProvider: opens a side-panel tab in every pane showing a worker.
+let openBesideWorker = null;
+export function registerArtifactPanes(fn) {
+  openBesideWorker = fn;
+}
+
+// SSE artifacts:open — an agent published a new artifact or asked to show one:
+// its tab comes up beside that chat. A chat that is not on screen keeps only
+// the card in its transcript.
+export function applyArtifactOpen(payload) {
+  const { workerId, slug, url, title } = payload ?? {};
+  if (!workerId || !slug || !artifactBridge() || !isBuiltinOn(BUILTIN_PLUGINS.artifacts)) return;
+  openBesideWorker?.(workerId, artifactTabId(slug), { title: title ?? null, loginId: null, url });
 }
