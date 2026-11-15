@@ -193,14 +193,13 @@ impl Engine {
             builder = builder.claude_paths(paths.clone());
         }
         let sdk = builder.build().await.map_err(engine_error)?;
-        let paths = store.clone();
         let shared = Arc::new(Shared {
             sessions,
             accounts,
             credentials,
             clock,
             capabilities: capabilities(),
-            transcript_path: Box::new(move |id| paths.path(id).to_string_lossy().into_owned()),
+            store: store.clone(),
         });
         let inner = Inner {
             sdk,
@@ -231,10 +230,10 @@ impl Engine {
         let claude = inner.claude.clone().or_else(ClaudePaths::from_env);
         let transcript = claude.map(|paths| transcript_path(&paths, Path::new(&spec.cwd), session_id));
         let taken = match takeover::read(&record).await {
-            Some(origin) => Some(!origin.gone_on(session_id, transcript.as_deref())),
+            Some(origin) => Some(!origin.read_gone_on(session_id.to_owned(), transcript.clone()).await),
             // Taken by a build that kept no note: what Claude Code holds now is what it took.
             None if tokio::fs::try_exists(&record).await.unwrap_or(false) => {
-                if let Some(now) = transcript.as_deref().and_then(takeover::recorded) {
+                if let Some(now) = takeover::read_recorded(transcript.clone()).await {
                     takeover::write(&record, &takeover::Origin::of(session_id, &now)).await;
                 }
                 Some(true)
@@ -244,7 +243,7 @@ impl Engine {
         if taken == Some(true) {
             return Ok(own);
         }
-        let Some(now) = transcript.as_deref().and_then(takeover::recorded) else {
+        let Some(now) = takeover::read_recorded(transcript.clone()).await else {
             // Gone on into a session Claude Code has no transcript of: the record is what is left.
             if taken.is_some() {
                 return Ok(own);

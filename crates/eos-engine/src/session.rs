@@ -11,8 +11,10 @@
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
 
 use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TurnError};
+use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{InputError, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
 use eos_contracts::{
     AgentEvent, CommandItem, CommandItemSource, RewindMode, RewindTarget, SessionEvent, SessionEventOutcome,
@@ -33,6 +35,10 @@ use crate::transcript;
 
 /// How many engine events are mapped into one batch for the sink.
 const BATCH: usize = 64;
+/// How long [`stop`](AgentSession::stop) waits for the pump to wind the session down. A pump
+/// that is stuck (in its sink) past it is dropped, and the session closed without it: a
+/// suspend, or the app quitting, never waits on it for longer.
+const STOP_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// What a session shares with the runtime that started it.
 pub(crate) struct Shared {
@@ -41,8 +47,8 @@ pub(crate) struct Shared {
     pub(crate) credentials: Arc<dyn SessionCredentials>,
     pub(crate) clock: Arc<dyn Clock>,
     pub(crate) capabilities: AgentCapabilities,
-    /// Where the engine keeps a session's recorded conversation.
-    pub(crate) transcript_path: Box<dyn Fn(&str) -> String + Send + Sync>,
+    /// Where the engine keeps each session's recorded conversation.
+    pub(crate) store: JsonlStore,
 }
 
 enum Command {
@@ -84,6 +90,14 @@ pub(crate) struct EngineSession {
     credential: Mutex<Option<SessionCredential>>,
     /// The accounts feature told the user why the next failure happens.
     silenced: AtomicBool,
+    /// Where the pump reports; a stop that outlasts the pump reports the exit itself.
+    sink: Arc<dyn SessionSink>,
+    /// The pump's task, so a stop that outlasts it can end it.
+    pump: Mutex<Option<tokio::task::AbortHandle>>,
+}
+
+fn not_on_branch() -> SessionError {
+    SessionError::Failed("message not found on the active branch".into())
 }
 
 fn failed(error: impl std::fmt::Display) -> SessionError {
@@ -165,6 +179,8 @@ pub(crate) fn start(launch: Launch) -> Option<Arc<EngineSession>> {
         live: AtomicUsize::new(0),
         credential: Mutex::new(credential),
         silenced: AtomicBool::new(false),
+        sink: sink.clone(),
+        pump: Mutex::new(None),
     });
     if !shared.sessions.insert(session.clone()) {
         return None;
@@ -183,7 +199,8 @@ pub(crate) fn start(launch: Launch) -> Option<Arc<EngineSession>> {
         mapper: Mapper::new(launch_tag),
         sink,
     };
-    tokio::spawn(pump.guarded());
+    let pump = tokio::spawn(pump.guarded());
+    *session.pump.lock().unwrap_or_else(PoisonError::into_inner) = Some(pump.abort_handle());
     Some(session)
 }
 
@@ -468,9 +485,30 @@ impl AgentSession for EngineSession {
 
     fn stop(&self) -> BoxFuture<'_, ()> {
         Box::pin(async move {
-            let (done, stopped) = oneshot::channel();
-            if self.command(Command::Stop(done)).await.is_ok() {
+            let (done, mut stopped) = oneshot::channel();
+            let stopping = async {
+                if self.command(Command::Stop(done)).await.is_ok() {
+                    let _ = (&mut stopped).await;
+                }
+            };
+            if tokio::time::timeout(STOP_TIMEOUT, stopping).await.is_ok() {
+                return;
+            }
+            // The pump closed the session already and is reporting its exit: ended now, the
+            // rest of that report would be lost, and nobody would report it again.
+            if !self.alive.load(Ordering::SeqCst) {
                 let _ = stopped.await;
+                return;
+            }
+            tracing::warn!(worker_id = self.id(), "a session's pump did not stop in time; closed without it");
+            if let Some(pump) = self.pump.lock().unwrap_or_else(PoisonError::into_inner).take() {
+                pump.abort();
+            }
+            if let Ok(agent) = self.agent() {
+                agent.interrupt();
+            }
+            if self.close() {
+                self.sink.exited(self.id(), Some(143)).await;
             }
         })
     }
@@ -487,7 +525,13 @@ impl AgentSession for EngineSession {
     }
 
     fn clear_context(&self) -> BoxFuture<'_, Result<(), SessionError>> {
-        Box::pin(async move { self.agent()?.rewind(0).await.map_err(failed) })
+        Box::pin(async move {
+            let agent = self.agent()?;
+            // A running turn is stopped, not waited for: the engine cuts the conversation
+            // only once its turn is over.
+            agent.interrupt();
+            agent.rewind(0).await.map_err(failed)
+        })
     }
 
     fn read_transcript(&self) -> BoxFuture<'_, Result<Option<SessionTranscript>, SessionError>> {
@@ -497,7 +541,8 @@ impl AgentSession for EngineSession {
             if entries.is_empty() {
                 return Ok(None);
             }
-            Ok(Some(SessionTranscript { entries, path: Some((self.shared.transcript_path)(&self.worker_id)) }))
+            let path = self.shared.store.path(&self.worker_id).to_string_lossy().into_owned();
+            Ok(Some(SessionTranscript { entries, path: Some(path) }))
         })
     }
 
@@ -511,7 +556,12 @@ impl AgentSession for EngineSession {
     }
 
     fn rewind_targets(&self) -> BoxFuture<'_, Result<Vec<RewindTarget>, SessionError>> {
-        Box::pin(async move { Ok(self.prompts().await?.1.into_iter().map(|p| p.target).collect()) })
+        // Read from the recorded conversation: the agent answers only between turns.
+        Box::pin(async move {
+            self.agent()?;
+            let messages = self.shared.store.load(&self.worker_id).await.map_err(failed)?;
+            Ok(transcript::prompts(&messages).into_iter().map(|p| p.target).collect())
+        })
     }
 
     fn rewind<'a>(&'a self, uuid: &'a str, mode: RewindMode) -> BoxFuture<'a, Result<Rewound, SessionError>> {
@@ -521,11 +571,19 @@ impl AgentSession for EngineSession {
             if mode == RewindMode::Code {
                 return Err(SessionError::Unsupported("file rewind"));
             }
+            // The target is checked against the recorded conversation (written ahead of the
+            // agent's own), then a running turn is stopped, not waited for: the engine cuts
+            // the conversation only once its turn is over. A record that cannot be read
+            // leaves the check to the agent, after its turn.
+            let agent = self.agent()?;
+            if let Ok(recorded) = self.shared.store.load(&self.worker_id).await {
+                if !transcript::prompts(&recorded).iter().any(|p| p.target.uuid == uuid) {
+                    return Err(not_on_branch());
+                }
+                agent.interrupt();
+            }
             let (agent, prompts) = self.prompts().await?;
-            let index = prompts
-                .iter()
-                .position(|p| p.target.uuid == uuid)
-                .ok_or_else(|| SessionError::Failed("message not found on the active branch".into()))?;
+            let index = prompts.iter().position(|p| p.target.uuid == uuid).ok_or_else(not_on_branch)?;
             let prompt = &prompts[index];
             agent.rewind(prompt.keep).await.map_err(failed)?;
             Ok(Rewound {

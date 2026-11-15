@@ -332,6 +332,84 @@ async fn a_stopped_session_exits_and_its_conversation_resumes() {
     );
 }
 
+/// A sink that, once `stuck`, never returns from `events`: a pump that hands it a batch hangs.
+struct StuckSink {
+    inner: Arc<RecordingSink>,
+    stuck: std::sync::atomic::AtomicBool,
+    entered: tokio::sync::Notify,
+}
+
+impl eos_core::agent::SessionSink for StuckSink {
+    fn events<'a>(&'a self, worker_id: &'a str, events: Vec<eos_contracts::AgentEvent>) -> eos_core::BoxFuture<'a, ()> {
+        if !self.stuck.load(std::sync::atomic::Ordering::SeqCst) {
+            return self.inner.events(worker_id, events);
+        }
+        self.entered.notify_one();
+        Box::pin(std::future::pending())
+    }
+
+    fn exited<'a>(&'a self, worker_id: &'a str, code: Option<i32>) -> eos_core::BoxFuture<'a, ()> {
+        self.inner.exited(worker_id, code)
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_whose_pump_is_stuck_is_closed_after_a_while_and_reports_its_exit() {
+    let bench = Bench::new([Reply::text("one"), Reply::text("two")]).await;
+    let sink = Arc::new(StuckSink {
+        inner: bench.sink.clone(),
+        stuck: std::sync::atomic::AtomicBool::new(false),
+        entered: tokio::sync::Notify::new(),
+    });
+    let spec = LaunchSpec { prompt: Some("first".into()), ..bench.spec("w-1") };
+    let session = bench.engine.start(spec, sink.clone()).await.expect("the session starts");
+    bench.after_turns("w-1", 1).await;
+
+    sink.stuck.store(true, std::sync::atomic::Ordering::SeqCst);
+    session.send("second".into()).await.expect("sends");
+    sink.entered.notified().await;
+    let began = std::time::Instant::now();
+    tokio::time::timeout(Duration::from_secs(30), session.stop()).await.expect("the stop gives up on the pump");
+    assert!(began.elapsed() >= Duration::from_secs(4), "it waited for the pump first");
+    assert_eq!(*bench.sink.exits.lock().expect("exits"), [("w-1".to_owned(), Some(143))]);
+    assert!(!session.is_alive());
+    assert_eq!(bench.engine.live(), 0);
+    assert!(bench.engine.session("w-1").is_none());
+    session.stop().await;
+    assert_eq!(bench.sink.exits.lock().expect("exits").len(), 1, "stopping twice reports one exit");
+}
+
+/// A sink whose exit report takes longer than a stop waits for the pump.
+struct SlowExitSink {
+    inner: Arc<RecordingSink>,
+}
+
+impl eos_core::agent::SessionSink for SlowExitSink {
+    fn events<'a>(&'a self, worker_id: &'a str, events: Vec<eos_contracts::AgentEvent>) -> eos_core::BoxFuture<'a, ()> {
+        self.inner.events(worker_id, events)
+    }
+
+    fn exited<'a>(&'a self, worker_id: &'a str, code: Option<i32>) -> eos_core::BoxFuture<'a, ()> {
+        Box::pin(async move {
+            tokio::time::sleep(Duration::from_secs(6)).await;
+            self.inner.exited(worker_id, code).await;
+        })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_stop_lets_the_pumps_own_exit_report_finish() {
+    let bench = Bench::new([Reply::text("one")]).await;
+    let sink = Arc::new(SlowExitSink { inner: bench.sink.clone() });
+    let spec = LaunchSpec { prompt: Some("first".into()), ..bench.spec("w-1") };
+    let session = bench.engine.start(spec, sink).await.expect("the session starts");
+    bench.after_turns("w-1", 1).await;
+
+    tokio::time::timeout(Duration::from_secs(30), session.stop()).await.expect("the stop ends");
+    assert_eq!(*bench.sink.exits.lock().expect("exits"), [("w-1".to_owned(), Some(143))], "reported whole, once");
+    assert!(!session.is_alive());
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_old_chat_continues_from_the_transcript_claude_code_wrote() {
     let bench = Bench::new([Reply::text("yes, PELICAN")]).await;
@@ -520,6 +598,67 @@ async fn a_credential_that_runs_out_is_replaced_or_ends_the_turn_quietly() {
         .engine
         .move_session("w-none", SessionCredential::ApiKey { provider: "anthropic".into(), key: "x".into() });
     assert_eq!(moved.await.err().as_deref(), Some("this agent can't change account right now"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_running_turn_holds_up_neither_the_rewind_list_nor_a_clear() {
+    let slow = Reply::text("a slow answer").slowed(Duration::from_secs(3));
+    let bench = Bench::new([Reply::text("one"), slow]).await;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("FIRST".into()).await.expect("sends");
+    bench.after_turns("w-1", 1).await;
+    session.send("SECOND".into()).await.expect("sends");
+    let running = |events: &[Value]| {
+        events.iter().filter(|e| e["type"] == "turn" && e["phase"] == "started").count() == 2
+            && events.last().is_some_and(|e| e["type"] == "delta")
+    };
+    bench.sink.until("w-1", running).await;
+
+    let soon = Duration::from_millis(1500);
+    let targets =
+        tokio::time::timeout(soon, session.rewind_targets()).await.expect("answers at once").expect("targets");
+    assert_eq!(targets.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(), ["FIRST", "SECOND"]);
+    tokio::time::timeout(soon, session.clear_context()).await.expect("clears at once").expect("clears");
+    let events = bench.after_turns("w-1", 2).await;
+    assert_eq!(events.iter().rev().find(|e| e["type"] == "turn").expect("the end")["phase"], "aborted");
+    assert_eq!(session.read_transcript().await.expect("reads"), None);
+    assert!(session.rewind_targets().await.expect("targets").is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_rewind_checks_its_target_then_stops_the_running_turn() {
+    let slow = Reply::text("a slow answer").slowed(Duration::from_secs(3));
+    let bench = Bench::new([Reply::text("one"), slow]).await;
+    let session = bench.start(bench.spec("w-1")).await;
+    session.send("FIRST".into()).await.expect("sends");
+    bench.after_turns("w-1", 1).await;
+    session.send("SECOND".into()).await.expect("sends");
+    let running = |events: &[Value]| {
+        events.iter().filter(|e| e["type"] == "turn" && e["phase"] == "started").count() == 2
+            && events.last().is_some_and(|e| e["type"] == "delta")
+    };
+    bench.sink.until("w-1", running).await;
+
+    let soon = Duration::from_millis(1500);
+    let missing = tokio::time::timeout(soon, session.rewind("m999", eos_contracts::RewindMode::Conversation))
+        .await
+        .expect("answers at once")
+        .err()
+        .map(|e| e.to_string());
+    assert!(missing.as_deref().is_some_and(|e| e.contains("message not found on the active branch")), "{missing:?}");
+    let ended = |events: &[Value]| events.iter().filter(|e| e["type"] == "turn" && e["phase"] != "started").count();
+    assert_eq!(ended(&bench.sink.json("w-1")), 1, "an unknown target leaves the turn running");
+
+    let second = session.rewind_targets().await.expect("targets").pop().expect("the second prompt");
+    let back = tokio::time::timeout(soon, session.rewind(&second.uuid, eos_contracts::RewindMode::Conversation))
+        .await
+        .expect("rewinds at once")
+        .expect("rewinds");
+    assert_eq!((back.text.as_str(), back.index), ("SECOND", 1));
+    let events = bench.after_turns("w-1", 2).await;
+    assert_eq!(events.iter().rev().find(|e| e["type"] == "turn").expect("the end")["phase"], "aborted");
+    let left = session.rewind_targets().await.expect("targets");
+    assert_eq!(left.iter().map(|t| t.text.as_str()).collect::<Vec<_>>(), ["FIRST"]);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

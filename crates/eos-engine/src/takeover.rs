@@ -33,6 +33,12 @@ pub(crate) fn recorded(path: &Path) -> Option<Recorded> {
     (!session.messages.is_empty()).then_some(Recorded { bytes, session })
 }
 
+/// [`recorded`] on a blocking thread: the whole transcript is read and parsed.
+pub(crate) async fn read_recorded(path: Option<PathBuf>) -> Option<Recorded> {
+    let path = path?;
+    tokio::task::spawn_blocking(move || recorded(&path)).await.ok().flatten()
+}
+
 impl Origin {
     pub(crate) fn of(session_id: &str, recorded: &Recorded) -> Self {
         Self { session_id: session_id.to_owned(), bytes: recorded.bytes, messages: recorded.session.messages.len() }
@@ -54,6 +60,12 @@ impl Origin {
             }
             _ => false,
         }
+    }
+
+    /// [`gone_on`](Self::gone_on) on a blocking thread: it may read the whole transcript.
+    pub(crate) async fn read_gone_on(self, session_id: String, transcript: Option<PathBuf>) -> bool {
+        let gone_on = move || self.gone_on(&session_id, transcript.as_deref());
+        tokio::task::spawn_blocking(gone_on).await.unwrap_or(false)
     }
 }
 
