@@ -971,7 +971,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-agents"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "eos-agent-core",
  "eos-agent-types",
@@ -985,7 +985,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-anthropic"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-core",
@@ -1003,7 +1003,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-artifacts"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1025,7 +1025,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-compat"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "eos-agent-core",
  "eos-agent-types",
@@ -1036,7 +1036,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-core"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-types",
@@ -1051,7 +1051,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-engine"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-core",
@@ -1068,7 +1068,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-http"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "http-body",
@@ -1077,7 +1077,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-mcp"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "base64 0.23.1",
  "eos-agent-core",
@@ -1105,7 +1105,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-mock-api"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "anyhow",
  "axum",
@@ -1120,7 +1120,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-oauth"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "aws-lc-rs",
  "base64 0.23.1",
@@ -1137,7 +1137,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-openai"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-core",
@@ -1156,7 +1156,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-prompt"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "chrono",
@@ -1169,7 +1169,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-sdk"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-agents",
@@ -1200,7 +1200,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-skills"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "eos-agent-core",
  "eos-agent-types",
@@ -1213,7 +1213,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-testkit"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "libc",
 ]
@@ -1221,7 +1221,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-tools-fs"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -1242,7 +1242,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-tools-session"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "eos-agent-core",
  "eos-agent-types",
@@ -1254,7 +1254,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-tools-shell"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "aws-lc-rs",
  "base64 0.23.1",
@@ -1284,7 +1284,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-tools-web"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "bytes",
  "eos-agent-core",
@@ -1300,7 +1300,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-types"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "serde",
  "serde_json",
@@ -1310,7 +1310,7 @@ dependencies = [
 [[package]]
 name = "eos-agent-workflow"
 version = "0.0.1"
-source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=14e22502babbc4561aaa4f2f7a400d00448bfab2#14e22502babbc4561aaa4f2f7a400d00448bfab2"
+source = "git+https://github.com/ibrahimAlbyrk/eos-agent-sdk?rev=54b850d7fc7229e21fb50550dba706c009d2a667#54b850d7fc7229e21fb50550dba706c009d2a667"
 dependencies = [
  "eos-agent-core",
  "eos-agent-types",
