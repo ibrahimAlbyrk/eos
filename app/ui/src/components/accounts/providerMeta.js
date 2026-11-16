@@ -31,6 +31,15 @@ export function planName(plan) {
   return label ? `${label} plan` : null;
 }
 
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+// What a sign-in's row says about it, when there is anything to say.
+export function loginState(login) {
+  if (login.state === "expired") return { text: "Sign-in expired", warn: true };
+  if (login.state !== "signed_in") return { text: "Signed out", warn: true };
+  if (login.limitedUntil) return { text: `At limit · resets ${clock(login.limitedUntil)}`, warn: true };
+  return null;
+}
 
 export function keyHint(account) {
   return account.apiKey.hint ? `••••${account.apiKey.hint}` : "Key saved";

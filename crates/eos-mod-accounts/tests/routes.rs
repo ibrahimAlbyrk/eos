@@ -132,6 +132,8 @@ async fn accounts_need_the_users_dashboard_and_usage_is_an_open_read() {
         (Method::Put, "/api/accounts/anthropic/auto-switch"),
         (Method::Put, "/workers/w-CHAT/plan-resume"),
         (Method::Post, "/workers/w-CHAT/api-key-continue"),
+        (Method::Get, "/workers/w-CHAT/account"),
+        (Method::Put, "/workers/w-CHAT/account"),
         (Method::Get, "/api/sign-ins/x"),
         (Method::Delete, "/api/sign-ins/x"),
         (Method::Post, "/api/sign-ins/x/code"),
@@ -295,6 +297,32 @@ async fn an_exhausted_rows_actions_schedule_a_resume_or_move_to_the_api_key() {
     assert_eq!(t.put("/api/anthropic/config", json!({ "apiKeys": "x" })).await.0, 400);
     assert_eq!(t.get("/api/anthropic/config").await, (200, json!({ "apiKeySet": false, "authTokenSet": false })));
     let _ = login;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_live_session_is_moved_to_the_sign_in_the_user_picks() {
+    let t = fixture(json!({}));
+    let first = t.sign_in("me@home.dev").await;
+    let second = t.sign_in("me@work.dev").await;
+    assert_eq!(t.get("/workers/w-CHAT/account").await, (200, json!({ "loginId": null })));
+    assert_eq!(
+        t.put("/workers/w-CHAT/account", json!({ "loginId": second })).await,
+        (409, json!({ "error": "this agent can't change account right now" }))
+    );
+    assert_eq!(t.put("/workers/w-CHAT/account", json!({})).await.0, 400);
+
+    let store = |id: &str| {
+        let dir = t.accounts.logins().list(CLAUDE).into_iter().find(|l| l.id == id).expect("a login").store_dir;
+        SessionCredential::Store { provider: CLAUDE.into(), dir: dir.into() }
+    };
+    t.accounts.launched("w-CHAT", Some(&store(&first)));
+    assert_eq!(t.get("/workers/w-CHAT/account").await, (200, json!({ "loginId": first })));
+    assert_eq!(
+        t.put("/workers/w-CHAT/account", json!({ "loginId": second })).await,
+        (200, json!({ "loginId": second }))
+    );
+    assert_eq!(t.sessions.moves(), [("w-CHAT".to_owned(), store(&second))]);
+    assert_eq!(t.get("/workers/w-CHAT/account").await, (200, json!({ "loginId": second })));
 }
 
 #[tokio::test(flavor = "multi_thread")]

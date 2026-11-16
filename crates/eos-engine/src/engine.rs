@@ -15,7 +15,7 @@ use eos_contracts::{
     AgentEvent, CommandItem, ProviderModel, ProviderModels, SessionEvent, SessionEventPhase, UiBackendDescriptor,
     UiBackendDescriptorBilling, UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
 };
-use eos_core::accounts::{SessionAccountSwitch, SessionCredential, SessionCredentials};
+use eos_core::accounts::{AfterMove, SessionAccountSwitch, SessionCredential, SessionCredentials};
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, ArtifactViewer, BackendAuth, BackendCatalog, BackendDescriptor,
     CommandCatalog, CompactionWords, LaunchSpec, ModelSource, OneShot, OneShotAnswer, OneShotError, OneShotRequest,
@@ -540,12 +540,13 @@ impl SessionAccountSwitch for Engine {
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let Some(session) = self.0.shared.sessions.get(worker_id) else {
                 return Err("this agent can't change account right now".to_owned());
             };
-            session.switch_account(credential).await.map_err(|e| e.to_string())
+            session.switch_account(credential, after).await.map_err(|e| e.to_string())
         })
     }
 }
@@ -738,10 +739,11 @@ impl SessionAccountSwitch for LazyEngine {
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             match self.built.get() {
-                Some(engine) => engine.move_session(worker_id, credential).await,
+                Some(engine) => engine.move_session(worker_id, credential, after).await,
                 None => Err("this agent can't change account right now".to_owned()),
             }
         })

@@ -14,7 +14,7 @@ use eos_contracts::{
 
 use super::descriptor::{AgentCapabilities, BackendDescriptor};
 use super::{ToolInputDelta, ToolInputPhase};
-use crate::accounts::SessionCredential;
+use crate::accounts::{AfterMove, SessionCredential};
 use crate::{BoxFuture, Error};
 
 /// Everything needed to start one session. Free of engine types: the runtime
@@ -299,9 +299,12 @@ pub trait AgentSession: Send + Sync + 'static {
     /// touching it. Dropping the future cancels the question.
     fn ask_side(&self, question: String) -> BoxFuture<'_, Result<String, SessionError>>;
 
-    /// Moves the session to another credential and runs the turn the old one
-    /// cut off again.
-    fn switch_account(&self, credential: SessionCredential) -> BoxFuture<'_, Result<(), SessionError>>;
+    /// Moves the session to another credential.
+    fn switch_account(
+        &self,
+        credential: SessionCredential,
+        after: AfterMove,
+    ) -> BoxFuture<'_, Result<(), SessionError>>;
 
     /// The skills and slash commands a user can type in it.
     fn commands(&self) -> Vec<CommandItem>;

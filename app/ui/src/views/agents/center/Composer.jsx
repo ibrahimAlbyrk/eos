@@ -11,6 +11,8 @@ import { useContentEditableEditor, getCursorOffset, getFocusOffset, getSelection
 import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { useBranchNames } from "../../../hooks/useBranchNames.js";
+import { useAccountMenu } from "../../../hooks/useAccountMenu.js";
+import { accountCommandText } from "../../../lib/accountCommand.js";
 import { expandBranchRefs } from "../../../lib/branchTokens.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
@@ -40,6 +42,7 @@ import { ModeFx, ModeOrb } from "./ComposerModeFx.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { BranchMenu } from "./BranchMenu.jsx";
+import { AccountPickMenu } from "./AccountPickMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { ReplyCard } from "./ReplyCard.jsx";
 import { useReplyTarget, clearReplyTarget } from "../../../state/replyStore.js";
@@ -66,6 +69,7 @@ export function Composer({ live, worker, paneId, focused }) {
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
   const [branchMenuIndex, setBranchMenuIndex] = useState(0);
+  const [accountMenuIndex, setAccountMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   // git ("custom task") + terminal modes are per-pane: each pane owns its
   // Composer, so they live here, not in the shared ui.composer singleton. Seeded
@@ -243,6 +247,8 @@ export function Composer({ live, worker, paneId, focused }) {
   const showMenu = menuVis.showMenu && !termMode;
   const showFileMenu = menuVis.showFileMenu && !termMode;
   const showBranchMenu = menuVis.showBranchMenu && !termMode;
+  const accountMenu = useAccountMenu({ text, cursorPos, workerId: selected?.id ?? null });
+  const showAccountMenu = accountMenu.results.length > 0 && !menuDismissed && !termMode && !gitMode;
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -380,6 +386,7 @@ export function Composer({ live, worker, paneId, focused }) {
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
   useEffect(() => { setBranchMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [hashCtx?.query]);
+  useEffect(() => { setAccountMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [accountMenu.ctx?.query]);
 
   useEffect(() => { setEscArmed(false); }, [text]);
   useEffect(() => {
@@ -517,6 +524,12 @@ export function Composer({ live, worker, paneId, focused }) {
     editorRef.current?.focus();
   };
 
+  const selectAccount = (login) => {
+    setTextAndSync(accountCommandText(login));
+    setAccountMenuIndex(0);
+    editorRef.current?.focus();
+  };
+
   const findPathAt = (pos) => {
     for (const [display] of insertedPathsRef.current) {
       const token = "@" + display;
@@ -634,6 +647,15 @@ export function Composer({ live, worker, paneId, focused }) {
       if (question) askSideQuestion(selected.id, question);
       ui.openPanel("btw", question ? undefined : { focus: Date.now() });
       return;
+    }
+
+    // "/account <name>" moves this chat to another Claude sign-in. It is Eos's
+    // own doing, so it never reaches the conversation or waits in the queue; a
+    // refusal leaves the text in the editor.
+    if (mode !== "term" && !gitMode) {
+      const moved = await accountMenu.run(t);
+      if (moved?.ok) { setTextAndSync("", 0, "reset"); return; }
+      if (moved) { alert(moved.error); return; }
     }
 
     // The session is being replaced while it compacts: the draft stays in the
@@ -795,6 +817,31 @@ export function Composer({ live, worker, paneId, focused }) {
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
         if (filtered[menuIndex]) selectCommand(filtered[menuIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        applyEscapeMenu();
+        return;
+      }
+    }
+
+    if (showAccountMenu) {
+      const logins = accountMenu.results;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAccountMenuIndex((i) => (i + 1) % logins.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAccountMenuIndex((i) => (i - 1 + logins.length) % logins.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (logins[accountMenuIndex]) selectAccount(logins[accountMenuIndex]);
         return;
       }
       if (e.key === "Escape") {
@@ -1235,6 +1282,15 @@ export function Composer({ live, worker, paneId, focused }) {
                     selectedIndex={branchMenuIndex}
                     onSelect={selectBranch}
                     query={hashCtx?.query ?? ""}
+                  />
+                )}
+                {showAccountMenu && (
+                  <AccountPickMenu
+                    logins={accountMenu.results}
+                    current={accountMenu.current}
+                    selectedIndex={accountMenuIndex}
+                    onSelect={selectAccount}
+                    query={accountMenu.ctx?.query ?? ""}
                   />
                 )}
                 <SlashInfoPopover />

@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::{WorkerEventType, WorkerState};
 use eos_core::Error;
-use eos_core::accounts::SessionCredential;
+use eos_core::accounts::{AfterMove, SessionCredential};
 use eos_core::store::{EventOrder, EventQuery};
 use eos_domain::accounts::LoginReadiness;
 use eos_domain::time::ms_from_iso;
@@ -128,7 +128,7 @@ impl PlanResumeService {
         };
         let credential = SessionCredential::Store { provider: provider.clone(), dir: login.store_dir.clone().into() };
         let row = SwitchedRow { provider: &provider, from: None, to: &login.label, reason: "reset", resets_at: None };
-        if self.plan.move_session(worker_id, credential, row).await.is_ok() {
+        if self.plan.move_session(worker_id, credential, row, AfterMove::Rerun).await.is_ok() {
             rest.insert("resumed".into(), true.into());
         }
         self.patched(worker_id, row_id, rest).await;

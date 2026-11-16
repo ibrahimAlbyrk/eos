@@ -12,21 +12,11 @@ import { planUsageSections, isUsageWarn } from "../../lib/usageFormat.js";
 import { ProviderGlyph } from "./ProviderGlyph.jsx";
 import { SignInHelp } from "./SignInHelp.jsx";
 import { ApiKeyField } from "./ApiKeyField.jsx";
-import { metaFor, planLabel, keyHint } from "./providerMeta.js";
+import { metaFor, planLabel, keyHint, loginState } from "./providerMeta.js";
 import { KeyIcon, PlusIcon, Spinner } from "./icons.jsx";
 import { useNow } from "../../hooks/useNow.js";
 
 const AVATAR_TINTS = 4;
-
-const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-// What a row says about its sign-in, when there is anything to say.
-function loginState(login) {
-  if (login.state === "expired") return { text: "Sign-in expired", warn: true };
-  if (login.state !== "signed_in") return { text: "Signed out", warn: true };
-  if (login.limitedUntil) return { text: `At limit · resets ${clock(login.limitedUntil)}`, warn: true };
-  return null;
-}
 
 function RenameField({ label, onSave, onCancel }) {
   const [value, setValue] = useState(label);

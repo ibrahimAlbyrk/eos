@@ -5,8 +5,8 @@ use std::sync::Arc;
 
 use eos_contracts::{BillingRoute, SignInState, SubscriptionState};
 use eos_core::accounts::{
-    PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials, SignedIn, SubscriptionProvider,
-    TokenProbeResult,
+    AfterMove, PlanFailure, PlanLimits, PlanVerdict, SessionCredential, SessionCredentials, SignedIn,
+    SubscriptionProvider, TokenProbeResult,
 };
 use eos_core::store::EventOrder;
 use eos_domain::accounts::PlanLoginRecord;
@@ -273,6 +273,54 @@ async fn auto_switch_off_only_sets_the_sign_in_aside_and_unknown_stores_change_n
 
     t.accounts.launched(WORKER, None);
     assert_eq!(t.claude_status().await.logins.expect("logins")[0].in_use, None);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_user_moves_one_session_to_another_sign_in_and_the_default_stays() {
+    let t = fixture(json!({}));
+    let (personal, work) = (t.login("me@home.dev"), t.login("me@work.dev"));
+    let missing = Err("this agent can't change account right now".to_owned());
+    assert_eq!(t.accounts.use_login(WORKER, &work.id).await, missing, "no live session");
+
+    t.run_on(&personal);
+    assert_eq!(t.accounts.login_of(WORKER), Some(personal.id.clone()));
+    assert_eq!(
+        t.accounts.use_login(WORKER, &personal.id).await,
+        Err("This chat already runs on me@home.dev.".to_owned())
+    );
+    assert_eq!(t.accounts.use_login(WORKER, "lg-none").await, Err("That account is not signed in to Eos.".to_owned()));
+    assert!(t.sessions.moves().is_empty());
+
+    assert_eq!(t.accounts.use_login(WORKER, &work.id).await, Ok(()));
+    assert_eq!(t.sessions.moves(), [(WORKER.to_owned(), store(&work.store_dir))]);
+    assert_eq!(t.sessions.afters(), [AfterMove::CarryOn], "no turn was cut off: nothing runs again");
+    assert_eq!(t.accounts.login_of(WORKER), Some(work.id.clone()));
+    assert_eq!(
+        t.rows("account_switched")[0].1,
+        json!({ "provider": "anthropic", "from": "me@home.dev", "to": "me@work.dev", "reason": "user" })
+    );
+    // A new session still starts on the default.
+    assert_eq!(t.accounts.for_new_session(CLAUDE).await, Some(store(&personal.store_dir)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_user_cannot_move_a_session_to_a_signed_out_sign_in_or_off_another_provider() {
+    let t = fixture(json!({}));
+    let (personal, work) = (t.login("me@home.dev"), t.login("me@work.dev"));
+    t.run_on(&personal);
+    t.accounts.ledger().mark(&work.id, eos_domain::accounts::PlanLimitReason::Expired, None);
+    assert_eq!(
+        t.accounts.use_login(WORKER, &work.id).await,
+        Err("me@work.dev needs to sign in again — Settings › Accounts.".to_owned())
+    );
+
+    let chatgpt = SessionCredential::Store { provider: CHATGPT.into(), dir: "/acc/chatgpt".into() };
+    t.accounts.launched(WORKER, Some(&chatgpt));
+    assert_eq!(
+        t.accounts.use_login(WORKER, &personal.id).await,
+        Err("This chat runs on another provider's model — only a Claude chat can change account.".to_owned())
+    );
+    assert!(t.sessions.moves().is_empty() && t.rows("account_switched").is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread")]

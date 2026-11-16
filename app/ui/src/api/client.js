@@ -1222,6 +1222,13 @@ export const api = {
   async continueOnApiKey(workerId) {
     return postJson(ROUTES.workerApiKeyContinue(workerId), {}, uiTokenHeader());
   },
+  // The Claude sign-in one chat's live session runs on, and `/account`'s move to another.
+  async getWorkerAccount(workerId) {
+    return getJson(ROUTES.workerAccount(workerId), { headers: uiTokenHeader() });
+  },
+  async setWorkerAccount(workerId, loginId) {
+    return putJson(ROUTES.workerAccount(workerId), { loginId }, uiTokenHeader());
+  },
   async signOut(provider) {
     return del(ROUTES.accountSignIn(provider), uiTokenHeader());
   },

@@ -278,6 +278,7 @@ pub const ACCOUNT_DEFAULT_LOGIN: Route =
 pub const ACCOUNT_AUTO_SWITCH: Route = Route::new("accountAutoSwitch", "/api/accounts/:provider/auto-switch", &[Put]);
 pub const WORKER_PLAN_RESUME: Route = Route::new("workerPlanResume", "/workers/:id/plan-resume", &[Put]);
 pub const WORKER_API_KEY_CONTINUE: Route = Route::new("workerApiKeyContinue", "/workers/:id/api-key-continue", &[Post]);
+pub const WORKER_ACCOUNT: Route = Route::new("workerAccount", "/workers/:id/account", &[Get, Put]).added();
 pub const SIGN_IN: Route = Route::new("signIn", "/api/sign-ins/:id", &[Get, Delete]);
 pub const SIGN_IN_CODE: Route = Route::new("signInCode", "/api/sign-ins/:id/code", &[Post]);
 pub const BROWSER_STATUS: Route = Route::new("browserStatus", "/browser/status", &[Get]);
@@ -558,6 +559,7 @@ pub const ROUTES: &[Route] = &[
     ACCOUNT_AUTO_SWITCH,
     WORKER_PLAN_RESUME,
     WORKER_API_KEY_CONTINUE,
+    WORKER_ACCOUNT,
     SIGN_IN,
     SIGN_IN_CODE,
     BROWSER_STATUS,

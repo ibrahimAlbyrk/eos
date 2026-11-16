@@ -344,6 +344,17 @@ impl Accounts {
     pub async fn continue_on_api_key(&self, worker_id: &str) -> Result<(), String> {
         self.plan.continue_on_api_key(worker_id, CLAUDE).await
     }
+
+    /// The Claude sign-in the worker's live session runs on, when it runs on one.
+    pub fn login_of(&self, worker_id: &str) -> Option<String> {
+        self.plan.login_of(worker_id).map(|login| login.id)
+    }
+
+    /// The user's `/account`: this session, and only it, goes on from its
+    /// next request on that Claude sign-in. `Err` reads as the dashboard shows it.
+    pub async fn use_login(&self, worker_id: &str, login_id: &str) -> Result<(), String> {
+        self.plan.use_login(worker_id, login_id).await
+    }
 }
 
 impl SessionCredentials for Accounts {
@@ -387,11 +398,7 @@ impl PlanAccess for Accounts {
     }
 
     fn login_of_worker(&self, provider: &str, worker_id: &str) -> Option<String> {
-        let Some(SessionCredential::Store { provider: on, dir }) = self.plan.live.get(worker_id) else { return None };
-        if on != provider {
-            return None;
-        }
-        self.plan.logins.list(provider).into_iter().find(|l| std::path::Path::new(&l.store_dir) == dir).map(|l| l.id)
+        self.plan.login_of(worker_id).filter(|login| login.provider == provider).map(|login| login.id)
     }
 
     fn utilization<'a>(&'a self, provider: &'a str) -> BoxFuture<'a, Option<f64>> {

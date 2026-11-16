@@ -6,9 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use eos_contracts::{ProviderUsage, ProviderUsageWindows, UsageWindow};
 use eos_core::accounts::{
-    Browser, PlanLoginDirs, PlanLoginStore, PlanStores, PlanUsageApi, Secrets, SessionAccountSwitch, SessionCredential,
-    SignInPages, SignInRequest, SignedIn, StoreLogin, SubscriptionProvider, TokenProbe, TokenProbeResult, UsageError,
-    UsageProvider, UsageSnapshotStore,
+    AfterMove, Browser, PlanLoginDirs, PlanLoginStore, PlanStores, PlanUsageApi, Secrets, SessionAccountSwitch,
+    SessionCredential, SignInPages, SignInRequest, SignedIn, StoreLogin, SubscriptionProvider, TokenProbe,
+    TokenProbeResult, UsageError, UsageProvider, UsageSnapshotStore,
 };
 use eos_core::os::LocalTime;
 use eos_core::store::ConfigSource;
@@ -456,12 +456,18 @@ impl LocalTime for FakeLocalTime {
 #[derive(Debug, Default)]
 pub struct FakeSessionSwitch {
     moves: Mutex<Vec<(String, SessionCredential)>>,
+    afters: Mutex<Vec<AfterMove>>,
     refusal: Mutex<Option<String>>,
 }
 
 impl FakeSessionSwitch {
     pub fn moves(&self) -> Vec<(String, SessionCredential)> {
         locked(&self.moves).clone()
+    }
+
+    /// What each move asked of the session afterwards, in order.
+    pub fn afters(&self) -> Vec<AfterMove> {
+        locked(&self.afters).clone()
     }
 
     /// Every later move fails with `reason`.
@@ -475,10 +481,12 @@ impl SessionAccountSwitch for FakeSessionSwitch {
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         let refusal = locked(&self.refusal).clone();
         if refusal.is_none() {
             locked(&self.moves).push((worker_id.to_owned(), credential));
+            locked(&self.afters).push(after);
         }
         Box::pin(async move { refusal.map_or(Ok(()), Err) })
     }

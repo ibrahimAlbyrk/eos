@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use eos_agent_mock_api::{MockApi, Output, Reply};
 use eos_core::Error;
-use eos_core::accounts::{PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
+use eos_core::accounts::{AfterMove, PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
 use eos_core::agent::{AgentRuntime, AgentSession, BackendCatalog, CompactionNotice, LaunchSpec, SessionError};
 use eos_engine::{Engine, EngineDeps, EngineOptions, LazyEngine};
 use eos_testkit::{EchoTool, FakeClock, FakeCredentials, FakePolicy, FakeToolSets, FakeUser, RecordingSink};
@@ -811,7 +811,9 @@ async fn a_credential_that_runs_out_is_replaced_or_ends_the_turn_quietly() {
         ],
         body: r#"{"type":"error","error":{"type":"rate_limit_error","message":"limit"}}"#.into(),
     };
-    let bench = Bench::new([limit(), Reply::text("on the spare"), limit(), Reply::text("on the key")]).await;
+    let replies =
+        [limit(), Reply::text("on the spare"), limit(), Reply::text("on the key"), Reply::text("on the pick")];
+    let bench = Bench::new(replies).await;
     let spare = SessionCredential::ApiKey { provider: "anthropic".into(), key: "k-spare".into() };
     bench
         .credentials
@@ -839,13 +841,24 @@ async fn a_credential_that_runs_out_is_replaced_or_ends_the_turn_quietly() {
 
     // "Use API key": the session moves and runs the cut-off turn again, with no new message.
     let key = SessionCredential::ApiKey { provider: "anthropic".into(), key: "k-own".into() };
-    bench.engine.move_session("w-1", key).await.expect("moves");
+    bench.engine.move_session("w-1", key, AfterMove::Rerun).await.expect("moves");
     let events = bench.after_turns("w-1", 3).await;
     assert_eq!(tags(&events)[9..], ["turn:started", "msg:assistant:text", "usage", "turn:ended"]);
     assert_eq!(key_of(bench.mock.requests().last().expect("a request")).as_deref(), Some("k-own"));
-    let moved = bench
-        .engine
-        .move_session("w-none", SessionCredential::ApiKey { provider: "anthropic".into(), key: "x".into() });
+
+    // The user's pick: nothing runs again, the next message goes out on it.
+    let pick = SessionCredential::ApiKey { provider: "anthropic".into(), key: "k-pick".into() };
+    bench.engine.move_session("w-1", pick, AfterMove::CarryOn).await.expect("moves");
+    assert_eq!(bench.mock.requests().len(), 4);
+    session.send("again".into()).await.expect("sends");
+    bench.after_turns("w-1", 4).await;
+    assert_eq!(key_of(bench.mock.requests().last().expect("a request")).as_deref(), Some("k-pick"));
+
+    let moved = bench.engine.move_session(
+        "w-none",
+        SessionCredential::ApiKey { provider: "anthropic".into(), key: "x".into() },
+        AfterMove::Rerun,
+    );
     assert_eq!(moved.await.err().as_deref(), Some("this agent can't change account right now"));
 }
 

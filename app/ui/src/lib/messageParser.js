@@ -611,7 +611,7 @@ export function buildBlocks(rawEvents) {
         kind: "accountSwitched",
         from: payload.from ?? "",
         to: payload.to ?? "",
-        reason: ["expired", "reset", "api_key"].includes(payload.reason) ? payload.reason : "limit",
+        reason: ["expired", "reset", "api_key", "user"].includes(payload.reason) ? payload.reason : "limit",
         resetsAt: payload.resetsAt ?? null,
         ts: ev.ts,
       });

@@ -276,6 +276,7 @@ export const ROUTES = {
   accountAutoSwitch: (provider) => `/api/accounts/${provider}/auto-switch`,
   workerPlanResume: (id) => `/workers/${id}/plan-resume`,
   workerApiKeyContinue: (id) => `/workers/${id}/api-key-continue`,
+  workerAccount: (id) => `/workers/${id}/account`,
   signIn: (id) => `/api/sign-ins/${id}`,
   signInCode: (id) => `/api/sign-ins/${id}/code`,
   // Browser panel — the daemon's single Chrome over CDP. Loopback + ui-token

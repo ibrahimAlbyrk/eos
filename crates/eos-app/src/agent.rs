@@ -16,7 +16,7 @@ use eos_contracts::{
     AgentEvent, DeltaEvent, DeltaEventChannel, DeltaEventPhase, SessionFactsRole, WorkflowRunProgress,
 };
 use eos_core::accounts::{
-    PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
+    AfterMove, PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
 use eos_core::agent::{
     AgentRuntime, BackendCatalog, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, OneShot,
@@ -120,10 +120,11 @@ impl SessionAccountSwitch for EngineAccountSwitch {
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         match self.0.upgrade() {
-            Some(engine) => Box::pin(async move { engine.move_session(worker_id, credential).await }),
-            None => NoLiveSessions.move_session(worker_id, credential),
+            Some(engine) => Box::pin(async move { engine.move_session(worker_id, credential, after).await }),
+            None => NoLiveSessions.move_session(worker_id, credential, after),
         }
     }
 }
@@ -138,6 +139,7 @@ impl SessionAccountSwitch for NoLiveSessions {
         &'a self,
         _worker_id: &'a str,
         _credential: SessionCredential,
+        _after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async { Err("this agent can't change account right now".to_owned()) })
     }
@@ -151,10 +153,11 @@ impl SessionAccountSwitch for RuntimeAccountSwitch {
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>> {
         Box::pin(async move {
             let session = self.0.session(worker_id).ok_or("this agent can't change account right now")?;
-            session.switch_account(credential).await.map_err(|e| e.to_string())
+            session.switch_account(credential, after).await.map_err(|e| e.to_string())
         })
     }
 }

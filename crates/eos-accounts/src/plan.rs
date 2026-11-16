@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use eos_contracts::WorkerEventType;
 use eos_core::accounts::{
-    PlanFailure, PlanLimits, PlanStores, PlanVerdict, SessionAccountSwitch, SessionCredential, StoreLogin,
+    AfterMove, PlanFailure, PlanLimits, PlanStores, PlanVerdict, SessionAccountSwitch, SessionCredential, StoreLogin,
 };
 use eos_core::os::LocalTime;
 use eos_core::store::{ConfigSource, Store};
@@ -35,6 +35,9 @@ pub const CLAUDE: &str = "anthropic";
 /// The provider of the ChatGPT sign-in.
 pub const CHATGPT: &str = "openai";
 const NO_API_KEY: &str = "No API key is set — add one in Settings › Accounts.";
+const NO_LIVE_SESSION: &str = "this agent can't change account right now";
+const NOT_ON_CLAUDE: &str = "This chat runs on another provider's model — only a Claude chat can change account.";
+const UNKNOWN_ACCOUNT: &str = "That account is not signed in to Eos.";
 
 /// The live sessions' credentials: one entry per running session, removed
 /// when the session ends.
@@ -70,7 +73,7 @@ pub(crate) struct SwitchedRow<'a> {
     pub(crate) provider: &'a str,
     pub(crate) from: Option<&'a str>,
     pub(crate) to: &'a str,
-    /// `limit`, `expired`, `reset` (a limit lifted) or `api_key` (the user's call).
+    /// `limit`, `expired`, `reset` (a limit lifted), `api_key` or `user` (the user's calls).
     pub(crate) reason: &'a str,
     pub(crate) resets_at: Option<i64>,
 }
@@ -277,15 +280,17 @@ impl Plan {
     }
 
     /// The one way a live session changes credential on the user's or a
-    /// timer's call: on the API key, and when a limit lifts.
+    /// timer's call: on the API key, when a limit lifts, and to the sign-in
+    /// the user picked.
     pub(crate) async fn move_session(
         &self,
         worker_id: &str,
         credential: SessionCredential,
         row: SwitchedRow<'_>,
+        after: AfterMove,
     ) -> Result<(), String> {
         let sessions = self.sessions.lock().unwrap_or_else(|p| p.into_inner()).clone();
-        if let Err(reason) = sessions.move_session(worker_id, credential.clone()).await {
+        if let Err(reason) = sessions.move_session(worker_id, credential.clone(), after).await {
             tracing::warn!(worker_id, error = %reason, "account switch failed");
             return Err(reason);
         }
@@ -303,6 +308,34 @@ impl Plan {
         let key = self.api_key(provider).ok_or_else(|| NO_API_KEY.to_owned())?;
         let credential = SessionCredential::ApiKey { provider: provider.to_owned(), key };
         let row = SwitchedRow { provider, from: None, to: "API key", reason: "api_key", resets_at: None };
-        self.move_session(worker_id, credential, row).await
+        self.move_session(worker_id, credential, row, AfterMove::Rerun).await
+    }
+
+    /// The Claude sign-in the worker's live session runs on.
+    pub(crate) fn login_of(&self, worker_id: &str) -> Option<PlanLoginRecord> {
+        let Some(SessionCredential::Store { provider, dir }) = self.live.get(worker_id) else { return None };
+        self.logins.list(&provider).into_iter().find(|l| Path::new(&l.store_dir) == dir)
+    }
+
+    /// The user moved this session to another Claude sign-in. It holds for
+    /// the session only: the default new sessions start on stays, and a
+    /// session started again starts on that default.
+    pub(crate) async fn use_login(&self, worker_id: &str, login_id: &str) -> Result<(), String> {
+        let live = self.live.get(worker_id).ok_or(NO_LIVE_SESSION)?;
+        if live.provider() != CLAUDE {
+            return Err(NOT_ON_CLAUDE.to_owned());
+        }
+        let registry = self.logins.registry();
+        let to = registry.find(CLAUDE, login_id).ok_or(UNKNOWN_ACCOUNT)?;
+        let from = self.login_of(worker_id);
+        if from.as_ref().is_some_and(|from| from.id == to.id) {
+            return Err(format!("This chat already runs on {}.", to.label));
+        }
+        if self.readiness(&self.reads(&registry, CLAUDE).await, to) == LoginReadiness::Out {
+            return Err(format!("{} needs to sign in again — Settings › Accounts.", to.label));
+        }
+        let from = from.as_ref().map(|from| from.label.as_str());
+        let row = SwitchedRow { provider: CLAUDE, from, to: &to.label, reason: "user", resets_at: None };
+        self.move_session(worker_id, store_credential(CLAUDE, &to.store_dir), row, AfterMove::CarryOn).await
     }
 }

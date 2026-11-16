@@ -223,6 +223,33 @@ pub struct AutoSwitchRequest {
 
 impl Validate for AutoSwitchRequest {}
 
+/// `PUT /workers/:id/account`: the Claude sign-in this session goes on with.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SetWorkerAccountRequest {
+    pub login_id: String,
+}
+
+impl Validate for SetWorkerAccountRequest {
+    fn validate(&self, cx: &mut Issues) {
+        cx.at("loginId", |cx| {
+            cx.str_min(&self.login_id, 1);
+            cx.str_max(&self.login_id, 64);
+        });
+    }
+}
+
+/// `GET /workers/:id/account`: the Claude sign-in the worker's live session
+/// runs on; `null` when it runs on none (an API key, another provider, no
+/// live session).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkerAccount {
+    pub login_id: Option<String>,
+}
+
+impl Validate for WorkerAccount {}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PlanResumeRequest {

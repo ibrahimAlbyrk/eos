@@ -14,8 +14,8 @@ use std::sync::Arc;
 use eos_accounts::Accounts;
 use eos_contracts::{
     AccountsResponse, AnthropicConfig, AnthropicConfigPatch, AnthropicConfigStatus, AutoSwitchRequest,
-    DefaultLoginRequest, PlanLoginRenameRequest, PlanResumeRequest, SignInCodeRequest, SignInStartRequest,
-    UsageResponse,
+    DefaultLoginRequest, PlanLoginRenameRequest, PlanResumeRequest, SetWorkerAccountRequest, SignInCodeRequest,
+    SignInStartRequest, UsageResponse, WorkerAccount,
 };
 use eos_core::agent::ProviderKeys;
 use eos_core::store::ConfigSource;
@@ -180,6 +180,23 @@ fn account_routes(accounts: &Arc<Accounts>) -> Vec<RouteDef> {
         async move { or_conflict(a.continue_on_api_key(&param(&req, "id")).await) }
     };
 
+    // `/account`: the sign-in one live session runs on, and the user's move to another.
+    let a = accounts.clone();
+    let account = move |req: Request| {
+        let login_id = a.login_of(&param(&req, "id"));
+        async move { Ok(Response::json(200, &WorkerAccount { login_id })) }
+    };
+
+    let a = accounts.clone();
+    let set_account = move |req: Request| {
+        let a = a.clone();
+        async move {
+            let body: SetWorkerAccountRequest = req.parse()?;
+            a.use_login(&param(&req, "id"), &body.login_id).await.map_err(ApiError::Conflict)?;
+            Ok(Response::json(200, &WorkerAccount { login_id: Some(body.login_id) }))
+        }
+    };
+
     let not_found = || ApiError::NotFound("sign-in not found".to_owned());
     let a = accounts.clone();
     let session = move |req: Request| {
@@ -223,6 +240,8 @@ fn account_routes(accounts: &Arc<Accounts>) -> Vec<RouteDef> {
         RouteDef::put("/api/accounts/{provider}/auto-switch", auto_switch).access(user),
         RouteDef::put("/workers/{id}/plan-resume", plan_resume).access(user),
         RouteDef::post("/workers/{id}/api-key-continue", api_key_continue).access(user),
+        RouteDef::get("/workers/{id}/account", account).access(user),
+        RouteDef::put("/workers/{id}/account", set_account).access(user),
         RouteDef::get("/api/sign-ins/{id}", session).access(user),
         RouteDef::delete("/api/sign-ins/{id}", cancel).access(user),
         RouteDef::post("/api/sign-ins/{id}/code", code).access(user),

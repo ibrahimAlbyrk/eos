@@ -25,7 +25,7 @@ use eos_contracts::{
     TurnEventPhase, UiBackendDescriptorBilling, UiBackendDescriptorCatalog, UiBackendDescriptorSessionStore,
     UnknownRecord, UsageEvent, WorkflowRunProgress,
 };
-use eos_core::accounts::SessionCredential;
+use eos_core::accounts::{AfterMove, SessionCredential};
 use eos_core::agent::{
     AgentCapabilities, AgentRuntime, AgentSession, BackendAuth, BackendDescriptor, BackgroundTaskUpdate,
     CompactionNotice, CompactionWords, LaunchSpec, ModelSource, Rewound, SessionError, SessionSink, ToolInputDelta,
@@ -205,7 +205,7 @@ pub enum Call {
     Recall(String),
     StopTask { worker_id: String, task_id: String },
     AskSide { worker_id: String, question: String },
-    SwitchAccount { worker_id: String, credential: SessionCredential },
+    SwitchAccount { worker_id: String, credential: SessionCredential, after: AfterMove },
 }
 
 /// Makes the turn for a message no scripted turn is left for: (worker, text).
@@ -729,10 +729,14 @@ impl AgentSession for ScriptedSession {
         })
     }
 
-    fn switch_account(&self, credential: SessionCredential) -> BoxFuture<'_, Result<(), SessionError>> {
+    fn switch_account(
+        &self,
+        credential: SessionCredential,
+        after: AfterMove,
+    ) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
             self.gone()?;
-            self.shared.record(Call::SwitchAccount { worker_id: self.worker_id.clone(), credential });
+            self.shared.record(Call::SwitchAccount { worker_id: self.worker_id.clone(), credential, after });
             Ok(())
         })
     }

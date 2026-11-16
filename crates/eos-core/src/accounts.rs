@@ -312,15 +312,24 @@ pub trait PlanAccess: Send + Sync + 'static {
     }
 }
 
+/// What a session does once it is on its new credential.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AfterMove {
+    /// Runs the turn the old credential cut off again, with no new input.
+    Rerun,
+    /// Nothing was cut off: its next request goes out on the new credential.
+    CarryOn,
+}
+
 /// What the accounts service asks of the engine. Implemented by the engine.
 pub trait SessionAccountSwitch: Send + Sync + 'static {
-    /// Moves the worker's live session to `credential` and runs the turn the
-    /// old one cut off again, with no new input. `Err`: why it could not,
-    /// in words the dashboard shows.
+    /// Moves the worker's live session to `credential`. `Err`: why it could
+    /// not, in words the dashboard shows.
     fn move_session<'a>(
         &'a self,
         worker_id: &'a str,
         credential: SessionCredential,
+        after: AfterMove,
     ) -> BoxFuture<'a, Result<(), String>>;
 }
 

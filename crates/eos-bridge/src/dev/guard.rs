@@ -30,8 +30,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{fromWorker}/peer-request"),
     ("POST", "/workers/{id}/peer-response"),
     ("POST", "/workers/{id}/keystroke"),
-    // Continues a stopped session on an API key; schedules a resume for later.
+    // Continues a stopped session on an API key or moves a live one to another sign-in;
+    // schedules a resume for later.
     ("POST", "/workers/{id}/api-key-continue"),
+    ("PUT", "/workers/{id}/account"),
     ("PUT", "/workers/{id}/plan-resume"),
     // Restart a live session with other settings.
     ("PUT", "/workers/{id}/model"),

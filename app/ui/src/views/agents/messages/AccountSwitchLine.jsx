@@ -1,11 +1,12 @@
-// Where a session moved to another Claude sign-in mid-turn (account_switched):
-// the sign-in it continued on, and why the one before stopped.
+// Where a session moved to another Claude sign-in (account_switched): the
+// sign-in it continued on, and why it left the one before.
 
 const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 export function accountSwitchReason(block) {
   if (block.reason === "reset") return "its limit reset";
   if (block.reason === "api_key") return "billed per token";
+  if (block.reason === "user") return "you switched accounts";
   if (block.reason === "expired") return `${block.from} needs to sign in again`;
   return block.resetsAt ? `${block.from} resets ${clock(block.resetsAt)}` : `${block.from} reached its limit`;
 }

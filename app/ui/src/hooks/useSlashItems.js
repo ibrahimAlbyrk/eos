@@ -7,6 +7,7 @@ import { useTemplates } from "./useTemplates.js";
 export const BUILTIN_COMMANDS = [
   { name: "clear", description: "Clear conversation history (agent context + chat)", source: "builtin" },
   { name: "compact", description: "Summarize the conversation into a fresh context. Text after the command steers what the summary keeps.", source: "builtin" },
+  { name: "account", description: "Continue this chat on another Claude account. Only this chat moves; new chats keep starting on the default account.", argumentHint: "<account>", source: "builtin" },
   { name: "export", description: "Export conversation as HTML", source: "builtin" },
   { name: "btw", description: "Ask a quick side question about this chat. Read-only; it never enters the conversation, and the agent keeps working.", argumentHint: "<question>", source: "builtin" },
 ];

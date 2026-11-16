@@ -22,7 +22,7 @@ use eos_contracts::{
 };
 use eos_core::BoxFuture;
 use eos_core::Clock;
-use eos_core::accounts::{SessionCredential, SessionCredentials};
+use eos_core::accounts::{AfterMove, SessionCredential, SessionCredentials};
 use eos_core::agent::{AgentCapabilities, AgentSession, CompactionNotice, Rewound, SessionError, SessionSink};
 use futures_util::FutureExt;
 use futures_util::stream::{FuturesUnordered, StreamExt};
@@ -718,13 +718,20 @@ impl AgentSession for EngineSession {
         Box::pin(async move { self.agent()?.ask_side(&question).await.map_err(failed) })
     }
 
-    fn switch_account(&self, credential: SessionCredential) -> BoxFuture<'_, Result<(), SessionError>> {
+    fn switch_account(
+        &self,
+        credential: SessionCredential,
+        after: AfterMove,
+    ) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(async move {
             let agent = self.agent()?;
             agent.set_auth(self.shared.accounts.of(&credential));
             self.shared.credentials.launched(&self.worker_id, Some(&credential));
             self.set_credential(Some(credential));
-            self.command(Command::Rerun).await
+            match after {
+                AfterMove::Rerun => self.command(Command::Rerun).await,
+                AfterMove::CarryOn => Ok(()),
+            }
         })
     }
 
