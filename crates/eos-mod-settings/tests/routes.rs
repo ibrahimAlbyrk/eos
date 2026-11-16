@@ -2,8 +2,11 @@
 //! what today's daemon answered (`33-settings`).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eos_config::ConfigFile;
+use eos_core::BoxFuture;
+use eos_core::agent::LiveCompaction;
 use eos_domain::config::Env;
 use eos_mod_settings::SettingsModule;
 use eos_runtime::access::Caller;
@@ -15,8 +18,20 @@ use eos_testkit::fixtures::recorded_response;
 use eos_testkit::{FakeSettings, TempHome};
 use serde_json::{Value, json};
 
+/// Counts how often the live sessions were brought in line.
+#[derive(Default)]
+struct Applied(AtomicUsize);
+
+impl LiveCompaction for Applied {
+    fn apply(&self) -> BoxFuture<'_, ()> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async {})
+    }
+}
+
 struct Bench {
     runtime: Runtime,
+    applied: Arc<Applied>,
     _home: TempHome,
 }
 
@@ -27,11 +42,12 @@ impl Bench {
         std::fs::write(home.path().join("config.json"), r#"{"archive":{"retention":"off"}}"#).expect("written");
         let config = Arc::new(ConfigFile::load(home.path(), Env::new([]), true));
         let genui = ProtectedSettings { keys: vec!["genui.level", "location.share"], via: "/api/settings/genui" };
-        let module = SettingsModule::new(Arc::new(FakeSettings::default()), config, vec![genui]);
+        let applied = Arc::new(Applied::default());
+        let module = SettingsModule::new(Arc::new(FakeSettings::default()), config, applied.clone(), vec![genui]);
         let runtime =
             Runtime::build(Kernel::new(KernelOptions::default()), vec![Arc::new(module)], Arc::new(AllPluginsOn))
                 .expect("composes");
-        Self { runtime, _home: home }
+        Self { runtime, applied, _home: home }
     }
 
     async fn call(&self, method: Method, target: &str, body: Option<Value>) -> (u16, Value) {
@@ -90,4 +106,12 @@ async fn the_archive_and_compaction_sections_are_merged_into_the_configuration()
             json!({"error": "invalid request: threshold: Number must be greater than or equal to 0.1; timeoutMs: Number must be greater than 0"})
         )
     );
+    // The one save that was taken reached the live sessions; it is not waited for.
+    for _ in 0..100 {
+        if bench.applied.0.load(Ordering::SeqCst) == 1 {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    assert_eq!(bench.applied.0.load(Ordering::SeqCst), 1);
 }

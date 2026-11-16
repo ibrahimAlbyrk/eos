@@ -198,6 +198,7 @@ pub enum Call {
     Interrupt(String),
     Stop(String),
     SetModel { worker_id: String, model: String, effort: Option<String>, compact_at: Option<u64> },
+    SetCompactAt { worker_id: String, compact_at: Option<u64> },
     ClearContext(String),
     Compact { worker_id: String, instructions: Option<String> },
     Rewind { worker_id: String, uuid: String },
@@ -624,6 +625,14 @@ impl AgentSession for ScriptedSession {
                 effort: effort.map(str::to_owned),
                 compact_at,
             });
+            Ok(())
+        })
+    }
+
+    fn set_compact_at(&self, compact_at: Option<u64>) -> BoxFuture<'_, Result<(), SessionError>> {
+        Box::pin(async move {
+            self.gone()?;
+            self.shared.record(Call::SetCompactAt { worker_id: self.worker_id.clone(), compact_at });
             Ok(())
         })
     }

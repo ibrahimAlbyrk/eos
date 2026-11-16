@@ -306,7 +306,12 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
     ];
     // Settings refuses the keys the features above set through routes of their own.
     let protected = modules.iter().filter_map(|module| module.protected_settings()).collect();
-    modules.push(Arc::new(eos_mod_settings::SettingsModule::new(cx.settings.clone(), cx.config.clone(), protected)));
+    modules.push(Arc::new(eos_mod_settings::SettingsModule::new(
+        cx.settings.clone(),
+        cx.config.clone(),
+        Arc::new(cx.sessions.clone()),
+        protected,
+    )));
     // Sync is built from what the features above let follow the user.
     let contributions = modules.iter().flat_map(|module| module.sync()).collect();
     modules.push(crate::machines::sync(cx, contributions)?);

@@ -253,7 +253,7 @@ pub trait AgentSession: Send + Sync + 'static {
     fn stop(&self) -> BoxFuture<'_, ()>;
 
     /// Runs later turns on `model` (and `effort`, when given), summarizing
-    /// by itself at `compact_at` from then on. A model of another provider
+    /// by itself at `compact_at` from then on (`None`: never). A model of another provider
     /// moves the conversation there, on the credential a new session of
     /// that provider would start on; a conversation too long for the model
     /// is summarized first.
@@ -263,6 +263,10 @@ pub trait AgentSession: Send + Sync + 'static {
         effort: Option<&'a str>,
         compact_at: Option<u64>,
     ) -> BoxFuture<'a, Result<(), SessionError>>;
+
+    /// Summarizes by itself at `compact_at` from the next turn on (`None`:
+    /// never); resolves once that holds, after any running turn.
+    fn set_compact_at(&self, compact_at: Option<u64>) -> BoxFuture<'_, Result<(), SessionError>>;
 
     /// Starts over with an empty conversation (`/clear`).
     fn clear_context(&self) -> BoxFuture<'_, Result<(), SessionError>>;

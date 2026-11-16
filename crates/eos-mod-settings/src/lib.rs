@@ -8,12 +8,14 @@
 //! | `GET`/`PUT /api/settings/compaction` | `config.compaction`: on/off, threshold, timeout (kept, not read) |
 //!
 //! A configuration section is merged into the file and the configuration is
-//! read again, so what reads it next (the archive sweep, the compaction
-//! trigger) sees the change at once.
+//! read again, so what reads it next (the archive sweep, a session that
+//! starts) sees the change at once; the live sessions take a compaction
+//! change from their next turn on ([`LiveCompaction`]).
 
 use std::sync::Arc;
 
 use eos_contracts::{ArchiveSettingsPatch, CompactionSettingsPatch, SettingsPatchRequest, SettingsResponse};
+use eos_core::agent::LiveCompaction;
 use eos_core::store::{ConfigSource, UserSettingsStore};
 use eos_runtime::access::{Access, Tier};
 use eos_runtime::http::{ApiError, Request, Response};
@@ -25,6 +27,7 @@ use serde_json::{Map, Value, json};
 pub struct SettingsModule {
     settings: Arc<dyn UserSettingsStore>,
     config: Arc<dyn ConfigSource>,
+    live: Arc<dyn LiveCompaction>,
     /// The keys other features set through routes of their own.
     protected: Arc<[ProtectedSettings]>,
 }
@@ -40,9 +43,10 @@ impl SettingsModule {
     pub fn new(
         settings: Arc<dyn UserSettingsStore>,
         config: Arc<dyn ConfigSource>,
+        live: Arc<dyn LiveCompaction>,
         protected: Vec<ProtectedSettings>,
     ) -> Self {
-        Self { settings, config, protected: protected.into() }
+        Self { settings, config, live, protected: protected.into() }
     }
 }
 
@@ -122,12 +126,14 @@ fn compaction(m: &SettingsModule) -> Vec<RouteDef> {
         let body = json!({"compaction": config.current().compaction});
         async move { Ok(Response::json(200, &body)) }
     };
-    let config = m.config.clone();
+    let (config, live) = (m.config.clone(), m.live.clone());
     let write = move |req: Request| {
-        let config = config.clone();
+        let (config, live) = (config.clone(), live.clone());
         async move {
             let patch: CompactionSettingsPatch = req.parse()?;
             write_section(&config, "compaction", fields(&patch)).await?;
+            // Not waited for: a session takes it only once its running turn is over.
+            tokio::spawn(async move { live.apply().await });
             Ok(Response::json(200, &json!({"compaction": config.current().compaction})))
         }
     };

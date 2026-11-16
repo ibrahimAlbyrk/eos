@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use eos_contracts::{PermissionMode, WorkerState};
 use eos_core::Error;
-use eos_core::agent::AgentRuntime;
+use eos_core::agent::{AgentRuntime, LiveCompaction};
 use eos_core::store::{EventOrder, EventQuery, Store};
 use eos_domain::Worker;
 use eos_domain::envelope::Envelope;
@@ -855,6 +855,26 @@ async fn a_model_change_is_checked_saved_and_applied_to_the_live_session() {
     bench.sessions.suspend(&id, "idle suspend").await.expect("suspends");
     let later = bench.sessions.set_model(&id, "claude-opus-5-5", None).await.expect("sets");
     assert!(!later.runtime_applied);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_compaction_settings_reach_the_live_sessions() {
+    let bench = Bench::new();
+    let live = bench.chat("").await;
+    let parked = bench.chat("").await;
+    bench.sessions.suspend(&parked, "idle suspend").await.expect("suspends");
+
+    LiveCompaction::apply(&bench.sessions).await;
+    let told: Vec<(String, Option<u64>)> = bench
+        .agents
+        .calls()
+        .into_iter()
+        .filter_map(|c| match c {
+            Call::SetCompactAt { worker_id, compact_at } => Some((worker_id, compact_at)),
+            _ => None,
+        })
+        .collect();
+    assert!(matches!(told.as_slice(), [(id, Some(at))] if *id == live && *at > 0), "only the live one: {told:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

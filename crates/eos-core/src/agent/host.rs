@@ -213,6 +213,14 @@ pub trait WorkerSessions: Send + Sync + 'static {
     fn settled<'a>(&'a self, worker_id: &'a str) -> BoxFuture<'a, ()>;
 }
 
+/// The live sessions, for the feature that changes the compaction settings.
+pub trait LiveCompaction: Send + Sync + 'static {
+    /// Brings every live session's own summarizing in line with the
+    /// settings as they are now; resolves once each has taken them, after
+    /// its running turn.
+    fn apply(&self) -> BoxFuture<'_, ()>;
+}
+
 /// One version of a file: where it is, how long, and when it last changed.
 /// The same stamp again means the same contents.
 #[derive(Debug, Clone, PartialEq, Eq)]

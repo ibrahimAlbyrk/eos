@@ -15,7 +15,7 @@ use std::time::Duration;
 
 use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TokenSource, TurnError};
 use eos_agent_engine::JsonlStore;
-use eos_agent_sdk::{InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
+use eos_agent_sdk::{AutoCompact, InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
 use eos_contracts::{
     AgentEvent, CommandItem, CommandItemSource, RewindMode, RewindTarget, SessionEvent, SessionEventOutcome,
     SessionEventPhase,
@@ -116,6 +116,10 @@ pub(crate) fn keyed(model: &str) -> bool {
 /// The provider `model` (an id or alias) runs on, as credentials name it.
 pub(crate) fn provider_of(model: &str) -> String {
     eos_agent_sdk::Provider::id_of(model).as_str().to_owned()
+}
+
+fn auto_compact(compact_at: Option<u64>) -> AutoCompact {
+    compact_at.map_or(AutoCompact::Off, AutoCompact::At)
 }
 
 fn failed(error: impl std::fmt::Display) -> SessionError {
@@ -611,7 +615,8 @@ impl AgentSession for EngineSession {
                 None
             };
             let auth = credential.as_ref().map(|c| self.shared.accounts.of(c) as Arc<dyn TokenSource>);
-            agent.set_model_with(model, ModelChange { auth, compact_at }).await.map_err(failed)?;
+            let change = ModelChange { auth, compaction: Some(auto_compact(compact_at)) };
+            agent.set_model_with(model, change).await.map_err(failed)?;
             if moved {
                 self.shared.credentials.launched(self.id(), credential.as_ref());
                 self.set_credential(credential);
@@ -620,6 +625,12 @@ impl AgentSession for EngineSession {
                 agent.set_effort(effort).await.map_err(|_| SessionError::Gone)?;
             }
             Ok(())
+        })
+    }
+
+    fn set_compact_at(&self, compact_at: Option<u64>) -> BoxFuture<'_, Result<(), SessionError>> {
+        Box::pin(async move {
+            self.agent()?.set_auto_compact(auto_compact(compact_at)).await.map_err(|_| SessionError::Gone)
         })
     }
 
