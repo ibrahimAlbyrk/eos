@@ -225,6 +225,9 @@ impl Validate for MessageRequest {
 #[serde(rename_all = "camelCase")]
 pub struct MessageRequestReplyTo {
     pub row_id: i64,
+    /// The passage of that message the user selected, when the reply is to it alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<String>,
 }
 
 impl Validate for MessageRequestReplyTo {

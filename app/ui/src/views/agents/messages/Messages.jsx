@@ -41,7 +41,7 @@ import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
-import { replyTargetOf } from "../../../lib/replyTarget.js";
+import { replyTargetOf, withSelection } from "../../../lib/replyTarget.js";
 import { isReactableChat } from "../../../lib/reactions.js";
 import { coverReactions, watchReactions } from "../../../state/reactionsStore.js";
 import { nameOf } from "../../../lib/agentName.js";
@@ -755,7 +755,7 @@ export function Messages({ live, agentId, isActive = true, visible = isActive })
     const i = blockIndex.get(b) ?? -1;
     const key = blockKey(b, i);
     const replyTarget = selectedId ? replyTargetOf(b) : null;
-    const onReply = replyTarget ? () => setReplyTarget(selectedId, replyTarget) : null;
+    const onReply = replyTarget ? (selection) => setReplyTarget(selectedId, withSelection(replyTarget, selection)) : null;
     return (
       <div key={key} data-rowid={b.rowId}>
         <LocalBoundary name="transcript row" fallback={rowCrash}>
@@ -833,7 +833,7 @@ export const TranscriptRow = memo(function TranscriptRow({
   // backend's `rewind` flag (canRewind), never on keystroke or kind.
   const onRewind = canRewind ? () => onRewindMessage(b.text, rewindOccurrence) : null;
   const replyTarget = sessionId ? replyTargetOf(b) : null;
-  const onReply = replyTarget ? () => setReplyTarget(sessionId, replyTarget) : null;
+  const onReply = replyTarget ? (selection) => setReplyTarget(sessionId, withSelection(replyTarget, selection)) : null;
   const block = b.kind === "compacted"
     ? (
       <CompactionCard

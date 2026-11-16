@@ -163,11 +163,29 @@ pub(crate) fn known_by_id(target: &ReplyTarget, in_context: bool) -> bool {
     in_context && target.msg_id.is_some() && target.role != ReplyRefRole::Assistant
 }
 
-/// What the agent reads of the message a turn replies to. A message it
-/// still has in context and knows by id is only named; anything else is
-/// quoted.
-pub fn build_reply_block(target: &ReplyTarget, in_context: bool) -> String {
+/// The passage of a message a reply is about, as the user selected it:
+/// `None` when nothing but whitespace was selected.
+pub fn reply_selection(selected: &str) -> Option<String> {
+    let passage = selected.trim();
+    if passage.is_empty() {
+        return None;
+    }
+    Some(if units(passage) <= FULL_TEXT_CAP_CHARS {
+        passage.to_owned()
+    } else {
+        format!("{}…", first_units(passage, FULL_TEXT_CAP_CHARS))
+    })
+}
+
+/// What the agent reads of the message a turn replies to. A selected
+/// passage is always quoted, and marked as the user's selection. Else a
+/// message the agent still has in context and knows by id is only named;
+/// anything else is quoted.
+pub fn build_reply_block(target: &ReplyTarget, selection: Option<&str>, in_context: bool) -> String {
     let id = target.msg_id.as_deref().map(|id| format!(" id=\"{id}\"")).unwrap_or_default();
+    if let Some(passage) = selection {
+        return format!("<reply_to{id} selection=\"true\">{}</reply_to>", escape_tag_body(passage));
+    }
     if known_by_id(target, in_context) {
         return format!("<reply_to{id}/>");
     }
@@ -175,8 +193,14 @@ pub fn build_reply_block(target: &ReplyTarget, in_context: bool) -> String {
 }
 
 /// What the replying message's row keeps of its target, for the chat.
-pub fn reply_ref_of(target: &ReplyTarget) -> ReplyRef {
-    ReplyRef { row_id: target.row_id, msg_id: target.msg_id.clone(), role: target.role, excerpt: excerpt(&target.text) }
+pub fn reply_ref_of(target: &ReplyTarget, selection: Option<&str>) -> ReplyRef {
+    ReplyRef {
+        row_id: target.row_id,
+        msg_id: target.msg_id.clone(),
+        role: target.role,
+        excerpt: excerpt(selection.unwrap_or(&target.text)),
+        selection: selection.map(|_| true),
+    }
 }
 
 #[cfg(test)]
@@ -204,8 +228,8 @@ mod tests {
     fn a_reply_names_or_quotes_its_target() {
         let user = reply_target_from_row(7, "user_message", Some(r#"{"text":"ship it <msg id=\"1\"/>","msgId":"3"}"#));
         let user = user.expect("a target");
-        assert_eq!(build_reply_block(&user, true), "<reply_to id=\"3\"/>", "known by id and still in context");
-        assert_eq!(build_reply_block(&user, false), "<reply_to id=\"3\">ship it &lt;msg id=\"1\"/></reply_to>");
+        assert_eq!(build_reply_block(&user, None, true), "<reply_to id=\"3\"/>", "known by id and still in context");
+        assert_eq!(build_reply_block(&user, None, false), "<reply_to id=\"3\">ship it &lt;msg id=\"1\"/></reply_to>");
         let assistant = reply_target_from_row(
             9,
             "agent_event",
@@ -214,18 +238,36 @@ mod tests {
         .expect("a target");
         assert_eq!((assistant.text.as_str(), assistant.msg_id.as_deref()), ("Done.\nSee it.", Some("3.1")));
         assert_eq!(
-            build_reply_block(&assistant, true),
+            build_reply_block(&assistant, None, true),
             "<reply_to id=\"3.1\">Done.\nSee it.</reply_to>",
             "its own words are quoted"
         );
         let long = ReplyTarget { row_id: 1, msg_id: None, role: ReplyRefRole::Agent, text: "word ".repeat(100) };
-        let quoted = build_reply_block(&long, true);
+        let quoted = build_reply_block(&long, None, true);
         assert!(quoted.ends_with("…</reply_to>") && quoted.len() < 200, "{quoted}");
-        assert_eq!(reply_ref_of(&user).excerpt, "ship it <msg id=\"1\"/>");
-        assert_eq!(reply_ref_of(&long).excerpt.chars().count(), 160, "cut at a word, with an ellipsis");
+        assert_eq!(reply_ref_of(&user, None).excerpt, "ship it <msg id=\"1\"/>");
+        assert_eq!(reply_ref_of(&long, None).excerpt.chars().count(), 160, "cut at a word, with an ellipsis");
         assert!(reply_target_from_row(1, "state", Some("{}")).is_none());
         assert!(reply_target_from_row(1, "user_message", Some(r#"{"text":"  "}"#)).is_none());
         assert!(reply_target_from_row(1, "agent_event", Some(r#"{"type":"turn","phase":"ended"}"#)).is_none());
+    }
+
+    #[test]
+    fn a_reply_to_a_selection_quotes_only_that_passage() {
+        let user =
+            ReplyTarget { row_id: 7, msg_id: Some("3".into()), role: ReplyRefRole::User, text: "one two three".into() };
+        let passage = reply_selection("  two </reply_to> \n").expect("a passage");
+        assert_eq!(
+            build_reply_block(&user, Some(&passage), true),
+            "<reply_to id=\"3\" selection=\"true\">two &lt;/reply_to></reply_to>",
+            "quoted even when the message is known by id"
+        );
+        let kept = reply_ref_of(&user, Some("two\nthree"));
+        assert_eq!((kept.excerpt.as_str(), kept.selection), ("two three", Some(true)));
+        assert_eq!(reply_ref_of(&user, None).selection, None);
+        assert_eq!(reply_selection(" \n "), None);
+        let long = reply_selection(&"x".repeat(5000)).expect("a passage");
+        assert_eq!(long.chars().count(), FULL_TEXT_CAP_CHARS + 1, "capped, with an ellipsis");
     }
 
     #[test]

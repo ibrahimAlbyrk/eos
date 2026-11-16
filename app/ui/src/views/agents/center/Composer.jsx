@@ -571,12 +571,14 @@ export function Composer({ live, worker, paneId, focused }) {
     const busy = !steer && worker.state === "WORKING";
     const itemId = outbox.beginSend(worker.id, {
       text: displayText, agentText, clientMsgId, busy,
-      replyTo: replyTo ? { rowId: replyTo.rowId, role: replyTo.role, excerpt: replyTo.text } : null,
+      replyTo: replyTo
+        ? { rowId: replyTo.rowId, role: replyTo.role, excerpt: replyTo.selection ?? replyTo.text, ...(replyTo.selection ? { selection: true } : {}) }
+        : null,
     });
     try {
       const r = await live.sendToAgent(worker.id, agentText, {
         clientMsgId, queueWhenBusy: !steer,
-        ...(replyTo ? { replyTo: { rowId: replyTo.rowId } } : {}),
+        ...(replyTo ? { replyTo: { rowId: replyTo.rowId, ...(replyTo.selection ? { selection: replyTo.selection } : {}) } } : {}),
       });
       outbox.settleSend(worker.id, itemId, r);
       if (!r?.ok && !r?.body?.queued) {

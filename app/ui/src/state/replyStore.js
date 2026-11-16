@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 // singleton because the reply button (transcript) and the reply card (composer)
 // render in different subtrees of a pane; keying by worker keeps a split layout
 // routing each reply to its own agent's composer and survives agent switches.
-const targets = new Map(); // workerId -> { rowId, role, text, ts }
+const targets = new Map(); // workerId -> { rowId, role, text, ts, selection? }
 const subs = new Set();
 
 function emit() {

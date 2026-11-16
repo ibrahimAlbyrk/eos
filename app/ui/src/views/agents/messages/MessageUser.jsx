@@ -111,7 +111,7 @@ function MessageUserText({ text, cwd, replyTo, agentName, onJumpToReply }) {
             <path d="M4 4v7a4 4 0 0 0 4 4h12" />
           </svg>
           <ReplyWho role={replyTo.role} agentName={agentName} />
-          <span className="msg-reply-ref-text">{replyTo.excerpt}</span>
+          <span className={"msg-reply-ref-text" + (replyTo.selection ? " reply-passage" : "")}>{replyTo.excerpt}</span>
         </button>
       )}
       {attachments.length > 0 && (

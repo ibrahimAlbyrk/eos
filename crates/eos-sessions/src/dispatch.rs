@@ -14,7 +14,7 @@ use eos_core::{BoxFuture, Error};
 use eos_domain::Worker;
 use eos_domain::envelope::{Envelope, apply_sender_tag, sender_tag};
 use eos_domain::message_id::{
-    ReplyTarget, build_reply_block, prefix_operator_turn, reply_ref_of, reply_target_from_row,
+    ReplyTarget, build_reply_block, prefix_operator_turn, reply_ref_of, reply_selection, reply_target_from_row,
     starts_with_slash_command,
 };
 use eos_domain::message_queue::{MessagePlane, QueueMeta};
@@ -58,6 +58,8 @@ pub struct MessageInput {
     pub action: Option<Value>,
     /// The row of the message this one replies to.
     pub reply_to: Option<i64>,
+    /// The passage of that message the user selected, when the reply is to it alone.
+    pub reply_selection: Option<String>,
     /// A click in a visual answer: it becomes the turn's text, what the chat
     /// shows and `action`.
     pub view_action: Option<ViewAction>,
@@ -99,7 +101,10 @@ fn meta(input: &MessageInput) -> QueueMeta {
     QueueMeta {
         envelope: input.envelope.as_ref().and_then(|e| serde_json::to_value(e).ok()),
         display_text: input.display_text.clone(),
-        reply_to: input.reply_to.map(|row| json!({"rowId": row})),
+        reply_to: input.reply_to.map(|row| match &input.reply_selection {
+            Some(selection) => json!({"rowId": row, "selection": selection}),
+            None => json!({"rowId": row}),
+        }),
         action: input.action.clone(),
     }
 }
@@ -116,15 +121,15 @@ fn chat_row(
     input: &MessageInput,
     msg_id: Option<i64>,
     client_ids: Option<&[String]>,
-    reply: Option<&ReplyTarget>,
+    reply: Option<(&ReplyTarget, Option<&str>)>,
 ) -> Result<Option<i64>, Error> {
     let mut base = Map::new();
     base.insert("text".into(), input.display_text.clone().unwrap_or_else(|| input.text.clone()).into());
     if let Some(id) = msg_id {
         base.insert("msgId".into(), id.to_string().into());
     }
-    if let Some(target) = reply {
-        base.insert("replyTo".into(), serde_json::to_value(reply_ref_of(target)).map_err(Error::storage)?);
+    if let Some((target, selection)) = reply {
+        base.insert("replyTo".into(), serde_json::to_value(reply_ref_of(target, selection)).map_err(Error::storage)?);
     }
     let with = |mut base: Map<String, Value>, extra: [(&str, &str); 2]| {
         for (key, value) in extra {
@@ -263,12 +268,15 @@ fn plan(
         }
     }
 
-    // Only the operator's own, untagged turn carries a reply. The target is
-    // named when the agent still has it in context, quoted when a summary or
-    // a clear took it out.
+    // Only the operator's own, untagged turn carries a reply. A selected
+    // passage is quoted; else the target is named when the agent still has
+    // it in context, quoted when a summary or a clear took it out.
     let reply = target.filter(|_| input.envelope.is_none() && !starts_with_slash_command(&input.text));
+    let selection = input.reply_selection.as_deref().and_then(reply_selection);
     let block = match &reply {
-        Some(target) => Some(build_reply_block(target, target.row_id > context_boundary(tx, id)?)),
+        Some(target) => {
+            Some(build_reply_block(target, selection.as_deref(), target.row_id > context_boundary(tx, id)?))
+        }
         None => None,
     };
     // The user's reactions the agent has not heard of go with their own turn.
@@ -278,7 +286,8 @@ fn plan(
     let head = (!head.is_empty()).then(|| head.join("\n"));
     let (text, msg_id) = outgoing(tx, input, head.as_deref())?;
     let client_ids = input.record_client_msg_ids.clone().or(input.client_msg_id.clone().map(|id| vec![id]));
-    let row = chat_row(tx, now, input, msg_id, client_ids.as_deref(), reply.as_ref())?;
+    let row =
+        chat_row(tx, now, input, msg_id, client_ids.as_deref(), reply.as_ref().map(|t| (t, selection.as_deref())))?;
     sessions.0.turns.clear_settle(id);
     sessions.0.turns.reset_output(id);
     if let Some(row) = row {
@@ -442,6 +451,7 @@ impl Sessions {
                 envelope,
                 action: head.meta.action.clone(),
                 reply_to: head.meta.reply_to.as_ref().and_then(|r| r["rowId"].as_i64()),
+                reply_selection: head.meta.reply_to.as_ref().and_then(|r| r["selection"].as_str()).map(str::to_owned),
                 ..MessageInput::default()
             };
             if let Err(e) = self.dispatch(message).await {

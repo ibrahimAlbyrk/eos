@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { Ticking } from "../../../components/Ticking.jsx";
 import { setReaction, useReactions } from "../../../state/reactionsStore.js";
+import { selectedPassage } from "../../../lib/replyTarget.js";
 import { ReactionChips } from "./reactions/ReactionChips.jsx";
 import { ReactionPicker } from "./reactions/ReactionPicker.jsx";
 
@@ -13,7 +14,9 @@ const EDGE = 8; // closest the bar gets to the window edge
 // `onRewind` is an async () => {ok, error?, cancelled?}; the button
 // renders only when it is provided. `rewindDisabled` keeps it visible but
 // inert (dimmed) — e.g. while the agent is mid-turn and the backend would
-// refuse the rewind anyway. `onReply` (when provided) sits at the bar's end.
+// refuse the rewind anyway. `onReply` (when provided) sits at the bar's end;
+// a right-click on text selected in the message hands it that passage, so the
+// reply is to the passage alone.
 // `reaction` ({ workerId, rowId }) makes the message one that takes an emoji:
 // the bar opens with the emoji row on top, and the reactions on the message
 // show as chips under it (the only thing a row at rest adds, and only then).
@@ -24,14 +27,22 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
   const [copied, setCopied] = useState(false);
   const [rewindState, setRewindState] = useState(null); // null | "busy" | "error"
   const rowRef = useRef(null);
+  const passageRef = useRef(null);
   const closeMenu = useCallback(() => setMenuAt(null), []);
+
+  // Read at the press, not at the menu event: by then macOS has selected the
+  // word under a pointer that was on no selection.
+  const notePassage = (e) => {
+    passageRef.current = selectedPassage(window.getSelection(), rowRef.current, e.clientX, e.clientY);
+  };
 
   const openMenu = (e) => {
     const at = menuPoint(e, rowRef.current.getBoundingClientRect());
     if (!at) return;
     e.preventDefault();
     setMoreEmoji(false);
-    setMenuAt(at);
+    setMenuAt({ ...at, passage: passageRef.current });
+    passageRef.current = null;
   };
 
   // The emoji the user already has on the message takes it back.
@@ -49,7 +60,7 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
 
   const reply = () => {
     setMenuAt(null);
-    onReply();
+    onReply(menuAt.passage);
   };
 
   const rewind = async () => {
@@ -69,6 +80,7 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
     <div
       ref={rowRef}
       className={"msg-row" + (align === "right" ? " right" : "") + (menuAt ? " ctx-open" : "")}
+      onMouseDown={notePassage}
       onContextMenu={openMenu}
     >
       {children}
@@ -95,6 +107,7 @@ export function MessageRow({ ts, copyText, align, onRewind, rewindDisabled, onRe
               copied={copied}
               onCopy={copy}
               onReply={onReply ? reply : null}
+              replyToSelection={Boolean(menuAt.passage)}
             />
           </div>
         </ActionBar>
@@ -113,7 +126,7 @@ export function menuPoint(e, box) {
 
 // The bar's items, in order: the time, Rewind (user messages; dimmed and inert while the
 // agent is busy), Copy, Reply.
-export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onRewind, copied, onCopy, onReply }) {
+export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onRewind, copied, onCopy, onReply, replyToSelection }) {
   return (
     <>
       {ts != null && (
@@ -145,7 +158,7 @@ export function MessageActions({ ts, canRewind, rewindDisabled, rewindState, onR
         )}
       </button>
       {onReply && (
-        <button className="msg-action-btn" onClick={onReply} title="Reply">
+        <button className="msg-action-btn" onClick={onReply} title={replyToSelection ? "Reply to the selection" : "Reply"}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 14 4 9l5-5" />
             <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />

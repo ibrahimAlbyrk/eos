@@ -376,6 +376,10 @@
 .reply-who { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; min-width: 0; font-weight: 500; white-space: nowrap; }
 .reply-who .al-star { width: 12px; height: 12px; --al-ray: var(--fg-dim2); --al-hi: var(--fg-dim); --al-core: var(--fg-dim); }
 .reply-who-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+/* A reply to a passage selected in the message, not to the whole of it. */
+.reply-passage { font-style: italic; }
+.reply-passage::before { content: "\201C"; }
+.reply-passage::after { content: "\201D"; }
 .msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-user .msg-link:hover { opacity: 0.8; }
 

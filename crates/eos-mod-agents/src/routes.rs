@@ -65,12 +65,14 @@ pub(crate) fn delivered(outcome: &Dispatched) -> Response {
 /// What the operator's message carries besides its text.
 fn from_dashboard(id: String, body: MessageRequest) -> MessageInput {
     let origin = if body.action.is_some() { "view-action" } else { "dashboard" };
+    let (reply_to, reply_selection) = body.reply_to.map(|reply| (reply.row_id, reply.selection)).unzip();
     MessageInput {
         worker_id: id,
         text: body.text,
         client_msg_id: body.client_msg_id,
         queue_when_busy: body.queue_when_busy.unwrap_or(false),
-        reply_to: body.reply_to.map(|reply| reply.row_id),
+        reply_to,
+        reply_selection: reply_selection.flatten(),
         view_action: body.action,
         origin: Some(origin.into()),
         ..MessageInput::default()

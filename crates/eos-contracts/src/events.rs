@@ -112,6 +112,9 @@ pub struct ReplyRef {
     pub msg_id: Option<String>,
     pub role: ReplyRefRole,
     pub excerpt: String,
+    /// The excerpt is a passage the user selected, not the start of the message.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selection: Option<bool>,
 }
 
 impl Validate for ReplyRef {

@@ -1017,6 +1017,28 @@ async fn replies_clicks_and_eos_commands_go_through_dispatch() {
     let gone = bench.sessions.dispatch(MessageInput { reply_to: Some(9999), ..bench.message(&id, "to what?") }).await;
     assert_eq!(gone, Err(Error::not_found("message", "9999")));
 
+    // A reply to a selected passage quotes that passage alone, marked as the user's selection.
+    let before = bench.agents.sent(&id).len();
+    let part = MessageInput {
+        reply_to: Some(answer),
+        reply_selection: Some(" plan is ".into()),
+        ..bench.message(&id, "which one?")
+    };
+    bench.sessions.dispatch(part).await.expect("sends");
+    bench.agents.settled().await;
+    assert!(
+        bench.agents.sent(&id)[before]
+            .contains("<reply_to id=\"1.1\" selection=\"true\">plan is</reply_to>\nwhich one?"),
+        "{}",
+        bench.agents.sent(&id)[before]
+    );
+    let rows = bench.rows(&id).await;
+    let said = rows.iter().rfind(|(kind, _)| kind == "user_message").expect("the row");
+    assert_eq!(
+        said.1["replyTo"],
+        serde_json::json!({"rowId": answer, "msgId": "1.1", "role": "assistant", "excerpt": "plan is", "selection": true})
+    );
+
     // A click in a visual answer: the agent reads the label and the payload, the chat shows the label.
     let click =
         serde_json::from_value(serde_json::json!({"viewId": "v_abcdefghijkl", "actionId": "book", "label": "Book it"}))
