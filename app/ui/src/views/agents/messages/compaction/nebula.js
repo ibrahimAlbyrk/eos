@@ -40,6 +40,10 @@ function createLabel(frame, x, y, meta) {
         .finished.then(() => old.remove(), () => {});
       nu.animate([{ transform: "translateY(100%)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 380, easing: ease, fill: "both" });
     },
+    moveTo(nx, ny) {
+      el.style.left = `${nx}px`;
+      el.style.top = `${ny}px`;
+    },
     hide() {
       el.animate([{ opacity: 1 }, { opacity: 0, transform: "translateY(6px)" }], { duration: 240, fill: "both" })
         .finished.then(() => el.remove(), () => el.remove());
@@ -89,6 +93,15 @@ export function startNebula(d, { frame, band, blocks, onHide, meta }) {
 
   let label = null;
   let stopRoll = () => {};
+  let completing = false;
+  E.onResize = (dx, dy) => {
+    if (completing) return;
+    neb.x += dx;
+    neb.y += dy;
+    neb.rx = Math.min(170, E.F.width * 0.36);
+    neb.ry = neb.rx * 0.42;
+    label?.moveTo(neb.x, neb.y + neb.ry + 34);
+  };
   const ready = (async () => {
     if (blocks.length) {
       await E.dissolve(blocks, onHide);
@@ -137,6 +150,7 @@ export function startNebula(d, { frame, band, blocks, onHide, meta }) {
     // onReveal advance the card: show its galaxy + stars, then its real text.
     async complete(card, { assemblingClass, cardSeed, onSettle, onReveal }) {
       await ready;
+      completing = true;
       stopRoll();
       label?.hide();
       E.maxSpeed = 1.4;

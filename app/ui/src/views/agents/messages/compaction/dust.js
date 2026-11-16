@@ -111,31 +111,41 @@ function sample(c, stepCss, minA, jitter) {
 }
 
 export function createDust(d, { frame, band: bandEl }) {
-  const F = frame.getBoundingClientRect();
+  let F = frame.getBoundingClientRect();
   const layer = (cls) => {
     const c = document.createElement("canvas");
     c.className = "nb-canvas " + cls;
-    c.width = Math.round(F.width * DPR);
-    c.height = Math.round(F.height * DPR);
     frame.append(c);
-    const g = c.getContext("2d");
-    g.scale(DPR, DPR);
-    return { c, g };
+    return { c, g: c.getContext("2d") };
   };
   const rest = layer("nb-rest");
   const dust = layer("nb-dust");
-  const B = bandEl.getBoundingClientRect();
-  const band = { top: B.top - F.top, bottom: B.bottom - F.top };
-  rest.c.style.webkitMaskImage = rest.c.style.maskImage =
-    `linear-gradient(to bottom, transparent ${band.top}px, #000 ${band.top + 26}px, #000 ${band.bottom}px, transparent ${band.bottom}px)`;
+  const band = { top: 0, bottom: 0 };
+  // Sizes the canvases to the frame and reads the band; resizing a canvas
+  // clears it and resets its transform.
+  const fit = () => {
+    F = frame.getBoundingClientRect();
+    const B = bandEl.getBoundingClientRect();
+    band.top = B.top - F.top;
+    band.bottom = B.bottom - F.top;
+    for (const { c, g } of [rest, dust]) {
+      c.width = Math.round(F.width * DPR);
+      c.height = Math.round(F.height * DPR);
+      g.scale(DPR, DPR);
+    }
+    rest.c.style.webkitMaskImage = rest.c.style.maskImage =
+      `linear-gradient(to bottom, transparent ${band.top}px, #000 ${band.top + 26}px, #000 ${band.bottom}px, transparent ${band.bottom}px)`;
+  };
+  fit();
+  const centerOf = () => ({ x: F.width / 2, y: band.top + (band.bottom - band.top) * 0.42 });
   const narrow = F.width < 600 || matchMedia("(pointer: coarse)").matches;
 
   const colors = [], colorIndex = new Map(), groups = [];
   const E = {
-    F, band, parts: [], sparks: [], pieces: [], time: 0,
+    F, band, parts: [], sparks: [], pieces: [], time: 0, onResize: null,
     field: null, pre: null, damp: 0.993, trail: 0.55, maxSpeed: 0.9,
     budget: narrow ? 3000 : 6500,
-    center: { x: F.width / 2, y: band.top + (band.bottom - band.top) * 0.42 },
+    center: centerOf(),
     colorOf(r, g, b) {
       const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
       let i = colorIndex.get(key);
@@ -294,6 +304,22 @@ export function createDust(d, { frame, band: bandEl }) {
     draw();
     if (E.hideNext) { E.hideNext(); E.hideNext = null; }
   });
-  E.destroy = () => { E.stop(); rest.c.remove(); dust.c.remove(); };
+  // The frame changes size (side panel opened/closed, window resized): refit
+  // the canvases and carry everything along with the center so the cloud stays
+  // in the middle instead of being stretched with the canvas.
+  const resized = new ResizeObserver(() => {
+    const was = frame.getBoundingClientRect();
+    if (was.width === F.width && was.height === F.height) return;
+    fit();
+    E.F = F;
+    const c = centerOf();
+    const dx = c.x - E.center.x, dy = c.y - E.center.y;
+    E.center = c;
+    for (const p of E.parts) { p.x += dx; p.y += dy; }
+    for (const pc of E.pieces) { pc.x += dx; pc.y += dy; }
+    E.onResize?.(dx, dy);
+  });
+  resized.observe(frame);
+  E.destroy = () => { resized.disconnect(); E.stop(); rest.c.remove(); dust.c.remove(); };
   return E;
 }
