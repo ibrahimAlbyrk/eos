@@ -1,6 +1,6 @@
 //! The model providers reached with an API key: every `config.json` backend
-//! that speaks the Chat Completions API. A model of one is named
-//! `<provider>/<model>`.
+//! that speaks the Chat Completions API (the OpenAI preset's sessions go on
+//! its Responses API). A model of one is named `<provider>/<model>`.
 
 use eos_contracts::{
     AuthRefKind, BackendKind, BackendProfile, ProviderCapabilitiesAuthStyle, ProviderCapabilitiesMaxTokensParam,
@@ -16,6 +16,36 @@ use crate::config::Config;
 const CHAT_PATH: &str = "/v1/chat/completions";
 /// Names the engine keeps for its own providers: a profile of one goes by `<name>-api`.
 const TAKEN: &[&str] = &["openai", "anthropic"];
+
+/// The levels a server that says it takes an effort, and names none, is offered.
+const ANY_EFFORT: &[ModelEffort] =
+    &[ModelEffort { models: "", style: Some(EffortStyle::Levels(&["low", "medium", "high"])) }];
+
+/// How a model takes an effort.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffortStyle {
+    /// `reasoning_effort`, one of these levels.
+    Levels(&'static [&'static str]),
+    /// A thinking budget in tokens for each level (`None`: none is sent,
+    /// the model thinks as long as it may).
+    Budgets(&'static [(&'static str, Option<u32>)]),
+}
+
+impl EffortStyle {
+    pub fn levels(&self) -> Vec<&'static str> {
+        match self {
+            Self::Levels(levels) => levels.to_vec(),
+            Self::Budgets(budgets) => budgets.iter().map(|(level, _)| *level).collect(),
+        }
+    }
+}
+
+/// The effort the models whose ids open with `models` take (`None`: none).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ModelEffort {
+    pub models: &'static str,
+    pub style: Option<EffortStyle>,
+}
 
 /// Where an endpoint's key is kept.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,8 +71,10 @@ pub struct ProviderEndpoint {
     /// The header the key goes in (`None`: `Authorization: Bearer`).
     pub key_header: Option<&'static str>,
     pub key: EndpointKey,
-    /// Requests carry an effort.
-    pub effort: bool,
+    /// How its models take an effort: the first whose `models` a model opens with.
+    pub efforts: &'static [ModelEffort],
+    /// Sessions reach it on OpenAI's Responses API, at [`ProviderEndpoint::api_root`].
+    pub responses: bool,
     /// A reply's reasoning goes back with it.
     pub replay_reasoning: bool,
     /// The reply's length is limited by `max_completion_tokens`.
@@ -57,6 +89,17 @@ impl ProviderEndpoint {
     /// The id sessions know `model` (as the provider names it) by.
     pub fn model_id(&self, model: &str) -> String {
         format!("{}/{model}", self.id)
+    }
+
+    /// How `model` (as the provider names it) takes an effort.
+    pub fn effort(&self, model: &str) -> Option<EffortStyle> {
+        self.efforts.iter().find(|e| model.starts_with(e.models)).and_then(|e| e.style)
+    }
+
+    /// The API root its chat path sits under (`https://api.openai.com/v1`).
+    pub fn api_root(&self) -> String {
+        let beside = self.chat_path.strip_suffix("/chat/completions").unwrap_or_default();
+        format!("{}{beside}", self.base_url)
     }
 }
 
@@ -85,9 +128,17 @@ fn endpoint(name: &str, profile: &BackendProfile) -> Option<ProviderEndpoint> {
         key_header: (capabilities.auth_style == Some(ProviderCapabilitiesAuthStyle::XGoogApiKey))
             .then_some("x-goog-api-key"),
         key,
-        // An agent always has tools: a server that takes no effort with them gets none.
-        effort: capabilities.reasoning == ProviderCapabilitiesReasoning::OpenaiEffort
-            && !capabilities.drop_reasoning_effort_with_tools,
+        efforts: match preset {
+            Some(preset) => preset.efforts,
+            // An agent always has tools: a server that takes no effort with them gets none.
+            None if capabilities.reasoning == ProviderCapabilitiesReasoning::OpenaiEffort
+                && !capabilities.drop_reasoning_effort_with_tools =>
+            {
+                ANY_EFFORT
+            }
+            None => &[],
+        },
+        responses: preset.is_some_and(|p| p.responses),
         replay_reasoning: capabilities.reasoning_round_trip == ProviderCapabilitiesReasoningRoundTrip::PreserveSigned,
         max_completion_tokens: capabilities.max_tokens_param == ProviderCapabilitiesMaxTokensParam::MaxCompletionTokens,
         context_window: capabilities.context_window,
@@ -170,11 +221,19 @@ mod tests {
         };
         let openai = of("openai");
         assert_eq!(openai.id, "openai-api", "the engine's own ChatGPT provider keeps `openai`");
-        assert!(openai.max_completion_tokens && !openai.effort);
+        assert!(openai.max_completion_tokens && openai.responses);
+        assert_eq!(openai.api_root(), "https://api.openai.com/v1");
         assert_eq!(openai.model_id("gpt-5.5"), "openai-api/gpt-5.5");
+        assert_eq!(openai.effort("gpt-5.5").map(|e| e.levels()), Some(vec!["low", "medium", "high", "xhigh"]));
         let gemini = of("gemini");
         assert_eq!(gemini.chat_path, "/chat/completions");
         assert_eq!(of("deepseek").chat_path, "/v1/chat/completions");
+        assert!(!gemini.responses);
+        let levels = |id: &str, model: &str| of(id).effort(model).map(|e| e.levels());
+        assert_eq!(levels("deepseek", "deepseek-v4-flash"), Some(vec!["low", "high", "max"]));
+        assert_eq!(levels("moonshot", "kimi-k2.6"), None, "K2 takes no effort");
+        assert_eq!(levels("qwen", "qwen3.7-max"), Some(vec!["low", "medium", "high"]));
+        assert_eq!(levels("xai", "grok-4.20-reasoning"), None);
         let all = [openai, gemini];
         assert_eq!(
             endpoint_of(&all, "gemini/gemini-3.1-pro-preview").map(|(e, m)| (e.id.as_str(), m)),

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use eos_agent_mock_api::{MockApi, Reply};
+use eos_agent_mock_api::{MockApi, Output, Reply};
 use eos_core::Error;
 use eos_core::accounts::{PlanFailure, PlanVerdict, SessionAccountSwitch, SessionCredential};
 use eos_core::agent::{AgentRuntime, AgentSession, BackendCatalog, CompactionNotice, LaunchSpec, SessionError};
@@ -84,11 +84,17 @@ impl Bench {
             protected: eos_platform::DataPaths::new(dir.path()).agent_protected(),
             ..EngineOptions::new(dir.path().join("engine"))
         };
-        // One provider reached with a key: the mock, as `deep`.
+        // Providers reached with a key: the mock, as `deep`, and as the
+        // OpenAI preset (no key until a test saves one).
         let config = serde_json::json!({"backends": {"deep": {
             "kind": "openai", "model": "chat-1", "baseUrl": mock.base_url(),
             "auth": {"kind": "keychain", "ref": "eos-deep"},
             "capabilities": {"wire": "openai-chat", "contextWindow": 64_000},
+        }, "openai": {
+            "kind": "openai", "model": "gpt-5.5", "baseUrl": mock.base_url(),
+            "auth": {"kind": "keychain", "ref": "eos-openai"},
+            "capabilities": {"wire": "openai-chat", "reasoning": "openai-effort", "contextWindow": 400_000,
+                "dropReasoningEffortWithTools": true},
         }}});
         let keychain = Arc::new(eos_testkit::MemoryKeychain::with("eos-deep", "k-deep"));
         let deps = EngineDeps {
@@ -292,6 +298,27 @@ async fn a_session_runs_on_a_provider_reached_with_a_key() {
     bench.keychain.delete_secret("eos-deep");
     let refused = session.set_model("deep/chat-1", None, None).await;
     assert_eq!(refused, Err(SessionError::Failed("no key for deep · add one under Settings › Accounts".into())));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_openai_preset_runs_on_the_responses_api_with_its_effort() {
+    use eos_platform::CredentialStore;
+    let bench = Bench::new([Reply::responses(&[Output::text("hello from the API")], (10, 0, 5))]).await;
+    bench.keychain.write_secret("eos-openai", "k-openai").expect("the key");
+    bench.mock.set_models(serde_json::json!({"data": [{"id": "gpt-5.5"}]}));
+    let providers = bench.lazy().providers().await;
+    let openai = providers.iter().find(|p| p.id == "openai-api").expect("the preset");
+    let levels = openai.models[0].effort_levels.clone().unwrap_or_default();
+    assert_eq!(levels, ["low", "medium", "high", "xhigh"], "the model's own levels");
+
+    let spec = LaunchSpec { prompt: Some("one".into()), effort: Some("max".into()), ..bench.spec("w-1") };
+    bench.start(LaunchSpec { model: "openai-api/gpt-5.5".into(), ..spec }).await;
+    bench.after_turns("w-1", 1).await;
+    let turn = bench.mock.requests().into_iter().find(|r| r.path == "/v1/responses").expect("a Responses request");
+    assert_eq!(turn.headers.get("authorization").and_then(|v| v.to_str().ok()), Some("Bearer k-openai"));
+    let body = turn.json();
+    assert_eq!(body["model"], "gpt-5.5");
+    assert_eq!(body["reasoning"]["effort"], "xhigh", "a level it lacks goes down to the nearest it has");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

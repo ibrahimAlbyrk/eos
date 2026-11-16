@@ -4,6 +4,8 @@
 use eos_contracts::{BillingRoute, SubscriptionState};
 use indexmap::IndexMap;
 
+use crate::provider::{EffortStyle, ModelEffort};
+
 /// The Accounts rule. Signed in: the subscription, always; the API key is
 /// never used beside it. An expired sign-in blocks instead of quietly falling
 /// back to the metered key: the user expected their plan to pay. Signed out:
@@ -18,7 +20,8 @@ pub fn resolve_billing_route(subscription: SubscriptionState, api_key_set: bool)
 }
 
 /// A provider Eos ships ready to add: what the Accounts list needs of it and
-/// how its API is reached (a server that speaks the Chat Completions API).
+/// how its API is reached (a server that speaks the Chat Completions API, or
+/// OpenAI's Responses API).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ProviderPreset {
     pub id: &'static str,
@@ -36,6 +39,10 @@ pub struct ProviderPreset {
     /// `capabilities.maxTokensParam` and `dropReasoningEffortWithTools`, when the profile states them.
     pub max_tokens_param: Option<&'static str>,
     pub drop_effort_with_tools: Option<bool>,
+    /// How its models take an effort, as its documentation says.
+    pub efforts: &'static [ModelEffort],
+    /// Sessions reach it on OpenAI's Responses API instead.
+    pub responses: bool,
 }
 
 const fn preset(
@@ -59,16 +66,76 @@ const fn preset(
         max_tokens,
         max_tokens_param: None,
         drop_effort_with_tools: None,
+        efforts: &[],
+        responses: false,
     }
 }
 
 const SENDS_REASONING: (&str, &str) = ("reasoning_content", "drop");
+
+const fn levels(models: &'static str, levels: &'static [&'static str]) -> ModelEffort {
+    ModelEffort { models, style: Some(EffortStyle::Levels(levels)) }
+}
+
+const fn no_effort(models: &'static str) -> ModelEffort {
+    ModelEffort { models, style: None }
+}
+
+const LOW_HIGH_MAX: &[&str] = &["low", "high", "max"];
+const LOW_TO_HIGH: &[&str] = &["low", "medium", "high"];
+const LOW_TO_XHIGH: &[&str] = &["low", "medium", "high", "xhigh"];
+
+// Each provider's effort levels, per model family (first match wins):
+// OpenAI: developers.openai.com/api/docs/guides/reasoning
+const OPENAI_EFFORTS: &[ModelEffort] = &[
+    levels("gpt-6", &["low", "medium", "high", "xhigh", "max"]),
+    levels("gpt-5.6", &["low", "medium", "high", "xhigh", "max"]),
+    levels("gpt-5.1", LOW_TO_HIGH),
+    levels("gpt-5.", LOW_TO_XHIGH),
+    levels("gpt-5", LOW_TO_HIGH),
+    levels("o3", LOW_TO_HIGH),
+    levels("o4", LOW_TO_HIGH),
+];
+// Gemini: aistudio.google.com/docs/openai and /docs/thinking
+const GEMINI_EFFORTS: &[ModelEffort] = &[
+    levels("gemini-3-pro", &["low", "high"]),
+    levels("gemini-4-hydrogen", LOW_TO_XHIGH),
+    levels("gemini-", LOW_TO_HIGH),
+];
+// xAI: docs.x.ai/developers/model-capabilities/text/reasoning, /models/grok-4.3
+const XAI_EFFORTS: &[ModelEffort] = &[
+    no_effort("grok-4.20"),
+    levels("grok-4.3", LOW_TO_XHIGH),
+    levels("grok-4.5", LOW_TO_HIGH),
+    levels("grok-4.6", LOW_TO_XHIGH),
+    levels("grok-4.7", LOW_TO_XHIGH),
+];
+// Qwen (Model Studio's Chat Completions reference): Qwen3.5 to 3.7 take a
+// thinking budget; 4096 and 16384 are the budgets Model Studio itself maps
+// `low` and `medium` to; `high` sends none (the model's own most).
+const QWEN_BUDGETS: EffortStyle =
+    EffortStyle::Budgets(&[("low", Some(4_096)), ("medium", Some(16_384)), ("high", None)]);
+const QWEN_EFFORTS: &[ModelEffort] = &[
+    levels("qwen4-max", &["low", "high", "xhigh"]),
+    levels("qwen3.8", &["low", "medium", "xhigh"]),
+    ModelEffort { models: "qwen3.7", style: Some(QWEN_BUDGETS) },
+    ModelEffort { models: "qwen3.6", style: Some(QWEN_BUDGETS) },
+    ModelEffort { models: "qwen3.5", style: Some(QWEN_BUDGETS) },
+];
+// Kimi: platform.kimi.ai/docs/api/models-overview (K2 models take none)
+const MOONSHOT_EFFORTS: &[ModelEffort] = &[levels("kimi-k3", LOW_HIGH_MAX)];
+// Z.ai: docs.z.ai/api-reference/llm/chat-completion (GLM-5.2 maps low to high)
+const ZHIPU_EFFORTS: &[ModelEffort] = &[levels("glm-5.3", LOW_HIGH_MAX), levels("glm-5.2", &["high", "max"])];
+// DeepSeek: api-docs.deepseek.com/guides/thinking_mode
+const DEEPSEEK_EFFORTS: &[ModelEffort] = &[levels("deepseek-", LOW_HIGH_MAX)];
 
 /// The metered provider presets, in the order Settings lists them.
 pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
     ProviderPreset {
         max_tokens_param: Some("max_completion_tokens"),
         drop_effort_with_tools: Some(true),
+        efforts: OPENAI_EFFORTS,
+        responses: true,
         ..preset(
             "openai",
             "OpenAI",
@@ -81,6 +148,7 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
     },
     ProviderPreset {
         chat_path: Some("/chat/completions"),
+        efforts: GEMINI_EFFORTS,
         ..preset(
             "gemini",
             "Google Gemini",
@@ -94,28 +162,36 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
     ProviderPreset {
         max_tokens_param: Some("max_tokens"),
         drop_effort_with_tools: Some(false),
+        efforts: XAI_EFFORTS,
         ..preset("xai", "xAI Grok", "eos-xai", "https://api.x.ai", "grok-4.3", SENDS_REASONING, (1_000_000, None))
     },
-    preset(
-        "qwen",
-        "Alibaba Qwen",
-        "eos-qwen",
-        "https://dashscope-intl.aliyuncs.com/compatible-mode",
-        "qwen3.7-max",
-        SENDS_REASONING,
-        (1_000_000, Some(65_536)),
-    ),
-    preset(
-        "moonshot",
-        "Moonshot Kimi",
-        "eos-moonshot",
-        "https://api.moonshot.ai",
-        "kimi-k2.6",
-        SENDS_REASONING,
-        (262_144, None),
-    ),
+    ProviderPreset {
+        efforts: QWEN_EFFORTS,
+        ..preset(
+            "qwen",
+            "Alibaba Qwen",
+            "eos-qwen",
+            "https://dashscope-intl.aliyuncs.com/compatible-mode",
+            "qwen3.7-max",
+            SENDS_REASONING,
+            (1_000_000, Some(65_536)),
+        )
+    },
+    ProviderPreset {
+        efforts: MOONSHOT_EFFORTS,
+        ..preset(
+            "moonshot",
+            "Moonshot Kimi",
+            "eos-moonshot",
+            "https://api.moonshot.ai",
+            "kimi-k2.6",
+            SENDS_REASONING,
+            (262_144, None),
+        )
+    },
     ProviderPreset {
         chat_path: Some("/api/paas/v4/chat/completions"),
+        efforts: ZHIPU_EFFORTS,
         ..preset(
             "zhipu",
             "Zhipu GLM (Z.ai)",
@@ -126,15 +202,18 @@ pub const PROVIDER_PRESETS: &[ProviderPreset] = &[
             (200_000, Some(128_000)),
         )
     },
-    preset(
-        "deepseek",
-        "DeepSeek",
-        "eos-deepseek",
-        "https://api.deepseek.com",
-        "deepseek-v4-flash",
-        ("none", "drop"),
-        (65_536, None),
-    ),
+    ProviderPreset {
+        efforts: DEEPSEEK_EFFORTS,
+        ..preset(
+            "deepseek",
+            "DeepSeek",
+            "eos-deepseek",
+            "https://api.deepseek.com",
+            "deepseek-v4-flash",
+            ("none", "drop"),
+            (65_536, None),
+        )
+    },
 ];
 
 /// Providers that sell a subscription; the rest are API-key-only.

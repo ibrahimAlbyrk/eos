@@ -1,24 +1,22 @@
 //! The providers reached with an API key (`config.json` backends that speak
-//! the Chat Completions API), kept registered with the engine as the file
-//! and the keys change.
+//! the Chat Completions API, or OpenAI's Responses API), kept registered with
+//! the engine as the file and the keys change.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use eos_agent_core::{BoxFuture, Credential, ModelError, TokenSource};
-use eos_agent_sdk::{ChatCompat, MaxTokens, ProviderConfig, Sdk};
+use eos_agent_sdk::{ChatCompat, Effort, MaxTokens, ModelEffort, ProviderConfig, Sdk, Wire};
 use eos_contracts::{ProviderModel, ProviderModels};
 use eos_core::Clock;
 use eos_core::store::ConfigSource;
-use eos_domain::provider::{EndpointKey, ProviderEndpoint, endpoint_of, endpoints};
+use eos_domain::provider::{EffortStyle, EndpointKey, ProviderEndpoint, endpoint_of, endpoints};
 use eos_platform::CredentialStore;
 
 use crate::accounts::NOT_SIGNED_IN;
 
 /// How long a provider's model list is kept before it is read again.
 const MODELS_TTL_MS: i64 = 10 * 60 * 1000;
-/// The effort levels a server that takes an effort is offered.
-const EFFORTS: [&str; 3] = ["low", "medium", "high"];
 
 /// The endpoint's key (`None`: none is set; empty: the server asks for none).
 pub(crate) fn key_of(secrets: &dyn CredentialStore, endpoint: &ProviderEndpoint) -> Option<String> {
@@ -66,18 +64,36 @@ pub(crate) struct Endpoints {
     models: Mutex<HashMap<String, (i64, Vec<String>)>>,
 }
 
+fn engine_effort(style: Option<EffortStyle>) -> Effort {
+    let owned = |level: &str| level.to_owned();
+    match style {
+        None => Effort::None,
+        Some(EffortStyle::Levels(levels)) => Effort::Levels(levels.iter().copied().map(owned).collect()),
+        Some(EffortStyle::Budgets(budgets)) => {
+            Effort::Budgets(budgets.iter().map(|(level, budget)| (owned(level), *budget)).collect())
+        }
+    }
+}
+
 fn provider_config(endpoint: &ProviderEndpoint, auth: Arc<dyn TokenSource>) -> ProviderConfig {
     let max_tokens = if endpoint.max_completion_tokens { MaxTokens::MaxCompletionTokens } else { MaxTokens::MaxTokens };
+    let efforts = endpoint.efforts.iter().map(|e| ModelEffort::new(e.models, engine_effort(e.style))).collect();
+    let (wire, base_url) = if endpoint.responses {
+        (Wire::Responses, endpoint.api_root())
+    } else {
+        (Wire::Chat, endpoint.base_url.clone())
+    };
     ProviderConfig {
         id: endpoint.id.clone(),
-        base_url: endpoint.base_url.clone(),
+        wire,
+        base_url,
         chat_path: Some(endpoint.chat_path.clone()),
         auth,
         key_header: endpoint.key_header.map(str::to_owned),
         headers: Vec::new(),
         compat: ChatCompat {
             max_tokens,
-            effort: endpoint.effort,
+            efforts,
             replay_reasoning: endpoint.replay_reasoning,
             ..ChatCompat::default()
         },
@@ -181,12 +197,13 @@ impl Endpoints {
 
 /// `endpoint` as the model menu lists it.
 pub(crate) fn listed(endpoint: &ProviderEndpoint, ready: bool, models: &[String]) -> ProviderModels {
-    let efforts: &[&str] = if endpoint.effort { &EFFORTS } else { &[] };
     let model = |name: &String| ProviderModel {
         id: endpoint.model_id(name),
         display_name: name.clone(),
         context_window: Some(endpoint.context_window).filter(|w| *w > 0),
-        effort_levels: Some(efforts.iter().map(|e| (*e).to_owned()).collect()),
+        effort_levels: Some(
+            endpoint.effort(name).map(|e| e.levels()).unwrap_or_default().into_iter().map(str::to_owned).collect(),
+        ),
         default_effort: None,
     };
     ProviderModels {
