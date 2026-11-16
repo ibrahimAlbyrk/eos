@@ -19,8 +19,8 @@ use eos_core::accounts::{
     PlanFailure, PlanLimits, PlanVerdict, SessionAccountSwitch, SessionCredential, SessionCredentials,
 };
 use eos_core::agent::{
-    AgentRuntime, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, OneShot, PromptAssembler,
-    ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
+    AgentRuntime, BackendCatalog, BackgroundTaskUpdate, CompactionNotice, HostTool, LaunchSpec, OneShot,
+    PromptAssembler, ScratchFolders, SpawnFacts, ToolInputDelta, ToolSets,
 };
 use eos_core::git::{BranchIntegration, WorktreeManager};
 use eos_core::prompt::ProfileRenderer;
@@ -31,6 +31,7 @@ use eos_engine::{EngineDeps, EngineOptions, LazyEngine};
 use eos_platform::DataPaths;
 use eos_policy::ask::parent_nudge;
 use eos_prompts::PromptService;
+use eos_prompts::models::render_models_by_provider;
 use eos_prompts::spawn::{SpawnPrompt, system_prompt_for};
 use eos_runtime::Runtime;
 use eos_runtime::bus::{Bus, Scope, Subscription};
@@ -181,6 +182,7 @@ pub(crate) struct AppPrompts {
     pub(crate) profile: Arc<dyn ProfileRenderer>,
     pub(crate) definitions: Arc<WorkerDefinitions>,
     pub(crate) hooks: Arc<AppHooks>,
+    pub(crate) backends: Arc<dyn BackendCatalog>,
 }
 
 fn role_name(role: SessionFactsRole) -> Option<&'static str> {
@@ -208,6 +210,10 @@ impl PromptAssembler for AppPrompts {
                 PromptValue::Flag(on) => Value::Bool(on),
             };
             variables.insert(name.to_owned(), value);
+        }
+        if facts.role == SessionFactsRole::Focused {
+            let models = render_models_by_provider(&self.backends.listed_providers());
+            variables.insert("MODELS_BY_PROVIDER".to_owned(), Value::String(models));
         }
         let spawn = SpawnPrompt {
             id: &facts.worker_id,

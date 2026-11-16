@@ -299,7 +299,10 @@ async fn providers_reached_with_a_key_are_listed_with_their_models() {
     use eos_platform::CredentialStore;
     let bench = Bench::new([]).await;
     bench.mock.set_models(serde_json::json!({"data": [{"id": "reasoner-1"}, {"id": "chat-1"}]}));
-    let providers = bench.lazy().providers().await;
+    let lazy = bench.lazy();
+    assert!(lazy.listed_providers().is_empty(), "nothing is read for it");
+    let providers = lazy.providers().await;
+    assert_eq!(lazy.listed_providers(), providers, "what was last listed is kept");
     let deep = providers.iter().find(|p| p.id == "deep").expect("the provider");
     assert!(deep.ready);
     let ids: Vec<&str> = deep.models.iter().map(|m| m.id.as_str()).collect();

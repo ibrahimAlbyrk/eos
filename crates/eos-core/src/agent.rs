@@ -82,6 +82,12 @@ pub trait BackendCatalog: Send + Sync + 'static {
     fn providers(&self) -> crate::BoxFuture<'_, Vec<ProviderModels>> {
         Box::pin(std::future::ready(Vec::new()))
     }
+
+    /// What [`providers`](Self::providers) last answered, without reading
+    /// anything (a session's prompt names these models).
+    fn listed_providers(&self) -> Vec<ProviderModels> {
+        Vec::new()
+    }
 }
 
 /// The keys of the providers reached with an API key, and a key's check

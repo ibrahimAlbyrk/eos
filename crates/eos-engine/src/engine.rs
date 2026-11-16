@@ -7,8 +7,8 @@ use eos_agent_compat::{ClaudePaths, transcript_path};
 use eos_agent_core::{Extensions, TranscriptStore};
 use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{
-    AgentOptions, ArtifactAuth, ArtifactOpener, CompleteRequest, FrameConfig, OpenRequest, Sdk, SystemPromptOverride,
-    WatchConfig,
+    AgentOptions, ArtifactAuth, ArtifactOpener, CompleteRequest, FrameConfig, OpenRequest, Sdk, SpawnLimits,
+    SystemPromptOverride, WatchConfig,
 };
 use eos_contracts::tool_scope::disallowed_builtin_tools_for;
 use eos_contracts::{
@@ -219,6 +219,8 @@ impl Engine {
             .prompter(Arc::new(Prompter { questions, sessions: sessions.clone() }))
             .store(Arc::new(store.clone()) as Arc<dyn TranscriptStore>)
             .data_dir(options.dir.join("data"))
+            // A subagent may be asked onto any provider's model, by the names the prompt lists.
+            .spawn_limits(SpawnLimits { any_model: true, ..SpawnLimits::from_env(|k| std::env::var(k).ok()) })
             .workflow_dir(options.dir.join("workflows"));
         // Transcripts, scratch and workflow runs: the engine's, never a tool's to write.
         builder = builder.protect_from_writes(options.dir.clone());
@@ -554,6 +556,8 @@ pub struct LazyEngine {
     built: tokio::sync::OnceCell<Engine>,
     setup: std::sync::Mutex<Option<(EngineOptions, EngineDeps)>>,
     descriptor: BackendDescriptor,
+    /// The providers as last listed.
+    listed: std::sync::Mutex<Vec<ProviderModels>>,
 }
 
 impl std::fmt::Debug for LazyEngine {
@@ -568,6 +572,7 @@ impl LazyEngine {
             built: tokio::sync::OnceCell::new(),
             setup: std::sync::Mutex::new(Some((options, deps))),
             descriptor: descriptor(),
+            listed: std::sync::Mutex::default(),
         }
     }
 
@@ -696,8 +701,13 @@ impl BackendCatalog for LazyEngine {
                 Some(engine) => all.extend(engine.0.shared.endpoints.listing().await),
                 None => all.extend(keyed.iter().map(|e| endpoints::listed(e, false, &[]))),
             }
+            self.listed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone_from(&all);
             all
         })
+    }
+
+    fn listed_providers(&self) -> Vec<ProviderModels> {
+        self.listed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
 }
 

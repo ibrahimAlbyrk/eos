@@ -456,6 +456,7 @@ impl App {
                 profile: profile_prompt.clone(),
                 definitions: worker_definitions.clone(),
                 hooks: hooks.clone(),
+                backends: engine.clone(),
             }),
             worktrees: git,
             recents: recents.clone(),

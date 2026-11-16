@@ -16,7 +16,8 @@
 //!
 //! Around them: the tool-name variables every prompt may use ([`tool_names`]),
 //! the tool descriptions ([`tool_descriptions`]), the provider's tier and
-//! effort texts ([`tiers`]), the visual-answer level ([`genui_level`]), the
+//! effort texts ([`tiers`]), the visual-answer level ([`genui_level`]), the models a subagent can
+//! run on ([`models`]), the
 //! one-shot prompts ([`templates`]: compaction, dreaming, auto-name), memory
 //! folded behind the prompt ([`memory`]), a spawn's own prompt ([`spawn`]) and
 //! the offline [`preview`].
@@ -25,6 +26,7 @@ pub mod assemble;
 pub mod condition;
 pub mod genui_level;
 pub mod memory;
+pub mod models;
 pub mod preview;
 pub mod prompt;
 pub mod registry;
