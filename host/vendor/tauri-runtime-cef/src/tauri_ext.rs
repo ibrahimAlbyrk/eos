@@ -491,6 +491,10 @@ pub trait WebviewBuilderCefExt {
   #[must_use]
   fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(self, navigation: F)
   -> Self;
+
+  /// Creates the webview hidden. See [`CefWebviewAttributes::start_hidden`].
+  #[must_use]
+  fn start_hidden(self) -> Self;
 }
 
 #[cfg(feature = "unstable")]
@@ -560,6 +564,13 @@ where
     let navigation = Arc::new(navigation);
     with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
       attributes.popup_navigation_handler = Some(navigation.clone());
+    });
+    self
+  }
+
+  fn start_hidden(mut self) -> Self {
+    with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
+      attributes.start_hidden = true;
     });
     self
   }

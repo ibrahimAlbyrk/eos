@@ -14,8 +14,8 @@ use eos_bridge::urlspace::{APP_HOST, RAW_HOST};
 use eos_core::BoxFuture;
 use eos_core::shell::THROWAWAY_PROFILE;
 use tauri::Manager;
-use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
+use tauri_runtime_cef::{WebviewBuilderCefExt, WebviewCefExt};
 
 use super::{Cdp, View, Views, create, profile_dir};
 use crate::host::open_external;
@@ -58,6 +58,7 @@ impl HostShell {
         label: &str,
         profile: &str,
         size: (f64, f64),
+        hidden: bool,
         service: Arc<dyn Service>,
     ) -> Result<Arc<View>, String> {
         let policy = create::Policy {
@@ -72,7 +73,10 @@ impl HostShell {
             open_requested: Box::new(open_external),
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
-        let builder = create::builder(label, (0.0, 0.0), size, Some(&folder), policy).auto_resize();
+        let mut builder = create::builder(label, (0.0, 0.0), size, Some(&folder), policy).auto_resize();
+        if hidden {
+            builder = builder.start_hidden();
+        }
         let loaded = views.load_profile(&folder);
         let webview = window.add_child(builder).map_err(|e| e.to_string())?;
         drop(loaded);
@@ -119,6 +123,7 @@ impl HostSurface for HostShell {
                         &format!("host-{}", profile_dir(&id)),
                         &format!("host-{id}"),
                         size,
+                        true,
                         service,
                     )?;
                     view.webview.hide().map_err(|e| e.to_string())?;
@@ -181,8 +186,16 @@ impl HostSurface for HostShell {
                     // A profile of its own, so the window's page has a door of its own; not
                     // kept, so windows opened over time leave no storage behind.
                     let profile = format!("{THROWAWAY_PROFILE}{label}-{id}");
-                    Self::page_blocking(&shell.views, &window, &format!("{label}-view"), &profile, WINDOW_SIZE, service)
-                        .map(drop)
+                    Self::page_blocking(
+                        &shell.views,
+                        &window,
+                        &format!("{label}-view"),
+                        &profile,
+                        WINDOW_SIZE,
+                        false,
+                        service,
+                    )
+                    .map(drop)
                 })
                 .await;
             if let Some(Err(e)) = opened {

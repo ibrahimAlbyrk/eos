@@ -716,6 +716,8 @@ impl<T: UserEvent> WinitCefApp<T> {
       scale,
     );
     let no_bridge = pending.runtime_specific_attributes.no_bridge;
+    let start_hidden = pending.runtime_specific_attributes.start_hidden
+      && pending.runtime_specific_attributes.offscreen.is_none();
     if no_bridge {
       // Nothing of Tauri may reach the page: not its scripts, not the drag-drop
       // bridge script, not the IPC handler.
@@ -868,6 +870,10 @@ impl<T: UserEvent> WinitCefApp<T> {
     } else {
       let mut info = cef::WindowInfo::default().set_as_child(parent, &bounds);
       info.runtime_style = cef_runtime_style;
+      #[cfg(target_os = "macos")]
+      {
+        info.hidden = i32::from(start_hidden);
+      }
       info
     };
     let mut settings = browser_settings_from_webview_attributes(&pending.webview_attributes);
@@ -932,6 +938,13 @@ impl<T: UserEvent> WinitCefApp<T> {
           log::error!("CEF browser for webview {label:?} has no host");
           return;
         };
+        if start_hidden {
+          // In the same main-thread turn as the creation: the window never draws the
+          // new view, so no blank page flashes before the application hides it.
+          host.was_hidden(1);
+          #[cfg(target_os = "macos")]
+          crate::platform::macos::hide_native_view(&host);
+        }
         let browser_id = browser.identifier();
 
         {
@@ -1566,6 +1579,11 @@ pub struct CefWebviewAttributes {
   /// navigations with this handler instead of the webview's `on_navigation`, and
   /// opens no window of its own. Without it a popup keeps the opener's handlers.
   pub popup_navigation_handler: Option<Arc<PopupNavigationHandler>>,
+  /// Creates the webview's native view hidden; it shows on `Webview::show`.
+  ///
+  /// A child view is otherwise added to its window visible, with an opaque
+  /// background, and drawn before a later `hide` reaches it.
+  pub start_hidden: bool,
 }
 
 impl std::fmt::Debug for CefWebviewAttributes {
@@ -1589,6 +1607,7 @@ impl std::fmt::Debug for CefWebviewAttributes {
         "popup_navigation_handler",
         &self.popup_navigation_handler.is_some(),
       )
+      .field("start_hidden", &self.start_hidden)
       .finish()
   }
 }

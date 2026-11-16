@@ -20,10 +20,10 @@ use eos_core::BoxFuture;
 use eos_core::shell::Rect;
 use serde_json::{Value, json};
 use tauri::{LogicalPosition, LogicalSize, Manager};
-use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{
     CefString, ContentSettingTypes, ContentSettingValues, ImplBrowser, ImplBrowserHost, ImplRequestContext,
 };
+use tauri_runtime_cef::{WebviewBuilderCefExt, WebviewCefExt};
 use tokio::sync::watch;
 
 use super::{Cdp, PARKED_SIZE, View, Views, create, fetch, profile_dir, sign_in};
@@ -217,7 +217,7 @@ impl ArtifactShell {
             }),
         };
         let folder = PathBuf::from(format!("view-{}", profile_dir(profile)));
-        let builder = create::builder(&label(key), (0.0, 0.0), PARKED_SIZE, Some(&folder), policy);
+        let builder = create::builder(&label(key), (0.0, 0.0), PARKED_SIZE, Some(&folder), policy).start_hidden();
         let loaded = self.views.load_profile(&folder);
         let webview = self.views.window.add_child(builder).map_err(|e| e.to_string())?;
         drop(loaded);

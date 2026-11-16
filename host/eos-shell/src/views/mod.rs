@@ -26,8 +26,8 @@ use eos_core::shell::{
 use serde_json::{Value, json};
 use tauri::webview::DownloadEvent;
 use tauri::{LogicalPosition, LogicalSize, Manager};
-use tauri_runtime_cef::WebviewCefExt;
 use tauri_runtime_cef::cef::{ImplBrowser, ImplBrowserHost};
+use tauri_runtime_cef::{WebviewBuilderCefExt, WebviewCefExt};
 
 pub(crate) use self::artifacts::ArtifactShell;
 pub(crate) use self::cdp::Cdp;
@@ -192,6 +192,7 @@ impl Views {
         // the dashboard's own storage.
         let profile = format!("view-{}", profile_dir(&spec.profile));
         let builder = create::builder(id.as_str(), (0.0, 0.0), PARKED_SIZE, Some(&PathBuf::from(&profile)), policy)
+            .start_hidden()
             .on_download(|_webview, event| {
                 match event {
                     // Into Downloads as the Electron app saved them, never over a file there.

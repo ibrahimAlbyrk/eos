@@ -16,6 +16,7 @@ use eos_core::shell::ViewError;
 use eos_core::{BoxFuture, Error};
 use serde_json::{Value, json};
 use tauri::LogicalSize;
+use tauri_runtime_cef::WebviewBuilderCefExt;
 
 use super::{Cdp, View, Views, create, shell_error};
 
@@ -170,7 +171,7 @@ impl Views {
             }),
             open_requested: Box::new(|_| {}),
         };
-        let builder = create::builder(&format!("app-{n:04x}"), (0.0, 0.0), size, None, policy);
+        let builder = create::builder(&format!("app-{n:04x}"), (0.0, 0.0), size, None, policy).start_hidden();
         let webview = self.window.add_child(builder).map_err(shell_error)?;
         let cdp = Cdp::attach(&webview, super::cdp::no_events, |_method, _params| {})?;
         let view = View::new(webview, cdp, false, String::new());

@@ -13,6 +13,15 @@ use crate::{webview::AppWebview, window::AppWindow};
 
 use super::utils;
 
+/// Hides the native view of a browser created a moment ago.
+pub(crate) fn hide_native_view(host: &cef::BrowserHost) {
+  let view = host.window_handle().cast::<NSView>();
+  // CEF owns this NSView for the browser lifetime; see `AppWebview::try_nsview`.
+  if let Some(view) = unsafe { Retained::<NSView>::retain(view) } {
+    view.setHidden(true);
+  }
+}
+
 impl AppWebview {
   fn try_nsview(&self) -> Option<Retained<NSView>> {
     let view = self.host.window_handle().cast::<NSView>();

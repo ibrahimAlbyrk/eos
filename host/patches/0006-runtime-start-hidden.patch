@@ -1,0 +1,129 @@
+"Start hidden": a child webview created with its native view hidden.
+
+Applies to: tauri-runtime-cef 3.0.0-alpha.7 (crates.io) + 0001, 0003, 0004, 0005, applied in
+vendor/tauri-runtime-cef. Not offered upstream yet; `WebviewBuilderCefExt::start_hidden` is
+the shape it would take.
+
+Why: a child webview is added to its window visible, with an opaque white background, and
+Tauri has no attribute to create it hidden. Eos makes its artifact, browser, preview and
+other-computer views off screen and hides them right after `add_child`, but the window draws
+the new view before that hide arrives: a white rectangle flashes over the dashboard each
+time one is made. With `start_hidden()` the view is created with CEF's `hidden` window info
+and its NSView is hidden in the same main-thread turn as the creation, so it is never drawn;
+`Webview::show` brings it up as before.
+
+diff --git a/src/platform/macos/mod.rs b/src/platform/macos/mod.rs
+index 13d39176..d9c7e42c 100644
+--- a/src/platform/macos/mod.rs
++++ b/src/platform/macos/mod.rs
+@@ -19,4 +19,5 @@ pub(crate) use application::{
+ };
+ pub(crate) use fullscreen::FullscreenTransition;
+ pub(crate) use wake::MainThreadWake;
++pub(crate) use webview::hide_native_view;
+ pub(crate) use window::nswindow;
+diff --git a/src/platform/macos/webview.rs b/src/platform/macos/webview.rs
+index a387d017..d8e15eef 100644
+--- a/src/platform/macos/webview.rs
++++ b/src/platform/macos/webview.rs
+@@ -13,6 +13,15 @@ use crate::{webview::AppWebview, window::AppWindow};
+ 
+ use super::utils;
+ 
++/// Hides the native view of a browser created a moment ago.
++pub(crate) fn hide_native_view(host: &cef::BrowserHost) {
++  let view = host.window_handle().cast::<NSView>();
++  // CEF owns this NSView for the browser lifetime; see `AppWebview::try_nsview`.
++  if let Some(view) = unsafe { Retained::<NSView>::retain(view) } {
++    view.setHidden(true);
++  }
++}
++
+ impl AppWebview {
+   fn try_nsview(&self) -> Option<Retained<NSView>> {
+     let view = self.host.window_handle().cast::<NSView>();
+diff --git a/src/tauri_ext.rs b/src/tauri_ext.rs
+index 88add870..aeb7f4ad 100644
+--- a/src/tauri_ext.rs
++++ b/src/tauri_ext.rs
+@@ -491,6 +491,10 @@ pub trait WebviewBuilderCefExt {
+   #[must_use]
+   fn contain_popups<F: Fn(&url::Url) -> bool + Send + Sync + 'static>(self, navigation: F)
+   -> Self;
++
++  /// Creates the webview hidden. See [`CefWebviewAttributes::start_hidden`].
++  #[must_use]
++  fn start_hidden(self) -> Self;
+ }
+ 
+ #[cfg(feature = "unstable")]
+@@ -563,4 +567,11 @@ where
+     });
+     self
+   }
++
++  fn start_hidden(mut self) -> Self {
++    with_cef_webview_attributes(self.runtime_specific_attributes_mut(), |attributes| {
++      attributes.start_hidden = true;
++    });
++    self
++  }
+ }
+diff --git a/src/webview.rs b/src/webview.rs
+index 6a50abb2..e8217f2d 100644
+--- a/src/webview.rs
++++ b/src/webview.rs
+@@ -716,6 +716,8 @@ impl<T: UserEvent> WinitCefApp<T> {
+       scale,
+     );
+     let no_bridge = pending.runtime_specific_attributes.no_bridge;
++    let start_hidden = pending.runtime_specific_attributes.start_hidden
++      && pending.runtime_specific_attributes.offscreen.is_none();
+     if no_bridge {
+       // Nothing of Tauri may reach the page: not its scripts, not the drag-drop
+       // bridge script, not the IPC handler.
+@@ -868,6 +870,10 @@ impl<T: UserEvent> WinitCefApp<T> {
+     } else {
+       let mut info = cef::WindowInfo::default().set_as_child(parent, &bounds);
+       info.runtime_style = cef_runtime_style;
++      #[cfg(target_os = "macos")]
++      {
++        info.hidden = i32::from(start_hidden);
++      }
+       info
+     };
+     let mut settings = browser_settings_from_webview_attributes(&pending.webview_attributes);
+@@ -932,6 +938,13 @@ impl<T: UserEvent> WinitCefApp<T> {
+           log::error!("CEF browser for webview {label:?} has no host");
+           return;
+         };
++        if start_hidden {
++          // In the same main-thread turn as the creation: the window never draws the
++          // new view, so no blank page flashes before the application hides it.
++          host.was_hidden(1);
++          #[cfg(target_os = "macos")]
++          crate::platform::macos::hide_native_view(&host);
++        }
+         let browser_id = browser.identifier();
+ 
+         {
+@@ -1566,6 +1579,11 @@ pub struct CefWebviewAttributes {
+   /// navigations with this handler instead of the webview's `on_navigation`, and
+   /// opens no window of its own. Without it a popup keeps the opener's handlers.
+   pub popup_navigation_handler: Option<Arc<PopupNavigationHandler>>,
++  /// Creates the webview's native view hidden; it shows on `Webview::show`.
++  ///
++  /// A child view is otherwise added to its window visible, with an opaque
++  /// background, and drawn before a later `hide` reaches it.
++  pub start_hidden: bool,
+ }
+ 
+ impl std::fmt::Debug for CefWebviewAttributes {
+@@ -1589,6 +1607,7 @@ impl std::fmt::Debug for CefWebviewAttributes {
+         "popup_navigation_handler",
+         &self.popup_navigation_handler.is_some(),
+       )
++      .field("start_hidden", &self.start_hidden)
+       .finish()
+   }
+ }

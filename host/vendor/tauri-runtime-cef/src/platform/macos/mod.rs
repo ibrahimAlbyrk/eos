@@ -19,4 +19,5 @@ pub(crate) use application::{
 };
 pub(crate) use fullscreen::FullscreenTransition;
 pub(crate) use wake::MainThreadWake;
+pub(crate) use webview::hide_native_view;
 pub(crate) use window::nswindow;
