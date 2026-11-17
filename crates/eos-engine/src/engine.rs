@@ -222,7 +222,7 @@ impl Engine {
             // A subagent may be asked onto any provider's model, by the names the prompt lists.
             .spawn_limits(SpawnLimits { any_model: true, ..SpawnLimits::from_env(|k| std::env::var(k).ok()) })
             .workflow_dir(options.dir.join("workflows"));
-        // Transcripts, scratch and workflow runs: the engine's, never a tool's to write.
+        // Transcripts, other agents' scratch and workflow runs: the engine's, never a tool's to write.
         builder = builder.protect_from_writes(options.dir.clone());
         for path in &options.protected {
             builder = builder.protect_from_writes(path.clone());
