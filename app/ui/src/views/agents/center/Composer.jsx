@@ -62,6 +62,10 @@ import { modifiers } from "../../../lib/platform.js";
 import { useBuiltinOn } from "../../../plugins/pluginsStore.js";
 import { BUILTIN_PLUGINS } from "../../../shared/builtin-plugins.ts";
 
+// The card's empty layout boxes: its padding and the gaps around the editor and
+// between the controls. A press there belongs to the editor (see onCardMouseDown).
+const CARD_SURFACE = ".c-row2-wrap, .c-row2, .c-row3, .c-row3 > .left, .c-row3 > .right, .mode-orb";
+
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
   const wrapRef = useRef(null);
@@ -1135,6 +1139,19 @@ export function Composer({ live, worker, paneId, focused }) {
     if (pill) openPillInfo(pill);
   };
 
+  // The card looks like one input box, but only the editor's text line takes a
+  // click. A press anywhere else on the card would blur the editor and leave no
+  // caret, so it focuses the editor instead, with the caret back where it was.
+  const onCardMouseDown = (e) => {
+    const el = editorRef.current;
+    if (!el || e.button !== 0) return;
+    if (e.target !== e.currentTarget && !e.target.matches(CARD_SURFACE)) return;
+    e.preventDefault();
+    if (document.activeElement === el) return;
+    el.focus();
+    setSelectionOffsets(el, cursorPos, cursorPos);
+  };
+
   const onEditorPointerOver = (e) => {
     const pPill = pastePillAt(e);
     if (pPill) {
@@ -1252,7 +1269,7 @@ export function Composer({ live, worker, paneId, focused }) {
             ) : (
               <ContextStrip live={live} />
             )}
-            <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
+            <div className={modeClass ? "composer-card " + modeClass : "composer-card"} onMouseDown={onCardMouseDown}>
               <GlassLayers />
               {modeClass && <ModeFx key={inputMode} />}
               <div className="c-row2-wrap">
