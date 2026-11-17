@@ -3,8 +3,7 @@
 //! TypeScript use-cases produce them (`DispatchMessage`, `CompactContext`,
 //! `AskSideQuestion`, archive / purge, page edits, plugin installs, a quit).
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use std::time::Duration;
 

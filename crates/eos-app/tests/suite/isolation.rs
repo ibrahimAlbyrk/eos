@@ -6,8 +6,7 @@
 //! answer 503 naming it, its hooks never run, and the user is told. What the
 //! app cannot run without (its database) still fails the start.
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use std::sync::Arc;
 use std::time::Duration;

@@ -4,7 +4,7 @@
 //! release install, opens no connection: each service is pointed at a local
 //! listener that counts what reaches it, and the same app on the network is
 //! the proof that it would have. Every screen says why it does nothing,
-//! never "not signed in" or "not set". Paired computers: `tests/peer.rs`;
+//! never "not signed in" or "not set". Paired computers: `peer.rs`;
 //! Eos's own reads of the user's accounts: `src/reach.rs`. Sign-in stores are
 //! plaintext files made for the test; the keychain is never asked.
 

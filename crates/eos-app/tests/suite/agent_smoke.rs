@@ -4,7 +4,7 @@
 //! Ignored: it starts a real engine (shell snapshot, tool set, an HTTP
 //! server for the scripted model). No real model is called and no real
 //! credential is read. Run it with
-//! `cargo test -p eos-app --test agent_smoke -- --ignored`.
+//! `cargo test -p eos-app --test suite agent_smoke -- --ignored`.
 
 use std::sync::Arc;
 use std::time::Duration;

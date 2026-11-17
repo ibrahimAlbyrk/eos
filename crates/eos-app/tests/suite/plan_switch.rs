@@ -7,8 +7,7 @@
 //! - with none, the `accounts_exhausted` row stands in for the provider's
 //!   notice, and "Use API key" or "Resume at" carry the turn on.
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use std::path::Path;
 use std::sync::Arc;

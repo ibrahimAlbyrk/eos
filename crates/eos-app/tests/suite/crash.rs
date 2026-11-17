@@ -3,13 +3,12 @@
 //! not doubled), and what was answered before the end is there.
 //!
 //! The kill -9 rounds are ignored (they take a while):
-//! `cargo test -p eos-app --test crash -- --ignored kill_dash_nine`, or over
+//! `cargo test -p eos-app --test suite -- --ignored kill_dash_nine`, or over
 //! and over with `scripts/stress.sh -p eos-app -- --ignored kill_dash_nine`.
 //! They kill only the child process the test itself started — a second run of
 //! this test binary that drives the app until it is killed.
 
-#[path = "support/rig.rs"]
-mod rig;
+use crate::rig;
 
 use std::io::{BufRead, BufReader};
 use std::path::Path;
@@ -173,7 +172,7 @@ async fn kill_dash_nine_at_random_moments_recovers() {
     let rounds: usize = std::env::var("EOS_CRASH_ROUNDS").ok().and_then(|s| s.parse().ok()).unwrap_or(10);
     for round in 0..rounds {
         let mut child = Command::new(std::env::current_exe().expect("this test binary"))
-            .args(["child_workload", "--exact", "--ignored", "--nocapture", "--test-threads=1"])
+            .args(["crash::child_workload", "--exact", "--ignored", "--nocapture", "--test-threads=1"])
             .env(CHILD_HOME, home.path())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())

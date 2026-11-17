@@ -171,8 +171,10 @@ among the others); `plugin()`, `protected_settings()`, `sync()`, `holds_worker()
   `temp.announced.list()` is what the writes announced, in commit order; `temp.exec(sql)` sets up
   a state by hand. `FakeClock`, `SeqIds` and `TempHome` make every run identical
   (`crates/eos-mod-workers/tests/routes.rs` is the model).
-- **The app**: a test that needs start-up or several features goes in `crates/eos-app/tests/`
-  (`read_path.rs` builds the app on `TempHome::seeded` and compares answers with recordings).
+- **The app**: a test that needs start-up or several features goes in `crates/eos-app/tests/suite/`
+  as a module of the one test program, listed in its `main.rs` (`read_path.rs` builds the app on
+  `TempHome::seeded` and compares answers with recordings). Only a test that needs the process
+  to itself is a file of its own in `crates/eos-app/tests/`.
 - **The wire**: anything that must equal the recorded answer is compared with a recording
   (`eos_testkit::fixtures::recorded_response("31-pages", "create")`), never with a hand-written
   guess.
