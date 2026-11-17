@@ -35,6 +35,7 @@ ios/       the iPhone client; relay/: the relay server; update-server/: the upda
 ## Check
 
 ```bash
+scripts/test.sh          # only what a change touches: fmt, clippy and tests of the changed crates, the dashboard's related tests
 scripts/check.sh         # fmt, clippy -D warnings, tests, layers, shell rules; never builds Tauri or CEF
 host/scripts/check.sh    # the host workspace: fmt, clippy, the bridge's dev guard, patches, the same repo guards
 ```

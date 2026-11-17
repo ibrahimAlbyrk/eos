@@ -84,4 +84,14 @@ Knowing these saves a failed check later.
 
 ## Testing and verifying changes
 
-This section is intentionally left for the owner to fill in.
+Test what you changed, not the whole project. Checking everything takes about twenty minutes and tens of gigabytes. It is not part of normal work.
+
+- Run `scripts/test.sh` before you call a change done. It finds what you changed since the last commit and checks only that. A changed crate gets format, clippy and its tests. The dashboard gets the tests related to the changed files, and lint. The relay gets its tests.
+- After you commit, give it the starting point: `scripts/test.sh --since <commit>`.
+- Name a crate when your change is likely to break it: `scripts/test.sh eos-sessions`. Choose by what your change touches. Do not follow the dependency graph, because almost every crate depends on the lowest layers.
+- While you work, run one test at a time: `cargo test -p <crate> --test <file> <name>`.
+- When you change how a recorded route answers, replay its group: `scripts/replay.sh --only <group>`.
+- The script lists the changed paths it does not check, such as `host/`, `fixtures/` and `Cargo.lock`. Decide which crates they affect and name those.
+- Do not run `scripts/check.sh`, `cargo test --workspace` or `cargo clippy --workspace` unless the user asks for the full check.
+- A test can fail for a reason that is not your change. Run it on the code without your change before you decide.
+- Report what you ran, what failed and what you left unchecked.
