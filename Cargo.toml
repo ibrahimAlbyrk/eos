@@ -122,6 +122,8 @@ http = "1"
 icu_collator = "2"
 if-addrs = "0.15"
 indexmap = { version = "2", features = ["serde"] }
+# Named time zones from the system's own zone files: no zone database is bundled.
+jiff = { version = "0.2", default-features = false, features = ["std", "tzdb-zoneinfo"] }
 libc = "0.2"
 # FSEvents on macOS: one stream per watched tree, no descriptor per file.
 mimalloc = { version = "0.1", default-features = false }

@@ -15,6 +15,6 @@ pub use desktop::{AppInfo, DesktopFiles, Editor, OpenIn};
 pub use dock::DockBadge;
 pub use files::{FileRead, FileSystem, FsEntryMeta, FsStat, ListDirOptions, OpenFile};
 pub use power::{Power, PowerStatus};
-pub use process::{LocalTime, ProcessStats, TimeZone};
+pub use process::{LocalTime, ProcessStats, TimeZone, ZoneRules};
 pub use symbols::SymbolIndex;
 pub use watch::{FileWatcher, FsChangeSink, WatchLease};

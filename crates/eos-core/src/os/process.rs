@@ -19,3 +19,14 @@ pub trait TimeZone: Send + Sync + 'static {
     /// Minutes east of UTC at `epoch_ms`, daylight saving included.
     fn offset_minutes_at(&self, epoch_ms: i64) -> i32;
 }
+
+/// Every time zone the system knows, by its IANA name written exactly (`Europe/Istanbul`).
+pub trait ZoneRules: Send + Sync + 'static {
+    /// Minutes east of UTC in `zone` at `epoch_ms`, daylight saving included; `None` for a
+    /// zone the system does not know.
+    fn offset_minutes_at(&self, zone: &str, epoch_ms: i64) -> Option<i32>;
+    /// The system knows `zone`.
+    fn known(&self, zone: &str) -> bool;
+    /// The name of the zone the user's clock is in.
+    fn local_name(&self) -> String;
+}

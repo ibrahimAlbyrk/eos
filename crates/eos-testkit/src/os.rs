@@ -1,9 +1,9 @@
-//! What the system lends a routine: work holds, the power report, the Dock badge.
+//! What the system lends a routine: work holds, the power report, the Dock badge, time zones.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_core::os::{AwakeHold, DockBadge, HoldReason, Power, PowerStatus, WorkHold};
+use eos_core::os::{AwakeHold, DockBadge, HoldReason, Power, PowerStatus, WorkHold, ZoneRules};
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
@@ -89,6 +89,65 @@ impl DockBadge for FakeDockBadge {
     }
 }
 
+/// Time zones with fixed offsets, each with at most one daylight-saving change, and the zone
+/// of the user's clock. Knows only `UTC`, the user's zone, until the test adds more.
+#[derive(Debug, Clone)]
+pub struct FakeZoneRules {
+    local: String,
+    zones: HashMap<String, Offsets>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Offsets {
+    before: i32,
+    change_at_ms: i64,
+    after: i32,
+}
+
+impl FakeZoneRules {
+    pub fn new() -> Self {
+        Self { local: "UTC".to_owned(), zones: HashMap::new() }.fixed("UTC", 0)
+    }
+
+    /// The user's clock is in `zone`.
+    pub fn local(mut self, zone: &str) -> Self {
+        zone.clone_into(&mut self.local);
+        self
+    }
+
+    /// `zone` is `offset_minutes` east of UTC at every instant.
+    pub fn fixed(self, zone: &str, offset_minutes: i32) -> Self {
+        self.changing(zone, offset_minutes, i64::MAX, offset_minutes)
+    }
+
+    /// `zone` is `before` minutes east of UTC until `change_at_ms`, and `after` from then on.
+    pub fn changing(mut self, zone: &str, before: i32, change_at_ms: i64, after: i32) -> Self {
+        self.zones.insert(zone.to_owned(), Offsets { before, change_at_ms, after });
+        self
+    }
+}
+
+impl Default for FakeZoneRules {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ZoneRules for FakeZoneRules {
+    fn offset_minutes_at(&self, zone: &str, epoch_ms: i64) -> Option<i32> {
+        let zone = self.zones.get(zone)?;
+        Some(if epoch_ms < zone.change_at_ms { zone.before } else { zone.after })
+    }
+
+    fn known(&self, zone: &str) -> bool {
+        self.zones.contains_key(zone)
+    }
+
+    fn local_name(&self) -> String {
+        self.local.clone()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,5 +177,16 @@ mod tests {
         assert_eq!(badge.shown(), Some(3));
         badge.set(None);
         assert_eq!(badge.shown(), None);
+    }
+
+    #[test]
+    fn zones_change_their_offset_once_at_the_given_instant() {
+        let zones = FakeZoneRules::new().local("Europe/London").changing("Europe/London", 0, 1_000, 60);
+        assert_eq!(zones.local_name(), "Europe/London");
+        assert_eq!(zones.offset_minutes_at("Europe/London", 999), Some(0));
+        assert_eq!(zones.offset_minutes_at("Europe/London", 1_000), Some(60));
+        assert_eq!(zones.offset_minutes_at("UTC", i64::MAX), Some(0));
+        assert!(zones.known("UTC") && !zones.known("Mars/Base"));
+        assert_eq!(zones.offset_minutes_at("Mars/Base", 0), None);
     }
 }
