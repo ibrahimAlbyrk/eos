@@ -13,7 +13,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use eos_agent_core::{AgentEvent as EngineEvent, ModelError, TaskEvent, TokenSource, TurnError};
+use eos_agent_core::{AgentEvent as EngineEvent, ModelError, Reminders, TaskEvent, TokenSource, TurnError};
 use eos_agent_engine::JsonlStore;
 use eos_agent_sdk::{AutoCompact, InputError, ModelChange, SdkAgent, SkillOrigin, SubagentEvent, SubagentEventKind};
 use eos_contracts::{
@@ -550,6 +550,13 @@ impl AgentSession for EngineSession {
 
     fn send(&self, text: String) -> BoxFuture<'_, Result<(), SessionError>> {
         Box::pin(self.command(Command::Turn(text)))
+    }
+
+    fn note(&self, text: String) -> Result<(), SessionError> {
+        // The agent's own notes, never a seed (subagents share the seed). Left without a wake,
+        // the engine runs no turn for them.
+        self.agent()?.handle().extensions().get_or_default::<Reminders>().push(text);
+        Ok(())
     }
 
     fn interrupt(&self) -> BoxFuture<'_, ()> {

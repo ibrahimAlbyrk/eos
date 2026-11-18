@@ -133,6 +133,7 @@ fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, com
         resume: None,
         credential: None,
         compact_at,
+        notes: Vec::new(),
     }
 }
 
