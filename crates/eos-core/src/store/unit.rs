@@ -7,7 +7,8 @@ use serde::Serialize;
 use super::{
     ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
     PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo,
+    WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -28,6 +29,11 @@ pub trait Tx {
     fn routines(&self) -> &dyn RoutineRepo;
     fn run_results(&self) -> &dyn RunResultRepo;
     fn runs(&self) -> &dyn RunRepo;
+    fn signal_routes(&self) -> &dyn SignalRouteRepo;
+    fn signal_runners(&self) -> &dyn SignalRunnerRepo;
+    fn signal_schedules(&self) -> &dyn SignalScheduleRepo;
+    fn signal_sources(&self) -> &dyn SignalSourceRepo;
+    fn signals(&self) -> &dyn SignalRepo;
     fn transfers(&self) -> &dyn TransferRepo;
     fn worker_definitions(&self) -> &dyn WorkerDefinitionRepo;
     fn workers(&self) -> &dyn WorkerRepo;

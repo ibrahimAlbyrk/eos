@@ -52,6 +52,7 @@ mod remote;
 mod routines;
 mod runs;
 mod session;
+mod signals;
 mod templates;
 mod unit;
 mod workers;
@@ -77,6 +78,10 @@ pub use runs::{
     RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunRepo, RunResultRepo, StoredRun, StoredRunEvent, StoredRunResult,
 };
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
+pub use signals::{
+    ManualSignal, NewSignal, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo,
+    StoredSignal, StoredSignalRoute, StoredSignalRunner, StoredSignalSchedule, StoredSignalSource,
+};
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};
 pub use workers::{NewWorker, PermissionFacts, WorkerRepo};
