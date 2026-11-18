@@ -340,4 +340,17 @@ export const ROUTES = {
   eosHalt: "/api/eos/halt",
   eosResume: "/api/eos/resume",
   settingsAttention: "/api/settings/attention",
+  // Capabilities (eos-contracts `capability.rs`): the list, what a
+  // capability can list for the user to pick, one capability (and removing
+  // it), switching it on and off, its settings, checking it now, going back
+  // to an earlier version, and signing in.
+  capabilities: "/api/capabilities",
+  capabilityCandidates: "/api/capabilities/candidates",
+  capability: (id) => `/api/capabilities/${id}`,
+  capabilityEnable: (id) => `/api/capabilities/${id}/enable`,
+  capabilityDisable: (id) => `/api/capabilities/${id}/disable`,
+  capabilitySettings: (id) => `/api/capabilities/${id}/settings`,
+  capabilityCheck: (id) => `/api/capabilities/${id}/check`,
+  capabilityRollback: (id) => `/api/capabilities/${id}/rollback`,
+  capabilitySignIn: (id) => `/api/capabilities/${id}/sign-in`,
 };
