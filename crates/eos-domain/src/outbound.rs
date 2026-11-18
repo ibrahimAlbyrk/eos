@@ -254,7 +254,9 @@ fn digits(text: &str) -> String {
 fn secret_like(text: &str) -> bool {
     let shaped =
         text.split(word_break).any(|word| without_secret_value(word).is_some() || without_opaque_runs(word).is_some());
-    let base64 = text.split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '-' | '_'))).any(|run| {
+    // A `/` ends a run: base64 has one only now and then, a path every few
+    // letters.
+    let base64 = text.split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '_'))).any(|run| {
         run.len() >= BASE64_RUN
             && run.chars().any(|c| c.is_ascii_uppercase())
             && run.chars().any(|c| c.is_ascii_lowercase())
