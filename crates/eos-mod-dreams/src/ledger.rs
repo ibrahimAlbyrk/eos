@@ -14,11 +14,9 @@ use eos_contracts::{
     UserMemoryStatus,
 };
 use eos_domain::text::{collapse_spaces, js_trim};
-use eos_domain::time::iso_from_ms;
+use eos_domain::time::{OffsetAt, iso_from_ms, wall_clock};
 use eos_domain::user_memory::scope_covers;
 use unicode_normalization::UnicodeNormalization;
-
-use crate::rules::{OffsetAt, wall_clock};
 
 pub const CANDIDATE_TTL_MS: i64 = 30 * 24 * 60 * 60_000;
 pub const LEDGER_MAX: usize = 200;

@@ -1,5 +1,7 @@
 //! Timestamps as text, the way JavaScript writes and reads them: stored rows
-//! and wire payloads hold `Date.prototype.toISOString()` strings.
+//! and wire payloads hold `Date.prototype.toISOString()` strings. And the
+//! wall clock of a zone: the time its clocks show at an instant, and the
+//! instant a time on them names.
 
 const MS_PER_DAY: i64 = 86_400_000;
 
@@ -67,6 +69,33 @@ pub fn ms_from_iso(text: &str) -> Option<i64> {
     }
     let days = days_from_civil(year, u32::try_from(month).ok()?, u32::try_from(day).ok()?);
     Some(days * MS_PER_DAY + h * 3_600_000 + m * 60_000 + s * 1_000 + milli - offset_min * 60_000)
+}
+
+/// How far a clock is east of UTC at an instant, in minutes: its zone's
+/// rules, summer time included.
+pub type OffsetAt<'a> = &'a dyn Fn(i64) -> i32;
+
+/// The wall-clock time at `at`, as milliseconds since 1970 on that clock.
+pub fn wall_clock(at: i64, offset_at: OffsetAt<'_>) -> i64 {
+    at + i64::from(offset_at(at)) * 60_000
+}
+
+/// The instant a wall-clock time names, as JavaScript's `Date` reads one: of
+/// a time the clocks pass twice (when they go back) the first, and a time
+/// they skip (when they go forward) as many minutes after the change as it
+/// was after the skipped hour began.
+pub fn instant_of(wall: i64, offset_at: OffsetAt<'_>) -> i64 {
+    // The offsets in force around it: a zone changes at most once a day.
+    let (before, after) = (offset_at(wall - MS_PER_DAY), offset_at(wall + MS_PER_DAY));
+    let fits = |offset: i32| {
+        let at = wall - i64::from(offset) * 60_000;
+        (offset_at(at) == offset).then_some(at)
+    };
+    match (fits(before), fits(after)) {
+        (Some(a), Some(b)) => a.min(b),
+        (Some(at), None) | (None, Some(at)) => at,
+        (None, None) => wall - i64::from(before) * 60_000,
+    }
 }
 
 /// `+03:00`, `-05:30`: minutes east of UTC as an offset.
