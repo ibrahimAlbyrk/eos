@@ -104,13 +104,16 @@ pub fn check(doc: &ResultDoc, ctx: &OutboundContext) -> Vec<Flag> {
 }
 
 /// The host of every link: after a scheme's `://`, after a `//` that opens
-/// a link's target (`](//`, `src="//`), and a `www.` name on its own.
+/// a link's target (`](//`, `src="//`, a reference's `]: //`), and a `www.`
+/// name on its own.
 fn hosts(text: &str) -> Vec<String> {
     let mut found = Vec::new();
     for (at, _) in text.match_indices("//") {
         let before = &text[..at];
         let scheme = before.strip_suffix(':').is_some_and(|b| b.ends_with(|c: char| c.is_ascii_alphanumeric()));
-        if scheme || before.ends_with(['(', '"', '\'', '=']) {
+        // Markdown lets a target sit in `<…>` and after spaces.
+        let opener = before.trim_end_matches('<').trim_end();
+        if scheme || opener.ends_with(['(', '"', '\'', '=']) || opener.ends_with("]:") {
             found.extend(host_at(&text[at + 2..]));
         }
     }
@@ -137,14 +140,28 @@ fn host_at(rest: &str) -> Option<String> {
     (!host.is_empty()).then_some(host)
 }
 
-/// An embedded image: Markdown's `![…](…)` or `![…][…]`, an HTML image, a
-/// `data:image/` address.
+/// An embedded image: Markdown's `![…](…)`, `![…][…]`, or `![…]` alone
+/// when a `[…]: …` line defines its label; an HTML image; a `data:image/`
+/// address.
 fn has_image(text: &str) -> bool {
     let lower = text.to_ascii_lowercase();
-    let markdown = text
-        .match_indices("![")
-        .any(|(at, _)| text[at..].lines().next().is_some_and(|line| line.contains("](") || line.contains("][")));
+    let defined: HashSet<String> = text
+        .lines()
+        .filter_map(|line| line.trim_start().strip_prefix('[')?.split_once("]:").map(|(label, _)| label_key(label)))
+        .collect();
+    let markdown = text.match_indices("![").any(|(at, _)| {
+        let line = text[at + 2..].lines().next().unwrap_or_default();
+        line.contains("](")
+            || line.contains("][")
+            || line.split_once(']').is_some_and(|(label, _)| defined.contains(&label_key(label)))
+    });
     markdown || ["<img", "<image", "<picture", "<svg", "data:image/"].iter().any(|tag| lower.contains(tag))
+}
+
+/// A reference label as Markdown matches it: case and runs of spaces do not
+/// count.
+fn label_key(label: &str) -> String {
+    label.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase()
 }
 
 /// `text` without its code (fenced blocks and inline spans): a mention
