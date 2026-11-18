@@ -5,6 +5,8 @@
 //! pass twice runs at the first pass. Slots that turn into one instant are
 //! one slot.
 
+use std::ops::RangeInclusive;
+
 use eos_contracts::{DayPreset, Days, Issues, MonthDay, Repeat, Schedule};
 
 use crate::time::{OffsetAt, civil_from_days, days_from_civil, instant_of, wall_clock};
@@ -118,10 +120,12 @@ fn walls(repeat: &Repeat, day: i64) -> Vec<i64> {
     }
 }
 
-/// One calendar day's slots as instants, ascending, each instant once.
-fn day_slots(repeat: &Repeat, day: i64, offset_at: OffsetAt<'_>) -> Vec<i64> {
-    let mut slots: Vec<i64> =
-        walls(repeat, day).into_iter().map(|at| instant_of(day * DAY_MS + at * MINUTE_MS, offset_at)).collect();
+/// The slots of some calendar days as instants, ascending, each instant once.
+fn slots_on(repeat: &Repeat, days: RangeInclusive<i64>, offset_at: OffsetAt<'_>) -> Vec<i64> {
+    let mut slots: Vec<i64> = days
+        .flat_map(|day| walls(repeat, day).into_iter().map(move |at| day * DAY_MS + at * MINUTE_MS))
+        .map(|wall| instant_of(wall, offset_at))
+        .collect();
     slots.sort_unstable();
     slots.dedup();
     slots
@@ -134,28 +138,31 @@ fn day_at(at: i64, offset_at: OffsetAt<'_>) -> i64 {
 
 // A change of the clocks moves a slot by hours: it can land on the calendar
 // day next to its own, never further. So a search starts one day out and ends
-// at the first day that has what it looks for.
+// at the first day that has what it looks for, weighed against the day next to
+// it: a change that ends at midnight carries a day's last slots past the next
+// day's first.
 
 /// The latest slot at or before `now`.
 pub fn latest_slot(repeat: &Repeat, now: i64, offset_at: OffsetAt<'_>) -> Option<i64> {
+    let latest_on = |day| slots_on(repeat, day..=day, offset_at).into_iter().rfind(|slot| *slot <= now);
     let today = day_at(now, offset_at);
     (today - SEARCH_DAYS..=today + 1)
         .rev()
-        .find_map(|day| day_slots(repeat, day, offset_at).into_iter().rfind(|slot| *slot <= now))
+        .find_map(|day| latest_on(day).map(|slot| latest_on(day - 1).map_or(slot, |before| before.max(slot))))
 }
 
 /// The first slot after `after`.
 pub fn next_slot(repeat: &Repeat, after: i64, offset_at: OffsetAt<'_>) -> Option<i64> {
+    let next_on = |day| slots_on(repeat, day..=day, offset_at).into_iter().find(|slot| *slot > after);
     let today = day_at(after, offset_at);
     (today - 1..=today + SEARCH_DAYS)
-        .find_map(|day| day_slots(repeat, day, offset_at).into_iter().find(|slot| *slot > after))
+        .find_map(|day| next_on(day).map(|slot| next_on(day + 1).map_or(slot, |later| later.min(slot))))
 }
 
 /// How many slots fall strictly between `after` and `before`.
 fn slots_between(repeat: &Repeat, after: i64, before: i64, offset_at: OffsetAt<'_>) -> i64 {
-    (day_at(after, offset_at) - 1..=day_at(before, offset_at) + 1)
-        .map(|day| day_slots(repeat, day, offset_at).into_iter().filter(|slot| after < *slot && *slot < before).count())
-        .sum::<usize>() as i64
+    let days = day_at(after, offset_at) - 1..=day_at(before, offset_at) + 1;
+    slots_on(repeat, days, offset_at).into_iter().filter(|slot| after < *slot && *slot < before).count() as i64
 }
 
 /// What the scheduler keeps of one schedule.
