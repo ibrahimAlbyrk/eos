@@ -49,6 +49,8 @@ mod pending;
 mod profile;
 mod reactions;
 mod remote;
+mod routines;
+mod runs;
 mod session;
 mod templates;
 mod unit;
@@ -67,6 +69,13 @@ pub use pending::{NewPending, PendingRepo};
 pub use profile::{AvatarThumbnails, UserAvatar, UserAvatarStore, UserProfileStore};
 pub use reactions::{ReactionRepo, StoredReaction};
 pub use remote::{RemoteAuditEntry, RemoteAuditResult, RemoteStore, RoomSecrets};
+pub use routines::{
+    RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, StoredDraft, StoredRoutine,
+    StoredRoutineSession, StoredSpend, StoredVersion,
+};
+pub use runs::{
+    RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunRepo, RunResultRepo, StoredRun, StoredRunEvent, StoredRunResult,
+};
 pub use session::{AgentCaller, agent_caller, session_project, session_root};
 pub use templates::TemplateStore;
 pub use unit::{Announcement, Announcer, Outbox, ReadJob, Store, Tx, WriteJob};

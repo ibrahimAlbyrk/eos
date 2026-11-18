@@ -1,10 +1,15 @@
-//! The smaller tables: what the TypeScript repositories did, on the seeded rows.
+//! The smaller tables: what the TypeScript repositories did, on the seeded rows;
+//! and this app's routine and run tables.
 
 use eos_contracts::WorkerDefinition;
 use eos_core::store::{NewPending, NewQueuedMessage, WorktreeRemoval};
 use eos_domain::message_queue::{MessagePlane, QueueMeta};
 use eos_testkit::{TempStore, fixtures};
 use serde_json::json;
+
+// A folder of its own, so cargo does not build it as a test program of its own.
+#[path = "other_tables/routines.rs"]
+mod routines;
 
 fn seeded() -> TempStore {
     TempStore::seeded("{sandbox}")
