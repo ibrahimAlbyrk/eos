@@ -1,7 +1,9 @@
 //! Routines: the blueprint a routine runs from (format 1), what one run is
 //! given, and the rows and topic payload of the routine routes. Shapes only:
 //! the blueprint's `impl Validate` is empty, so `parse` checks none of its
-//! rules. The When, Which, Freedom and Goes-to slots are the shapes of
+//! rules. Those, the formats this app reads, the canonical JSON and the hash
+//! are `eos_domain::routine::blueprint`, which callers run on every blueprint
+//! they take in. The When, Which, Freedom and Goes-to slots are the shapes of
 //! `signals` and `freedom`.
 
 mod input;
