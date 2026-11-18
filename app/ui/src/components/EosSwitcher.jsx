@@ -22,9 +22,9 @@ function Check() {
   );
 }
 
-// While Eos shows it is first, so every mode's ⌘⌃ digit differs from what the
-// user knows: each row but the open one (it wears the check) names its
-// shortcut. Without Eos the rows are as they always were.
+// While Eos shows it is first and takes ⌘⌃1, so every other mode's digit is one
+// higher than with Eos hidden: each row but the open one (it wears the check)
+// names its shortcut. With Eos hidden the rows carry only the check.
 export function SwitcherMenu({ tabs, activeViewId, onPick, withKeys }) {
   return (
     <div className="eos-menu" role="menu">
