@@ -90,7 +90,7 @@ impl DockBadge for FakeDockBadge {
 }
 
 /// Time zones with fixed offsets, each with at most one daylight-saving change, and the zone
-/// of the user's clock. Knows only `UTC`, the user's zone, until the test adds more.
+/// of the user's clock. Knows only `UTC`, which is also the user's zone, until the test adds more.
 #[derive(Debug, Clone)]
 pub struct FakeZoneRules {
     local: String,
@@ -109,7 +109,9 @@ impl FakeZoneRules {
         Self { local: "UTC".to_owned(), zones: HashMap::new() }.fixed("UTC", 0)
     }
 
-    /// The user's clock is in `zone`.
+    /// The user's clock is in `zone`. This alone does not make the fake know `zone`: the real
+    /// system always knows the user's zone, so give it offsets with [`fixed`](Self::fixed) or
+    /// [`changing`](Self::changing) too.
     pub fn local(mut self, zone: &str) -> Self {
         zone.clone_into(&mut self.local);
         self
