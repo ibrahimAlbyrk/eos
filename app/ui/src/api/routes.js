@@ -301,4 +301,10 @@ export const ROUTES = {
   browserDevice: (tabId) => `/browser/tabs/${tabId}/device`,
   browserElements: (tabId) => `/browser/tabs/${tabId}/elements`,
   browserMute: (tabId) => `/browser/tabs/${tabId}/mute`,
+  // Routines (eos-contracts `routine.rs`): the list, which also tells whether
+  // the core serves them, one routine, its versions and one version.
+  routines: "/api/routines",
+  routine: (id) => `/api/routines/${id}`,
+  routineVersions: (id) => `/api/routines/${id}/versions`,
+  routineVersion: (id, versionId) => `/api/routines/${id}/versions/${versionId}`,
 };

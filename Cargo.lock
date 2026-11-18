@@ -1395,6 +1395,7 @@ dependencies = [
  "eos-mod-questions",
  "eos-mod-reactions",
  "eos-mod-remote",
+ "eos-mod-routines",
  "eos-mod-settings",
  "eos-mod-sync",
  "eos-mod-system",
@@ -2081,6 +2082,19 @@ dependencies = [
  "sha2",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "eos-mod-routines"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-runtime",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

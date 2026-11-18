@@ -63,6 +63,8 @@ pub const USER_DATA_ENTRIES: &[&str] = &[
     "config.json",
     // The trash fallback, used when the system trash is unavailable.
     ".eos-trash",
+    // Routines' workflow scripts and what their runs were given and made.
+    "routines",
 ];
 
 /// What no agent's file tool (Edit, Write, NotebookEdit) writes in the data
@@ -91,6 +93,8 @@ pub(crate) const AGENT_PROTECTED_ENTRIES: &[&str] = &[
     "backups",
     // Transcripts of the previous app's in-process conversations.
     "conversations",
+    // Routines' kept scripts and their runs' results: a run's agents must not rewrite what was checked.
+    "routines",
 ];
 
 /// Paths inside one data folder.
