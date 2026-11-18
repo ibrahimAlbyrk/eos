@@ -166,6 +166,7 @@
   opacity: 0;
 }
 .eos-menu__check.on { opacity: 1; }
+.eos-menu__kbd { margin-left: auto; font-size: var(--text-xs); color: var(--fg-dim2); }
 
 /* ============== Agent right-click context menu ============== */
 .ctx-menu {

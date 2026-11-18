@@ -4,11 +4,14 @@ import { CodeView } from "./code/CodeView.jsx";
 import { CodeSidebar } from "./code/sidebar/CodeSidebar.jsx";
 import { MachinesView } from "./machines/MachinesView.jsx";
 import { MachinesSidebar } from "./machines/MachinesSidebar.jsx";
+import { EosView } from "./eos/EosView.jsx";
+import { EosSidebar } from "./eos/sidebar/EosSidebar.jsx";
 
 // Maps a view id to its workspace Component. Adding a tab = add an entry here
 // (plus a descriptor in tabs.js). The Shell is the only importer, so pulling in
 // the heavy Components here does not create a cycle with TabBar.
 const COMPONENTS = {
+  eos: EosView,
   agents: AgentsView,
   code: CodeView,
   machines: MachinesView,
@@ -18,6 +21,7 @@ const COMPONENTS = {
 // persistent collapsed-hover popup (mounted once, outside the per-view subtree)
 // so the flyout survives view switches. Both accept { live, variant }.
 const SIDEBARS = {
+  eos: EosSidebar,
   agents: AgentsSidebar,
   code: CodeSidebar,
   machines: MachinesSidebar,

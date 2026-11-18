@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigation, useSearch } from "../state/ui.jsx";
 import { visibleTabs } from "../views/tabs.js";
 import { shortcutLabel } from "../lib/platform.js";
+import { useEosShown } from "../state/eos/eosStatusStore.js";
 
 // The sidebar's top workspace switcher, shared by the Agents and Code sidebars:
 // the active view's name ("Agents ▾" / "Code ▾") whose click opens the view menu, plus a search icon (⌘K / command palette) at the row's right.
@@ -21,8 +22,34 @@ function Check() {
   );
 }
 
+// While Eos shows it is first, so every mode's ⌘⌃ digit differs from what the
+// user knows: each row but the open one (it wears the check) names its
+// shortcut. Without Eos the rows are as they always were.
+export function SwitcherMenu({ tabs, activeViewId, onPick, withKeys }) {
+  return (
+    <div className="eos-menu" role="menu">
+      {tabs.map((t, i) => (
+        <div
+          key={t.id}
+          className="eos-menu__item"
+          role="menuitemradio"
+          aria-checked={activeViewId === t.id}
+          onClick={(e) => { e.stopPropagation(); onPick(t.id); }}
+        >
+          <span className="eos-menu__ic"><t.Icon /></span>
+          <span>{t.label}</span>
+          {withKeys && activeViewId !== t.id
+            ? <span className="eos-menu__kbd">{shortcutLabel(`mod+ctrl+${i + 1}`)}</span>
+            : <span className={"eos-menu__check" + (activeViewId === t.id ? " on" : "")}><Check /></span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function EosSwitcher() {
   const { activeViewId, setActiveView } = useNavigation();
+  const eosShown = useEosShown();
   const { openSearch } = useSearch();
   const [open, setOpen] = useState(false);
   const rootRef = useRef(null);
@@ -56,23 +83,7 @@ export function EosSwitcher() {
           <span className="eos-switch__mark">{active.label}</span>
           <span className="eos-switch__chev"><ChevronDown /></span>
         </div>
-        {open && (
-          <div className="eos-menu" role="menu">
-            {tabs.map((t) => (
-              <div
-                key={t.id}
-                className="eos-menu__item"
-                role="menuitemradio"
-                aria-checked={activeViewId === t.id}
-                onClick={(e) => { e.stopPropagation(); pick(t.id); }}
-              >
-                <span className="eos-menu__ic"><t.Icon /></span>
-                <span>{t.label}</span>
-                <span className={"eos-menu__check" + (activeViewId === t.id ? " on" : "")}><Check /></span>
-              </div>
-            ))}
-          </div>
-        )}
+        {open && <SwitcherMenu tabs={tabs} activeViewId={activeViewId} onPick={pick} withKeys={eosShown} />}
       </div>
       <span className="side-eos__spacer" />
       <button className="eos-search" title={`Search (${shortcutLabel("mod+k")})`} aria-label="Search" onClick={() => openSearch()}>

@@ -16,6 +16,14 @@ describe("web ROUTES", () => {
     expect(missing).toEqual([]);
   });
 
+  // Eos's stores ask their routes through state/eos/transport.js, by ROUTES key.
+  it("every ROUTES key an Eos store asks exists in the web table", () => {
+    const sources = import.meta.glob("../state/eos/*.js", { query: "?raw", import: "default", eager: true });
+    const used = Object.values(sources).flatMap((src) => [...src.matchAll(/ROUTES\.(\w+)/g)].map((m) => m[1]));
+    expect(used).toContain("routines");
+    expect([...new Set(used)].filter((key) => !(key in webRoutes))).toEqual([]);
+  });
+
   // The archive feature's frozen contract, asserted explicitly.
   it("archive endpoints match the frozen backend contract", () => {
     expect(webRoutes.workersArchived).toBe("/workers/archived");
