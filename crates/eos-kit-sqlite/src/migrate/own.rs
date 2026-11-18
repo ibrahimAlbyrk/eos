@@ -20,4 +20,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("070_runs"),
     // Signals: their sources, what became of each for each routine, schedules and runners.
     embed!("071_signals"),
+    // Needs you: items, deliveries, edits, outcomes, freedom offers and the stop switch.
+    embed!("072_inbox"),
 ];
