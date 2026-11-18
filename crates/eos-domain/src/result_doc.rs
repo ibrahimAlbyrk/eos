@@ -121,8 +121,8 @@ fn ordered_keys<'a>(doc: &'a ResultDoc, kind: &str, other: &HashMap<&str, &Part>
 }
 
 /// Of the keys both orders hold, the most that keep their order from
-/// `before` to `after`; the others moved. Among runs as long, the one found
-/// first.
+/// `before` to `after`; the others moved. Among runs as long, the one that
+/// ends last in `after`.
 fn kept_in_order<'a>(before: &[&str], after: &[&'a str]) -> HashSet<&'a str> {
     let place: HashMap<&str, usize> = before.iter().enumerate().map(|(at, key)| (*key, at)).collect();
     let places: Vec<(usize, &str)> = after.iter().filter_map(|key| place.get(key).map(|at| (*at, *key))).collect();
