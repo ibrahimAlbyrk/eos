@@ -11,7 +11,7 @@ const DAY: i64 = 86_400_000;
 /// changes to the end of 2030, as the zone files give them
 /// (`zdump -v -c 2026,2031 <zone>`).
 type ZoneTable = (&'static str, i32, &'static [(&'static str, i32)]);
-const ZONES: [ZoneTable; 6] = [
+const ZONES: [ZoneTable; 7] = [
     ("Europe/Istanbul", 180, &[]),
     (
         "America/New_York",
@@ -64,6 +64,23 @@ const ZONES: [ZoneTable; 6] = [
     ),
     ("Asia/Kolkata", 330, &[]),
     ("UTC", 0, &[]),
+    (
+        // Summer time starts at midnight: Saturday 23:00 becomes Sunday 00:00.
+        "America/Nuuk",
+        -120,
+        &[
+            ("2026-03-29T01:00Z", -60),
+            ("2026-10-25T01:00Z", -120),
+            ("2027-03-28T01:00Z", -60),
+            ("2027-10-31T01:00Z", -120),
+            ("2028-03-26T01:00Z", -60),
+            ("2028-10-29T01:00Z", -120),
+            ("2029-03-25T01:00Z", -60),
+            ("2029-10-28T01:00Z", -120),
+            ("2030-03-31T01:00Z", -60),
+            ("2030-10-27T01:00Z", -120),
+        ],
+    ),
 ];
 
 fn utc(iso: &str) -> i64 {
@@ -264,6 +281,25 @@ fn slots_a_change_of_the_clocks_lands_on_one_instant_are_one_slot() {
     let found = slots(&quarter, utc("2026-10-03T13:30Z"), utc("2026-10-04T13:00Z"), &lord_howe);
     let expected: Vec<i64> = (0..4).map(|step| utc("2026-10-03T15:00Z") + step * 15 * MINUTE).collect();
     assert_eq!(found, expected);
+}
+
+#[test]
+fn slots_a_change_at_midnight_carries_into_the_next_day_keep_their_order() {
+    let nuuk = zone("America/Nuuk");
+    let nuuk: OffsetAt<'_> = &nuuk;
+    // Saturday's 22:55, then Sunday's 00:00, Saturday's 23:20 (at 00:20), Sunday's 00:25,
+    // Saturday's 23:45 (at 00:45) and Sunday's 00:50.
+    let every = repeat(json!({"every": 25, "days": "all"}));
+    let expected = ["00:55", "01:00", "01:20", "01:25", "01:45", "01:50"].map(|at| utc(&format!("2026-03-29T{at}Z")));
+    assert_eq!(slots(&every, utc("2026-03-29T00:50Z"), utc("2026-03-29T01:51Z"), nuuk), expected);
+    for pair in expected.windows(2) {
+        assert_eq!(latest_slot(&every, pair[1] - 1, nuuk), Some(pair[0]));
+    }
+    // Saturday's 23:00 and 23:30 are Sunday's 00:00 and 00:30: two slots missed, not four.
+    let half_hourly = repeat(json!({"every": 30, "days": "all"}));
+    let fired = state(&half_hourly, 0, Some(utc("2026-03-29T00:30Z")));
+    let missed = due(&fired, utc("2026-03-29T02:10Z"), nuuk).map(|due| (due.slot, due.missed));
+    assert_eq!(missed, Some((utc("2026-03-29T02:00Z"), 2)));
 }
 
 fn state(repeat: &Repeat, armed_at: i64, last_slot_at: Option<i64>) -> ScheduleState<'_> {
