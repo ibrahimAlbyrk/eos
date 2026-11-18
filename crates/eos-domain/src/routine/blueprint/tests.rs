@@ -217,8 +217,11 @@ fn a_script_routine_has_a_script_and_no_agents() {
         ]
     );
     script["who"]["agents"] = json!([]);
-    script["who"]["script"] = json!({"source": "export default async () => 1;", "hash": "ab"});
+    script["who"]["script"] = json!({"source": "export default async () => 1;",
+                                     "hash": "3dc301f2fe3f085ec7a9904e0024dc562beed4ea08f30d6212d3cafb355b18c3"});
     assert_eq!(issues(&script), Vec::new());
+    script["who"]["script"]["hash"] = json!("ab");
+    assert_eq!(issues(&script), vec![issue("who.script.hash", "Is not the SHA-256 of the source")]);
 }
 
 #[test]

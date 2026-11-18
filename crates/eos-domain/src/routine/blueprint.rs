@@ -215,6 +215,12 @@ fn who(who: &Who, cx: &mut Issues) {
         }
         WhoDepth::Solo | WhoDepth::Team => {}
     }
+    // The gate lets a run's script through by this hash.
+    if let Some(script) = &who.script
+        && script.hash != hash(&script.source)
+    {
+        cx.at("script", |cx| cx.push_at("hash", "Is not the SHA-256 of the source"));
+    }
     cx.at("agents", |cx| {
         // Outside text in a lead's context could steer every agent it starts.
         if who.depth == WhoDepth::Team && agents.len() > 1 {
