@@ -333,6 +333,19 @@ pub const ROUTINE_FREEDOM: Route = Route::new("routineFreedom", "/api/routines/:
 pub const EOS_HALT: Route = Route::new("eosHalt", "/api/eos/halt", &[Get, Post]).added();
 pub const EOS_RESUME: Route = Route::new("eosResume", "/api/eos/resume", &[Post]).added();
 pub const SETTINGS_ATTENTION: Route = Route::new("settingsAttention", "/api/settings/attention", &[Get, Put]).added();
+pub const CAPABILITIES: Route = Route::new("capabilities", "/api/capabilities", &[Get]).added();
+pub const CAPABILITY_CANDIDATES: Route =
+    Route::new("capabilityCandidates", "/api/capabilities/candidates", &[Get]).added();
+pub const CAPABILITY: Route = Route::new("capability", "/api/capabilities/:id", &[Get, Delete]).added();
+pub const CAPABILITY_ENABLE: Route = Route::new("capabilityEnable", "/api/capabilities/:id/enable", &[Post]).added();
+pub const CAPABILITY_DISABLE: Route = Route::new("capabilityDisable", "/api/capabilities/:id/disable", &[Post]).added();
+pub const CAPABILITY_SETTINGS: Route =
+    Route::new("capabilitySettings", "/api/capabilities/:id/settings", &[Put]).added();
+pub const CAPABILITY_CHECK: Route = Route::new("capabilityCheck", "/api/capabilities/:id/check", &[Post]).added();
+pub const CAPABILITY_ROLLBACK: Route =
+    Route::new("capabilityRollback", "/api/capabilities/:id/rollback", &[Post]).added();
+pub const CAPABILITY_SIGN_IN: Route =
+    Route::new("capabilitySignIn", "/api/capabilities/:id/sign-in", &[Post, Get, Delete]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -643,4 +656,13 @@ pub const ROUTES: &[Route] = &[
     EOS_HALT,
     EOS_RESUME,
     SETTINGS_ATTENTION,
+    CAPABILITIES,
+    CAPABILITY_CANDIDATES,
+    CAPABILITY,
+    CAPABILITY_ENABLE,
+    CAPABILITY_DISABLE,
+    CAPABILITY_SETTINGS,
+    CAPABILITY_CHECK,
+    CAPABILITY_ROLLBACK,
+    CAPABILITY_SIGN_IN,
 ];
