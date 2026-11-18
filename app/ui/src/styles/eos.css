@@ -2,7 +2,7 @@
    every Eos screen is built from (section label, card, chip, segmented control,
    status chip). Colours are the app's tokens.
 
-   Contrast (WCAG 1.4.3): text is never lighter than --fg-dim2 (#8b8b8b, 4.7:1
+   Contrast (WCAG 1.4.3): text is never dimmer than --fg-dim2 (#8b8b8b, 4.7:1
    on #212121) on the dark grounds, and on #262626 or lighter it is --fg-dim
    (#a8a8a8) or brighter. --fg-faint is never text here. A rule that sets its
    own ground is held to its pair; eos.css.test.js reads both from this file.
