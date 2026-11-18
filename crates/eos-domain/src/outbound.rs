@@ -169,10 +169,13 @@ fn paragraph(text: &str) -> &str {
     &text[..end]
 }
 
-/// The labels the `[…]: …` lines of `text` define.
+/// The labels the `[…]: …` lines of `text` define, in a quote or a list item
+/// too: Markdown counts a definition there for the whole document.
 fn defined_labels(text: &str) -> impl Iterator<Item = String> + '_ {
-    text.lines()
-        .filter_map(|line| line.trim_start().strip_prefix('[')?.split_once("]:").map(|(label, _)| label_key(label)))
+    let container = |c: char| c.is_whitespace() || c.is_ascii_digit() || matches!(c, '>' | '-' | '*' | '+' | '.' | ')');
+    text.lines().filter_map(move |line| {
+        line.trim_start_matches(container).strip_prefix('[')?.split_once("]:").map(|(label, _)| label_key(label))
+    })
 }
 
 /// A reference label as Markdown matches it: case and runs of spaces do not

