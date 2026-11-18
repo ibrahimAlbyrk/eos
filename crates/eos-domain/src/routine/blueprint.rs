@@ -7,8 +7,8 @@ use std::collections::HashSet;
 use std::fmt;
 
 use eos_contracts::{
-    BLUEPRINT_FORMAT, Blueprint, Issues, Num, OptionType, RoutineAgent, RoutineKind, RoutineLimits, RoutineOption,
-    Trigger, ValidationError, Who, WhoDepth,
+    BLUEPRINT_FORMAT, Blueprint, Freedom, Issues, Num, OptionType, Recipient, RecipientKind, RoutineAgent, RoutineKind,
+    RoutineLimits, RoutineOption, Trigger, ValidationError, Who, WhoDepth,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -126,7 +126,8 @@ pub fn validate(blueprint: &Blueprint, context: &Context<'_>) -> Vec<Issue> {
     cx.at("which", |cx| which::validate(&blueprint.which, cx));
     cx.at("who", |cx| who(&blueprint.who, cx));
     cx.at("how", |cx| cx.at("checks", |cx| unique(cx, blueprint.how.checks.iter().map(|check| &check.key), "key")));
-    cx.at("goesTo", |cx| unique(cx, blueprint.goes_to.iter().map(|recipient| &recipient.id), "id"));
+    cx.at("goesTo", |cx| goes_to(&blueprint.goes_to, cx));
+    cx.at("freedom", |cx| freedom(&blueprint.freedom, cx));
     cx.at("limits", |cx| limits(&blueprint.limits, blueprint.kind, cx));
     project(blueprint, &mut cx);
     cx.into_vec()
@@ -224,6 +225,24 @@ fn who(who: &Who, cx: &mut Issues) {
             }
         }
         unique(cx, agents.iter().map(|agent| &agent.key), "key");
+    });
+}
+
+fn goes_to(recipients: &[Recipient], cx: &mut Issues) {
+    unique(cx, recipients.iter().map(|recipient| &recipient.id), "id");
+    for (i, recipient) in recipients.iter().enumerate() {
+        if let RecipientKind::ItemPlace { bound: Some(bound), .. } = &recipient.kind {
+            cx.idx(i, |cx| cx.at("bound", |cx| which::validate_rule(bound, cx)));
+        }
+    }
+}
+
+/// A grant's rule meets the same bounds as Which's.
+fn freedom(freedom: &Freedom, cx: &mut Issues) {
+    cx.at("grants", |cx| {
+        for (i, grant) in freedom.grants.iter().enumerate() {
+            cx.idx(i, |cx| cx.at("when", |cx| which::validate_rule(&grant.when, cx)));
+        }
     });
 }
 
