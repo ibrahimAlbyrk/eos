@@ -14,4 +14,8 @@ pub(super) const OWN: &[Migration] = &[
     embed!("067_engine_sessions"),
     // The emoji the user and the agent leave on each other's messages, and what the agent was told of them.
     embed!("068_message_reactions"),
+    // Routines: their blueprint versions, drafts, sessions, spend by day and suggestions.
+    embed!("069_routines"),
+    // Runs of routines, their timelines and their results.
+    embed!("070_runs"),
 ];
