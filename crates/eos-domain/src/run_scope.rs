@@ -69,11 +69,12 @@ fn shell_and_web(trust: Trust) -> [&'static [&'static str]; 2] {
 
 /// The scope of a run worker. `capability_tools` are the tools that reach
 /// capability actions, which only a routine run's own roles get.
-/// `def_scope` is the agent's own definition: its denials join, and of the
-/// tools the run allows only those its allow list covers stay, so it narrows
-/// the scope and never widens it; its `editRegex` is not read, as the run's
-/// folder bounds every edit. `edit_folder` is the folder file edits stay in:
-/// the run's worktree, or the Forge builder's scratch folder.
+/// `def_scope` is the agent's own definition, as it is baked onto a worker:
+/// it narrows the scope and never widens it. Its denials join; of the tools
+/// the run allows, only those its allow list covers stay; and an edit must
+/// match its `editRegex` as well as stay in the folder. `edit_folder` is the
+/// folder file edits stay in: the run's worktree, or the Forge builder's
+/// scratch folder.
 pub fn scope_for(
     role: RunRole,
     trust: Trust,
@@ -94,6 +95,8 @@ pub fn scope_for(
     };
     let mut allow: Vec<String> = groups.iter().flat_map(|group| group.iter()).map(|tool| (*tool).to_owned()).collect();
     let mut deny: Vec<String> = SHELL_DENIED.iter().map(|pattern| (*pattern).to_owned()).collect();
+    let folder = format!("{}/", regex_escaped(edit_folder.trim_end_matches('/')));
+    let mut edit_regex = format!("^{folder}");
     if let Some(def) = def_scope {
         if !def.allow.is_empty() {
             allow.retain(|tool| def.allow.iter().any(|pattern| covers(pattern, tool)));
@@ -103,12 +106,32 @@ pub fn scope_for(
                 deny.push(pattern.clone());
             }
         }
+        if let Some(both) = def.edit_regex.as_deref().and_then(|pattern| in_folder(&folder, pattern)) {
+            edit_regex = both;
+        }
     }
     if allow.is_empty() {
         // An empty allow list restricts nothing.
         deny.push("*".to_owned());
     }
-    ToolScope { allow, deny, edit_regex: Some(format!("^{}/", regex_escaped(edit_folder.trim_end_matches('/')))) }
+    ToolScope { allow, deny, edit_regex: Some(edit_regex) }
+}
+
+/// A regex for the paths in `folder` (escaped, with its closing `/`) that
+/// also match a definition's `pattern`, searched for anywhere in the path as
+/// the policy searches it. The folder is a lookahead, so it adds no group and
+/// the pattern's backreferences keep their numbers. `None` for an empty
+/// pattern and for one that is not a regex, which the policy ignores: the
+/// folder alone then bounds edits, where an ignored whole would bound none.
+/// For that, a pattern with a character beyond the BMP is left out too: the
+/// policy reads it as JavaScript does, two code units, and may then find it
+/// is not a regex (`(?<a𝑥>a)`) where this check finds one.
+fn in_folder(folder: &str, pattern: &str) -> Option<String> {
+    if pattern.is_empty() || pattern.chars().any(|c| u32::from(c) > 0xFFFF) {
+        return None;
+    }
+    let both = format!(r"^(?={folder})[\s\S]*?(?:{pattern})");
+    regress::Regex::new(&both).is_ok().then_some(both)
 }
 
 /// Whether an allow pattern covers the tool `name` by its name alone, as the

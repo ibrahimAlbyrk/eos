@@ -103,8 +103,11 @@ fn a_definition_narrows_the_scope_and_never_widens_it() {
     let reader = narrowed(&definition(&["Read", "Grep", "Bash", "mcp__*", "Artifact"], &["WebFetch", "Bash(gh:*)"]));
     assert_eq!(reader.allow, ["Read", "Grep", "Bash"]);
     assert_eq!(reader.deny, ["Bash(git push:*)", "Bash(gh:*)", "WebFetch"]);
-    // The run's folder bounds edits, whatever the definition says.
-    assert_eq!(reader.edit_regex.as_deref(), Some(r"^/Users/me/\.eos/routines/rn-0a1b2c3d4e5f/work/"));
+    // An edit stays in the run's folder and matches the definition's pattern.
+    assert_eq!(
+        reader.edit_regex.as_deref(),
+        Some(r"^(?=/Users/me/\.eos/routines/rn-0a1b2c3d4e5f/work/)[\s\S]*?(?:\.md$)")
+    );
 
     assert_eq!(narrowed(&definition(&["Web*"], &[])).allow, ["WebFetch", "WebSearch"]);
     assert_eq!(narrowed(&definition(&["*"], &[])).allow, scope(RunRole::Specialist, Trust::Untrusted).allow);
@@ -149,6 +152,40 @@ fn edits_stay_in_the_folder_whatever_its_name_holds() {
     assert!(edits_in(odd, "/tmp/a+b (1)/[x].$y/file"));
     assert!(!edits_in(odd, "/tmp/aab (1)/[x].$y/file"));
     assert!(edits_in("/tmp/run/", "/tmp/run/file"));
+}
+
+#[test]
+fn a_definitions_edit_pattern_holds_edits_inside_the_folder_too() {
+    let edits_in = |def_regex: &str, path: &str| {
+        let def = ToolScope { allow: Vec::new(), deny: Vec::new(), edit_regex: Some(def_regex.to_owned()) };
+        let pattern =
+            scope_for(RunRole::Solo, Trust::Trusted, &[], Some(&def), WORKTREE).edit_regex.expect("an edit regex");
+        regress::Regex::new(&pattern).expect("a regex").find(path).is_some()
+    };
+    assert!(edits_in(r"\.md$", &format!("{WORKTREE}/docs/a.md")));
+    assert!(!edits_in(r"\.md$", &format!("{WORKTREE}/src/main.rs")));
+    assert!(!edits_in(r"\.md$", "/Users/me/notes.md"));
+    // A definition's `^src/` as the policy reads it: a segment anywhere in the path.
+    assert!(edits_in("(^|/)src/", &format!("{WORKTREE}/src/main.rs")));
+    assert!(!edits_in("(^|/)src/", &format!("{WORKTREE}/docs/src.md")));
+    assert!(!edits_in("(^|/)src/", "/Users/me/src/main.rs"));
+    assert!(edits_in("^/Users/me/", &format!("{WORKTREE}/a")));
+    assert!(!edits_in("^/tmp/", &format!("{WORKTREE}/a")) && !edits_in("^/tmp/", "/tmp/a"));
+    assert!(edits_in("a|b", &format!("{WORKTREE}/b")) && !edits_in("a|b", "/tmp/b"));
+    assert!(edits_in(r"(\w+)/\1\.rs$", &format!("{WORKTREE}/lib/lib.rs")), "a backreference keeps its group");
+    assert!(!edits_in(r"(\w+)/\1\.rs$", &format!("{WORKTREE}/lib/main.rs")));
+
+    // A pattern the policy would ignore, or might read as no regex, leaves
+    // the folder alone to bound edits.
+    for ignored in ["", "(", "(?<a𝑥>a)", "[😀-😂]"] {
+        let def = ToolScope { allow: Vec::new(), deny: Vec::new(), edit_regex: Some(ignored.to_owned()) };
+        let scope = scope_for(RunRole::Solo, Trust::Trusted, &[], Some(&def), WORKTREE);
+        assert_eq!(
+            scope.edit_regex,
+            scope_for(RunRole::Solo, Trust::Trusted, &[], None, WORKTREE).edit_regex,
+            "{ignored}"
+        );
+    }
 }
 
 #[test]
