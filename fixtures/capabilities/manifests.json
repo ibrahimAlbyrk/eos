@@ -1,0 +1,220 @@
+{
+  "valid": [
+    {
+      "name": "the SMS reference package",
+      "toml": "id = \"sms-messages\"\nname = \"SMS through your iPhone\"\nversion = \"1.0.0\"\nsummary = \"Sends a text to your own number through Messages on this Mac.\"\nform = \"script\"\nworks = \"this_mac\"\ninstructions = \"README.md\"\nrequires = { programs = [\"/usr/bin/osascript\"], permissions = [\"automation:com.apple.MobileSMS\"] }\nreach = { hosts = [], apple_events = [\"com.apple.MobileSMS\"], files_read = [] }\nhealth = { action = \"check\" }\ntests = { command = [\"/bin/zsh\", \"tests/run.sh\"], live = \"send_to_me\" }\n\n[[settings]]\nname = \"phone_number\"\nlabel = \"Your mobile number\"\nkind = \"phone\"\nrequired = true\n\n[[actions]]\nname = \"check\"\nsummary = \"See that Messages can send.\"\nclass = \"read\"\nrun = [\"/usr/bin/osascript\", \"check.applescript\"]\n\n[[actions]]\nname = \"send_to_me\"\nsummary = \"Send a text to your own number.\"\nclass = \"tell_user\"\nrecipient = \"user\"\nundo = \"\"\nrun = [\"/usr/bin/osascript\", \"send.applescript\"]\ntimeout_s = 30\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n\n[[channels]]\nname = \"sms\"\naction = \"send_to_me\"\n"
+    },
+    {
+      "name": "the GitHub built-in, with a reserved id and a secret its code reads by name",
+      "toml": "id = \"github\"\nname = \"GitHub\"\nversion = \"1\"\nsummary = \"Pull requests and reviews on GitHub.\"\nform = \"builtin\"\nworks = \"any_mac\"\nreach = { hosts = [\"api.github.com\", \"github.com\"] }\nhealth = { action = \"check\" }\n\n[[secrets]]\nname = \"token\"\nlabel = \"GitHub sign-in\"\nhosts = [\"api.github.com\"]\n\n[[actions]]\nname = \"check\"\nsummary = \"See that the sign-in works.\"\nclass = \"read\"\n\n[[actions]]\nname = \"list_pull_requests\"\nsummary = \"The open pull requests of a repository.\"\nclass = \"read\"\ninput = { type = \"object\", required = [\"repo\"], properties = { repo = { type = \"string\" }, state = { type = \"string\", enum = [\"open\", \"closed\", \"all\"] } } }\noutput = { type = \"array\", items = { type = \"object\", properties = { number = { type = \"integer\", minimum = 1 }, title = { type = \"string\", untrusted = true }, url = { type = \"string\", format = \"uri\" } } } }\n\n[[actions]]\nname = \"post_review\"\nsummary = \"Post a review with line comments.\"\nclass = \"speak\"\nrecipient = \"input:/pull\"\nundo = \"withdraw_review\"\ntimeout_s = 60\ninput = { type = \"object\", required = [\"pull\", \"event\"], properties = { pull = { type = \"string\" }, event = { type = \"string\", enum = [\"COMMENT\", \"REQUEST_CHANGES\"] }, comments = { type = \"array\", maxItems = 50, items = { type = \"object\", properties = { path = { type = \"string\" }, line = { type = \"integer\", minimum = 1 } } } } } }\n\n[[actions]]\nname = \"withdraw_review\"\nsummary = \"Take a review's comments back.\"\nclass = \"speak\"\nrecipient = \"input:/pull\"\n\n[[actions]]\nname = \"approve_pull_request\"\nsummary = \"Approve a pull request.\"\nclass = \"irreversible\"\nrecipient = \"input:/pull\"\n\n[[channels]]\nname = \"github\"\naction = \"post_review\"\n\n[[channels]]\nname = \"github_approve\"\naction = \"approve_pull_request\"\n\n[[sources]]\nname = \"github.pulls\"\nitem = \"github.pull_request\"\naction = \"list_pull_requests\"\nevents = [\"opened\", \"updated\", \"closed\"]\ninterval_s = 300\nmin_interval_s = 60\nfacts = { repo = \"string\", labels = \"strings\", draft = \"bool\", size = \"number\" }\npush = { verify = \"hmac-sha256\", signature_header = \"X-Hub-Signature-256\", delivery_header = \"X-GitHub-Delivery\" }\n\n[[candidates]]\nitem = \"github.pull_request\"\naction = \"list_pull_requests\"\n\n[[items]]\nkind = \"github.pull_request\"\nnoun = \"pull request\"\nrecognise = [\"github\\\\.com/[^/]+/[^/]+/pull/\\\\d+\"]\n"
+    },
+    {
+      "name": "a remote MCP server with its token as a header",
+      "toml": "id = \"linear-tasks\"\nname = \"Linear\"\nversion = \"0.3.1\"\nsummary = \"Reads and files Linear issues.\"\nform = \"mcp\"\nworks = \"any_mac\"\nserver = { url = \"https://mcp.linear.app/sse\", header_secret = \"api_key\" }\nreach = { hosts = [\"mcp.linear.app\", \"*.linear.app\"] }\n\n[[secrets]]\nname = \"api_key\"\nlabel = \"Linear API key\"\nhelp = \"Settings, API, Personal keys\"\nhosts = [\"mcp.linear.app\"]\n\n[[actions]]\nname = \"list_issues\"\nsummary = \"Issues assigned to you.\"\nclass = \"read\"\ntool = \"list_issues\"\noutput = { type = \"array\", maxItems = 100, items = { type = \"object\", properties = { id = { type = \"string\" }, title = { type = \"string\", untrusted = true }, due = { type = \"string\", format = \"date-time\" } } } }\n"
+    },
+    {
+      "name": "a local MCP server with a secret in its environment",
+      "toml": "id = \"notes-db\"\nname = \"Notes database\"\nversion = \"2.0.0\"\nsummary = \"A local notes server.\"\nform = \"mcp\"\nworks = \"this_mac\"\nserver = { run = [\"/opt/homebrew/bin/notes-mcp\", \"--stdio\"] }\n\n[[secrets]]\nname = \"db_key\"\nlabel = \"Database key\"\nenv = \"NOTES_DB_KEY\"\n\n[[actions]]\nname = \"search\"\nsummary = \"Search notes.\"\nclass = \"read\"\ntool = \"search_notes\"\ninput = { type = \"object\", properties = { query = { type = \"string\", minLength = 1 }, limit = { type = \"integer\", minimum = 1, maximum = 50 }, contact = { type = \"string\", format = \"email\" }, exact = { type = \"boolean\" }, score = { type = \"number\", maximum = 1.5 } } }\n"
+    },
+    {
+      "name": "a skill",
+      "toml": "id = \"style-guide\"\nname = \"House style\"\nversion = \"1.0.0\"\nsummary = \"How the team writes.\"\nform = \"skill\"\nworks = \"any_mac\"\ninstructions = \"STYLE.md\"\n"
+    },
+    {
+      "name": "the smallest script",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "an id with capitals and an underscore",
+      "toml": "id = \"Echo_Tool\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "id",
+          "message": "An id is 2 to 32 lowercase letters, digits and hyphens, starting with a letter"
+        }
+      ]
+    },
+    {
+      "name": "an id of one letter",
+      "toml": "id = \"e\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "id",
+          "message": "An id is 2 to 32 lowercase letters, digits and hyphens, starting with a letter"
+        }
+      ]
+    },
+    {
+      "name": "a reserved id on a package",
+      "toml": "id = \"mail\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "id",
+          "message": "mail is reserved"
+        }
+      ]
+    },
+    {
+      "name": "a route's name as an id",
+      "toml": "id = \"candidates\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "id",
+          "message": "candidates is reserved"
+        }
+      ]
+    },
+    {
+      "name": "an IP address as a host",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nreach = { hosts = [\"api.example.com\", \"127.0.0.1\"] }\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "reach.hosts.1",
+          "message": "An IP address is not a host; declare a domain name"
+        }
+      ]
+    },
+    {
+      "name": "a wildcard over a top-level domain",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nreach = { hosts = [\"*.com\"] }\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "issues": [
+        {
+          "path": "reach.hosts.0",
+          "message": "A wildcard over a whole top-level domain reaches every site in it"
+        }
+      ]
+    },
+    {
+      "name": "a secret never handed to the code",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n\n[[secrets]]\nname = \"api_key\"\nlabel = \"API key\"\n",
+      "issues": [
+        {
+          "path": "secrets.0",
+          "message": "api_key is never handed to the code: give it an env, or name it as the server's header_secret"
+        }
+      ]
+    },
+    {
+      "name": "a channel naming a missing action",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n\n[[channels]]\nname = \"out\"\naction = \"send\"\n",
+      "issues": [
+        {
+          "path": "channels.0.action",
+          "message": "Names no action: send"
+        }
+      ]
+    },
+    {
+      "name": "a channel through a read action",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n\n[[channels]]\nname = \"out\"\naction = \"echo\"\n",
+      "issues": [
+        {
+          "path": "channels.0.action",
+          "message": "echo is read; expected tell_user or speak or irreversible"
+        }
+      ]
+    },
+    {
+      "name": "a source through an action that speaks",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"post\"\nsummary = \"Post it.\"\nclass = \"speak\"\nrun = [\"/bin/cat\"]\n\n[[sources]]\nname = \"echo.items\"\nitem = \"echo.item\"\naction = \"post\"\n",
+      "issues": [
+        {
+          "path": "sources.0.action",
+          "message": "post is speak; expected read"
+        }
+      ]
+    },
+    {
+      "name": "a live test that speaks and a health check of nothing",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nhealth = { action = \"check\" }\ntests = { command = [\"/bin/true\"], live = \"post\" }\n\n[[actions]]\nname = \"post\"\nsummary = \"Post it.\"\nclass = \"speak\"\nrun = [\"/bin/cat\"]\n",
+      "issues": [
+        {
+          "path": "health.action",
+          "message": "Names no action: check"
+        },
+        {
+          "path": "tests.live",
+          "message": "post is speak; expected read or write_local or tell_user"
+        }
+      ]
+    },
+    {
+      "name": "a schema outside the subset",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", properties = { text = { type = \"string\", pattern = \"^a\" }, any = { oneOf = [] }, when = { type = \"string\", format = \"time\" } } }\noutput = { type = \"null\" }\n",
+      "issues": [
+        {
+          "path": "actions.0.input.properties.text.pattern",
+          "message": "pattern is outside the supported schema subset for string"
+        },
+        {
+          "path": "actions.0.input.properties.any.type",
+          "message": "Expected one of object, string, integer, number, boolean, array"
+        },
+        {
+          "path": "actions.0.input.properties.when.format",
+          "message": "Expected uri, email or date-time"
+        },
+        {
+          "path": "actions.0.output.type",
+          "message": "null is outside the supported schema subset"
+        }
+      ]
+    },
+    {
+      "name": "too many actions",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"a0\"\nsummary = \"Action 0.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a1\"\nsummary = \"Action 1.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a2\"\nsummary = \"Action 2.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a3\"\nsummary = \"Action 3.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a4\"\nsummary = \"Action 4.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a5\"\nsummary = \"Action 5.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a6\"\nsummary = \"Action 6.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a7\"\nsummary = \"Action 7.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a8\"\nsummary = \"Action 8.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a9\"\nsummary = \"Action 9.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a10\"\nsummary = \"Action 10.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a11\"\nsummary = \"Action 11.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a12\"\nsummary = \"Action 12.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a13\"\nsummary = \"Action 13.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a14\"\nsummary = \"Action 14.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a15\"\nsummary = \"Action 15.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a16\"\nsummary = \"Action 16.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a17\"\nsummary = \"Action 17.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a18\"\nsummary = \"Action 18.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a19\"\nsummary = \"Action 19.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a20\"\nsummary = \"Action 20.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a21\"\nsummary = \"Action 21.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a22\"\nsummary = \"Action 22.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a23\"\nsummary = \"Action 23.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a24\"\nsummary = \"Action 24.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a25\"\nsummary = \"Action 25.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a26\"\nsummary = \"Action 26.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a27\"\nsummary = \"Action 27.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a28\"\nsummary = \"Action 28.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a29\"\nsummary = \"Action 29.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a30\"\nsummary = \"Action 30.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a31\"\nsummary = \"Action 31.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n\n[[actions]]\nname = \"a32\"\nsummary = \"Action 32.\"\nclass = \"read\"\nrun = [\"/bin/true\"]\n",
+      "issues": [
+        {
+          "path": "actions",
+          "message": "At most 32 actions"
+        }
+      ]
+    },
+    {
+      "name": "action names that are not snake_case or repeat, an undo of nothing and a timeout too long",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n\n[[actions]]\nname = \"Echo-Again\"\nsummary = \"Again.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\n\n[[actions]]\nname = \"echo\"\nsummary = \"Once more.\"\nclass = \"write_local\"\nundo = \"unecho\"\ntimeout_s = 301\nrun = [\"/bin/cat\"]\n",
+      "issues": [
+        {
+          "path": "actions.1.name",
+          "message": "An action's name is snake_case"
+        },
+        {
+          "path": "actions.2.name",
+          "message": "Another action is named echo"
+        },
+        {
+          "path": "actions.2.undo",
+          "message": "Names no action: unecho"
+        },
+        {
+          "path": "actions.2.timeout_s",
+          "message": "Expected 1 to 300 seconds"
+        }
+      ]
+    }
+  ],
+  "unreadable": [
+    {
+      "name": "a key this version does not know",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\nreach = { hostz = [\"api.example.com\"] }\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "error": "unknown field `hostz`"
+    },
+    {
+      "name": "a class with another name",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"speak_for_user\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "error": "unknown variant `speak_for_user`"
+    },
+    {
+      "name": "a recipient that is not a pointer",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrecipient = \"input:pull\"\nrun = [\"/bin/cat\"]\ninput = { type = \"object\", required = [\"text\"], properties = { text = { type = \"string\", maxLength = 600 } } }\n",
+      "error": "recipient \"input:pull\" is not user, input:/<pointer> or none"
+    },
+    {
+      "name": "not TOML",
+      "toml": "id = ",
+      "error": "string values must be quoted"
+    }
+  ]
+}

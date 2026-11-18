@@ -9,6 +9,7 @@
 
 pub mod accounts;
 pub mod avatar_thumbnail;
+pub mod capability;
 pub mod claude_transcript;
 pub mod compaction;
 pub mod config;
