@@ -117,11 +117,33 @@ fn a_definition_narrows_the_scope_and_never_widens_it() {
 
     // A definition that allows nothing the run has leaves nothing allowed,
     // not everything.
-    for allow in [&["mcp__github__*", "Artifact", "Workflow"][..], &["Bash(npm test:*)"][..]] {
+    for allow in [&["mcp__github__*", "Artifact", "Workflow"][..], &["mcp__*(npm test:*)", "Workflow(x)"][..]] {
         let none = narrowed(&definition(allow, &[]));
-        assert!(none.allow.is_empty());
+        assert!(none.allow.is_empty(), "{allow:?}");
         assert_eq!(none.deny.last().map(String::as_str), Some("*"));
     }
+}
+
+#[test]
+fn a_tool_a_definition_allows_for_some_commands_stays_for_those() {
+    let allowed = |role: RunRole, def_allow: &[&str]| {
+        scope_for(role, Trust::Untrusted, &CAPABILITY_TOOLS, Some(&definition(def_allow, &[])), WORKTREE).allow
+    };
+    assert_eq!(allowed(RunRole::Checker, &["Read", "Bash(npm test:*)"]), ["Read", "Bash(npm test:*)"]);
+    assert_eq!(
+        allowed(RunRole::Checker, &["Bash(npm test:*)", "Bash"]),
+        ["Bash"],
+        "the whole tool covers its commands"
+    );
+    assert_eq!(
+        allowed(RunRole::Checker, &["Bash*(cargo *)", "Bash(ls)"]),
+        ["Bash(cargo *)", "Bash(ls)", "BashOutput(cargo *)"],
+        "named by each tool the run allows"
+    );
+    assert_eq!(allowed(RunRole::Lead, &["*(make)"]).len(), scope(RunRole::Lead, Trust::Untrusted).allow.len());
+    assert!(allowed(RunRole::Lead, &["*(make)"]).iter().all(|tool| tool.ends_with("(make)") && !tool.starts_with('*')));
+    // A role without the shell gets none of it back through a command.
+    assert_eq!(allowed(RunRole::ForgeResearcher, &["Read", "Bash(npm test:*)"]), ["Read"]);
 }
 
 #[test]
