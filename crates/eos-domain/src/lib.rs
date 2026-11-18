@@ -32,6 +32,7 @@ pub mod project;
 pub mod project_memory;
 pub mod provider;
 pub mod reaction;
+pub mod signals;
 pub mod sync;
 pub mod tasks;
 pub mod text;
