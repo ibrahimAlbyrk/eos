@@ -250,6 +250,27 @@ fn a_project_has_its_slot_and_no_per_run_cap() {
 }
 
 #[test]
+fn canonical_json_keeps_unknown_keys_inside_the_slots_it_embeds() {
+    let mut value = pr_review();
+    value["when"]["quiet"] = json!(true);
+    value["when"]["on"][0]["schedule"]["skip"] = json!("holidays");
+    value["which"]["rule"] = json!({"fact": "draft", "is": false, "label": "ready"});
+    value["freedom"]["later"] = json!(1);
+    value["goesTo"][0]["replyAll"] = json!(false);
+    let canonical = canonical_json(&blueprint(&value));
+    for kept in [
+        r#""when":{"on":[{"schedule":{"daily":"05:00","days":"weekdays","skip":"holidays","zone":"Europe/Istanbul"}}],"limits":{"perHour":30,"queued":25},"quiet":true}"#,
+        r#""which":{"rule":{"fact":"draft","is":false,"label":"ready"},"ask":"Is this about networking?"}"#,
+        r#""goesTo":[{"id":"pr","kind":"item_place","channel":"github","replyAll":false}]"#,
+        r#""freedom":{"rung":"draft","grants":[],"later":1}"#,
+    ] {
+        assert!(canonical.contains(kept), "{kept} in {canonical}");
+    }
+    let again = canonical_json(&blueprint(&serde_json::from_str(&canonical).unwrap()));
+    assert_eq!(hash(&again), hash(&canonical));
+}
+
+#[test]
 fn a_known_format_reads_as_a_blueprint_that_runs() {
     let read = read(&pr_review()).unwrap();
     assert!(read.runnable());

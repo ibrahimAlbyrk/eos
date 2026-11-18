@@ -34,7 +34,7 @@ fn within(cx: &mut Issues, value: i64, min: i64, max: i64) {
 
 fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issues) {
     match trigger {
-        Trigger::Schedule { schedule } => cx.at("schedule", |cx| schedule::validate(schedule, known, cx)),
+        Trigger::Schedule { schedule, .. } => cx.at("schedule", |cx| schedule::validate(schedule, known, cx)),
         Trigger::Source { source, events, .. } => {
             cx.at("source", |cx| cx.str_min(source, 1));
             cx.at("events", |cx| {
@@ -44,18 +44,20 @@ fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issu
                 }
             });
         }
-        Trigger::Folder { folder } => cx.at("folder", |cx| {
+        Trigger::Folder { folder, .. } => cx.at("folder", |cx| {
             cx.at("path", |cx| cx.str_min(&folder.path, 1));
             if let Some(names) = &folder.names {
                 cx.at("names", |cx| cx.str_min(names, 1));
             }
             cx.at("events", |cx| cx.arr_min(folder.events.len(), 1));
         }),
-        Trigger::Git { git } => cx.at("git", |cx| {
+        Trigger::Git { git, .. } => cx.at("git", |cx| {
             cx.at("repo", |cx| cx.str_min(&git.repo, 1));
             cx.at("branch", |cx| cx.str_min(&git.branch, 1));
         }),
-        Trigger::After { after } => cx.at("after", |cx| cx.at("routine", |cx| cx.starts_with(&after.routine, "rt-"))),
+        Trigger::After { after, .. } => {
+            cx.at("after", |cx| cx.at("routine", |cx| cx.starts_with(&after.routine, "rt-")))
+        }
     }
 }
 

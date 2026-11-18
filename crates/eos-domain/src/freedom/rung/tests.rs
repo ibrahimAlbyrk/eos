@@ -8,12 +8,12 @@ const CLASSES: [ActionClass; 5] =
 const RUNGS: [Rung; 4] = [Rung::Ask, Rung::Draft, Rung::SendThenTell, Rung::OnItsOwn];
 
 fn freedom(rung: Rung, grants: Vec<Grant>) -> Freedom {
-    Freedom { rung, grants }
+    Freedom { rung, grants, extra: Default::default() }
 }
 
 fn grant(when: Value, rung: Rung, covers_irreversible: bool) -> Grant {
     let when: Rule = serde_json::from_value(when).expect("a rule");
-    Grant { id: "g".into(), when, rung, covers_irreversible }
+    Grant { id: "g".into(), when, rung, covers_irreversible, extra: Default::default() }
 }
 
 fn facts(value: Value) -> Facts {

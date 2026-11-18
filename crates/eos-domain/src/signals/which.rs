@@ -49,10 +49,10 @@ fn rule_issues(rule: &Rule, depth: usize, cx: &mut Issues) {
         }
     };
     match rule {
-        Rule::All { all } => cx.at("all", |cx| parts(all, cx)),
-        Rule::Any { any } => cx.at("any", |cx| parts(any, cx)),
-        Rule::Not { not } => cx.at("not", |cx| rule_issues(not, depth + 1, cx)),
-        Rule::Test { fact, op } => {
+        Rule::All { all, .. } => cx.at("all", |cx| parts(all, cx)),
+        Rule::Any { any, .. } => cx.at("any", |cx| parts(any, cx)),
+        Rule::Not { not, .. } => cx.at("not", |cx| rule_issues(not, depth + 1, cx)),
+        Rule::Test { fact, op, .. } => {
             cx.at("fact", |cx| cx.str_min(fact, 1));
             match op {
                 Op::In(values) => cx.at("in", |cx| cx.arr_min(values.len(), 1)),
@@ -67,8 +67,8 @@ fn rule_issues(rule: &Rule, depth: usize, cx: &mut Issues) {
 
 fn test_count(rule: &Rule) -> usize {
     match rule {
-        Rule::All { all: rules } | Rule::Any { any: rules } => rules.iter().map(test_count).sum(),
-        Rule::Not { not } => test_count(not),
+        Rule::All { all: rules, .. } | Rule::Any { any: rules, .. } => rules.iter().map(test_count).sum(),
+        Rule::Not { not, .. } => test_count(not),
         Rule::Test { .. } => 1,
     }
 }
@@ -81,14 +81,14 @@ pub fn evaluate(rule: &Rule, facts: &Facts) -> Verdict {
 /// `first` is the number of the rule's first test.
 fn verdict(rule: &Rule, facts: &Facts, first: usize) -> Verdict {
     match rule {
-        Rule::All { all } => combine(all, facts, first, true),
-        Rule::Any { any } => combine(any, facts, first, false),
-        Rule::Not { not } => match verdict(not, facts, first) {
+        Rule::All { all, .. } => combine(all, facts, first, true),
+        Rule::Any { any, .. } => combine(any, facts, first, false),
+        Rule::Not { not, .. } => match verdict(not, facts, first) {
             Verdict::Pass => Verdict::Fail(first),
             Verdict::Fail(_) => Verdict::Pass,
             missing @ Verdict::Missing(_) => missing,
         },
-        Rule::Test { fact, op } => match facts.get(fact) {
+        Rule::Test { fact, op, .. } => match facts.get(fact) {
             None => Verdict::Missing(fact.clone()),
             Some(value) if holds(op, value) => Verdict::Pass,
             Some(_) => Verdict::Fail(first),

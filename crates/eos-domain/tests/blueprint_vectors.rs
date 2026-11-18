@@ -38,7 +38,7 @@ fn read(text: &str) -> Blueprint {
 #[test]
 fn each_vector_writes_its_canonical_json_and_hash() {
     let vectors = vectors();
-    assert_eq!(vectors.len(), 3);
+    assert_eq!(vectors.len(), 4);
     for vector in vectors {
         let canonical = canonical_json(&read(&vector.input));
         assert_eq!(canonical, vector.canonical, "{}", vector.name);

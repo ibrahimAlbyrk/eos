@@ -30,9 +30,9 @@ pub const BLUEPRINT_FORMAT: i64 = 1;
 /// and hashes it, so its bytes are fixed:
 ///
 /// - the fields in the order declared here, then the keys this version does
-///   not know, in the order they came; the same at every level of the slots
-///   this module declares (When, Which, Freedom and Goes to keep only the
-///   keys their own types know);
+///   not know, in the order they came; the same at every level, the When,
+///   Which, Freedom and Goes-to slots included (a schedule writes its unknown
+///   keys before `zone`);
 /// - an optional field left out when absent; a list or map written even when
 ///   empty;
 /// - spelled as JavaScript's `JSON.stringify` writes it: no whitespace,

@@ -1,11 +1,15 @@
 //! The When and Which slots of a routine's blueprint: what starts a run, and
 //! which items it takes. Shapes only; the rules over them (slots, validation,
 //! matching) are `eos_domain::signals`, which callers run on every value they
-//! take in.
+//! take in. Every object keeps the keys this version does not know, after the
+//! ones it knows (in a schedule, before `zone`), because a blueprint stores
+//! these slots and a newer Eos may add a field to them that this one must not
+//! drop.
 
 use indexmap::IndexMap;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use crate::primitives::Num;
 use crate::validate::Validate;
@@ -22,6 +26,9 @@ pub struct When {
     /// Several matched items wait for one run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub batch: Option<Batch>,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for When {}
@@ -33,6 +40,8 @@ impl Validate for When {}
 pub enum Trigger {
     Schedule {
         schedule: Schedule,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     /// A signal source a capability declares (`github.pulls`), on one scope
     /// (`{"repo": "acme/game"}`), for some of its events.
@@ -40,16 +49,24 @@ pub enum Trigger {
         source: String,
         scope: IndexMap<String, String>,
         events: Vec<String>,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     Folder {
         folder: FolderTrigger,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     Git {
         git: GitTrigger,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     /// Another routine's run finished.
     After {
         after: AfterTrigger,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
 }
 
@@ -62,6 +79,9 @@ pub struct FolderTrigger {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub names: Option<String>,
     pub events: Vec<FolderEvent>,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for FolderTrigger {}
@@ -81,6 +101,9 @@ impl Validate for FolderEvent {}
 pub struct GitTrigger {
     pub repo: String,
     pub branch: String,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for GitTrigger {}
@@ -90,6 +113,9 @@ pub struct AfterTrigger {
     /// The routine's id (`rt-…`).
     pub routine: String,
     pub outcome: AfterOutcome,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for AfterTrigger {}
@@ -106,27 +132,33 @@ impl Validate for AfterOutcome {}
 
 /// A routine's runs: at most `perHour` admitted in a rolling hour and
 /// `queued` waiting. A field left out takes its default.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Limits {
     pub per_hour: i64,
     pub queued: i64,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Default for Limits {
     fn default() -> Self {
-        Self { per_hour: 30, queued: 25 }
+        Self { per_hour: 30, queued: 25, extra: Map::new() }
     }
 }
 
 impl Validate for Limits {}
 
 /// A batch closes when it holds `max` items, or `waitMinutes` after its first.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Batch {
     pub max: i64,
     pub wait_minutes: i64,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for Batch {}
@@ -139,6 +171,9 @@ pub struct Which {
     pub rule: Option<Rule>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ask: Option<String>,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for Which {}
@@ -150,17 +185,25 @@ impl Validate for Which {}
 pub enum Rule {
     All {
         all: Vec<Rule>,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     Any {
         any: Vec<Rule>,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     Not {
         not: Box<Rule>,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     Test {
         fact: String,
         #[serde(flatten)]
         op: Op,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
 }
 
@@ -200,7 +243,9 @@ pub enum Fact {
 impl Validate for Fact {}
 
 /// A clock schedule: when it repeats, on the wall clock of `zone` (an IANA
-/// name such as `Europe/Istanbul`).
+/// name such as `Europe/Istanbul`). Its repeat keeps the keys this version
+/// does not know, so they are written after the repeat's fields and before
+/// `zone`: a map beside the flattened repeat would hold its keys twice.
 ///
 /// `{"daily": "05:00", "days": "weekdays", "zone": "Europe/Istanbul"}`,
 /// `{"every": 30, "between": ["09:00", "17:00"], "days": "all", "zone": "UTC"}`,
@@ -222,6 +267,8 @@ pub enum Repeat {
         #[serde(rename = "daily")]
         at: String,
         days: Days,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     /// Every N minutes from midnight, or from the start of `between` up to
     /// its end.
@@ -231,12 +278,16 @@ pub enum Repeat {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         between: Option<(String, String)>,
         days: Days,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
     /// On a day of the month; a day the month lacks is its last day.
     Monthly {
         #[serde(rename = "monthly")]
         day: MonthDay,
         at: String,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
 }
 
@@ -309,7 +360,10 @@ mod tests {
     #[test]
     fn each_schedule_shape_reads_and_writes_back_the_same() {
         let daily = round_trip(json!({"daily": "05:00", "days": "weekdays", "zone": "Europe/Istanbul"}));
-        assert_eq!(daily.repeat, Repeat::Daily { at: "05:00".into(), days: Days::Preset(DayPreset::Weekdays) });
+        assert_eq!(
+            daily.repeat,
+            Repeat::Daily { at: "05:00".into(), days: Days::Preset(DayPreset::Weekdays), extra: Map::new() }
+        );
         let every =
             round_trip(json!({"every": 30, "between": ["09:00", "17:00"], "days": ["mon", "fri"], "zone": "UTC"}));
         assert_eq!(
@@ -318,18 +372,22 @@ mod tests {
                 minutes: 30,
                 between: Some(("09:00".into(), "17:00".into())),
                 days: Days::List(vec![Weekday::Mon, Weekday::Fri]),
+                extra: Map::new(),
             }
         );
         round_trip(json!({"every": 10, "days": "all", "zone": "UTC"}));
         let monthly = round_trip(json!({"monthly": "last", "at": "18:00", "zone": "Europe/London"}));
-        assert_eq!(monthly.repeat, Repeat::Monthly { day: MonthDay::Last(LastDay::Last), at: "18:00".into() });
+        assert_eq!(
+            monthly.repeat,
+            Repeat::Monthly { day: MonthDay::Last(LastDay::Last), at: "18:00".into(), extra: Map::new() }
+        );
         round_trip(json!({"monthly": 31, "at": "08:30", "zone": "Asia/Kolkata"}));
     }
 
     #[test]
-    fn unknown_fields_are_ignored_and_a_missing_zone_is_required() {
+    fn unknown_fields_are_kept_and_a_missing_zone_is_required() {
         let schedule: Schedule = crate::read(&json!({"daily": "05:00", "days": "all", "zone": "UTC", "x": 1})).unwrap();
-        assert_eq!(serde_json::to_value(&schedule).unwrap(), json!({"daily": "05:00", "days": "all", "zone": "UTC"}));
+        assert_eq!(serde_json::to_string(&schedule).unwrap(), r#"{"daily":"05:00","days":"all","x":1,"zone":"UTC"}"#);
         assert!(crate::read::<Schedule>(&json!({"daily": "05:00", "days": "all"})).is_err());
         assert!(crate::read::<Schedule>(&json!({"weekly": "05:00", "days": "all", "zone": "UTC"})).is_err());
         assert!(crate::read::<Schedule>(&json!({"daily": "05:00", "days": "sometimes", "zone": "UTC"})).is_err());
@@ -358,8 +416,8 @@ mod tests {
             "ask": "Is this change about networking?",
         });
         let read: Which = crate::read(&which).unwrap();
-        let Some(Rule::All { all }) = &read.rule else { panic!("an all rule") };
-        assert_eq!(all[0], Rule::Test { fact: "draft".into(), op: Op::Is(Fact::Bool(false)) });
+        let Some(Rule::All { all, .. }) = &read.rule else { panic!("an all rule") };
+        assert_eq!(all[0], Rule::Test { fact: "draft".into(), op: Op::Is(Fact::Bool(false)), extra: Map::new() });
         assert_eq!(serde_json::to_value(&read).unwrap(), which);
     }
 
@@ -381,16 +439,53 @@ mod tests {
     }
 
     #[test]
-    fn limits_default_and_unknown_fields_are_ignored() {
+    fn limits_default_and_unknown_fields_are_kept() {
         let when: When = crate::read(&json!({"on": [], "limits": {"perHour": 5}, "later": true})).unwrap();
-        assert_eq!(when.limits, Limits { per_hour: 5, queued: 25 });
+        assert_eq!(when.limits, Limits { per_hour: 5, ..Limits::default() });
+        assert_eq!(when.extra, json!({"later": true}).as_object().unwrap().clone());
         let bare: When = crate::read(&json!({"on": []})).unwrap();
-        assert_eq!((bare.limits, bare.batch), (Limits { per_hour: 30, queued: 25 }, None));
+        assert_eq!((bare.limits, bare.batch), (Limits { per_hour: 30, queued: 25, extra: Map::new() }, None));
         let batched: When = crate::read(&json!({"on": [], "batch": {"max": 50, "waitMinutes": 5}})).unwrap();
-        assert_eq!(batched.batch, Some(Batch { max: 50, wait_minutes: 5 }));
+        assert_eq!(batched.batch, Some(Batch { max: 50, wait_minutes: 5, extra: Map::new() }));
         let rule: Rule = crate::read(&json!({"fact": "draft", "is": true, "note": "x"})).unwrap();
-        assert_eq!(rule, Rule::Test { fact: "draft".into(), op: Op::Is(Fact::Bool(true)) });
+        let note = json!({"note": "x"}).as_object().unwrap().clone();
+        assert_eq!(rule, Rule::Test { fact: "draft".into(), op: Op::Is(Fact::Bool(true)), extra: note });
         assert!(crate::read::<Rule>(&json!({"fact": "draft"})).is_err(), "a test needs an operator");
         assert!(crate::read::<When>(&json!({"limits": {}})).is_err(), "on is required");
+    }
+
+    /// Reads `text` as a `T` and writes it back.
+    fn rewritten<T: serde::de::DeserializeOwned + Serialize>(text: &str) -> String {
+        let value: Value = serde_json::from_str(text).unwrap();
+        serde_json::to_string(&crate::read::<T>(&value).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn every_object_keeps_the_keys_it_does_not_know_after_the_ones_it_knows() {
+        let when = concat!(
+            r#"{"on":["#,
+            r#"{"schedule":{"daily":"05:00","days":"all","d":1,"zone":"UTC"},"t":1},"#,
+            r#"{"schedule":{"every":30,"between":["09:00","17:00"],"days":["mon"],"e":1,"zone":"UTC"},"t":2},"#,
+            r#"{"schedule":{"monthly":"last","at":"18:00","m":1,"zone":"UTC"},"t":3},"#,
+            r#"{"source":"github.pulls","scope":{"repo":"acme/game"},"events":["opened"],"t":4},"#,
+            r#"{"folder":{"path":"/in","events":["added"],"f":1},"t":5},"#,
+            r#"{"git":{"repo":"/game","branch":"main","g":1},"t":6},"#,
+            r#"{"after":{"routine":"rt-a","outcome":"done","a":1},"t":7}],"#,
+            r#""limits":{"perHour":30,"queued":25,"l":1},"batch":{"max":2,"waitMinutes":1,"b":1},"w":{"x":[1]}}"#,
+        );
+        assert_eq!(rewritten::<When>(when), when);
+        let which = concat!(
+            r#"{"rule":{"all":["#,
+            r#"{"fact":"draft","is":false,"t":1},"#,
+            r#"{"any":[{"fact":"labels","has":"bug"}],"y":1},"#,
+            r#"{"not":{"fact":"author","in":["bot"]},"n":1}],"a":1},"#,
+            r#""ask":"Networking?","q":null}"#,
+        );
+        assert_eq!(rewritten::<Which>(which), which);
+        assert_eq!(
+            rewritten::<When>(r#"{"z":1,"on":[{"t":1,"git":{"g":1,"branch":"main","repo":"/game"}}]}"#),
+            r#"{"on":[{"git":{"repo":"/game","branch":"main","g":1},"t":1}],"limits":{"perHour":30,"queued":25},"z":1}"#,
+            "known keys first, in their declared order"
+        );
     }
 }
