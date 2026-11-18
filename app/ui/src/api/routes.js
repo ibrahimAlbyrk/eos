@@ -307,4 +307,16 @@ export const ROUTES = {
   routine: (id) => `/api/routines/${id}`,
   routineVersions: (id) => `/api/routines/${id}/versions`,
   routineVersion: (id, versionId) => `/api/routines/${id}/versions/${versionId}`,
+  // Signals (eos-contracts `signals.rs`): what starts one routine's runs, the
+  // signal list, the counts, replay, the two previews and the setting; then
+  // which computer holds each routine, and moving one to this computer.
+  signalsRoutine: (routineId) => `/api/signals/routines/${routineId}`,
+  signals: "/api/signals",
+  signalsSummary: "/api/signals/summary",
+  signalsReplay: "/api/signals/replay",
+  signalsSchedulePreview: "/api/signals/schedule/preview",
+  signalsWhichPreview: "/api/signals/which/preview",
+  signalsSettings: "/api/signals/settings",
+  runners: "/api/runners",
+  runnersClaim: "/api/runners/claim",
 };
