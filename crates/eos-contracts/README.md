@@ -17,6 +17,7 @@ parsers and catalog are `eos-genui`'s. Names are the Zod schemas' without the `S
 | `canonical`, `events`, `worker`, `task` | agent events, transcript event rows and their payloads, worker rows — what the phone parses |
 | `http::*` | request / response bodies by route area: `workers`, `git`, `fs`, `terminal`, `pages`, `templates`, `settings`, `config`, `policy`, `questions`, `rewind`, `symbols`, `commands`, `prompts`, `project_memory`, `worker_definitions`, `system` |
 | `accounts`, `usage`, `artifacts`, `plugin`, `plugin_install`, `background_job`, `workflow_run`, `side_question`, `profile`, `dream`, `sync`, `transfer`, `update`, `peer`, `remote`, `browser`, `genui` | one feature's wire types each |
+| `signals` | a routine's When and Which, shapes only: their `impl Validate` is empty, so `parse` checks no range, pattern or zone. A caller runs `eos_domain::signals::{when,which}::validate` on every value it takes in |
 | `backend`, `provider_capabilities`, `memory`, `prompt`, `policy`, `worker_definition`, `anthropic`, `shared` | shapes of files and config (`policy.yaml`, prompt frontmatter, worker definitions, backend profiles) |
 | `artifact_ids`, `attachments`, `builtin_plugins`, `builtin_tools`, `tool_scope`, `util` | ids and small pure helpers |
 | `schema` | `json_schema_bundle()` |
