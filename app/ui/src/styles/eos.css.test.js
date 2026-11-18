@@ -113,8 +113,9 @@ describe("eos.css contrast", () => {
     for (const g of GROUNDS) expect(contrast("#6ea4e8", g)).toBeGreaterThanOrEqual(3);
   });
 
-  it("follows the user's transparency and contrast settings", () => {
-    expect(eosCss).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{\s*\.eos-mode \{[^}]*--lg-pop-tint: var\(--pop\)/);
-    expect(eosCss).toMatch(/@media \(prefers-contrast: more\) \{\s*\.eos-mode \{[^}]*--fg-dim: var\(--fg-mid\);[^}]*--line: #333/);
+  // On the root, so the palette and popups drawn outside Eos's layout follow too.
+  it("follows the user's transparency and contrast settings across the window while Eos shows", () => {
+    expect(eosCss).toMatch(/@media \(prefers-reduced-transparency: reduce\) \{\s*:root:has\(\.eos-mode\) \{[^}]*--lg-pop-tint: var\(--pop\)/);
+    expect(eosCss).toMatch(/@media \(prefers-contrast: more\) \{\s*:root:has\(\.eos-mode\) \{[^}]*--fg-dim: var\(--fg-mid\);[^}]*--line: #333/);
   });
 });
