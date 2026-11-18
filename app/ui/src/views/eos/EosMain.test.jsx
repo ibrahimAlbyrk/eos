@@ -12,7 +12,8 @@ describe("an Eos screen's header", () => {
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: "PR Review", location: "eos:/routines/rt-1" }, { label: "Run on #470" }]} />,
     );
     expect(html).toBe(
-      '<header class="eos-head"><nav class="eos-crumbs" aria-label="Breadcrumb">'
+      '<header class="pane-head pane-head--topleft eos-head"><span class="pane-head-inset" aria-hidden="true"></span>'
+      + '<nav class="eos-crumbs" aria-label="Breadcrumb">'
       + '<button type="button" class="eos-crumb">Eos</button><span class="eos-crumb-sep" aria-hidden="true">/</span>'
       + '<button type="button" class="eos-crumb">PR Review</button><span class="eos-crumb-sep" aria-hidden="true">/</span>'
       + '</nav><h1 class="eos-title">Run on #470</h1></header>',
@@ -20,7 +21,10 @@ describe("an Eos screen's header", () => {
   });
 
   it("is the h1 alone at the top", () => {
-    expect(renderToStaticMarkup(<EosHeader trail={[{ label: "Home" }]} />)).toBe('<header class="eos-head"><h1 class="eos-title">Home</h1></header>');
+    expect(renderToStaticMarkup(<EosHeader trail={[{ label: "Home" }]} />)).toBe(
+      '<header class="pane-head pane-head--topleft eos-head"><span class="pane-head-inset" aria-hidden="true"></span>'
+      + '<h1 class="eos-title">Home</h1></header>',
+    );
   });
 });
 

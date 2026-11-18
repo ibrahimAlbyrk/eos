@@ -1,0 +1,155 @@
+/* eos.css — Eos mode's base styles: the screen frame and header, and the parts
+   every Eos screen is built from (section label, card, chip, segmented control,
+   status chip). Colours are the app's tokens.
+
+   Contrast (WCAG 1.4.3): text is never lighter than --fg-dim2 (#8b8b8b, 4.7:1
+   on #212121) on the dark grounds, and on #262626 or lighter it is --fg-dim
+   (#a8a8a8) or brighter. --fg-faint is never text here. A rule that sets its
+   own ground is held to its pair; eos.css.test.js reads both from this file.
+   Everything is scoped to Eos (.eos-mode is Eos's layout), so the rest of the
+   app is untouched. */
+
+/* ── Screen frame ─────────────────────────────────────────────────────────── */
+.eos-screen {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The header rides on .pane-head (native drag strip, title-bar insets). */
+.eos-head { flex-wrap: wrap; gap: 8px 12px; }
+.eos-crumbs { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.eos-crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-md);
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.eos-crumb:hover { color: var(--fg-mid); }
+.eos-crumb-sep { font-size: var(--text-md); color: var(--fg-dim2); }
+.eos-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 500;
+  color: var(--fg-strong);
+}
+
+.eos-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 28px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.eos-note { margin: 0; font-size: var(--text-base); color: var(--fg-dim); }
+
+/* ── Parts ────────────────────────────────────────────────────────────────── */
+.eos-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fg-dim2);
+}
+
+.eos-card {
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 20px;
+}
+
+.eos-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  font-size: var(--text-xs);
+  color: var(--fg-mid);
+}
+
+/* A radiogroup of buttons (role="radio", aria-checked). */
+.eos-seg {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--bg);
+}
+.eos-seg__opt {
+  height: 26px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.eos-seg__opt[aria-checked="true"] { background: var(--chip); color: var(--fg-strong); }
+
+/* A state in words with its dot: the dot's colour never carries it alone. */
+.eos-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  font-size: var(--text-xs);
+  color: var(--fg-mid);
+}
+.eos-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--eos-status-dot, var(--fg-dim2));
+}
+.eos-status--ok { --eos-status-dot: var(--ok); }
+.eos-status--active { --eos-status-dot: var(--accent); }
+.eos-status--warn { --eos-status-dot: var(--warn); }
+.eos-status--err { --eos-status-dot: var(--err); }
+
+/* Read by screen readers, not drawn. */
+.eos-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.eos-mode :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── The user's display settings ──────────────────────────────────────────── */
+/* Glass turns solid: no backdrop blur, the popover ground instead of a tint. */
+@media (prefers-reduced-transparency: reduce) {
+  .eos-mode {
+    --lg-pop-fx: none;
+    --lg-pop-tint: var(--pop);
+    --lg-chip-fx: none;
+  }
+}
+
+/* Dim text reads brighter and rules stand out. */
+@media (prefers-contrast: more) {
+  .eos-mode {
+    --fg-dim: var(--fg-mid);
+    --line: #333;
+  }
+}

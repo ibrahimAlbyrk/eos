@@ -43,6 +43,7 @@ describe("EosView", () => {
   it("draws Eos's frame inside the app's chrome, at the remembered place", () => {
     localStorage.setItem("eos:location", "eos:/memory");
     const html = draw();
+    expect(html).toContain('<div class="app eos-mode">');
     expect(html).toContain('<span class="eos-switch__mark">Eos</span>');
     expect(html).toContain('<nav class="sb-nav" aria-label="Eos"></nav>');
     expect(html).toContain('<section class="center"><main class="eos-screen">');

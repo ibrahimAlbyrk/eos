@@ -23,7 +23,9 @@ function PlaceholderScreen({ location }) {
   return (
     <main className="eos-screen">
       <EosHeader trail={[{ label: "Eos", location: "eos:/" }, { label: location ? SECTION_TITLES[location.screen] : "Not found" }]} />
-      <p className="eos-note">{location ? "This part of Eos is not here yet." : "Eos has no page at this address."}</p>
+      <div className="eos-body">
+        <p className="eos-note">{location ? "This part of Eos is not here yet." : "Eos has no page at this address."}</p>
+      </div>
     </main>
   );
 }

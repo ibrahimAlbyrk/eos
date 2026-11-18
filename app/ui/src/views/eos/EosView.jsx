@@ -16,5 +16,5 @@ export function EosView({ live }) {
   useGlobalKeymap();
   useKeybinding({ match: historyKey("BracketLeft"), run: (ctx, e) => { e.preventDefault(); goBack(); } }, []);
   useKeybinding({ match: historyKey("BracketRight"), run: (ctx, e) => { e.preventDefault(); goForward(); } }, []);
-  return <AppLayout sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<EosMain />} />;
+  return <AppLayout gridClass="eos-mode" sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<EosMain />} />;
 }
