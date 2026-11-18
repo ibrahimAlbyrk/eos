@@ -148,12 +148,25 @@ fn host_at(rest: &str) -> Option<String> {
 fn has_image(text: &str, defined: &HashSet<String>) -> bool {
     let lower = text.to_ascii_lowercase();
     let markdown = text.match_indices("![").any(|(at, _)| {
-        let line = text[at + 2..].lines().next().unwrap_or_default();
-        line.contains("](")
-            || line.contains("][")
-            || line.split_once(']').is_some_and(|(label, _)| defined.contains(&label_key(label)))
+        let rest = paragraph(&text[at + 2..]);
+        rest.contains("](")
+            || rest.contains("][")
+            || rest.split_once(']').is_some_and(|(label, _)| defined.contains(&label_key(label)))
     });
     markdown || ["<img", "<image", "<picture", "<svg", "data:image/"].iter().any(|tag| lower.contains(tag))
+}
+
+/// `text` up to the blank line that ends its paragraph: an image's text may
+/// run over lines, but not past its paragraph.
+fn paragraph(text: &str) -> &str {
+    let mut end = 0;
+    for line in text.split_inclusive('\n') {
+        if end > 0 && line.trim().is_empty() {
+            break;
+        }
+        end += line.len();
+    }
+    &text[..end]
 }
 
 /// The labels the `[…]: …` lines of `text` define.
