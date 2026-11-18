@@ -26,6 +26,7 @@ mod shell;
 mod thread_class;
 mod tool;
 mod work_awake;
+mod zone;
 
 #[cfg(target_os = "macos")]
 mod darwin;
@@ -51,6 +52,7 @@ pub use screen_saver::{SCREEN_SAVER_BUNDLE, install_screen_saver};
 pub use shell::{PosixShell, shell_invocation};
 pub use thread_class::{ThreadClass, in_thread_class, set_thread_class};
 pub use work_awake::{WorkAwake, WorkAwakeHold};
+pub use zone::{zone_known, zone_offset_minutes};
 
 #[cfg(target_os = "macos")]
 pub use darwin::{

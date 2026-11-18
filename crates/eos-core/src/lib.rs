@@ -11,7 +11,7 @@
 //! | [`agent`] | the agent engine: sessions, models, usage |
 //! | [`git`] | the `git` program: status, branches, worktrees |
 //! | [`net`] | other computers: sync vault, updates, artifacts, media, the relay |
-//! | [`os`] | files, watchers, processes, the system clock's time zone, staying awake, power, the Dock icon |
+//! | [`os`] | files, watchers, processes, time zones, staying awake, power, the Dock icon |
 //! | [`plugin`] | plugin folders, their builder, their data, where installs come from |
 //! | [`policy`] | permission decisions and tool scope |
 //! | [`prompt`] | prompt sources and rendering |

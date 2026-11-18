@@ -2291,6 +2291,7 @@ version = "0.0.1"
 dependencies = [
  "chrono",
  "if-addrs",
+ "jiff",
  "libc",
  "rustix",
  "serde_json",
