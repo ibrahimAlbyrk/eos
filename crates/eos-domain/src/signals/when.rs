@@ -64,42 +64,44 @@ fn trigger_issues(trigger: &Trigger, known: &dyn Fn(&str) -> bool, cx: &mut Issu
 /// Finds a loop among routines that run after one another: each entry is a
 /// routine and the routines its `after` triggers name. The loop comes back
 /// as the routines along it, each running after the next and the last after
-/// the first.
+/// the first. It starts at the first entry that is on a loop, so a caller
+/// that lists its own routine first learns of the loop through it even when
+/// others already loop among themselves.
 pub fn check_chains(chains: &[(String, Vec<String>)]) -> Result<(), Vec<String>> {
     let upstreams: HashMap<&str, &[String]> =
         chains.iter().map(|(routine, upstreams)| (routine.as_str(), upstreams.as_slice())).collect();
-    let mut cleared = HashSet::new();
     for (routine, _) in chains {
-        if let Some(cycle) = walk(routine, &upstreams, &mut Vec::new(), &mut cleared) {
-            return Err(cycle);
+        let mut path = vec![routine.as_str()];
+        if back_to(routine, routine, &upstreams, &mut path, &mut HashSet::new()) {
+            return Err(path.into_iter().map(str::to_owned).collect());
         }
     }
     Ok(())
 }
 
-/// Follows `routine`'s upstreams depth first. `path` holds the routines
-/// being followed; `cleared` the ones known to lead to no loop.
-fn walk<'a>(
-    routine: &'a str,
+/// Follows `routine`'s upstreams depth first, looking for `start`. `path`
+/// holds the routines being followed, and the loop when one is found;
+/// `seen` the routines already followed, which lead back no other way.
+fn back_to<'a>(
+    start: &str,
+    routine: &str,
     upstreams: &HashMap<&'a str, &'a [String]>,
     path: &mut Vec<&'a str>,
-    cleared: &mut HashSet<&'a str>,
-) -> Option<Vec<String>> {
-    if let Some(at) = path.iter().position(|seen| *seen == routine) {
-        return Some(path[at..].iter().map(|seen| (*seen).to_owned()).collect());
-    }
-    if cleared.contains(routine) {
-        return None;
-    }
-    path.push(routine);
+    seen: &mut HashSet<&'a str>,
+) -> bool {
     for upstream in upstreams.get(routine).copied().unwrap_or_default() {
-        if let Some(cycle) = walk(upstream, upstreams, path, cleared) {
-            return Some(cycle);
+        if upstream == start {
+            return true;
+        }
+        if seen.insert(upstream) {
+            path.push(upstream);
+            if back_to(start, upstream, upstreams, path, seen) {
+                return true;
+            }
+            path.pop();
         }
     }
-    path.pop();
-    cleared.insert(routine);
-    None
+    false
 }
 
 #[cfg(test)]
