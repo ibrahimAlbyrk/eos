@@ -6,6 +6,7 @@
 //! fresh, so an edit made outside the app applies at once.
 
 pub mod avatar_thumbnails;
+pub mod capabilities;
 pub mod claude_md;
 mod json;
 pub mod memories;

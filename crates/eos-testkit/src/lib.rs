@@ -36,6 +36,7 @@
 //! is a fixed offset.
 //! [`vault`] is the relay's sync vault in memory ([`vault::FakeVault`]).
 //! [`FakeBrowserViews`] and [`FakeBrowserPanel`] stand in for the window shell's views.
+//! [`FakeTrash`] is the files port's trash alone, into a folder of the test's.
 //! [`FakeWorkHold`] counts work holds per reason; [`FakePower`] and [`FakeDockBadge`] are the power
 //! report and the Dock badge, set and read by the test; [`FakeZoneRules`] knows the zones the test
 //! gives it, each with at most one daylight-saving change.
@@ -73,6 +74,7 @@ pub mod relay;
 mod routine;
 mod terminal;
 mod tools;
+mod trash;
 pub mod update;
 mod update_fakes;
 pub mod vault;
@@ -110,6 +112,7 @@ pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };
 pub use tools::{FakeFeatures, FakeTimeZone};
+pub use trash::FakeTrash;
 pub use update_fakes::{
     FAKE_DOWNLOAD_BYTES, FakeBundleCheck, FakeBundleIndexer, FakeTopLevelAgents, FakeUpdateApplier, FakeUpdateFeed,
     FakeUpdateSignature, FakeUpdateWorkspace,
