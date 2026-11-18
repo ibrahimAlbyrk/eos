@@ -1,6 +1,7 @@
-//! Routines: the rules over a routine's blueprint (`eos_contracts::routine`)
-//! and the states a run moves through. Pure: nothing here reads a clock or a
-//! file, and nothing logs (a blueprint is the user's text).
+//! Routines: the rules over a routine's blueprint (`eos_contracts::routine`),
+//! the states a run moves through, the limits its runs keep and the numbers
+//! they add up to. Pure: nothing here reads a clock or a file, and nothing
+//! logs (a blueprint is the user's text).
 
 /// A closed set of words a row stores: the enum, every value in order, the
 /// word of each and the value a stored word names (`None` for a word this
@@ -30,4 +31,6 @@ macro_rules! words {
 }
 
 pub mod blueprint;
+pub mod limits;
+pub mod numbers;
 pub mod run;
