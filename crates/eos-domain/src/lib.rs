@@ -21,6 +21,7 @@ pub mod event;
 pub mod freedom;
 pub mod fs_ignore;
 pub mod git;
+pub mod inbox;
 pub mod memory_sources;
 pub mod message_id;
 pub mod message_queue;
