@@ -27,6 +27,7 @@ pub mod message_id;
 pub mod message_queue;
 pub mod model;
 pub mod model_tier;
+pub mod outbound;
 pub mod page;
 pub mod peer;
 pub mod pending;

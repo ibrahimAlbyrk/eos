@@ -1,0 +1,53 @@
+{
+ "note": "The outbound check's vectors. Each case's parts are one result's texts, checked against the context: its hosts, handles, addresses and numbers, and every one found in its 'from' texts (an item's facts). 'maxBytes' of a case replaces the context's. 'flags' are the flags expected, in order.",
+ "context": {
+  "from": [
+   "github:pr:acme/game#482 https://github.com/acme/game/pull/482 opened by @octocat",
+   "alice@example.com",
+   "+90 532 123 45 67"
+  ],
+  "hosts": ["docs.unity3d.com"],
+  "handles": ["@acme/core"],
+  "addresses": [],
+  "numbers": [],
+  "maxBytes": 4000
+ },
+ "cases": [
+  {"name": "a link to a new host", "parts": ["Details at https://evil.io/x"], "flags": ["new_host"]},
+  {"name": "a lookalike host under another domain", "parts": ["https://github.com.evil.io/acme/game/pull/482"], "flags": ["new_host"]},
+  {"name": "a lookalike host in punycode", "parts": ["https://xn--gthub-n4a.com/acme/game"], "flags": ["new_host"]},
+  {"name": "a lookalike host in other letters", "parts": ["https://gіthub.com/acme/game"], "flags": ["new_host"]},
+  {"name": "a known host as user info before a new one, which also reads as an address", "parts": ["https://github.com@evil.io/acme"], "flags": ["new_host", "new_address"]},
+  {"name": "a link whose text shows a known host", "parts": ["[https://github.com/acme/game](https://evil.io/acme)"], "flags": ["new_host"]},
+  {"name": "a link without a scheme", "parts": ["[docs](//evil.io/docs)"], "flags": ["new_host"]},
+  {"name": "a www name on its own", "parts": ["Read www.evil.io first."], "flags": ["new_host"]},
+  {"name": "a host with a port", "parts": ["http://evil.io:8080/x"], "flags": ["new_host"]},
+  {"name": "an image in Markdown", "parts": ["![build](https://github.com/acme/game/badge.svg)"], "flags": ["image"]},
+  {"name": "an image by reference", "parts": ["![build][badge]"], "flags": ["image"]},
+  {"name": "an image in HTML", "parts": ["<IMG src=\"https://github.com/acme/a.png\">"], "flags": ["image"]},
+  {"name": "an image as data", "parts": ["![x](data:image/gif;base64,R0lGOD)"], "flags": ["image"]},
+  {"name": "an image on a new host", "parts": ["![x](https://evil.io/p.png?d=1)"], "flags": ["new_host", "image"]},
+  {"name": "a new mention", "parts": ["cc @mallory."], "flags": ["new_mention"]},
+  {"name": "a new team", "parts": ["@acme/security please look"], "flags": ["new_mention"]},
+  {"name": "a new mail address", "parts": ["Write to mallory@evil.io"], "flags": ["new_address"]},
+  {"name": "a new phone number", "parts": ["Call +1 (555) 010-9999 today"], "flags": ["new_address"]},
+  {"name": "a new phone number as a link", "parts": ["[call](tel:5550109999)"], "flags": ["new_address"]},
+  {"name": "a token", "parts": ["Use ghp_abcdefghijklmnop1234 to push"], "flags": ["secret_like"]},
+  {"name": "a secret-looking key", "parts": ["Set password=hunter2 in the config"], "flags": ["secret_like"]},
+  {"name": "a long base64 run", "parts": ["aGVsbG8v/d29ybGQ0/Zm9vYmFy/YmF6cXV4/aGVsbG8x/MjM0NTY3"], "flags": ["secret_like"]},
+  {"name": "a full commit hash has a token's shape", "parts": ["Fixed in 3f2a9c1e7b4d4e8a9c2f0a1b2c3d4e5f6a7b8c9d"], "flags": ["secret_like"]},
+  {"name": "a result over the limit", "parts": ["twelve bytes"], "maxBytes": 11, "flags": ["too_long"]},
+  {"name": "the limit counts every part", "parts": ["six b.", "six b."], "maxBytes": 11, "flags": ["too_long"]},
+  {"name": "several flags, in order", "parts": ["@mallory ![x](https://evil.io/p.png) token=abc", "mallory@evil.io"], "flags": ["new_host", "image", "new_mention", "new_address", "secret_like"]},
+
+  {"name": "a link to a host the item names", "parts": ["See https://github.com/acme/game/pull/482#discussion_r1"], "flags": []},
+  {"name": "a host from the allowlist, in capitals", "parts": ["https://Docs.Unity3D.com/Manual/x.html"], "flags": []},
+  {"name": "a mention the item names, in any case", "parts": ["Thanks @OctoCat!"], "flags": []},
+  {"name": "a team from the allowlist", "parts": ["@acme/core will merge"], "flags": []},
+  {"name": "an address the item names", "parts": ["Copied to Alice@Example.com"], "flags": []},
+  {"name": "a number the item names, spelt otherwise", "parts": ["Call +90-532-123-45-67"], "flags": []},
+  {"name": "a mention inside code", "parts": ["Keep `@Override` here.\n```java\n@Deprecated\nvoid run() {}\n```"], "flags": []},
+  {"name": "a result at the limit", "parts": ["twelve bytes"], "maxBytes": 12, "flags": []},
+  {"name": "plain review text", "parts": ["Off by one in the loop at line 42; see #481 and 3f2a9c1. Tested on 2026-11-18, +1 from me.", "COMMENT"], "flags": []}
+ ]
+}
