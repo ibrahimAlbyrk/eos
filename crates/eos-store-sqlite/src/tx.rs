@@ -5,10 +5,11 @@ use std::sync::Mutex;
 
 use eos_core::Error;
 use eos_core::store::{
-    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
-    PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo,
-    Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo,
+    InboxRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
+    RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo,
+    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo,
+    WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -47,6 +48,30 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn genui_views(&self) -> &dyn GenuiViewRepo {
+        self
+    }
+
+    fn inbox_deliveries(&self) -> &dyn DeliveryRepo {
+        self
+    }
+
+    fn inbox_edits(&self) -> &dyn EditRepo {
+        self
+    }
+
+    fn inbox_halt(&self) -> &dyn HaltRepo {
+        self
+    }
+
+    fn inbox_items(&self) -> &dyn InboxRepo {
+        self
+    }
+
+    fn inbox_offers(&self) -> &dyn OfferRepo {
+        self
+    }
+
+    fn inbox_outcomes(&self) -> &dyn OutcomeRepo {
         self
     }
 

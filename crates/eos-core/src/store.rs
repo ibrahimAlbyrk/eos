@@ -42,6 +42,7 @@ mod definitions;
 mod documents;
 mod events;
 mod files;
+mod inbox;
 mod memories;
 mod message_queue;
 mod pages;
@@ -63,6 +64,10 @@ pub use definitions::{DefinitionFile, WorkerDefinitionFiles};
 pub use documents::{DreamRepo, GenuiViewRepo, StoredViewState, TransferRepo, WorkerDefinitionRepo};
 pub use events::{EventOrder, EventQuery, EventRepo};
 pub use files::{ConfigSource, ProjectMemoryStore, ProjectStore, RecentFolders, UserSettingsStore};
+pub use inbox::{
+    DeliveryRepo, EditRepo, HaltRepo, InboxRepo, ItemAnswer, NewEdit, NewOutcome, OfferRepo, OutcomeRepo,
+    StoredDelivery, StoredEdit, StoredHalt, StoredItem, StoredOffer, StoredOutcome,
+};
 pub use memories::UserMemoryStore;
 pub use message_queue::{MessageQueueRepo, NewQueuedMessage};
 pub use pages::PageStore;

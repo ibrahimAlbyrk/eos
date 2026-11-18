@@ -5,10 +5,11 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use super::{
-    ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
-    PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo,
-    WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    ContextMarkRepo, ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo,
+    InboxRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
+    RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo,
+    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
+    WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
@@ -19,6 +20,12 @@ pub trait Tx {
     fn dreams(&self) -> &dyn DreamRepo;
     fn events(&self) -> &dyn EventRepo;
     fn genui_views(&self) -> &dyn GenuiViewRepo;
+    fn inbox_deliveries(&self) -> &dyn DeliveryRepo;
+    fn inbox_edits(&self) -> &dyn EditRepo;
+    fn inbox_halt(&self) -> &dyn HaltRepo;
+    fn inbox_items(&self) -> &dyn InboxRepo;
+    fn inbox_offers(&self) -> &dyn OfferRepo;
+    fn inbox_outcomes(&self) -> &dyn OutcomeRepo;
     fn message_ids(&self) -> &dyn MessageIdRepo;
     fn message_queue(&self) -> &dyn MessageQueueRepo;
     fn pending(&self) -> &dyn PendingRepo;

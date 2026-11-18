@@ -1,5 +1,5 @@
 //! The smaller tables: what the TypeScript repositories did, on the seeded rows;
-//! and this app's routine, run and signal tables.
+//! and this app's routine, run, signal and Needs-you tables.
 
 use eos_contracts::WorkerDefinition;
 use eos_core::store::{NewPending, NewQueuedMessage, WorktreeRemoval};
@@ -8,6 +8,8 @@ use eos_testkit::{TempStore, fixtures};
 use serde_json::json;
 
 // A folder of its own, so cargo does not build it as a test program of its own.
+#[path = "other_tables/inbox.rs"]
+mod inbox;
 #[path = "other_tables/routines.rs"]
 mod routines;
 #[path = "other_tables/signals.rs"]
