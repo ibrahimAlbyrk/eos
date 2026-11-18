@@ -1,10 +1,11 @@
-//! When a clock schedule's slots fall, and which one is due. A slot is a wall
-//! time on the schedule's zone, turned into an instant by one rule
-//! ([`instant_of`]): a time the clocks skip runs as long after the change as
-//! it was after the skipped hour began, a time they pass twice runs at the
-//! first pass. Slots that turn into one instant are one slot.
+//! When a clock schedule's slots fall, which one is due, and what a valid
+//! schedule holds. A slot is a wall time on the schedule's zone, turned into
+//! an instant by one rule ([`instant_of`]): a time the clocks skip runs as
+//! long after the change as it was after the skipped hour began, a time they
+//! pass twice runs at the first pass. Slots that turn into one instant are
+//! one slot.
 
-use eos_contracts::{DayPreset, Days, MonthDay, Repeat};
+use eos_contracts::{DayPreset, Days, Issues, MonthDay, Repeat, Schedule};
 
 use crate::time::{OffsetAt, civil_from_days, days_from_civil, instant_of, wall_clock};
 
@@ -21,6 +22,57 @@ pub fn wall_minutes(text: &str) -> Option<i64> {
     };
     let (hours, minutes) = (two_digits(hours)?, two_digits(minutes)?);
     (hours < 24 && minutes < 60).then_some(hours * 60 + minutes)
+}
+
+/// Checks a schedule: its times, its step and window, its days and its zone.
+/// `known` says whether this computer knows a zone's name.
+pub fn validate(schedule: &Schedule, known: &dyn Fn(&str) -> bool, cx: &mut Issues) {
+    let time = |cx: &mut Issues, text: &str| {
+        if wall_minutes(text).is_none() {
+            cx.push("Expected a time as HH:MM");
+        }
+    };
+    let days_issues = |cx: &mut Issues, days: &Days| {
+        if let Days::List(list) = days {
+            cx.at("days", |cx| cx.arr_min(list.len(), 1));
+        }
+    };
+    match &schedule.repeat {
+        Repeat::Daily { at, days } => {
+            cx.at("daily", |cx| time(cx, at));
+            days_issues(cx, days);
+        }
+        Repeat::Every { minutes, between, days } => {
+            cx.at("every", |cx| {
+                cx.int_min(*minutes, 10, true);
+                cx.int_max(*minutes, 24 * 60, true);
+            });
+            if let Some((start, end)) = between {
+                cx.at("between", |cx| {
+                    cx.idx(0, |cx| time(cx, start));
+                    cx.idx(1, |cx| time(cx, end));
+                    if wall_minutes(start).zip(wall_minutes(end)).is_some_and(|(start, end)| end <= start) {
+                        cx.push("The window must end after it starts");
+                    }
+                });
+            }
+            days_issues(cx, days);
+        }
+        Repeat::Monthly { day, at } => {
+            if let MonthDay::Day(n) = day {
+                cx.at("monthly", |cx| {
+                    cx.int_min(*n, 1, true);
+                    cx.int_max(*n, 31, true);
+                });
+            }
+            cx.at("at", |cx| time(cx, at));
+        }
+    }
+    cx.at("zone", |cx| {
+        if !known(&schedule.zone) {
+            cx.push("Unknown time zone");
+        }
+    });
 }
 
 /// Monday is 0: day 0, 1970-01-01, was a Thursday.
