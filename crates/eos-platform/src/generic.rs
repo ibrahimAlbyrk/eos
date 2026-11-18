@@ -1,5 +1,5 @@
 //! Any system without an adapter of its own: the claude binary's file login
-//! store, no system trash, sleep control or secret store, no desktop integration.
+//! store, no system trash, sleep control, power report or secret store, no desktop integration.
 
 use std::fs::Permissions;
 use std::path::{Path, PathBuf};
@@ -11,6 +11,7 @@ use crate::host::{
     ScreenSaver, SpawnCommand, TerminalShell,
 };
 use crate::paths::home_dir;
+use crate::power::PowerReading;
 use crate::process;
 use crate::shell::PosixShell;
 
@@ -131,6 +132,14 @@ impl HostPlatform for Generic {
         Err(Error::Unsupported("keeping the computer awake"))
     }
 
+    fn prevent_idle_sleep(&self, _pid: u32) -> Result<KeepAwake, Error> {
+        Err(Error::Unsupported("keeping the computer awake"))
+    }
+
+    fn power(&self) -> Option<PowerReading> {
+        None
+    }
+
     fn shell(&self) -> &dyn TerminalShell {
         &self.shell
     }
@@ -205,6 +214,8 @@ mod tests {
     fn a_system_without_an_adapter_offers_the_bare_minimum() {
         let host: &dyn HostPlatform = &GENERIC;
         assert!(matches!(host.keep_awake(1), Err(Error::Unsupported(_))));
+        assert!(matches!(host.prevent_idle_sleep(1), Err(Error::Unsupported(_))));
+        assert_eq!(host.power(), None);
         assert!(matches!(host.trash(Path::new("/nowhere")), Err(Error::Unsupported(_))));
         assert!(matches!(host.credentials().write_secret("svc", "s"), Err(Error::Unsupported(_))));
         assert_eq!(host.credentials().read_secret("svc"), None);

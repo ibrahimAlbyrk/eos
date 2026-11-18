@@ -36,6 +36,8 @@
 //! is a fixed offset.
 //! [`vault`] is the relay's sync vault in memory ([`vault::FakeVault`]).
 //! [`FakeBrowserViews`] and [`FakeBrowserPanel`] stand in for the window shell's views.
+//! [`FakeWorkHold`] counts work holds per reason; [`FakePower`] and [`FakeDockBadge`] are the power
+//! report and the Dock badge, set and read by the test.
 //!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
@@ -55,6 +57,7 @@ pub mod fixtures;
 mod genui;
 mod home;
 mod ids;
+mod os;
 mod peer;
 pub mod plugins;
 mod policy;
@@ -88,6 +91,7 @@ pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUser
 pub use genui::{FakeGeocoder, FakeLocation, FakeMap, FakeMedia, FakePlaceSearch};
 pub use home::TempHome;
 pub use ids::SeqIds;
+pub use os::{FakeDockBadge, FakePower, FakeWorkHold};
 pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
