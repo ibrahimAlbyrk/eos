@@ -1,5 +1,5 @@
 //! Everything in the shell that needs `unsafe`, and nothing else. The workspace denies
-//! `unsafe` everywhere; this module tree is the one exception, for three reasons:
+//! `unsafe` everywhere; this module tree is the one exception, for four reasons:
 //!
 //! - `buffer`: CEF hands the scheme handler a raw output buffer and callbacks that are
 //!   reference-counted C++ objects; filling the buffer and moving the callbacks across
@@ -7,10 +7,13 @@
 //! - `appkit`: z-order of child views, the first responder, the pasteboard, the open panel and
 //!   the error alert are AppKit calls Tauri has no API for.
 //! - `notify`: banners go through `UNUserNotificationCenter`.
+//! - `activity`: the work hold's `NSProcessInfo` activity, whose token moves between threads
+//!   and is handed back to end it.
 //!
 //! Each function states what the caller must hold (usually: the main thread).
 #![allow(unsafe_code)]
 
+pub(crate) mod activity;
 pub(crate) mod appkit;
 pub(crate) mod buffer;
 pub(crate) mod notify;

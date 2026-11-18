@@ -220,9 +220,10 @@ is cost: `scripts/check.sh` runs many times an hour and must never build CEF.
   bundle in and puts the old one back unless the new app writes `boot-ok` in time
   (`docs/first-rust-release.md`).
 - **`unsafe`** only in `eos-shell/src/native/` (CEF's raw read buffer and callbacks, AppKit,
-  notifications), each use with its reason. Also checked by `cargo xtask shell`. The one
-  exception in the main workspace is `eos-platform/src/darwin/qos.rs`: two pthread calls
-  that set and read the calling thread's scheduling class, behind a safe function.
+  notifications, the work hold's App Nap activity), each use with its reason. Also checked
+  by `cargo xtask shell`. The one exception in the main workspace is
+  `eos-platform/src/darwin/qos.rs`: two pthread calls that set and read the calling thread's
+  scheduling class, behind a safe function.
 - **The runtime is vendored with patches kept as diffs** (`host/patches/`, each with its
   reason); the helper executable is built from this repo. `host/scripts/check-patches.sh`
   proves the vendored code is upstream plus those diffs. No binary is swapped after a build.

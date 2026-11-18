@@ -234,6 +234,7 @@ fn start_core(
             panel: ports.panel.clone(),
             picker: ports.picker.clone(),
             opener: ports.opener.clone(),
+            work_hold: ports.work_hold.clone(),
         }),
         sweep_leftovers: real_data,
         relay: Some(eos_app::relay()),

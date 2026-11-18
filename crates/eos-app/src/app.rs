@@ -17,7 +17,7 @@ use eos_core::browser::{BrowserTools, ElementPicker};
 use eos_core::net::peer::PeerLifecycle;
 use eos_core::net::relay::Relay;
 use eos_core::net::updates::{UpdateApplier, UpdateSignals};
-use eos_core::os::KeepAwake;
+use eos_core::os::{KeepAwake, WorkHold};
 use eos_core::plugin::{PluginPreviewer, Plugins};
 use eos_core::shell::{BrowserPanel, BrowserViews, FilePicker};
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
@@ -149,6 +149,9 @@ pub struct Shell {
     /// Opens a page outside the app (a sign-in page) the way the shell opens
     /// every external link.
     pub opener: Arc<dyn Browser>,
+    /// Keeps the app out of App Nap while routines run or wait, which only
+    /// the app's own process can do.
+    pub work_hold: Arc<dyn WorkHold>,
 }
 
 impl std::fmt::Debug for Shell {
@@ -232,6 +235,7 @@ pub struct App {
     sleeper: Arc<dyn Sleeper>,
     /// The database's vacuum, from start to shutdown.
     vacuum: crate::maintenance::Vacuum,
+    work_hold: Arc<dyn WorkHold>,
 }
 
 impl std::fmt::Debug for App {
@@ -489,6 +493,9 @@ impl App {
 
         let projects: Arc<dyn eos_core::store::ProjectStore> =
             Arc::new(JsonProjects::open(paths.join("projects.json"), ids.clone()));
+        let work_hold = shell
+            .as_ref()
+            .map_or_else(|| Arc::new(host::HostWorkHold::default()) as Arc<dyn WorkHold>, |s| s.work_hold.clone());
         let context = Context {
             bus: kernel.bus.clone(),
             clock: clock.clone(),
@@ -646,6 +653,7 @@ impl App {
             clock,
             sleeper,
             vacuum: crate::maintenance::Vacuum::default(),
+            work_hold,
         })
     }
 
@@ -767,6 +775,13 @@ impl App {
 
     pub fn plugins(&self) -> Arc<dyn Plugins> {
         self.plugins.clone()
+    }
+
+    /// What keeps the app at full pace while routines run or wait: the window
+    /// shell's, or without a shell one that keeps the computer out of idle
+    /// sleep while a run works and leaves the app to App Nap.
+    pub fn work_hold(&self) -> Arc<dyn WorkHold> {
+        self.work_hold.clone()
     }
 
     /// Stops the modules (last first) and the streams inside `deadline`, then
