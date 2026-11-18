@@ -1,6 +1,8 @@
 //! `stableStringify`: JSON with object keys sorted, so the same content hashes
-//! the same on every Mac. Three places where "obvious" Rust differs from the
-//! JavaScript original, each of which would make every record look changed:
+//! the same on every Mac; and `JSON.stringify`, keys in the order they are
+//! held, for text whose order is fixed by its type. Three places where
+//! "obvious" Rust differs from the JavaScript original, each of which would
+//! make every record look changed:
 //!
 //! - keys sort by UTF-16 code unit (JavaScript's default sort), not by byte;
 //! - every number is an IEEE double printed by ECMAScript's Number::toString
@@ -14,11 +16,18 @@ use serde_json::Value;
 
 pub fn stable_stringify(value: &Value) -> String {
     let mut out = String::new();
-    write(value, &mut out);
+    write(value, true, &mut out);
     out
 }
 
-fn write(value: &Value, out: &mut String) {
+/// `JSON.stringify(value)`: every object's keys in the order it holds them.
+pub fn stringify(value: &Value) -> String {
+    let mut out = String::new();
+    write(value, false, &mut out);
+    out
+}
+
+fn write(value: &Value, sort_keys: bool, out: &mut String) {
     match value {
         Value::Null => out.push_str("null"),
         Value::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
@@ -30,13 +39,15 @@ fn write(value: &Value, out: &mut String) {
                 if i > 0 {
                     out.push(',');
                 }
-                write(item, out);
+                write(item, sort_keys, out);
             }
             out.push(']');
         }
         Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();
-            keys.sort_by(|a, b| utf16_cmp(a, b));
+            if sort_keys {
+                keys.sort_by(|a, b| utf16_cmp(a, b));
+            }
             out.push('{');
             for (i, key) in keys.into_iter().enumerate() {
                 if i > 0 {
@@ -44,7 +55,7 @@ fn write(value: &Value, out: &mut String) {
                 }
                 write_string(key, out);
                 out.push(':');
-                write(&map[key], out);
+                write(&map[key], sort_keys, out);
             }
             out.push('}');
         }
@@ -83,6 +94,12 @@ mod tests {
     fn keys_are_sorted_at_every_depth() {
         let v = json!({ "b": 1, "a": { "z": [ { "y": 1, "x": 2 } ], "k": null } });
         assert_eq!(stable_stringify(&v), r#"{"a":{"k":null,"z":[{"x":2,"y":1}]},"b":1}"#);
+    }
+
+    #[test]
+    fn stringify_keeps_the_order_the_keys_are_held_in() {
+        let v = json!({ "b": 1.0, "a": { "z": [ { "y": 1, "x": 2e21 } ], "k": null } });
+        assert_eq!(stringify(&v), r#"{"b":1,"a":{"z":[{"y":1,"x":2e+21}],"k":null}}"#);
     }
 
     #[test]

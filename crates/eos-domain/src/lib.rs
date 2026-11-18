@@ -34,6 +34,7 @@ pub mod project;
 pub mod project_memory;
 pub mod provider;
 pub mod reaction;
+pub mod routine;
 pub mod run_scope;
 pub mod signals;
 pub mod sync;
