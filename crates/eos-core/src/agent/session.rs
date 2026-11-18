@@ -54,7 +54,9 @@ pub struct LaunchSpec {
     /// [`AgentSession::note`] takes one.
     pub notes: Vec<String>,
     /// Connect the MCP servers Claude Code's settings configure for its
-    /// folder (user, project and local ones); `false` connects none of them.
+    /// folder (user, project and local ones), when the runtime connects
+    /// them at all (`EngineOptions::mcp` in `eos-engine`); `false` connects
+    /// none of them.
     pub folder_mcp: bool,
 }
 
@@ -255,8 +257,8 @@ pub trait AgentSession: Send + Sync + 'static {
 
     /// Leaves a note for the session's own agent, sent as given ahead of its
     /// next model request, mid-turn included; a subagent never takes it. It
-    /// starts no turn: an idle session takes it with its next
-    /// [`send`](Self::send).
+    /// starts no turn: an idle session takes it with its next turn, which a
+    /// [`send`](Self::send) or the session's own background work starts.
     fn note(&self, text: String) -> Result<(), SessionError>;
 
     /// Stops the running turn; background work of the session goes on.
