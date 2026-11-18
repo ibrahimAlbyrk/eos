@@ -5,53 +5,19 @@
 //! - the user's home folder becomes `~` (it names the user);
 //! - a URL keeps its scheme, host and path: user info, query and fragment are cut;
 //! - an e-mail address becomes `<email>`;
-//! - the value of a secret-looking key (`token=…`, `apiKey: …`, `Bearer …`) becomes
-//!   `<redacted>`, and so does an opaque run (an API key, a token, a cookie): one with a
-//!   piece of 20 or more letters and digits mixed, which names (`064_genui_views`,
-//!   `w-0j0ya9qd`) and UUIDs never have.
+//! - every shape of secret `eos_domain::redact` knows becomes `<redacted>`: the value of a
+//!   secret-looking key (`token=…`, `apiKey: …`, `Bearer …`) and an opaque run (an API
+//!   key, a token, a cookie).
 
 use std::borrow::Cow;
 use std::path::Path;
+
+use eos_domain::redact::{REDACTED, names_credential, without_opaque_runs, without_secret_value, word_break};
 
 /// Scrubs lines for one user's home folder.
 #[derive(Debug, Clone, Default)]
 pub struct Scrubber {
     home: Option<String>,
-}
-
-const REDACTED: &str = "<redacted>";
-/// A piece of a run (between `-`, `_` and `.`) this long, with letters and digits, is
-/// taken for a secret.
-const OPAQUE: usize = 20;
-
-/// Key names whose value is never logged (compared lowercased, `-` and `_` removed).
-const SECRET_KEYS: &[&str] = &[
-    "token",
-    "secret",
-    "password",
-    "passwd",
-    "apikey",
-    "sessionkey",
-    "cookie",
-    "setcookie",
-    "authorization",
-    "auth",
-    "credential",
-    "credentials",
-    "signature",
-    "sig",
-    "key",
-    "privatekey",
-];
-/// A key ending in one of these is secret too (`refresh_token`, `client_secret`, `x-api-key`).
-const SECRET_ENDINGS: &[&str] = &["token", "secret", "password", "apikey", "sessionkey", "cookie", "credential"];
-
-fn separator(c: char) -> bool {
-    c.is_whitespace() || matches!(c, '"' | '\'' | '`' | '<' | '>' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';')
-}
-
-fn token_char(c: char) -> bool {
-    c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '+' | '=' | '.')
 }
 
 fn email_local(c: char) -> bool {
@@ -76,25 +42,21 @@ impl Scrubber {
         };
         let mut out = String::with_capacity(homed.len());
         let mut changed = matches!(homed, Cow::Owned(_));
-        let mut previous = String::new();
+        let mut previous = "";
         let mut rest: &str = &homed;
         while !rest.is_empty() {
-            let start = rest.find(|c: char| !separator(c)).unwrap_or(rest.len());
+            let start = rest.find(|c: char| !word_break(c)).unwrap_or(rest.len());
             out.push_str(&rest[..start]);
             rest = &rest[start..];
             if rest.is_empty() {
                 break;
             }
-            let end = rest.find(separator).unwrap_or(rest.len());
+            let end = rest.find(word_break).unwrap_or(rest.len());
             let word = &rest[..end];
-            let clean = if matches!(previous.as_str(), "bearer" | "basic") {
-                Cow::Borrowed(REDACTED)
-            } else {
-                scrub_word(word)
-            };
+            let clean = if names_credential(previous) { Cow::Borrowed(REDACTED) } else { scrub_word(word) };
             changed |= clean != word;
             out.push_str(&clean);
-            previous = word.trim_end_matches([':', '=']).to_ascii_lowercase();
+            previous = word;
             rest = &rest[end..];
         }
         if changed { Cow::Owned(out) } else { homed }
@@ -163,26 +125,6 @@ fn without_user_info(word: &str) -> Option<String> {
     Some(format!("{}{}", &word[..scheme_end], &word[at + 1..]))
 }
 
-fn secret_key(key: &str) -> bool {
-    let key: String = key
-        .trim_start_matches(|c: char| !c.is_ascii_alphanumeric())
-        .chars()
-        .filter(|c| !matches!(c, '-' | '_'))
-        .collect::<String>()
-        .to_ascii_lowercase();
-    !key.is_empty() && (SECRET_KEYS.contains(&key.as_str()) || SECRET_ENDINGS.iter().any(|end| key.ends_with(end)))
-}
-
-/// `token=abc` / `apiKey:abc` → `token=<redacted>`.
-fn without_secret_value(word: &str) -> Option<String> {
-    let at = word.find(['=', ':'])?;
-    let (key, value) = (&word[..at], &word[at + 1..]);
-    if value.is_empty() || value.starts_with("//") || !secret_key(key) {
-        return None;
-    }
-    Some(format!("{}{REDACTED}", &word[..=at]))
-}
-
 fn without_emails(word: &str) -> Option<String> {
     if !word.contains('@') {
         return None;
@@ -213,45 +155,6 @@ fn without_emails(word: &str) -> Option<String> {
     }
     out.push_str(&word[last..]);
     Some(out)
-}
-
-fn opaque(run: &str) -> bool {
-    let known = ["sk-ant-", "sk-", "ghp_", "gho_", "github_pat_", "xoxb-", "xoxp-", "eos-sync1."];
-    if known.iter().any(|prefix| run.starts_with(prefix) && run.len() >= prefix.len() + 16) {
-        return true;
-    }
-    run.split(['-', '_', '.']).any(|piece| {
-        piece.len() >= OPAQUE
-            && piece.chars().any(|c| c.is_ascii_digit())
-            && piece.chars().any(|c| c.is_ascii_alphabetic())
-    })
-}
-
-fn without_opaque_runs(word: &str) -> Option<String> {
-    let mut out = String::new();
-    let mut changed = false;
-    let mut rest = word;
-    while !rest.is_empty() {
-        let start = rest.find(token_char).unwrap_or(rest.len());
-        out.push_str(&rest[..start]);
-        rest = &rest[start..];
-        let end = rest.find(|c: char| !token_char(c)).unwrap_or(rest.len());
-        let run = &rest[..end];
-        // `key=value` pairs keep their key.
-        let (lead, body) = match run.find('=') {
-            Some(at) if at + 1 < run.len() => (&run[..=at], &run[at + 1..]),
-            _ => ("", run),
-        };
-        if !body.is_empty() && opaque(body.trim_end_matches(['.', '='])) {
-            out.push_str(lead);
-            out.push_str(REDACTED);
-            changed = true;
-        } else {
-            out.push_str(run);
-        }
-        rest = &rest[end..];
-    }
-    changed.then_some(out)
 }
 
 #[cfg(test)]

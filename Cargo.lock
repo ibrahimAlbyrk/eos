@@ -1664,6 +1664,7 @@ name = "eos-kit-log"
 version = "0.0.1"
 dependencies = [
  "crossbeam-channel",
+ "eos-domain",
  "tempfile",
  "tracing",
  "tracing-subscriber",
