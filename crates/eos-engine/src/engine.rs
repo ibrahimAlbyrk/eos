@@ -338,7 +338,7 @@ impl Engine {
             .history(history)
             .tools(inner.adapters.engine_tools(inner.tools.for_session(spec)))
             .extensions(seed)
-            .mcp(inner.options.mcp)
+            .mcp(inner.options.mcp && spec.folder_mcp)
             // A focused session is a plain coding session with tool search;
             // orchestrators and workers get every tool in full, as today.
             .tool_search(focused)
