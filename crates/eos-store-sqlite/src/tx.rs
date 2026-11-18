@@ -6,9 +6,12 @@ use std::sync::Mutex;
 use eos_core::Error;
 use eos_core::store::{
     ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
-    PendingRepo, ReactionRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo,
+    RunResultRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
 /// What outlives a single job.
 pub(crate) struct Shared {
@@ -62,6 +65,30 @@ impl Tx for SqliteTx<'_> {
         self
     }
 
+    fn routine_sessions(&self) -> &dyn RoutineSessionRepo {
+        self
+    }
+
+    fn routine_spend(&self) -> &dyn RoutineSpendRepo {
+        self
+    }
+
+    fn routine_versions(&self) -> &dyn RoutineVersionRepo {
+        self
+    }
+
+    fn routines(&self) -> &dyn RoutineRepo {
+        self
+    }
+
+    fn run_results(&self) -> &dyn RunResultRepo {
+        self
+    }
+
+    fn runs(&self) -> &dyn RunRepo {
+        self
+    }
+
     fn transfers(&self) -> &dyn TransferRepo {
         self
     }
@@ -82,6 +109,43 @@ impl Tx for SqliteTx<'_> {
 /// A database failure in the ports' vocabulary.
 pub(crate) fn failed(e: rusqlite::Error) -> Error {
     Error::Storage(format!("sqlite: {e}"))
+}
+
+/// The word a contracts enum is stored as: the one it is written as on the wire.
+pub(crate) fn word<T: Serialize>(value: &T) -> Result<String, Error> {
+    match serde_json::to_value(value) {
+        Ok(serde_json::Value::String(word)) => Ok(word),
+        _ => Err(Error::Storage("a stored word is not a string".to_owned())),
+    }
+}
+
+/// A word column read back; a word this version does not know fails the read.
+pub(crate) fn known<T>(
+    r: &rusqlite::Row<'_>,
+    idx: usize,
+    parse: impl FnOnce(&str) -> Option<T>,
+) -> rusqlite::Result<T> {
+    let text: String = r.get(idx)?;
+    parse(&text).ok_or_else(|| unknown(idx, &text))
+}
+
+/// [`known`] for a column that may be NULL.
+pub(crate) fn known_or_null<T>(
+    r: &rusqlite::Row<'_>,
+    idx: usize,
+    parse: impl FnOnce(&str) -> Option<T>,
+) -> rusqlite::Result<Option<T>> {
+    let text: Option<String> = r.get(idx)?;
+    text.map(|text| parse(&text).ok_or_else(|| unknown(idx, &text))).transpose()
+}
+
+/// [`known`] for a contracts enum.
+pub(crate) fn wire_word<T: DeserializeOwned>(r: &rusqlite::Row<'_>, idx: usize) -> rusqlite::Result<T> {
+    known(r, idx, |text| serde_json::from_value(serde_json::Value::String(text.to_owned())).ok())
+}
+
+fn unknown(idx: usize, text: &str) -> rusqlite::Error {
+    rusqlite::Error::FromSqlConversionFailure(idx, rusqlite::types::Type::Text, format!("unknown value: {text}").into())
 }
 
 impl SqliteTx<'_> {
