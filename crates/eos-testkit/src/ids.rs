@@ -43,5 +43,6 @@ mod tests {
             ids.request_id();
         }
         assert_eq!(ids.request_id(), "r-00000010", "base 36");
+        assert_eq!(ids.run_id(), "rn-000000000011");
     }
 }

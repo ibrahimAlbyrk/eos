@@ -67,6 +67,21 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("s-", Alphabet::Base36, 8)
     }
 
+    /// `rt-` + 12: a routine.
+    fn routine_id(&self) -> String {
+        self.prefixed("rt-", Alphabet::Base36, 12)
+    }
+
+    /// `rv-` + 12: one version of a routine's blueprint.
+    fn routine_version_id(&self) -> String {
+        self.prefixed("rv-", Alphabet::Base36, 12)
+    }
+
+    /// `rn-` + 12: one run of a routine.
+    fn run_id(&self) -> String {
+        self.prefixed("rn-", Alphabet::Base36, 12)
+    }
+
     // Six random bytes in hex behind a prefix (`randomBytes(6).toString("hex")`).
 
     /// `pg-` + 12.
@@ -191,6 +206,9 @@ mod tests {
         assert!(shaped(&ids.pending_id(), "p-", Alphabet::Base36, 8));
         assert!(shaped(&ids.request_id(), "r-", Alphabet::Base36, 8));
         assert!(shaped(&ids.session_id(), "s-", Alphabet::Base36, 8));
+        assert!(shaped(&ids.routine_id(), "rt-", Alphabet::Base36, 12));
+        assert!(shaped(&ids.routine_version_id(), "rv-", Alphabet::Base36, 12));
+        assert!(shaped(&ids.run_id(), "rn-", Alphabet::Base36, 12));
         for (id, prefix) in [
             (ids.page_id(), "pg-"),
             (ids.user_memory_id(), "um-"),
