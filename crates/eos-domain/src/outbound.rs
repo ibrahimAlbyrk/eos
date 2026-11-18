@@ -82,6 +82,9 @@ pub fn check(doc: &ResultDoc, ctx: &OutboundContext) -> Vec<Flag> {
     let known_addresses = known(&ctx.addresses, str::to_lowercase);
     let known_numbers = known(&ctx.numbers, digits);
     let new = |found: Vec<String>, known: &HashSet<String>| found.iter().any(|item| !known.contains(item));
+    // Markdown resolves a reference anywhere in its document, and a mail's
+    // paragraphs are one document.
+    let labels: HashSet<String> = doc.parts.iter().flat_map(|part| defined_labels(&part.text)).collect();
 
     let mut flags = BTreeSet::new();
     let mut flag = |on: bool, which: Flag| {
@@ -94,7 +97,7 @@ pub fn check(doc: &ResultDoc, ctx: &OutboundContext) -> Vec<Flag> {
         let text = part.text.as_str();
         bytes += text.len();
         flag(new(hosts(text), &known_hosts), Flag::NewHost);
-        flag(has_image(text), Flag::Image);
+        flag(has_image(text, &labels), Flag::Image);
         flag(new(mentions(&outside_code(text)), &known_handles), Flag::NewMention);
         flag(new(addresses(text), &known_addresses) || new(numbers(text), &known_numbers), Flag::NewAddress);
         flag(secret_like(text), Flag::SecretLike);
@@ -141,14 +144,9 @@ fn host_at(rest: &str) -> Option<String> {
 }
 
 /// An embedded image: Markdown's `![…](…)`, `![…][…]`, or `![…]` alone
-/// when a `[…]: …` line defines its label; an HTML image; a `data:image/`
-/// address.
-fn has_image(text: &str) -> bool {
+/// when `defined` holds its label; an HTML image; a `data:image/` address.
+fn has_image(text: &str, defined: &HashSet<String>) -> bool {
     let lower = text.to_ascii_lowercase();
-    let defined: HashSet<String> = text
-        .lines()
-        .filter_map(|line| line.trim_start().strip_prefix('[')?.split_once("]:").map(|(label, _)| label_key(label)))
-        .collect();
     let markdown = text.match_indices("![").any(|(at, _)| {
         let line = text[at + 2..].lines().next().unwrap_or_default();
         line.contains("](")
@@ -156,6 +154,12 @@ fn has_image(text: &str) -> bool {
             || line.split_once(']').is_some_and(|(label, _)| defined.contains(&label_key(label)))
     });
     markdown || ["<img", "<image", "<picture", "<svg", "data:image/"].iter().any(|tag| lower.contains(tag))
+}
+
+/// The labels the `[…]: …` lines of `text` define.
+fn defined_labels(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.lines()
+        .filter_map(|line| line.trim_start().strip_prefix('[')?.split_once("]:").map(|(label, _)| label_key(label)))
 }
 
 /// A reference label as Markdown matches it: case and runs of spaces do not
