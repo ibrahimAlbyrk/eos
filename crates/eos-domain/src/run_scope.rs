@@ -71,7 +71,8 @@ fn shell_and_web(trust: Trust) -> [&'static [&'static str]; 2] {
 /// capability actions, which only a routine run's own roles get.
 /// `def_scope` is the agent's own definition, as it is baked onto a worker:
 /// it narrows the scope and never widens it. Its denials join; of the tools
-/// the run allows, only those its allow list covers stay; and an edit must
+/// the run allows, only those its allow list covers stay, a tool it names
+/// with a command only for that command; and an edit must
 /// match its `editRegex` as well as stay in the folder. `edit_folder` is the
 /// folder file edits stay in: the run's worktree, or the Forge builder's
 /// scratch folder.
@@ -99,7 +100,7 @@ pub fn scope_for(
     let mut edit_regex = format!("^{folder}");
     if let Some(def) = def_scope {
         if !def.allow.is_empty() {
-            allow.retain(|tool| def.allow.iter().any(|pattern| covers(pattern, tool)));
+            allow = allow.iter().flat_map(|tool| kept(&def.allow, tool)).collect();
         }
         for pattern in &def.deny {
             if !deny.contains(pattern) {
@@ -134,6 +135,29 @@ fn in_folder(folder: &str, pattern: &str) -> Option<String> {
     regress::Regex::new(&both).is_ok().then_some(both)
 }
 
+/// What of the run's `tool` a definition's allow list keeps: the tool, when a
+/// pattern covers its name; else the tool for the commands of each pattern
+/// scoped to a command whose name part covers it (`Bash(npm test:*)`),
+/// written with the tool's own name so it reaches no tool the run leaves out;
+/// else nothing.
+fn kept(patterns: &[String], tool: &str) -> Vec<String> {
+    if patterns.iter().any(|pattern| covers(pattern, tool)) {
+        return vec![tool.to_owned()];
+    }
+    patterns
+        .iter()
+        .filter_map(|pattern| command_scoped(pattern))
+        .filter(|(name, _)| covers(name, tool))
+        .map(|(_, command)| format!("{tool}({command})"))
+        .collect()
+}
+
+/// `Name(command)`: the first `(` splits the name from the command's spec.
+fn command_scoped(pattern: &str) -> Option<(&str, &str)> {
+    let open = pattern.find('(').filter(|at| *at > 0)?;
+    Some((&pattern[..open], pattern[open + 1..].strip_suffix(')')?))
+}
+
 /// Whether an allow pattern covers the tool `name` by its name alone, as the
 /// policy's tool patterns match a call that carries no command (that matcher
 /// sits in `eos-policy`, above this crate): `*` is any run of characters, and
@@ -142,7 +166,7 @@ fn covers(pattern: &str, name: &str) -> bool {
     if pattern == "*" {
         return true;
     }
-    if pattern.ends_with(')') && pattern.find('(').is_some_and(|at| at > 0) {
+    if command_scoped(pattern).is_some() {
         return false;
     }
     let mut parts = pattern.split('*');
