@@ -1,0 +1,82 @@
+{
+  "format": "SHA-256 over the files sorted by the UTF-8 bytes of their relative path ('/' between folders), each as path, 0x00, its length in decimal ASCII, 0x00, its bytes; lowercase hex",
+  "cases": [
+    {
+      "name": "an empty package",
+      "files": [],
+      "hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "one manifest",
+      "files": [
+        {
+          "path": "capability.toml",
+          "hex": "6964203d20226563686f220a"
+        }
+      ],
+      "hash": "8a7338448e69ea6eecf8f6e090353c720f3c98b4323d1a5717e167ee15490bd4"
+    },
+    {
+      "name": "files in folders, sorted by path",
+      "files": [
+        {
+          "path": "tests/run.sh",
+          "hex": "23212f62696e2f7a73680a6578697420300a"
+        },
+        {
+          "path": "capability.toml",
+          "hex": "6964203d2022736d732d6d65737361676573220a666f726d203d2022736372697074220a"
+        },
+        {
+          "path": "send.applescript",
+          "hex": "6f6e2072756e20617267760a656e642072756e0a"
+        },
+        {
+          "path": "README.md",
+          "hex": "2320534d530a"
+        }
+      ],
+      "hash": "83c29b3df1a8abbf9bd656caf3c9e2f0780692d4519fdd180302fbb938dcd4e9"
+    },
+    {
+      "name": "paths that sort by their bytes",
+      "files": [
+        {
+          "path": "a/b",
+          "hex": "736c617368"
+        },
+        {
+          "path": "a.b",
+          "hex": "646f74"
+        },
+        {
+          "path": "a-b",
+          "hex": "68797068656e"
+        },
+        {
+          "path": "ü.txt",
+          "hex": "c3bc"
+        },
+        {
+          "path": "Z",
+          "hex": ""
+        }
+      ],
+      "hash": "1d07ad41bfd5168c6e23dcd9fb97da139132f66edbcc52b9a6ae9b673522121b"
+    },
+    {
+      "name": "bytes with zeros and a length that is not one digit",
+      "files": [
+        {
+          "path": "bin/tool",
+          "hex": "00010200ff00787878787878787878787878"
+        },
+        {
+          "path": "data/empty",
+          "hex": ""
+        }
+      ],
+      "hash": "3d4150fa899fafaa235afe52399bf8f8dbc659c4a8339d5c2828662434d0a401"
+    }
+  ]
+}
