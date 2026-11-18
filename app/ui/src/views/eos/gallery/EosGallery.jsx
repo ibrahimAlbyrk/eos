@@ -12,7 +12,7 @@ export const SAMPLE_READS = { [ROUTES.routines]: routinesOne };
 // the account footer) reads the core, so the gallery leaves it out.
 export function EosGallery() {
   return (
-    <div className="app">
+    <div className="app eos-mode">
       <aside className="side">
         <div className="side-island side-island--agents"><EosSidebarRows /></div>
       </aside>
