@@ -18,6 +18,7 @@ pub mod display;
 pub mod effort;
 pub mod envelope;
 pub mod event;
+pub mod freedom;
 pub mod fs_ignore;
 pub mod git;
 pub mod memory_sources;
