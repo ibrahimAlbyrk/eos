@@ -4,8 +4,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use eos_app::{App, Options};
+use eos_core::BoxFuture;
+use eos_core::os::HoldReason;
+use eos_core::shell::FilePicker;
 use eos_runtime::http::{Method, Request};
-use eos_testkit::{FakeClock, SeqIds, TempHome};
+use eos_testkit::{FakeBrowser, FakeBrowserPanel, FakeBrowserViews, FakeClock, FakeWorkHold, SeqIds, TempHome};
 
 fn options(home: &TempHome) -> Options {
     Options {
@@ -147,4 +150,37 @@ async fn plugins_are_part_of_the_app() {
     assert_eq!(router.handle(preview).await.status, 409, "hello has no UI entry");
 
     assert!(app.shutdown(Duration::from_secs(5)).await.clean());
+}
+
+/// A shell whose open panels are always cancelled.
+struct NoPicker;
+
+impl FilePicker for NoPicker {
+    fn pick_directory(&self) -> BoxFuture<'_, Option<String>> {
+        Box::pin(async { None })
+    }
+
+    fn pick_files(&self) -> BoxFuture<'_, Option<Vec<String>>> {
+        Box::pin(async { None })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn work_holds_come_from_the_window_shell_when_there_is_one() {
+    let home = TempHome::new();
+    let holds = Arc::new(FakeWorkHold::new());
+    let shell = eos_app::Shell {
+        views: FakeBrowserViews::new(),
+        panel: FakeBrowserPanel::new(),
+        picker: Arc::new(NoPicker),
+        opener: Arc::new(FakeBrowser::default()),
+        work_hold: holds.clone(),
+    };
+    let app = App::build(Options { shell: Some(shell), ..options(&home) }).expect("builds");
+
+    let hold = app.work_hold().begin(HoldReason::Run);
+    assert!(hold.is_some());
+    assert_eq!(holds.live(HoldReason::Run), 1, "the shell's own hold");
+    drop(hold);
+    assert_eq!(holds.live(HoldReason::Run), 0);
 }

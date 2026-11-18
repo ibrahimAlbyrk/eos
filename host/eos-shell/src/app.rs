@@ -26,6 +26,7 @@ use tauri_runtime_cef::{Cef, ProxyConfig, SecretStorage, WebRtcIpHandling, Webvi
 use crate::host::{Host, Opener, frame_command, open_external, target_of};
 use crate::log::log;
 use crate::menu::Command;
+use crate::native::activity::Activities;
 use crate::native::{appkit, notify};
 use crate::splash::Splash;
 use crate::views::{ArtifactShell, Cdp, HostShell, Previewer, ViewPorts, Views, create};
@@ -297,6 +298,7 @@ impl Shell {
             picker: Arc::new(ViewPorts(views.clone())),
             previewer: Arc::new(Previewer::new(views.clone())),
             opener: Arc::new(Opener),
+            work_hold: Arc::new(Activities::default()),
             rt: self.rt.handle().clone(),
             quit: {
                 let shell = Arc::downgrade(self);

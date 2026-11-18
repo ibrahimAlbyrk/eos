@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eos_contracts::UiConfigResponseFeatures;
 use eos_core::accounts::Browser;
-use eos_core::os::{LocalTime, ProcessStats, TimeZone};
+use eos_core::os::{HoldReason, LocalTime, ProcessStats, TimeZone, WorkHold};
 use eos_core::shell::{Location, PositionError, PositionFix};
 use eos_core::{BoxFuture, Clock};
 use eos_platform::{Argv, LocationFailure};
@@ -125,9 +125,10 @@ impl TimeZone for HostTimeZone {
 #[derive(Debug)]
 pub(crate) struct HostKeepAwake;
 
-struct Hold(#[allow(dead_code)] eos_platform::KeepAwake);
+/// Keeps what holds the computer awake until it is dropped.
+struct Hold<T>(#[allow(dead_code)] T);
 
-impl eos_core::os::AwakeHold for Hold {}
+impl<T: Send + Sync + 'static> eos_core::os::AwakeHold for Hold<T> {}
 
 impl eos_core::os::KeepAwake for HostKeepAwake {
     fn hold(&self) -> Option<Box<dyn eos_core::os::AwakeHold>> {
@@ -138,5 +139,38 @@ impl eos_core::os::KeepAwake for HostKeepAwake {
                 None
             }
         }
+    }
+}
+
+/// The work hold without the window shell: a run keeps the computer out of
+/// idle sleep, on battery too, through one process shared by every run. A
+/// process of its own cannot keep this app out of App Nap, and holding idle
+/// sleep off would deny what an armed routine allows, so `Armed` holds nothing.
+#[derive(Debug, Default)]
+pub(crate) struct HostWorkHold(eos_platform::WorkAwake);
+
+impl WorkHold for HostWorkHold {
+    fn begin(&self, why: HoldReason) -> Option<Box<dyn eos_core::os::AwakeHold>> {
+        match why {
+            HoldReason::Run => match self.0.hold() {
+                Ok(hold) => Some(Box::new(Hold(hold))),
+                Err(error) => {
+                    tracing::info!(%error, "this computer cannot be kept awake for a run");
+                    None
+                }
+            },
+            HoldReason::Armed => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Without the shell, `Armed` starts no process, so this test starts none either.
+    #[test]
+    fn an_armed_routine_holds_nothing_without_the_shell() {
+        assert!(HostWorkHold::default().begin(HoldReason::Armed).is_none());
     }
 }
