@@ -9,6 +9,7 @@ use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::error::Error;
+use crate::power::PowerReading;
 
 /// What Eos offers on this system; the dashboard hides what is off.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -178,6 +179,12 @@ pub trait HostPlatform: Send + Sync + Debug {
     /// Keeps the computer out of system sleep while the process `pid` lives
     /// and the returned guard is held.
     fn keep_awake(&self, pid: u32) -> Result<KeepAwake, Error>;
+    /// Keeps the computer out of idle sleep, on battery too, while the process
+    /// `pid` lives and the returned guard is held.
+    fn prevent_idle_sleep(&self, pid: u32) -> Result<KeepAwake, Error>;
+    /// What powers the computer now, or `None` where the system does not say.
+    /// Runs a system tool; [`PowerCache`](crate::PowerCache) asks once a minute.
+    fn power(&self) -> Option<PowerReading>;
     fn shell(&self) -> &dyn TerminalShell;
     /// The POSIX sh agents' command lines run in, or `None` when the system has none.
     fn script_shell(&self) -> Option<PathBuf>;

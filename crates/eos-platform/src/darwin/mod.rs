@@ -4,6 +4,7 @@
 mod bundle_check;
 mod desktop;
 mod keychain;
+mod power;
 pub(crate) mod qos;
 mod screen_saver;
 
@@ -22,6 +23,7 @@ use crate::host::{
     AppUpdatePlatform, Argv, CredentialStore, Desktop, HostFeatures, HostPlatform, KeepAwake, ScreenSaver,
     SpawnCommand, TerminalShell,
 };
+use crate::power::PowerReading;
 use crate::process;
 use crate::shell::PosixShell;
 use crate::tool;
@@ -51,6 +53,23 @@ pub(crate) static DARWIN: Darwin = Darwin {
 /// still sleeps the Mac outside clamshell mode; nothing in user space changes that.
 pub fn caffeinate_args(pid: u32) -> [String; 3] {
     ["-s".to_owned(), "-w".to_owned(), pid.to_string()]
+}
+
+/// `caffeinate -i` asserts PreventUserIdleSystemSleep, which holds on battery too. The display
+/// still sleeps and the screen still locks; `-w <pid>` ends it with that process.
+fn idle_caffeinate_args(pid: u32) -> [String; 3] {
+    ["-i".to_owned(), "-w".to_owned(), pid.to_string()]
+}
+
+fn caffeinate(args: [String; 3]) -> Result<KeepAwake, Error> {
+    let child = Command::new("/usr/bin/caffeinate")
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| Error::Tool { tool: "caffeinate", detail: e.to_string() })?;
+    Ok(KeepAwake::new(child))
 }
 
 /// The Finder moves the path to the Trash (so "Put Back" works). The path is
@@ -125,14 +144,15 @@ impl HostPlatform for Darwin {
     }
 
     fn keep_awake(&self, pid: u32) -> Result<KeepAwake, Error> {
-        let child = Command::new("/usr/bin/caffeinate")
-            .args(caffeinate_args(pid))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|e| Error::Tool { tool: "caffeinate", detail: e.to_string() })?;
-        Ok(KeepAwake::new(child))
+        caffeinate(caffeinate_args(pid))
+    }
+
+    fn prevent_idle_sleep(&self, pid: u32) -> Result<KeepAwake, Error> {
+        caffeinate(idle_caffeinate_args(pid))
+    }
+
+    fn power(&self) -> Option<PowerReading> {
+        power::read()
     }
 
     fn shell(&self) -> &dyn TerminalShell {
@@ -204,6 +224,11 @@ mod tests {
     #[test]
     fn keep_awake_is_an_ac_only_assertion_tied_to_a_pid() {
         assert_eq!(caffeinate_args(123), ["-s", "-w", "123"]);
+    }
+
+    #[test]
+    fn work_holds_keep_off_idle_sleep_on_battery_too_tied_to_a_pid() {
+        assert_eq!(idle_caffeinate_args(123), ["-i", "-w", "123"]);
     }
 
     #[test]

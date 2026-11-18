@@ -8,7 +8,7 @@
 //! its timeout: call it from a blocking thread, not from an async task.
 //!
 //! macOS is implemented. Any other system gets [`generic`]: no trash, no
-//! keep-awake, no secret store, no desktop integration, no screen saver. A Windows
+//! keep-awake, no power report, no secret store, no desktop integration, no screen saver. A Windows
 //! implementation is one more module behind the same traits.
 
 mod access;
@@ -19,11 +19,13 @@ mod host;
 mod location;
 mod net;
 mod paths;
+mod power;
 mod process;
 mod screen_saver;
 mod shell;
 mod thread_class;
 mod tool;
+mod work_awake;
 
 #[cfg(target_os = "macos")]
 mod darwin;
@@ -40,6 +42,7 @@ pub use host::{
 pub use location::{LOCATION_WAIT_SECONDS, LocationFailure, LocationReading, parse_location, read_location};
 pub use net::{net_error_code, network_addresses};
 pub use paths::{DataPaths, USER_DATA_ENTRIES, computer_name, create_private_dir, eos_home, expand_path, home_dir};
+pub use power::{PowerCache, PowerReading};
 pub use process::{
     isolate_command, kill_process_tree, local_hour_minute, local_utc_offset_minutes, local_zone_name, open_fd_count,
     process_alive, soft_fd_limit, user_id,
@@ -47,6 +50,7 @@ pub use process::{
 pub use screen_saver::{SCREEN_SAVER_BUNDLE, install_screen_saver};
 pub use shell::{PosixShell, shell_invocation};
 pub use thread_class::{ThreadClass, in_thread_class, set_thread_class};
+pub use work_awake::{WorkAwake, WorkAwakeHold};
 
 #[cfg(target_os = "macos")]
 pub use darwin::{
