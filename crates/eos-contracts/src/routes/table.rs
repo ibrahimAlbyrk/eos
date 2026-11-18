@@ -313,6 +313,26 @@ pub const SIGNALS_WHICH_PREVIEW: Route =
 pub const SIGNALS_SETTINGS: Route = Route::new("signalsSettings", "/api/signals/settings", &[Put]).added();
 pub const RUNNERS: Route = Route::new("runners", "/api/runners", &[Get]).added();
 pub const RUNNERS_CLAIM: Route = Route::new("runnersClaim", "/api/runners/claim", &[Post]).added();
+pub const INBOX: Route = Route::new("inbox", "/api/inbox", &[Get]).added();
+pub const INBOX_ITEM: Route = Route::new("inboxItem", "/api/inbox/:id", &[Get]).added();
+pub const INBOX_DRAFT: Route = Route::new("inboxDraft", "/api/inbox/:id/draft", &[Put]).added();
+pub const INBOX_SEND: Route = Route::new("inboxSend", "/api/inbox/:id/send", &[Post]).added();
+pub const INBOX_ANSWER: Route = Route::new("inboxAnswer", "/api/inbox/:id/answer", &[Post]).added();
+pub const INBOX_LATER: Route = Route::new("inboxLater", "/api/inbox/:id/later", &[Post]).added();
+pub const INBOX_DISCARD: Route = Route::new("inboxDiscard", "/api/inbox/:id/discard", &[Post]).added();
+pub const INBOX_DELIVERY: Route = Route::new("inboxDelivery", "/api/inbox/deliveries/:id", &[Get]).added();
+pub const INBOX_DELIVERY_STOP: Route =
+    Route::new("inboxDeliveryStop", "/api/inbox/deliveries/:id/stop", &[Post]).added();
+pub const INBOX_DELIVERY_UNDO: Route =
+    Route::new("inboxDeliveryUndo", "/api/inbox/deliveries/:id/undo", &[Post]).added();
+pub const INBOX_DELIVERY_RETRY: Route =
+    Route::new("inboxDeliveryRetry", "/api/inbox/deliveries/:id/retry", &[Post]).added();
+pub const INBOX_DELIVERY_WRONG: Route =
+    Route::new("inboxDeliveryWrong", "/api/inbox/deliveries/:id/wrong", &[Post]).added();
+pub const ROUTINE_FREEDOM: Route = Route::new("routineFreedom", "/api/routines/:id/freedom", &[Get]).added();
+pub const EOS_HALT: Route = Route::new("eosHalt", "/api/eos/halt", &[Get, Post]).added();
+pub const EOS_RESUME: Route = Route::new("eosResume", "/api/eos/resume", &[Post]).added();
+pub const SETTINGS_ATTENTION: Route = Route::new("settingsAttention", "/api/settings/attention", &[Get, Put]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -607,4 +627,20 @@ pub const ROUTES: &[Route] = &[
     SIGNALS_SETTINGS,
     RUNNERS,
     RUNNERS_CLAIM,
+    INBOX,
+    INBOX_ITEM,
+    INBOX_DRAFT,
+    INBOX_SEND,
+    INBOX_ANSWER,
+    INBOX_LATER,
+    INBOX_DISCARD,
+    INBOX_DELIVERY,
+    INBOX_DELIVERY_STOP,
+    INBOX_DELIVERY_UNDO,
+    INBOX_DELIVERY_RETRY,
+    INBOX_DELIVERY_WRONG,
+    ROUTINE_FREEDOM,
+    EOS_HALT,
+    EOS_RESUME,
+    SETTINGS_ATTENTION,
 ];

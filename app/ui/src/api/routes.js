@@ -319,4 +319,25 @@ export const ROUTES = {
   signalsSettings: "/api/signals/settings",
   runners: "/api/runners",
   runnersClaim: "/api/runners/claim",
+  // Needs you (eos-contracts `inbox.rs`): the items, one item, saving a
+  // draft, sending, answering, putting aside and discarding one; one
+  // delivery and stopping, undoing, retrying or flagging it; a routine's
+  // Freedom; the switch that stops every routine; when Needs you may
+  // interrupt.
+  inbox: "/api/inbox",
+  inboxItem: (id) => `/api/inbox/${id}`,
+  inboxDraft: (id) => `/api/inbox/${id}/draft`,
+  inboxSend: (id) => `/api/inbox/${id}/send`,
+  inboxAnswer: (id) => `/api/inbox/${id}/answer`,
+  inboxLater: (id) => `/api/inbox/${id}/later`,
+  inboxDiscard: (id) => `/api/inbox/${id}/discard`,
+  inboxDelivery: (id) => `/api/inbox/deliveries/${id}`,
+  inboxDeliveryStop: (id) => `/api/inbox/deliveries/${id}/stop`,
+  inboxDeliveryUndo: (id) => `/api/inbox/deliveries/${id}/undo`,
+  inboxDeliveryRetry: (id) => `/api/inbox/deliveries/${id}/retry`,
+  inboxDeliveryWrong: (id) => `/api/inbox/deliveries/${id}/wrong`,
+  routineFreedom: (id) => `/api/routines/${id}/freedom`,
+  eosHalt: "/api/eos/halt",
+  eosResume: "/api/eos/resume",
+  settingsAttention: "/api/settings/attention",
 };
