@@ -27,7 +27,7 @@ describe("#eos-gallery", () => {
     const html = renderToStaticMarkup(rendered[0]);
     expect(html).toContain('<aside class="side">');
     expect(html).toContain('<nav class="sb-nav" aria-label="Eos"></nav>');
-    expect(html).toContain('<section class="center"><main></main></section>');
+    expect(html).toContain('<section class="center"><main class="eos-screen">');
 
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
     expect((await transport.send("POST", ROUTES.routines, {})).status).toBe(403);

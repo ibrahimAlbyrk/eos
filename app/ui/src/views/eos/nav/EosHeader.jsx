@@ -1,0 +1,24 @@
+import { Fragment } from "react";
+import { openLocation } from "./eosNav.js";
+
+// Every Eos screen's header: a breadcrumb whose last part is the screen's h1.
+// `trail` is [{ label, location }…, { label }]: each earlier part opens its location.
+export function EosHeader({ trail }) {
+  const parents = trail.slice(0, -1);
+  const title = trail[trail.length - 1].label;
+  return (
+    <header className="eos-head">
+      {parents.length > 0 && (
+        <nav className="eos-crumbs" aria-label="Breadcrumb">
+          {parents.map((p) => (
+            <Fragment key={p.location}>
+              <button type="button" className="eos-crumb" onClick={() => openLocation(p.location)}>{p.label}</button>
+              <span className="eos-crumb-sep" aria-hidden="true">/</span>
+            </Fragment>
+          ))}
+        </nav>
+      )}
+      <h1 className="eos-title">{title}</h1>
+    </header>
+  );
+}

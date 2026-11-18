@@ -1,11 +1,20 @@
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
-import { useGlobalKeymap } from "../../keymap/useKeymap.js";
+import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
+import { isMod } from "../../keymap/index.js";
 import { EosMain } from "./EosMain.jsx";
 import { EosSidebar } from "./sidebar/EosSidebar.jsx";
+import { goBack, goForward } from "./nav/eosNav.js";
 
-// Eos mode. The keymap's one listener lives in the view that is shown; without
-// it here, no app shortcut (⌘⌃2 back to Agents among them) would reach Eos.
+// ⌘[ / ⌘] walk Eos's own history. Matched by the key's place, as ⌘⌃1…9 are,
+// so every keyboard layout has them where a US one does.
+const historyKey = (code) => (e) => isMod(e) && e.code === code;
+
+// Eos mode. It is mounted only while shown, so its keys are bound only then. The
+// keymap's one listener lives in the view that is shown; without it here, no
+// app shortcut (⌘⌃2 back to Agents among them) would reach Eos.
 export function EosView({ live }) {
   useGlobalKeymap();
+  useKeybinding({ match: historyKey("BracketLeft"), run: (ctx, e) => { e.preventDefault(); goBack(); } }, []);
+  useKeybinding({ match: historyKey("BracketRight"), run: (ctx, e) => { e.preventDefault(); goForward(); } }, []);
   return <AppLayout sidebar={(variant) => <EosSidebar live={live} variant={variant} />} main={<EosMain />} />;
 }
