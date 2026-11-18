@@ -166,6 +166,24 @@ fn an_after_trigger_may_not_close_a_loop() {
 }
 
 #[test]
+fn grant_and_bound_rules_meet_the_bounds_of_which() {
+    let empty = "Array must contain at least 1 element(s)";
+    assert_eq!(
+        one_issue(|v| v["freedom"]["grants"] = json!([{"id": "g", "when": {"all": []}, "rung": "on_its_own"}])),
+        issue("freedom.grants.0.when.all", empty)
+    );
+    assert_eq!(
+        one_issue(|v| v["goesTo"][0]["bound"] = json!({"fact": "repo", "in": []})),
+        issue("goesTo.0.bound.in", empty)
+    );
+    let deep = json!({"not": {"not": {"not": {"fact": "draft", "is": true}}}});
+    assert_eq!(
+        one_issue(|v| v["freedom"]["grants"] = json!([{"id": "g", "when": deep, "rung": "draft"}])),
+        issue("freedom.grants.0.when.not.not.not", "A rule nests at most 3 deep")
+    );
+}
+
+#[test]
 fn a_solo_routine_has_one_agent() {
     assert_eq!(
         one_issue(|v| v["who"]["depth"] = json!("solo")),

@@ -21,20 +21,23 @@ pub enum Verdict {
     Missing(String),
 }
 
-/// Checks a Which slot: the rule's size, depth and tests, and that a
-/// question says something.
+/// Checks a Which slot: its rule, and that a question says something.
 pub fn validate(which: &Which, cx: &mut Issues) {
     if let Some(rule) = &which.rule {
-        cx.at("rule", |cx| {
-            if test_count(rule) > TESTS_MAX {
-                cx.push(format!("A rule holds at most {TESTS_MAX} tests"));
-            }
-            rule_issues(rule, 1, cx);
-        });
+        cx.at("rule", |cx| validate_rule(rule, cx));
     }
     if let Some(ask) = &which.ask {
         cx.at("ask", |cx| cx.str_min(ask.trim(), 1));
     }
+}
+
+/// Checks a rule wherever it sits (Which, a Freedom grant, a recipient's
+/// bound): its size, depth and tests.
+pub fn validate_rule(rule: &Rule, cx: &mut Issues) {
+    if test_count(rule) > TESTS_MAX {
+        cx.push(format!("A rule holds at most {TESTS_MAX} tests"));
+    }
+    rule_issues(rule, 1, cx);
 }
 
 fn rule_issues(rule: &Rule, depth: usize, cx: &mut Issues) {
