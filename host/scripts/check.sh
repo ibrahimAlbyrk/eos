@@ -13,6 +13,8 @@ cargo clippy -p eos -p eos-shell --all-targets --features eos/dev-run --quiet --
 cargo build -p eos-cef-helper --quiet
 # The update applier: its swap and rollback, on throwaway bundle folders.
 cargo test -p eos-apply --quiet
+# The shell's tests that need no window, the work hold's per-reason system activities among them.
+cargo test -p eos-shell --quiet
 # The bridge's dev guard: the main workspace checks the bridge without that feature.
 cargo clippy --manifest-path ../Cargo.toml -p eos-bridge --all-targets --features dev-run --quiet -- -D warnings
 cargo test --manifest-path ../Cargo.toml -p eos-bridge --features dev-run --quiet
