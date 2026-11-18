@@ -22,4 +22,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("071_signals"),
     // Needs you: items, deliveries, edits, outcomes, freedom offers and the stop switch.
     embed!("072_inbox"),
+    // Capabilities: what is installed and how it stands, every version of each package, and calls.
+    embed!("073_capabilities"),
 ];

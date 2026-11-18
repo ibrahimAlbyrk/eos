@@ -5,16 +5,19 @@ use std::sync::{Arc, Mutex};
 use serde::Serialize;
 
 use super::{
-    ContextMarkRepo, ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo,
-    InboxRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
-    RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo,
-    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo,
-    WorktreeRemovalQueue,
+    CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
+    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
+    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo,
+    RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
+    SignalSourceRepo, TransferRepo, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use crate::{BoxFuture, Error};
 
 /// The repositories over one transaction (a write) or one snapshot (a read).
 pub trait Tx {
+    fn capability_calls(&self) -> &dyn CapabilityCallRepo;
+    fn capability_installs(&self) -> &dyn CapabilityInstallRepo;
+    fn capability_versions(&self) -> &dyn CapabilityVersionRepo;
     fn context_marks(&self) -> &dyn ContextMarkRepo;
     fn conversation_lists(&self) -> &dyn ConversationListRepo;
     fn dreams(&self) -> &dyn DreamRepo;

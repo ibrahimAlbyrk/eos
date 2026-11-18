@@ -5,11 +5,11 @@ use std::sync::Mutex;
 
 use eos_core::Error;
 use eos_core::store::{
-    ContextMarkRepo, ConversationListRepo, DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo,
-    InboxRepo, MessageIdRepo, MessageQueueRepo, OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo,
-    RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo,
-    SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo,
-    WorktreeRemovalQueue,
+    CapabilityCallRepo, CapabilityInstallRepo, CapabilityVersionRepo, ContextMarkRepo, ConversationListRepo,
+    DeliveryRepo, DreamRepo, EditRepo, EventRepo, GenuiViewRepo, HaltRepo, InboxRepo, MessageIdRepo, MessageQueueRepo,
+    OfferRepo, OutcomeRepo, PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo,
+    RoutineVersionRepo, RunRepo, RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo,
+    SignalSourceRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -31,6 +31,18 @@ pub(crate) struct SqliteTx<'c> {
 /// Every repository is this one struct: a job reads and writes through any of
 /// them inside the same transaction.
 impl Tx for SqliteTx<'_> {
+    fn capability_calls(&self) -> &dyn CapabilityCallRepo {
+        self
+    }
+
+    fn capability_installs(&self) -> &dyn CapabilityInstallRepo {
+        self
+    }
+
+    fn capability_versions(&self) -> &dyn CapabilityVersionRepo {
+        self
+    }
+
     fn context_marks(&self) -> &dyn ContextMarkRepo {
         self
     }
