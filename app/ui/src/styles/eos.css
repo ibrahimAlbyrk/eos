@@ -7,7 +7,8 @@
    (#a8a8a8) or brighter. --fg-faint is never text here. A rule that sets its
    own ground is held to its pair; eos.css.test.js reads both from this file.
    Everything is scoped to Eos (.eos-mode is Eos's layout), so the rest of the
-   app is untouched. */
+   app is untouched. The user's display settings hold for the whole window
+   while Eos shows: the palette and popups drawn over it follow them too. */
 
 /* ── Screen frame ─────────────────────────────────────────────────────────── */
 .eos-screen {
@@ -139,7 +140,7 @@
 /* ── The user's display settings ──────────────────────────────────────────── */
 /* Glass turns solid: no backdrop blur, the popover ground instead of a tint. */
 @media (prefers-reduced-transparency: reduce) {
-  .eos-mode {
+  :root:has(.eos-mode) {
     --lg-pop-fx: none;
     --lg-pop-tint: var(--pop);
     --lg-chip-fx: none;
@@ -148,7 +149,7 @@
 
 /* Dim text reads brighter and rules stand out. */
 @media (prefers-contrast: more) {
-  .eos-mode {
+  :root:has(.eos-mode) {
     --fg-dim: var(--fg-mid);
     --line: #333;
   }
