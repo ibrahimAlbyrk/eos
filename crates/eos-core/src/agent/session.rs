@@ -56,6 +56,9 @@ pub struct LaunchSpec {
     /// Notes for the model, taken with the first request as
     /// [`AgentSession::note`] takes one.
     pub notes: Vec<String>,
+    /// Connect the MCP servers Claude Code's settings configure for its
+    /// folder (user, project and local ones); `false` connects none of them.
+    pub folder_mcp: bool,
 }
 
 impl LaunchSpec {
@@ -78,6 +81,7 @@ impl LaunchSpec {
             compact_at: None,
             context_window: None,
             notes: Vec::new(),
+            folder_mcp: true,
         }
     }
 

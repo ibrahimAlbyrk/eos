@@ -1464,3 +1464,43 @@ async fn a_subagent_does_not_take_the_note_of_its_parent() {
     let parent = seen.iter().rfind(|(parent, _)| *parent).map(|(_, text)| text).expect("the parent's last request");
     assert!(parent.contains("child done") && parent.contains("PARENT NOTE"), "{parent}");
 }
+
+/// A folder that configures and approves an MCP server of its own: a session
+/// started without the folder's servers neither starts it nor lists its
+/// tools; one started as by default starts it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_session_without_folder_mcp_connects_none_of_the_folders_servers() {
+    let dir = tempfile::tempdir().expect("a folder");
+    let project = dir.path().join("project");
+    std::fs::create_dir_all(project.join(".claude")).expect("folders");
+    let started = dir.path().join("server-started");
+    let server = serde_json::json!({"command": "/bin/sh", "args": ["-c", format!("touch '{}'", started.display())]});
+    let servers = serde_json::json!({"mcpServers": {"folder-server": server}});
+    std::fs::write(project.join(".mcp.json"), servers.to_string()).expect("the servers");
+    std::fs::write(project.join(".claude/settings.json"), r#"{"enableAllProjectMcpServers": true}"#).expect("settings");
+    let bench = Bench::in_dir(dir, [Reply::text("one"), Reply::text("two")]).await;
+    let options = EngineOptions { mcp: true, ..bench.setup.0.clone() };
+    let engine = Engine::build(options, bench.setup.1.clone()).await.expect("the engine");
+
+    let spec = LaunchSpec { prompt: Some("one".into()), folder_mcp: false, ..bench.spec("w-off") };
+    engine.start(spec, bench.sink.clone()).await.expect("the session starts");
+    bench.after_turns("w-off", 1).await;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    assert!(!started.exists(), "the folder's server was not started");
+    let first = bench.mock.requests()[0].json();
+    let tools: Vec<&str> =
+        first["tools"].as_array().expect("tools").iter().filter_map(|t| t["name"].as_str()).collect();
+    assert!(!tools.iter().any(|t| t.starts_with("mcp__")), "{tools:?}");
+    assert!(!first.to_string().contains("folder-server"), "the server is never named");
+
+    let spec = LaunchSpec { prompt: Some("two".into()), ..bench.spec("w-on") };
+    engine.start(spec, bench.sink.clone()).await.expect("the session starts");
+    bench.after_turns("w-on", 1).await;
+    tokio::time::timeout(Duration::from_secs(10), async {
+        while !started.exists() {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .expect("by default the folder's server is started");
+}
