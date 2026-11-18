@@ -12,6 +12,7 @@ use eos_contracts::{
     DreamSignalStance, DreamVerdict, DreamVerdictQuotesItemSays, UserMemory, UserMemoryScope, UserMemoryStatus,
 };
 use eos_domain::text::{js_trim, js_trim_end};
+use eos_domain::time::{OffsetAt, instant_of, wall_clock};
 use eos_domain::user_memory::lint_memory_text;
 use regress::Regex;
 
@@ -22,33 +23,6 @@ const AGENT_LINE_CHARS: usize = 600;
 const DAY_MS: i64 = 24 * 60 * 60_000;
 
 // ---- schedule ---------------------------------------------------------------
-
-/// How far the user's clock is east of UTC at an instant, in minutes: the
-/// zone's rules, summer time included.
-pub type OffsetAt<'a> = &'a dyn Fn(i64) -> i32;
-
-/// The user's wall-clock time at `at`, as milliseconds since 1970 on that clock.
-pub fn wall_clock(at: i64, offset_at: OffsetAt<'_>) -> i64 {
-    at + i64::from(offset_at(at)) * 60_000
-}
-
-/// The instant a wall-clock time names, as JavaScript's `Date` reads one: of
-/// a time the clocks pass twice (when they go back) the first, and a time
-/// they skip (when they go forward) as many minutes after the change as it
-/// was after the skipped hour began.
-pub fn instant_of(wall: i64, offset_at: OffsetAt<'_>) -> i64 {
-    // The offsets in force around it: a zone changes at most once a day.
-    let (before, after) = (offset_at(wall - DAY_MS), offset_at(wall + DAY_MS));
-    let fits = |offset: i32| {
-        let at = wall - i64::from(offset) * 60_000;
-        (offset_at(at) == offset).then_some(at)
-    };
-    match (fits(before), fits(after)) {
-        (Some(a), Some(b)) => a.min(b),
-        (Some(at), None) | (None, Some(at)) => at,
-        (None, None) => wall - i64::from(before) * 60_000,
-    }
-}
 
 /// The most recent `HH:MM` on the user's clock at or before `now`.
 pub fn nightly_slot(now: i64, nightly_at: &str, offset_at: OffsetAt<'_>) -> i64 {
