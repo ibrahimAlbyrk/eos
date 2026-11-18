@@ -119,6 +119,12 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("bt-", Alphabet::Hex, 12)
     }
 
+    /// `src-` + 12: a source of routines' signals (signals themselves are
+    /// numbered by the database).
+    fn signal_source_id(&self) -> String {
+        self.prefixed("src-", Alphabet::Hex, 12)
+    }
+
     /// 16 hex characters: one sign-in attempt.
     fn sign_in_id(&self) -> String {
         self.token(Alphabet::Hex, 16)
@@ -217,6 +223,7 @@ mod tests {
             (ids.plan_login_id(), "lg-"),
             (ids.plugin_staging_id(), "st-"),
             (ids.browser_tab_id(), "bt-"),
+            (ids.signal_source_id(), "src-"),
         ] {
             assert!(shaped(&id, prefix, Alphabet::Hex, 12), "{id}");
         }

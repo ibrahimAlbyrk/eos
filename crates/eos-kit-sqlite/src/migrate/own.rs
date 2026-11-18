@@ -18,4 +18,6 @@ pub(super) const OWN: &[Migration] = &[
     embed!("069_routines"),
     // Runs of routines, their timelines and their results.
     embed!("070_runs"),
+    // Signals: their sources, what became of each for each routine, schedules and runners.
+    embed!("071_signals"),
 ];

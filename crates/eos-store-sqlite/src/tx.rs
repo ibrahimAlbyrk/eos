@@ -7,7 +7,8 @@ use eos_core::Error;
 use eos_core::store::{
     ContextMarkRepo, ConversationListRepo, DreamRepo, EventRepo, GenuiViewRepo, MessageIdRepo, MessageQueueRepo,
     PendingRepo, ReactionRepo, RoutineRepo, RoutineSessionRepo, RoutineSpendRepo, RoutineVersionRepo, RunRepo,
-    RunResultRepo, TransferRepo, Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
+    RunResultRepo, SignalRepo, SignalRouteRepo, SignalRunnerRepo, SignalScheduleRepo, SignalSourceRepo, TransferRepo,
+    Tx, WorkerDefinitionRepo, WorkerRepo, WorktreeRemovalQueue,
 };
 use eos_kit_sqlite::rusqlite::{self, Connection};
 use serde::Serialize;
@@ -86,6 +87,26 @@ impl Tx for SqliteTx<'_> {
     }
 
     fn runs(&self) -> &dyn RunRepo {
+        self
+    }
+
+    fn signal_routes(&self) -> &dyn SignalRouteRepo {
+        self
+    }
+
+    fn signal_runners(&self) -> &dyn SignalRunnerRepo {
+        self
+    }
+
+    fn signal_schedules(&self) -> &dyn SignalScheduleRepo {
+        self
+    }
+
+    fn signal_sources(&self) -> &dyn SignalSourceRepo {
+        self
+    }
+
+    fn signals(&self) -> &dyn SignalRepo {
         self
     }
 
