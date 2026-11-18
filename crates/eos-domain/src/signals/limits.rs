@@ -40,7 +40,7 @@ mod tests {
         assert_eq!(admit_check(load(29, 24), &limits), Admit::Run);
         assert_eq!(admit_check(load(30, 0), &limits), Admit::OverLimit);
         assert_eq!(admit_check(load(0, 25), &limits), Admit::OverLimit);
-        let tight = Limits { per_hour: 1, queued: 1 };
+        let tight = Limits { per_hour: 1, queued: 1, ..Limits::default() };
         assert_eq!(admit_check(load(1, 0), &tight), Admit::OverLimit);
     }
 }

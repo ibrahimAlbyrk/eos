@@ -1,9 +1,13 @@
 //! The Freedom and Goes-to slots of a routine's blueprint: how far a run's
 //! results go without the user, and to whom. Shapes only; the rules over them
 //! (the rung a result gets, the caps that hold it) are `eos_domain::freedom`.
+//! Every object keeps the keys this version does not know, after the ones it
+//! knows, because a blueprint stores these slots and a newer Eos may add a
+//! field to them that this one must not drop.
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use crate::signals::Rule;
 use crate::validate::Validate;
@@ -48,6 +52,9 @@ pub struct Freedom {
     pub rung: Rung,
     #[serde(default)]
     pub grants: Vec<Grant>,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for Freedom {}
@@ -63,13 +70,17 @@ pub struct Grant {
     /// confirmed by typing.
     #[serde(default)]
     pub covers_irreversible: bool,
+    /// Keys this version does not know; kept so a round trip loses nothing.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
 }
 
 impl Validate for Grant {}
 
 /// One entry of the Goes-to slot: `{"id", "kind", "channel", "address"?, "bound"?}`.
 /// The id is stable and unique in its blueprint: deliveries and mail parts
-/// name the recipient by it.
+/// name the recipient by it. Its kind keeps the keys this version does not
+/// know: a map beside the flattened kind would hold the kind's keys twice.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct Recipient {
     pub id: String,
@@ -83,15 +94,26 @@ impl Validate for Recipient {}
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RecipientKind {
     /// The user, on one of their own channels.
-    Me { channel: String },
+    Me {
+        channel: String,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
+    },
     /// One address the user wrote into the routine.
-    Fixed { channel: String, address: String },
+    Fixed {
+        channel: String,
+        address: String,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
+    },
     /// The place the item names (its pull request, the sender of its mail),
     /// held to the items whose facts pass `bound`.
     ItemPlace {
         channel: String,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bound: Option<Rule>,
+        #[serde(flatten)]
+        extra: Map<String, Value>,
     },
 }
 
@@ -139,7 +161,8 @@ mod tests {
         assert_eq!(serde_json::to_value(&read).unwrap(), freedom);
 
         let bare: Freedom = crate::read(&json!({"rung": "ask", "later": 1})).unwrap();
-        assert_eq!(bare, Freedom { rung: Rung::Ask, grants: Vec::new() });
+        let later = json!({"later": 1}).as_object().unwrap().clone();
+        assert_eq!(bare, Freedom { rung: Rung::Ask, grants: Vec::new(), extra: later });
         let grant: Grant =
             crate::read(&json!({"id": "g", "when": {"fact": "draft", "is": false}, "rung": "draft"})).unwrap();
         assert!(!grant.covers_irreversible);
@@ -160,9 +183,31 @@ mod tests {
         }
         let place: Recipient =
             crate::read(&json!({"id": "pr", "kind": "item_place", "channel": "github", "x": 1})).unwrap();
-        assert_eq!(place.kind, RecipientKind::ItemPlace { channel: "github".into(), bound: None });
+        let x = json!({"x": 1}).as_object().unwrap().clone();
+        assert_eq!(place.kind, RecipientKind::ItemPlace { channel: "github".into(), bound: None, extra: x });
         assert!(crate::read::<Recipient>(&json!({"id": "x", "kind": "fixed", "channel": "mail"})).is_err());
         assert!(crate::read::<Recipient>(&json!({"id": "x", "kind": "anyone", "channel": "mail"})).is_err());
         assert!(crate::read::<Recipient>(&json!({"kind": "me", "channel": "notify"})).is_err(), "an id is required");
+    }
+
+    #[test]
+    fn every_object_keeps_the_keys_it_does_not_know_after_the_ones_it_knows() {
+        let freedom = concat!(
+            r#"{"rung":"draft","grants":[{"id":"docs","when":{"fact":"paths","glob":"docs/**","t":1},"#,
+            r#""rung":"on_its_own","coversIrreversible":false,"g":1}],"later":{"x":[1]}}"#,
+        );
+        let read: Freedom = crate::read(&serde_json::from_str(freedom).unwrap()).unwrap();
+        assert_eq!(serde_json::to_string(&read).unwrap(), freedom);
+        for recipient in [
+            r#"{"id":"me","kind":"me","channel":"notify","m":1}"#,
+            r#"{"id":"lead","kind":"fixed","channel":"mail","address":"lead@example.com","f":null}"#,
+            r#"{"id":"pr","kind":"item_place","channel":"github","bound":{"fact":"repo","in":["acme/game"],"b":1},"p":[2]}"#,
+        ] {
+            let read: Recipient = crate::read(&serde_json::from_str(recipient).unwrap()).unwrap();
+            assert_eq!(serde_json::to_string(&read).unwrap(), recipient);
+        }
+        let shuffled = r#"{"p":1,"channel":"notify","kind":"me","id":"me"}"#;
+        let read: Recipient = crate::read(&serde_json::from_str(shuffled).unwrap()).unwrap();
+        assert_eq!(serde_json::to_string(&read).unwrap(), r#"{"id":"me","kind":"me","channel":"notify","p":1}"#);
     }
 }

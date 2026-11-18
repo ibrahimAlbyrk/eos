@@ -96,7 +96,7 @@ fn any_passes_on_one_part_and_fails_on_its_first_failure() {
     // No part passes and one lacks its fact: undecided.
     assert_eq!(check(json!({"repo": "acme/game", "labels": []})), Verdict::Missing("size".into()));
     // `not` turns a pass into a failure of its first test, and keeps a missing fact missing.
-    let negated = Rule::Not { not: Box::new(rule) };
+    let negated = Rule::Not { not: Box::new(rule), extra: Default::default() };
     assert_eq!(evaluate(&negated, &facts(json!({"repo": "acme/web"}))), Verdict::Pass);
     assert_eq!(evaluate(&negated, &facts(json!({"repo": "acme/game", "size": 900}))), Verdict::Fail(0));
     assert_eq!(evaluate(&negated, &facts(json!({"repo": "acme/game"}))), Verdict::Missing("labels".into()));

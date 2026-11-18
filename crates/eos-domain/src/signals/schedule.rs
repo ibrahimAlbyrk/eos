@@ -40,11 +40,11 @@ pub fn validate(schedule: &Schedule, known: &dyn Fn(&str) -> bool, cx: &mut Issu
         }
     };
     match &schedule.repeat {
-        Repeat::Daily { at, days } => {
+        Repeat::Daily { at, days, .. } => {
             cx.at("daily", |cx| time(cx, at));
             days_issues(cx, days);
         }
-        Repeat::Every { minutes, between, days } => {
+        Repeat::Every { minutes, between, days, .. } => {
             cx.at("every", |cx| {
                 cx.int_min(*minutes, 10, true);
                 cx.int_max(*minutes, 24 * 60, true);
@@ -60,7 +60,7 @@ pub fn validate(schedule: &Schedule, known: &dyn Fn(&str) -> bool, cx: &mut Issu
             }
             days_issues(cx, days);
         }
-        Repeat::Monthly { day, at } => {
+        Repeat::Monthly { day, at, .. } => {
             if let MonthDay::Day(n) = day {
                 cx.at("monthly", |cx| {
                     cx.int_min(*n, 1, true);
@@ -106,8 +106,8 @@ fn is_month_day(on: MonthDay, day: i64) -> bool {
 /// minutes after midnight.
 fn walls(repeat: &Repeat, day: i64) -> Vec<i64> {
     match repeat {
-        Repeat::Daily { at, days } if runs_on(days, day) => wall_minutes(at).into_iter().collect(),
-        Repeat::Every { minutes, between, days } if *minutes > 0 && runs_on(days, day) => {
+        Repeat::Daily { at, days, .. } if runs_on(days, day) => wall_minutes(at).into_iter().collect(),
+        Repeat::Every { minutes, between, days, .. } if *minutes > 0 && runs_on(days, day) => {
             let window = match between {
                 Some((start, end)) => wall_minutes(start).zip(wall_minutes(end)),
                 None => Some((0, 24 * 60 - 1)),
@@ -115,7 +115,7 @@ fn walls(repeat: &Repeat, day: i64) -> Vec<i64> {
             let Some((start, end)) = window else { return Vec::new() };
             std::iter::successors(Some(start), |at| Some(at + minutes)).take_while(|at| *at <= end).collect()
         }
-        Repeat::Monthly { day: on, at } if is_month_day(*on, day) => wall_minutes(at).into_iter().collect(),
+        Repeat::Monthly { day: on, at, .. } if is_month_day(*on, day) => wall_minutes(at).into_iter().collect(),
         _ => Vec::new(),
     }
 }

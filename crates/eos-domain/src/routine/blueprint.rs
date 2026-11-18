@@ -192,7 +192,7 @@ fn chain(blueprint: &Blueprint, context: &Context<'_>, cx: &mut Issues) {
 
 fn after_routine(trigger: &Trigger) -> Option<&str> {
     match trigger {
-        Trigger::After { after } => Some(&after.routine),
+        Trigger::After { after, .. } => Some(&after.routine),
         _ => None,
     }
 }
