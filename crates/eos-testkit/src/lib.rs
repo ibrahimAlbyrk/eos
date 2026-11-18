@@ -40,6 +40,10 @@
 //! report and the Dock badge, set and read by the test; [`FakeZoneRules`] knows the zones the test
 //! gives it, each with at most one daylight-saving change.
 //!
+//! The ports routines and Needs you offer the other areas, each recording what it was given:
+//! [`FakeRunLookup`] and [`FakeRoutineControl`]; [`FakeChannels`] (sends answered as scripted),
+//! [`FakeAskRouting`], [`FakeActionGate`] and [`FakeResultEdits`].
+//!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
 //!
@@ -52,18 +56,21 @@ pub mod agent;
 mod browser;
 mod clock;
 mod db;
+mod delivery;
 mod fakes;
 mod files;
 pub mod fixtures;
 mod genui;
 mod home;
 mod ids;
+mod inbox;
 mod os;
 mod peer;
 pub mod plugins;
 mod policy;
 mod profile;
 pub mod relay;
+mod routine;
 mod terminal;
 mod tools;
 pub mod update;
@@ -84,6 +91,7 @@ pub use agent::{
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
+pub use delivery::FakeChannels;
 pub use fakes::{
     EchoTool, FakeCredentials, FakeDesktop, FakeModelCatalog, FakePolicy, FakePrompts, FakeRecents, FakeScratch,
     FakeSettings, FakeToolSets, FakeTries, FakeUser, FakeWorktrees, ScriptedOneShot,
@@ -92,10 +100,12 @@ pub use files::{FakeMemoryProvider, FakePageStore, FakeUserAvatarStore, FakeUser
 pub use genui::{FakeGeocoder, FakeLocation, FakeMap, FakeMedia, FakePlaceSearch};
 pub use home::TempHome;
 pub use ids::SeqIds;
+pub use inbox::{FakeActionGate, FakeAskRouting, FakeResultEdits};
 pub use os::{FakeDockBadge, FakePower, FakeWorkHold, FakeZoneRules};
 pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
+pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };
