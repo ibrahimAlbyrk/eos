@@ -150,6 +150,19 @@ fn an_after_trigger_may_not_close_a_loop() {
     let mut free = pr_review();
     free["when"]["on"] = json!([after("rt-c")]);
     assert_eq!(issues(&free), Vec::new(), "rt-c runs after nothing");
+
+    // Two other routines already loop (a sync can bring that): the loop
+    // through this one is still found.
+    let mut value = pr_review();
+    value["when"]["on"] = json!([after("rt-x"), after("rt-b")]);
+    let chains = [
+        ("rt-x".to_owned(), vec!["rt-y".to_owned()]),
+        ("rt-y".to_owned(), vec!["rt-x".to_owned()]),
+        ("rt-b".to_owned(), vec!["rt-a".to_owned()]),
+    ];
+    let context = Context { routine: "rt-a", chains: &chains, known_zone: &|_| true };
+    let found: Vec<_> = validate(&blueprint(&value), &context).into_iter().map(|issue| issue.path.join(".")).collect();
+    assert_eq!(found, ["when.on.1.after.routine"]);
 }
 
 #[test]

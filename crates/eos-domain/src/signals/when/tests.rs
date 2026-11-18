@@ -111,5 +111,8 @@ fn a_loop_of_routines_running_after_one_another_is_found() {
     let looped = chains(&[("rt-x", &["rt-a"]), ("rt-a", &["rt-b"]), ("rt-b", &["rt-c"]), ("rt-c", &["rt-a"])]);
     assert_eq!(check_chains(&looped), Err(vec!["rt-a".to_owned(), "rt-b".to_owned(), "rt-c".to_owned()]));
     assert_eq!(check_chains(&chains(&[("rt-a", &["rt-a"])])), Err(vec!["rt-a".to_owned()]));
+    // The first routine's loop, though the walk meets another loop first.
+    let both = chains(&[("rt-a", &["rt-x", "rt-b"]), ("rt-x", &["rt-y"]), ("rt-y", &["rt-x"]), ("rt-b", &["rt-a"])]);
+    assert_eq!(check_chains(&both), Err(vec!["rt-a".to_owned(), "rt-b".to_owned()]));
     assert_eq!(check_chains(&[]), Ok(()));
 }
