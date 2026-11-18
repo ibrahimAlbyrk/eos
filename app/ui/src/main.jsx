@@ -48,6 +48,9 @@ withoutIterationListener(document.body);
 // the one plugin it is asked about (plugins/preview.jsx) — not the app.
 if (location.hash === "#plugin-preview") {
   void import("./plugins/preview.jsx").then((m) => m.startPluginPreview());
+} else if (location.hash === "#eos-gallery") {
+  // Eos's screens drawn from sample JSON, to check by eye; it never calls the core.
+  void import("./views/eos/gallery/EosGallery.jsx").then((m) => m.startEosGallery(rootEl));
 } else {
   whenDaemonUp().then(async () => {
     holdUntilFirstPaint();

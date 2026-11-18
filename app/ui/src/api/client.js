@@ -1446,4 +1446,15 @@ export const api = {
   async setStreamFocus({ workers, ptys }) {
     return postJson(ROUTES.streamFocus, { clientId: CLIENT_ID, workers, ptys });
   },
+
+  // Eos mode's reads and writes (state/eos/transport.js). Every Eos route is the
+  // user's dashboard's only, so each carries the ui token; the answer comes back
+  // as the envelope, a refusal included.
+  async eosGet(path) {
+    return getJson(path, { headers: uiTokenHeader() });
+  },
+  async eosSend(method, path, body) {
+    const headers = body === undefined ? uiTokenHeader() : { ...JSON_HEADERS, ...uiTokenHeader() };
+    return fetchJson(`${DAEMON}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  },
 };
