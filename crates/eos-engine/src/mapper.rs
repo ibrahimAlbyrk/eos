@@ -46,6 +46,7 @@ use eos_core::agent::{CompactionNotice, SessionSink};
 use crate::compaction::LastSummary;
 use blocks::OpenBlocks;
 use compaction::Compactions;
+pub(crate) use convert::request_usage;
 use convert::{TurnUsage, object_of, result_text, turn};
 use tasks::Tasks;
 use tracked::{CallKind, Calls};

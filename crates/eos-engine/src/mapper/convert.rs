@@ -140,3 +140,18 @@ impl TurnUsage {
         })
     }
 }
+
+/// What one request used, in a session's counts; unpriced (`cost_usd` 0).
+pub(crate) fn request_usage(usage: &Usage) -> eos_domain::worker::Usage {
+    let mut sum = TurnUsage::default();
+    sum.add(usage);
+    let count = |n: u64| i64::try_from(n).unwrap_or(i64::MAX);
+    eos_domain::worker::Usage {
+        tokens_in: count(sum.input),
+        tokens_out: count(sum.output),
+        tokens_cache_read: count(sum.cache_read),
+        tokens_cache_create: count(sum.write_5m),
+        tokens_cache_create_1h: count(sum.write_1h),
+        cost_usd: 0.0,
+    }
+}

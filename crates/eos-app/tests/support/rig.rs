@@ -85,8 +85,10 @@ pub struct Summarizer;
 impl OneShot for Summarizer {
     fn complete(&self, request: OneShotRequest) -> BoxFuture<'_, Result<OneShotAnswer, OneShotError>> {
         let answer = match request.schema {
-            Some(_) => OneShotAnswer { text: String::new(), structured: Some(json!({"name": "Soak chat"})) },
-            None => OneShotAnswer { text: "Summary: the work so far, in a few lines.".into(), structured: None },
+            Some(_) => OneShotAnswer { structured: Some(json!({"name": "Soak chat"})), ..OneShotAnswer::default() },
+            None => {
+                OneShotAnswer { text: "Summary: the work so far, in a few lines.".into(), ..OneShotAnswer::default() }
+            }
         };
         Box::pin(std::future::ready(Ok(answer)))
     }

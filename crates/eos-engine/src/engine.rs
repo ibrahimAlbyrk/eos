@@ -30,6 +30,7 @@ use crate::commands::{folder_commands, with_session_commands};
 use crate::compaction::{LastSummary, Words};
 use crate::endpoints::{self, Endpoints};
 use crate::gate::EosGate;
+use crate::mapper::request_usage;
 use crate::prompter::Prompter;
 use crate::registry::Registry;
 use crate::session::{self, Launch, Shared};
@@ -502,7 +503,12 @@ impl OneShot for Engine {
                 }
                 None => None,
             };
-            Ok(OneShotAnswer { text: answered.text, structured: data })
+            Ok(OneShotAnswer {
+                text: answered.text,
+                structured: data,
+                usage: Some(request_usage(&answered.usage)),
+                model: Some(answered.model),
+            })
         })
     }
 }

@@ -411,12 +411,18 @@ pub struct ScriptedOneShot {
 impl ScriptedOneShot {
     /// The next request answers with this text.
     pub fn text(&self, text: &str) -> &Self {
-        self.push(Ok(OneShotAnswer { text: text.to_owned(), structured: None }))
+        self.answer(OneShotAnswer { text: text.to_owned(), ..OneShotAnswer::default() })
     }
 
     /// The next request answers with this data.
     pub fn data(&self, data: serde_json::Value) -> &Self {
-        self.push(Ok(OneShotAnswer { text: String::new(), structured: Some(data) }))
+        self.answer(OneShotAnswer { structured: Some(data), ..OneShotAnswer::default() })
+    }
+
+    /// The next request answers with exactly this: with the usage and the
+    /// model it reports, say.
+    pub fn answer(&self, answer: OneShotAnswer) -> &Self {
+        self.push(Ok(answer))
     }
 
     /// The next request fails.

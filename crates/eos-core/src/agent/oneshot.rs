@@ -3,6 +3,7 @@
 
 use std::time::Duration;
 
+use eos_domain::worker::Usage;
 use serde_json::Value;
 
 use crate::BoxFuture;
@@ -59,6 +60,11 @@ pub struct OneShotAnswer {
     pub text: String,
     /// With a schema: the data the model answered with.
     pub structured: Option<Value>,
+    /// The tokens the request used, unpriced (`cost_usd` 0: the caller
+    /// prices them); `None` when nothing was reported.
+    pub usage: Option<Usage>,
+    /// The model that answered.
+    pub model: Option<String>,
 }
 
 /// Why no answer came back.

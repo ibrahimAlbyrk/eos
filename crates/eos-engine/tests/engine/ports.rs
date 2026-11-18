@@ -1,12 +1,13 @@
 //! What a caller adds to a session besides its turns: notes for the model,
 //! left at launch or while it runs, and a start without the folder's MCP
-//! servers.
+//! servers. And what a one-shot request reports back besides its answer.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use eos_agent_mock_api::{MockApi, Reply};
-use eos_core::agent::{AgentRuntime, LaunchSpec};
+use eos_agent_mock_api::{MockApi, Reply, Step};
+use eos_agent_types::{CacheCreation, MessageStart, StreamEvent, Usage};
+use eos_core::agent::{AgentRuntime, LaunchSpec, OneShot, OneShotRequest};
 use eos_engine::{Engine, EngineDeps, EngineOptions};
 use eos_testkit::{EchoTool, FakeToolSets};
 use serde_json::Value;
@@ -206,4 +207,42 @@ async fn a_session_without_folder_mcp_connects_none_of_the_folders_servers() {
     })
     .await
     .expect("by default the folder's server is started");
+}
+
+/// A one-shot answer says what its request used, by the API's own count
+/// (cache writes split by lifetime), and which model answered; Eos prices it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_one_shot_answer_carries_the_usage_and_model_the_api_reported() {
+    let reported = Usage {
+        input_tokens: Some(12),
+        cache_read_input_tokens: Some(30),
+        cache_creation_input_tokens: Some(9),
+        cache_creation: Some(CacheCreation { ephemeral_5m_input_tokens: 4, ephemeral_1h_input_tokens: 5 }),
+        ..Usage::default()
+    };
+    let Reply::Stream(steps) = Reply::text("a summary") else { panic!("a text reply is a stream") };
+    let steps = steps
+        .into_iter()
+        .map(|step| match step {
+            Step::Event(StreamEvent::MessageStart(start)) => {
+                Step::Event(StreamEvent::MessageStart(MessageStart { usage: reported.clone(), ..start }))
+            }
+            other => other,
+        })
+        .collect();
+    let bench = Bench::new([Reply::Stream(steps)]).await;
+    let asked = OneShotRequest::new("condense this").model(Some("mock-model"));
+    let answer = bench.engine.complete(asked).await.expect("answers");
+
+    assert_eq!(answer.text, "a summary");
+    let usage = eos_domain::worker::Usage {
+        tokens_in: 12,
+        tokens_out: 5,
+        tokens_cache_read: 30,
+        tokens_cache_create: 4,
+        tokens_cache_create_1h: 5,
+        cost_usd: 0.0,
+    };
+    assert_eq!(answer.usage, Some(usage));
+    assert_eq!(answer.model.as_deref(), Some("mock-model"));
 }
