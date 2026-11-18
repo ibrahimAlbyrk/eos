@@ -42,6 +42,7 @@ pub mod text;
 pub mod time;
 pub mod transcript;
 pub mod transfer;
+pub mod untrusted;
 pub mod update;
 pub mod user_memory;
 pub mod user_profile;
