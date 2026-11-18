@@ -19,6 +19,7 @@ parsers and catalog are `eos-genui`'s. Names are the Zod schemas' without the `S
 | `accounts`, `usage`, `artifacts`, `plugin`, `plugin_install`, `background_job`, `workflow_run`, `side_question`, `profile`, `dream`, `sync`, `transfer`, `update`, `peer`, `remote`, `browser`, `genui` | one feature's wire types each |
 | `signals` | a routine's When and Which, shapes only: their `impl Validate` is empty, so `parse` checks no range, pattern or zone. A caller runs `eos_domain::signals::{when,which}::validate` on every value it takes in |
 | `freedom` | a routine's Freedom and Goes-to slots, shapes only: action classes, rungs, grants and recipients. A grant's `when` and an `item_place` recipient's `bound` are `signals`' `Rule`; the rules over these shapes are `eos_domain::freedom` |
+| `routine` | a routine's blueprint (format 1) and its parts, what one run is given (`RunInput`, `ItemRef`), the rows of the routine routes and the `routine:change` payload. The blueprint is shapes only (its `impl Validate` is empty) and keeps the keys it does not know, at every level of its own parts |
 | `backend`, `provider_capabilities`, `memory`, `prompt`, `policy`, `worker_definition`, `anthropic`, `shared` | shapes of files and config (`policy.yaml`, prompt frontmatter, worker definitions, backend profiles) |
 | `artifact_ids`, `attachments`, `builtin_plugins`, `builtin_tools`, `tool_scope`, `util` | ids and small pure helpers |
 | `schema` | `json_schema_bundle()` |
