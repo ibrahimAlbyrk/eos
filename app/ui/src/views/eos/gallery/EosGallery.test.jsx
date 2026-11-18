@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
@@ -32,5 +33,20 @@ describe("#eos-gallery", () => {
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
     expect((await transport.send("POST", ROUTES.routines, {})).status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // index.html's inline boot-snapshot script runs before main.jsx picks the page.
+  it("asks for no boot snapshot before the bundle loads", () => {
+    const html = readFileSync(new URL("../../../../index.html", import.meta.url), "utf8");
+    const boot = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]).find((s) => s.includes("/api/boot"));
+    const runOn = (hash) => {
+      const fetchMock = vi.fn(() => Promise.resolve({ ok: false }));
+      const page = { __EOS_DAEMON_URL: "http://core" };
+      new Function("window", "location", "localStorage", "fetch", boot)(page, { hash }, { getItem: () => null }, fetchMock);
+      return fetchMock;
+    };
+
+    expect(runOn("")).toHaveBeenCalledWith("http://core/api/boot", { headers: {} });
+    expect(runOn("#eos-gallery")).not.toHaveBeenCalled();
   });
 });
