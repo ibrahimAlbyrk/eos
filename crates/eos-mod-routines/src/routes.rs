@@ -1,0 +1,225 @@
+//! The read routes, each one snapshot of the store turned into wire rows.
+
+use std::sync::Arc;
+
+use eos_contracts::{
+    BLUEPRINT_FORMAT, Blueprint, Num, RoutineDetail, RoutineDraft, RoutineState, RoutineSummary, RoutineTakes,
+    RoutineVersion, RoutineVersionRow, RunInput, RunSummary,
+};
+use eos_core::store::{Store, StoredDraft, StoredRoutine, StoredRun, StoredVersion, Tx};
+use eos_core::{Clock, Error};
+use eos_domain::routine::blueprint::{self, Readable};
+use eos_runtime::access::{Access, Tier};
+use eos_runtime::http::{Request, Response};
+use eos_runtime::router::RouteDef;
+use serde_json::Value;
+
+const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+
+/// How long a deleted routine stays in Recently deleted.
+const DELETED_KEPT_MS: i64 = 30 * DAY_MS;
+
+/// The runs a routine's page lists.
+const RECENT_RUNS: i64 = 20;
+
+/// The origin of the routines a feature owns, which the user never lists.
+const BUILTIN: &str = "builtin";
+
+pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>) -> Vec<RouteDef> {
+    let (list_store, list_clock) = (store.clone(), clock.clone());
+    let list = RouteDef::get("/api/routines", move |_req: Request| {
+        let (store, now) = (list_store.clone(), list_clock.now_ms());
+        async move {
+            let rows = store.read(move |tx| rows(tx, now)).await?;
+            Ok(Response::json(200, &rows))
+        }
+    });
+    let (detail_store, detail_clock) = (store.clone(), clock.clone());
+    let detail = RouteDef::get("/api/routines/{id}", move |req: Request| {
+        let (store, now, id) = (detail_store.clone(), detail_clock.now_ms(), param(&req, "id"));
+        async move {
+            let detail = store.read(move |tx| routine_detail(tx, &id, now)).await?;
+            Ok(Response::json(200, &detail))
+        }
+    });
+    let (versions_store, versions_clock) = (store.clone(), clock.clone());
+    let versions = RouteDef::get("/api/routines/{id}/versions", move |req: Request| {
+        let (store, now, id) = (versions_store.clone(), versions_clock.now_ms(), param(&req, "id"));
+        async move {
+            let rows = store
+                .read(move |tx| {
+                    shown_routine(tx, &id, now)?;
+                    Ok(tx.routine_versions().list(&id)?.iter().enumerate().map(version_row).collect::<Vec<_>>())
+                })
+                .await?;
+            Ok(Response::json(200, &rows))
+        }
+    });
+    let (version_store, version_clock) = (store.clone(), clock.clone());
+    let version = RouteDef::get("/api/routines/{id}/versions/{versionId}", move |req: Request| {
+        let (store, now) = (version_store.clone(), version_clock.now_ms());
+        let (id, version_id) = (param(&req, "id"), param(&req, "versionId"));
+        async move {
+            let version = store
+                .read(move |tx| {
+                    shown_routine(tx, &id, now)?;
+                    let versions = tx.routine_versions().list(&id)?;
+                    let at = versions.iter().position(|version| version.id == version_id);
+                    let at = at.ok_or_else(|| Error::not_found("version", version_id))?;
+                    with_blueprint(at, &versions[at])
+                })
+                .await?;
+            Ok(Response::json(200, &version))
+        }
+    });
+    // Routine text: the user's dashboard only, and their phone may read the list and one routine.
+    let read = Access::ui_token().phone_user(Tier::Read);
+    vec![
+        list.access(read),
+        detail.access(read),
+        versions.access(Access::ui_token()),
+        version.access(Access::ui_token()),
+    ]
+}
+
+fn param(req: &Request, name: &str) -> String {
+    req.param(name).unwrap_or_default().to_owned()
+}
+
+/// Gone for good: deleted longer ago than Recently deleted keeps it.
+fn gone(routine: &StoredRoutine, now: i64) -> bool {
+    routine.state == RoutineState::Deleted && routine.deleted_at.is_some_and(|at| now >= at + DELETED_KEPT_MS)
+}
+
+fn shown_routine(tx: &dyn Tx, id: &str, now: i64) -> Result<StoredRoutine, Error> {
+    let routine = tx.routines().find(id)?.filter(|routine| !gone(routine, now));
+    routine.ok_or_else(|| Error::not_found("routine", id))
+}
+
+fn rows(tx: &dyn Tx, now: i64) -> Result<Vec<RoutineSummary>, Error> {
+    let mut rows = Vec::new();
+    for routine in tx.routines().list()? {
+        if routine.origin == BUILTIN || gone(&routine, now) {
+            continue;
+        }
+        if let Some(row) = summary(tx, &routine, now)? {
+            rows.push(row);
+        }
+    }
+    Ok(rows)
+}
+
+fn routine_detail(tx: &dyn Tx, id: &str, now: i64) -> Result<RoutineDetail, Error> {
+    let routine = shown_routine(tx, id, now)?;
+    let row = summary(tx, &routine, now)?.ok_or_else(|| Error::not_found("routine", id))?;
+    let versions = tx.routine_versions().list(id)?;
+    let head = versions.iter().position(|version| Some(&version.id) == routine.head_version_id.as_ref());
+    Ok(RoutineDetail {
+        routine: row,
+        head: head.map(|at| with_blueprint(at, &versions[at])).transpose()?,
+        draft: tx.routines().draft(id)?.map(draft),
+        runs: tx.runs().by_routine(id, RECENT_RUNS)?.iter().map(run_summary).collect(),
+    })
+}
+
+/// The routine's row, from the blueprint it shows: its head, or while it is
+/// being made, its newest version. None when it has no blueprint this app
+/// can read.
+fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<RoutineSummary>, Error> {
+    let shown = match tx.routine_versions().head(&routine.id)? {
+        Some(head) => Some(head),
+        None => tx.routine_versions().list(&routine.id)?.pop(),
+    };
+    let Some(blueprint) = shown.map(|version| readable(&version)).transpose()?.flatten() else {
+        return Ok(None);
+    };
+    let counts = tx.runs().counts(&routine.id, now - 7 * DAY_MS)?;
+    let last_run = tx.runs().by_routine(&routine.id, 1)?.first().map(run_summary);
+    Ok(Some(RoutineSummary {
+        id: routine.id.clone(),
+        slug: routine.slug.clone(),
+        name: routine.name.clone(),
+        summary: blueprint.summary,
+        icon: blueprint.icon,
+        aliases: blueprint.aliases,
+        kind: routine.kind,
+        state: routine.state,
+        paused_reason: routine.paused_reason.clone(),
+        rung: blueprint.freedom.rung,
+        trigger_line: None,
+        takes: RoutineTakes { takes: blueprint.takes, item_patterns: Vec::new() },
+        options: blueprint.options.into_iter().filter(|option| option.inline).collect(),
+        usual: None,
+        runs7d: counts.since,
+        active_runs: counts.live,
+        last_run,
+        stats: None,
+    }))
+}
+
+fn stored_json(version: &StoredVersion) -> Result<Value, Error> {
+    serde_json::from_str(&version.blueprint).map_err(|_| Error::storage(format!("version {} is not JSON", version.id)))
+}
+
+/// The version's blueprint as this app runs it; None for a newer format.
+fn readable(version: &StoredVersion) -> Result<Option<Blueprint>, Error> {
+    let read = blueprint::read(&stored_json(version)?);
+    match read.map_err(|_| Error::storage(format!("version {} is no blueprint", version.id)))? {
+        Readable::Current(blueprint) => Ok(Some(*blueprint)),
+        Readable::Newer { .. } => Ok(None),
+    }
+}
+
+/// A version's row; `at` is its place among the routine's versions by time made.
+fn version_row((at, version): (usize, &StoredVersion)) -> RoutineVersionRow {
+    RoutineVersionRow {
+        id: version.id.clone(),
+        number: at as i64 + 1,
+        parent_id: version.parent_id.clone(),
+        status: version.status,
+        author: version.author,
+        note: version.note.clone(),
+        format: version.format,
+        runnable: version.format <= BLUEPRINT_FORMAT,
+        created_at: version.created_at,
+    }
+}
+
+fn with_blueprint(at: usize, version: &StoredVersion) -> Result<RoutineVersion, Error> {
+    Ok(RoutineVersion { row: version_row((at, version)), hash: version.hash.clone(), blueprint: stored_json(version)? })
+}
+
+fn draft(draft: StoredDraft) -> RoutineDraft {
+    RoutineDraft {
+        purpose: draft.purpose,
+        status: draft.status,
+        question: draft.question,
+        base_version_id: draft.base_version_id,
+        draft_version_id: draft.draft_version_id,
+        updated_at: draft.updated_at,
+    }
+}
+
+fn run_summary(run: &StoredRun) -> RunSummary {
+    let input: Option<RunInput> = serde_json::from_str(&run.input).ok();
+    let item = input.and_then(|input| input.item.or_else(|| input.items.and_then(|items| items.into_iter().next())));
+    RunSummary {
+        id: run.id.clone(),
+        routine_id: run.routine_id.clone(),
+        kind: run.kind.clone(),
+        origin: run.origin.clone(),
+        state: run.state.as_str().to_owned(),
+        station: run.station.map(|station| station.as_str().to_owned()),
+        reason: run.reason.map(|reason| reason.as_str().to_owned()),
+        outcome: run.outcome.map(|outcome| outcome.as_str().to_owned()),
+        headline: run.headline.clone(),
+        item_title: item.and_then(|item| item.title),
+        // A run waits on the user through Needs-you items, which these reads do not take in.
+        needs_user: false,
+        cost_usd: Num(run.cost_usd),
+        work_ms: run.work_ms,
+        created_at: run.created_at,
+        started_at: run.started_at,
+        ended_at: run.ended_at,
+    }
+}

@@ -305,6 +305,11 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("POST", "/fs/paste-b64"),
     // Which chat the event stream follows.
     ("POST", "/stream/focus"),
+    // Routines: the list, one routine, its versions and one version, read from the data copy.
+    ("GET", "/api/routines"),
+    ("GET", "/api/routines/{id}"),
+    ("GET", "/api/routines/{id}/versions"),
+    ("GET", "/api/routines/{id}/versions/{versionId}"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

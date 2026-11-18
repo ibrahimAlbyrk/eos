@@ -297,6 +297,11 @@ pub const BROWSER_CAPTURE: Route = Route::new("browserCapture", "/browser/tabs/:
 pub const BROWSER_DEVICE: Route = Route::new("browserDevice", "/browser/tabs/:tabId/device", &[Post]);
 pub const BROWSER_ELEMENTS: Route = Route::new("browserElements", "/browser/tabs/:tabId/elements", &[Post]);
 pub const BROWSER_MUTE: Route = Route::new("browserMute", "/browser/tabs/:tabId/mute", &[Post]);
+pub const ROUTINES: Route = Route::new("routines", "/api/routines", &[Get]).added();
+pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get]).added();
+pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
+pub const ROUTINE_VERSION: Route =
+    Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -578,4 +583,8 @@ pub const ROUTES: &[Route] = &[
     BROWSER_DEVICE,
     BROWSER_ELEMENTS,
     BROWSER_MUTE,
+    ROUTINES,
+    ROUTINE,
+    ROUTINE_VERSIONS,
+    ROUTINE_VERSION,
 ];

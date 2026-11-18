@@ -9,7 +9,7 @@ use eos_testkit::TempHome;
 
 /// Modules whose routes act on agents, terminals or other computers: their reads are
 /// classified too.
-const AGENT_MODULES: [&str; 6] = ["agents", "terminals", "btw", "compaction", "dreams", "auto-name"];
+const AGENT_MODULES: [&str; 7] = ["agents", "terminals", "btw", "compaction", "dreams", "auto-name", "routines"];
 
 #[tokio::test(flavor = "multi_thread")]
 async fn every_route_that_is_not_a_plain_read_is_classified() {
