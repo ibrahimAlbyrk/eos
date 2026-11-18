@@ -125,6 +125,16 @@ pub trait Ids: Send + Sync + 'static {
         self.prefixed("src-", Alphabet::Hex, 12)
     }
 
+    /// `nd-` + 12: an item in Needs you.
+    fn inbox_id(&self) -> String {
+        self.prefixed("nd-", Alphabet::Hex, 12)
+    }
+
+    /// `dl-` + 12: one delivery of a result, and its key at the channel.
+    fn delivery_id(&self) -> String {
+        self.prefixed("dl-", Alphabet::Hex, 12)
+    }
+
     /// 16 hex characters: one sign-in attempt.
     fn sign_in_id(&self) -> String {
         self.token(Alphabet::Hex, 16)
@@ -224,6 +234,8 @@ mod tests {
             (ids.plugin_staging_id(), "st-"),
             (ids.browser_tab_id(), "bt-"),
             (ids.signal_source_id(), "src-"),
+            (ids.inbox_id(), "nd-"),
+            (ids.delivery_id(), "dl-"),
         ] {
             assert!(shaped(&id, prefix, Alphabet::Hex, 12), "{id}");
         }

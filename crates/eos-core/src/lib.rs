@@ -9,6 +9,7 @@
 //! |---|---|
 //! | [`accounts`] | sign-ins, API keys, plan usage, a session's credential |
 //! | [`agent`] | the agent engine: sessions, models, usage |
+//! | [`delivery`] | the services a routine's results go out to, through channels |
 //! | [`git`] | the `git` program: status, branches, worktrees |
 //! | [`net`] | other computers: sync vault, updates, artifacts, media, the relay |
 //! | [`os`] | files, watchers, processes, time zones, staying awake, power, the Dock icon |
@@ -20,8 +21,8 @@
 //! | [`terminal`] | shells in a PTY, their screen mirror, one-shot command lines |
 //!
 //! A capability one feature offers the others is a trait here too, in the
-//! module of the feature that implements it ([`browser`], [`genui`], [`pages`],
-//! [`profile`], [`transfer`], [`workers`]).
+//! module of the feature that implements it ([`browser`], [`genui`], [`inbox`],
+//! [`pages`], [`profile`], [`routine`], [`transfer`], [`workers`]).
 //!
 //! [`Clock`] and [`Ids`] are the two every layer above shares, and [`Error`]
 //! is the vocabulary a port fails with.
@@ -30,10 +31,12 @@ pub mod accounts;
 pub mod agent;
 pub mod browser;
 pub mod clock;
+pub mod delivery;
 pub mod error;
 pub mod genui;
 pub mod git;
 pub mod ids;
+pub mod inbox;
 pub mod net;
 pub mod os;
 pub mod pages;
@@ -41,6 +44,7 @@ pub mod plugin;
 pub mod policy;
 pub mod profile;
 pub mod prompt;
+pub mod routine;
 pub mod shell;
 pub mod store;
 pub mod terminal;
