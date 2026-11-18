@@ -1,6 +1,6 @@
 //! Needs you: the kinds of item that wait for the user, the states an item
-//! moves through, how long each kind waits and how loudly it asks. Pure; the
-//! items' store and answers are `eos-inbox`'s.
+//! moves through, how long each kind waits and how loudly it asks. Pure: no
+//! store and no clock; times come in as arguments.
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
