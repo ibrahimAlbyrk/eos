@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 crossbeam-channel.workspace = true
+eos-domain.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
