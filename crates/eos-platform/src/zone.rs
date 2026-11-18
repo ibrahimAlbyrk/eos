@@ -1,6 +1,9 @@
 //! Named time zones, read from the system's own zone files (`/usr/share/zoneinfo`, or the
-//! folder `TZDIR` names); the app bundles no zone database. A zone file is read once and
-//! kept, and no program is started: cheap enough for any thread, an async worker included.
+//! folder `TZDIR` names); the app bundles no zone database. jiff lists the folder's names on
+//! the first lookup and keeps each zone file it reads. Once a kept zone is five minutes old,
+//! jiff checks the file's modification time before using it and reads the file again when it
+//! changed. A name it does not know makes it list the folder again, at most once every five
+//! minutes. No program is started: cheap enough for any thread, an async worker included.
 //!
 //! A name must be written exactly as the system's file is named: a schedule's zone is
 //! compared with the user's own zone by its text.
