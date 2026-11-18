@@ -137,6 +137,9 @@ two crates, and `cargo xtask layers` fails any other dependency on them, dev-dep
 No engine type crosses a port. A session's credential is plain data
 (`eos_core::accounts::SessionCredential`: a store folder, an API key); `eos-engine` and `eos-auth`
 each build the engine's object from it, and both go through the same store lock.
+A note for the model (`LaunchSpec.notes`, `AgentSession::note`) is plain text that `eos-engine`
+puts in the root agent's own reminders, never in its seed, which subagents share: the engine sends
+it ahead of that agent's next model request, mid-turn included, and starts no turn for it.
 
 **Tests.** Unit tests beside the code; cross-crate scenarios in the higher crate's `tests/`.
 Anything that must equal what the 0.1.x app answered or wrote is checked against a recorded

@@ -53,6 +53,9 @@ pub struct LaunchSpec {
     /// The model's context window in tokens, as Eos's model list knows it.
     /// `None`: the runtime's own figure.
     pub context_window: Option<u64>,
+    /// Notes for the model, taken with the first request as
+    /// [`AgentSession::note`] takes one.
+    pub notes: Vec<String>,
 }
 
 impl LaunchSpec {
@@ -74,6 +77,7 @@ impl LaunchSpec {
             credential: None,
             compact_at: None,
             context_window: None,
+            notes: Vec::new(),
         }
     }
 
@@ -274,6 +278,12 @@ pub trait AgentSession: Send + Sync + 'static {
     /// Delivers a message as a new turn. Resolves when the session has taken
     /// it, not when the turn ends (that arrives as a `turn` event).
     fn send(&self, text: String) -> BoxFuture<'_, Result<(), SessionError>>;
+
+    /// Leaves a note for the session's own agent, sent as given ahead of its
+    /// next model request, mid-turn included; a subagent never takes it. It
+    /// starts no turn: an idle session takes it with its next
+    /// [`send`](Self::send).
+    fn note(&self, text: String) -> Result<(), SessionError>;
 
     /// Stops the running turn; background work of the session goes on.
     fn interrupt(&self) -> BoxFuture<'_, ()>;

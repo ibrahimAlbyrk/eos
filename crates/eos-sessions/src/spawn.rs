@@ -134,6 +134,7 @@ fn launch_of(facts: &SpawnFacts, cwd: String, system_prompt: Option<String>, fit
         credential: None,
         compact_at: fit.compact_at,
         context_window: fit.context_window,
+        notes: Vec::new(),
     }
 }
 

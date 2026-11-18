@@ -199,6 +199,10 @@ pub enum Call {
         worker_id: String,
         text: String,
     },
+    Note {
+        worker_id: String,
+        text: String,
+    },
     Interrupt(String),
     Stop(String),
     SetModel {
@@ -439,6 +443,19 @@ impl ScriptedRuntime {
             .collect()
     }
 
+    /// The notes a worker's live session was left, in order (a spec's own
+    /// notes are in [`started`](Self::started)).
+    pub fn notes(&self, worker_id: &str) -> Vec<String> {
+        let calls = self.0.calls.lock().expect("calls");
+        calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::Note { worker_id: w, text } if w == worker_id => Some(text.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
     /// The specs sessions were started with, in order.
     pub fn started(&self) -> Vec<LaunchSpec> {
         let calls = self.0.calls.lock().expect("calls");
@@ -632,6 +649,12 @@ impl AgentSession for ScriptedSession {
             self.begin(text);
             Ok(())
         })
+    }
+
+    fn note(&self, text: String) -> Result<(), SessionError> {
+        self.gone()?;
+        self.shared.record(Call::Note { worker_id: self.worker_id.clone(), text });
+        Ok(())
     }
 
     fn interrupt(&self) -> BoxFuture<'_, ()> {

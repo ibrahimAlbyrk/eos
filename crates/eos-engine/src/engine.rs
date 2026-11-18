@@ -442,6 +442,9 @@ impl AgentRuntime for Engine {
                 return Err(Error::Conflict(format!("worker {worker_id} already has a live session")));
             };
             shared.credentials.launched(&worker_id, credential.as_ref());
+            for note in spec.notes {
+                session.note(note).map_err(engine_error)?;
+            }
             if let Some(prompt) = spec.prompt.filter(|p| !p.is_empty()) {
                 session.send(prompt).await.map_err(engine_error)?;
             }
