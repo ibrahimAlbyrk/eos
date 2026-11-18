@@ -30,6 +30,7 @@ import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
 import { ConnectMachineSheet } from "./components/machines/ConnectMachineSheet.jsx";
 import { LinkBanner } from "./components/machines/LinkBanner.jsx";
 import { RemotePicker } from "./components/machines/RemotePicker.jsx";
+import { openEosRoute } from "./views/eos/nav/eosNav.js";
 
 function Shell() {
   const ui = useUi();
@@ -81,12 +82,14 @@ function Shell() {
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.selectAgent]);
 
-  // A notification about the user rather than a worker (e.g. memory suggestions).
+  // A notification about the user rather than a worker (e.g. memory suggestions),
+  // or one that names an Eos location (`eos:/…`).
   const openMemory = useOpenMemory();
   useEffect(() => {
     window.__nativeOpenRoute = (route) => {
       if (route === "memory") openMemory();
       if (route === "transfers") { ui.setActiveView("agents"); ui.openPanel("transfer"); }
+      if (route?.startsWith("eos:")) openEosRoute(route, ui.setActiveView);
     };
     return () => { delete window.__nativeOpenRoute; };
   }, [openMemory, ui.setActiveView, ui.openPanel]);
