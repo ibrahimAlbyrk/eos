@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ROUTES } from "../../../api/routes.js";
 import { transport, setEosTransport } from "../../../state/eos/transport.js";
+import { eosLocation, openLocation, _resetEosNav } from "../nav/eosNav.js";
 import routinesOne from "./sample/routines-one.json";
 import { startEosGallery } from "./EosGallery.jsx";
 
@@ -13,6 +14,7 @@ vi.mock("react-dom/client", () => ({
 
 afterEach(() => {
   setEosTransport(null);
+  _resetEosNav();
   vi.unstubAllGlobals();
   rendered.length = 0;
 });
@@ -33,6 +35,17 @@ describe("#eos-gallery", () => {
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
     expect((await transport.send("POST", ROUTES.routines, {})).status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("opens at Home and leaves where the user's own Eos opens untouched", () => {
+    const stored = new Map([["eos:location", "eos:/capabilities/github"]]);
+    vi.stubGlobal("localStorage", { getItem: (k) => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, v) });
+
+    startEosGallery({});
+    expect(eosLocation()).toBe("eos:/");
+    openLocation("eos:/needs");
+    expect(eosLocation()).toBe("eos:/needs");
+    expect(stored.get("eos:location")).toBe("eos:/capabilities/github");
   });
 
   // index.html's inline boot-snapshot script runs before main.jsx picks the page.

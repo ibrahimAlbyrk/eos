@@ -137,6 +137,7 @@ export function buildLocation(l) {
 let current = null; // restored on the first read: entering the mode
 let back = [];
 let forward = [];
+let remembers = true;
 const subs = new Set();
 
 function restored() {
@@ -150,7 +151,7 @@ function restored() {
 
 function moveTo(next) {
   current = next;
-  try { localStorage.setItem(STORAGE_KEY, next); } catch {}
+  if (remembers) try { localStorage.setItem(STORAGE_KEY, next); } catch {}
   for (const cb of subs) cb();
 }
 
@@ -199,8 +200,19 @@ export function openEosRoute(route, setActiveView) {
   setActiveView("eos");
 }
 
+// The sample gallery runs on the app's origin, so it shares the user's storage:
+// it starts at `start` and keeps its place in memory, leaving the user's
+// remembered place as it is.
+export function holdEosNavInMemory(start) {
+  remembers = false;
+  current = start;
+  back = [];
+  forward = [];
+}
+
 export function _resetEosNav() {
   current = null;
   back = [];
   forward = [];
+  remembers = true;
 }
