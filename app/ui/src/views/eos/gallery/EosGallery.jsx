@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client";
 import { ROUTES } from "../../../api/routes.js";
 import { fixtureTransport, setEosTransport } from "../../../state/eos/transport.js";
 import { EosMain } from "../EosMain.jsx";
+import { holdEosNavInMemory } from "../nav/eosNav.js";
 import { EosSidebarRows } from "../sidebar/EosSidebar.jsx";
 import routinesOne from "./sample/routines-one.json";
 
@@ -22,8 +23,10 @@ export function EosGallery() {
 }
 
 // The #eos-gallery page (main.jsx): Eos drawn from sample JSON. It never calls
-// the core: every read answers from a sample and every write is refused.
+// the core: every read answers from a sample and every write is refused. It
+// opens at Home and leaves where the user's own Eos opens untouched.
 export function startEosGallery(rootEl) {
   setEosTransport(fixtureTransport(SAMPLE_READS));
+  holdEosNavInMemory("eos:/");
   createRoot(rootEl).render(<EosGallery />);
 }
