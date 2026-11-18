@@ -302,6 +302,17 @@ pub const ROUTINE: Route = Route::new("routine", "/api/routines/:id", &[Get]).ad
 pub const ROUTINE_VERSIONS: Route = Route::new("routineVersions", "/api/routines/:id/versions", &[Get]).added();
 pub const ROUTINE_VERSION: Route =
     Route::new("routineVersion", "/api/routines/:id/versions/:versionId", &[Get]).added();
+pub const SIGNALS_ROUTINE: Route = Route::new("signalsRoutine", "/api/signals/routines/:routineId", &[Get]).added();
+pub const SIGNALS: Route = Route::new("signals", "/api/signals", &[Get]).added();
+pub const SIGNALS_SUMMARY: Route = Route::new("signalsSummary", "/api/signals/summary", &[Get]).added();
+pub const SIGNALS_REPLAY: Route = Route::new("signalsReplay", "/api/signals/replay", &[Post]).added();
+pub const SIGNALS_SCHEDULE_PREVIEW: Route =
+    Route::new("signalsSchedulePreview", "/api/signals/schedule/preview", &[Post]).added();
+pub const SIGNALS_WHICH_PREVIEW: Route =
+    Route::new("signalsWhichPreview", "/api/signals/which/preview", &[Post]).added();
+pub const SIGNALS_SETTINGS: Route = Route::new("signalsSettings", "/api/signals/settings", &[Put]).added();
+pub const RUNNERS: Route = Route::new("runners", "/api/runners", &[Get]).added();
+pub const RUNNERS_CLAIM: Route = Route::new("runnersClaim", "/api/runners/claim", &[Post]).added();
 
 /// Every route, in the order of `ROUTES`.
 pub const ROUTES: &[Route] = &[
@@ -587,4 +598,13 @@ pub const ROUTES: &[Route] = &[
     ROUTINE,
     ROUTINE_VERSIONS,
     ROUTINE_VERSION,
+    SIGNALS_ROUTINE,
+    SIGNALS,
+    SIGNALS_SUMMARY,
+    SIGNALS_REPLAY,
+    SIGNALS_SCHEDULE_PREVIEW,
+    SIGNALS_WHICH_PREVIEW,
+    SIGNALS_SETTINGS,
+    RUNNERS,
+    RUNNERS_CLAIM,
 ];

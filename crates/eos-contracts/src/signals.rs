@@ -5,6 +5,13 @@
 //! ones it knows (in a schedule, before `zone`), because a blueprint stores
 //! these slots and a newer Eos may add a field to them that this one must not
 //! drop.
+//!
+//! Beside the slots: what the signal and runner routes take and answer, and
+//! the payloads of `signals:change` and `signals:subject`. These ignore the
+//! keys they do not know, like every other wire type.
+
+mod rows;
+mod runners;
 
 use indexmap::IndexMap;
 use schemars::JsonSchema;
@@ -13,6 +20,9 @@ use serde_json::{Map, Value};
 
 use crate::primitives::Num;
 use crate::validate::Validate;
+
+pub use rows::*;
+pub use runners::*;
 
 /// What starts a routine's run, and how many runs it takes on.
 ///
