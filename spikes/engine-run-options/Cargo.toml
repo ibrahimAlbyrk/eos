@@ -1,0 +1,22 @@
+# What the pinned agent engine does with a routine run's options: a Workflow
+# `scriptPath` with `args`, and starting without the folder's project
+# configuration. Its own workspace: nothing here is part of the product build,
+# and the crates under ../../crates never depend on it. The engine revision is
+# the one the root Cargo.toml pins; the model is always the engine's mock API.
+[package]
+name = "engine-run-options"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[workspace]
+
+[dependencies]
+eos-agent-compat = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "75dd1101172254a76ad850e0ff467be8d60731c6" }
+eos-agent-core = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "75dd1101172254a76ad850e0ff467be8d60731c6" }
+eos-agent-mock-api = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "75dd1101172254a76ad850e0ff467be8d60731c6" }
+eos-agent-sdk = { git = "https://github.com/ibrahimAlbyrk/eos-agent-sdk", rev = "75dd1101172254a76ad850e0ff467be8d60731c6" }
+serde_json = { version = "1", features = ["raw_value"] }
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt", "time"] }
