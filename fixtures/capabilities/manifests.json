@@ -211,6 +211,40 @@
           "message": "Expected 1 to 300 seconds"
         }
       ]
+    },
+    {
+      "name": "a skill with an action",
+      "toml": "id = \"style-guide\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"skill\"\nworks = \"any_mac\"\ninstructions = \"STYLE.md\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\n",
+      "issues": [
+        {
+          "path": "actions",
+          "message": "A skill has no actions: its instructions are all it gives"
+        }
+      ]
+    },
+    {
+      "name": "a script action with nothing to run",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"script\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\n",
+      "issues": [
+        {
+          "path": "actions.0.run",
+          "message": "A script action names the program it runs"
+        }
+      ]
+    },
+    {
+      "name": "an mcp capability with no server and an action that names no tool",
+      "toml": "id = \"echo\"\nname = \"Echo\"\nversion = \"1.0.0\"\nsummary = \"Says back what it is given.\"\nform = \"mcp\"\nworks = \"any_mac\"\n\n[[actions]]\nname = \"echo\"\nsummary = \"Say it back.\"\nclass = \"read\"\nrun = [\"/bin/cat\"]\n",
+      "issues": [
+        {
+          "path": "server",
+          "message": "An mcp capability names the server its actions are tools of"
+        },
+        {
+          "path": "actions.0.tool",
+          "message": "An mcp action names its server's tool"
+        }
+      ]
     }
   ],
   "unreadable": [
