@@ -42,7 +42,8 @@
 //! gives it, each with at most one daylight-saving change.
 //!
 //! The ports routines and Needs you offer the other areas, each recording what it was given:
-//! [`FakeRunLookup`] and [`FakeRoutineControl`]; [`FakeChannels`] (sends answered as scripted),
+//! [`FakeRunLookup`] and [`FakeRoutineControl`]; [`routine_seed`] writes sample routines with
+//! their versions, finished runs and a day of spend; [`FakeChannels`] (sends answered as scripted),
 //! [`FakeAskRouting`], [`FakeActionGate`] and [`FakeResultEdits`].
 //!
 //! The capability ports: [`FakeCapabilitySecrets`] keeps secrets in memory; [`FakeCapabilityFiles`]
@@ -85,6 +86,7 @@ mod policy;
 mod profile;
 pub mod relay;
 mod routine;
+pub mod routine_seed;
 mod runs;
 mod secrets;
 mod signals;
