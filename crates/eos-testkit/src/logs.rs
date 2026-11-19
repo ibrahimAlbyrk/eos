@@ -29,6 +29,12 @@ impl LogCapture {
     }
 }
 
+impl std::fmt::Debug for LogCapture {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LogCapture").finish_non_exhaustive()
+    }
+}
+
 #[derive(Clone)]
 struct Writer(Arc<Mutex<Vec<u8>>>);
 
