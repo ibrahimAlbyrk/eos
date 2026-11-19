@@ -102,7 +102,7 @@ async fn a_routine_made_by_hand_is_a_draft_with_the_default_limits_and_a_free_sl
     let version = &versions[0];
     assert_eq!(saved["versionId"].as_str(), Some(version.id.as_str()));
     assert_eq!(
-        (version.status.clone(), version.author, version.trust),
+        (version.status, version.author, version.trust),
         (eos_contracts::VersionStatus::Draft, eos_contracts::VersionAuthor::User, Trust::Trusted)
     );
     let kept: Value = serde_json::from_str(&version.blueprint).expect("json");
