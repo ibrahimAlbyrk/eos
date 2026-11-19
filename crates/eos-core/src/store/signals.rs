@@ -72,6 +72,10 @@ pub struct StoredSignal {
     pub routed: bool,
 }
 
+/// The scope hash of the one `manual` source every run started by hand is a
+/// signal of.
+pub const MANUAL_SCOPE_HASH: &str = "manual";
+
 /// A run started by hand, as the signal that started it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManualSignal {

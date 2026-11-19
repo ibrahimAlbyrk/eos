@@ -265,7 +265,14 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_questions::QuestionsModule::new(cx.questions.clone())),
         Arc::new(eos_mod_reactions::ReactionsModule::new(cx.sessions.clone())),
         cx.remote.clone(),
-        Arc::new(eos_mod_routines::RoutinesModule::new(cx.store.clone(), cx.clock.clone())),
+        Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
+            store: cx.store.clone(),
+            clock: cx.clock.clone(),
+            sleeper: cx.sleeper.clone(),
+            ids: cx.ids.clone(),
+            device: cx.peer.device_id(),
+            autostart: cx.reach.autostart(),
+        })),
         Arc::new(eos_mod_system::SystemModule::new(
             cx.run.clone(),
             cx.features.clone(),

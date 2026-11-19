@@ -2,7 +2,8 @@
 
 use eos_core::Error;
 use eos_core::store::{
-    RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunRepo, RunResultRepo, StoredRun, StoredRunEvent, StoredRunResult,
+    RUN_EVENTS_MAX, RUN_STATE_EVENT, RunCounts, RunMove, RunRepo, RunResultRepo, StoredRun, StoredRunEvent,
+    StoredRunResult,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState, Station};
@@ -166,6 +167,67 @@ impl RunRepo for SqliteTx<'_> {
             };
             read().map_err(failed)
         })
+    }
+
+    fn move_to(&self, id: &str, change: &RunMove) -> Result<i64, Error> {
+        let ended = change.state.is_terminal().then_some(change.at);
+        let started = (change.state == RunState::Running).then_some(change.at);
+        self.exec(
+            "UPDATE runs SET state = ?1, station = ?2, reason = ?3, updated_at = ?4, \
+             started_at = COALESCE(started_at, ?5), ended_at = COALESCE(?6, ended_at) WHERE id = ?7",
+            params![
+                change.state.as_str(),
+                change.station.map(Station::as_str),
+                change.reason.map(Reason::as_str),
+                change.at,
+                started,
+                ended,
+                id
+            ],
+        )?;
+        let mut data = serde_json::Map::new();
+        data.insert("state".into(), change.state.as_str().into());
+        if let Some(station) = change.station {
+            data.insert("station".into(), station.as_str().into());
+        }
+        if let Some(reason) = change.reason {
+            data.insert("reason".into(), reason.as_str().into());
+        }
+        let data = serde_json::Value::Object(data).to_string();
+        self.append_event(id, change.at, RUN_STATE_EVENT, Some(&data))?;
+        Ok(self.conn.last_insert_rowid())
+    }
+
+    fn bind_version(&self, id: &str, version_id: &str) -> Result<(), Error> {
+        self.exec("UPDATE runs SET version_id = ?1 WHERE id = ?2", params![version_id, id]).map(drop)
+    }
+
+    fn queued(&self) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!("SELECT {RUN_COLUMNS} FROM runs WHERE state = 'queued' ORDER BY priority, created_at, rowid"),
+            [],
+            run,
+        )
+    }
+
+    fn working(&self) -> Result<Vec<(String, i64)>, Error> {
+        self.rows(
+            "SELECT routine_id, COUNT(*) FROM runs WHERE state IN ('running','checking','delivering') \
+             GROUP BY routine_id ORDER BY routine_id",
+            [],
+            |r| Ok((r.get(0).map_err(failed)?, r.get(1).map_err(failed)?)),
+        )
+    }
+
+    fn by_item(&self, routine_id: &str, item_key: &str) -> Result<Vec<StoredRun>, Error> {
+        self.rows(
+            &format!(
+                "SELECT {RUN_COLUMNS} FROM runs WHERE routine_id = ?1 AND item_key = ?2 \
+                 ORDER BY created_at DESC, rowid DESC"
+            ),
+            params![routine_id, item_key],
+            run,
+        )
     }
 }
 

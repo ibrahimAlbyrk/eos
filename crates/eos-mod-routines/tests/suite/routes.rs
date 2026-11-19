@@ -9,12 +9,12 @@ use eos_core::store::{StoredRoutine, StoredRun, StoredVersion};
 use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::Trust;
-use eos_mod_routines::RoutinesModule;
+use eos_mod_routines::{RoutinesModule, RoutinesParts};
 use eos_runtime::access::{Caller, Tier};
 use eos_runtime::http::{Method, Request};
 use eos_runtime::router::AllPluginsOn;
 use eos_runtime::{Kernel, KernelOptions, Runtime};
-use eos_testkit::{FakeClock, SeqIds, TempStore};
+use eos_testkit::{FakeClock, FakeSleeper, SeqIds, TempStore};
 use serde_json::{Value, json};
 
 const DAY: i64 = 24 * 60 * 60 * 1000;
@@ -31,7 +31,14 @@ impl Bench {
         let temp = TempStore::new();
         let clock = Arc::new(FakeClock::new());
         let now = FakeClock::START_MS;
-        let module = Arc::new(RoutinesModule::new(temp.port(), clock));
+        let module = Arc::new(RoutinesModule::new(RoutinesParts {
+            store: temp.port(),
+            clock,
+            sleeper: Arc::new(FakeSleeper::default()),
+            ids: Arc::new(SeqIds::new()),
+            device: "mac-1".into(),
+            autostart: true,
+        }));
         let runtime = Runtime::build(Kernel::new(KernelOptions::default()), vec![module], Arc::new(AllPluginsOn))
             .expect("composes");
         assert_eq!(runtime.router.undeclared(), Vec::<String>::new());

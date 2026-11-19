@@ -8,6 +8,7 @@
 
 mod input;
 mod rows;
+mod runs;
 
 use indexmap::IndexMap;
 use schemars::JsonSchema;
@@ -16,6 +17,7 @@ use serde_json::{Map, Value};
 
 pub use input::*;
 pub use rows::*;
+pub use runs::*;
 
 use crate::freedom::{Freedom, Recipient};
 use crate::primitives::Num;
