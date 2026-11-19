@@ -125,6 +125,8 @@ pub trait RunRepo {
     fn bind_version(&self, id: &str, version_id: &str) -> Result<(), Error>;
     /// The worker that leads it.
     fn set_lead(&self, id: &str, worker_id: &str) -> Result<(), Error>;
+    /// What became of its result.
+    fn set_outcome(&self, id: &str, outcome: Outcome) -> Result<(), Error>;
     /// The check round it is in, from 1.
     fn set_attempt(&self, id: &str, attempt: i64) -> Result<(), Error>;
     /// The line the user reads first: its result's, or why it failed.

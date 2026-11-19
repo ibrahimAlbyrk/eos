@@ -7,7 +7,7 @@
 //! once with what must change; a second fails the run as `check_failed`. A
 //! checker that dies or goes quiet without a verdict is started again once,
 //! then the run fails as `check_error`. Every verdict is kept with its
-//! result.
+//! result; a pass goes to the gate in the same write.
 
 use std::sync::Arc;
 
@@ -21,7 +21,7 @@ use eos_domain::run_scope::{RunRole, Trust};
 use super::brief::word;
 use super::control::confirmed_in;
 use super::spawn::{self, RunSession};
-use super::{Engine, item_text, move_run, note};
+use super::{Engine, gate, item_text, move_run, note};
 use crate::routes::readable;
 
 /// The definition a run's checker starts as; its tools and prompt key on it.
@@ -193,7 +193,7 @@ fn render(engine: &Engine, checking: &Checking) -> Result<String, Error> {
 
 /// Where a verdict sends the run.
 enum Next {
-    /// It passed: the run goes on.
+    /// It passed: the gate took it.
     Passed,
     /// Back to work, with what must change.
     Revise { lead: Option<String>, text: String },
@@ -212,6 +212,7 @@ pub(crate) async fn judged(
     let (id, now) = (run_id.to_owned(), engine.clock.now_ms());
     let kept = serde_json::to_string(&verdict).map_err(|e| Error::storage(e.to_string()))?;
     let pass = verdict.pass;
+    let job = engine.clone();
     let next = engine
         .store
         .write(move |tx, out| {
@@ -221,7 +222,8 @@ pub(crate) async fn judged(
             };
             tx.run_results().set_verdict(&id, attempt, &kept)?;
             if verdict.pass {
-                return passed(tx, out, &run, now).map(Some);
+                gate::hand_over(&job, tx, out, &run, now)?;
+                return Ok(Some(Next::Passed));
             }
             match next_attempt(attempt) {
                 Some(round) => {
@@ -252,24 +254,13 @@ pub(crate) async fn judged(
                 note(engine, &lead, run_id, &text).await?;
             }
         }
-        Some(Next::Failed) => {
+        Some(Next::Failed | Next::Passed) => {
             release_lead(engine, run_id).await;
             engine.wake.notify_one();
         }
-        Some(Next::Passed) | None => {}
+        None => {}
     }
     Ok(())
-}
-
-/// A passed result waits at the check for the gate.
-fn passed(
-    tx: &dyn eos_core::store::Tx,
-    _out: &mut eos_core::store::Outbox,
-    run: &eos_core::store::StoredRun,
-    now: i64,
-) -> Result<Next, Error> {
-    tx.runs().append_event(&run.id, now, "check_passed", None)?;
-    Ok(Next::Passed)
 }
 
 fn revise_text(verdict: &CheckVerdict) -> String {

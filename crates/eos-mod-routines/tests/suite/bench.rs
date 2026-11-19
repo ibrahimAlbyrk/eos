@@ -7,12 +7,13 @@ use std::time::Duration;
 
 use eos_contracts::{ItemRef, ResultMode, RoutineKind, RoutineState, RunInput, VersionAuthor, VersionStatus};
 use eos_core::Ids;
+use eos_core::routine::RunGate;
 use eos_core::routine::{NewRun, RunCreated, RunOrigin, RunStarter, StartError};
 use eos_core::store::{StoredRoutine, StoredRun, StoredVersion};
 use eos_domain::routine::blueprint::{Readable, canonical_json, hash, read};
 use eos_domain::routine::run::RunState;
 use eos_domain::run_scope::Trust;
-use eos_mod_routines::{RoutinesModule, RoutinesParts};
+use eos_mod_routines::{RoutinesModule, RoutinesParts, ShowOnlyGate};
 use eos_prompts::tool_names::tool_name_vars;
 use eos_prompts::{PromptRegistry, PromptService};
 use eos_runtime::idle::IdleHooks;
@@ -21,8 +22,8 @@ use eos_sessions::{SessionDeps, SessionHooks, Sessions};
 use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
-    FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeScratch, FakeSleeper,
-    FakeWorktrees, ScriptedRuntime, SeqIds, TempStore,
+    FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeRunGate, FakeScratch,
+    FakeSleeper, FakeWorktrees, ScriptedRuntime, SeqIds, TempStore,
 };
 use serde_json::{Value, json};
 
@@ -41,6 +42,10 @@ pub(crate) struct Bench {
     pub(crate) hooks: Arc<Hooks>,
     pub(crate) recents: Arc<FakeRecents>,
     pub(crate) reads: Arc<FakeCapabilityReads>,
+    /// The gate the module hands results to: `fake` unless a test asks for
+    /// the module's own.
+    pub(crate) gate: Arc<FakeRunGate>,
+    gate_port: Arc<dyn RunGate>,
     autostart: bool,
 }
 
@@ -90,6 +95,16 @@ impl Bench {
 
     /// With the capabilities `reads` lists.
     pub(crate) fn with_reads(autostart: bool, reads: FakeCapabilityReads) -> Self {
+        let gate = Arc::new(FakeRunGate::new());
+        Self::with(autostart, reads, gate.clone(), gate)
+    }
+
+    /// With the gate that only shows results.
+    pub(crate) fn showing_only() -> Self {
+        Self::with(true, FakeCapabilityReads::new(), Arc::new(FakeRunGate::new()), Arc::new(ShowOnlyGate))
+    }
+
+    fn with(autostart: bool, reads: FakeCapabilityReads, gate: Arc<FakeRunGate>, gate_port: Arc<dyn RunGate>) -> Self {
         let temp = TempStore::new();
         let (clock, sleeper) = (Arc::new(FakeClock::new()), Arc::new(FakeSleeper::default()));
         let (agents, hooks, recents) =
@@ -108,7 +123,7 @@ impl Bench {
             sleeper: Arc::new(FakeSleeper::default()),
         });
         let reads = Arc::new(reads);
-        let module = module(&temp, &clock, &sleeper, &sessions, &reads, autostart);
+        let module = module(&temp, &clock, &sleeper, &sessions, &reads, &gate_port, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
         Self {
@@ -123,6 +138,8 @@ impl Bench {
             hooks,
             recents,
             reads,
+            gate,
+            gate_port,
             autostart,
         }
     }
@@ -130,7 +147,7 @@ impl Bench {
     /// A second module over the same store, sessions and folders: the app
     /// as it comes back after a restart.
     pub(crate) fn another_module(&self) -> Arc<RoutinesModule> {
-        module(&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads, self.autostart)
+        module(&self.temp, &self.clock, &self.sleeper, &self.sessions, &self.reads, &self.gate_port, self.autostart)
     }
 
     /// Starts the supervisor.
@@ -237,6 +254,7 @@ fn module(
     sleeper: &Arc<FakeSleeper>,
     sessions: &Sessions,
     reads: &Arc<FakeCapabilityReads>,
+    gate: &Arc<dyn RunGate>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
     let library = Arc::new(LibraryPromptSource::embedded());
@@ -252,6 +270,7 @@ fn module(
         scratch: Arc::new(FakeScratch::default()),
         folders: Arc::new(FsRunFolders::new(temp.home.path().join("routines"))),
         reads: reads.clone(),
+        gate: gate.clone(),
     }))
 }
 

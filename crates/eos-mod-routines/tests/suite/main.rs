@@ -3,6 +3,7 @@
 mod bench;
 mod check;
 mod control;
+mod gate;
 mod isolation;
 mod ports;
 mod routes;

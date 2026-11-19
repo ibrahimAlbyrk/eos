@@ -5,14 +5,14 @@
 use std::path::PathBuf;
 
 use eos_contracts::{
-    CheckVerdict, Freedom, ItemRef, Recipient, RoutineKind, RoutineState, RunInput, Rung, When, Which,
+    CheckVerdict, Freedom, ItemRef, Recipient, ResultDoc, RoutineKind, RoutineState, RunInput, Rung, When, Which,
 };
 use eos_domain::routine::numbers::Outcome;
 use eos_domain::routine::run::{Reason, RunState};
 use eos_domain::run_scope::{RunRole, Trust};
 
 use crate::store::{Outbox, Tx};
-use crate::{BoxFuture, Error};
+use crate::{BoxFuture, Error, Ids};
 
 /// Who asked for a run. Each origin is checked in one place, the start.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -309,3 +309,85 @@ pub trait RunFolders: Send + Sync {
 
 /// The largest file a result carries.
 pub const RUN_FILE_MAX_BYTES: u64 = 50 * 1024 * 1024;
+
+/// How a checked result may go out, as the run asks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GateMode {
+    /// As the routine's Freedom says.
+    AsUsual,
+    /// Held for the user whatever the Freedom says.
+    Ask,
+    /// Shown in Eos and sent nowhere.
+    ShowOnly,
+    /// A trial of a routine being made: sent nowhere.
+    Trial,
+}
+
+/// A checked result at the gate, with what decides where it goes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GateInput {
+    pub run_id: String,
+    pub routine_id: String,
+    /// The version the run runs from.
+    pub version: String,
+    /// What started the run (`hand`, `trigger`, …).
+    pub origin: String,
+    pub result_mode: GateMode,
+    pub doc: ResultDoc,
+    /// Where the run's version sends its results.
+    pub targets: Vec<Recipient>,
+    /// The item's fields, for the Goes-to bounds and the rung's caps.
+    pub item_facts: serde_json::Value,
+    /// The item's key: one subject's results replace each other.
+    pub subject_key: Option<String>,
+    pub trust: Trust,
+    /// The Freedom of the version the user stands behind; none for a routine
+    /// no such version has yet (a trial).
+    pub freedom_confirmed: Option<Freedom>,
+    pub goes_to_confirmed: Vec<Recipient>,
+}
+
+/// What the gate did with a result.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GateDecision {
+    /// Shown in Eos, sent nowhere: the run is done.
+    Shown,
+    /// Held for the user as a Needs-you item.
+    Held { item_id: String },
+    /// Going out: these deliveries send it.
+    Delivering { delivery_ids: Vec<String> },
+    /// It may not go where it would: the run ends.
+    Refused,
+}
+
+/// Where a checked result goes (03 §4.8). Called inside the run's own write
+/// job, so the decision, the run's state and its event commit together.
+pub trait RunGate: Send + Sync {
+    fn apply_in(
+        &self,
+        tx: &dyn Tx,
+        out: &mut Outbox,
+        now: i64,
+        ids: &dyn Ids,
+        input: &GateInput,
+    ) -> Result<GateDecision, Error>;
+    /// Takes back the run's result that waits for the user: the user told
+    /// the team something, and the work reopens (01 G18).
+    fn withdraw_in(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str) -> Result<(), Error>;
+}
+
+/// What became of a run's result after the gate, as the area that holds and
+/// delivers it reports, inside its own write jobs.
+pub trait RunOutcomes: Send + Sync {
+    /// Its result waits for the user as `inbox_id`.
+    fn held(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, inbox_id: &str) -> Result<(), Error>;
+    /// The user sent it, or it goes out on its own.
+    fn delivering(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str) -> Result<(), Error>;
+    /// The run is done, its result `outcome`.
+    fn finished(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, outcome: Outcome) -> Result<(), Error>;
+    /// A delivery failed for good; `reason` is its kind.
+    fn delivery_failed(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, reason: &str) -> Result<(), Error>;
+    /// The user wants the result changed: the lead gets `text` and works
+    /// again.
+    fn revise(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, text: &str) -> Result<(), Error>;
+}

@@ -37,7 +37,9 @@ use std::sync::{Arc, Mutex};
 use eos_contracts::{RoutineChange, RunChange, RunsActive};
 use eos_core::agent::{LaunchSpec, ScratchFolders};
 use eos_core::capability::{CapabilityGrants, CapabilityReads};
-use eos_core::routine::{RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunIntake, RunLookup, RunStarter};
+use eos_core::routine::{
+    RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunStarter,
+};
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_prompts::PromptService;
@@ -49,6 +51,7 @@ use eos_sessions::Sessions;
 use tokio::sync::Notify;
 
 use crate::engine::Engine;
+pub use crate::engine::ShowOnlyGate;
 
 pub const ROUTINE_CHANGE: Topic<RoutineChange> = Topic::new("routine:change");
 pub const RUN_CHANGE: Topic<RunChange> = Topic::new("run:change");
@@ -73,6 +76,8 @@ pub struct RoutinesParts {
     pub folders: Arc<dyn RunFolders>,
     /// The capabilities there are: what a run session may call of them.
     pub reads: Arc<dyn CapabilityReads>,
+    /// Where a checked result goes ([`ShowOnlyGate`] until Needs you's).
+    pub gate: Arc<dyn RunGate>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -97,8 +102,20 @@ impl std::fmt::Debug for RoutinesModule {
 
 impl RoutinesModule {
     pub fn new(parts: RoutinesParts) -> Self {
-        let RoutinesParts { store, clock, sleeper, ids, device, autostart, sessions, prompts, scratch, folders, reads } =
-            parts;
+        let RoutinesParts {
+            store,
+            clock,
+            sleeper,
+            ids,
+            device,
+            autostart,
+            sessions,
+            prompts,
+            scratch,
+            folders,
+            reads,
+            gate,
+        } = parts;
         let engine = Arc::new(Engine {
             store: store.clone(),
             clock: clock.clone(),
@@ -116,6 +133,8 @@ impl RoutinesModule {
             progress: Mutex::new(HashMap::new()),
             launches: Mutex::new(HashMap::new()),
             held: Mutex::new(std::collections::HashSet::new()),
+            gate,
+            tasks: tokio::runtime::Handle::try_current().ok(),
             reads,
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
@@ -151,6 +170,11 @@ impl RoutinesModule {
     /// outside runs.
     pub fn grants(&self) -> Arc<dyn CapabilityGrants> {
         self.grants.clone()
+    }
+
+    /// What Needs you reports of a result after the gate.
+    pub fn outcomes(&self) -> Arc<dyn RunOutcomes> {
+        Arc::new(engine::Outcomes(self.engine.clone()))
     }
 
     /// What the tools of a run's sessions do.
