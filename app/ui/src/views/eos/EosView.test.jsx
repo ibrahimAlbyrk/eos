@@ -45,9 +45,16 @@ describe("EosView", () => {
     const html = draw();
     expect(html).toContain('<div class="app eos-mode">');
     expect(html).toContain('<span class="eos-switch__mark">Eos</span>');
-    expect(html).toContain('<nav class="sb-nav" aria-label="Eos"></nav>');
+    expect(html).toContain('<nav class="sb-nav" aria-label="Eos"><button class="sb-nav-row">');
+    expect(html).toContain('<span class="sb-nav-row__label">Capabilities</span>');
     expect(html).toContain('<section class="center"><main class="eos-screen">');
     expect(html).toContain('<h1 class="eos-title">Memory</h1>');
+  });
+
+  it("opens at Capabilities when no place is remembered, its row selected", () => {
+    const html = draw();
+    expect(html).toContain('<button class="sb-nav-row strong on">');
+    expect(html).toContain('<h1 class="eos-title">Capabilities</h1>');
   });
 
   it("goes back with ⌘[ and forward with ⌘]", () => {

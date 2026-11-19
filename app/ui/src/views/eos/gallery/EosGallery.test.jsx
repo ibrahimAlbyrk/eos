@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("#eos-gallery", () => {
-  it("draws an empty Eos frame from the samples without calling the core", async () => {
+  it("draws Eos at Capabilities from the samples without calling the core", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -29,20 +29,24 @@ describe("#eos-gallery", () => {
     expect(rendered).toHaveLength(1);
     const html = renderToStaticMarkup(rendered[0]);
     expect(html).toContain('<aside class="side">');
-    expect(html).toContain('<nav class="sb-nav" aria-label="Eos"></nav>');
+    expect(html).toContain('<nav class="sb-nav" aria-label="Eos"><button class="sb-nav-row strong on">');
     expect(html).toContain('<section class="center"><main class="eos-screen">');
 
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routinesOne });
+    const rows = (await transport.get(ROUTES.capabilities)).body;
+    expect(rows.map((r) => r.state)).toEqual(["needs_setup", "ready", "needs_sign_in", "degraded", "broken", "disabled"]);
+    expect(rows[0]).not.toHaveProperty("actions");
+    for (const row of rows) expect((await transport.get(ROUTES.capability(row.id))).body).toMatchObject(row);
     expect((await transport.send("POST", ROUTES.routines, {})).status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("opens at Home and leaves where the user's own Eos opens untouched", () => {
+  it("opens at Capabilities and leaves where the user's own Eos opens untouched", () => {
     const stored = new Map([["eos:location", "eos:/capabilities/github"]]);
     vi.stubGlobal("localStorage", { getItem: (k) => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, v) });
 
     startEosGallery({});
-    expect(eosLocation()).toBe("eos:/");
+    expect(eosLocation()).toBe("eos:/capabilities");
     openLocation("eos:/needs");
     expect(eosLocation()).toBe("eos:/needs");
     expect(stored.get("eos:location")).toBe("eos:/capabilities/github");

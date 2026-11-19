@@ -1,0 +1,141 @@
+[
+  {
+    "id": "github",
+    "name": "GitHub",
+    "summary": "Reads pull requests and posts reviews on GitHub.",
+    "origin": "builtin",
+    "state": "needs_setup",
+    "stateCode": "client_id_missing",
+    "works": "any_mac",
+    "actionCount": 3,
+    "usedBy": ["rt-4k2n8q1x7m3p"],
+    "actions": [
+      { "name": "list_pull_requests", "summary": "List open pull requests", "class": "read" },
+      { "name": "post_review", "summary": "Post a review on a pull request", "class": "speak", "undo": "withdraw_review" },
+      { "name": "approve_pull_request", "summary": "Approve a pull request", "class": "irreversible" }
+    ],
+    "reach": { "hosts": ["api.github.com"], "apps": [], "files": [] },
+    "secrets": [{ "name": "token", "label": "GitHub sign-in", "set": false }],
+    "settings": [],
+    "versions": [],
+    "recentCalls": []
+  },
+  {
+    "id": "sms-messages",
+    "name": "SMS",
+    "summary": "Sends you a text message through Messages.",
+    "origin": "forge",
+    "state": "ready",
+    "version": "1.0.1",
+    "works": "this_mac",
+    "actionCount": 1,
+    "usedBy": [],
+    "actions": [
+      { "name": "send_sms", "summary": "Text you a short message", "class": "tell_user" }
+    ],
+    "reach": { "hosts": [], "apps": ["com.apple.MobileSMS"], "files": [] },
+    "secrets": [],
+    "settings": [{ "name": "phone_number", "label": "Your phone number", "kind": "phone", "value": "+15550100" }],
+    "versions": [
+      { "version": "1.0.1", "status": "installed", "createdAt": 1763500000000, "source": "rn-5t1c8w2b9x0z" },
+      { "version": "1.0.0", "status": "installed", "createdAt": 1763400000000, "source": "rn-2k7d4m1q8v3n" }
+    ],
+    "recentCalls": [
+      { "action": "send_sms", "outcome": "ok", "at": 1763510000000, "durationMs": 840 }
+    ]
+  },
+  {
+    "id": "linear-issues",
+    "name": "Linear",
+    "summary": "Reads and files issues in Linear.",
+    "origin": "forge",
+    "state": "needs_sign_in",
+    "stateCode": "http_401",
+    "version": "0.3.0",
+    "works": "any_mac",
+    "actionCount": 2,
+    "usedBy": [],
+    "actions": [
+      { "name": "list_issues", "summary": "List issues assigned to you", "class": "read" },
+      { "name": "create_issue", "summary": "File a new issue", "class": "speak" }
+    ],
+    "reach": { "hosts": ["api.linear.app"], "apps": [], "files": [] },
+    "secrets": [{ "name": "api_key", "label": "Linear API key", "set": true }],
+    "settings": [],
+    "versions": [
+      { "version": "0.3.0", "status": "installed", "createdAt": 1763300000000, "source": "rn-8p3r6s1t4u7v" }
+    ],
+    "recentCalls": [
+      { "action": "list_issues", "outcome": "error", "at": 1763505000000, "durationMs": 312 }
+    ]
+  },
+  {
+    "id": "weather",
+    "name": "Weather",
+    "summary": "Fetches the forecast for your city.",
+    "origin": "registry",
+    "state": "degraded",
+    "stateCode": "rate_limited",
+    "version": "1.2.0",
+    "works": "any_mac",
+    "actionCount": 1,
+    "usedBy": ["rt-4k2n8q1x7m3p", "rt-9d3f6h2j5k8l"],
+    "actions": [
+      { "name": "forecast", "summary": "Today's forecast", "class": "read" }
+    ],
+    "reach": { "hosts": ["api.open-meteo.com"], "apps": [], "files": [] },
+    "secrets": [],
+    "settings": [{ "name": "city", "label": "City", "kind": "text" }],
+    "versions": [
+      { "version": "1.2.0", "status": "installed", "createdAt": 1763200000000, "source": "npm:weather-cap@1.2.0#sha512-AbC" }
+    ],
+    "recentCalls": [
+      { "action": "forecast", "outcome": "timeout", "at": 1763508000000, "durationMs": 30000 },
+      { "action": "forecast", "outcome": "ok", "at": 1763504000000, "durationMs": 1200 }
+    ]
+  },
+  {
+    "id": "rss-feeds",
+    "name": "RSS feeds",
+    "summary": "Reads the feeds you follow.",
+    "origin": "forge",
+    "state": "broken",
+    "stateCode": "output_schema",
+    "version": "2.0.0",
+    "works": "any_mac",
+    "actionCount": 1,
+    "usedBy": ["rt-9d3f6h2j5k8l"],
+    "actions": [
+      { "name": "latest_items", "summary": "The newest items of each feed", "class": "read" }
+    ],
+    "reach": { "hosts": ["*"], "apps": [], "files": [] },
+    "secrets": [],
+    "settings": [],
+    "versions": [
+      { "version": "2.0.0", "status": "installed", "createdAt": 1763450000000, "source": "rn-1a2b3c4d5e6f" },
+      { "version": "1.4.0", "status": "installed", "createdAt": 1763000000000, "source": "rn-6f5e4d3c2b1a" },
+      { "version": "1.3.0", "status": "retired", "createdAt": 1762800000000, "source": "rn-0z9y8x7w6v5u" }
+    ],
+    "recentCalls": [
+      { "action": "latest_items", "outcome": "error", "at": 1763509000000, "durationMs": 450 }
+    ]
+  },
+  {
+    "id": "notify",
+    "name": "Notify",
+    "summary": "Sends a notification to your phone.",
+    "origin": "builtin",
+    "state": "disabled",
+    "works": "any_mac",
+    "actionCount": 1,
+    "usedBy": [],
+    "actions": [
+      { "name": "push", "summary": "Send a notification to your phone", "class": "tell_user" }
+    ],
+    "reach": { "hosts": [], "apps": [], "files": [] },
+    "secrets": [],
+    "settings": [],
+    "versions": [],
+    "recentCalls": []
+  }
+]
