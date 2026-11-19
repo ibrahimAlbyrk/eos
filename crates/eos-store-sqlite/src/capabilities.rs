@@ -115,6 +115,10 @@ impl CapabilityInstallRepo for SqliteTx<'_> {
     fn list(&self) -> Result<Vec<StoredInstall>, Error> {
         self.rows(&format!("SELECT {INSTALL_COLUMNS} FROM capability_installs ORDER BY id"), [], install)
     }
+
+    fn delete(&self, id: &str) -> Result<(), Error> {
+        self.exec("DELETE FROM capability_installs WHERE id = ?1", [id]).map(drop)
+    }
 }
 
 impl CapabilityVersionRepo for SqliteTx<'_> {

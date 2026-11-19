@@ -30,6 +30,7 @@ const LAYERS: &[(&str, Layer)] = &[
     ("eos-apply", Layer::Shell),
     ("eos-auth", Layer::Adapter),
     ("eos-bridge", Layer::Bridge),
+    ("eos-capabilities", Layer::Service),
     ("eos-cef-helper", Layer::Shell),
     ("eos-config", Layer::Adapter),
     ("eos-contracts", Layer::Types),

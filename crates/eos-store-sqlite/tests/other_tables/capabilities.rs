@@ -1,6 +1,6 @@
-//! The capability tables: installs and versions read back as written, a
-//! capability's versions newest first, and the call prune keeps the newest
-//! calls.
+//! The capability tables: installs and versions read back as written, an
+//! install's row deleted, a capability's versions newest first, and the
+//! call prune keeps the newest calls.
 
 use eos_contracts::ActionClass;
 use eos_core::store::{StoredCall, StoredCapabilityVersion, StoredInstall};
@@ -42,13 +42,16 @@ fn installs_read_back_as_written_and_a_put_replaces_the_row() {
                 installs.put(&github)?;
                 let found = installs.find("sms-messages")?;
                 installs.put(&fixed)?;
+                installs.put(&install("mail", Health::ready()))?;
+                installs.delete("mail")?;
+                installs.delete("mail")?;
                 Ok((installs.list()?, found, installs.find("mail")?))
             }
         })
         .expect("writes");
     assert_eq!(found, Some(install("sms-messages", signed_out)), "read back as written");
     assert_eq!(listed, [github, fixed], "by id, the second put in place of the first");
-    assert_eq!(missing, None);
+    assert_eq!(missing, None, "a deleted row is gone, and deleting it again is no error");
 }
 
 fn version(capability_id: &str, name: &str, created_at: i64) -> StoredCapabilityVersion {

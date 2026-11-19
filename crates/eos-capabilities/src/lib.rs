@@ -1,0 +1,101 @@
+//! The capability service: what Eos can reach for the user and how a call of
+//! one of its actions goes.
+//!
+//! [`CapabilityService`] is the registry of Eos's built-in capabilities
+//! (handed in as code) and of the packages installed from the tables and
+//! files; it answers `CapabilityRegistry` and `CapabilityCalls`. A call is
+//! found, its caller's grant and the capability's state are checked, its
+//! input is held to the action's schema, it waits for a slot, runs (the
+//! built-in, or the package's runner once its files still hash to the
+//! pinned hash), its output is held to its schema, the capability's secrets
+//! are cut out, text from outside is marked, and one `capability_calls` row
+//! is written with the health it leaves behind; a state change is announced
+//! on [`CAPABILITIES_CHANGE`] after that write commits. No class gate here:
+//! the policy decides an agent's call before the tool runs, and a delivery
+//! calls after the Needs-you gate.
+//!
+//! Logs carry the capability's id, the action, its class, the caller's kind,
+//! the outcome, the error's kind and the duration; never input, output,
+//! secrets, settings or account labels.
+
+mod call;
+mod describe;
+mod health;
+mod install;
+mod limits;
+mod output;
+mod registry;
+
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+
+use eos_core::capability::{
+    ActionCall, ActionError, ActionResult, ActionRunner, BuiltinCapability, CapabilityCalls, CapabilityDescription,
+    CapabilityFiles, CapabilityGrants, CapabilitySecrets,
+};
+use eos_core::store::Store;
+use eos_core::{BoxFuture, Clock, Error, Ids};
+
+pub use install::Install;
+
+/// The topic a capability's state or version change is announced on, with
+/// `eos_contracts::CapabilitiesChange`.
+pub const CAPABILITIES_CHANGE: &str = "capabilities:change";
+
+/// What the service is built on.
+pub struct CapabilityPorts {
+    pub store: Arc<dyn Store>,
+    pub files: Arc<dyn CapabilityFiles>,
+    pub secrets: Arc<dyn CapabilitySecrets>,
+    pub grants: Arc<dyn CapabilityGrants>,
+    /// Runs `script` and `mcp` packages; without it their actions are not
+    /// ready (`sandbox_unavailable`).
+    pub runner: Option<Arc<dyn ActionRunner>>,
+    pub clock: Arc<dyn Clock>,
+    pub ids: Arc<dyn Ids>,
+}
+
+impl std::fmt::Debug for CapabilityPorts {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapabilityPorts").field("runner", &self.runner.is_some()).finish_non_exhaustive()
+    }
+}
+
+pub struct CapabilityService {
+    ports: CapabilityPorts,
+    builtins: HashMap<String, Arc<dyn BuiltinCapability>>,
+    limits: limits::Limits,
+    /// Per installed version, the stamp its files had when they last hashed
+    /// to the pinned hash: an unchanged stamp spares the hashing.
+    stamps: Mutex<HashMap<(String, String), String>>,
+}
+
+impl std::fmt::Debug for CapabilityService {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut builtins: Vec<&str> = self.builtins.keys().map(String::as_str).collect();
+        builtins.sort_unstable();
+        f.debug_struct("CapabilityService").field("builtins", &builtins).finish_non_exhaustive()
+    }
+}
+
+impl CapabilityService {
+    /// `builtins`: Eos's own capabilities, by the ids their manifests give.
+    pub fn new(ports: CapabilityPorts, builtins: Vec<Arc<dyn BuiltinCapability>>) -> Self {
+        let builtins = builtins.into_iter().map(|builtin| (builtin.manifest().id.clone(), builtin)).collect();
+        Self { ports, builtins, limits: limits::Limits::default(), stamps: Mutex::default() }
+    }
+}
+
+impl CapabilityCalls for CapabilityService {
+    fn call(&self, call: ActionCall) -> BoxFuture<'_, Result<ActionResult, ActionError>> {
+        Box::pin(self.run_call(call))
+    }
+
+    fn describe<'a>(
+        &'a self,
+        worker_id: &'a str,
+        id: Option<&'a str>,
+    ) -> BoxFuture<'a, Result<Vec<CapabilityDescription>, Error>> {
+        Box::pin(self.describe_for(worker_id, id))
+    }
+}

@@ -45,7 +45,10 @@
 //! [`FakeRunLookup`] and [`FakeRoutineControl`]; [`FakeChannels`] (sends answered as scripted),
 //! [`FakeAskRouting`], [`FakeActionGate`] and [`FakeResultEdits`].
 //!
-//! The capability ports: [`FakeCapabilitySecrets`] keeps secrets in memory.
+//! The capability ports: [`FakeCapabilitySecrets`] keeps secrets in memory; [`FakeCapabilityFiles`]
+//! copies packages into a folder without hashing them; [`FakeBuiltin`] is a scripted built-in,
+//! [`FakeActionRunner`] a scripted runner of packages, [`FakeCapabilityRegistry`] the registry as
+//! the test sets it.
 //!
 //! The peering ports: [`InMemoryRelay`] (a relay's pipes between two computers, in memory) and
 //! [`RecordedPeerEvents`].
@@ -57,6 +60,8 @@
 mod accounts;
 pub mod agent;
 mod browser;
+mod capabilities;
+mod capability_files;
 mod clock;
 mod db;
 mod delivery;
@@ -94,6 +99,8 @@ pub use agent::{
     RecordingSink, ScriptedRuntime, Turn,
 };
 pub use browser::{FakeBrowserPanel, FakeBrowserViews};
+pub use capabilities::{BuiltinCall, FakeActionRunner, FakeBuiltin, FakeCapabilityRegistry, RunnerCall};
+pub use capability_files::FakeCapabilityFiles;
 pub use clock::FakeClock;
 pub use db::{Announced, TempStore};
 pub use delivery::FakeChannels;

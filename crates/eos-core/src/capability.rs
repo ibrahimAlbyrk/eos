@@ -1,13 +1,26 @@
 //! Capabilities: what Eos can reach for the user (GitHub, Mail, a package
 //! the Forge built). Here, where their packages live on disk and where their
-//! secrets are kept; the rules over a package (its manifest, its hash) are
-//! `eos_domain::capability`.
+//! secrets are kept, the registry and the calls of their actions, and the
+//! code that answers those calls; the rules over a package (its manifest,
+//! its hash, its health) are `eos_domain::capability`.
 
 use std::path::Path;
 
 use zeroize::Zeroizing;
 
 use crate::{BoxFuture, Error};
+
+mod call;
+mod registry;
+
+pub use call::{
+    ActionCall, ActionCaller, ActionDescription, ActionError, ActionResult, CapabilityCalls, CapabilityDescription,
+    FailureKind,
+};
+pub use registry::{
+    ActionContext, ActionRunner, AllInstalled, BuiltinCapability, Capability, CapabilityGrants, CapabilityRegistry,
+    Grant, GrantedAction, INSTALLED_MAX, Package,
+};
 
 /// The largest package installed, in bytes.
 pub const PACKAGE_MAX_BYTES: u64 = 50 * 1024 * 1024;
@@ -39,6 +52,9 @@ pub trait CapabilityFiles: Send + Sync {
     /// sizes and change times: when it differs from the one taken at
     /// install, the package is hashed again.
     fn stamp<'a>(&'a self, id: &'a str, version: &'a str) -> BoxFuture<'a, Result<String, Error>>;
+    /// The text of `file`, a path inside the installed package (its
+    /// instructions).
+    fn read_text<'a>(&'a self, id: &'a str, version: &'a str, file: &'a str) -> BoxFuture<'a, Result<String, Error>>;
     /// Moves every `.partial` folder an install left behind (Eos stopped in
     /// the middle of one) to the trash; answers how many. Run at start.
     fn sweep(&self) -> BoxFuture<'_, Result<usize, Error>>;

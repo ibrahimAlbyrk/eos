@@ -215,6 +215,17 @@ impl CapabilityFiles for FsCapabilityFiles {
         })
     }
 
+    fn read_text<'a>(&'a self, id: &'a str, version: &'a str, file: &'a str) -> BoxFuture<'a, Result<String, Error>> {
+        Box::pin(async move {
+            let dir = self.installed(id, version)?;
+            for name in file.split('/') {
+                component("file", name)?;
+            }
+            let path = dir.join(file);
+            blocking(move || fs::read_to_string(&path).map_err(io(&path))).await
+        })
+    }
+
     fn sweep(&self) -> BoxFuture<'_, Result<usize, Error>> {
         Box::pin(async move {
             let partials = self.partials()?;

@@ -1485,6 +1485,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "eos-capabilities"
+version = "0.0.1"
+dependencies = [
+ "eos-contracts",
+ "eos-core",
+ "eos-domain",
+ "eos-testkit",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "zeroize",
+]
+
+[[package]]
 name = "eos-config"
 version = "0.0.1"
 dependencies = [
