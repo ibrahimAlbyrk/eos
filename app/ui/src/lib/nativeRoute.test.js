@@ -29,7 +29,7 @@ describe("a route from the native app", () => {
     expect(h.setActiveView).toHaveBeenCalledWith("agents");
     expect(h.openPanel).toHaveBeenCalledWith("transfer");
     expect(h.openMemory).not.toHaveBeenCalled();
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
   });
 
   it("an eos: location switches to Eos at that location", () => {

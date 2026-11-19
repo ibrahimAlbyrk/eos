@@ -81,9 +81,9 @@ describe("Eos history", () => {
     goBack();
     expect(eosLocation()).toBe("eos:/needs");
     goBack();
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
     goBack();
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
     goForward();
     expect(eosLocation()).toBe("eos:/needs");
     openLocation("eos:/memory");
@@ -105,7 +105,7 @@ describe("Eos history", () => {
     openLocation("eos:/needs");
     openLocation("eos:/needs");
     goBack();
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
   });
 });
 
@@ -119,12 +119,15 @@ describe("Eos's remembered place", () => {
     expect(localStorage.getItem("eos:location")).toBe("eos:/capabilities/github");
   });
 
-  it("is Capabilities when nothing usable is stored or storage is out of reach", () => {
+  it("is Home when nothing usable is stored or storage is out of reach", () => {
     globalThis.localStorage = stubStorage({ "eos:location": "eos:/nowhere" });
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
+    _resetEosNav();
+    globalThis.localStorage = stubStorage();
+    expect(eosLocation()).toBe("eos:/");
     _resetEosNav();
     globalThis.localStorage = { getItem: () => { throw new Error("blocked"); }, setItem: () => { throw new Error("blocked"); } };
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
     openLocation("eos:/needs");
     expect(eosLocation()).toBe("eos:/needs");
   });

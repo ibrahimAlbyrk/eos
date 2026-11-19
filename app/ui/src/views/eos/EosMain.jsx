@@ -41,7 +41,8 @@ function PlaceholderScreen({ location }) {
 // as the app does.
 export function EosMain() {
   const location = parseLocation(useEosLocation());
-  if (location?.screen === "needs") return <NeedsYouList />;
+  // Until Home arrives (P5), Eos's start shows what needs the user.
+  if (location?.screen === "home" || location?.screen === "needs") return <NeedsYouList />;
   if (location?.screen === "need") return <NeedsItemScreen key={location.itemId} id={location.itemId} />;
   if (location?.screen === "routine") return <RoutinePage key={location.routineId} id={location.routineId} tab={location.tab} />;
   if (location?.screen === "run") return <RunView key={location.runId} id={location.runId} />;

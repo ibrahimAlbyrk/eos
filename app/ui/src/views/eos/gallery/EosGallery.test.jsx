@@ -20,7 +20,7 @@ afterEach(() => {
 });
 
 describe("#eos-gallery", () => {
-  it("draws Eos at Capabilities from the samples without calling the core", async () => {
+  it("draws Eos at its start, Needs you, from the samples without calling the core", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
 
@@ -32,6 +32,7 @@ describe("#eos-gallery", () => {
     expect(html).toContain('<nav class="sb-nav" aria-label="Eos">');
     expect(html).toContain('<button class="sb-nav-row strong on"><span class="sb-nav-row__ic">');
     expect(html).toContain('<section class="center"><main class="eos-screen">');
+    expect(html).toContain('<h1 class="eos-title">Needs you</h1>');
 
     expect(await transport.get(ROUTES.routines)).toEqual({ ok: true, status: 200, body: routines });
     const rows = (await transport.get(ROUTES.capabilities)).body;
@@ -43,12 +44,12 @@ describe("#eos-gallery", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("opens at Capabilities and leaves where the user's own Eos opens untouched", () => {
+  it("opens at its start and leaves where the user's own Eos opens untouched", () => {
     const stored = new Map([["eos:location", "eos:/capabilities/github"]]);
     vi.stubGlobal("localStorage", { getItem: (k) => stored.get(k) ?? null, setItem: (k, v) => stored.set(k, v) });
 
     startEosGallery({});
-    expect(eosLocation()).toBe("eos:/capabilities");
+    expect(eosLocation()).toBe("eos:/");
     openLocation("eos:/needs");
     expect(eosLocation()).toBe("eos:/needs");
     expect(stored.get("eos:location")).toBe("eos:/capabilities/github");
