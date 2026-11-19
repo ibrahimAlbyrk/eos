@@ -7,8 +7,8 @@ use std::process::Command;
 
 use crate::error::Error;
 use crate::host::{
-    AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform, KeepAwake, OpenTarget,
-    ScreenSaver, SpawnCommand, TerminalShell,
+    AppSecretStore, AppUpdatePlatform, Argv, CredentialStore, DefaultApp, Desktop, HostFeatures, HostPlatform,
+    KeepAwake, OpenTarget, ScreenSaver, SpawnCommand, TerminalShell,
 };
 use crate::paths::home_dir;
 use crate::power::PowerReading;
@@ -124,6 +124,10 @@ impl HostPlatform for Generic {
         &FileCredentials
     }
 
+    fn app_keychain(&self) -> Option<&dyn AppSecretStore> {
+        None
+    }
+
     fn trash(&self, _path: &Path) -> Result<(), Error> {
         Err(Error::Unsupported("the system trash"))
     }
@@ -219,6 +223,7 @@ mod tests {
         assert!(matches!(host.trash(Path::new("/nowhere")), Err(Error::Unsupported(_))));
         assert!(matches!(host.credentials().write_secret("svc", "s"), Err(Error::Unsupported(_))));
         assert_eq!(host.credentials().read_secret("svc"), None);
+        assert!(host.app_keychain().is_none());
         assert!(host.app_updates().is_none());
         assert!(host.screen_saver().is_none());
         assert!(host.chromium_browsers().is_empty());

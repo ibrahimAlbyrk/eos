@@ -7,6 +7,7 @@ use std::process::{Child, Command};
 
 use sha2::{Digest, Sha256};
 use unicode_normalization::UnicodeNormalization;
+use zeroize::Zeroizing;
 
 use crate::error::Error;
 use crate::power::PowerReading;
@@ -51,6 +52,19 @@ pub trait CredentialStore: Send + Sync + Debug {
     fn write_secret(&self, service: &str, secret: &str) -> Result<(), Error>;
     /// Removes the secret under `service`; one that is not there is not an error.
     fn delete_secret(&self, service: &str);
+}
+
+/// Secrets in items the signed app makes itself: any other program gets a
+/// system prompt before it can read one. An item is named by its service and
+/// its account together. Errors carry a kind, never a value.
+pub trait AppSecretStore: Send + Sync + Debug {
+    /// The item's value, or `None` when there is no such item.
+    fn read(&self, service: &str, account: &str) -> Result<Option<Zeroizing<String>>, Error>;
+    /// Saves the value, replacing one already there.
+    fn write(&self, service: &str, account: &str, value: &str) -> Result<(), Error>;
+    /// Removes the item; one that is not there is not an error.
+    fn delete(&self, service: &str, account: &str) -> Result<(), Error>;
+    fn has(&self, service: &str, account: &str) -> Result<bool, Error>;
 }
 
 /// The Keychain item the claude binary keeps a store's login in: a store dir
@@ -174,6 +188,8 @@ pub trait HostPlatform: Send + Sync + Debug {
     /// A recursive watch costs no fd per file here.
     fn native_recursive_watch(&self) -> bool;
     fn credentials(&self) -> &dyn CredentialStore;
+    /// The app's own secret items; `None` where the system has no such store.
+    fn app_keychain(&self) -> Option<&dyn AppSecretStore>;
     /// Moves a path to the system trash; [`Error::Unsupported`] when there is none.
     fn trash(&self, path: &Path) -> Result<(), Error>;
     /// Keeps the computer out of system sleep while the process `pid` lives

@@ -14,11 +14,13 @@
 //! - [`FrameApiArtifacts`]: each Claude sign-in's claude.ai Artifacts.
 //! - [`ClaudeModels`]: the models Claude lists for the user's sign-in.
 //! - [`PlatformSecrets`]: provider API keys in the system's secret store.
+//! - [`AppKeychainSecrets`]: capability secrets in the app's own Keychain items.
 //!
 //! This crate uses the engine's provider sign-in crates
 //! (`eos-agent-anthropic`, `eos-agent-openai`) and nothing else of it.
 
 mod artifacts;
+mod capability_secrets;
 mod models;
 mod registry;
 mod secrets;
@@ -27,6 +29,7 @@ mod stores;
 mod usage;
 
 pub use artifacts::{FrameApiArtifacts, NO_TOKEN_MESSAGE, REJECTED_MESSAGE, artifact_summary};
+pub use capability_secrets::AppKeychainSecrets;
 pub use models::ClaudeModels;
 pub use registry::{AccountDirs, FilePlanLoginStore};
 pub use secrets::{HostCredentials, PlatformSecrets};

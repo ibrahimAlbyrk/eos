@@ -28,6 +28,7 @@ sha2.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "net", "rt", "sync", "time"] }
 tokio-tungstenite.workspace = true
+zeroize.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }
