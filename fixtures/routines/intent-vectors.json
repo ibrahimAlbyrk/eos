@@ -1,0 +1,836 @@
+[
+  {
+    "text": "review #470",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "PR Review on https://github.com/acme/game/pull/12",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "https://github.com/acme/game/pull/12",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "please look at #88",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "pr-review",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "PR Review",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "Mail Triage",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-mail"
+    }
+  },
+  {
+    "text": "triage",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-mail"
+    }
+  },
+  {
+    "text": "~/Downloads/acme-march.pdf",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-inv"
+    }
+  },
+  {
+    "text": "file invoice ~/Downloads/acme.pdf",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "run",
+      "routineId": "rt-inv"
+    }
+  },
+  {
+    "text": "PR Review should also check the shaders",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "change",
+      "routineId": "rt-pr"
+    }
+  },
+  {
+    "text": "Mail Triage should never archive mail from my boss",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "change",
+      "routineId": "rt-mail"
+    }
+  },
+  {
+    "text": "stop the inbox from labelling newsletters",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "change",
+      "routineId": "rt-mail"
+    }
+  },
+  {
+    "text": "change Invoice Filer to use the shared folder",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "change",
+      "routineId": "rt-inv"
+    }
+  },
+  {
+    "text": "every morning summarise my calendar",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  },
+  {
+    "text": "whenever a release is tagged, write the notes",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  },
+  {
+    "text": "each week send me the open bugs",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  },
+  {
+    "text": "check the build at 5pm",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  },
+  {
+    "text": "on fridays tidy my downloads folder",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  },
+  {
+    "text": "when a customer writes, draft a reply",
+    "routines": [
+      {
+        "id": "rt-pr",
+        "name": "PR Review",
+        "slug": "pr-review",
+        "aliases": [
+          "review"
+        ],
+        "itemPatterns": [
+          "https://github\\.com/([\\w.-]+)/([\\w.-]+)/pull/(\\d+)",
+          "(?:^|\\s)#(\\d+)\\b"
+        ]
+      },
+      {
+        "id": "rt-mail",
+        "name": "Mail Triage",
+        "slug": "mail-triage",
+        "aliases": [
+          "triage",
+          "inbox"
+        ],
+        "itemPatterns": []
+      },
+      {
+        "id": "rt-inv",
+        "name": "Invoice Filer",
+        "slug": "invoice-filer",
+        "aliases": [
+          "file invoice"
+        ],
+        "itemPatterns": [
+          "\\S+\\.pdf\\b"
+        ]
+      }
+    ],
+    "expect": {
+      "intent": "make"
+    }
+  }
+]

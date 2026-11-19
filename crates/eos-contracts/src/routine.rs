@@ -8,6 +8,7 @@
 
 mod architect;
 mod input;
+mod intent;
 mod rows;
 mod runs;
 mod writes;
@@ -19,6 +20,7 @@ use serde_json::{Map, Value};
 
 pub use architect::*;
 pub use input::*;
+pub use intent::*;
 pub use rows::*;
 pub use runs::*;
 pub use writes::*;

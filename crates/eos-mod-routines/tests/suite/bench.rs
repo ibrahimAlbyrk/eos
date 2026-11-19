@@ -26,7 +26,8 @@ use eos_store_files::prompts::LibraryPromptSource;
 use eos_store_files::run_folders::FsRunFolders;
 use eos_testkit::{
     FakeCapabilityReads, FakeClock, FakeConfig, FakeModelCatalog, FakePrompts, FakeRecents, FakeRunGate, FakeScratch,
-    FakeSettings, FakeSleeper, FakeTimeZone, FakeWorktrees, FakeZoneRules, ScriptedRuntime, SeqIds, TempStore,
+    FakeSettings, FakeSleeper, FakeTimeZone, FakeWorktrees, FakeZoneRules, ScriptedOneShot, ScriptedRuntime, SeqIds,
+    TempStore,
 };
 use serde_json::{Value, json};
 
@@ -61,6 +62,8 @@ pub(crate) struct Bench {
     pub(crate) settings: Arc<FakeSettings>,
     /// Whether the plan is near its five-hour limit.
     pub(crate) plan: Arc<FakePlan>,
+    /// The small model the Home input's model read asks.
+    pub(crate) model: Arc<ScriptedOneShot>,
 }
 
 /// A plan whose five-hour window a test fills.
@@ -194,7 +197,16 @@ impl Bench {
         let keys = Arc::new(FakeKeys::default());
         let (settings, ids, plan) =
             (Arc::new(FakeSettings::default()), Arc::new(SeqIds::new()), Arc::new(FakePlan::default()));
-        let parts = Shared { gate: &gate_port, keys: &keys, bus: &bus, settings: &settings, ids: &ids, plan: &plan };
+        let model = Arc::new(ScriptedOneShot::default());
+        let parts = Shared {
+            gate: &gate_port,
+            keys: &keys,
+            bus: &bus,
+            settings: &settings,
+            ids: &ids,
+            plan: &plan,
+            model: &model,
+        };
         let module = module(&temp, &clock, &sleeper, &sessions, &reads, parts, autostart);
         let _ = hooks.module.set(Arc::downgrade(&module));
         let runs = module.runs();
@@ -218,6 +230,7 @@ impl Bench {
             bus,
             settings,
             plan,
+            model,
         }
     }
 
@@ -233,6 +246,7 @@ impl Bench {
             settings: &self.settings,
             ids: &self.ids,
             plan: &self.plan,
+            model: &self.model,
         };
         module(temp, clock, sleeper, sessions, reads, parts, self.autostart)
     }
@@ -343,6 +357,7 @@ struct Shared<'a> {
     settings: &'a Arc<FakeSettings>,
     ids: &'a Arc<SeqIds>,
     plan: &'a Arc<FakePlan>,
+    model: &'a Arc<ScriptedOneShot>,
 }
 
 // The bench's parts, each shared with the module a restart builds again.
@@ -355,7 +370,7 @@ fn module(
     shared: Shared<'_>,
     autostart: bool,
 ) -> Arc<RoutinesModule> {
-    let Shared { gate, keys, bus, settings, ids, plan } = shared;
+    let Shared { gate, keys, bus, settings, ids, plan, model } = shared;
     let trees = eos_kit_proc::ProcessTrees::new(eos_platform::isolate_command, |pid| {
         eos_platform::kill_process_tree(pid).is_ok()
     });
@@ -382,6 +397,7 @@ fn module(
         zone: Arc::new(FakeTimeZone::new("Europe/Istanbul", 180)),
         settings: settings.clone(),
         headroom: plan.clone(),
+        one_shot: model.clone(),
     }))
 }
 

@@ -317,6 +317,10 @@ pub const ROUTINE_DRAFT: Route = Route::new("routineDraft", "/api/routines/:id/d
 pub const ROUTINE_DRAFT_MESSAGE: Route =
     Route::new("routineDraftMessage", "/api/routines/:id/draft/message", &[Post]).added();
 pub const ROUTINE_TRIAL: Route = Route::new("routineTrial", "/api/routines/:id/trial", &[Post]).added();
+pub const ROUTINES_INTENT: Route = Route::new("routinesIntent", "/api/routines/intent", &[Post]).added();
+pub const ROUTINES_INTENT_MODEL: Route =
+    Route::new("routinesIntentModel", "/api/routines/intent/model", &[Post]).added();
+pub const ROUTINES_MATCH_ITEM: Route = Route::new("routinesMatchItem", "/api/routines/match-item", &[Post]).added();
 pub const ROUTINE_CANDIDATES: Route = Route::new("routineCandidates", "/api/routines/:id/candidates", &[Get]).added();
 pub const RUNS: Route = Route::new("runs", "/api/runs", &[Get, Post]).added();
 pub const RUNS_ESTIMATE: Route = Route::new("runsEstimate", "/api/runs/estimate", &[Post]).added();
@@ -673,6 +677,9 @@ pub const ROUTES: &[Route] = &[
     ROUTINE_DRAFT,
     ROUTINE_DRAFT_MESSAGE,
     ROUTINE_TRIAL,
+    ROUTINES_INTENT,
+    ROUTINES_INTENT_MODEL,
+    ROUTINES_MATCH_ITEM,
     RUNS,
     RUNS_ESTIMATE,
     RUNS_ACTIVE,
