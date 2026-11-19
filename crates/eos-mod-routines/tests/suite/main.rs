@@ -3,6 +3,7 @@
 mod activity;
 mod bench;
 mod blueprint;
+mod budget;
 mod check;
 mod control;
 mod gate;

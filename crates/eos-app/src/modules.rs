@@ -69,6 +69,8 @@ pub(crate) struct Context {
     /// The folder of the bundled PDF viewer, when the host has one.
     pub(crate) pdfjs_root: Option<std::path::PathBuf>,
     pub(crate) settings: Arc<dyn UserSettingsStore>,
+    /// The plan usage the accounts feature last fetched.
+    pub(crate) usage_cache: Arc<dyn eos_core::accounts::UsageSnapshotStore>,
     /// What visual answers fetch: images, the map, geocoding, place search.
     pub(crate) media: eos_genui_media::Services,
     /// The window shell's reading of this computer's position, when there is a shell.
@@ -204,6 +206,7 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         zones: Arc::new(crate::host::HostZoneRules),
         zone: Arc::new(crate::host::HostTimeZone),
         settings: cx.settings.clone(),
+        headroom: Arc::new(crate::headroom::CachedHeadroom(cx.usage_cache.clone())),
     }));
     cx.grants.attach(&routines.grants());
     let transfer = crate::machines::transfer(cx);

@@ -4,7 +4,9 @@
 //! and what it starts cannot drift apart. Leaving the queue binds the
 //! version the run runs from (01 G5) and moves it to `running` at the brief;
 //! the brief station then starts its lead, one run after the other, before
-//! the next pass.
+//! the next pass. A run from a trigger is skipped while its routine's or
+//! everything's day budget is spent, and waits while the plan has no
+//! headroom; each turn of the loop also holds working runs to their time.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -14,13 +16,14 @@ use eos_core::Error;
 use eos_core::store::{Outbox, RunMove, StoredRun, Tx};
 use eos_domain::routine::run::{Reason, RunState, Station};
 
-use super::{Engine, brief, move_run};
+use super::{Engine, brief, budget, move_run};
 use crate::routes::{readable, showing_version};
 
-/// Runs whose agents work at once, over every routine.
-pub(crate) const GLOBAL_SLOTS: i64 = 3;
 /// The longest the supervisor sleeps without being woken.
 const IDLE_WAIT_MS: i64 = 60_000;
+/// How long it sleeps at most while runs work: their time is checked and
+/// their spend written each turn.
+const WORKING_WAIT_MS: i64 = 30_000;
 
 /// Started by the user: the dev guard let the act through, so such a run
 /// starts even off the network.
@@ -37,8 +40,9 @@ pub(crate) fn spawn(engine: &Arc<Engine>) {
 
 async fn supervise(engine: Arc<Engine>) {
     loop {
-        let (now, autostart) = (engine.clock.now_ms(), engine.autostart);
-        let wait = match engine.store.write(move |tx, out| pass(tx, out, now, autostart)).await {
+        let now = engine.clock.now_ms();
+        let (job, day) = (engine.clone(), budget::day(&engine));
+        let wait = match engine.store.write(move |tx, out| pass(tx, out, &job, &day, now)).await {
             Ok(Pass { next_due, left }) => {
                 for run_id in left {
                     brief::start_lead(&engine, &run_id).await;
@@ -50,6 +54,7 @@ async fn supervise(engine: Arc<Engine>) {
                 IDLE_WAIT_MS
             }
         };
+        let wait = if budget::tick(&engine).await { wait.min(WORKING_WAIT_MS) } else { wait };
         tokio::select! {
             () = engine.sleeper.sleep(wait) => {}
             () = engine.wake.notified() => {}
@@ -61,6 +66,8 @@ async fn supervise(engine: Arc<Engine>) {
 struct Allowed {
     state: RoutineState,
     parallel: i64,
+    /// What its runs may spend a day.
+    per_day_usd: f64,
     version_id: Option<String>,
 }
 
@@ -72,7 +79,9 @@ struct Pass {
 }
 
 /// One pass over the queue.
-fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass, Error> {
+fn pass(tx: &dyn Tx, out: &mut Outbox, engine: &Arc<Engine>, day: &budget::Day, now: i64) -> Result<Pass, Error> {
+    let autostart = engine.autostart;
+    let spent = budget::spent_in(tx, &day.day)?;
     let mut busy: HashMap<String, i64> = tx.runs().working()?.into_iter().collect();
     let mut total: i64 = busy.values().sum();
     let mut routines: HashMap<String, Allowed> = HashMap::new();
@@ -89,7 +98,7 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass
             skip(tx, out, &run, now)?;
             continue;
         }
-        if total >= GLOBAL_SLOTS {
+        if total >= day.slots {
             continue;
         }
         if let Some(at) = run.not_before.filter(|at| *at > now) {
@@ -101,6 +110,18 @@ fn pass(tx: &dyn Tx, out: &mut Outbox, now: i64, autostart: bool) -> Result<Pass
         }
         if routine.state != RoutineState::Active && !user {
             continue;
+        }
+        if !user {
+            let routine_spent = spent.of_routine(&run.routine_id) >= routine.per_day_usd;
+            if routine_spent || spent.total >= day.cap_usd {
+                skip_for(tx, out, &run, Reason::DayCap, now)?;
+                let whose = routine_spent.then_some(run.routine_id.as_str());
+                budget::day_cap_notice_in(tx, out, engine, whose, now)?;
+                continue;
+            }
+            if day.plan_busy {
+                continue;
+            }
         }
         let working = busy.entry(run.routine_id.clone()).or_default();
         if *working >= routine.parallel {
@@ -126,9 +147,14 @@ fn never_starts(state: RoutineState, user: bool) -> bool {
 }
 
 fn skip(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, now: i64) -> Result<(), Error> {
-    let skipped = RunMove { state: RunState::Skipped, station: None, reason: Some(Reason::User), at: now };
+    skip_for(tx, out, run, Reason::User, now)
+}
+
+fn skip_for(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, reason: Reason, now: i64) -> Result<(), Error> {
+    let skipped = RunMove { state: RunState::Skipped, station: None, reason: Some(reason), at: now };
     move_run(tx, out, run, skipped)?;
-    tracing::info!(run_id = %run.id, routine_id = %run.routine_id, "a run was skipped: its routine is off");
+    let reason = reason.as_str();
+    tracing::info!(run_id = %run.id, routine_id = %run.routine_id, reason, "a run was skipped");
     Ok(())
 }
 
@@ -165,6 +191,7 @@ fn allowed(tx: &dyn Tx, routine_id: &str) -> Result<Allowed, Error> {
     Ok(Allowed {
         state,
         parallel: blueprint.as_ref().map_or(1, |blueprint| blueprint.limits.parallel.max(1)),
+        per_day_usd: blueprint.as_ref().map_or(f64::INFINITY, |blueprint| blueprint.limits.per_day_usd.0),
         // A version this app cannot run is no version to bind.
         version_id: version.filter(|_| blueprint.is_some()).map(|version| version.id),
     })

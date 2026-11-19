@@ -64,7 +64,8 @@ use eos_core::capability::{CapabilityGrants, CapabilityReads};
 use eos_core::git::{ProjectKeys, RemoteSync};
 use eos_core::os::{TimeZone, ZoneRules};
 use eos_core::routine::{
-    RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup, RunOutcomes, RunStarter,
+    PlanHeadroom, RoutineControl, RoutineDirectory, RoutineTools, RunFolders, RunGate, RunIntake, RunLookup,
+    RunOutcomes, RunStarter,
 };
 use eos_core::store::{ConfigSource, Store, UserSettingsStore};
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
@@ -120,6 +121,8 @@ pub struct RoutinesParts {
     pub zone: Arc<dyn TimeZone>,
     /// `settings.json`, which holds the budgets for all routines.
     pub settings: Arc<dyn UserSettingsStore>,
+    /// Whether the user's plan has room for runs from triggers.
+    pub headroom: Arc<dyn PlanHeadroom>,
 }
 
 impl std::fmt::Debug for RoutinesParts {
@@ -162,6 +165,7 @@ impl RoutinesModule {
             zones,
             zone,
             settings,
+            headroom,
         } = parts;
         let engine = Arc::new(Engine {
             store,
@@ -193,6 +197,9 @@ impl RoutinesModule {
             zones,
             zone,
             settings,
+            headroom,
+            meters: Mutex::new(HashMap::new()),
+            usage: Mutex::new(None),
         });
         let grants = Arc::new(engine::Grants(engine.clone()));
         Self { engine, grants }
@@ -286,6 +293,7 @@ impl Module for RoutinesModule {
             // Before any session of a run is resumed.
             engine::rebuild_launches(&self.engine).await?;
             engine::end_sessions_of_ended_runs(&self.engine);
+            engine::watch_usage(&self.engine);
             engine::recover(&self.engine).await?;
             engine::start_supervisor(&self.engine);
             Ok(())

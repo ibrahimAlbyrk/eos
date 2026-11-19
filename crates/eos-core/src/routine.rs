@@ -88,6 +88,9 @@ pub enum StartError {
     RoutineState(RoutineState),
     /// 400; the text names the field.
     Invalid(String),
+    /// 409: everything routines may spend today is spent; the user may
+    /// raise today's cap.
+    DayCap,
     Store(Error),
 }
 
@@ -422,4 +425,11 @@ pub trait RunOutcomes: Send + Sync {
     /// The user wants the result changed: the lead gets `text` and works
     /// again.
     fn revise(&self, tx: &dyn Tx, out: &mut Outbox, run_id: &str, text: &str) -> Result<(), Error>;
+}
+
+/// Whether the user's Claude plan is near its five-hour limit (01 G28):
+/// runs from triggers wait then, runs by hand still start.
+pub trait PlanHeadroom: Send + Sync {
+    /// The cached five-hour window is at or above `percent` of the limit.
+    fn busy(&self, percent: i64) -> bool;
 }

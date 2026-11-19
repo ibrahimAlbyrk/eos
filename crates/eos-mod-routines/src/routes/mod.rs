@@ -17,7 +17,7 @@ use eos_runtime::router::RouteDef;
 
 pub(crate) use estimate::usual;
 pub(crate) use routines::{gone, param, readable, run_summary, showing_version, summary};
-pub(crate) use settings::protected_settings;
+pub(crate) use settings::{current as current_settings, protected_settings, today};
 
 use crate::engine::Engine;
 
