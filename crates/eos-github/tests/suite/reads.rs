@@ -54,4 +54,14 @@ async fn candidates_are_open_pull_requests_as_items_to_pick() {
     assert_eq!(item.updated_at, 1_763_400_000_000);
     let search = &rig.requests()[0];
     assert!(search.starts_with("Get /search/issues?q=is%3Apr+is%3Aopen+involves%3A%40me+network&"), "{search}");
+
+    let past = json!({ "limit": 5, "repo": REPO, "state": "all" });
+    rig.call("find_pull_requests", past).await.expect("finds");
+    let search = rig.requests().last().cloned().expect("a search");
+    assert!(
+        search.starts_with("Get /search/issues?q=is%3Apr+repo%3Aacme%2Fgame&"),
+        "a repository's, done ones too: {search}"
+    );
+    let bad = rig.call("find_pull_requests", json!({ "limit": 5, "repo": "../x" })).await;
+    assert!(matches!(bad, Err(eos_core::capability::ActionError::Invalid(_))));
 }

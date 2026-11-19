@@ -30,7 +30,8 @@ pub(crate) fn event_of(error: &ActionError) -> Option<Event> {
             code @ (StateCode::SecretMissing(_)
             | StateCode::ClientIdMissing
             | StateCode::AutomationDenied
-            | StateCode::ProgramMissing) => Some(Event::Missing(code)),
+            | StateCode::ProgramMissing
+            | StateCode::SourceGone) => Some(Event::Missing(code)),
             StateCode::RateLimited | StateCode::HealthFailed | StateCode::OutputSchema => None,
         },
         _ => None,

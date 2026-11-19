@@ -153,3 +153,21 @@ async fn withdrawing_deletes_the_comments_replaces_the_text_and_dismisses_a_chan
 fn review_with_changes() -> Value {
     review("REQUEST_CHANGES", json!([]))
 }
+
+#[tokio::test]
+async fn a_review_is_found_by_the_marker_of_its_delivery() {
+    let rig = rig();
+    let find = |key: &str| json!({ "repo": REPO, "number": 7, "key": key });
+    assert_eq!(rig.call("find_review", find("dl-1")).await.expect("reads"), json!({ "found": false }));
+    let login = rig.fake.login();
+    let left = rig.fake.add_review(REPO, 7, &login, "Notes.\n\n<!-- eos:d:dl-1 -->", "PENDING");
+    rig.fake.add_review(REPO, 7, "someone", "Notes.\n\n<!-- eos:d:dl-2 -->", "COMMENTED");
+    let found = rig.call("find_review", find("dl-1")).await.expect("reads");
+    assert_eq!(
+        (found["found"].clone(), found["reviewId"].clone(), found["state"].clone()),
+        (json!(true), json!(left), json!("PENDING"))
+    );
+    let others = rig.call("find_review", find("dl-2")).await.expect("reads");
+    assert_eq!(others["found"], false, "only the user's own reviews count");
+    assert!(rig.requests().iter().all(|request| request.starts_with("Get")), "it only reads");
+}

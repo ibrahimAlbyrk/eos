@@ -100,3 +100,19 @@ fn an_item_the_topic_and_the_bodies_read_and_write_back() {
     round_trip::<RollbackRequest>(json!({"version": "1.0.0"}));
     assert!(crate::parse::<RollbackRequest>(&json!({})).is_err());
 }
+
+#[test]
+fn a_review_is_sent_as_the_input_of_its_github_action() {
+    let review: PrReview = round_trip(json!({
+        "repo": "acme/game",
+        "number": 482,
+        "commitId": "6dcb09b",
+        "event": "COMMENT",
+        "body": "Two notes.",
+        "comments": [{"path": "src/main.rs", "line": 30, "side": "RIGHT", "body": "Why?"}],
+    }));
+    assert_eq!(review.comments[0].start_line, None);
+    let bare: PrReview =
+        round_trip(json!({"repo": "acme/game", "number": 1, "commitId": "a", "event": "APPROVE", "body": ""}));
+    assert!(bare.comments.is_empty());
+}

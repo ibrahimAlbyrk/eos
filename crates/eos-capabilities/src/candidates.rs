@@ -1,6 +1,8 @@
 //! The items capabilities offer the user to pick (a pull request, a mail):
 //! each `[[candidates]]` action is called with `{q?, limit}` and answers
-//! `{items: CapabilityItem[]}`. A capability that cannot answer is left out.
+//! `{items: CapabilityItem[]}`; for a source's past items it is also given
+//! the source's scope and `state: "all"`. A capability that cannot answer is
+//! left out.
 
 use eos_contracts::CapabilityItem;
 use eos_core::Error;
@@ -26,8 +28,20 @@ impl CapabilityService {
         q: Option<&str>,
         limit: usize,
     ) -> Result<Vec<CapabilityItem>, Error> {
+        self.offered(item, q, Map::new(), limit).await
+    }
+
+    /// [`candidates`](Self::candidates), each action also given `extra`
+    /// (a past item's scope and state).
+    pub(crate) async fn offered(
+        &self,
+        item: Option<&str>,
+        q: Option<&str>,
+        extra: Map<String, Value>,
+        limit: usize,
+    ) -> Result<Vec<CapabilityItem>, Error> {
         let limit = limit.min(CANDIDATES_MAX);
-        let mut input = Map::new();
+        let mut input = extra;
         if let Some(q) = q {
             input.insert("q".into(), q.into());
         }

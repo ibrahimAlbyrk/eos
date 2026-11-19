@@ -225,5 +225,41 @@ pub struct RollbackRequest {
 
 impl Validate for RollbackRequest {}
 
+/// What the `github` channel sends for a review result: the input of its
+/// `post_review` and `approve_pull_request` actions. The user's text: never
+/// logged.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReview {
+    /// `owner/name`.
+    pub repo: String,
+    pub number: u64,
+    /// The head commit the review was drafted on.
+    pub commit_id: String,
+    /// `COMMENT`, `REQUEST_CHANGES` or `APPROVE`.
+    pub event: String,
+    pub body: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub comments: Vec<PrReviewComment>,
+}
+
+impl Validate for PrReview {}
+
+/// One line comment of a [`PrReview`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PrReviewComment {
+    pub path: String,
+    pub line: u64,
+    /// `LEFT` or `RIGHT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub side: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<u64>,
+    pub body: String,
+}
+
+impl Validate for PrReviewComment {}
+
 #[cfg(test)]
 mod tests;

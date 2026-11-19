@@ -123,12 +123,7 @@ impl GitHub {
         event: &str,
         stale: bool,
     ) -> Result<Option<Value>, ActionError> {
-        let me = self.get(token, "/user").await?;
-        let me = text(&me, "login");
-        let path = format!("/repos/{}/pulls/{number}/reviews?per_page=100", repo.0);
-        let reviews = self.get(token, &path).await?;
-        let reviews = reviews.as_array().ok_or_else(service_failed)?;
-        let mine: Vec<&Value> = reviews.iter().filter(|review| text(&review["user"], "login") == me).collect();
+        let mine = self.my_reviews(token, repo, number).await?;
         if let Some(review) = mine.iter().find(|review| text(review, "body").contains(marker)) {
             if text(review, "state") != "PENDING" {
                 return Ok(Some(receipt(review, stale, 0, true)));
@@ -141,6 +136,30 @@ impl GitHub {
             return Err(ActionError::Failed { kind: FailureKind::UserDraftInProgress });
         }
         Ok(None)
+    }
+
+    /// The signed-in user's reviews on the pull request, drafts included.
+    async fn my_reviews(&self, token: &str, repo: &Repo, number: u64) -> Result<Vec<Value>, ActionError> {
+        let me = self.get(token, "/user").await?;
+        let me = text(&me, "login");
+        let path = format!("/repos/{}/pulls/{number}/reviews?per_page=100", repo.0);
+        let reviews = self.get(token, &path).await?;
+        let reviews = reviews.as_array().ok_or_else(service_failed)?;
+        Ok(reviews.iter().filter(|review| text(&review["user"], "login") == me).cloned().collect())
+    }
+
+    /// The user's review that carries the marker of the delivery `key`,
+    /// pending or sent; reads only.
+    pub(crate) async fn find_review(&self, token: &str, input: &Value) -> Result<Value, ActionError> {
+        let repo = repo("find_review", input)?;
+        let marker = marker(text(input, "key"));
+        let mine = self.my_reviews(token, &repo, number(input, "number")).await?;
+        Ok(match mine.iter().find(|review| text(review, "body").contains(&marker)) {
+            Some(review) => {
+                json!({ "found": true, "reviewId": review["id"], "url": text(review, "html_url"), "state": text(review, "state") })
+            }
+            None => json!({ "found": false }),
+        })
     }
 
     /// The files of the diff the pull request had at `commit`.
