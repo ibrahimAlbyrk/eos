@@ -85,6 +85,7 @@ pub mod relay;
 mod routine;
 mod runs;
 mod secrets;
+mod signals;
 mod terminal;
 mod tools;
 mod trash;
@@ -128,6 +129,7 @@ pub use profile::FakeProfileRenderer;
 pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
 pub use runs::{FakeRoutineDirectory, FakeRunIntake, FakeRunStarter};
 pub use secrets::FakeCapabilitySecrets;
+pub use signals::{FakeRunner, FakeSignalSources, FakeSource};
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,
 };
