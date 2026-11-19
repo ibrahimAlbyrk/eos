@@ -127,7 +127,7 @@ describe("a routine being made", () => {
     expect(html).toContain('<div class="eos-bp-question__text"><md>Should it review **draft** pull requests too?</md></div>');
     expect(html).toContain('<button type="button" class="eos-btn">Only when ready</button><button type="button" class="eos-btn">Drafts too</button>');
     expect(html).toContain('placeholder="Change anything by saying it"');
-    expect(html).toContain('<span class="eos-bp-card__version">Version 1, not running yet</span>');
+    expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 1, not running yet ▾</button>');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Start it", "Start without a trial", "Run a trial"]);
     expect(html).toContain('<span class="eos-bp-actions__cost">Uses github. At most $2 a run, stops at $5 a day.</span>');
     expect(html).toContain('<button type="button" class="eos-bp-chip eos-bp-value" aria-haspopup="dialog" aria-expanded="false">Editor<span class="eos-bp-chip__sub">sonnet</span></button>');
@@ -189,7 +189,8 @@ describe("live", () => {
 describe("an architect's change of a running routine", () => {
   it("shows the draft version read-only with its changed slots, Use this version and Discard, and the trial cards", async () => {
     const html = await editor(MAIL);
-    expect(html).toContain('<span class="eos-bp-card__version">Version 3, not in use yet</span>');
+    expect(html).toContain('aria-haspopup="menu" aria-expanded="false">Version 3, not in use yet ▾</button>');
+    expect(html).not.toContain("Add a recipient");
     expect(changedRows(html)).toEqual(["Who"]);
     expect(html).not.toContain('class="eos-bp-value"');
     expect(buttonsIn(html, "eos-bp-actions")).toEqual(["Use this version", "Discard", "Run the trial again"]);

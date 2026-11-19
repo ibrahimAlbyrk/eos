@@ -29,6 +29,6 @@ export function goesToParts(goesTo) {
     { break: true },
   ]);
   if (list.length === 0) parts.push("Stays in Eos", { break: true });
-  parts.push({ key: "to.add", label: "Add a recipient", editor: "recipient", text: "Add a recipient", value: { channel: "mail", address: "" }, apply: ({ channel, address }) => [...list, { id: freeId(list), kind: "fixed", channel, address }] });
+  parts.push({ key: "to.add", label: "Add a recipient", editor: "recipient", text: "Add a recipient", optional: true, value: { channel: "mail", address: "" }, apply: ({ channel, address }) => [...list, { id: freeId(list), kind: "fixed", channel, address }] });
   return parts;
 }

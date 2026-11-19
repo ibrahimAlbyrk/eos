@@ -59,8 +59,9 @@ function FailedBand({ run }) {
 }
 
 // eos:/routines/<id> — one routine: its state and what can be done with it,
-// then its tabs: Overview, Runs, Blueprint.
-export function RoutinePage({ id, tab }) {
+// then its tabs: Overview, Runs, Blueprint. eos:/routines/<id>/versions/<n>
+// is its Blueprint tab showing that version.
+export function RoutinePage({ id, tab, version }) {
   const { details, failed, list } = useRoutines();
   const devRun = useDevRunSeen();
   useEffect(() => {
@@ -103,7 +104,7 @@ export function RoutinePage({ id, tab }) {
             <div className="eos-tab-panel" id="eos-tab-panel" role="tabpanel" aria-labelledby={`eos-tab-${shown}`}>
               {shown === "overview" && <OverviewTab detail={detail} now={now} />}
               {shown === "runs" && <RoutineRuns routineId={id} />}
-              {shown === "blueprint" && <BlueprintTab detail={detail} />}
+              {shown === "blueprint" && <BlueprintTab detail={detail} version={version} />}
             </div>
           </>
         )}
