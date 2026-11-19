@@ -86,6 +86,7 @@ pub(crate) async fn view(engine: &Engine, routine_id: &str) -> Result<DraftView,
                 base_version_id: draft.base_version_id,
                 draft_version_id: draft.draft_version_id,
                 trial_runs,
+                architect_id: draft.architect_id,
                 changed: changed(head_json.as_ref(), draft_json.as_ref()),
                 updated_at: draft.updated_at,
             })

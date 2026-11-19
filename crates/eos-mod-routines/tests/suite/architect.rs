@@ -268,9 +268,11 @@ async fn a_hand_save_after_the_architects_draft_is_the_version_that_starts() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_draft_without_an_architect_refuses_a_message_with_a_code() {
+async fn the_drafts_view_names_its_architect_and_a_draft_without_one_refuses_with_a_code() {
     let routes = Routes::new();
-    let (routine, _) = routes.made("Review my pull requests").await;
+    let (routine, architect) = routes.made("Review my pull requests").await;
+    let (_, draft) = routes.get(&format!("/api/routines/{routine}/draft")).await;
+    assert_eq!(draft["architectId"], json!(architect), "{draft}");
 
     let id = routine.clone();
     routes
@@ -283,6 +285,8 @@ async fn a_draft_without_an_architect_refuses_a_message_with_a_code() {
             tx.routines().update_draft(&draft)
         })
         .expect("writes");
+    let (_, draft) = routes.get(&format!("/api/routines/{routine}/draft")).await;
+    assert!(draft.get("architectId").is_none(), "{draft}");
     let (status, refused) =
         routes.post(&format!("/api/routines/{routine}/draft/message"), json!({"text": "Hello"})).await;
     assert_eq!((status, &refused["code"]), (409, &json!("no_architect")), "{refused}");
