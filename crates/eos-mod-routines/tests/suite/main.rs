@@ -12,6 +12,7 @@ mod ports;
 mod recover;
 mod routes;
 mod run_routes;
+mod seed;
 mod solo;
 mod start;
 mod supervisor;
