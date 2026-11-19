@@ -95,6 +95,11 @@ pub struct DraftView {
     pub draft_version_id: Option<String>,
     /// The trial runs of the draft version, newest first.
     pub trial_runs: Vec<RunSummary>,
+    /// The worker id of the draft's architect session, whose messages
+    /// `GET /workers/:id/events` reads; absent while no architect works on
+    /// the draft.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub architect_id: Option<String>,
     /// The blueprint's slots the draft changes from the head, in blueprint
     /// order; every slot while the routine has no head.
     pub changed: Vec<String>,

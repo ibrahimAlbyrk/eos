@@ -210,4 +210,15 @@ async fn a_routines_sessions_and_their_children_stay_out_of_the_lists() {
         let (status, row) = get(&runtime, &format!("/workers/{id}"), Caller::UNTRUSTED).await;
         assert_eq!((status, row["id"].as_str()), (200, Some(id)), "one row is still served by id");
     }
+    // The blueprint editor shows what an architect wrote from its log.
+    temp.exec(
+        r#"INSERT INTO events (worker_id, ts, type, payload) VALUES ('w-ARCH', 1790000340000, 'user_message',
+           '{"text":"Which repository?"}')"#,
+    );
+    let (status, rows) = get(&runtime, "/workers/w-ARCH/events?order=asc", Caller::DASHBOARD).await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        rows.as_array().and_then(|r| r.last()).map(|r| &r["payload"]),
+        Some(&r#"{"text":"Which repository?"}"#.into())
+    );
 }
