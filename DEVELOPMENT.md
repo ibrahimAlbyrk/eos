@@ -238,6 +238,8 @@ run can name its own copy and output folder; a missing copy is made from
 empty, and refuses a bundle without the dev guard. What became of each request is logged at
 debug level under `eos::bridge` (`EOS_LOG=eos::bridge=debug`, the launcher's default), and
 `Eos --status` counts what the core served and refused and lists the routes it served.
+`scripts/eos-sample.sh <copy>` writes sample routines, their runs and a day of spend into the
+copy's `state.db` for the Eos screens (`cargo xtask sample`; it refuses `~/.eos`).
 
 ### Logs
 
