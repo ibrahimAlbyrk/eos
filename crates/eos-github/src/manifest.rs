@@ -78,7 +78,7 @@ fn actions() -> Value {
         &["path", "line", "body"],
     );
     let event = json!({ "type": "string", "enum": ["COMMENT", "REQUEST_CHANGES"] });
-    let cursor = object(json!({ "etag": text(), "since": int(), "drafts": list(int()) }), &[]);
+    let cursor = object(json!({ "etag": text(), "since": int(), "atSince": list(int()), "drafts": list(int()) }), &[]);
     let item = object(
         json!({
             "key": text(), "version": text(), "event": text(), "title": outside(), "url": text(), "updatedAt": int(),

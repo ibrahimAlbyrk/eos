@@ -1,8 +1,9 @@
 //! The `pulls` source: what changed in a repository's pull requests since
 //! the cursor. The cursor is the caller's to keep and hand back: the ETag of
 //! the last page (a conditional request answered 304 costs nothing), the
-//! newest update seen, and the drafts still open, so a draft made ready
-//! reads as `ready`. A first poll, with no cursor, only sets the baseline:
+//! newest update seen with the pull requests seen at that time (GitHub's
+//! times are whole seconds, and another change may land in the same one),
+//! and the drafts still open, so a draft made ready reads as `ready`. A first poll, with no cursor, only sets the baseline:
 //! what exists already is not news.
 
 use std::collections::BTreeSet;
@@ -21,12 +22,24 @@ const POLL_AFTER_S: u64 = 60;
 /// The most drafts the cursor remembers.
 const DRAFTS_MAX: usize = 100;
 
+/// The numbers in the cursor's list `field`.
+fn numbers(cursor: &Value, field: &str) -> BTreeSet<u64> {
+    cursor[field].as_array().into_iter().flatten().filter_map(Value::as_u64).collect()
+}
+
+/// Whether a time `pull` wrote in `field` is after the cursor: after
+/// `since`, or at it for a pull request not seen then.
+fn after(pull: &Value, field: &str, since: i64, seen: &BTreeSet<u64>) -> bool {
+    let at = ms(pull, field);
+    at > since || (at == since && pull["number"].as_u64().is_some_and(|number| !seen.contains(&number)))
+}
+
 /// What happened to `pull` since `since`.
-fn event(pull: &Value, since: i64, drafts: &BTreeSet<u64>) -> &'static str {
+fn event(pull: &Value, since: i64, seen: &BTreeSet<u64>, drafts: &BTreeSet<u64>) -> &'static str {
     let draft = pull["draft"].as_bool().unwrap_or(false);
     if text(pull, "state") == "closed" {
         "closed"
-    } else if ms(pull, "created_at") > since {
+    } else if after(pull, "created_at", since, seen) {
         "opened"
     } else if !draft && pull["number"].as_u64().is_some_and(|number| drafts.contains(&number)) {
         "ready"
@@ -41,8 +54,8 @@ impl GitHub {
         let cursor = &input["cursor"];
         let baseline = cursor.is_null();
         let since = cursor["since"].as_i64().unwrap_or_default();
-        let known: BTreeSet<u64> =
-            cursor["drafts"].as_array().into_iter().flatten().filter_map(Value::as_u64).collect();
+        let seen = numbers(cursor, "atSince");
+        let known = numbers(cursor, "drafts");
         let path = format!("/repos/{}/pulls?state=all&sort=updated&direction=desc&per_page={PAGE}", repo.0);
         let etag = text(cursor, "etag");
         let condition = [("if-none-match", etag)];
@@ -59,8 +72,8 @@ impl GitHub {
         let pulls = page.as_array().ok_or(ActionError::Failed { kind: FailureKind::Service })?;
         let mut items = Vec::new();
         if !baseline {
-            for pull in pulls.iter().rev().filter(|pull| ms(pull, "updated_at") > since) {
-                items.push(self.item(token, &repo, pull, event(pull, since, &known)).await?);
+            for pull in pulls.iter().rev().filter(|pull| after(pull, "updated_at", since, &seen)) {
+                items.push(self.item(token, &repo, pull, event(pull, since, &seen, &known)).await?);
             }
         }
         let on_page: BTreeSet<u64> = pulls.iter().filter_map(|pull| pull["number"].as_u64()).collect();
@@ -70,7 +83,11 @@ impl GitHub {
         drafts.extend(known.iter().filter(|number| !on_page.contains(number)));
         drafts.truncate(DRAFTS_MAX);
         let newest = pulls.iter().map(|pull| ms(pull, "updated_at")).max().unwrap_or(since).max(since);
-        let next = json!({ "etag": response.header("etag").unwrap_or_default(), "since": newest, "drafts": drafts });
+        let mut at_newest: BTreeSet<u64> = if newest == since { seen } else { BTreeSet::new() };
+        let newest_on_page = pulls.iter().filter(|pull| ms(pull, "updated_at") == newest);
+        at_newest.extend(newest_on_page.filter_map(|pull| pull["number"].as_u64()));
+        let etag = response.header("etag").unwrap_or_default();
+        let next = json!({ "etag": etag, "since": newest, "atSince": at_newest, "drafts": drafts });
         Ok(json!({ "items": items, "cursor": next, "pollAfterS": poll_after_s, "baseline": baseline }))
     }
 
