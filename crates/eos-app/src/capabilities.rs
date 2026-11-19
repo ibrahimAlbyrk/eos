@@ -23,7 +23,8 @@ pub struct CapabilityOptions {
     pub secrets: Option<Arc<dyn CapabilitySecrets>>,
     /// Built-ins beside Eos's own.
     pub builtins: Vec<Arc<dyn BuiltinCapability>>,
-    /// How the GitHub capability reaches GitHub; the network when `None`.
+    /// How the GitHub capability reaches GitHub. `None`: the network, and
+    /// nothing off it.
     pub github: Option<Arc<dyn Transport>>,
 }
 
@@ -48,7 +49,8 @@ pub(crate) struct Parts<'a> {
 
 /// The packages under `<data folder>/capabilities`, secrets in the app's own
 /// Keychain items (none off the network), every installed action granted to
-/// every chat, and the GitHub built-in. No package runner yet.
+/// every chat, and the GitHub built-in (which reaches GitHub only on the
+/// network). No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
     let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, options } = parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir()));
@@ -56,9 +58,9 @@ pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error>
         options.secrets.unwrap_or_else(|| reach.capabilities(Arc::new(AppKeychainSecrets::host())));
     let transport: Arc<dyn Transport> = match options.github {
         Some(transport) => transport,
-        None => Arc::new(HttpTransport::new()?),
+        None => reach.github(Arc::new(HttpTransport::new()?)),
     };
-    // Off the network its secrets are empty: no call carries a token.
+    // Off the network its secrets are empty and its requests go nowhere.
     let github: Arc<dyn BuiltinCapability> = Arc::new(GitHub::new(eos_github::Parts {
         transport,
         secrets: secrets.clone(),
