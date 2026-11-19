@@ -42,6 +42,21 @@ async fn a_built_in_call_is_checked_run_scrubbed_marked_and_recorded() {
     assert!(rig.changes().iter().all(|change| !change.contains("needs")), "a good call changes no state");
 }
 
+#[tokio::test]
+async fn outside_text_is_marked_only_for_a_model() {
+    let github =
+        Arc::new(FakeBuiltin::new(GITHUB).answering("get_pull_request", Ok(json!({ "number": 7, "title": "Fix" }))));
+    let rig = github_rig(github).await;
+
+    let for_agent = rig.service.call(agent_call("github", "get_pull_request", json!({ "number": 7 }))).await;
+    let mut candidates = agent_call("github", "get_pull_request", json!({ "number": 7 }));
+    candidates.caller = ActionCaller::Candidates;
+    let for_screen = rig.service.call(candidates).await;
+
+    assert_eq!(for_agent.expect("answers").output["title"], wrap("github:get_pull_request", "Fix"));
+    assert_eq!(for_screen.expect("answers").output["title"], "Fix");
+}
+
 /// Grants only the read action, of class read at most.
 struct ReadOnly;
 

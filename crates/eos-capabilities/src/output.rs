@@ -1,6 +1,6 @@
 //! An action's output as its caller gets it: every secret of the
-//! capability cut out, text from outside marked as such, and no more than a
-//! model should read.
+//! capability cut out and, for a model, text from outside marked as such and
+//! no more than it should read.
 
 use eos_domain::capability::manifest::Action;
 use eos_domain::capability::schema::{Kind, Schema, compile};
@@ -23,10 +23,15 @@ pub(crate) fn finish(
 ) -> Value {
     let secrets: Vec<&str> = secrets.iter().map(|secret| secret.as_str()).collect();
     let mut output = scrubbed(output, &secrets);
+    if !for_model {
+        return output;
+    }
+    // The mark guards a model against instructions in outside text; a screen
+    // shows the text itself.
     if let Some(schema) = action.output.as_ref().and_then(|schema| compile(schema).ok()) {
         mark(&schema, &mut output, &format!("{capability}:{}", action.name), false);
     }
-    if for_model { capped(output) } else { output }
+    capped(output)
 }
 
 /// Every string in `value`, keys too, with the secrets cut out.
