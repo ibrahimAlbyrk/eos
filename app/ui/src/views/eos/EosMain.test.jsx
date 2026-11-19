@@ -30,10 +30,10 @@ describe("an Eos screen's header", () => {
 
 describe("Eos's main column", () => {
   it("lands a location without a screen yet on a plain page in Eos", () => {
-    openLocation("eos:/runs/rn-9c1v5b0z2w8e");
+    openLocation("eos:/memory");
     const html = renderToStaticMarkup(<EosMain />);
     expect(html).toContain('<main class="eos-screen">');
-    expect(html).toContain('<h1 class="eos-title">Runs</h1>');
+    expect(html).toContain('<h1 class="eos-title">Memory</h1>');
     expect(html).toContain("This part of Eos is not here yet.");
   });
 

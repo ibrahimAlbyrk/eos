@@ -1,7 +1,6 @@
 import { fmtCost } from "../../../lib/format.js";
 import { useRuns } from "../../../state/eos/runsStore.js";
-
-const ROLES = { lead: "Lead", solo: "Worker", specialist: "Specialist", checker: "Checker" };
+import { ROLES } from "../run/words.js";
 
 // The aside of an item a run made: what its checker found, and who worked on
 // it at what cost. Drawn once the run is read.

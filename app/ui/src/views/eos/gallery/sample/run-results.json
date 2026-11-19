@@ -1,0 +1,45 @@
+[
+  {
+    "runId": "rn-shown01",
+    "attempt": 1,
+    "kind": "github.review",
+    "headline": "One note about naming.",
+    "body": {
+      "kind": "github.review",
+      "channel": "github",
+      "action": "post_review",
+      "parts": [
+        {
+          "key": "event",
+          "role": "event",
+          "text": "COMMENT"
+        },
+        {
+          "key": "summary",
+          "role": "summary",
+          "text": "Clean change. One note about naming."
+        },
+        {
+          "key": "c:1",
+          "role": "comment",
+          "text": "`shopUi` reads better as `shopView`.",
+          "meta": {
+            "path": "Assets/Shop/ShopUi.cs",
+            "line": 12
+          }
+        }
+      ]
+    },
+    "files": [],
+    "createdAt": 1763539450000
+  },
+  {
+    "runId": "rn-trial01",
+    "attempt": 1,
+    "kind": "text",
+    "headline": "Looks good; one question.",
+    "body": "Looks good. Should the haptics follow the system setting?",
+    "files": [],
+    "createdAt": 1763539400000
+  }
+]

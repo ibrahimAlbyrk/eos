@@ -5,7 +5,8 @@
 import { useSyncExternalStore } from "react";
 
 // hosted: how many sheet hosts are mounted. request: null, or the routine to
-// run and the element the sheet opens beside.
+// run and the element the sheet opens beside; Run again adds the run's input
+// to fill the sheet with and the run it does again.
 let state = { hosted: 0, request: null };
 const subs = new Set();
 
@@ -36,9 +37,9 @@ export function registerHost() {
   };
 }
 
-export function open({ routineId, anchor }) {
+export function open({ routineId, anchor, input, againOf }) {
   if (state.hosted === 0) return;
-  set({ request: { routineId, anchor } });
+  set({ request: againOf ? { routineId, anchor, input, againOf } : { routineId, anchor } });
 }
 
 export function close() {
