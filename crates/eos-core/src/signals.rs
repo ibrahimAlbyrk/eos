@@ -94,7 +94,7 @@ pub enum PushOutcome {
     /// Poll the source now, looking at `focus` first.
     PollNow { focus: Option<String> },
     /// A source with nothing to poll makes its signal from the push itself.
-    Signal(SignalDraft),
+    Signal(Box<SignalDraft>),
     /// The signature did not check out, or the event is not one it takes.
     Refused,
 }
