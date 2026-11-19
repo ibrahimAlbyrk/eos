@@ -14,6 +14,8 @@ node_modules/
 # Logs
 *.log
 logs/
+# The log test program's areas, not logs.
+!crates/eos-app/tests/logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
