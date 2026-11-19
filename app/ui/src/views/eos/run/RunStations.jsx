@@ -23,11 +23,12 @@ const WORDS = {
 };
 
 // Each station's state: `done`, `current`, `paused`, `failed`, `stopped` or
-// `todo`. A queued or skipped run has not reached any; a done one passed
-// them all.
+// `todo`. A queued or skipped run has not reached any, nor has one stopped
+// before it started; a done one passed them all.
 export function stationStates(run) {
   if (run.state === "done") return STATIONS.map((s) => ({ ...s, state: "done" }));
-  if (run.state === "queued" || run.state === "skipped") return STATIONS.map((s) => ({ ...s, state: "todo" }));
+  const notStarted = run.state === "cancelled" && !run.station;
+  if (run.state === "queued" || run.state === "skipped" || notStarted) return STATIONS.map((s) => ({ ...s, state: "todo" }));
   const at = Math.max(0, STATIONS.findIndex((s) => s.key === run.station));
   const here = AT[run.state] ?? "current";
   return STATIONS.map((s, i) => ({ ...s, state: i < at ? "done" : i === at ? here : "todo" }));
