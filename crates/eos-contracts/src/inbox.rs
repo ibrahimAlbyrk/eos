@@ -115,6 +115,24 @@ pub struct DraftSave {
 
 impl Validate for DraftSave {}
 
+/// `POST /api/inbox/{id}/later`: put an item aside.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, JsonSchema)]
+pub struct LaterRequest {
+    /// Back then (epoch ms); none puts it aside until the next digest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub until: Option<i64>,
+}
+
+impl Validate for LaterRequest {}
+
+/// `POST /api/inbox/{id}/discard`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct DiscardRequest {
+    pub rev: i64,
+}
+
+impl Validate for DiscardRequest {}
+
 /// `POST /api/inbox/{id}/send`: send a draft, as it is or edited.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]

@@ -127,6 +127,8 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/api/capabilities/{id}/sign-in"),
     ("GET", "/api/capabilities/{id}/sign-in"),
     ("DELETE", "/api/capabilities/{id}/sign-in"),
+    // Needs you: an answer lets a run start, a routine resume or a change be kept.
+    ("POST", "/api/inbox/{id}/answer"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
@@ -325,6 +327,11 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("PUT", "/api/capabilities/{id}/settings"),
     ("POST", "/api/capabilities/{id}/rollback"),
     ("DELETE", "/api/capabilities/{id}"),
+    // Needs you: saving a draft's edits, putting an item aside and discarding one change only
+    // the data folder; nothing is sent.
+    ("PUT", "/api/inbox/{id}/draft"),
+    ("POST", "/api/inbox/{id}/later"),
+    ("POST", "/api/inbox/{id}/discard"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {

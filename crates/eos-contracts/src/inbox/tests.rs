@@ -85,6 +85,17 @@ fn a_draft_is_saved_and_sent_with_the_rev_it_was_made_on() {
 }
 
 #[test]
+fn an_item_is_put_aside_with_or_without_a_time_and_discarded_on_its_rev() {
+    let until: LaterRequest = round_trip(json!({"until": 9_000}));
+    assert_eq!(until.until, Some(9_000));
+    let digest: LaterRequest = round_trip(json!({}));
+    assert_eq!(digest.until, None);
+    let discard: DiscardRequest = round_trip(json!({"rev": 2}));
+    assert_eq!(discard.rev, 2);
+    assert!(crate::parse::<DiscardRequest>(&json!({})).is_err(), "a discard names its rev");
+}
+
+#[test]
 fn an_answer_is_tagged_by_the_items_kind() {
     let answers = [
         json!({"kind": "run_start", "choice": "run"}),

@@ -42,6 +42,7 @@ eos-mod-compaction.workspace = true
 eos-mod-dreams.workspace = true
 eos-mod-fs.workspace = true
 eos-mod-genui.workspace = true
+eos-mod-inbox.workspace = true
 eos-mod-pages.workspace = true
 eos-mod-peer.workspace = true
 eos-mod-plugins.workspace = true
