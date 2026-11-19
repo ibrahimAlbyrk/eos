@@ -2,6 +2,11 @@
 //! twice is one signal (`signals` is unique on source and key). Keys hold
 //! paths, repositories and item ids: they are user data and never logged.
 
+use std::collections::BTreeMap;
+
+use indexmap::IndexMap;
+use sha2::{Digest, Sha256};
+
 /// The longest key a signal may have, in characters. A source that makes a
 /// longer one has made a bad key.
 pub const KEY_MAX_CHARS: usize = 512;
@@ -42,9 +47,31 @@ pub fn delivery(service: &str, delivery_id: &str) -> String {
     format!("{service}:delivery:{delivery_id}")
 }
 
+/// A capability source on one scope, as `signal_sources` keeps it: the
+/// scope as JSON with its keys in order, and the hash that names the row,
+/// so every routine reading the same source and scope shares one.
+pub fn capability_scope(source: &str, scope: &IndexMap<String, String>) -> (String, String) {
+    let sorted: BTreeMap<&String, &String> = scope.iter().collect();
+    let json = serde_json::to_string(&sorted).unwrap_or_default();
+    let hash = hex::encode(Sha256::digest(format!("capability:{source}:{json}").as_bytes()));
+    (json, hash)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_source_on_one_scope_is_one_row_whatever_the_order_of_its_scope() {
+        let scope = |pairs: &[(&str, &str)]| pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect();
+        let (json, hash) = capability_scope("github.pulls", &scope(&[("repo", "acme/game"), ("base", "main")]));
+        assert_eq!(json, r#"{"base":"main","repo":"acme/game"}"#);
+        let (_, same) = capability_scope("github.pulls", &scope(&[("base", "main"), ("repo", "acme/game")]));
+        assert_eq!(hash, same);
+        let (_, other) = capability_scope("github.issues", &scope(&[("base", "main"), ("repo", "acme/game")]));
+        assert_ne!(hash, other);
+        assert_eq!(hash.len(), 64);
+    }
 
     #[test]
     fn each_key_has_its_shape() {

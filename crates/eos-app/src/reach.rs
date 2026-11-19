@@ -17,6 +17,8 @@
 //! | Capability secrets (the app's own Keychain items: GitHub's sign-in, keys) | an empty store: no capability is signed in, nothing is kept |
 //! | GitHub, for its capability's calls, checks and sign-in | every request is refused unsent, as when GitHub does not answer |
 //! | Routine runs nobody started by hand (triggers, agents, other routines) | they wait in the queue; runs the user starts still start |
+//! | The capabilities' signal sources (GitHub's pull requests) | every poll answers `off` |
+//! | Signals that match a routine | decided `held-dev`: no run is admitted |
 //!
 //! Agents are not on the list: they act when the user sends them a message.
 //! Each service says why it does nothing in the words or code its answer
@@ -30,6 +32,9 @@ use eos_core::accounts::{PlanStores, StoreLogin, TokenProbe, TokenProbeResult, U
 use eos_core::capability::CapabilitySecrets;
 use eos_core::net::relay::Relay;
 use eos_core::net::sync::{OpenVault, PutOutcome, SyncAccounts, SyncVault, VaultChanges};
+use eos_core::signals::{
+    FactDecl, PollPage, PollRequest, PushEvent, PushOutcome, Scope, SignalSource, SignalSources, SourceError,
+};
 use eos_core::{BoxFuture, Error};
 use eos_domain::sync::SyncIdentity;
 use eos_domain::update::UpdateInstall;
@@ -98,9 +103,16 @@ impl Reach {
         if self.network { transport } else { Arc::new(NoGitHub) }
     }
 
+    /// The sources signals come from: off the network each still says what
+    /// it gives, and every poll and push answers `Off`.
+    pub(crate) fn signal_sources(self, sources: Arc<dyn SignalSources>) -> Arc<dyn SignalSources> {
+        if self.network { sources } else { Arc::new(OffSources(sources)) }
+    }
+
     /// Whether routine runs the user did not start leave the queue by
-    /// themselves. Off the network only the user's own starts run, which the
-    /// dev guard lets through or refuses.
+    /// themselves, and whether a matched signal admits its run. Off the
+    /// network only the user's own starts run, which the dev guard lets
+    /// through or refuses.
     pub(crate) fn autostart(self) -> bool {
         self.network
     }
@@ -149,6 +161,31 @@ struct NoGitHub;
 impl Transport for NoGitHub {
     fn send(&self, _request: HttpRequest) -> BoxFuture<'_, Result<HttpResponse, eos_github::Error>> {
         Box::pin(std::future::ready(Err(eos_github::Error::Transport(GITHUB_OFF.into()))))
+    }
+}
+
+/// Sources that read nothing.
+struct OffSources(Arc<dyn SignalSources>);
+
+impl SignalSources for OffSources {
+    fn get(&self, source: &str) -> Option<Arc<dyn SignalSource>> {
+        self.0.get(source).map(|source| Arc::new(OffSource(source)) as Arc<dyn SignalSource>)
+    }
+}
+
+struct OffSource(Arc<dyn SignalSource>);
+
+impl SignalSource for OffSource {
+    fn facts(&self) -> &[FactDecl] {
+        self.0.facts()
+    }
+
+    fn poll(&self, _request: PollRequest) -> BoxFuture<'_, Result<PollPage, SourceError>> {
+        Box::pin(std::future::ready(Err(SourceError::Off)))
+    }
+
+    fn accept_push(&self, _scope: &Scope, _event: &PushEvent) -> Result<PushOutcome, SourceError> {
+        Err(SourceError::Off)
     }
 }
 
@@ -230,7 +267,10 @@ mod tests {
     use eos_contracts::update::UpdatePlatform;
     use eos_core::capability::{ActionContext, BuiltinCapability};
     use eos_github::GitHub;
-    use eos_testkit::{FakeCapabilitySecrets, FakeClock, FakeGitHub, FakePlanStores, FakeSleeper, FakeTokenProbe};
+    use eos_testkit::{
+        FakeCapabilitySecrets, FakeClock, FakeGitHub, FakePlanStores, FakeSignalSources, FakeSleeper, FakeSource,
+        FakeTokenProbe,
+    };
     use serde_json::json;
 
     use super::*;
@@ -306,6 +346,33 @@ mod tests {
             headers: vec![("Authorization".into(), "Bearer gho_planted_secret_1".into())],
             body: None,
         }
+    }
+
+    #[tokio::test]
+    async fn off_the_network_every_source_answers_off_and_reads_nothing() {
+        let fake = Arc::new(FakeSource::new(Vec::new()));
+        fake.page(PollPage {
+            items: Vec::new(),
+            cursor: json!({"etag": "x"}),
+            more: false,
+            baseline: true,
+            poll_after_ms: None,
+            retry_at: None,
+        });
+        let sources = Arc::new(FakeSignalSources::new().with("github.pulls", fake.clone()));
+        let request = PollRequest { scope: Scope::new(), cursor: None, wait_ms: 0, focus: None };
+
+        let off = Reach::new(false).signal_sources(sources.clone());
+        assert!(off.get("mail.inbox").is_none(), "an unknown source stays unknown");
+        let source = off.get("github.pulls").expect("the source");
+        assert_eq!(source.poll(request.clone()).await, Err(SourceError::Off));
+        let push = PushEvent { headers: Vec::new(), body: Vec::new() };
+        assert_eq!(source.accept_push(&Scope::new(), &push), Err(SourceError::Off));
+        assert!(fake.requests().is_empty(), "nothing was read");
+
+        let on = Reach::new(true).signal_sources(sources).get("github.pulls").expect("the source");
+        assert!(on.poll(request).await.is_ok());
+        assert_eq!(fake.requests().len(), 1);
     }
 
     #[test]

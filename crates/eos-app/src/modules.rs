@@ -190,6 +190,14 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
             .with_project_memory(cx.project_memory.clone()),
     );
     let (worker_rows, brief_worker_rows) = (workers.listed_rows(false), workers.listed_rows(true));
+    let routines = Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
+        store: cx.store.clone(),
+        clock: cx.clock.clone(),
+        sleeper: cx.sleeper.clone(),
+        ids: cx.ids.clone(),
+        device: cx.peer.device_id(),
+        autostart: cx.reach.autostart(),
+    }));
 
     let mut modules: Vec<Arc<dyn Module>> = vec![
         Arc::new(eos_mod_accounts::AccountsModule::new(
@@ -271,12 +279,17 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         Arc::new(eos_mod_questions::QuestionsModule::new(cx.questions.clone())),
         Arc::new(eos_mod_reactions::ReactionsModule::new(cx.sessions.clone())),
         cx.remote.clone(),
-        Arc::new(eos_mod_routines::RoutinesModule::new(eos_mod_routines::RoutinesParts {
+        routines.clone(),
+        Arc::new(eos_mod_signals::SignalsModule::new(eos_mod_signals::SignalsParts {
             store: cx.store.clone(),
             clock: cx.clock.clone(),
-            sleeper: cx.sleeper.clone(),
             ids: cx.ids.clone(),
-            device: cx.peer.device_id(),
+            zones: Arc::new(crate::host::HostZoneRules),
+            sources: cx.reach.signal_sources(cx.capabilities.signal_sources()),
+            runner: Arc::new(eos_mod_signals::SoloRunner::new(cx.peer.device_id())),
+            intake: routines.intake(),
+            directory: routines.directory(),
+            bus: cx.bus.clone(),
             autostart: cx.reach.autostart(),
         })),
         Arc::new(eos_mod_system::SystemModule::new(
