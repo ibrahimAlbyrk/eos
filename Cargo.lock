@@ -2213,7 +2213,6 @@ dependencies = [
  "eos-domain",
  "eos-runtime",
  "eos-testkit",
- "indexmap",
  "serde_json",
  "tokio",
  "tracing",
