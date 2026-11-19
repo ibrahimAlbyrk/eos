@@ -1,20 +1,26 @@
 // runsStore — each routine's runs, newest first, 50 to a page; the detail of
-// each run opened; and how many runs are live. A run:change reads that one
-// run again, never a whole page.
+// each run opened and the result of a finished one shown; how many runs are
+// live; and the writes the run view makes. A run:change reads that one run
+// again, never a whole page.
 
 import { useSyncExternalStore } from "react";
 import { ROUTES } from "../../api/routes.js";
 import { afterFirstPaint } from "../../lib/firstPaint.js";
+import { notify } from "../../lib/notify.js";
 import { putBounded, without } from "./bounded.js";
-import { transport } from "./transport.js";
+import { isDevRunRefusal, transport } from "./transport.js";
 
 const PAGE = 50;
 const DETAILS_KEPT = 20;
 
 // pages: routineId → { runs, nextBefore, failed }, null runs until loaded.
 // details: runId → RunDetail, the 20 opened last. failed: runId → "gone" or
-// "error". active: { count, needsUser } from runs:active, null until one came.
-const EMPTY = { pages: {}, details: {}, failed: {}, active: null };
+// "error". results: runId → RunResultBody, for the runs whose details are
+// kept. stopping: runId → true while its stop waits for the core's answer.
+// active: { count, needsUser } from runs:active, null until one came: the
+// core has no read of the count yet, so it stays null until the first event.
+// Once it has one, its answer (the same RunsActive) goes to applyRunsActive.
+const EMPTY = { pages: {}, details: {}, failed: {}, results: {}, stopping: {}, active: null };
 let state = EMPTY;
 const subs = new Set();
 
@@ -90,7 +96,7 @@ export async function loadRun(id, { keep = true } = {}) {
     const details = keep || state.details[id] ? putBounded(state.details, id, r.body, DETAILS_KEPT) : state.details;
     set({ details, failed: without(state.failed, id), pages: withRun(r.body.run) });
   } else if (r?.status === 404) {
-    set({ details: without(state.details, id), failed: { ...state.failed, [id]: "gone" } });
+    set({ details: without(state.details, id), results: without(state.results, id), failed: { ...state.failed, [id]: "gone" } });
   } else if (keep && !state.details[id]) {
     set({ failed: { ...state.failed, [id]: "error" } });
   }
@@ -102,6 +108,35 @@ export function applyRunChange(payload) {
   const id = payload?.runId;
   if (typeof id !== "string") return;
   if (state.details[id] || state.pages[payload.routineId]?.runs) void loadRun(id, { keep: Boolean(state.details[id]) });
+}
+
+// The result a finished run handed in last, for a run whose detail is kept.
+export async function loadRunResult(id) {
+  const r = await transport.get(ROUTES.runResult(id)).catch(() => null);
+  if (r?.ok && r.body?.runId === id) set({ results: putBounded(state.results, id, r.body, DETAILS_KEPT) });
+}
+
+// A write the run view makes: true when the core took it. A dev run's
+// refusal is said on the screen (the transport notes it); any other failure
+// is a toast.
+async function runWrite(path, body) {
+  const r = await transport.send("POST", path, body).catch(() => null);
+  if (r?.ok) return true;
+  if (!isDevRunRefusal(r)) notify.error(r?.body?.error ?? "Eos could not do that.", { title: "Run" });
+  return false;
+}
+
+// Stop waits for the core's answer (08 §4.2): "Stopping…" until it came.
+export async function stopRun(id) {
+  if (state.stopping[id]) return;
+  set({ stopping: { ...state.stopping, [id]: true } });
+  if (await runWrite(ROUTES.runStop(id))) await loadRun(id);
+  set({ stopping: without(state.stopping, id) });
+}
+
+// The user's words to the run's team; true when they reached it.
+export function messageRun(id, text) {
+  return runWrite(ROUTES.runMessage(id), { text });
 }
 
 // SSE runs:active { count, needsUser }.

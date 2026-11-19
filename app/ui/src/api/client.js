@@ -1443,8 +1443,8 @@ export const api = {
     return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}${resume}${extra}`);
   },
   // What this tab has on screen — its stream's agent:delta / pty:data follow it.
-  async setStreamFocus({ workers, ptys }) {
-    return postJson(ROUTES.streamFocus, { clientId: CLIENT_ID, workers, ptys });
+  async setStreamFocus({ workers, ptys, runs }) {
+    return postJson(ROUTES.streamFocus, { clientId: CLIENT_ID, workers, ptys, runs });
   },
 
   // Eos mode's reads and writes (state/eos/transport.js). Every Eos route is the

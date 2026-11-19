@@ -1,0 +1,601 @@
+[
+  {
+    "run": {
+      "id": "rn-queued01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "queued",
+      "itemTitle": "#471 Pool the combo particles",
+      "needsUser": false,
+      "costUsd": 0.0,
+      "workMs": 0,
+      "createdAt": 1763539200000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#471",
+        "title": "#471 Pool the combo particles",
+        "url": "https://github.com/acme/game/pull/471",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-running01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "running",
+      "station": "work",
+      "itemTitle": "#470 Rework shop carousel paging",
+      "needsUser": false,
+      "costUsd": 0.21,
+      "workMs": 180000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#470",
+        "title": "#470 Rework shop carousel paging",
+        "url": "https://github.com/acme/game/pull/470",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "note": "This time also look at the shaders.",
+      "result": "showOnly"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead470",
+        "agentKey": "reader",
+        "name": "Reader",
+        "role": "lead",
+        "model": "claude-sonnet-4-5",
+        "state": "WORKING",
+        "costUsd": 0.12,
+        "startedAt": 1763539202000
+      },
+      {
+        "workerId": "w-unity470",
+        "agentKey": "unity",
+        "name": "Unity specialist",
+        "role": "specialist",
+        "model": "claude-opus-4-5",
+        "state": "WORKING",
+        "costUsd": 0.06,
+        "startedAt": 1763539202000,
+        "lastActivity": "reading CarouselPager.cs"
+      },
+      {
+        "workerId": "w-alloc470",
+        "agentKey": "alloc",
+        "name": "Allocation specialist",
+        "role": "specialist",
+        "model": "claude-sonnet-4-5",
+        "state": "IDLE",
+        "costUsd": 0.03,
+        "startedAt": 1763539202000
+      }
+    ],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      },
+      {
+        "id": 2,
+        "at": 1763539201000,
+        "kind": "interrupted",
+        "data": {
+          "at": 1763539260000
+        }
+      },
+      {
+        "id": 3,
+        "at": 1763539202000,
+        "kind": "resumed",
+        "data": {
+          "at": 1763539320000
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-checking01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "checking",
+      "station": "check",
+      "itemTitle": "#469 Fix the save slot",
+      "needsUser": false,
+      "costUsd": 0.33,
+      "workMs": 240000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#469",
+        "title": "#469 Fix the save slot",
+        "url": "https://github.com/acme/game/pull/469",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead469",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "IDLE",
+        "costUsd": 0.3,
+        "startedAt": 1763539202000
+      },
+      {
+        "workerId": "w-check469",
+        "role": "checker",
+        "model": "claude-haiku-4-5",
+        "state": "WORKING",
+        "costUsd": 0.03,
+        "startedAt": 1763539202000
+      }
+    ],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-waiting01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "waiting_for_user",
+      "station": "gate",
+      "headline": "Two findings, one of them blocking.",
+      "itemTitle": "#468 Speed up the loader",
+      "needsUser": true,
+      "costUsd": 0.41,
+      "workMs": 280000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#468",
+        "title": "#468 Speed up the loader",
+        "url": "https://github.com/acme/game/pull/468",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead468",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "IDLE",
+        "costUsd": 0.36,
+        "startedAt": 1763539202000
+      },
+      {
+        "workerId": "w-check468",
+        "role": "checker",
+        "model": "claude-haiku-4-5",
+        "state": "DONE",
+        "costUsd": 0.05,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539480000
+      }
+    ],
+    "verdict": {
+      "pass": true,
+      "checks": [
+        {
+          "key": "cites_lines",
+          "ok": true,
+          "note": "Every finding names its file and line."
+        }
+      ],
+      "mustFix": []
+    },
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      },
+      {
+        "id": 2,
+        "at": 1763539201000,
+        "kind": "held",
+        "data": {
+          "itemId": "ib-8m2n6b0v4c1x"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-shown01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "done",
+      "station": "check",
+      "outcome": "shown",
+      "headline": "One note about naming.",
+      "itemTitle": "#467 Tidy the shop UI",
+      "needsUser": false,
+      "costUsd": 0.38,
+      "workMs": 260000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000,
+      "endedAt": 1763539462000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#467",
+        "title": "#467 Tidy the shop UI",
+        "url": "https://github.com/acme/game/pull/467",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "showOnly"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead467",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "DONE",
+        "costUsd": 0.34,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539450000
+      },
+      {
+        "workerId": "w-check467",
+        "role": "checker",
+        "model": "claude-haiku-4-5",
+        "state": "DONE",
+        "costUsd": 0.04,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539462000
+      }
+    ],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-trial01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "trial",
+      "origin": "trial",
+      "state": "done",
+      "station": "check",
+      "outcome": "shown",
+      "headline": "Looks good; one question.",
+      "itemTitle": "#466 Add haptics to combos",
+      "needsUser": false,
+      "costUsd": 0.29,
+      "workMs": 200000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000,
+      "endedAt": 1763539402000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#466",
+        "title": "#466 Add haptics to combos",
+        "url": "https://github.com/acme/game/pull/466",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead466",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "DONE",
+        "costUsd": 0.29,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539402000
+      }
+    ],
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-failed01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "failed",
+      "station": "check",
+      "reason": "check_failed",
+      "itemTitle": "#465 Rework tile pooling",
+      "needsUser": false,
+      "costUsd": 0.52,
+      "workMs": 320000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000,
+      "endedAt": 1763539522000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#465",
+        "title": "#465 Rework tile pooling",
+        "url": "https://github.com/acme/game/pull/465",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 2,
+    "agents": [
+      {
+        "workerId": "w-lead465",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "DONE",
+        "costUsd": 0.44,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539500000
+      },
+      {
+        "workerId": "w-check465",
+        "role": "checker",
+        "model": "claude-haiku-4-5",
+        "state": "DONE",
+        "costUsd": 0.08,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539522000
+      }
+    ],
+    "verdict": {
+      "pass": false,
+      "checks": [
+        {
+          "key": "cites_lines",
+          "ok": false,
+          "note": "Two findings name no line."
+        },
+        {
+          "key": "no_secrets",
+          "ok": true,
+          "note": "Nothing secret-like in the text."
+        }
+      ],
+      "mustFix": [
+        "Name the line of each finding."
+      ]
+    },
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-cancelled01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "cancelled",
+      "station": "work",
+      "reason": "user",
+      "itemTitle": "#464 Bump the SDK",
+      "needsUser": false,
+      "costUsd": 0.05,
+      "workMs": 40000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000,
+      "endedAt": 1763539242000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#464",
+        "title": "#464 Bump the SDK",
+        "url": "https://github.com/acme/game/pull/464",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead464",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "DONE",
+        "costUsd": 0.05,
+        "startedAt": 1763539202000,
+        "endedAt": 1763539242000
+      }
+    ],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  },
+  {
+    "run": {
+      "id": "rn-paused01",
+      "routineId": "rt-4k2n8q1x7m3p",
+      "kind": "standing",
+      "origin": "hand",
+      "state": "paused",
+      "station": "work",
+      "reason": "day_cap",
+      "itemTitle": "#463 Split the shop scene",
+      "needsUser": false,
+      "costUsd": 0.18,
+      "workMs": 150000,
+      "createdAt": 1763539200000,
+      "startedAt": 1763539202000
+    },
+    "input": {
+      "item": {
+        "kind": "github.pull_request",
+        "key": "github:pr:acme/game#463",
+        "title": "#463 Split the shop scene",
+        "url": "https://github.com/acme/game/pull/463",
+        "untrusted": true
+      },
+      "options": {
+        "depth": "deep"
+      },
+      "result": "usual"
+    },
+    "attempt": 1,
+    "agents": [
+      {
+        "workerId": "w-lead463",
+        "role": "solo",
+        "model": "claude-sonnet-4-5",
+        "state": "SUSPENDED",
+        "costUsd": 0.18,
+        "startedAt": 1763539202000
+      }
+    ],
+    "usual": {
+      "usd": 0.55,
+      "ms": 300000
+    },
+    "events": [
+      {
+        "id": 1,
+        "at": 1763539200000,
+        "kind": "state",
+        "data": {
+          "state": "queued"
+        }
+      }
+    ]
+  }
+]

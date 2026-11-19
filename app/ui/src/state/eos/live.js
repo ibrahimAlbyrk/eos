@@ -6,6 +6,7 @@
 import { applyCapabilitiesChange, resyncCapabilities } from "./capabilitiesStore.js";
 import { applyInboxChange, resyncInbox } from "./inboxStore.js";
 import { applyRoutineChange, resyncRoutines } from "./routinesStore.js";
+import { applyRunActivity } from "./runLiveStore.js";
 import { applyRunChange, applyRunsActive, resyncRuns } from "./runsStore.js";
 
 const ignored = () => {};
@@ -14,7 +15,7 @@ const HANDLERS = {
   "routine:change": applyRoutineChange,
   "run:change": applyRunChange,
   "runs:active": applyRunsActive,
-  "run:activity": ignored,
+  "run:activity": applyRunActivity,
   "signals:change": ignored,
   "inbox:change": applyInboxChange,
   "inbox:delivery": ignored,

@@ -65,9 +65,14 @@ export function draftDoc(detail) {
   return Array.isArray(doc?.parts) ? doc : null;
 }
 
+// A ResultDoc by its kind; a run's result view draws it too.
+export function DocView({ doc }) {
+  const Kind = BY_KIND[doc.kind] ?? Text;
+  return <Kind doc={doc} />;
+}
+
 export function ResultView({ detail }) {
   const doc = draftDoc(detail);
   if (!doc) return <p className="eos-note">{detail.item.summary}</p>;
-  const Kind = BY_KIND[doc.kind] ?? Text;
-  return <Kind doc={doc} />;
+  return <DocView doc={doc} />;
 }

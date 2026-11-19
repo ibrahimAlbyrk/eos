@@ -1,0 +1,62 @@
+/* eos-run.css — a run (eos:/runs/<id>): its stations, team cards and aside.
+   Built from eos.css's parts; text is never dimmer than --fg-dim2 (eos.css's
+   contrast note holds here too). */
+
+/* The chips and buttons after a screen's title. */
+.eos-head__side { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+
+/* ── The run ──────────────────────────────────────────────────────────────── */
+.eos-run__columns { display: flex; align-items: flex-start; gap: 32px; }
+.eos-run__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 20px; }
+.eos-run__sentence { margin: 0; font-size: var(--text-lg); color: var(--fg-strong); }
+.eos-run__shown { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-run__interruptions { margin: 0; padding: 0; list-style: none; font-size: var(--text-sm); color: var(--fg-dim); }
+
+.eos-stations { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; }
+.eos-station { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--fg-dim2); }
+.eos-station__mark { width: 12px; height: 12px; flex: none; display: inline-block; }
+span.eos-station__mark { border-radius: 50%; border: 1.5px solid currentColor; box-sizing: border-box; }
+.eos-station--done { color: var(--fg-mid); }
+.eos-station--current { color: var(--fg-strong); }
+.eos-station--current .eos-station__mark { border-color: var(--accent); background: var(--accent); }
+.eos-station--paused { color: var(--fg-strong); }
+.eos-station--paused .eos-station__mark { border-color: var(--warn); }
+.eos-station--failed { color: var(--fg-strong); }
+.eos-station--failed .eos-station__mark { border-color: var(--err); background: var(--err); }
+.eos-station--stopped { color: var(--fg-mid); }
+
+.eos-run-wrong { display: flex; flex-direction: column; gap: 10px; box-shadow: inset 2px 0 0 var(--err); }
+.eos-run-wrong__reason { margin: 0; font-size: var(--text-base); color: var(--fg); }
+.eos-run-wrong__checks { margin: 0; padding-left: 18px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-run-result { display: flex; flex-direction: column; gap: 10px; }
+
+.eos-team { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.eos-team-card { display: flex; flex-direction: column; gap: 8px; padding: 16px; }
+.eos-team-card__head { display: flex; flex-direction: column; gap: 2px; }
+.eos-team-card__name { font-size: var(--text-base); color: var(--fg-strong); }
+.eos-team-card__side { font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-team-card__lines { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-team-card__lines li:last-child { color: var(--fg); }
+
+.eos-tell { display: flex; align-items: flex-end; gap: 8px; }
+.eos-tell__text {
+  flex: 1;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--raised);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg);
+}
+
+.eos-run-aside { flex: 0 0 280px; display: flex; flex-direction: column; gap: 22px; }
+.eos-run-aside__part { display: flex; flex-direction: column; gap: 8px; }
+.eos-run-aside__part .eos-facts__row dt { flex-basis: 70px; }
+.eos-run-aside__text { margin: 0; font-size: var(--text-sm); color: var(--fg); }
+
+@media (max-width: 960px) {
+  .eos-run__columns { flex-direction: column; }
+  .eos-run-aside { flex-basis: auto; width: 100%; }
+}

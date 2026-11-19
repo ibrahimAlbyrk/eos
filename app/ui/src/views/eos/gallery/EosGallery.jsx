@@ -9,13 +9,16 @@ import routines from "./sample/routines.json";
 import routineDetail from "./sample/routine-detail.json";
 import runsPage from "./sample/runs-page.json";
 import runDetail from "./sample/run-detail.json";
+import runs from "./sample/runs.json";
+import runResults from "./sample/run-results.json";
 import inbox from "./sample/inbox.json";
 import inboxItems from "./sample/inbox-items.json";
 import capabilities from "./sample/capabilities.json";
 import signInFailed from "./sample/sign-in-failed.json";
 
 // What the gallery's reads answer, by the path each store asks. The routines
-// hold one of each state, PR Review with its detail and runs; Needs you holds
+// hold one of each state, PR Review with its detail and runs, and a run of
+// PR Review in each state with the results of those shown only; Needs you holds
 // an item of each kind; the
 // capabilities hold one of each state; GitHub's sign-in is one that did not work.
 export const SAMPLE_READS = {
@@ -23,6 +26,8 @@ export const SAMPLE_READS = {
   [ROUTES.routine(routineDetail.routine.id)]: routineDetail,
   [`${ROUTES.runs}?routineId=${routineDetail.routine.id}&limit=50`]: runsPage,
   [ROUTES.run(runDetail.run.id)]: runDetail,
+  ...Object.fromEntries(runs.map((detail) => [ROUTES.run(detail.run.id), detail])),
+  ...Object.fromEntries(runResults.map((result) => [ROUTES.runResult(result.runId), result])),
   [ROUTES.inbox]: inbox,
   ...Object.fromEntries(inboxItems.map((detail) => [ROUTES.inboxItem(detail.item.id), detail])),
   [ROUTES.capabilities]: capabilities.map(rowOf),

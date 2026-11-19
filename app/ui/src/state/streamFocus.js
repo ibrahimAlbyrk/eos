@@ -1,7 +1,9 @@
-// What this tab has on screen — the workers whose transcript a pane shows and
-// the terminals an xterm is attached to. The daemon then streams the high-volume
-// live topics (agent:delta, pty:data) only for these, instead of every worker's
-// tokens and every terminal's output (over a peer link, most of the traffic).
+// What this tab has on screen — the workers whose transcript a pane shows, the
+// terminals an xterm is attached to and the routine runs a run view shows. The
+// daemon then streams the high-volume live topics (agent:delta, pty:data,
+// run:activity) only for these, instead of every worker's tokens, every
+// terminal's output and every run's activity (over a peer link, most of the
+// traffic).
 //
 // A worker coming into view missed its earlier deltas: the focus answer seeds
 // its live buffers with the text streamed so far. Deltas carry their offset in
@@ -14,6 +16,9 @@ import { seedLive } from "./thinkingStore.js";
 
 const workers = new Map(); // id -> refcount
 const ptys = new Map();
+const runs = new Map();
+// The core takes at most this many runs; the ones retained last win.
+const RUNS_MAX = 64;
 const seedDue = new Set(); // workers added since the last send
 let scheduled = false;
 let sending = false;
@@ -44,10 +49,16 @@ export function retainPty(id) {
   return retain(ptys, id);
 }
 
+export function retainRun(id) {
+  return retain(runs, id);
+}
+
+const runIds = () => [...runs.keys()].slice(-RUNS_MAX);
+
 // The /stream query that declares the current focus (sent on every connect).
 export function focusQuery() {
   const enc = (m) => [...m.keys()].map(encodeURIComponent).join(",");
-  return `&focus=${enc(workers)}&ptys=${enc(ptys)}`;
+  return `&focus=${enc(workers)}&ptys=${enc(ptys)}&runs=${runIds().map(encodeURIComponent).join(",")}`;
 }
 
 function schedule() {
@@ -67,7 +78,7 @@ async function send() {
       sendAgain = false;
       const seeding = [...seedDue];
       seedDue.clear();
-      const r = await api.setStreamFocus({ workers: [...workers.keys()], ptys: [...ptys.keys()] }).catch(() => null);
+      const r = await api.setStreamFocus({ workers: [...workers.keys()], ptys: [...ptys.keys()], runs: runIds() }).catch(() => null);
       if (!r?.ok || !Array.isArray(r.body?.live)) continue;
       for (const id of seeding) {
         if (workers.has(id)) seedLive(id, r.body.live.filter((b) => b.workerId === id));
@@ -82,6 +93,7 @@ async function send() {
 export function _resetStreamFocus() {
   workers.clear();
   ptys.clear();
+  runs.clear();
   seedDue.clear();
   scheduled = false;
   sending = false;
