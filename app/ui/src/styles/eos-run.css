@@ -1,4 +1,5 @@
-/* eos-run.css — a run (eos:/runs/<id>): its stations, team cards and aside.
+/* eos-run.css — a run (eos:/runs/<id>): its stations, team cards and aside;
+   and a routine's page (eos:/routines/<id>): its bands, tabs and run rows.
    Built from eos.css's parts; text is never dimmer than --fg-dim2 (eos.css's
    contrast note holds here too). */
 
@@ -56,7 +57,79 @@ span.eos-station__mark { border-radius: 50%; border: 1.5px solid currentColor; b
 .eos-run-aside__part .eos-facts__row dt { flex-basis: 70px; }
 .eos-run-aside__text { margin: 0; font-size: var(--text-sm); color: var(--fg); }
 
+/* ── The routine ──────────────────────────────────────────────────────────── */
+.eos-routine__summary { margin: 0; font-size: var(--text-lg); color: var(--fg-strong); }
+.eos-routine__line { margin: 6px 0 0; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-band { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 12px 16px; border-radius: 12px; background: var(--raised); font-size: var(--text-sm); color: var(--fg); }
+.eos-band--warn { box-shadow: inset 2px 0 0 var(--warn); }
+.eos-band--err { box-shadow: inset 2px 0 0 var(--err); }
+.eos-band__text { flex: 1; min-width: 0; }
+
+.eos-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.eos-tab {
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.eos-tab[aria-selected="true"] { color: var(--fg-strong); box-shadow: inset 0 -2px 0 var(--fg-strong); }
+.eos-tab-panel { display: flex; flex-direction: column; gap: 22px; }
+.eos-routine__columns { display: flex; align-items: flex-start; gap: 24px; }
+.eos-routine__columns > * { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+.eos-routine__section { display: flex; flex-direction: column; gap: 10px; }
+
+.eos-runs { margin: 0; padding: 4px 20px; list-style: none; }
+.eos-run-row + .eos-run-row { border-top: 1px solid var(--line); }
+.eos-run-row__open {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eos-run-row__title { flex: none; max-width: 40%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-base); color: var(--fg-strong); }
+.eos-run-row__line { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--text-sm); color: var(--fg-dim); }
+.eos-run-row__side { flex: none; font-size: var(--text-xs); color: var(--fg-dim2); }
+.eos-better__share { margin: 0; font-size: var(--text-lg); color: var(--fg-strong); }
+.eos-better__base { margin: 0; font-size: var(--text-sm); color: var(--fg-dim); }
+
+.eos-menu-wrap { position: relative; }
+.eos-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 200px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  border-radius: 12px;
+  background: var(--raised);
+  box-shadow: var(--sh-modal);
+}
+.eos-menu__item {
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+.eos-menu__item:hover, .eos-menu__item:focus-visible { background: var(--chip); }
+
 @media (max-width: 960px) {
-  .eos-run__columns { flex-direction: column; }
+  .eos-run__columns, .eos-routine__columns { flex-direction: column; }
   .eos-run-aside { flex-basis: auto; width: 100%; }
 }

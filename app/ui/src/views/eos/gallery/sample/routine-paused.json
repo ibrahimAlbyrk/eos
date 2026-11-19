@@ -1,0 +1,127 @@
+{
+  "routine": {
+    "id": "rt-2x8k5n1q6w0r",
+    "slug": "mail-triage",
+    "name": "Mail Triage",
+    "summary": "Sorts new mail and drafts the replies that matter.",
+    "icon": "mail",
+    "aliases": [
+      "review"
+    ],
+    "kind": "standing",
+    "state": "paused",
+    "rung": "draft",
+    "takes": {
+      "kind": "github.pull_request",
+      "label": "pull request",
+      "placeholder": "#470",
+      "empty": "latest",
+      "many": true,
+      "itemPatterns": []
+    },
+    "options": [
+      {
+        "key": "depth",
+        "label": "Depth",
+        "type": "choice",
+        "values": [
+          "quick",
+          "deep"
+        ],
+        "default": "quick",
+        "inline": true
+      }
+    ],
+    "runs7d": 3,
+    "activeRuns": 0,
+    "pausedReason": "failures",
+    "lastRun": {
+      "id": "rn-5f2a8c1d9e3b",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "failed",
+      "reason": "capability",
+      "needsUser": false,
+      "costUsd": 0.08,
+      "workMs": 21000,
+      "createdAt": 1763449200000,
+      "startedAt": 1763449201000,
+      "endedAt": 1763449222000
+    }
+  },
+  "head": {
+    "id": "rv-3m7p1q5r9s2t",
+    "number": 2,
+    "status": "kept",
+    "author": "user",
+    "format": 1,
+    "runnable": true,
+    "createdAt": 1763366400000,
+    "hash": "sha256:9a0b1c2d",
+    "blueprint": {
+      "format": 1,
+      "name": "Mail Triage",
+      "takes": {
+        "label": "mail"
+      },
+      "when": {
+        "on": [
+          {
+            "source": "mail.inbox",
+            "scope": {
+              "account": "work"
+            },
+            "events": [
+              "received"
+            ]
+          }
+        ]
+      },
+      "who": {
+        "depth": "solo",
+        "agents": [
+          {
+            "key": "sorter",
+            "name": "Sorter"
+          }
+        ]
+      },
+      "how": {
+        "steps": [
+          "Sort the mail",
+          "Draft the replies that matter"
+        ]
+      },
+      "makes": {
+        "description": "Draft replies"
+      },
+      "goesTo": [
+        {
+          "id": "me",
+          "kind": "me",
+          "channel": "mail"
+        }
+      ],
+      "freedom": {
+        "rung": "draft"
+      }
+    }
+  },
+  "runs": [
+    {
+      "id": "rn-5f2a8c1d9e3b",
+      "routineId": "rt-2x8k5n1q6w0r",
+      "kind": "standing",
+      "origin": "trigger",
+      "state": "failed",
+      "reason": "capability",
+      "needsUser": false,
+      "costUsd": 0.08,
+      "workMs": 21000,
+      "createdAt": 1763449200000,
+      "startedAt": 1763449201000,
+      "endedAt": 1763449222000
+    }
+  ]
+}

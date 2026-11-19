@@ -8,6 +8,7 @@ import { DevRunNote, Loading, LoadFailed } from "../capabilities/parts.jsx";
 import { EosHeader } from "../nav/EosHeader.jsx";
 import { openLocation } from "../nav/eosNav.js";
 import { DocView } from "../needs/results/ResultView.jsx";
+import { RoutinePage } from "../routine/RoutinePage.jsx";
 import { RunCost } from "./RunCost.jsx";
 import { Interruptions, RunStations } from "./RunStations.jsx";
 import { RunTook } from "./RunTook.jsx";
@@ -141,7 +142,7 @@ function RunBody({ detail, options, result, lines, devRun }) {
 
 // eos:/runs/<id> — one run in any state: where it is, its team at work, what
 // it took and cost. The run is in the stream focus while it shows, so its
-// agents' lines arrive.
+// agents' lines arrive. A project routine's run is its routine's page (G27).
 export function RunView({ id }) {
   const { details, failed, results, stopping } = useRuns();
   const routines = useRoutines();
@@ -159,6 +160,8 @@ export function RunView({ id }) {
     return () => release(id);
   }, [id]);
   useEffect(() => { if (showsResult) void loadRunResult(id); }, [id, showsResult]);
+
+  if (run?.kind === "project") return <RoutinePage id={run.routineId} />;
 
   const routine = run && (routines.details[run.routineId]?.routine ?? routines.list?.find((r) => r.id === run.routineId));
   const item = detail && itemLine(detail.input);
