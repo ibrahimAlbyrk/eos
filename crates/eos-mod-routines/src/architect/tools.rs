@@ -69,6 +69,7 @@ async fn get_routine(engine: &Engine, worker_id: &str) -> Result<Value, Error> {
 async fn ask_choice(engine: &Engine, worker_id: &str, question: &str, choices: &[String]) -> Result<(), Error> {
     touch(engine, worker_id);
     let (worker, stored, now) = (worker_id.to_owned(), question_text(question, choices), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -77,7 +78,7 @@ async fn ask_choice(engine: &Engine, worker_id: &str, question: &str, choices: &
             draft.status = DraftStatus::Asking;
             draft.updated_at = now;
             tx.routines().update_draft(&draft)?;
-            announce_routine(tx, out, &draft.routine_id, RoutineChangeReason::Draft, now)
+            announce_routine(tx, out, &draft.routine_id, RoutineChangeReason::Draft, now, &patterns)
         })
         .await
 }

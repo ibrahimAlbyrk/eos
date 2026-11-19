@@ -13,6 +13,7 @@ use serde_json::Value;
 
 use super::Engine;
 use crate::ROUTINE_CHANGE;
+use crate::patterns::ItemPatterns;
 use crate::routes::{readable, summary};
 
 pub(crate) struct Control(pub(crate) Arc<Engine>);
@@ -44,21 +45,29 @@ pub(crate) fn announce(
     routine_id: &str,
     reason: RoutineChangeReason,
     now: i64,
+    patterns: &ItemPatterns,
 ) -> Result<(), Error> {
     let routine = routine(tx, routine_id)?;
-    let row = summary(tx, &routine, now)?;
+    let row = summary(tx, &routine, now, patterns)?;
     out.push(ROUTINE_CHANGE.name(), &RoutineChange { routine_id: routine_id.to_owned(), reason, row });
     Ok(())
 }
 
-fn pause_in(tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str, now: i64) -> Result<(), Error> {
+fn pause_in(
+    tx: &dyn Tx,
+    out: &mut Outbox,
+    routine_id: &str,
+    reason: &str,
+    now: i64,
+    patterns: &ItemPatterns,
+) -> Result<(), Error> {
     if routine(tx, routine_id)?.state != RoutineState::Active {
         return Ok(());
     }
     tx.routines().set_state(routine_id, RoutineState::Paused, Some(reason), now)?;
     super::supervisor::skip_queued_in(tx, out, routine_id, RoutineState::Paused, now)?;
     tracing::info!(routine_id, reason, "a routine was paused");
-    announce(tx, out, routine_id, RoutineChangeReason::State, now)
+    announce(tx, out, routine_id, RoutineChangeReason::State, now, &patterns)
 }
 
 /// A new kept head with the head's blueprint at `rung`; nothing when the
@@ -78,7 +87,7 @@ impl Control {
         Box::pin(async move {
             let now = engine.clock.now_ms();
             let version_id = engine.ids.routine_version_id();
-            let device = engine.device.clone();
+            let (device, patterns) = (engine.device.clone(), engine.patterns.clone());
             engine
                 .store
                 .write(move |tx, out| {
@@ -107,7 +116,7 @@ impl Control {
                     })?;
                     tx.routines().set_head(&id, &version_id, now)?;
                     tracing::info!(routine_id = %id, version_id = %version_id, "a routine's freedom changed");
-                    announce(tx, out, &id, RoutineChangeReason::Version, now)
+                    announce(tx, out, &id, RoutineChangeReason::Version, now, &patterns)
                 })
                 .await
         })
@@ -141,18 +150,19 @@ impl RoutineControl for Control {
         let (engine, id, reason) = (self.0.clone(), routine_id.to_owned(), reason.to_owned());
         Box::pin(async move {
             let now = engine.clock.now_ms();
-            engine.store.write(move |tx, out| pause_in(tx, out, &id, &reason, now)).await
+            let patterns = engine.patterns.clone();
+            engine.store.write(move |tx, out| pause_in(tx, out, &id, &reason, now, &patterns)).await
         })
     }
 
     fn pause_in(&self, tx: &dyn Tx, out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
-        pause_in(tx, out, routine_id, reason, self.0.clock.now_ms())
+        pause_in(tx, out, routine_id, reason, self.0.clock.now_ms(), &self.0.patterns)
     }
 
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         let (engine, reason) = (self.0.clone(), reason.to_owned());
         Box::pin(async move {
-            let now = engine.clock.now_ms();
+            let (now, patterns) = (engine.clock.now_ms(), engine.patterns.clone());
             engine
                 .store
                 .write(move |tx, out| {
@@ -160,7 +170,7 @@ impl RoutineControl for Control {
                         if routine.state == RoutineState::Paused && routine.paused_reason.as_deref() == Some(&reason) {
                             tx.routines().set_state(&routine.id, RoutineState::Active, None, now)?;
                             tracing::info!(routine_id = %routine.id, reason = %reason, "a routine was resumed");
-                            announce(tx, out, &routine.id, RoutineChangeReason::State, now)?;
+                            announce(tx, out, &routine.id, RoutineChangeReason::State, now, &patterns)?;
                         }
                     }
                     Ok(())

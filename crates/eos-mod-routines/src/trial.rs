@@ -91,6 +91,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str) -> Result<Vec<
     };
     let runs = start_runs(engine, new).await?;
     let (id, now) = (routine_id.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -101,7 +102,7 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str) -> Result<Vec<
             draft.status = DraftStatus::Trying;
             draft.updated_at = now;
             tx.routines().update_draft(&draft)?;
-            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now)
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)
         })
         .await?;
     tracing::info!(routine_id, runs = runs.len(), "a routine's trial started");

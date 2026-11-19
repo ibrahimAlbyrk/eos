@@ -185,6 +185,7 @@ pub(crate) async fn create(
     };
     let (id, version_id, now) = (engine.ids.routine_id(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (zones, device) = (engine.zones.clone(), engine.device.clone());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -224,8 +225,8 @@ pub(crate) async fn create(
             };
             insert_version(tx, version)?;
             tracing::info!(routine_id = %id, version_id = %version_id, origin, "a routine was made by hand");
-            announce(tx, out, &id, RoutineChangeReason::Created, now)?;
-            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues })))
+            announce(tx, out, &id, RoutineChangeReason::Created, now, &patterns)?;
+            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now, &patterns)?, version_id, warnings: issues })))
         })
         .await
 }
@@ -248,6 +249,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
     };
     let (id, version_id, now) = (routine_id.to_owned(), engine.ids.routine_version_id(), engine.clock.now_ms());
     let (zones, device) = (engine.zones.clone(), engine.device.clone());
+    let patterns = engine.patterns.clone();
     let saved = engine
         .store
         .write(move |tx, out| {
@@ -283,8 +285,8 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
                 tx.routines().set_name(&id, &prepared.blueprint.name, now)?;
             }
             tracing::info!(routine_id = %id, version_id = %version_id, author = ?author, "a routine got a new version");
-            announce(tx, out, &id, RoutineChangeReason::Version, now)?;
-            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues })))
+            announce(tx, out, &id, RoutineChangeReason::Version, now, &patterns)?;
+            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now, &patterns)?, version_id, warnings: issues })))
         })
         .await?;
     engine.wake.notify_one();

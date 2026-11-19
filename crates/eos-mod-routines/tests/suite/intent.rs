@@ -211,3 +211,21 @@ async fn a_dropped_thing_finds_the_routines_that_take_it_then_doing_it_once() {
     let phone = Caller::Phone { grant: Tier::Read, mutate: true };
     assert_eq!(routes.call(Method::Post, phone, "/api/routines/match-item", Some(body)).await.0, 200);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_routines_event_row_and_detail_carry_the_item_patterns_its_list_row_does() {
+    let (routes, id) = routes();
+    routes.bench.supervise().await;
+    let path = format!("/api/routines/{id}/state");
+    let (status, _) = routes.call(Method::Put, Caller::DASHBOARD, &path, Some(json!({"state": "paused"}))).await;
+    assert_eq!(status, 200);
+    let announced = routes.bench.temp.announced.list();
+    let (_, change) = announced.iter().rev().find(|(topic, _)| *topic == "routine:change").expect("announced");
+    let change: Value = serde_json::from_str(change).expect("json");
+
+    let (_, rows) = routes.get("/api/routines").await;
+    let (_, detail) = routes.get(&format!("/api/routines/{id}")).await;
+    assert_eq!(rows[0]["takes"]["itemPatterns"], json!([NUMBER]));
+    assert_eq!(change["row"]["takes"]["itemPatterns"], rows[0]["takes"]["itemPatterns"], "{change}");
+    assert_eq!(detail["routine"]["takes"]["itemPatterns"], rows[0]["takes"]["itemPatterns"], "{detail}");
+}

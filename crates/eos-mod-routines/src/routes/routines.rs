@@ -7,7 +7,6 @@ use eos_contracts::{
     RoutineSummary, RoutineTakes, RoutineVersion, RoutineVersionRow, RunInput, RunSummary, Rung, Takes, TakesEmpty,
     UsualCost, When,
 };
-use eos_core::capability::CapabilityReads;
 use eos_core::store::{Store, StoredDraft, StoredRoutine, StoredRun, StoredVersion, Tx};
 use eos_core::{Clock, Error};
 use eos_domain::routine::blueprint::{self, Readable};
@@ -19,7 +18,7 @@ use eos_runtime::router::RouteDef;
 use serde_json::Value;
 
 use super::usual;
-use crate::intent::item_patterns;
+use crate::patterns::ItemPatterns;
 
 const DAY_MS: i64 = 24 * 60 * 60 * 1000;
 
@@ -35,27 +34,23 @@ const RECENT_RUNS: i64 = 20;
 /// The origin of the routines a feature owns, which the user never lists.
 pub(crate) const BUILTIN: &str = "builtin";
 
-pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>, reads: &Arc<dyn CapabilityReads>) -> Vec<RouteDef> {
-    let (list_store, list_clock, list_reads) = (store.clone(), clock.clone(), reads.clone());
+pub(crate) fn all(store: &Arc<dyn Store>, clock: &Arc<dyn Clock>, patterns: &Arc<ItemPatterns>) -> Vec<RouteDef> {
+    let (list_store, list_clock, list_patterns) = (store.clone(), clock.clone(), patterns.clone());
     let list = RouteDef::get("/api/routines", move |_req: Request| {
-        let (store, now, reads) = (list_store.clone(), list_clock.now_ms(), list_reads.clone());
+        let (store, now, patterns) = (list_store.clone(), list_clock.now_ms(), list_patterns.clone());
         async move {
-            let recognisers = reads.recognisers().await.unwrap_or_else(|error| {
-                tracing::warn!(%error, "the item recognisers could not be read");
-                Vec::new()
-            });
-            let mut rows = store.read(move |tx| rows(tx, now)).await?;
-            for row in &mut rows {
-                row.takes.item_patterns = item_patterns(&recognisers, &row.takes.takes.kind);
-            }
+            patterns.refresh().await;
+            let rows = store.read(move |tx| rows(tx, now, &patterns)).await?;
             Ok(Response::json(200, &rows))
         }
     });
-    let (detail_store, detail_clock) = (store.clone(), clock.clone());
+    let (detail_store, detail_clock, detail_patterns) = (store.clone(), clock.clone(), patterns.clone());
     let detail = RouteDef::get("/api/routines/{id}", move |req: Request| {
         let (store, now, id) = (detail_store.clone(), detail_clock.now_ms(), param(&req, "id"));
+        let patterns = detail_patterns.clone();
         async move {
-            let detail = store.read(move |tx| routine_detail(tx, &id, now)).await?;
+            patterns.refresh().await;
+            let detail = store.read(move |tx| routine_detail(tx, &id, now, &patterns)).await?;
             Ok(Response::json(200, &detail))
         }
     });
@@ -113,22 +108,22 @@ fn shown_routine(tx: &dyn Tx, id: &str, now: i64) -> Result<StoredRoutine, Error
     routine.ok_or_else(|| Error::not_found("routine", id))
 }
 
-fn rows(tx: &dyn Tx, now: i64) -> Result<Vec<RoutineSummary>, Error> {
+fn rows(tx: &dyn Tx, now: i64, patterns: &ItemPatterns) -> Result<Vec<RoutineSummary>, Error> {
     let mut rows = Vec::new();
     for routine in tx.routines().list()? {
         if routine.origin == BUILTIN || gone(&routine, now) {
             continue;
         }
-        if let Some(row) = summary(tx, &routine, now)? {
+        if let Some(row) = summary(tx, &routine, now, patterns)? {
             rows.push(row);
         }
     }
     Ok(rows)
 }
 
-fn routine_detail(tx: &dyn Tx, id: &str, now: i64) -> Result<RoutineDetail, Error> {
+fn routine_detail(tx: &dyn Tx, id: &str, now: i64, patterns: &ItemPatterns) -> Result<RoutineDetail, Error> {
     let routine = shown_routine(tx, id, now)?;
-    let row = summary(tx, &routine, now)?.ok_or_else(|| Error::not_found("routine", id))?;
+    let row = summary(tx, &routine, now, patterns)?.ok_or_else(|| Error::not_found("routine", id))?;
     let versions = tx.routine_versions().list(id)?;
     let head = versions.iter().position(|version| Some(&version.id) == routine.head_version_id.as_ref());
     Ok(RoutineDetail {
@@ -189,8 +184,14 @@ impl Shown {
 }
 
 /// The routine's row, from the blueprint it shows: its head, or while it is
-/// being made, its newest version. None when it has no version.
-pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<Option<RoutineSummary>, Error> {
+/// being made, its newest version, with its kind's item patterns. None
+/// when it has no version. Every routine row is built here.
+pub(crate) fn summary(
+    tx: &dyn Tx,
+    routine: &StoredRoutine,
+    now: i64,
+    patterns: &ItemPatterns,
+) -> Result<Option<RoutineSummary>, Error> {
     let Some(shown) = showing_version(tx, &routine.id)? else {
         return Ok(None);
     };
@@ -220,7 +221,7 @@ pub(crate) fn summary(tx: &dyn Tx, routine: &StoredRoutine, now: i64) -> Result<
         paused_reason: routine.paused_reason.clone(),
         rung: blueprint.rung,
         trigger_line,
-        takes: RoutineTakes { takes: blueprint.takes, item_patterns: Vec::new() },
+        takes: RoutineTakes { item_patterns: patterns.of(&blueprint.takes.kind), takes: blueprint.takes },
         options: blueprint.options.into_iter().filter(|option| option.inline).collect(),
         usual,
         runs7d: counts.since,

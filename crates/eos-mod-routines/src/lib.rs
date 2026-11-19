@@ -55,6 +55,7 @@
 mod architect;
 mod engine;
 mod intent;
+mod patterns;
 mod routes;
 mod trial;
 
@@ -193,6 +194,7 @@ impl RoutinesModule {
             gate,
             config,
             tasks: tokio::runtime::Handle::try_current().ok(),
+            patterns: Arc::new(patterns::ItemPatterns::new(reads.clone())),
             reads,
             keys,
             remotes,
@@ -307,6 +309,7 @@ impl Module for RoutinesModule {
         Box::pin(async move {
             // Before any session of a run is resumed.
             engine::rebuild_launches(&self.engine).await?;
+            self.engine.patterns.refresh().await;
             engine::end_sessions_of_ended_runs(&self.engine);
             engine::watch_usage(&self.engine);
             engine::recover(&self.engine).await?;

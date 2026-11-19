@@ -102,6 +102,7 @@ async fn update(
     change: impl FnOnce(&mut StoredDraft) + Send + 'static,
 ) -> Result<Option<String>, Error> {
     let (id, now) = (routine_id.to_owned(), engine.clock.now_ms());
+    let patterns = engine.patterns.clone();
     engine
         .store
         .write(move |tx, out| {
@@ -109,7 +110,7 @@ async fn update(
             change(&mut draft);
             draft.updated_at = now;
             tx.routines().update_draft(&draft)?;
-            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now)?;
+            announce_routine(tx, out, &id, RoutineChangeReason::Draft, now, &patterns)?;
             Ok(draft.architect_id)
         })
         .await
@@ -178,6 +179,7 @@ fn to_start(tx: &dyn Tx, routine_id: &str, state: RoutineState) -> Result<Option
 /// routine's head, the routine active, and its architect is suspended.
 pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial: bool) -> Result<Started, Error> {
     let (id, now, zones) = (routine_id.to_owned(), engine.clock.now_ms(), engine.zones.clone());
+    let patterns = engine.patterns.clone();
     let started = engine
         .store
         .write(move |tx, out| {
@@ -219,8 +221,8 @@ pub(crate) async fn start(engine: &Arc<Engine>, routine_id: &str, without_trial:
                 tx.routines().update_draft(&draft)?;
             }
             tracing::info!(routine_id = %id, version_id = %version_id, without_trial, "a routine was started");
-            announce_routine(tx, out, &id, RoutineChangeReason::Version, now)?;
-            Ok((Started::Kept(Box::new(row(tx, &id, now)?)), architect))
+            announce_routine(tx, out, &id, RoutineChangeReason::Version, now, &patterns)?;
+            Ok((Started::Kept(Box::new(row(tx, &id, now, &patterns)?)), architect))
         })
         .await?;
     let (started, architect) = started;

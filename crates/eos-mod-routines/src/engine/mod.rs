@@ -101,6 +101,8 @@ pub(crate) struct Engine {
     pub(crate) launches: Mutex<HashMap<String, launch::RunLaunch>>,
     /// The capabilities there are, for what a run session may call.
     pub(crate) reads: Arc<dyn CapabilityReads>,
+    /// The item patterns each routine row carries.
+    pub(crate) patterns: Arc<crate::patterns::ItemPatterns>,
     /// Leads held while their result is checked: messages to them queue.
     pub(crate) held: Mutex<HashSet<String>>,
     /// Where a checked result goes.
