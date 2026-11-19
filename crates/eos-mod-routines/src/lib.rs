@@ -135,7 +135,6 @@ impl Module for RoutinesModule {
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
-        engine::stop_supervisor(&self.engine);
-        Box::pin(std::future::ready(()))
+        Box::pin(engine::stop_supervisor(&self.engine))
     }
 }
