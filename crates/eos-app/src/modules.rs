@@ -74,7 +74,7 @@ pub(crate) struct Context {
     /// The window shell's reading of this computer's position, when there is a shell.
     pub(crate) location: Option<Arc<dyn Location>>,
     pub(crate) policy: Arc<PolicyGateway>,
-    /// What Eos can reach for the user: the agent tools and the gateway share it.
+    /// What Eos can reach for the user: the agent tools, the gateway and its feature share it.
     pub(crate) capabilities: Arc<eos_capabilities::CapabilityService>,
     pub(crate) profile_prompt: Arc<dyn ProfileRenderer>,
     pub(crate) prompts: Arc<PromptService>,
@@ -221,6 +221,12 @@ pub(crate) fn all(cx: &Context) -> Result<Features, crate::Error> {
         )),
         cx.boot.clone(),
         Arc::new(eos_mod_btw::BtwModule::new(cx.store.clone(), Arc::new(cx.sessions.clone()))),
+        Arc::new(eos_mod_capabilities::CapabilitiesModule::new(
+            cx.capabilities.clone(),
+            cx.store.clone(),
+            cx.clock.clone(),
+            cx.sleeper.clone(),
+        )),
         Arc::new(eos_mod_compaction::CompactionModule::new(eos_mod_compaction::Parts {
             store: cx.store.clone(),
             sessions: Arc::new(cx.sessions.clone()),

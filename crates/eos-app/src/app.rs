@@ -357,7 +357,7 @@ impl App {
             sleeper: sleeper.clone(),
             sessions: Arc::new(NoLiveSessions),
         });
-        let capabilities = crate::capabilities::service(&paths, store.clone(), clock.clone(), ids.clone());
+        let capabilities = crate::capabilities::service(reach, &paths, store.clone(), clock.clone(), ids.clone());
         let policy = Arc::new(
             PolicyGateway::new(GatewayOptions {
                 store: store.clone(),

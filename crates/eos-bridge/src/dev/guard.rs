@@ -119,6 +119,10 @@ pub const REFUSED_ROUTES: &[(&str, &str)] = &[
     ("POST", "/workers/{id}/open"),
     // Forgetting a project memory removes a file of Claude Code's, outside the data folder.
     ("DELETE", "/workers/{id}/memory/{name}"),
+    // Capabilities: a check reaches the service it stands for with the user's sign-in, and
+    // the items one offers to pick are read from the user's accounts.
+    ("POST", "/api/capabilities/{id}/check"),
+    ("GET", "/api/capabilities/candidates"),
     // Not in the Rust core yet; refused from the day they land.
     ("POST", "/workers/{id}/warm"),
     ("POST", "/workers/{id}/action"),
@@ -310,6 +314,13 @@ pub const HARMLESS_ROUTES: &[(&str, &str)] = &[
     ("GET", "/api/routines/{id}"),
     ("GET", "/api/routines/{id}/versions"),
     ("GET", "/api/routines/{id}/versions/{versionId}"),
+    // Capabilities: switching one on and off, its settings, going back to a kept version and
+    // removing one (to the trash) change only the data folder.
+    ("POST", "/api/capabilities/{id}/enable"),
+    ("POST", "/api/capabilities/{id}/disable"),
+    ("PUT", "/api/capabilities/{id}/settings"),
+    ("POST", "/api/capabilities/{id}/rollback"),
+    ("DELETE", "/api/capabilities/{id}"),
 ];
 
 fn listed(list: &[(&str, &str)], method: &str, pattern: &str) -> bool {
