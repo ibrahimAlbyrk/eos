@@ -221,30 +221,23 @@ describe("the routine page's writes", () => {
     expect(draw()).toContain(DEV_RUN_TEXT);
   });
 
-  it("offers Archive and Delete to trash in the menu, and Start another like this once copies are served", async () => {
-    expect(menuActions(routineDetail.routine).map((a) => a.label)).toEqual(["Archive", "Delete to trash"]);
-    expect(menuActions({ ...routineDetail.routine, state: "archived" }).map((a) => a.label)).toEqual(["Delete to trash"]);
+  it("offers Start another like this, Archive and Delete to trash in the menu", async () => {
+    expect(menuActions(routineDetail.routine).map((a) => a.label)).toEqual(["Start another like this", "Archive", "Delete to trash"]);
+    expect(menuActions({ ...routineDetail.routine, state: "archived" }).map((a) => a.label)).toEqual(["Start another like this", "Delete to trash"]);
 
-    ROUTES.routineCopy = (id) => `/api/routines/${id}/copy`;
-    try {
-      const copy = { ...routineDetail.routine, id: "rt-copy", state: "draft" };
-      const transport = recording(async () => ({ ok: true, status: 200, body: copy }));
-      await page(`eos:/routines/${PR}`, transport);
-      const actions = menuActions(routineDetail.routine);
-      expect(actions.map((a) => a.label)).toEqual(["Start another like this", "Archive", "Delete to trash"]);
-      await actions[0].run();
-      expect(transport.send).toHaveBeenCalledWith("POST", `/api/routines/${PR}/copy`, undefined);
-      expect(eosLocation()).toBe("eos:/routines/rt-copy?tab=blueprint");
-    } finally {
-      delete ROUTES.routineCopy;
-    }
+    const copy = { ...routineDetail.routine, id: "rt-copy", state: "draft" };
+    const transport = recording(async () => ({ ok: true, status: 201, body: { row: copy, versionId: "rv-copy", warnings: [] } }));
+    await page(`eos:/routines/${PR}`, transport);
+    await menuActions(routineDetail.routine)[0].run();
+    expect(transport.send).toHaveBeenCalledWith("POST", ROUTES.routineCopy(PR), undefined);
+    expect(eosLocation()).toBe("eos:/routines/rt-copy?tab=blueprint");
   });
 
   it("archives through the state route and deletes to trash, leaving the page", async () => {
     const archived = { ...routineDetail.routine, state: "archived" };
     const transport = recording(async (method) => ({ ok: true, status: 200, body: method === "PUT" ? archived : { ...archived, state: "deleted" } }));
     await page(`eos:/routines/${PR}`, transport);
-    const [archive, remove] = menuActions(routineDetail.routine);
+    const [, archive, remove] = menuActions(routineDetail.routine);
     await archive.run();
     expect(transport.send).toHaveBeenCalledWith("PUT", ROUTES.routineState(PR), { state: "archived" });
     expect(rowState(PR)).toBe("archived");

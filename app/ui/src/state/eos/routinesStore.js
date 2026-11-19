@@ -126,13 +126,14 @@ export async function deleteRoutine(id) {
   return Boolean(r);
 }
 
-// "Start another like this": a draft copy (01 §6). Answers the copy's row,
-// as the other routine writes do; the copy's id, or null.
+// "Start another like this": a draft copy (01 §6). The core answers
+// RoutineSaved, the copy's row in `row`; the copy's id, or null.
 export async function copyRoutine(id) {
   const r = await routineWrite("POST", ROUTES.routineCopy(id));
-  if (typeof r?.body?.id !== "string") return null;
-  putRow(r.body);
-  return r.body.id;
+  const row = r?.body?.row;
+  if (typeof row?.id !== "string") return null;
+  putRow(row);
+  return row.id;
 }
 
 export function resyncRoutines() {
