@@ -29,7 +29,7 @@ use crate::routes::{gone, readable, showing_version};
 
 /// What a write that makes a version comes to.
 pub(crate) enum Saved {
-    Done(RoutineSaved),
+    Done(Box<RoutineSaved>),
     /// The blueprint did not meet its rules; nothing was written.
     Refused(Vec<BlueprintIssue>),
 }
@@ -221,7 +221,7 @@ pub(crate) async fn create(
             insert_version(tx, version)?;
             tracing::info!(routine_id = %id, version_id = %version_id, origin, "a routine was made by hand");
             announce(tx, out, &id, RoutineChangeReason::Created, now)?;
-            Ok(Saved::Done(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues }))
+            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues })))
         })
         .await
 }
@@ -280,7 +280,7 @@ pub(crate) async fn save(engine: &Arc<Engine>, routine_id: &str, edit: Edit) -> 
             }
             tracing::info!(routine_id = %id, version_id = %version_id, author = ?author, "a routine got a new version");
             announce(tx, out, &id, RoutineChangeReason::Version, now)?;
-            Ok(Saved::Done(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues }))
+            Ok(Saved::Done(Box::new(RoutineSaved { row: row(tx, &id, now)?, version_id, warnings: issues })))
         })
         .await?;
     engine.wake.notify_one();
