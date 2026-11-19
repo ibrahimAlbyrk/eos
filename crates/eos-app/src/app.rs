@@ -134,6 +134,10 @@ pub struct Options {
     /// Without it no capability secret is kept: the Keychain items are the
     /// user's, shared by every run on this computer.
     pub keychain: Option<Arc<dyn CapabilitySecrets>>,
+    /// How GitHub is reached ([`crate::github`] in the real app), used only
+    /// when the run [`reaches_network`](Self::reaches_network). Without it
+    /// GitHub is sent nothing: a request would act as the user.
+    pub github: Option<Arc<dyn eos_github::Transport>>,
     /// How the computer is kept out of sleep while the phone link is armed;
     /// the system's own way when `None`.
     pub keep_awake: Option<Arc<dyn KeepAwake>>,
@@ -192,6 +196,7 @@ impl Options {
             dashboard: None,
             relay: None,
             keychain: None,
+            github: None,
             keep_awake: None,
             extra_modules: Vec::new(),
             capabilities: CapabilityOptions::default(),
@@ -282,6 +287,7 @@ impl App {
             dashboard,
             relay,
             keychain,
+            github,
             keep_awake,
             extra_modules,
             capabilities: capability_options,
@@ -380,6 +386,7 @@ impl App {
             sleeper: sleeper.clone(),
             github_client_id: current.github.client_id.clone(),
             keychain,
+            github,
             grants: grants.clone(),
             options: capability_options,
         })?;

@@ -54,6 +54,13 @@ pub fn keychain() -> std::sync::Arc<dyn eos_core::capability::CapabilitySecrets>
     std::sync::Arc::new(eos_auth::AppKeychainSecrets::host())
 }
 
+/// How the installed app reaches GitHub: an HTTP client of its own. Hand it
+/// to [`Options::github`]; an app built without it, or one that does not
+/// [reach the network](Options::reaches_network), sends GitHub nothing.
+pub fn github() -> Result<std::sync::Arc<dyn eos_github::Transport>, Error> {
+    Ok(std::sync::Arc::new(eos_github::HttpTransport::new()?))
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// The data folder cannot be used (created, read, written).

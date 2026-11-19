@@ -8,7 +8,7 @@ use eos_core::BoxFuture;
 use eos_core::capability::{BuiltinCapability, CapabilityGrants, CapabilitySecrets, Grant};
 use eos_core::store::Store;
 use eos_core::{Clock, Ids, Sleeper};
-use eos_github::{GitHub, HttpTransport, Transport};
+use eos_github::{GitHub, Transport};
 use eos_platform::DataPaths;
 use eos_store_files::capabilities::FsCapabilityFiles;
 
@@ -24,8 +24,9 @@ pub struct CapabilityOptions {
     pub secrets: Option<Arc<dyn CapabilitySecrets>>,
     /// Built-ins beside Eos's own.
     pub builtins: Vec<Arc<dyn BuiltinCapability>>,
-    /// How the GitHub capability reaches GitHub. `None`: the network, and
-    /// nothing off it.
+    /// How the GitHub capability reaches GitHub: a test's own fake. `None`:
+    /// the host's [`Options::github`](crate::Options::github), and nothing
+    /// off the network.
     pub github: Option<Arc<dyn Transport>>,
 }
 
@@ -68,6 +69,8 @@ pub(crate) struct Parts<'a> {
     pub(crate) github_client_id: String,
     /// The app's own Keychain items, as the host hands them in.
     pub(crate) keychain: Option<Arc<dyn CapabilitySecrets>>,
+    /// How the app reaches GitHub, as the host hands it in.
+    pub(crate) github: Option<Arc<dyn Transport>>,
     pub(crate) grants: Arc<LateGrants>,
     pub(crate) options: CapabilityOptions,
 }
@@ -77,12 +80,12 @@ pub(crate) struct Parts<'a> {
 /// every chat and the routines feature's grant to run sessions, and the GitHub built-in (which reaches GitHub only on the
 /// network). No package runner yet.
 pub(crate) fn service(parts: Parts<'_>) -> Result<Arc<CapabilityService>, Error> {
-    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, grants, options } = parts;
+    let Parts { reach, paths, store, clock, ids, sleeper, github_client_id, keychain, github, grants, options } = parts;
     let trash = Arc::new(eos_fs::DiskFileSystem::new(eos_platform::host(), paths.trash_dir()));
     let secrets: Arc<dyn CapabilitySecrets> = options.secrets.unwrap_or_else(|| reach.capabilities(keychain));
     let transport: Arc<dyn Transport> = match options.github {
         Some(transport) => transport,
-        None => reach.github(Arc::new(HttpTransport::new()?)),
+        None => reach.github(github),
     };
     // Off the network its secrets are empty and its requests go nowhere.
     let github: Arc<dyn BuiltinCapability> = Arc::new(GitHub::new(eos_github::Parts {
