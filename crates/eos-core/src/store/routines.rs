@@ -5,6 +5,7 @@ use eos_contracts::{DraftStatus, RoutineKind, RoutineState, VersionAuthor, Versi
 use eos_domain::run_scope::Trust;
 
 use crate::Error;
+use crate::routine::RunRef;
 
 /// A row of `routines`.
 #[derive(Debug, Clone, PartialEq)]
@@ -97,6 +98,10 @@ pub trait RoutineRepo {
     fn list(&self) -> Result<Vec<StoredRoutine>, Error>;
     fn insert_draft(&self, draft: &StoredDraft) -> Result<(), Error>;
     fn draft(&self, routine_id: &str) -> Result<Option<StoredDraft>, Error>;
+    /// Writes the state and why it is paused (none unless paused).
+    fn set_state(&self, id: &str, state: RoutineState, paused_reason: Option<&str>, at: i64) -> Result<(), Error>;
+    /// Makes `version_id` the version the routine runs from.
+    fn set_head(&self, id: &str, version_id: &str, at: i64) -> Result<(), Error>;
 }
 
 pub trait RoutineVersionRepo {
@@ -115,6 +120,10 @@ pub trait RoutineSessionRepo {
     fn find(&self, worker_id: &str) -> Result<Option<StoredRoutineSession>, Error>;
     /// A run's sessions, in the order they were written.
     fn by_run(&self, run_id: &str) -> Result<Vec<StoredRoutineSession>, Error>;
+    /// The run the worker works for; `None` for a worker of no run, the
+    /// architect's included. Its trust is the version's, or untrusted when
+    /// an item of the run is.
+    fn run_of(&self, worker_id: &str) -> Result<Option<RunRef>, Error>;
 }
 
 pub trait RoutineSpendRepo {

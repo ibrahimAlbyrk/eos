@@ -5,6 +5,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use eos_contracts::Rung;
 use eos_core::routine::{Confirmed, RoutineControl, RunLookup, RunRef};
+use eos_core::store::{Outbox, Tx};
 use eos_core::{BoxFuture, Error};
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -85,6 +86,11 @@ impl FakeRoutineControl {
         locked(&self.calls).clone()
     }
 
+    fn answer(&self, routine_id: &str) -> Result<Confirmed, Error> {
+        locked(&self.calls).push(ControlCall::Confirmed(routine_id.to_owned()));
+        self.confirmed.get(routine_id).cloned().ok_or_else(|| Error::not_found("routine", routine_id))
+    }
+
     fn done(&self, call: ControlCall) -> BoxFuture<'_, Result<(), Error>> {
         locked(&self.calls).push(call);
         Box::pin(std::future::ready(Ok(())))
@@ -93,9 +99,11 @@ impl FakeRoutineControl {
 
 impl RoutineControl for FakeRoutineControl {
     fn confirmed<'a>(&'a self, routine_id: &'a str) -> BoxFuture<'a, Result<Confirmed, Error>> {
-        locked(&self.calls).push(ControlCall::Confirmed(routine_id.to_owned()));
-        let confirmed = self.confirmed.get(routine_id).cloned().ok_or_else(|| Error::not_found("routine", routine_id));
-        Box::pin(std::future::ready(confirmed))
+        Box::pin(std::future::ready(self.answer(routine_id)))
+    }
+
+    fn confirmed_in(&self, _tx: &dyn Tx, routine_id: &str) -> Result<Confirmed, Error> {
+        self.answer(routine_id)
     }
 
     fn raise<'a>(&'a self, routine_id: &'a str, rung: Rung) -> BoxFuture<'a, Result<(), Error>> {
@@ -108,6 +116,11 @@ impl RoutineControl for FakeRoutineControl {
 
     fn pause<'a>(&'a self, routine_id: &'a str, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {
         self.done(ControlCall::Pause { routine_id: routine_id.to_owned(), reason: reason.to_owned() })
+    }
+
+    fn pause_in(&self, _tx: &dyn Tx, _out: &mut Outbox, routine_id: &str, reason: &str) -> Result<(), Error> {
+        locked(&self.calls).push(ControlCall::Pause { routine_id: routine_id.to_owned(), reason: reason.to_owned() });
+        Ok(())
     }
 
     fn resume_paused<'a>(&'a self, reason: &'a str) -> BoxFuture<'a, Result<(), Error>> {

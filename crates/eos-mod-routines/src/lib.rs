@@ -16,7 +16,10 @@
 //!
 //! The run engine (`engine`) starts runs ([`RunStarter`]), keeps them in a
 //! queue and takes them out of it as slots free up. Each move of a run is
-//! announced on `run:change`.
+//! announced on `run:change`, and a change in how many runs work or wait on
+//! the user on `runs:active`. The signals' router admits runs through
+//! [`RunIntake`]; other areas find a worker's run through [`RunLookup`] and
+//! change a routine through [`RoutineControl`].
 
 mod engine;
 mod routes;
@@ -24,8 +27,8 @@ mod routes;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
-use eos_contracts::{RoutineChange, RunChange};
-use eos_core::routine::RunStarter;
+use eos_contracts::{RoutineChange, RunChange, RunsActive};
+use eos_core::routine::{RoutineControl, RoutineDirectory, RunIntake, RunLookup, RunStarter};
 use eos_core::store::Store;
 use eos_core::{BoxFuture, Clock, Ids, Sleeper};
 use eos_runtime::bus::{Topic, TopicDecl};
@@ -37,6 +40,7 @@ use crate::engine::Engine;
 
 pub const ROUTINE_CHANGE: Topic<RoutineChange> = Topic::new("routine:change");
 pub const RUN_CHANGE: Topic<RunChange> = Topic::new("run:change");
+pub const RUNS_ACTIVE: Topic<RunsActive> = Topic::new("runs:active");
 
 /// What the module is built from.
 pub struct RoutinesParts {
@@ -90,6 +94,26 @@ impl RoutinesModule {
     pub fn runs(&self) -> Arc<dyn RunStarter> {
         Arc::new(engine::Runs(self.engine.clone()))
     }
+
+    /// Admits and counts triggered runs, inside the signals' own writes.
+    pub fn intake(&self) -> Arc<dyn RunIntake> {
+        Arc::new(engine::Intake(self.engine.clone()))
+    }
+
+    /// What starts each routine's runs.
+    pub fn directory(&self) -> Arc<dyn RoutineDirectory> {
+        Arc::new(engine::Directory(self.engine.clone()))
+    }
+
+    /// Which run a worker works for.
+    pub fn lookup(&self) -> Arc<dyn RunLookup> {
+        Arc::new(engine::Lookup(self.engine.clone()))
+    }
+
+    /// What other areas change of a routine: its Freedom and its state.
+    pub fn control(&self) -> Arc<dyn RoutineControl> {
+        Arc::new(engine::Control(self.engine.clone()))
+    }
 }
 
 impl Module for RoutinesModule {
@@ -98,7 +122,7 @@ impl Module for RoutinesModule {
     }
 
     fn topics(&self) -> Vec<TopicDecl> {
-        vec![ROUTINE_CHANGE.decl(), RUN_CHANGE.decl()]
+        vec![ROUTINE_CHANGE.decl(), RUN_CHANGE.decl(), RUNS_ACTIVE.decl()]
     }
 
     fn routes(&self) -> Vec<RouteDef> {

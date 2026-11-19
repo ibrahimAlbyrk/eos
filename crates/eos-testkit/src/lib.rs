@@ -83,6 +83,7 @@ mod policy;
 mod profile;
 pub mod relay;
 mod routine;
+mod runs;
 mod secrets;
 mod terminal;
 mod tools;
@@ -125,6 +126,7 @@ pub use peer::{InMemoryRelay, RecordedPeerEvents};
 pub use policy::FakePolicyFile;
 pub use profile::FakeProfileRenderer;
 pub use routine::{ControlCall, FakeRoutineControl, FakeRunLookup};
+pub use runs::{FakeRoutineDirectory, FakeRunIntake, FakeRunStarter};
 pub use secrets::FakeCapabilitySecrets;
 pub use terminal::{
     FakeClaudeEnv, FakeClaudeProgram, FakePty, FakeRun, FakeShellCommands, FakeTerminals, FakeTranscripts,

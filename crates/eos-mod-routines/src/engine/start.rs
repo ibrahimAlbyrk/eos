@@ -9,15 +9,14 @@ use eos_contracts::{
     Validate,
 };
 use eos_core::routine::{NewRun, RunCreated, RunOrigin, StartError};
-use eos_core::store::{MANUAL_SCOPE_HASH, ManualSignal, Outbox, RUN_STATE_EVENT, StoredRun, StoredSignalSource, Tx};
+use eos_core::store::{MANUAL_SCOPE_HASH, ManualSignal, Outbox, StoredRun, StoredSignalSource, Tx};
 use eos_core::{Alphabet, Error};
 use eos_domain::routine::item;
 use eos_domain::routine::run::RunState;
 use serde_json::Value;
 
-use super::{Engine, announce};
+use super::{Engine, Queued, queue_run};
 use crate::routes::{readable, showing_version};
-use eos_core::store::RunMove;
 
 /// A start takes at most this many items.
 pub(crate) const ITEMS_MAX: usize = 20;
@@ -93,41 +92,23 @@ fn queue(
     let mut made = Vec::with_capacity(inputs.len());
     for (input, item_key) in inputs.into_iter().zip(keys) {
         let id = ids.run_id();
-        let run = StoredRun {
-            id: id.clone(),
-            routine_id: routine.id.clone(),
-            version_id: None,
-            kind: kind.to_owned(),
-            origin: new.origin.word().to_owned(),
-            origin_ref: new.origin.reference().map(str::to_owned),
-            door: new.door.clone(),
-            input: serde_json::to_string(&input).map_err(|e| Error::storage(e.to_string()))?,
-            item_key: item_key.clone(),
-            state: RunState::Queued,
-            station: None,
-            reason: None,
-            attempt: 1,
-            resumed: 0,
-            not_before: input.at,
-            priority: priority(&new.origin),
-            progress_done: None,
-            progress_total: None,
-            headline: None,
-            outcome: None,
-            cost_usd: 0.0,
-            work_ms: 0,
-            lead_id: None,
-            device: device.to_owned(),
-            remote: false,
-            created_at: now,
-            started_at: None,
-            ended_at: None,
-            updated_at: now,
-        };
-        tx.runs().insert(&run)?;
-        tx.runs().append_event(&id, now, RUN_STATE_EVENT, Some(r#"{"state":"queued"}"#))?;
-        let queued = RunMove { state: RunState::Queued, station: None, reason: None, at: now };
-        announce(out, &id, &routine.id, &queued);
+        queue_run(
+            tx,
+            out,
+            Queued {
+                id: id.clone(),
+                routine_id: &routine.id,
+                kind,
+                origin: new.origin.word(),
+                origin_ref: new.origin.reference().map(str::to_owned),
+                door: new.door.clone(),
+                input: &input,
+                item_key: item_key.clone(),
+                priority: priority(&new.origin),
+                device,
+                now,
+            },
+        )?;
         if matches!(new.origin, RunOrigin::Hand | RunOrigin::Again { .. }) {
             let manual = ManualSignal {
                 source_id: manual_source(tx, ids, now)?,

@@ -4,20 +4,26 @@
 //! announces it on `run:change` from the job's outbox.
 
 mod cancel;
+mod control;
+mod ports;
 mod start;
 mod supervisor;
+
+pub(crate) use control::Control;
+pub(crate) use ports::{Directory, Intake, Lookup};
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use eos_contracts::RunChange;
+use eos_contracts::{RunChange, RunInput, RunsActive};
 use eos_core::routine::RunCreated;
-use eos_core::store::{Outbox, RunMove, Store, StoredRun, Tx};
+use eos_core::store::{Outbox, RUN_STATE_EVENT, RunMove, Store, StoredRun, Tx};
 use eos_core::{Clock, Error, Ids, Sleeper};
+use eos_domain::routine::run::RunState;
 use tokio::sync::Notify;
 use tokio::task::AbortHandle;
 
-use crate::RUN_CHANGE;
+use crate::{RUN_CHANGE, RUNS_ACTIVE};
 
 /// What the engine is built from.
 pub(crate) struct Engine {
@@ -53,9 +59,70 @@ pub(crate) fn move_run(tx: &dyn Tx, out: &mut Outbox, run: &StoredRun, change: R
             change.state.as_str()
         )));
     }
+    let before = tx.runs().active()?;
     let event = tx.runs().move_to(&run.id, &change)?;
     announce(out, &run.id, &run.routine_id, &change);
+    let after = tx.runs().active()?;
+    if after != before {
+        out.push(RUNS_ACTIVE.name(), &RunsActive { count: after.0, needs_user: after.1 });
+    }
     Ok(event)
+}
+
+/// A run about to be queued.
+pub(crate) struct Queued<'a> {
+    pub(crate) id: String,
+    pub(crate) routine_id: &'a str,
+    pub(crate) kind: &'a str,
+    pub(crate) origin: &'a str,
+    pub(crate) origin_ref: Option<String>,
+    pub(crate) door: Option<String>,
+    pub(crate) input: &'a RunInput,
+    pub(crate) item_key: Option<String>,
+    pub(crate) priority: i64,
+    pub(crate) device: &'a str,
+    pub(crate) now: i64,
+}
+
+/// Writes a queued run with the first event of its timeline, and announces
+/// it. A queued run changes nothing `runs:active` counts.
+pub(crate) fn queue_run(tx: &dyn Tx, out: &mut Outbox, run: Queued<'_>) -> Result<(), Error> {
+    let row = StoredRun {
+        id: run.id.clone(),
+        routine_id: run.routine_id.to_owned(),
+        version_id: None,
+        kind: run.kind.to_owned(),
+        origin: run.origin.to_owned(),
+        origin_ref: run.origin_ref,
+        door: run.door,
+        input: serde_json::to_string(run.input).map_err(|e| Error::storage(e.to_string()))?,
+        item_key: run.item_key,
+        state: RunState::Queued,
+        station: None,
+        reason: None,
+        attempt: 1,
+        resumed: 0,
+        not_before: run.input.at,
+        priority: run.priority,
+        progress_done: None,
+        progress_total: None,
+        headline: None,
+        outcome: None,
+        cost_usd: 0.0,
+        work_ms: 0,
+        lead_id: None,
+        device: run.device.to_owned(),
+        remote: false,
+        created_at: run.now,
+        started_at: None,
+        ended_at: None,
+        updated_at: run.now,
+    };
+    tx.runs().insert(&row)?;
+    tx.runs().append_event(&run.id, run.now, RUN_STATE_EVENT, Some(r#"{"state":"queued"}"#))?;
+    let queued = RunMove { state: RunState::Queued, station: None, reason: None, at: run.now };
+    announce(out, &run.id, run.routine_id, &queued);
+    Ok(())
 }
 
 pub(crate) fn announce(out: &mut Outbox, run_id: &str, routine_id: &str, change: &RunMove) {
