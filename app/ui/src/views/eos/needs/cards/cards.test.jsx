@@ -1,0 +1,189 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ROUTES } from "../../../../api/routes.js";
+import { fixtureTransport, setEosTransport } from "../../../../state/eos/transport.js";
+import { _resetInbox, loadInboxItem, refreshInbox, useInbox } from "../../../../state/eos/inboxStore.js";
+import { EosMain } from "../../EosMain.jsx";
+import { _resetEosNav, eosLocation, openLocation } from "../../nav/eosNav.js";
+import { actionsOf } from "./index.js";
+import inbox from "../../gallery/sample/inbox.json";
+import inboxItems from "../../gallery/sample/inbox-items.json";
+
+vi.mock("../../../../lib/markdown.js", () => ({ renderMarkdown: (text) => `<md>${text}</md>` }));
+vi.mock("../../../../keymap/useKeymap.js", () => ({ useGlobalKeymap: () => {}, useKeybinding: () => {} }));
+
+const byKind = Object.fromEntries(inboxItems.map((d) => [d.item.kind, d]));
+const reads = {
+  [ROUTES.inbox]: inbox,
+  ...Object.fromEntries(inboxItems.map((d) => [ROUTES.inboxItem(d.item.id), d])),
+};
+
+function stubStorage() {
+  const data = new Map();
+  return { getItem: (k) => (data.has(k) ? data.get(k) : null), setItem: (k, v) => data.set(k, String(v)) };
+}
+
+const ok = async () => ({ ok: true, status: 200, body: {} });
+
+function recording(sent = ok) {
+  const fixture = fixtureTransport(reads);
+  return { get: vi.fn(fixture.get), send: vi.fn(sent) };
+}
+
+// The item of `kind` drawn on its screen.
+async function screen(kind, detail = byKind[kind]) {
+  setEosTransport(fixtureTransport({ ...reads, [ROUTES.inboxItem(detail.item.id)]: detail }));
+  await refreshInbox();
+  await loadInboxItem(detail.item.id);
+  openLocation(`eos:/needs/${encodeURIComponent(detail.item.id)}`);
+  return renderToStaticMarkup(<EosMain />);
+}
+
+const buttons = (html) => [...html.matchAll(/<div class="eos-actions eos-needs-item__actions">(.*?)<\/div>/g)][0]?.[1]
+  .match(/<button[^>]*>([^<]*)/g).map((b) => b.replace(/<button[^>]*>/, ""));
+
+// Runs the action labelled `label` the way its button does.
+async function act(kind, label, values = {}) {
+  const action = actionsOf(byKind[kind]).find((a) => a.label === label);
+  return action.run(byKind[kind], values);
+}
+
+function current() {
+  let read;
+  function Probe() {
+    read = useInbox();
+    return null;
+  }
+  renderToStaticMarkup(<Probe />);
+  return read;
+}
+
+beforeEach(() => {
+  _resetInbox();
+  _resetEosNav();
+  globalThis.localStorage = stubStorage();
+});
+afterEach(() => {
+  delete globalThis.localStorage;
+  setEosTransport(null);
+});
+
+describe("a run's permission ask", () => {
+  it("names the tool, what it counts as and its target, with Allow once and Deny only", async () => {
+    const html = await screen("permission");
+    expect(html).toContain("A run wants to use <strong>Bash</strong>.");
+    expect(html).toContain('<p class="eos-needs-card__class">Runs a command on this Mac</p>');
+    expect(html).toContain('<pre class="eos-code eos-needs-card__target">git push origin review/470</pre>');
+    expect(buttons(html)).toEqual(["Allow once", "Deny"]);
+    expect(html).not.toContain("Always");
+  });
+
+  it("is answered through the recorded decision route, and leaves the list", async () => {
+    await screen("permission");
+    const t = recording();
+    setEosTransport(t);
+    expect(await act("permission", "Allow once")).toBe(true);
+    expect(await act("permission", "Deny")).toBe(true);
+    expect(t.send.mock.calls).toEqual([
+      ["POST", ROUTES.pendingDecision("pa-7f3k1m9q"), { decision: "allow" }],
+      ["POST", ROUTES.pendingDecision("pa-7f3k1m9q"), { decision: "deny", reason: "denied in Needs you" }],
+    ]);
+    expect(current().list.items.map((i) => i.id)).not.toContain("perm:pa-7f3k1m9q");
+    expect(current().list.counts.open).toBe(inbox.counts.open - 1);
+  });
+});
+
+describe("a run's question", () => {
+  it("asks each question with a text answer, the run's options filling it in", async () => {
+    const html = await screen("question");
+    expect(html).toContain('<label for="eos-q-0" class="eos-needs-question__text">Which branch should the review compare against?</label>');
+    expect(html).toContain('<button type="button" class="eos-chip" aria-pressed="false">release/2.4</button>');
+    expect(html).toContain('<textarea id="eos-q-0" class="eos-needs-question__answer" rows="2"></textarea>');
+    expect(html).toContain('<button type="button" class="eos-btn eos-btn--primary" disabled="">Send answers');
+  });
+
+  it("sends the answers by question with the item's rev", async () => {
+    await screen("question");
+    const t = recording();
+    setEosTransport(t);
+    await act("question", "Send answers", { "Which branch should the review compare against?": "release/2.4" });
+    expect(t.send.mock.calls).toEqual([[
+      "POST", ROUTES.inboxAnswer(byKind.question.item.id),
+      { rev: 1, answer: { kind: "question", answers: { "Which branch should the review compare against?": "release/2.4" } } },
+    ]]);
+  });
+});
+
+describe("the other cards", () => {
+  it("offer each kind's declared actions, then Later and Discard", async () => {
+    const expected = {
+      run_start: ["Run", "Skip", "Later", "Discard"],
+      routine_alert: ["Resume", "Keep paused", "Open", "Later", "Discard"],
+      confirm_change: ["Confirm", "Reject", "Later", "Discard"],
+      delivery_problem: ["Try again", "I sent it myself", "Don&#x27;t send", "Later", "Discard"],
+      about_you: ["Yes, keep it", "No"],
+    };
+    for (const [kind, labels] of Object.entries(expected)) expect(buttons(await screen(kind)), kind).toEqual(labels);
+  });
+
+  it("say what the item is about in words", async () => {
+    expect(await screen("confirm_change")).toContain("Post reviews to acme/game as you, instead of showing them only here.");
+    const problem = await screen("delivery_problem");
+    expect(problem).toContain("GitHub says the pull request is not there any more.");
+    expect(problem).toContain('<p class="eos-needs-card__class">What it names is not there any more.</p>');
+    const guess = await screen("about_you");
+    expect(guess).toContain("You prefer short reviews with the blocking findings first.");
+    expect(guess).toContain("Is this right about you?");
+  });
+
+  it("show a notice's one action under its own name, beside Dismiss", async () => {
+    const notice = { ...byKind.notice, item: { ...byKind.notice.item, state: "open" } };
+    expect(buttons(await screen("notice", notice))).toEqual(["Keep the Mac awake for schedules", "Dismiss", "Later", "Discard"]);
+    expect(buttons(await screen("notice", { ...notice, payload: {} }))).toEqual(["Dismiss", "Later", "Discard"]);
+  });
+
+  it("answer through the inbox with the kind and choice", async () => {
+    const t = recording();
+    setEosTransport(t);
+    await refreshInbox();
+    await act("run_start", "Run");
+    await act("routine_alert", "Keep paused");
+    await act("confirm_change", "Reject");
+    await act("delivery_problem", "I sent it myself");
+    await act("notice", "Dismiss");
+    const answers = t.send.mock.calls.map(([, , body]) => body.answer);
+    expect(answers).toEqual([
+      { kind: "run_start", choice: "run" },
+      { kind: "routine_alert", choice: "keep_paused" },
+      { kind: "confirm_change", choice: "reject" },
+      { kind: "delivery_problem", choice: "mark_sent" },
+      { kind: "notice", choice: "dismiss" },
+    ]);
+    expect(t.send.mock.calls.every(([method, path]) => method === "POST" && path.endsWith("/answer"))).toBe(true);
+  });
+
+  it("open an alert's routine without answering it", async () => {
+    const t = recording();
+    setEosTransport(t);
+    expect(await act("routine_alert", "Open")).toBe(false);
+    expect(eosLocation()).toBe("eos:/routines/rt-2x8k5n1q6w0r");
+    expect(t.send).not.toHaveBeenCalled();
+  });
+
+  it("keep or dismiss a suggestion through its recorded routes", async () => {
+    await screen("about_you");
+    const t = recording();
+    setEosTransport(t);
+    await act("about_you", "Yes, keep it");
+    await act("about_you", "No");
+    expect(t.send.mock.calls.map(([, path]) => path)).toEqual([ROUTES.userMemoryApprove("um-2p6o0i4u8y"), ROUTES.userMemoryDismiss("um-2p6o0i4u8y")]);
+  });
+
+  it("show a kind with no card as its title and summary, with Open and Later", async () => {
+    const offer = { ...byKind.confirm_change, item: { ...byKind.confirm_change.item, id: "ib-offer0000001", kind: "freedom_offer", title: "Let PR Review send on its own?", summary: "Nine of the last ten went out unedited." } };
+    const html = await screen("freedom_offer", offer);
+    expect(html).toContain('<h1 class="eos-title">Let PR Review send on its own?</h1>');
+    expect(html).toContain("Nine of the last ten went out unedited.");
+    expect(buttons(html)).toEqual(["Open", "Later", "Discard"]);
+  });
+});
