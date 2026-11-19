@@ -11,7 +11,7 @@ use eos_capabilities::CapabilityService;
 use eos_core::capability::CapabilityRegistry;
 use eos_core::{Clock, Sleeper};
 use eos_domain::capability::health::HealthState;
-use tokio::task::AbortHandle;
+use tokio::task::JoinHandle;
 
 /// How often a capability is checked.
 pub const CHECK_EVERY_MS: i64 = 60 * 60 * 1000;
@@ -32,20 +32,25 @@ fn checked(state: HealthState) -> bool {
 /// The running loop, from the app's ready to its stop.
 #[derive(Debug, Default)]
 pub(crate) struct Ticker {
-    task: Mutex<Option<AbortHandle>>,
+    task: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Ticker {
     pub(crate) fn start(&self, service: Arc<CapabilityService>, clock: Arc<dyn Clock>, sleeper: Arc<dyn Sleeper>) {
-        let task = tokio::spawn(run(service, clock, sleeper)).abort_handle();
+        let task = tokio::spawn(run(service, clock, sleeper));
         if let Some(previous) = self.task.lock().unwrap_or_else(|p| p.into_inner()).replace(task) {
             previous.abort();
         }
     }
 
-    pub(crate) fn stop(&self) {
-        if let Some(task) = self.task.lock().unwrap_or_else(|p| p.into_inner()).take() {
+    /// Ends the loop and waits until it let go of the service: an aborted
+    /// task drops what it holds only at its next poll, which may come after
+    /// the app has shut down.
+    pub(crate) async fn stop(&self) {
+        let task = self.task.lock().unwrap_or_else(|p| p.into_inner()).take();
+        if let Some(task) = task {
             task.abort();
+            let _ = task.await;
         }
     }
 }

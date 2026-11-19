@@ -98,8 +98,7 @@ impl Module for CapabilitiesModule {
     }
 
     fn stop(&self) -> BoxFuture<'_, ()> {
-        self.ticker.stop();
         self.sign_ins.stop();
-        Box::pin(std::future::ready(()))
+        Box::pin(self.ticker.stop())
     }
 }
