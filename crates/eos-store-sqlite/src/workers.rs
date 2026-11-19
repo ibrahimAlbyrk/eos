@@ -9,6 +9,11 @@ use eos_kit_sqlite::rusqlite::{Row, params};
 
 use crate::tx::{SqliteTx, failed};
 
+/// The ids of every routine session: the workers in `routine_sessions` and,
+/// down the parent links, every worker they started.
+const IN_ROUTINE: &str = "WITH RECURSIVE tree(id) AS (SELECT worker_id FROM routine_sessions \
+    UNION SELECT workers.id FROM workers JOIN tree ON workers.parent_id = tree.id) SELECT id FROM tree";
+
 /// Every column a [`Worker`] holds, in the order [`worker`] reads them. Named
 /// one by one: the table grew by `ALTER TABLE`, so its own column order
 /// differs between a migrated file and nothing else should depend on it.
@@ -16,11 +21,6 @@ use crate::tx::{SqliteTx, failed};
 /// The session a resume continues is the Claude Code one the TypeScript app
 /// resumes the chat by (`workers.session_id`, never written here), else this
 /// app's own (`engine_sessions`): a chat begun here has only that one.
-/// The ids of every routine session: the workers in `routine_sessions` and,
-/// down the parent links, every worker they started.
-const IN_ROUTINE: &str = "WITH RECURSIVE tree(id) AS (SELECT worker_id FROM routine_sessions \
-    UNION SELECT workers.id FROM workers JOIN tree ON workers.parent_id = tree.id) SELECT id FROM tree";
-
 const COLUMNS: &str = "id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, \
     ended_at, exit_code, parent_id, model, tokens_in, tokens_out, tokens_cache_read, tokens_cache_create, \
     tokens_cache_create_1h, cost_usd, last_context_tokens, tasks, is_orchestrator, tool_calls, permission_mode, \
