@@ -248,3 +248,21 @@ async fn a_head_made_by_a_newer_eos_is_listed_and_read_but_never_started_run_or_
         routes.call(Method::Put, Caller::DASHBOARD, &format!("/api/routines/{routine}/blueprint"), Some(keep)).await
     ));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_hand_save_after_the_architects_draft_is_the_version_that_starts() {
+    let routes = Routes::new();
+    let (routine, architect) = routes.made("Review my pull requests").await;
+    let drafted = routes.propose(&architect, blueprint(1)).await;
+    let mut edited = blueprint(1);
+    edited["summary"] = json!("Reviews, by hand.");
+    let body = json!({"baseVersionId": drafted, "blueprint": edited});
+    let path = format!("/api/routines/{routine}/blueprint");
+    let (status, saved) = routes.call(Method::Put, Caller::DASHBOARD, &path, Some(body)).await;
+    assert_eq!(status, 200, "{saved}");
+    let by_hand = saved["versionId"].as_str().expect("a version").to_owned();
+
+    let (status, row) = routes.post(&format!("/api/routines/{routine}/start"), json!({"withoutTrial": true})).await;
+    assert_eq!(status, 200, "{row}");
+    assert_eq!(routes.routine_head(&routine).as_deref(), Some(by_hand.as_str()), "the version the editor shows");
+}

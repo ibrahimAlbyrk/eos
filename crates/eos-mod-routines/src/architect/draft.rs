@@ -160,18 +160,17 @@ fn tried(tx: &dyn Tx, routine_id: &str, version_id: &str) -> Result<bool, Error>
         .any(|run| run.kind == "trial" && run.version_id.as_deref() == Some(version_id) && run.state == RunState::Done))
 }
 
-/// The version a start keeps: the architect's draft, or for a routine made
-/// by hand, its newest draft version.
+/// The version a start keeps: for a routine still being made, its newest
+/// draft version, the one the editor shows, whether the architect or the
+/// user wrote it; for a started routine, the architect's draft of a change.
 fn to_start(tx: &dyn Tx, routine_id: &str, state: RoutineState) -> Result<Option<String>, Error> {
+    if state == RoutineState::Draft {
+        let versions = tx.routine_versions().list(routine_id)?;
+        let newest = versions.into_iter().rev().find(|version| version.status == VersionStatus::Draft);
+        return Ok(newest.map(|version| version.id));
+    }
     let draft = tx.routines().draft(routine_id)?.filter(|draft| draft.status != DraftStatus::Abandoned);
-    if let Some(version_id) = draft.and_then(|draft| draft.draft_version_id) {
-        return Ok(Some(version_id));
-    }
-    if state != RoutineState::Draft {
-        return Ok(None);
-    }
-    let versions = tx.routine_versions().list(routine_id)?;
-    Ok(versions.into_iter().rev().find(|version| version.status == VersionStatus::Draft).map(|version| version.id))
+    Ok(draft.and_then(|draft| draft.draft_version_id))
 }
 
 /// `POST /api/routines/:id/start`: the draft version becomes kept and the
